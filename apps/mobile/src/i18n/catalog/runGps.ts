@@ -7,9 +7,39 @@
  * GRYD, GRYD VERIFIED, GPS TRUST, KM, iPhone, noms de constructeurs.
  * §A : libellés de boutons/chips COURTS dans les 5 langues (jamais tronqués).
  */
-import { defineCatalog } from '../types';
+import type { Activity } from '@klaim/shared';
+import { defineCatalog, type Entry } from '../types';
 
 export const C = defineCatalog({
+  // ── DISCIPLINE DE LA SORTIE (E14, vélo réel 26/07/2026) ──────────────────
+  // Noms EN MINUSCULE et volontairement : ils ne s'affichent jamais seuls, ils
+  // s'insèrent dans des phrases (« Sortie enregistrée comme vélo », « 3,4 km
+  // retrouvés en course à pied »). Le libellé VISIBLE de la pill, lui, reste le
+  // couple invariant RUN / BIKE de `ui/activityLens` — le même mot que le
+  // commutateur de la Carte, pour que le joueur reconnaisse ce qu'il a choisi.
+  activityNameRun: {
+    fr: 'course à pied',
+    en: 'running',
+    es: 'carrera a pie',
+    de: 'Laufen',
+    pt: 'corrida',
+  },
+  activityNameBike: {
+    fr: 'vélo',
+    en: 'cycling',
+    es: 'bici',
+    de: 'Radfahren',
+    pt: 'bicicleta',
+  },
+  /** Lu à voix haute sur la pill permanente de l'écran live. */
+  a11yLiveActivity: {
+    fr: 'Sortie enregistrée comme {name}',
+    en: 'Outing recorded as {name}',
+    es: 'Salida registrada como {name}',
+    de: 'Aktivität aufgezeichnet als {name}',
+    pt: 'Atividade registrada como {name}',
+  },
+
   // ── Pill d'état principale (statusLabel) ─────────────────────────────────
   statusPaused: {
     fr: 'EN PAUSE',
@@ -58,6 +88,27 @@ export const C = defineCatalog({
     de: 'IM LAUF',
     pt: 'EM CORRIDA',
   },
+  /**
+   * Les deux états ci-dessous ne sont PAS une coquetterie de traduction : sur
+   * une sortie vélo, « EN COURSE » / « RUNNING » est littéralement faux, et un
+   * écran qui nomme mal ce qu'il enregistre est la version la plus discrète du
+   * mensonge que la charte interdit. Les autres états (EN PAUSE, RECHERCHE
+   * GPS…) sont déjà neutres et restent partagés.
+   */
+  statusRidingBike: {
+    fr: 'EN SORTIE',
+    en: 'RIDING',
+    es: 'EN RUTA',
+    de: 'UNTERWEGS',
+    pt: 'EM PERCURSO',
+  },
+  statusFinishedBike: {
+    fr: 'SORTIE TERMINÉE',
+    en: 'RIDE FINISHED',
+    es: 'SALIDA TERMINADA',
+    de: 'FAHRT BEENDET',
+    pt: 'PERCURSO CONCLUÍDO',
+  },
 
   // ── Pills secondaires du haut ────────────────────────────────────────────
   statsOnlyMode: {
@@ -73,6 +124,20 @@ export const C = defineCatalog({
     es: 'Carrera registrada con la app abierta.',
     de: 'Lauf wird nur bei geöffneter App erfasst.',
     pt: 'Corrida registrada com o app aberto.',
+  },
+  /**
+   * La même limite, dite au cycliste. Cette phrase s'affiche pendant TOUTE la
+   * sortie dès que la permission « Toujours » manque : c'est, en durée d'écran,
+   * le texte le plus lu de la course — et il appelait « Course » ce qu'un vélo
+   * enregistre. Le mot « Sortie » n'est pas un synonyme poli : c'est le mot que
+   * la pill d'état (`statusRidingBike`) et le Résultat emploient déjà.
+   */
+  foregroundOnlyBike: {
+    fr: 'Sortie enregistrée quand l’app est ouverte.',
+    en: 'Ride recorded while the app is open.',
+    es: 'Salida registrada con la app abierta.',
+    de: 'Fahrt wird nur bei geöffneter App erfasst.',
+    pt: 'Percurso registrado com o app aberto.',
   },
   /**
    * Navigateur : la position est RÉELLE, mais un onglet caché est suspendu ou
@@ -166,6 +231,38 @@ export const C = defineCatalog({
     de: 'PACE /KM',
     pt: 'PACE /KM',
   },
+  /**
+   * LA 3ᵉ MÉTRIQUE CHANGE DE GRANDEUR À VÉLO — et elle doit en changer ICI, pas
+   * seulement à l'arrivée. Le Résultat rend déjà une VITESSE au cycliste
+   * (`features/run/effortRate.ts`) : laisser le bandeau live en min/km lui
+   * faisait lire son effort dans deux unités pour la même sortie, la seconde
+   * démentant la première trente secondes après la ligne d'arrivée.
+   *
+   * Le libellé ne porte PAS son unité (contrairement à « ALLURE /KM ») : « KM/H »
+   * est rendu à côté du chiffre, exactement comme le « KM » de la distance.
+   * Raison §A9 : une colonne du bandeau fait ~1/3 de la largeur, et
+   * « VELOCIDADE KM/H » y serait tronqué par « … » en portugais.
+   */
+  speedLabel: {
+    fr: 'VITESSE',
+    en: 'SPEED',
+    es: 'VELOCIDAD',
+    de: 'TEMPO',
+    pt: 'VELOCIDADE',
+  },
+  /**
+   * Lu à voix haute à la place du tiret, tant qu'aucune allure n'a été mesurée.
+   * Formulé SANS accord (« pas encore de mesure » plutôt que « non mesurée ») :
+   * la même phrase sert l'allure et la vitesse, dont les genres divergent selon
+   * les langues (es. « el ritmo » / « la velocidad »).
+   */
+  rateNotMeasured: {
+    fr: 'Pas encore de mesure',
+    en: 'No measurement yet',
+    es: 'Todavía sin medición',
+    de: 'Noch keine Messung',
+    pt: 'Ainda sem medição',
+  },
   timeLabel: {
     fr: 'TEMPS',
     en: 'TIME',
@@ -217,6 +314,28 @@ export const C = defineCatalog({
     de: 'Lauf pausieren',
     pt: 'Pausar a corrida',
   },
+  /**
+   * ─── LES QUATRE LIBELLÉS LUS À VOIX HAUTE (E14, 26/07/2026) ───────────────
+   * Les libellés VISIBLES de ces mêmes contrôles sont déjà neutres — « PAUSE »,
+   * « REPRENDRE », « TERMINER » ne nomment aucune discipline, et n'ont donc
+   * AUCUN twin. C'est précisément ce qui rendait le défaut invisible : seul un
+   * cycliste utilisant VoiceOver entendait « Mettre la course en pause » sur sa
+   * sortie vélo, et personne d'autre dans l'app ne pouvait s'en apercevoir.
+   */
+  a11yResumeRunBike: {
+    fr: 'Reprendre la sortie',
+    en: 'Resume the ride',
+    es: 'Reanudar la salida',
+    de: 'Fahrt fortsetzen',
+    pt: 'Retomar o percurso',
+  },
+  a11yPauseRunBike: {
+    fr: 'Mettre la sortie en pause',
+    en: 'Pause the ride',
+    es: 'Pausar la salida',
+    de: 'Fahrt pausieren',
+    pt: 'Pausar o percurso',
+  },
   a11yGpsHelp: {
     fr: 'Aide GPS : courir écran éteint',
     en: 'GPS help: run with the screen off',
@@ -224,12 +343,26 @@ export const C = defineCatalog({
     de: 'GPS-Hilfe: mit Bildschirm aus laufen',
     pt: 'Ajuda GPS: correr com a tela desligada',
   },
+  a11yGpsHelpBike: {
+    fr: 'Aide GPS : rouler écran éteint',
+    en: 'GPS help: ride with the screen off',
+    es: 'Ayuda GPS: pedalear con la pantalla apagada',
+    de: 'GPS-Hilfe: mit Bildschirm aus fahren',
+    pt: 'Ajuda GPS: pedalar com a tela desligada',
+  },
   a11yLiveMap: {
     fr: 'Carte de ta course, centrée sur toi',
     en: 'Map of your run, centred on you',
     es: 'Mapa de tu carrera, centrado en ti',
     de: 'Karte deines Laufs, auf dich zentriert',
     pt: 'Mapa da sua corrida, centrado em você',
+  },
+  a11yLiveMapBike: {
+    fr: 'Carte de ta sortie, centrée sur toi',
+    en: 'Map of your ride, centred on you',
+    es: 'Mapa de tu salida, centrado en ti',
+    de: 'Karte deiner Fahrt, auf dich zentriert',
+    pt: 'Mapa do seu percurso, centrado em você',
   },
 
   // ── E07 : verrou des contrôles (effet RÉEL — sinon il ne serait pas peint) ──
@@ -294,12 +427,28 @@ export const C = defineCatalog({
     de: 'Runde in diesem Lauf geschlossen',
     pt: 'Circuito fechado nesta corrida',
   },
+  /** « BOUCLE FERMÉE » (le titre visible) est déjà neutre et n'a pas de twin —
+   *  seule cette version lue nommait la discipline. */
+  a11yClosureBadgeBike: {
+    fr: 'Boucle fermée pendant cette sortie',
+    en: 'Loop closed during this ride',
+    es: 'Bucle cerrado en esta salida',
+    de: 'Runde bei dieser Fahrt geschlossen',
+    pt: 'Circuito fechado neste percurso',
+  },
   a11yFinishRun: {
     fr: 'Terminer la course (maintenir)',
     en: 'Finish the run (hold)',
     es: 'Terminar la carrera (mantén pulsado)',
     de: 'Lauf beenden (gedrückt halten)',
     pt: 'Terminar a corrida (segure)',
+  },
+  a11yFinishRunBike: {
+    fr: 'Terminer la sortie (maintenir)',
+    en: 'Finish the ride (hold)',
+    es: 'Terminar la salida (mantén pulsado)',
+    de: 'Fahrt beenden (gedrückt halten)',
+    pt: 'Terminar o percurso (segure)',
   },
 
   // ── Pill signal GPS (informatif, jamais bloquant, anti-shame) ────────────
@@ -310,6 +459,16 @@ export const C = defineCatalog({
     de: 'GPS aus — Standort in den Einstellungen aktivieren',
     pt: 'GPS desligado — reative a localização em Ajustes',
   },
+  /**
+   * ⚠️ « läuft weiter » EST UN FAUX AMI, ET IL RESTE (26/07/2026).
+   *
+   * Le sujet de ce verbe n'est pas le joueur : c'est L'ENREGISTREMENT qui
+   * continue (« läuft » = fonctionne, tourne). La phrase ne demande donc rien à
+   * personne et ne nomme aucune discipline — la remplacer par un neutre
+   * fabriqué serait retoucher un texte juste. Les autres faux amis allemands du
+   * catalogue obéissent à la même règle : « läuft ab » (expirer), « Lauf-Zeit »
+   * n'existe pas ici, et seul un IMPÉRATIF adressé au joueur est fautif.
+   */
   signalLost: {
     fr: 'Signal perdu — on continue, rien n’est compté à tort',
     en: 'Signal lost — still tracking, nothing counted wrongly',
@@ -317,11 +476,20 @@ export const C = defineCatalog({
     de: 'Signal verloren — läuft weiter, nichts wird falsch gezählt',
     pt: 'Sinal perdido — seguimos, nada é contado errado',
   },
+  /**
+   * FUITE COLMATÉE (26/07/2026) — l'allemand disait « lauf weiter », impératif
+   * de `laufen` : « COURS ». Là où fr/en/es/pt encouragent sans nommer d'effort
+   * (continue / keep going / sigue / continue), la pill ordonnait de COURIR à
+   * un cycliste dont le GPS faiblit — sur l'écran qu'il regarde toute sa
+   * sortie. Une seule langue sur cinq était fautive : on la neutralise ELLE,
+   * on ne fabrique pas quatre jumeaux identiques aux quatre déjà justes.
+   * « mach weiter » = continue, sans discipline.
+   */
   signalWeak: {
     fr: 'GPS faible — continue, le signal revient',
     en: 'Weak GPS — keep going, the signal will return',
     es: 'GPS débil — sigue, la señal vuelve',
-    de: 'GPS schwach — lauf weiter, das Signal kommt zurück',
+    de: 'GPS schwach — mach weiter, das Signal kommt zurück',
     pt: 'GPS fraco — continue, o sinal volta',
   },
 
@@ -377,6 +545,26 @@ export const C = defineCatalog({
     de: 'Erlaube Standort im Hintergrund, damit dein Lauf bei gesperrtem Bildschirm weiterläuft.',
     pt: 'Permita a localização em segundo plano para sua corrida continuar com a tela bloqueada.',
   },
+  /**
+   * Le VERBE change, pas seulement le nom : on ne « court » pas à vélo. Ce
+   * titre est partagé par la carte de rationale (pendant la sortie) et par la
+   * feuille d'aide par constructeur — les deux la rendent sur une sortie qui
+   * peut être un vélo, donc les deux lisent la même table.
+   */
+  bgTitleBike: {
+    fr: 'ROULER ÉCRAN ÉTEINT',
+    en: 'RIDE SCREEN OFF',
+    es: 'PEDALEAR SIN PANTALLA',
+    de: 'FAHREN MIT BILDSCHIRM AUS',
+    pt: 'PEDALAR COM TELA DESLIGADA',
+  },
+  bgTextBike: {
+    fr: 'Autorise la position en arrière-plan pour que ta sortie continue écran verrouillé.',
+    en: 'Allow background location so your ride keeps going with the screen locked.',
+    es: 'Permite la ubicación en segundo plano para que tu salida siga con la pantalla bloqueada.',
+    de: 'Erlaube Standort im Hintergrund, damit deine Fahrt bei gesperrtem Bildschirm weiterläuft.',
+    pt: 'Permita a localização em segundo plano para seu percurso continuar com a tela bloqueada.',
+  },
   btnAllow: {
     fr: 'AUTORISER',
     en: 'ALLOW',
@@ -414,12 +602,54 @@ export const C = defineCatalog({
     de: 'UNTERBROCHENER LAUF GEFUNDEN',
     pt: 'CORRIDA INTERROMPIDA RECUPERADA',
   },
+  /**
+   * LA BRANCHE FUSIONNABLE — c'est-à-dire EXACTEMENT le cas du cycliste qui
+   * retrouve SA propre sortie. Elle affichait « COURSE INTERROMPUE RETROUVÉE »
+   * alors que la branche non fusionnable (juste dessous) avait déjà été
+   * neutralisée : le passage à deux disciplines avait été fait à moitié.
+   *
+   * Le titre NOMME ici la discipline (« À VÉLO ») au lieu de se contenter du
+   * neutre : dans cette branche elle est connue avec certitude — la sortie
+   * retrouvée est de la MÊME discipline que celle qui vient de partir — et le
+   * corps du message, lui, ne la répète pas.
+   */
+  restoreTitleBike: {
+    fr: 'SORTIE À VÉLO INTERROMPUE RETROUVÉE',
+    en: 'INTERRUPTED RIDE RECOVERED',
+    es: 'SALIDA EN BICI INTERRUMPIDA RECUPERADA',
+    de: 'UNTERBROCHENE FAHRT GEFUNDEN',
+    pt: 'PERCURSO INTERROMPIDO RECUPERADO',
+  },
   restoreQuestion: {
     fr: '{distance} — reprendre ou enregistrer telle quelle ?',
     en: '{distance} — resume or save as is?',
     es: '{distance} — ¿reanudar o guardar tal cual?',
     de: '{distance} — fortsetzen oder so speichern?',
     pt: '{distance} — retomar ou salvar como está?',
+  },
+  /**
+   * DEUX MONDES NE FUSIONNENT PAS (E14, séparation stricte). La sortie
+   * interrompue n'est pas de la même discipline que celle qui vient de partir :
+   * « Reprendre » fusionnerait des kilomètres de course dans une sortie vélo
+   * (ou l'inverse). L'action est RETIRÉE — jamais peinte pour échouer — et on
+   * DIT pourquoi, sinon un bouton disparu se lit comme un bug. Rien n'est
+   * perdu : la sortie part telle quelle, dans SON monde.
+   * Titre volontairement NEUTRE : « COURSE INTERROMPUE » serait faux pour une
+   * sortie vélo retrouvée.
+   */
+  restoreTitleOtherActivity: {
+    fr: 'SORTIE INTERROMPUE RETROUVÉE',
+    en: 'INTERRUPTED OUTING RECOVERED',
+    es: 'SALIDA INTERRUMPIDA RECUPERADA',
+    de: 'UNTERBROCHENE AKTIVITÄT GEFUNDEN',
+    pt: 'ATIVIDADE INTERROMPIDA RECUPERADA',
+  },
+  restoreOtherActivityBody: {
+    fr: '{distance} en {name}. Une sortie d’une autre discipline ne se fusionne pas avec celle-ci — enregistre-la telle quelle.',
+    en: '{distance} of {name}. An outing from another discipline cannot be merged into this one — save it as is.',
+    es: '{distance} de {name}. Una salida de otra disciplina no se fusiona con esta: guárdala tal cual.',
+    de: '{distance} beim {name}. Eine Aktivität einer anderen Disziplin lässt sich nicht mit dieser zusammenführen — speichere sie unverändert.',
+    pt: '{distance} de {name}. Uma atividade de outra modalidade não se funde com esta — salve-a como está.',
   },
   btnResume: {
     fr: 'REPRENDRE',
@@ -435,6 +665,13 @@ export const C = defineCatalog({
     de: 'Unterbrochenen Lauf fortsetzen',
     pt: 'Retomar a corrida interrompida',
   },
+  a11yResumeInterruptedBike: {
+    fr: 'Reprendre la sortie interrompue',
+    en: 'Resume the interrupted ride',
+    es: 'Reanudar la salida interrumpida',
+    de: 'Unterbrochene Fahrt fortsetzen',
+    pt: 'Retomar o percurso interrompido',
+  },
   btnSave: {
     fr: 'ENREGISTRER',
     en: 'SAVE',
@@ -448,6 +685,19 @@ export const C = defineCatalog({
     es: 'Guardar la carrera interrumpida tal cual',
     de: 'Unterbrochenen Lauf unverändert speichern',
     pt: 'Salvar a corrida interrompida como está',
+  },
+  /**
+   * Rendu dans les DEUX branches de la carte de reprise — y compris la non
+   * fusionnable, où la discipline de la sortie retrouvée est connue elle aussi
+   * (elle est justement ce qui interdit la fusion). Le twin suit donc la
+   * discipline de la sortie RETROUVÉE, jamais celle qui vient de démarrer.
+   */
+  a11ySaveInterruptedBike: {
+    fr: 'Enregistrer la sortie interrompue telle quelle',
+    en: 'Save the interrupted ride as is',
+    es: 'Guardar la salida interrumpida tal cual',
+    de: 'Unterbrochene Fahrt unverändert speichern',
+    pt: 'Salvar o percurso interrompido como está',
   },
 
   // ── Sheet « Courir écran éteint » ────────────────────────────────────────
@@ -618,3 +868,99 @@ export const C = defineCatalog({
     pt: 'Ative “Localização Exata” (senão o GPS fica impreciso de propósito).',
   },
 });
+
+/**
+ * NOM DE LA DISCIPLINE, indexé par `Activity` — source UNIQUE pour tous les
+ * écrans du départ et de la course (préflight E06, pill live E07, carte de
+ * reprise). Le `Record<Activity, Entry>` n'est pas décoratif : le jour où une
+ * troisième discipline apparaît, le compilateur exige sa phrase au lieu de la
+ * laisser sortir en anglais ou en blanc.
+ */
+export const ACTIVITY_NAME: Readonly<Record<Activity, Entry>> = {
+  run: C.activityNameRun,
+  bike: C.activityNameBike,
+};
+
+/**
+ * ─── TOUT CE QUE L'ÉCRAN DE COURSE DIT DE L'EFFORT, PAR DISCIPLINE ──────────
+ *
+ * Pourquoi une TABLE plutôt qu'une poignée de `activity === 'bike' ? … : …`
+ * dispersés dans le JSX : c'est exactement par là que le passage au vélo s'est
+ * fait à moitié. Deux états avaient leur twin (`statusRidingBike`,
+ * `statusFinishedBike`), quatorze autres surfaces du même écran ne l'avaient
+ * pas, et rien dans le code ne pouvait le signaler — un ternaire manquant ne
+ * ressemble à rien. Ici, le `Record<Activity, …>` est EXHAUSTIF : le jour où
+ * `ACTIVITIES` accueille une troisième discipline, ce fichier ne compile plus
+ * tant que quelqu'un n'a pas écrit ses phrases. (Même patron que
+ * `RESULT_COPY` dans `catalog/result.ts` et que `EFFORT_RATE_KIND` dans
+ * `features/run/effortRate.ts`.)
+ *
+ * Ce qui N'EST PAS ici est aussi délibéré : « EN PAUSE », « RECHERCHE GPS… »,
+ * « TERMINER », « PAUSE », « BOUCLE FERMÉE », les phrases de signal GPS et
+ * l'aide par constructeur ne nomment aucune discipline. Les dupliquer à
+ * l'identique créerait deux vérités à maintenir pour zéro information.
+ */
+export interface RunGpsActivityCopy {
+  /** Pill d'état pendant l'effort (« EN COURSE » / « EN SORTIE »). */
+  readonly status: Entry;
+  /** Pill d'état une fois l'effort terminé. */
+  readonly statusFinished: Entry;
+  /** Limite « enregistré app ouverte » (permission « Toujours » manquante). */
+  readonly foregroundOnly: Entry;
+  /** Titre de la carte de reprise, branche FUSIONNABLE. */
+  readonly restoreTitle: Entry;
+  readonly a11yResumeInterrupted: Entry;
+  readonly a11ySaveInterrupted: Entry;
+  /** Titre partagé : carte de rationale arrière-plan + feuille d'aide. */
+  readonly bgTitle: Entry;
+  readonly bgText: Entry;
+  readonly a11yGpsHelp: Entry;
+  readonly a11yLiveMap: Entry;
+  readonly a11yFinishRun: Entry;
+  readonly a11yPauseRun: Entry;
+  readonly a11yResumeRun: Entry;
+  readonly a11yClosureBadge: Entry;
+  /**
+   * Libellé de la 3ᵉ métrique du bandeau. Il change de GRANDEUR, pas seulement
+   * de mot : allure à pied, vitesse à vélo — la même grandeur que le Résultat
+   * annonce à l'arrivée (`features/run/effortRate.ts`).
+   */
+  readonly rateLabel: Entry;
+}
+
+export const RUN_GPS_COPY: Readonly<Record<Activity, RunGpsActivityCopy>> = {
+  run: {
+    status: C.statusRunning,
+    statusFinished: C.statusFinished,
+    foregroundOnly: C.foregroundOnly,
+    restoreTitle: C.restoreTitle,
+    a11yResumeInterrupted: C.a11yResumeInterrupted,
+    a11ySaveInterrupted: C.a11ySaveInterrupted,
+    bgTitle: C.bgTitle,
+    bgText: C.bgText,
+    a11yGpsHelp: C.a11yGpsHelp,
+    a11yLiveMap: C.a11yLiveMap,
+    a11yFinishRun: C.a11yFinishRun,
+    a11yPauseRun: C.a11yPauseRun,
+    a11yResumeRun: C.a11yResumeRun,
+    a11yClosureBadge: C.a11yClosureBadge,
+    rateLabel: C.paceLabel,
+  },
+  bike: {
+    status: C.statusRidingBike,
+    statusFinished: C.statusFinishedBike,
+    foregroundOnly: C.foregroundOnlyBike,
+    restoreTitle: C.restoreTitleBike,
+    a11yResumeInterrupted: C.a11yResumeInterruptedBike,
+    a11ySaveInterrupted: C.a11ySaveInterruptedBike,
+    bgTitle: C.bgTitleBike,
+    bgText: C.bgTextBike,
+    a11yGpsHelp: C.a11yGpsHelpBike,
+    a11yLiveMap: C.a11yLiveMapBike,
+    a11yFinishRun: C.a11yFinishRunBike,
+    a11yPauseRun: C.a11yPauseRunBike,
+    a11yResumeRun: C.a11yResumeRunBike,
+    a11yClosureBadge: C.a11yClosureBadgeBike,
+    rateLabel: C.speedLabel,
+  },
+};

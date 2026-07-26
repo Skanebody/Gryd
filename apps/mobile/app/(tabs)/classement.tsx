@@ -51,14 +51,14 @@
  * contrôle visible ne pourrait quitter.
  *
  * IL BASCULE UNE VRAIE LECTURE, PAS UNE ÉTIQUETTE. En lentille Bike, le board
- * lu est celui de la discipline `bike` : il revient VIDE, parce qu'aucune sortie
- * vélo n'existe (tous les chemins de départ déclarent la course à pied,
- * `features/run/gps/runActivity.ts`). Ce vide-là est servi avec sa PROPRE copie
- * — « le classement Bike commence ici » — et non avec le vide générique
- * (« personne n'a encore couru cette saison ») : les deux causes sont
- * différentes, et les confondre laisserait croire que le vélo est ouvert mais
- * désert. Le jour où un univers vélo existera, ce même écran affichera ses
- * lignes sans une ligne de code de plus.
+ * lu est celui de la discipline `bike`. Jusqu'au 26/07/2026 il revenait
+ * NÉCESSAIREMENT vide (aucun chemin de départ ne déclarait le vélo) ; ce n'est
+ * plus le cas — le vélo enregistre, et ce classement affiche ses lignes dès
+ * qu'un joueur de la ville en a. Son état vide garde une copie DISTINCTE de
+ * celle du monde course, non plus parce que la cause diffère (elle est
+ * désormais la même : personne n'a encore de points) mais parce que L'ACTION
+ * diffère — « lance une sortie vélo », et le CTA déclare cette discipline au
+ * lieu de la deviner.
  *
  * CE QUI SE RETIRE EN LENTILLE BIKE, ET POURQUOI (§ séparation stricte : jamais
  * Run + Bike dans une même lecture compétitive, jamais de somme) :
@@ -67,10 +67,27 @@
  *    les disciplines ; les servir sous une étiquette vélo serait exactement la
  *    somme interdite. On retire la chip plutôt que de la griser : l'absence d'un
  *    contrôle n'est pas un mensonge, un contrôle qui ment en est un ;
- *  · le CTA « MA ROUTE » — il ouvre le planificateur, qui lance une COURSE À
- *    PIED. Promettre de combler un écart vélo en courant serait un bouton mort ;
  *  · le bloc E12 (rang de fin de saison + frise des récompenses) — son statut
  *    « Obtenu » est lu dans `user_badges`, mono-pot lui aussi (0070 §3).
+ *
+ * ─── CE QUI A CESSÉ DE SE RETIRER : « MA ROUTE » (26/07/2026) ─────────────────
+ * Ce CTA a été retiré en lentille vélo tant que le planificateur codait en dur
+ * l'instance OSRM `routed-foot` : proposer « MA ROUTE » à un cycliste lui
+ * promettait alors une boucle à l'échelle du piéton. CE MOTIF EST MORT —
+ * `features/route/liveRouting.ts` construit son endpoint depuis
+ * `plannerRoutingProfile(activity)`, et `/route-planner` borne ses distances sur
+ * `plannerBounds(activity)`.
+ *
+ * Restait la vraie raison de ne PAS le rouvrir tel quel : cet écran poussait
+ * `/route-planner` SANS paramètre, et le planificateur retombe alors par défaut
+ * sur la course à pied (`parseStartActivity`, lecture défensive). Un cycliste y
+ * aurait ouvert un planificateur de COURSE — le mensonge déplacé d'un cran, pas
+ * supprimé. On pousse donc `plannerHref(activity)` : la discipline VOYAGE, et le
+ * CTA existe dans les deux mondes parce qu'il tient sa promesse dans les deux.
+ *
+ * Ni le libellé ni la phrase-objectif n'ont eu besoin d'un jumeau : « MA ROUTE »,
+ * « DÉFENDRE » et « ≈ n zones pour passer X » ne NOMMENT aucun effort. Dupliquer
+ * une clé déjà neutre créerait deux vérités à maintenir.
  *
  * ─── UN CLASSEMENT EST RÉEL, OU IL N'EST PAS (21/07/2026, toujours en vigueur) ─
  *  · Ma ville — affiché UNIQUEMENT si `source === 'server'`. Sinon l'un des états
@@ -145,7 +162,12 @@ import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { IconPlate } from '../../src/ui/Card';
 import { ActivitySwitch, useActivityLens } from '../../src/ui/ActivitySwitch';
+import { startSortieHref } from '../../src/ui/activityLens';
 import { competitiveReadAllowed } from '../../src/ui/activityLens';
+// La cible du planificateur est CONSTRUITE, jamais écrite à la main : le même
+// helper pur (testé sous Deno) sert la Carte et cet écran, donc la discipline
+// voyage par UN seul contrat de paramètre au lieu de deux chaînes divergentes.
+import { plannerHref } from '../../src/features/route/startTargets';
 import { ProgressBar } from '../../src/ui/ProgressBar';
 import { formatInt } from '../../src/ui/format';
 import {
@@ -930,12 +952,17 @@ function LeagueScreen() {
               <Text style={styles.discreetText}>{t(C.discreetText)}</Text>
             </View>
           </View>
-        ) : !bike && showMine && meRow ? (
-          /* En lentille BIKE ce bloc DISPARAÎT : « MA ROUTE » ouvre le
-             planificateur, qui lance une course À PIED (la discipline est
-             déclarée au départ). Promettre de combler un écart vélo en courant
-             serait un bouton mort — et la phrase-objectif qui l'accompagne
-             parlerait d'un écart que rien ne permet de réduire. */
+        ) : showMine && meRow ? (
+          /* CE BLOC EXISTE DANS LES DEUX MONDES DEPUIS LE 26/07/2026. Il
+             disparaissait en lentille vélo parce que « MA ROUTE » ouvrait un
+             planificateur PIÉTON ; ce motif est mort (`plannerRoutingProfile`),
+             et la cible porte désormais la discipline — `plannerHref(activity)`
+             au lieu d'un `/route-planner` nu, qui retombait sur la course.
+             L'écart affiché est celui de LA lentille courante : le board est lu
+             par `useSeasonLeaderboard(activity)`, jamais sommé entre les mondes,
+             et la conversion points → zones utilise POINTS_NEUTRAL_HEX, qui ne
+             dépend pas de la discipline. La phrase-objectif reste donc vraie au
+             mot près pour un cycliste. */
           <View style={styles.goalWrap}>
             <Text style={styles.goalText}>
               {isLeader
@@ -948,7 +975,7 @@ function LeagueScreen() {
             <InlineRunCTA
               label={t(isLeader ? C.ctaDefendre : C.ctaMaRoute)}
               leading={<Icon name="route" size={iconSizes.md} color={colors.noir} />}
-              onPress={() => router.push('/route-planner')}
+              onPress={() => router.push(plannerHref(activity))}
             />
           </View>
         ) : (
@@ -1034,34 +1061,52 @@ function LeagueScreen() {
             />
           ) : boardStatus === 'city_unknown' ? (
             /* Connecté, mais `users.city_id` est NULL : aucune saison n'est LA
-               sienne. La ville se rattache seule au premier run compté — d'où le
-               CTA, qui DISPARAÎT en lentille Bike : il lance une course à pied. */
+               sienne. La ville se rattache seule au premier EFFORT compté —
+               `ensureHomeCity` (ingest_run:550) n'a aucun filtre d'activité, une
+               sortie vélo domicilie aussi. Le corps de la card est donc NEUTRE
+               (un seul `users.city_id`, une seule règle) ; seul le CTA se
+               décline, parce que lui doit déclarer ce qu'il lance. */
             <BoardEmpty
               title={t(C.boardCityUnknownTitle)}
               body={t(C.boardCityUnknownBody)}
-              {...(bike
-                ? {}
-                : {
-                    cta: {
-                      label: t(C.boardEmptyCta),
-                      onPress: () => router.push('/route-planner'),
-                    },
-                  })}
+              cta={
+                bike
+                  ? // La ville se rattache au premier effort compté, quelle que
+                    // soit la discipline : depuis le 26/07 une sortie vélo la
+                    // rattache aussi. Le CTA existe donc dans les deux mondes —
+                    // il DÉCLARE simplement celui qu'il lance.
+                    {
+                      label: t(S.bikeBoardCta),
+                      onPress: () => router.push(startSortieHref('bike')),
+                    }
+                  : { label: t(C.boardEmptyCta), onPress: () => router.push('/route-planner') }
+              }
             />
           ) : boardStatus === 'unavailable' ? (
             /* La lecture a ÉCHOUÉ. État DISTINCT du vide : un réseau qui lâche ne
                prouve pas que la saison est déserte. */
             <BoardEmpty title={t(C.boardUnavailableTitle)} body={t(C.boardUnavailableBody)} />
           ) : bike ? (
-            /* Lecture RÉUSSIE sur la discipline VÉLO, et aucune ligne. La cause
-               n'est PAS « personne n'a encore couru cette saison » : c'est que
-               GRYD ne chronomètre pas encore le vélo, donc que personne ne PEUT
-               avoir de points vélo. On le dit, et on rappelle la séparation
-               stricte plutôt que de proposer une action qui n'y mène pas. */
+            /* Lecture RÉUSSIE sur la discipline VÉLO, et aucune ligne.
+               ─── RÉÉCRIT LE 26/07/2026 ────────────────────────────────────
+               La cause invoquée jusqu'ici (« GRYD ne chronomètre pas encore le
+               vélo, donc personne ne PEUT avoir de points vélo ») est devenue
+               fausse le jour où le vélo est devenu réel. Le seul fait que la
+               lecture établit est plus modeste, et c'est celui-là qu'on dit :
+               aucun joueur classé en vélo DANS CETTE VILLE, CETTE SAISON.
+               L'action existe désormais, et elle DÉCLARE sa discipline
+               (`startSortieHref('bike')`) au lieu de renvoyer vers un départ
+               qui enregistrerait une course à pied. La mention de séparation
+               stricte RESTE : c'est elle qui explique pourquoi ce tableau peut
+               être vide alors que le tableau à pied ne l'est pas. */
             <BoardEmpty
               title={t(S.bikeBoardTitle)}
               body={t(S.bikeBoardBody)}
               note={t(S.bikeBoardSeparate)}
+              cta={{
+                label: t(S.bikeBoardCta),
+                onPress: () => router.push(startSortieHref('bike')),
+              }}
             />
           ) : (
             /* Lecture RÉUSSIE sur la saison de MA ville, et aucune ligne. */
@@ -1083,12 +1128,17 @@ function LeagueScreen() {
               Pas de barre non plus : aucun dénominateur honnête n'existe entre deux
               paliers — l'écart se dit en PLACES, qui est un nombre exact.
               Affichée seulement si le board est réel et hors mode discret — et
-              JAMAIS en lentille Bike : le palier est adossé aux badges Season
-              Rank, lus dans `user_badges`, qui est MONO-POT (0070 « en suspens »
-              §3). Annoncer « Top 10 local » sous une étiquette vélo mélangerait
-              une récompense gagnée en courant avec un monde où l'on n'a rien
-              fait — la somme que la planche interdit. */}
-          {!bike && joueursIsReal && !discreet ? (
+              seulement sous une lentille dont la SOURCE est disciplinée. Le
+              palier est adossé aux badges Season Rank, lus dans `user_badges`,
+              qui reste MONO-POT (0070 « en suspens » §3) même depuis que le
+              vélo est réel : annoncer « Top 10 local » sous une étiquette vélo
+              attribuerait au monde vélo une récompense gagnée en courant — la
+              somme que la planche interdit.
+              La condition est DÉRIVÉE (`competitiveReadAllowed`, testée) et non
+              écrite `!bike` : le jour où `user_stats`/`user_badges` seront
+              disciplinés, un seul `true` rouvrira ce bloc dans les deux mondes,
+              sans qu'on ait à retrouver cette ligne. */}
+          {competitiveReadAllowed(activity, false) && joueursIsReal && !discreet ? (
             <>
               <View style={styles.sectionHead}>
                 <Icon name="bouclier" size={iconSizes.sm} color={colors.gris} />
@@ -1144,13 +1194,12 @@ function LeagueScreen() {
               et le matériau (acier → chrome → titane → élite → or) du catalogue.
               Le statut « Obtenu » est LU dans `user_badges`, jamais re-dérivé.
 
-              RETIRÉE EN LENTILLE BIKE, avec les règles du reset : `user_badges`
-              est MONO-POT (0070 § 3). Une frise qui cocherait « Obtenu » sur un
-              écran vélo attribuerait au monde vélo des médailles gagnées en
-              courant, et les 2 lignes de reset qui la concluent parleraient d'une
-              saison vélo qui n'existe pas. L'état vide nommé du board porte alors
-              tout l'écran, comme la sheet Bike porte toute la Carte. */}
-          {bike ? null : (
+              RETIRÉE hors lentille par défaut, avec les règles du reset :
+              `user_badges` est MONO-POT (0070 § 3). Une frise qui cocherait
+              « Obtenu » sur un écran vélo attribuerait au monde vélo des
+              médailles gagnées en courant. Condition DÉRIVÉE, pas écrite à la
+              main — même raison qu'au bloc précédent. */}
+          {competitiveReadAllowed(activity, false) ? (
             <>
               <View style={styles.sectionHead}>
                 <Icon name="cadeau" size={iconSizes.sm} color={colors.gris} />
@@ -1182,7 +1231,7 @@ function LeagueScreen() {
               <Text style={styles.resetRule}>{t(S.resetLigne1)}</Text>
               <Text style={styles.resetRule}>{t(S.resetLigne2)}</Text>
             </>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 

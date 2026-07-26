@@ -29,8 +29,8 @@
 import { intentionHref } from './runContext';
 import { type PartialBoundaryDemo } from '../run/intention';
 import { C } from '../../i18n/catalog/nav';
-import { format, resolve, type Locale } from '../../i18n/types';
-import type { IconName } from '@klaim/shared';
+import { format, resolve, type Entry, type Locale } from '../../i18n/types';
+import type { Activity, IconName } from '@klaim/shared';
 
 /**
  * Les 5 verbes possibles du bouton central (JAMAIS « GO »). Chacun = une intention de
@@ -89,12 +89,59 @@ export interface ContextInput {
   selectedCrewMissionId?: string | null;
 }
 
+// ─── Le vocabulaire de discipline, indexé (jamais ternaire) ──────────────────
+//
+// POURQUOI DES `Record<Activity, Entry>` ET PAS `activity === 'bike' ? … : …`.
+// Un ternaire a un côté « sinon » qui avale silencieusement TOUT ce qui n'est
+// pas 'bike'. Le jour où une troisième discipline entre dans `ACTIVITIES`, un
+// ternaire continuerait de compiler et servirait les mots du COUREUR à qui ne
+// court pas — exactement le défaut qu'on répare ici, revenu par la porte de
+// derrière et sans le moindre signal. Un Record indexé par `Activity`, lui, ne
+// compile plus tant que la nouvelle discipline n'a pas ses mots : l'erreur
+// arrive au build, pas dans l'oreille d'un utilisateur non-voyant.
+//
+// Ces tables restent au PLUS PRÈS des constructeurs qui les consomment : une
+// entrée ajoutée au catalogue sans être branchée ici se verrait d'un coup d'œil.
+
+/** RUN libre — « Lancer une course libre » / « … une sortie vélo libre ». */
+const A11Y_LIBRE: Readonly<Record<Activity, Entry>> = {
+  run: C.a11yRun,
+  bike: C.a11yRunBike,
+};
+
+/** DÉFENDRE — la course/sortie de défense de {zone}. */
+const A11Y_DEFENDRE: Readonly<Record<Activity, Entry>> = {
+  run: C.a11yDefendre,
+  bike: C.a11yDefendreBike,
+};
+
+/** CONQUÉRIR — la course/sortie de conquête de {zone}. */
+const A11Y_CONQUERIR: Readonly<Record<Activity, Entry>> = {
+  run: C.a11yConquerir,
+  bike: C.a11yConquerirBike,
+};
+
+/**
+ * CE QUI VA ÊTRE ENREGISTRÉ, en un mot. Le bouton dit « GO » dans les deux
+ * mondes (AMENDEMENT-38) et sa seule marque visuelle de discipline est un
+ * picto — qu'aucun lecteur d'écran ne prononce.
+ */
+const A11Y_DISCIPLINE: Readonly<Record<Activity, Entry>> = {
+  run: C.goActivityRunA11y,
+  bike: C.goActivityBikeA11y,
+};
+
 // ─── Constructeurs d'action (une source de vérité par verbe) ─────────────────
 // Module PUR : la langue arrive en paramètre (resolve/format de ../../i18n/types,
 // jamais le store) — les textes viennent du catalogue nav (i18n/catalog/nav).
+//
+// La DISCIPLINE arrive de la même façon, et pour la même raison : ce module ne
+// lit ni le store i18n ni la préférence de carte. L'écran DÉCLARE ce qu'il
+// lance (cf. `withStartActivity` au push), et il déclare la même chose à
+// VoiceOver — une seule valeur, donc jamais deux vérités.
 
-/** RUN — course LIBRE, défaut absolu. Aucune intention, le live classe après. */
-function runAction(locale: Locale): ContextualAction {
+/** RUN — course/sortie LIBRE, défaut absolu. Aucune intention, le live classe après. */
+function runAction(locale: Locale, activity: Activity): ContextualAction {
   return {
     kind: 'run',
     label: resolve(C.actionRun, locale),
@@ -104,31 +151,41 @@ function runAction(locale: Locale): ContextualAction {
     // portait `goHref(battleContext().plan)`, donc `route=<id de ROUTES_DEMO>` :
     // le départ chargeait un itinéraire fabriqué. Un run libre n'a pas de route.
     targetHref: '/course-live?mode=conquete',
-    a11yLabel: resolve(C.a11yRun, locale),
+    a11yLabel: resolve(A11Y_LIBRE[activity], locale),
   };
 }
 
 /** DÉFENDRE — zone attaquée : intention défense + route de la zone à protéger. */
-function defendAction(zone: string, locale: Locale, routeId?: string): ContextualAction {
+function defendAction(
+  zone: string,
+  locale: Locale,
+  activity: Activity,
+  routeId?: string,
+): ContextualAction {
   return {
     kind: 'defendre',
     label: resolve(C.actionDefendre, locale),
     icon: 'bouclier',
     intention: 'defense',
     targetHref: intentionHref('defense', routeId),
-    a11yLabel: format(C.a11yDefendre, { zone }, locale),
+    a11yLabel: format(A11Y_DEFENDRE[activity], { zone }, locale),
   };
 }
 
 /** CONQUÉRIR — zone neutre/rivale : intention conquête (course de capture). */
-function conquerAction(zone: string, locale: Locale, routeId?: string): ContextualAction {
+function conquerAction(
+  zone: string,
+  locale: Locale,
+  activity: Activity,
+  routeId?: string,
+): ContextualAction {
   return {
     kind: 'conquerir',
     label: resolve(C.actionConquerir, locale),
     icon: 'cible',
     intention: 'conquest',
     targetHref: intentionHref('conquest', routeId),
-    a11yLabel: format(C.a11yConquerir, { zone }, locale),
+    a11yLabel: format(A11Y_CONQUERIR[activity], { zone }, locale),
   };
 }
 
@@ -177,15 +234,24 @@ function joinAction(missionLabel: string, locale: Locale, boundaryId?: string): 
  *
  * `locale` : langue des libellés (module pur — les composants la lisent via
  * useLocale() et la passent ici ; jamais d'import du store i18n dans ce module).
+ *
+ * `activity` : la discipline que l'écran DÉCLARE lancer. Paramètre OBLIGATOIRE,
+ * volontairement : lui donner une valeur par défaut ferait taire le compilateur
+ * chez l'appelant qui oublie de la passer, et cet appelant servirait alors les
+ * mots de la course à pied à un cycliste — le défaut B1 exactement.
  */
-export function deriveContextualAction(input: ContextInput, locale: Locale): ContextualAction {
+export function deriveContextualAction(
+  input: ContextInput,
+  locale: Locale,
+  activity: Activity,
+): ContextualAction {
   // 1) Sélection explicite (V1) — préférée dès qu'elle existe.
   if (input.selectedBoundary) return completeAction(input.selectedBoundary, locale);
   if (input.selectedZone) {
     const { kind, routeId } = input.selectedZone;
     return kind === 'attacked'
-      ? defendAction(resolve(C.zoneThis, locale), locale, routeId)
-      : conquerAction(resolve(C.zoneThis, locale), locale, routeId);
+      ? defendAction(resolve(C.zoneThis, locale), locale, activity, routeId)
+      : conquerAction(resolve(C.zoneThis, locale), locale, activity, routeId);
   }
   if (input.selectedCrewMissionId) {
     // Le libellé de mission venait de `warroom/demo.MISSIONS` (missions de démo
@@ -208,5 +274,32 @@ export function deriveContextualAction(input: ContextInput, locale: Locale): Con
   //
   // 3) DÉFAUT — RUN libre. C'est la seule action toujours vraie : GRYD classe
   //    conquis/défendu APRÈS la course, à partir du tracé réel.
-  return runAction(locale);
+  return runAction(locale, activity);
+}
+
+/**
+ * L'ÉNONCÉ COMPLET DU BOUTON GO, LU À VOIX HAUTE — PUR, donc testable.
+ *
+ * Il vivait dans le JSX de `app/(tabs)/index.tsx`, en une interpolation qui
+ * collait un mot de discipline choisi par ternaire devant une phrase d'action
+ * qui, elle, disait « course » quoi qu'il arrive. Sous lentille vélo cela
+ * donnait « GO — sortie vélo — Lancer une course libre » : deux affirmations
+ * contradictoires dans la même phrase, sur le seul CTA de l'écran principal.
+ * Une expression enfouie dans du JSX n'est vérifiable par AUCUN test Deno ;
+ * remontée ici, elle l'est — et c'est ce qui empêche la contradiction de
+ * revenir.
+ *
+ * TROIS SEGMENTS, dans cet ordre, et chacun a sa raison :
+ *   1. « GO » — invariant produit (AMENDEMENT-38), jamais traduit ;
+ *   2. la DISCIPLINE — ce qui va être ENREGISTRÉ. Elle reste dite même quand
+ *      l'action est neutre (TERMINER, REJOINDRE) : sans elle, ces deux verbes
+ *      n'annonceraient plus du tout ce que le tap va écrire ;
+ *   3. le POURQUOI — l'action contextuelle, désormais du même monde que (2).
+ */
+export function goButtonA11yLabel(
+  action: ContextualAction,
+  activity: Activity,
+  locale: Locale,
+): string {
+  return `GO — ${resolve(A11Y_DISCIPLINE[activity], locale)} — ${action.a11yLabel}`;
 }

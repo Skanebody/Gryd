@@ -52,6 +52,32 @@
  * la mascotte DISPARAÎT quand cette XP est inconnue (pas de session, ou lecture
  * serveur impossible) : un rang inconnu ne s'invente pas.
  *
+ * ─── L'ÉCRAN QUI SORT DE L'APP NOMME LA DISCIPLINE (E14, 26/07/2026) ────────
+ * Cet écran servait « Partager ta course », « Ta course a fait gagner ton
+ * crew », « on partage la course, pas un territoire » à TOUT LE MONDE, alors
+ * que le Résultat lui transmettait déjà la discipline dans l'URL (même
+ * paramètre contractuel que le départ, `START_ACTIVITY_PARAM`) — il ne la
+ * LISAIT simplement pas, et les jumeaux vélo du catalogue restaient du code
+ * mort. C'est le pire endroit où laisser ce défaut : une carte de partage est
+ * ce qui SORT de l'app. Un cycliste qui publie « course » à son crew diffuse le
+ * mensonge hors de l'écran où on pourrait encore le corriger, image et message
+ * texte compris.
+ *
+ * Tout ce qui NOMME l'effort passe donc par `resultCopy(activity)` — la même
+ * porte d'entrée unique et exhaustive que le Résultat, pour que les deux
+ * écrans ne puissent pas nommer différemment la même sortie.
+ *
+ * ─── ET L'IMAGE, PAS SEULEMENT L'ÉCRAN (26/07/2026) ─────────────────────────
+ * Cette passe-là s'arrêtait au CHROME : le titre, la raison, le message texte.
+ * La CARTE, elle, continuait d'imprimer « COURSE ENREGISTRÉE » et « COURU POUR
+ * {crew} » sous le tracé d'un cycliste, parce que `ShareDemoData` ne portait
+ * aucune discipline — les templates ne pouvaient pas savoir ce qu'ils
+ * décrivaient. C'est le défaut le plus grave de la série : le PNG quitte l'app,
+ * et sa victime n'est pas le joueur (qui peut encore changer d'écran) mais SON
+ * CREW, qui le lit sans aucun moyen de le corriger. La discipline est désormais
+ * JOINTE à la card (voir `runCard`), et les trois titres qui nomment l'effort
+ * viennent de `resultCopy` comme le reste.
+ *
  * Profondeur : N0 fond (colors.noir) · N1 la preview (unique surface) · N2
  * segments/actifs · N3 rare (chartreuse). Jamais de card-dans-card. Actions
  * CÂBLÉES ; en web/démo, capture & Share natives indisponibles → toasts. En
@@ -61,14 +87,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, elevation, fontSizes, motion, radii } from '@klaim/shared';
+import { colors, fonts, elevation, fontSizes, motion, radii, type Activity } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { goBack } from '../src/lib/nav';
 import { useSession } from '../src/lib/session';
 import { Icon } from '../src/ui/Icon';
 import { IconAction, Segmented, ShareCard, type ShareCardRatio } from '../src/ui/game';
-import { C } from '../src/i18n/catalog/result';
+import { C, resultCopy, type ResultActivityCopy } from '../src/i18n/catalog/result';
+// La discipline arrive par l'URL, et son PARSING appartient au domaine du
+// DÉPART : on l'importe au lieu de réécrire une reconnaissance locale, qui
+// finirait par diverger en silence de ce que le préflight a montré au joueur.
+import {
+  START_ACTIVITY_PARAM,
+  parseStartActivity,
+} from '../src/features/run/gps/runActivity';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
 import { ShareMap } from '../src/features/share/ShareMap';
@@ -149,17 +182,34 @@ const STYLE_EXTRA: readonly ShareTemplateId[] = [
   'carte3d',
 ];
 
-/** Raison affichée sous la rangée — une par récit, du MÊME moteur que le style. */
-const NARRATIVE_REASON: Record<NarrativeId, Entry> = {
-  capture: C.reasonCapture,
-  reprise: C.reasonReprise,
-  defense: C.reasonDefense,
-  boucle: C.reasonLoop,
-  crew: C.reasonCrew,
-  classement: C.reasonRanking,
-  record: C.reasonRecord,
-  effort: C.reasonEffort,
-};
+/**
+ * Raison affichée sous la rangée — une par récit, du MÊME moteur que le style.
+ *
+ * TROIS de ces phrases NOMMENT l'effort et viennent donc de `resultCopy` :
+ * « ta course a fait gagner ton crew », « ta course te fait bouger au
+ * classement », « on partage la course, pas un territoire ». Les autres
+ * décrivent le TERRITOIRE (capture, reprise, défense, boucle) ou un record :
+ * elles sont déjà vraies dans les deux disciplines, et les dupliquer créerait
+ * deux vérités à maintenir.
+ *
+ * Le classement mérite une note : `reasonRankingBike` dit « au classement
+ * VÉLO », parce que les points de saison sont séparés par discipline
+ * (`season_scores` clé `(season_id, user_id, activity)`). Une sortie vélo ne
+ * bouge jamais le classement des coureurs — la phrase générique le laissait
+ * croire.
+ */
+function narrativeReasons(A: ResultActivityCopy): Record<NarrativeId, Entry> {
+  return {
+    capture: C.reasonCapture,
+    reprise: C.reasonReprise,
+    defense: C.reasonDefense,
+    boucle: C.reasonLoop,
+    crew: A.reasonCrew,
+    classement: A.reasonRanking,
+    record: C.reasonRecord,
+    effort: A.reasonEffort,
+  };
+}
 
 /** Libellé COURT par style (jamais tronqué, résolu au rendu). Distinct du `chip` legacy. */
 const STYLE_LABEL: Record<ShareTemplateId, Entry> = {
@@ -221,12 +271,47 @@ function SharePreview({ run }: { run: ShareRunData }) {
   const insets = useSafeAreaInsets();
   const toast = useShareToast();
   const t = useT();
-  // Seul `template` est encore lu : le mode et l'intention viennent de la course
-  // ARMÉE (autoritaire), plus d'un paramètre d'URL qu'un deep link peut inventer.
-  const params = useLocalSearchParams<{ template?: string }>();
+  // Le mode et l'intention viennent de la course ARMÉE (autoritaire), plus d'un
+  // paramètre d'URL qu'un deep link peut inventer. Restent `template` (un choix
+  // de forme, borné par les mêmes gardes que le reste) et la DISCIPLINE, que le
+  // Résultat transmet par le paramètre contractuel du départ.
+  const params = useLocalSearchParams<{ template?: string; activity?: string }>();
+  /**
+   * DISCIPLINE DE LA SORTIE PARTAGÉE. Lecture DÉFENSIVE : une valeur absente ou
+   * inconnue retombe sur la discipline déclarée par défaut du jeu, c'est-à-dire
+   * exactement le comportement d'avant le vélo — jamais un écran bloqué.
+   *
+   * SUSPENS ASSUMÉ : la source vraiment autoritaire serait la course armée
+   * (`ShareRunData`), qui ne porte pas encore la discipline — ce champ vit dans
+   * `features/share/shareRun.ts`, hors du périmètre de ce correctif. En
+   * pratique cet écran n'est atteignable avec une course armée QUE depuis le
+   * Résultat (le singleton n'est rempli nulle part ailleurs), et c'est lui qui
+   * écrit ce paramètre : un deep link forgé n'a aucune course à décrire et tombe
+   * sur l'état vide. C'est écrit ici plutôt que tenu pour acquis.
+   */
+  const activity: Activity = parseStartActivity(params[START_ACTIVITY_PARAM]);
+  /** Les mots de CETTE discipline — même porte d'entrée unique que le Résultat. */
+  const A = resultCopy(activity);
 
-  // PARTAGE VRAI : les stats de la course affichée au Résultat (shareRun.ts).
-  const runCard = run.card;
+  /**
+   * PARTAGE VRAI : les stats de la sortie affichée au Résultat (shareRun.ts),
+   * AUXQUELLES ON JOINT LA DISCIPLINE (26/07/2026).
+   *
+   * C'est la dernière marche du correctif, et la plus importante : la carte
+   * n'est pas un écran, c'est un PNG qui sort de l'app. Tant que `ShareDemoData`
+   * ne portait pas la discipline, tous les templates imprimaient les mots du
+   * coureur — « COURSE ENREGISTRÉE », « COURU POUR {crew} » — sous le tracé d'un
+   * cycliste, et le crew les lisait hors de toute surface où on aurait pu les
+   * corriger. On JOINT ici plutôt qu'on ne devine plus loin : le template n'a
+   * aucun moyen d'aller chercher un paramètre d'URL, et il ne doit pas en avoir.
+   *
+   * SUSPENS ASSUMÉ, INCHANGÉ : la source vraiment autoritaire serait la sortie
+   * armée (`ShareRunData`), que seul le Résultat remplit — et il vit hors du
+   * périmètre de ce correctif. Il écrit déjà la discipline dans l'URL au même
+   * `router.push` que `setShareRun`, donc les deux viennent du même écran et du
+   * même run ; et sans sortie armée, cet aiguillage n'est même pas monté.
+   */
+  const runCard = useMemo(() => ({ ...run.card, activity }), [run.card, activity]);
   const intention = run.intention;
   const verdict = run.verdict;
   // Social Run = stats seules, aucune capture : on ne propose JAMAIS un visuel
@@ -463,8 +548,9 @@ function SharePreview({ run }: { run: ShareRunData }) {
   const canReplay = ANIMATABLE_STYLES.includes(selected);
 
   // Message narratif prêt à coller (doc §6.1 « partager une conséquence ») +
-  // le deep link. UN seul lien par story (§6.3).
-  const shareMessage = `${buildShareHeadline(t, intention, runCard, statsOnlyShare, narrative)}\n${deepLink}`;
+  // le deep link. UN seul lien par story (§6.3). Le repli « distance seule »
+  // nomme la DISCIPLINE : c'est du texte qui part dans le fil du crew.
+  const shareMessage = `${buildShareHeadline(t, intention, runCard, statsOnlyShare, narrative, A.headlineStats)}\n${deepLink}`;
 
   // Action de partage RÉELLE (fire-and-forget) : ne confirme que si ça a marché
   // (honnêteté — un « annulé » reste silencieux). `msg` peut dépendre du canal
@@ -538,12 +624,15 @@ function SharePreview({ run }: { run: ShareRunData }) {
   };
 
   // Titre = ce que la course a fait (jamais « conquête » pour une défense).
+  // Les deux premiers parlent de TERRITOIRE (vrais dans les deux disciplines) ;
+  // le troisième NOMME l'effort et suit donc la discipline : « Partager ta
+  // course » / « Partager ta sortie ».
   const title =
     intention === 'defense'
       ? t(C.shareDefenseTitle)
       : intention === 'conquest'
         ? t(C.shareConquestTitle)
-        : t(C.shareRunTitle);
+        : t(A.shareRunTitle);
 
   // SIGNATURE GRIP : rang dérivé de l'XP RÉELLE du joueur. `source === 'none'`
   // = on ne sait pas (pas de session, ou lecture serveur impossible) → aucune
@@ -619,7 +708,7 @@ function SharePreview({ run }: { run: ShareRunData }) {
             explique POURQUOI, et que les chiffres, eux, sont bien ceux de cette
             course (état vide qui parle, jamais un carré nu). */}
         {!hasKnownRoute ? (
-          <Text style={styles.noRouteNote}>{t(SHARE_COPY.traceUnavailableNote)}</Text>
+          <Text style={styles.noRouteNote}>{t(A.traceUnavailableNote)}</Text>
         ) : null}
 
         {/* Format — UN segmented (accent chartreuse). */}
@@ -679,7 +768,7 @@ function SharePreview({ run }: { run: ShareRunData }) {
                 de style (le RÉCIT, lui, n'a pas changé) ET quand il n'y a rien à
                 choisir (elle dit alors pourquoi). */}
             <Text style={styles.whyStyle}>
-              {t(C.whyThisStyle, { reason: t(NARRATIVE_REASON[narrative]) })}
+              {t(C.whyThisStyle, { reason: t(narrativeReasons(A)[narrative]) })}
             </Text>
           </View>
         ) : null}
@@ -908,8 +997,10 @@ function buildShareHeadline(
   d: ShareDemoData,
   statsOnly: boolean,
   narrative: NarrativeId,
+  /** Repli « distance seule », dans la discipline de la sortie (`resultCopy`). */
+  headlineStats: Entry,
 ): string {
-  if (statsOnly) return t(C.headlineStats, { km: d.distanceKm });
+  if (statsOnly) return t(headlineStats, { km: d.distanceKm });
   /* LE SERVEUR N'A PAS ENCORE JUGÉ. Sans garde, le gabarit se lisait
      « I TOOK ZONE » — le mot ZONE passe pour un nom de lieu — sous un héros
      « +0 ZONES ». On annonçait une conquête vide sur une VRAIE course, et ça
@@ -918,7 +1009,7 @@ function buildShareHeadline(
      lieu d'une heuristique locale sur `zoneName`/`zonesGained` : quand le texte
      et l'image décidaient séparément, ils pouvaient se contredire — texte
      prudent, image conquérante. Un seul juge, une seule histoire. */
-  if (narrative === 'effort') return t(C.headlineStats, { km: d.distanceKm });
+  if (narrative === 'effort') return t(headlineStats, { km: d.distanceKm });
   if (intention === 'defense') {
     return t(C.headlineDefense, { zone: d.zoneName, n: d.zonesDefended });
   }

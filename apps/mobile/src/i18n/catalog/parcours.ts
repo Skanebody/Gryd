@@ -13,6 +13,20 @@
  * §A CONTRAIGNANT : labels de pastilles et de lignes COURTS dans les 5 langues.
  * L'allemand est reformulé concis (« Steigungen meiden », « Zurücksetzen ») —
  * jamais un composé à rallonge qui tronque à 375 px.
+ *
+ * ─── L'APPRENTISSAGE NE SÉPARE PAS LES DISCIPLINES (E14, 26/07/2026) ────────
+ * `/mes-parcours` n'a PAS de commutateur run/bike, et la RPC qui l'alimente —
+ * `habits_inputs` (migration 0055) — n'a AUCUNE colonne `activity` : les sorties
+ * vélo entrent dans l'échantillon d'habitudes exactement comme les courses. Le
+ * bloc de transparence disait pourtant « Déduit de {n} courses » et « Apprendre
+ * de mes courses » : il décrivait FAUSSEMENT ce que GRYD lit, sur l'écran dont
+ * le seul objet est justement de le dire honnêtement.
+ *
+ * Remède : NEUTRALISATION, pas de jumeau `…Bike`. Un jumeau promettrait deux
+ * apprentissages séparés que la RPC ne sait pas produire — ce serait remplacer
+ * un mensonge de vocabulaire par un mensonge de mécanique. La séparation réelle
+ * reste un chantier SQL ouvert (inscrit en suspens dans game-rules.ts).
+ * Verrouillé par `parcours.test.ts`.
  */
 import { defineCatalog } from '../types';
 
@@ -34,10 +48,12 @@ export const C = defineCatalog({
   },
   subtitle: {
     fr: 'Ce que GRYD te propose pour ta prochaine sortie. Un parcours proposé ne donne jamais de points ni de territoire — il suggère.',
-    en: 'What GRYD suggests for your next run. A suggested route never grants points or territory — it only suggests.',
+    // fr et es disaient déjà « sortie » / « salida » : seules les trois langues
+    // qui fuyaient sont retouchées — on ne réécrit pas ce qui est déjà juste.
+    en: 'What GRYD suggests for your next outing. A suggested route never grants points or territory — it only suggests.',
     es: 'Lo que GRYD te propone para tu próxima salida. Una ruta sugerida nunca da puntos ni territorio: solo sugiere.',
-    de: 'Was GRYD dir für deinen nächsten Lauf vorschlägt. Eine Route bringt nie Punkte oder Gebiet — sie schlägt nur vor.',
-    pt: 'O que o GRYD propõe para a sua próxima corrida. Uma rota sugerida nunca dá pontos nem território — só sugere.',
+    de: 'Was GRYD dir für deine nächste Aktivität vorschlägt. Eine Route bringt nie Punkte oder Gebiet — sie schlägt nur vor.',
+    pt: 'O que o GRYD propõe para a sua próxima atividade. Uma rota sugerida nunca dá pontos nem território — só sugere.',
   },
   rowDetail: {
     fr: 'Distance visée, apprentissage',
@@ -70,11 +86,11 @@ export const C = defineCatalog({
     pt: 'Seus hábitos',
   },
   habitsUnknown: {
-    fr: 'Pas encore assez de courses pour en déduire quoi que ce soit. GRYD ne devine rien.',
-    en: 'Not enough runs yet to figure anything out. GRYD does not guess.',
-    es: 'Aún no hay carreras suficientes para deducir nada. GRYD no adivina.',
-    de: 'Noch zu wenige Läufe, um etwas abzuleiten. GRYD rät nicht.',
-    pt: 'Ainda não há corridas suficientes para deduzir nada. O GRYD não adivinha.',
+    fr: 'Pas encore assez de sorties pour en déduire quoi que ce soit. GRYD ne devine rien.',
+    en: 'Not enough outings yet to figure anything out. GRYD does not guess.',
+    es: 'Aún no hay salidas suficientes para deducir nada. GRYD no adivina.',
+    de: 'Noch zu wenige Aktivitäten, um etwas abzuleiten. GRYD rät nicht.',
+    pt: 'Ainda não há atividades suficientes para deduzir nada. O GRYD não adivinha.',
   },
   habitsUnavailable: {
     fr: 'GRYD ne peut pas lire tes habitudes pour l’instant.',
@@ -84,11 +100,11 @@ export const C = defineCatalog({
     pt: 'O GRYD não consegue ler seus hábitos agora.',
   },
   habitsOff: {
-    fr: 'Apprentissage désactivé. GRYD n’utilise pas tes courses.',
-    en: 'Learning is off. GRYD does not use your runs.',
-    es: 'Aprendizaje desactivado. GRYD no usa tus carreras.',
-    de: 'Lernen ist aus. GRYD nutzt deine Läufe nicht.',
-    pt: 'Aprendizado desativado. O GRYD não usa suas corridas.',
+    fr: 'Apprentissage désactivé. GRYD n’utilise pas tes sorties.',
+    en: 'Learning is off. GRYD does not use your outings.',
+    es: 'Aprendizaje desactivado. GRYD no usa tus salidas.',
+    de: 'Lernen ist aus. GRYD nutzt deine Aktivitäten nicht.',
+    pt: 'Aprendizado desativado. O GRYD não usa suas atividades.',
   },
   habitsDistance: {
     fr: 'Distance habituelle',
@@ -111,12 +127,15 @@ export const C = defineCatalog({
     de: 'Tageszeit',
     pt: 'Faixa horária',
   },
+  // Le nom de clé `habitsRuns` est lu par `app/mes-parcours.tsx` : le renommer
+  // sortirait de ce catalogue. Ce qui devait changer est le TEXTE — le nombre
+  // qu'il annonce compte les sorties de TOUTES les disciplines.
   habitsRuns: {
-    fr: 'Déduit de {n} courses.',
-    en: 'Based on {n} runs.',
-    es: 'Deducido de {n} carreras.',
-    de: 'Aus {n} Läufen abgeleitet.',
-    pt: 'Deduzido de {n} corridas.',
+    fr: 'Déduit de {n} sorties.',
+    en: 'Based on {n} outings.',
+    es: 'Deducido de {n} salidas.',
+    de: 'Aus {n} Aktivitäten abgeleitet.',
+    pt: 'Deduzido de {n} atividades.',
   },
   // Clés ALIGNÉES sur HABITS_SLOTS (game-rules) : dawn / day / evening / night.
   // Les bornes sont celles du moteur (5 h, 10 h, 17 h, 21 h) — on nomme des
@@ -239,11 +258,11 @@ export const C = defineCatalog({
     pt: 'APRENDIZADO',
   },
   learnTitle: {
-    fr: 'Apprendre de mes courses',
-    en: 'Learn from my runs',
-    es: 'Aprender de mis carreras',
-    de: 'Aus meinen Läufen lernen',
-    pt: 'Aprender com minhas corridas',
+    fr: 'Apprendre de mes sorties',
+    en: 'Learn from my outings',
+    es: 'Aprender de mis salidas',
+    de: 'Aus meinen Aktivitäten lernen',
+    pt: 'Aprender com minhas atividades',
   },
   learnHint: {
     fr: 'GRYD regarde tes distances, tes allures et tes horaires — les tiens seulement, jamais ceux des autres. Aucun point de départ n’est enregistré.',
@@ -281,11 +300,11 @@ export const C = defineCatalog({
     pt: 'Esquecer tudo?',
   },
   forgetConfirmBody: {
-    fr: 'GRYD repartira de zéro pour tes prochaines propositions. Tes courses, elles, ne sont pas touchées.',
-    en: 'GRYD will start from scratch for your next suggestions. Your runs are not touched.',
-    es: 'GRYD empezará de cero para tus próximas sugerencias. Tus carreras no se tocan.',
-    de: 'GRYD startet bei null für die nächsten Vorschläge. Deine Läufe bleiben unangetastet.',
-    pt: 'O GRYD vai começar do zero nas próximas sugestões. Suas corridas não são tocadas.',
+    fr: 'GRYD repartira de zéro pour tes prochaines propositions. Tes sorties, elles, ne sont pas touchées.',
+    en: 'GRYD will start from scratch for your next suggestions. Your outings are not touched.',
+    es: 'GRYD empezará de cero para tus próximas sugerencias. Tus salidas no se tocan.',
+    de: 'GRYD startet bei null für die nächsten Vorschläge. Deine Aktivitäten bleiben unangetastet.',
+    pt: 'O GRYD vai começar do zero nas próximas sugestões. Suas atividades não são tocadas.',
   },
   forgetConfirmCta: {
     fr: 'Oublier',

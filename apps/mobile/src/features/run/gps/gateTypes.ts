@@ -19,6 +19,17 @@ import type { TrackerSnapshot } from './tracker';
 export interface RealRunApi {
   /** Mode effectif (celui du tracker — une reprise garde le mode d'origine). */
   effectiveMode: RunMode;
+  /**
+   * DISCIPLINE RÉELLEMENT ENREGISTRÉE (E14, vélo réel 26/07/2026) — celle du
+   * tracker, déclarée au départ et figée pour toute la sortie.
+   *
+   * Elle est EXPOSÉE à l'écran pour deux raisons distinctes, et les deux
+   * comptent : l'écran la DIT (personne ne doit découvrir après coup que sa
+   * sortie est partie dans l'autre monde), et l'écran s'en sert pour les seuils
+   * de FERMETURE DE BOUCLE (1 km à pied, 5 km à vélo) — sans elle, la mise en
+   * scène E08 promettrait au cycliste une capture que le serveur refuserait.
+   */
+  activity: Activity;
   snapshot: TrackerSnapshot;
   /**
    * Où la course s'enregistre. `browser` = aperçu localhost : les positions
@@ -44,8 +55,24 @@ export interface RealRunApi {
    * n'est pas un refus de l'utilisateur, c'est une limite qu'on annonce.
    */
   foregroundOnlyPlatform: boolean;
-  /** Course interrompue (kill process) retrouvée — reprendre ou enregistrer. */
-  restore: { distanceM: number; resume: () => void; discard: () => void } | null;
+  /**
+   * Course interrompue (kill process) retrouvée — reprendre ou enregistrer.
+   *
+   * `resume` vaut `null` quand la sortie interrompue n'est PAS de la même
+   * discipline que celle qui vient de démarrer : reprendre, c'est FUSIONNER, et
+   * fusionner deux mondes est la somme que la séparation stricte d'E14
+   * interdit (cf. `canResumeInterrupted`). L'écran retire alors le bouton
+   * plutôt que d'en peindre un qui échouerait — « aucun bouton mort » — et
+   * garde la clôture, qui envoie la sortie dans SON monde. `activity` est là
+   * pour que la carte le DISE au lieu de laisser un bouton disparaître sans
+   * raison visible.
+   */
+  restore: {
+    distanceM: number;
+    activity: Activity;
+    resume: (() => void) | null;
+    discard: () => void;
+  } | null;
   /** Ouvrir les réglages système — `null` dans un navigateur (il n'y en a pas). */
   openSettings: (() => void) | null;
   allowBackground: () => void;
@@ -86,15 +113,18 @@ export interface PreflightApi {
    * Démarre la course RÉELLE (tracker + capteurs). Appelé À LA FIN du compte à
    * rebours uniquement. Idempotent (jamais deux trackers).
    *
-   * E14 (25/07/2026) — `activity` est OBLIGATOIRE, et c'est tout l'intérêt : on
-   * ne peut plus démarrer une sortie sans DIRE ce qu'on est en train de faire.
-   * Le cœur ne devine plus rien ; il lisait auparavant la préférence
-   * d'AFFICHAGE de la carte (`gryd.mapactivity`), si bien qu'une lentille Bike
-   * oubliée transformait une vraie course à pied en sortie vélo — bornes
-   * anti-triche à 80 km/h et univers de territoire que la lentille Run
-   * n'affiche jamais. Le paramètre est typé `Activity` : le jour où le moteur
-   * vélo existera (cf. `lib/flags.ts`), il suffira à un écran de passer
-   * `'bike'` ici. Voir `runActivity.ts` pour l'arbitrage complet.
+   * E14 — `activity` est OBLIGATOIRE, et c'est tout l'intérêt : on ne peut pas
+   * démarrer une sortie sans DIRE ce qu'on est en train de faire. Le cœur ne
+   * devine rien ; il lisait auparavant la préférence d'AFFICHAGE de la carte
+   * (`gryd.mapactivity`), si bien qu'une lentille Bike oubliée transformait une
+   * vraie course à pied en sortie vélo — bornes anti-triche à 80 km/h et
+   * univers de territoire que la lentille Run n'affiche jamais.
+   *
+   * 26/07/2026 — la valeur passée ici n'est PLUS toujours `run` : le préflight
+   * affiche la discipline déclarée par le chemin de départ et laisse la
+   * corriger avant le GO (cf. `runActivity.ts`). Ce qui reste verrouillé, c'est
+   * que la valeur vient d'un ÉCRAN qui l'a montrée au joueur, jamais d'un
+   * réglage lu en silence.
    */
   confirmStart: (activity: Activity) => void;
   /** Compte à rebours annulé : rien à défaire (tracker jamais construit). */

@@ -42,6 +42,32 @@
  * tant que le serveur n'a pas jugé, et tout ce qui parle de conquête (KPI,
  * IMPACT, décomposition du calcul) disparaît alors — plutôt un bloc absent
  * qu'un « 0 » qui se lit comme un verdict.
+ *
+ * ─── L'ÉCRAN NOMME LA DISCIPLINE (E14, vélo réel — 26/07/2026) ──────────────
+ * Le préflight montre au joueur, pendant le décompte, la discipline qu'il
+ * s'apprête à enregistrer, et la lui laisse corriger d'un tap. L'écran de fin
+ * ne la lisait NULLE PART : il servait le vocabulaire de la course à pied à un
+ * cycliste, c'est-à-dire qu'il DÉMENTAIT le préflight au moment précis où le
+ * joueur regarde son résultat. Elle arrive désormais par l'URL (même nom de
+ * paramètre que le départ) et tout ce qui NOMME l'effort passe par
+ * `resultCopy(activity)` — porte d'entrée unique, exhaustive par discipline.
+ *
+ * CE QUI N'EST PAS DUPLIQUÉ, ET POURQUOI : « ZONE DÉFENDUE », « TERRITOIRE
+ * ÉTENDU », les KPI, les CTA et le bloc de statistiques sont déjà VRAIS dans
+ * les deux mondes. Les décliner créerait deux vérités à maintenir, donc une
+ * divergence à venir. Le schéma « la boucle fait la zone » et les paliers
+ * `verify` ne portent pas non plus de seuil disciplinaire (les tiers de
+ * confiance sont globaux) : rien à décliner là non plus.
+ *
+ * LA 3ᵉ STATISTIQUE CHANGE DE GRANDEUR (26/07/2026). Elle restait une ALLURE
+ * (min/km) pour tout le monde. Ce n'était pas faux à vélo — c'est bien
+ * l'allure — mais aucun cycliste ne lit son effort ainsi : il lit une VITESSE.
+ * Elle passe donc par `effortRate()` (moteur PUR, testé), qui rend la grandeur
+ * de LA discipline. Le chiffre du cycliste est une conversion exacte de celui
+ * du coureur (3600 / allure) : une seule mesure, donc aucune divergence
+ * possible entre les deux mondes. Et une allure absente ou nulle fait
+ * DISPARAÎTRE la case au lieu d'afficher « 0'00/km » — le « 0 » nu que la loi
+ * du projet interdit, et qui s'affichait bel et bien jusqu'ici.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -62,16 +88,31 @@ import {
   iconSizes,
   motion,
   radii,
+  // Plancher tactile du projet : il était RECOPIÉ en 44 dans trois styles de cet
+  // écran. §A demande le token — un nombre recopié ne suit pas la charte quand
+  // elle bouge, et rien ne le relie au gabarit qu'il prétend garantir.
+  sizes,
   spacing,
+  type Activity,
   type IngestRunResponse,
   type RejectReason,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
-import { C, REJECT_REASON_COPY } from '../src/i18n/catalog/result';
+import { C, resultCopy } from '../src/i18n/catalog/result';
+// La discipline arrive par l'URL, et son PARSING appartient au domaine du
+// départ : on l'importe au lieu de réécrire un `includes(ACTIVITIES)` local, qui
+// finirait par diverger en silence de ce que le préflight a montré au joueur.
+import {
+  START_ACTIVITY_PARAM,
+  parseStartActivity,
+} from '../src/features/run/gps/runActivity';
 import { useT } from '../src/i18n/store';
 import { Icon } from '../src/ui/Icon';
-import { formatInt } from '../src/ui/format';
+import { decimalSeparator, formatInt } from '../src/ui/format';
+// La GRANDEUR de la 3ᵉ statistique dépend de la discipline (allure / vitesse) :
+// moteur pur, testé, y compris ses cas dégénérés (jamais un « 0 » nu).
+import { effortRate, formatSpeedKmh } from '../src/features/run/effortRate';
 import {
   BadgeCard,
   StatePill,
@@ -204,9 +245,11 @@ interface ResultView {
 // lu nulle part — la frontière ouverte s'affiche désormais comme une RAISON
 // factuelle dans le hero d'effort, à partir du seul `openBoundary` du serveur.
 
-function NoResultScreen() {
+function NoResultScreen({ activity }: { activity: Activity }) {
   const t = useT();
   const insets = useSafeAreaInsets();
+  /** Libellés de LA discipline (catalogue `result`, indexé par `Activity`). */
+  const A = resultCopy(activity);
 
   useEffect(() => {
     screen('course_result_empty');
@@ -226,8 +269,8 @@ function NoResultScreen() {
     >
       <View style={styles.noResultBlock}>
         <Icon name="historique" size={28} color={colors.gris} />
-        <Text style={styles.noResultTitle}>{t(C.noResultTitle)}</Text>
-        <Text style={styles.noResultBody}>{t(C.noResultBody)}</Text>
+        <Text style={styles.noResultTitle}>{t(A.noResultTitle)}</Text>
+        <Text style={styles.noResultBody}>{t(A.noResultBody)}</Text>
       </View>
       <Pressable
         accessibilityRole="button"
@@ -253,6 +296,28 @@ export default function CourseResultScreen() {
     boundary?: string;
     /** AMENDEMENT-17 §CH2 — `open` (fermable) ou `completed` (boucle crew fermée). */
     boundary_state?: string;
+    /**
+     * DISCIPLINE DE LA SORTIE (E14, vélo réel 26/07/2026) — même nom de
+     * paramètre que le DÉPART (`START_ACTIVITY_PARAM`), et ce n'est pas un
+     * hasard : ce que le préflight a montré au joueur avant le premier mètre
+     * doit être ce que le Résultat lui redit à l'arrivée. Un écran de fin qui
+     * dit « course » après une sortie déclarée vélo dément le préflight.
+     *
+     * IL EST ÉMIS DEPUIS LE 26/07/2026, et par une fonction PURE :
+     * `features/run/gps/resultHandoff.ts` construit les paramètres de cet écran
+     * à partir de la sortie terminée, et son test prouve que la discipline
+     * survit à l'aller-retour sérialisation → `parseStartActivity`. Auparavant
+     * `RealCourseLive.finish()` composait cet objet à la main SANS la
+     * discipline : l'écran retombait alors sur le défaut du jeu (`run`) et
+     * disait « COURSE TERMINÉE » à la fin de chaque sortie vélo — les vingt
+     * libellés vélo du catalogue existaient déjà, ils étaient simplement
+     * inatteignables. Une clé oubliée dans un objet littéral n'est vérifiable
+     * par rien : c'est pour ça que le relais est devenu du code testé.
+     *
+     * La lecture reste DÉFENSIVE : un lien direct sans paramètre continue de
+     * rendre exactement le comportement d'avant le vélo.
+     */
+    activity?: string;
   }>();
   // NOTE (21/07/2026) : `t`, `route` et `planned` ne sont plus lus. Ils
   // pilotaient la simulation (tick rejoué, itinéraire démo, parcours planifié)
@@ -268,7 +333,11 @@ export default function CourseResultScreen() {
   // coureur. Le vrai produit ne fabrique pas un résultat : il dit qu'il n'en a
   // pas. Plus aucune exception, sur aucune plateforme.
   const hasRealRun = getLastRunResult() !== null || numParam(params.dist) !== null;
-  if (!hasRealRun) return <NoResultScreen />;
+  // Lecture DÉFENSIVE, par la fonction du domaine du départ : un paramètre
+  // répété ou inconnu retombe sur la discipline déclarée par défaut du jeu,
+  // jamais sur un blocage — un joueur qui vient de finir doit voir son écran.
+  const activity = parseStartActivity(params.activity);
+  if (!hasRealRun) return <NoResultScreen activity={activity} />;
 
   // AMENDEMENT-17 §CH2 — la frontière crew court-circuite la séquence dopamine :
   // un seul écran = une seule action (ouvrir/terminer). Piloté par `boundary` +
@@ -282,11 +351,12 @@ export default function CourseResultScreen() {
   // joueur atteignant l'URL se voyait donc proposer de refermer la frontière
   // d'un coéquipier qui n'existe pas. Ils reviendront le jour où le serveur les
   // décide vraiment — le client n'invente pas un état de jeu.
-  return <ConquestResultScreen params={params} />;
+  return <ConquestResultScreen params={params} activity={activity} />;
 }
 
 function ConquestResultScreen({
   params,
+  activity,
 }: {
   params: {
     mode?: string;
@@ -296,9 +366,22 @@ function ConquestResultScreen({
     dur?: string;
     intention?: string;
   };
+  /** Discipline DÉCLARÉE de la sortie — décidée en amont, jamais devinée ici. */
+  activity: Activity;
 }) {
   const insets = useSafeAreaInsets();
   const t = useT();
+  /**
+   * LES MOTS DE CETTE DISCIPLINE — porte d'entrée UNIQUE (catalogue `result`),
+   * pas un `activity === 'bike' ? … : …` répété quinze fois : le `Record` est
+   * exhaustif, donc une troisième discipline ne pourra pas sortir en silence
+   * avec le vocabulaire du coureur.
+   *
+   * `C` reste utilisé pour tout ce qui est DÉJÀ vrai dans les deux mondes
+   * (« ZONE DÉFENDUE », KPI, CTA, stats) : le dupliquer créerait deux vérités
+   * à maintenir, donc une divergence à venir.
+   */
+  const A = resultCopy(activity);
   // ─── LE RANG AFFICHÉ ÉTAIT CELUI D'UN AUTRE (21/07/2026) ──────────────────
   // `gripRankForLevel(playerLevelForXp(MY_SOCIAL_PROFILE.xp))` : l'XP du persona
   // de démo KORO (4 210 → niveau 12 → « Éclaireur »), sans aucune garde, rendu à
@@ -387,6 +470,14 @@ function ConquestResultScreen({
   }, [serverResult, realDistM, realDurS, t]);
   /** Raccourci de lecture — `null` tant que le serveur n'a pas jugé. */
   const zones = stats.zones;
+  /**
+   * LA 3ᵉ STATISTIQUE, DANS LA GRANDEUR DE SA DISCIPLINE (moteur pur, testé).
+   * Allure (min/km) à pied · VITESSE (km/h) à vélo — le chiffre du cycliste
+   * est une conversion EXACTE de l'allure mesurée, pas un second calcul depuis
+   * distance/durée qui finirait par diverger. `null` = rien de mesurable : la
+   * case disparaît, plutôt qu'un « 0'00/km » qui se lirait comme une mesure.
+   */
+  const rate = effortRate(activity, stats.paceSPerKm);
 
   const conquest = mode === 'conquete';
   const isPrivate = mode === 'course_privee';
@@ -398,7 +489,7 @@ function ConquestResultScreen({
   // Raison de refus résolue DÉFENSIVEMENT : le serveur se déploie indépendamment
   // du binaire — s'il émet une raison inconnue de cette version (skew), on
   // n'affiche rien plutôt que de crasher tout l'écran (index → undefined).
-  const rejectCopy = stats.rejectReason ? REJECT_REASON_COPY[stats.rejectReason] : undefined;
+  const rejectCopy = stats.rejectReason ? A.rejectReason[stats.rejectReason] : undefined;
 
   // ─── LE VERDICT, PUIS LE RÉCIT (moteur partagé avec /partage) ──────────────
   // Ce que le SERVEUR a jugé, mis en forme pour le moteur pur `narrative.ts`.
@@ -561,9 +652,12 @@ function ConquestResultScreen({
     serverResult?.bonusApplied;
 
   useEffect(() => {
-    screen('course_result', { mode });
-    track(EVENTS.celebrationViewed, { mode });
-  }, [mode]);
+    // La discipline accompagne la vue, comme sur l'écran live : sans elle, la
+    // mesure d'usage du Résultat mélangerait deux mondes que le jeu sépare
+    // partout ailleurs (territoires, classements, points de saison).
+    screen('course_result', { mode, activity });
+    track(EVENTS.celebrationViewed, { mode, activity });
+  }, [mode, activity]);
 
   const goMap = () => router.replace('/(tabs)');
   // E09 — DÉFIER : aller re-courir le secteur repris. La carte est la seule
@@ -633,7 +727,18 @@ function ConquestResultScreen({
         crewName: '',
       }),
     });
-    router.push({ pathname: '/partage', params: { mode, intention: params.intention ?? '' } });
+    // La discipline VOYAGE avec la sortie : /partage titre et raconte lui aussi
+    // l'effort (`shareRunTitle`, `reasonCrew`…), et il ne peut pas le nommer
+    // s'il ne le reçoit pas. On transporte ce qu'on a plutôt que de laisser
+    // l'écran suivant redeviner — c'est exactement la rupture qu'on corrige ici.
+    router.push({
+      pathname: '/partage',
+      params: {
+        mode,
+        intention: params.intention ?? '',
+        [START_ACTIVITY_PARAM]: activity,
+      },
+    });
   };
   const toggleDetails = () => {
     haptics.light();
@@ -700,7 +805,7 @@ function ConquestResultScreen({
         ? `${t(summary.kicker)} · ${formatKm(stats.distanceM)} km`
         : t(summary.kicker)
       : isPrivate
-        ? t(C.privateLine)
+        ? t(A.privateLine)
         : t(C.socialRunLine, { km: formatKm(stats.distanceM) });
   // Titre du moment dopamine : le RÉSULTAT (territoire/zone), jamais un tampon
   // administratif — la validation vit dans la pill GRYD VERIFIED, séparée.
@@ -721,18 +826,18 @@ function ConquestResultScreen({
   // dé-flaguée ; en attendant, défier = aller re-courir le secteur sur la carte.
   const rival = rivalChallengeFromResult(serverResult, !notCredited);
   const heroTitle = isPrivate
-    ? t(C.heroPrivate)
+    ? t(A.heroPrivate)
     : pioneer
       ? t(C.heroPioneer, { commune: pioneer.nom }) // REMPLACE « TERRITOIRE ÉTENDU » (§A, une seule affirmation)
       : stats.rejected
         ? t(C.heroRejected) // §11 : capture refusée — jamais « TERRITOIRE ÉTENDU »
         : stats.flagged
-          ? t(C.heroFlagged) // §11 : course signalée par GRYD Verify — non créditée
+          ? t(A.heroFlagged) // §11 : course signalée par GRYD Verify — non créditée
           : // VARIANTE SANS CAPTURE (planche) : jugé, crédité, mais rien de pris.
             // « TERRITOIRE ÉTENDU » y était un contresens — le hero parle d'EFFORT,
             // et « COURSE TERMINÉE » est vrai, sobre, et déjà traduit 5 langues.
             !conquest || !zones || effortHero
-            ? t(C.heroDone)
+            ? t(A.heroDone)
             : intention === 'defense'
               ? t(C.heroDefended)
               : t(C.heroExtended);
@@ -741,7 +846,7 @@ function ConquestResultScreen({
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
       {/* Barre : kicker seul — l'écran 1 est déjà l'état final, rien à passer. */}
       <View style={styles.bar}>
-        <Text style={styles.barKicker}>{t(C.barKicker)}</Text>
+        <Text style={styles.barKicker}>{t(A.barKicker)}</Text>
       </View>
 
       <ScrollView
@@ -770,7 +875,7 @@ function ConquestResultScreen({
                 height={heroMapH}
                 animated={!reduceMotion}
                 accessibilityLabel={
-                  showBefore ? t(C.a11yHeroMapBefore) : t(C.a11yHeroMapAfter)
+                  showBefore ? t(A.a11yHeroMapBefore) : t(A.a11yHeroMapAfter)
                 }
               />
               {/* BASCULE « Avant ⇄ Après » — press-and-hold (planche). Rendue
@@ -800,7 +905,7 @@ function ConquestResultScreen({
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           {/* PIONNIER — le sous-titre du statut rare : « Premier runner de GRYD
               ici ». Un seul par commune, pour toujours (verdict serveur). */}
-          {pioneer ? <Text style={styles.heroPioneerSub}>{t(C.heroPioneerSub)}</Text> : null}
+          {pioneer ? <Text style={styles.heroPioneerSub}>{t(A.heroPioneerSub)}</Text> : null}
           {/* La VALIDATION vit dans sa pill (séparée du titre — jamais « validée »
               en guise de victoire). Jargon banni : « stats only » → français. */}
           {/* Non crédité : ni « GRYD VERIFIED » ni « Compte en stats » — une course
@@ -849,7 +954,7 @@ function ConquestResultScreen({
               revue et non créditée (aucune raison de gameplay ici — trust trop bas). */}
           {stats.flagged ? (
             <Text style={styles.heroWhy} numberOfLines={2}>
-              {t(C.flaggedWhy)}
+              {t(A.flaggedWhy)}
             </Text>
           ) : null}
 
@@ -937,7 +1042,7 @@ function ConquestResultScreen({
               à zéro. Discret, même gabarit que la note hors-ligne. */}
           {serverResult?.hexes.coCaptured !== undefined && serverResult.hexes.coCaptured > 0 ? (
             <Text style={styles.heroQueued} numberOfLines={2}>
-              {t(C.coCapturedNote, { n: serverResult.hexes.coCaptured })}
+              {t(A.coCapturedNote, { n: serverResult.hexes.coCaptured })}
             </Text>
           ) : null}
 
@@ -1010,7 +1115,10 @@ function ConquestResultScreen({
                l'ordre immuable de la planche était cassé, et la distance d'une
                course réussie n'était visible nulle part au premier niveau.
                DÉNIVELÉ (4ᵉ stat de la maquette) OMIS : l'altitude ne remonte pas
-               jusqu'ici — 3 stats mesurées valent mieux qu'une case « — ». */}
+               jusqu'ici — 3 stats mesurées valent mieux qu'une case « — ».
+               La 3ᵉ case (allure à pied, VITESSE à vélo) disparaît, séparateur
+               compris, quand rien n'a été mesuré : un « 0'00/km » se lirait
+               comme une performance nulle alors que c'est une absence. */}
           {stats.durationS > 0 ? (
             <View style={styles.statTriBlock}>
               <View style={styles.statTriItem}>
@@ -1026,13 +1134,19 @@ function ConquestResultScreen({
                 </Text>
                 <Text style={styles.statTriLabel}>{t(C.timeLabel)}</Text>
               </View>
-              <View style={styles.statTriSep} />
-              <View style={styles.statTriItem}>
-                <Text style={styles.statTriValue} numberOfLines={1}>
-                  {formatPace(stats.paceSPerKm)}/km
-                </Text>
-                <Text style={styles.statTriLabel}>{t(C.paceLabel)}</Text>
-              </View>
+              {rate ? (
+                <>
+                  <View style={styles.statTriSep} />
+                  <View style={styles.statTriItem}>
+                    <Text style={styles.statTriValue} numberOfLines={1}>
+                      {rate.kind === 'speed'
+                        ? `${formatSpeedKmh(rate.kmh, decimalSeparator())} km/h`
+                        : `${formatPace(rate.sPerKm)}/km`}
+                    </Text>
+                    <Text style={styles.statTriLabel}>{t(A.rateLabel)}</Text>
+                  </View>
+                </>
+              ) : null}
             </View>
           ) : null}
         </ResultReveal>
@@ -1083,8 +1197,12 @@ function ConquestResultScreen({
               (tertiaire, ci-dessous) qui ramène à la carte. */}
           {/* RENDEZ-VOUS local (rétention) — surface SECONDAIRE : le seul
               déclencheur de retour shippable sans backend. S'efface d'elle-même
-              sur web / refus de permission (jamais un bouton mort). */}
-          <RendezvousOptIn />
+              sur web / refus de permission (jamais un bouton mort).
+              Le rappel HÉRITE de la discipline qu'on vient de terminer : une
+              notification qui promet « ta prochaine course » après une sortie
+              vélo propose un autre sport que celui que le joueur a choisi — et
+              elle, contrairement à cet écran, revient tous les jours. */}
+          <RendezvousOptIn activity={activity} />
           {/* Le libellé suit `zones`, pas `conquest` : sans verdict serveur,
               « Comment j'ai gagné ces zones » promettrait l'explication de zones
               que personne n'a encore comptées. Dans ce cas le panneau ne contient
@@ -1166,7 +1284,7 @@ function ConquestResultScreen({
                 <Text style={styles.stepKicker}>{t(C.detailsKicker)}</Text>
                 <View style={styles.statsCard}>
                   <Text style={styles.statsNote}>
-                    {isPrivate ? t(C.privateNote) : t(C.socialNote)}
+                    {isPrivate ? t(A.privateNote) : t(C.socialNote)}
                   </Text>
                 </View>
               </View>
@@ -1557,12 +1675,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flexShrink: 1,
   },
-  // Mini-bandeau badge tappable (hook de rétention visible, ≥ 44 px).
+  // Mini-bandeau badge tappable (hook de rétention visible, au plancher tactile).
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     paddingHorizontal: spacing.md,
     borderRadius: radii.pill,
     borderWidth: 1,
@@ -1573,13 +1691,13 @@ const styles = StyleSheet.create({
   heroBadgeText: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '700' },
   heroQueued: { color: colors.gris, fontSize: fontSizes.xs, textAlign: 'center' },
 
-  // Toggle détails — secondaire discret, sous le CTA principal (cible ≥ 44 px).
+  // Toggle détails — secondaire discret, sous le CTA principal (plancher tactile).
   detailsToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     paddingVertical: spacing.sm,
   },
   detailsToggleLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
@@ -1787,9 +1905,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   boundarySecondaryLabel: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  // TERTIAIRE (planche) — « Terminer » : lien texte, cible ≥ 44 px avec le
+  // TERTIAIRE (planche) — « Terminer » : lien texte, au plancher tactile avec le
   // hitSlop. Aucun fond, aucun contour : il ne concurrence pas le chartreuse.
-  tertiary: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  tertiary: { alignItems: 'center', justifyContent: 'center', minHeight: sizes.touchTarget },
   tertiaryLabel: { color: colors.gris, fontSize: fontSizes.md, fontWeight: '700' },
 
 });

@@ -40,6 +40,16 @@
  *     visuel, lui, se règle dans ShareCard.
  * Ces trois écarts sont listés dans le retour de lot, pas cachés ici.
  *
+ * ─── LA CARTE NOMME LA BONNE DISCIPLINE (26/07/2026) ────────────────────────
+ * Le vélo est une discipline RÉELLE depuis le 26/07/2026, et cette carte-ci
+ * imprimait encore « COURSE ENREGISTRÉE » / « COURU POUR {crew} » sous le tracé
+ * d'un cycliste : `ShareDemoData` ne portait AUCUNE discipline, donc l'image
+ * exportée ne pouvait pas savoir ce qu'elle décrivait. C'est le pire endroit du
+ * produit pour ce défaut — le PNG quitte l'app, et sa victime n'est pas le
+ * joueur mais SON CREW, qui lit « COURSE » sous une photo de vélo sans aucun
+ * moyen de corriger. `ShareDemoData.activity` porte donc la discipline jusqu'ici,
+ * et les trois titres qui nomment l'effort passent par `copyOf(d)`.
+ *
  * ─── ZÉRO DONNÉE FABRIQUÉE ──────────────────────────────────────────────────
  * Aucun scénario de démo (supprimé le 21/07/2026). `ShareDemoData` (nom
  * historique) décrit les données d'un run RÉEL ; ce qui n'est pas connu est VIDE
@@ -48,9 +58,9 @@
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, gameColors } from '@klaim/shared';
+import { colors, gameColors, type Activity } from '@klaim/shared';
 import type { ShareCardProps } from '../../ui/game';
-import { C } from '../../i18n/catalog/result';
+import { C, resultCopy } from '../../i18n/catalog/result';
 import { t, useT } from '../../i18n/store';
 import { type LatLngPoint } from '../map/realAnchors';
 import { ShareMap } from './ShareMap';
@@ -103,6 +113,19 @@ export interface ShareView {
 
 /** Données du run VALIDÉ projetées dans les cards (plus aucun scénario de démo). */
 export interface ShareDemoData {
+  /**
+   * DISCIPLINE DE LA SORTIE DÉCRITE (26/07/2026). Sans ce champ, la carte
+   * exportée ne pouvait pas savoir ce qu'elle décrivait : elle imprimait
+   * « COURSE ENREGISTRÉE » / « COURU POUR {crew} » sous le tracé d'un cycliste,
+   * dans un PNG qui SORT de l'app et que le crew lit sans pouvoir le corriger.
+   *
+   * Il vit ici — dans la DONNÉE de la carte — et non dans `ShareView`, qui ne
+   * porte que de l'état de RENDU : la discipline est un fait du run, pas un
+   * réglage d'affichage. Les libellés qui la nomment passent tous par
+   * `resultCopy(d.activity)`, la même porte unique et exhaustive que le Résultat
+   * et /partage : impossible qu'un des trois écrans nomme la sortie autrement.
+   */
+  activity: Activity;
   playerName: string;
   crewName: string;
   zoneName: string;
@@ -199,6 +222,19 @@ function factsOf(d: ShareDemoData): ShareCardFacts {
 /** Nom de LIEU réel, ou '' quand le Résultat n'en connaît aucun. */
 function placeOf(d: ShareDemoData): string {
   return knownPlaceName(d.zoneName, ZONE_FALLBACKS);
+}
+
+/**
+ * Les mots de LA DISCIPLINE de cette sortie. Les trois titres qui NOMMENT
+ * l'effort (repli « Carte », et les deux variantes « Crew ») ne se lisent QUE
+ * d'ici : écrire `C.heroRunLogged` en dur rendrait au cycliste le titre du
+ * coureur, dans l'image exportée. Les autres titres (« TERRITOIRE CONQUIS »,
+ * « FRONTIÈRE TENUE », « BOUCLE FERMÉE », « JE SUIS {rank} ») restent des `C.*`
+ * directs : ils sont déjà vrais dans les deux mondes, et les dupliquer créerait
+ * deux vérités à maintenir.
+ */
+function copyOf(d: ShareDemoData) {
+  return resultCopy(d.activity);
 }
 
 /** Ce qu'un template a le droit de décider : son titre, sa grandeur, son défi, son visuel. */
@@ -314,12 +350,15 @@ function BeforeAfter({
 
 export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
   // 1. CARTE — le repli honnête : son chiffre héros est la DISTANCE MESURÉE,
-  //    qui existe dès qu'une course existe. Aucun défi : rien n'a changé de main.
+  //    qui existe dès qu'une sortie existe. Aucun défi : rien n'a changé de main.
+  //    C'est le style le plus ATTEIGNABLE (servi dès qu'aucune zone n'a changé de
+  //    main, et seul style d'un social_run), donc le plus exposé : son titre suit
+  //    la discipline, sinon un cycliste exporte « COURSE ENREGISTRÉE ».
   {
     id: 'simple',
     build: (d, view) =>
       shareCard(d, {
-        event: t(C.heroRunLogged),
+        event: t(copyOf(d).cardHeroLogged),
         hero: 'distance',
         visual: proofMap(d, view),
       }),
@@ -371,14 +410,16 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
   //    l'omet. Ni titre vide, ni identité empruntée.
   {
     id: 'crew',
-    build: (d, view) =>
-      shareCard(d, {
+    build: (d, view) => {
+      const A = copyOf(d);
+      return shareCard(d, {
         event: d.crewName
-          ? t(C.heroForCrewNamed, { crew: d.crewName.toUpperCase() })
-          : t(C.heroForCrewNoName),
+          ? t(A.cardHeroForCrewNamed, { crew: d.crewName.toUpperCase() })
+          : t(A.cardHeroForCrewNoName),
         hero: 'crew',
         visual: proofMap(d, view),
-      }),
+      });
+    },
   },
   // 6. CLASSEMENT — moteur viral de base (jamais bloqué premium). Le rang vient
   //    du serveur ; sans rang, ce style n'est même pas proposé par /partage.
@@ -386,7 +427,11 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
     id: 'classement',
     build: (d, view) =>
       shareCard(d, {
-        event: d.rankLabel ? t(C.heroRankLine, { rank: d.rankLabel }) : t(C.heroRunLogged),
+        // Sans rang serveur, ce style retombe sur le MÊME repli que « Carte » —
+        // donc sur le même titre discipliné (le rang, lui, est neutre).
+        event: d.rankLabel
+          ? t(C.heroRankLine, { rank: d.rankLabel })
+          : t(copyOf(d).cardHeroLogged),
         hero: 'rank',
         visual: proofMap(d, view),
       }),

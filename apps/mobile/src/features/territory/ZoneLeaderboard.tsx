@@ -21,21 +21,31 @@
  * Le jour où une agrégation serveur existe, le palmarès revient ICI, avec ses
  * props de données — et pas depuis `leaderboardDemo.ts`.
  *
+ * ─── LA SECTION DIT LE MONDE QU'ELLE REGARDE (26/07/2026, vélo réel) ────────
+ * Elle rendait la ligne d'absence SANS CONDITION : « Aucun classement tant que
+ * personne n'a COURU ici. » Or son seul hôte, `/territoire`, porte le
+ * commutateur de discipline et affiche « À vélo » quatre blocs plus haut — la
+ * page se contredisait donc elle-même. `activity` est OBLIGATOIRE : un défaut
+ * ferait retomber en silence sur la course, ce qui est le bug lui-même. Le
+ * TITRE, lui, ne se décline pas : « CLASSEMENT DE ZONE » ne nomme aucun effort,
+ * et le dupliquer à l'identique créerait deux vérités à maintenir.
+ *
  * §A : section COMPACTE, pas de card-dans-card, texte court jamais tronqué.
  */
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes } from '@klaim/shared';
+import { colors, fontSizes, type Activity } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
+import { zoneBoardEmptyEntry } from './zoneBoardCopy';
 import { useT } from '../../i18n/store';
 
-export function ZoneLeaderboard() {
+export function ZoneLeaderboard({ activity }: { activity: Activity }) {
   const t = useT();
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
         <Text style={styles.title}>{t(C.zoneBoardTitle)}</Text>
       </View>
-      <Text style={styles.emptyLine}>{t(C.zoneBoardEmpty)}</Text>
+      <Text style={styles.emptyLine}>{t(zoneBoardEmptyEntry(activity))}</Text>
     </View>
   );
 }

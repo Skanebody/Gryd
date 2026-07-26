@@ -15,10 +15,22 @@
  * Toute la logique vit dans logic.ts — ce fichier ne fait que de l'I/O.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
-import { buildDigest, canPush, type Digest, type DigestEvent } from './logic.ts';
+import {
+  buildDigest,
+  buildZonesLost,
+  canPush,
+  type Digest,
+  type DigestEvent,
+  readActivity,
+  readPayloadActivity,
+  readPayloadHexCount,
+  type StealNotificationRow,
+} from './logic.ts';
 import { activityScore, chestTierFor } from '../_shared/engine/crew.ts';
 import { secretsMatch } from '../_shared/secret.ts';
 import {
+  ACTIVITIES,
+  type Activity,
   BONUS_CREW_CHEST_MAX_RATIO,
   BONUS_CREW_CHEST_MIN_RATIO,
   BONUS_DEFENSE_DECAY_MAX_H,
@@ -32,6 +44,8 @@ import type { BonusId } from '../_shared/types.ts';
 const MS_PER_DAY = 86_400_000;
 const MS_PER_HOUR = 3_600_000;
 const DIGEST_PRIORITY = 6; // P6 (GRYD_notifications_logic.md §2)
+/** Taille des lots pour les clauses `in(…)` — même valeur que steal_push_job. */
+const DB_CHUNK = 500;
 const PARIS_TZ = 'Europe/Paris';
 
 const supabase = createClient(
@@ -45,6 +59,61 @@ const json = (body: unknown, status = 200): Response =>
     status,
     headers: { 'content-type': 'application/json' },
   });
+
+/** Discipline lisible ? Test de FORME sur une colonne, sans repli implicite. */
+const isActivity = (v: unknown): v is Activity =>
+  typeof v === 'string' && (ACTIVITIES as readonly string[]).includes(v);
+
+/**
+ * Les disciplines dans lesquelles chaque joueur a RÉELLEMENT des lignes.
+ *
+ * POURQUOI `season_scores`, ET PAS `runs` NI `hex_claims` — même arbitrage,
+ * mot pour mot, que `steal_push_job.loadPlayerWorlds` : la question posée est
+ * booléenne (« ce joueur a-t-il deux mondes à distinguer ? »), mais la table
+ * lue décide du volume rapatrié pour apprendre un oui/non. `season_scores` est
+ * bornée PAR CONSTRUCTION — clé primaire `(season_id, user_id, activity)`,
+ * donc au plus deux lignes par saison jouée —, là où `runs` et `hex_claims`
+ * croissent avec l'activité.
+ *
+ * TOUTES SAISONS confondues, volontairement : la question est « a-t-il déjà
+ * roulé/couru dans ce monde », et ses lignes de saisons closes y répondent
+ * encore (`season_close` ne purge que `hex_claims` et `shields`). Ce read est
+ * donc MONOTONE : il ne peut que gagner des mondes, jamais en perdre, et la
+ * seule dérive possible — un joueur devenu bi-discipliné cette semaine — pousse
+ * vers l'ABSTENTION, jamais vers un chiffre faux.
+ *
+ * ÉCHEC DE LECTURE : on ne fabrique rien. La map revient vide, tout `null` de
+ * payload reste non attribuable, et `buildZonesLost` s'abstient de chiffrer.
+ */
+async function loadPlayerWorlds(
+  userIds: readonly string[],
+): Promise<Map<string, Set<Activity>>> {
+  const worlds = new Map<string, Set<Activity>>();
+  const unique = [...new Set(userIds)];
+  if (unique.length === 0) return worlds; // aucun vol cette semaine : aucun appel
+  // Par lots : le nombre de victimes d'une semaine n'est borné par rien, et un
+  // `.in(…)` de dix mille identifiants tomberait sur la longueur d'URL — le
+  // digest hebdo de TOUS les joueurs avec lui. Même parade que steal_push_job.
+  for (let i = 0; i < unique.length; i += DB_CHUNK) {
+    const { data, error } = await supabase
+      .from('season_scores')
+      .select('user_id, activity')
+      .in('user_id', unique.slice(i, i + DB_CHUNK));
+    if (error) throw new Error(`season_scores read: ${error.message}`);
+    for (const row of data ?? []) {
+      // Valeur illisible : elle n'AJOUTE aucun monde (elle n'en retire pas non
+      // plus). Ne pas lever ici est cohérent avec l'usage : un monde manquant
+      // pousse vers l'abstention, jamais vers un chiffre faux.
+      if (!isActivity(row.activity)) continue;
+      const activity: Activity = row.activity;
+      const uid = String(row.user_id);
+      const set = worlds.get(uid);
+      if (set) set.add(activity);
+      else worlds.set(uid, new Set([activity]));
+    }
+  }
+  return worlds;
+}
 
 /** Dimanche à l'heure de Paris ? (jour LOCAL, pas UTC — cron du soir.) */
 function isSundayInParis(now: Date): boolean {
@@ -203,26 +272,41 @@ async function expireActiveBonuses(now: Date): Promise<number> {
 
 /**
  * Insère une fenêtre `active_bonuses` si AUCUNE fenêtre `active` du même bonus
- * n'existe déjà pour ce sujet (anti-doublon/anti-spam). PURE côté décision (la
- * durée vient de la fiche). Retourne 1 si créée, 0 sinon. La récompense reste
- * décidée par ingest_run quand un run RÉPOND ; ici on ne fait qu'OUVRIR la
- * fenêtre au bon moment.
+ * n'existe déjà pour ce sujet DANS LE MÊME MONDE (anti-doublon/anti-spam).
+ * Retourne 1 si créée, 0 sinon. La récompense reste décidée par ingest_run
+ * quand un run RÉPOND ; ici on ne fait qu'OUVRIR la fenêtre au bon moment.
+ *
+ * `activity` = le monde du DÉCLENCHEUR, ou `null` quand le déclencheur n'a pas
+ * de monde (coffre crew : sa progression n'appartient ni à la course ni au
+ * vélo). Un `null` de commodité serait un mensonge ; celui-ci est un fait.
+ *
+ * L'anti-doublon est PAR MONDE, volontairement : une zone vélo qui s'efface et
+ * une zone à pied qui s'efface sont deux situations distinctes, chacune
+ * défendable par une sortie différente — les confondre en une seule fenêtre
+ * ferait disparaître l'une des deux (migration 0071).
+ *
+ * ORDRE DE DÉPLOIEMENT, à ne pas inverser : la migration 0071 (colonne
+ * `active_bonuses.activity`) doit être APPLIQUÉE avant que cette version de la
+ * fonction soit déployée. Déployée d'abord, l'insertion échouerait sur une
+ * colonne inconnue et le cron du soir tomberait en entier.
  */
 async function insertBonusIfAbsent(
   scope: 'crew' | 'player',
   subjectId: string,
   bonusId: BonusId,
+  activity: Activity | null,
   now: Date,
 ): Promise<number> {
   const nowIso = now.toISOString();
-  const { data: existing, error: exErr } = await supabase
+  let dup = supabase
     .from('active_bonuses')
     .select('id')
     .eq('subject_id', subjectId)
     .eq('bonus_id', bonusId)
     .eq('status', 'active')
-    .gt('expires_at', nowIso)
-    .limit(1);
+    .gt('expires_at', nowIso);
+  dup = activity === null ? dup.is('activity', null) : dup.eq('activity', activity);
+  const { data: existing, error: exErr } = await dup.limit(1);
   if (exErr) throw new Error(`active_bonuses dup read: ${exErr.message}`);
   if ((existing ?? []).length > 0) return 0; // déjà une fenêtre ouverte : pas de doublon
 
@@ -234,6 +318,7 @@ async function insertBonusIfAbsent(
     subject_id: subjectId,
     bonus_id: bonusId,
     type: bonusById(bonusId).type,
+    activity,
     starts_at: nowIso,
     expires_at: expiresAt.toISOString(),
   });
@@ -241,17 +326,34 @@ async function insertBonusIfAbsent(
   return 1;
 }
 
+/** Range un couple (sujet, monde) — l'unité d'ouverture d'une fenêtre disciplinée. */
+function addSubjectWorld(
+  map: Map<string, Set<Activity>>,
+  subjectId: string,
+  activity: Activity,
+): void {
+  const worlds = map.get(subjectId);
+  if (worlds) worlds.add(activity);
+  else map.set(subjectId, new Set([activity]));
+}
+
 /**
  * CRÉE des fenêtres de bonus CIBLÉES et PONDÉRÉES (démo MVP, AMENDEMENT-19 §7) —
  * jamais partout, seulement là où le contexte fait un « bon moment » :
  *  1. FINISHER (crew) : une frontière `open` du crew dont le segment manquant
  *     est ≤ FINISHER_BONUS_MISSING_MAX_M (« presque fermée ») → fenêtre Finisher
- *     pour ce crew. Se branche sur les partial_boundaries (AMENDEMENT-17).
+ *     pour ce crew, DANS LE MONDE de la frontière. Une frontière ouverte à vélo
+ *     ne se referme pas en courant (0070 : `partial_boundaries.activity`).
  *  2. DÉFENSE CRITIQUE (crew) : une zone crew dont le decay tombe dans les
- *     prochaines BONUS_DEFENSE_DECAY_MAX_H → fenêtre Défense pour ce crew.
+ *     prochaines BONUS_DEFENSE_DECAY_MAX_H → fenêtre Défense pour ce crew, DANS
+ *     LE MONDE de la zone menacée. Sans ça, une zone VÉLO qui s'efface ouvrait
+ *     une fenêtre que n'importe quelle course pouvait réclamer — E14 :
+ *     « jamais Run + Bike dans une même lecture ».
  *  3. COFFRE CREW (crew) : un coffre de la semaine dont la progression est dans
- *     [80 %, 95 %] de la cible → fenêtre Coffre Crew pour ce crew.
- * Anti-doublon via insertBonusIfAbsent. Retourne le nombre de fenêtres créées.
+ *     [80 %, 95 %] de la cible → fenêtre Coffre Crew, SANS monde : la
+ *     progression du coffre n'appartient à aucune discipline.
+ * Anti-doublon PAR MONDE via insertBonusIfAbsent. Retourne le nombre de
+ * fenêtres créées.
  */
 async function createTargetedBonuses(now: Date): Promise<number> {
   const nowIso = now.toISOString();
@@ -260,43 +362,56 @@ async function createTargetedBonuses(now: Date): Promise<number> {
   // 1. Finisher : frontières crew ouvertes et PROCHES (segment manquant court).
   const { data: boundaries, error: bErr } = await supabase
     .from('partial_boundaries')
-    .select('crew_id, missing_m')
+    .select('crew_id, missing_m, activity')
     .eq('status', 'open')
     .gt('expires_at', nowIso)
     .lte('missing_m', FINISHER_BONUS_MISSING_MAX_M);
   if (bErr) throw new Error(`partial_boundaries bonus read: ${bErr.message}`);
-  const finisherCrews = new Set<string>();
-  for (const b of boundaries ?? []) finisherCrews.add(b.crew_id as string);
-  for (const crewId of finisherCrews) {
-    created += await insertBonusIfAbsent('crew', crewId, 'finisher', now);
+  const finisherCrews = new Map<string, Set<Activity>>();
+  for (const b of boundaries ?? []) {
+    addSubjectWorld(finisherCrews, b.crew_id as string, readActivity(b.activity));
+  }
+  for (const [crewId, worlds] of finisherCrews) {
+    for (const world of worlds) {
+      created += await insertBonusIfAbsent('crew', crewId, 'finisher', world, now);
+    }
   }
 
   // 2. Défense Critique : zones dont le decay est imminent (< 12 h). hex_claims
   //    ne stocke pas de crew ; on remonte le crew ACTIF du propriétaire via
   //    crew_members (owner_user_id → crew_id). Une zone menacée d'un membre de
-  //    crew ouvre la fenêtre Défense pour son crew.
+  //    crew ouvre la fenêtre Défense pour son crew, DANS LE MONDE de la zone :
+  //    la discipline voyage donc du propriétaire jusqu'à son crew.
   const decayHorizon = new Date(now.getTime() + BONUS_DEFENSE_DECAY_MAX_H * MS_PER_HOUR).toISOString();
   const { data: decaying, error: dErr } = await supabase
     .from('hex_claims')
-    .select('owner_user_id')
+    .select('owner_user_id, activity')
     .not('owner_user_id', 'is', null)
     .not('decay_at', 'is', null)
     .gt('decay_at', nowIso)
     .lte('decay_at', decayHorizon);
   if (dErr) throw new Error(`hex_claims decay read: ${dErr.message}`);
-  const decayingOwners = new Set<string>();
-  for (const h of decaying ?? []) decayingOwners.add(h.owner_user_id as string);
-  if (decayingOwners.size > 0) {
+  const worldsByOwner = new Map<string, Set<Activity>>();
+  for (const h of decaying ?? []) {
+    addSubjectWorld(worldsByOwner, h.owner_user_id as string, readActivity(h.activity));
+  }
+  if (worldsByOwner.size > 0) {
     const { data: owners, error: oErr } = await supabase
       .from('crew_members')
-      .select('crew_id')
-      .in('user_id', [...decayingOwners])
+      .select('crew_id, user_id')
+      .in('user_id', [...worldsByOwner.keys()])
       .is('left_at', null);
     if (oErr) throw new Error(`crew_members decay read: ${oErr.message}`);
-    const defenseCrews = new Set<string>();
-    for (const m of owners ?? []) defenseCrews.add(m.crew_id as string);
-    for (const crewId of defenseCrews) {
-      created += await insertBonusIfAbsent('crew', crewId, 'defense_critical', now);
+    const defenseCrews = new Map<string, Set<Activity>>();
+    for (const m of owners ?? []) {
+      for (const world of worldsByOwner.get(m.user_id as string) ?? []) {
+        addSubjectWorld(defenseCrews, m.crew_id as string, world);
+      }
+    }
+    for (const [crewId, worlds] of defenseCrews) {
+      for (const world of worlds) {
+        created += await insertBonusIfAbsent('crew', crewId, 'defense_critical', world, now);
+      }
     }
   }
 
@@ -314,7 +429,8 @@ async function createTargetedBonuses(now: Date): Promise<number> {
     .lte('progress', maxProgress);
   if (cErr) throw new Error(`crew_chests bonus read: ${cErr.message}`);
   for (const chest of chests ?? []) {
-    created += await insertBonusIfAbsent('crew', chest.crew_id as string, 'crew_chest', now);
+    // `null` : le coffre n'a pas de discipline (cf. insertBonusIfAbsent).
+    created += await insertBonusIfAbsent('crew', chest.crew_id as string, 'crew_chest', null, now);
   }
 
   return created;
@@ -453,33 +569,77 @@ async function weeklyDigests(now: Date): Promise<UserDigest[]> {
 
   // Hexes gagnés / défendus sur la semaine (approximation MVP : état FINAL de
   // hex_claims — les hexes reperdus dans la semaine sortent du compte).
+  //
+  // PAR DISCIPLINE (0071) : `hex_claims` porte `activity` depuis 0070, et le
+  // territoire est SÉPARÉ (`ACTIVITY_SCOPE.territory = 'per_activity'`). Sans
+  // ce regroupement, le récap annonçait « 12 zones gagnées » pour 7 à pied et
+  // 5 à vélo — une somme que E14 interdit, poussée hors de l'app.
   const { data: hexRows, error: hexError } = await supabase
     .from('hex_claims')
-    .select('owner_user_id, claim_type')
+    .select('owner_user_id, claim_type, activity')
     .gte('claimed_at', since)
     .not('owner_user_id', 'is', null);
   if (hexError) throw new Error(`hex_claims read: ${hexError.message}`);
   const gained = new Map<string, number>();
   const defendedCount = new Map<string, number>();
+  /** Clé « joueur + monde » : les deux mondes ne partagent jamais un compteur. */
+  const worldKey = (uid: string, activity: Activity) => `${uid} ${activity}`;
+  const splitKey = (key: string): [string, Activity] => {
+    const cut = key.lastIndexOf(' ');
+    return [key.slice(0, cut), key.slice(cut + 1) as Activity];
+  };
   for (const h of hexRows ?? []) {
-    const uid = h.owner_user_id as string;
+    const key = worldKey(h.owner_user_id as string, readActivity(h.activity));
     const target = h.claim_type === 'defended' ? defendedCount : gained;
-    target.set(uid, (target.get(uid) ?? 0) + 1);
+    target.set(key, (target.get(key) ?? 0) + 1);
   }
-  for (const [uid, count] of gained) add(uid, { type: 'hexes_gained', count });
-  for (const [uid, count] of defendedCount) add(uid, { type: 'hexes_defended', count });
+  for (const [key, count] of gained) {
+    const [uid, activity] = splitKey(key);
+    add(uid, { type: 'hexes_gained', count, activity });
+  }
+  for (const [key, count] of defendedCount) {
+    const [uid, activity] = splitKey(key);
+    add(uid, { type: 'hexes_defended', count, activity });
+  }
 
   // Zones perdues : les notifications de vol de la semaine (posées par le
   // pipeline de vol) tiennent lieu de compteur MVP.
+  //
+  // ON COMPTE DES ZONES, PLUS DES LIGNES (26/07/2026). Une ligne
+  // `notifications` de type 'steal' est un ÉVÉNEMENT AGRÉGÉ par victime
+  // (steal_push_job/index.ts:inboxRow) : elle couvre `payload.hexCount`
+  // hexagones. Les compter une par une annonçait « 3 zones perdues » pour
+  // vingt zones réelles — et ce nombre part dans l'inbox du joueur.
+  //
+  // La discipline, elle, ne se lit PAS dans le payload : `payload.activity`
+  // vaut `null` aussi bien quand les pertes mêlent les deux mondes que quand
+  // le joueur n'en pratique qu'un. `buildZonesLost` (pur, testé) tranche avec
+  // `season_scores` et, quand il ne peut pas trancher, ne chiffre RIEN —
+  // mieux vaut se taire que chiffrer faux.
   const { data: steals, error: stealsError } = await supabase
     .from('notifications')
-    .select('user_id')
+    .select('user_id, payload')
     .eq('type', 'steal')
     .gte('created_at', since);
   if (stealsError) throw new Error(`notifications read: ${stealsError.message}`);
-  const lost = new Map<string, number>();
-  for (const s of steals ?? []) lost.set(s.user_id, (lost.get(s.user_id) ?? 0) + 1);
-  for (const [uid, count] of lost) add(uid, { type: 'zones_lost', count });
+  const stealRows: StealNotificationRow[] = (steals ?? []).map((s) => {
+    const payload = (s.payload ?? {}) as Record<string, unknown>;
+    return {
+      userId: s.user_id as string,
+      hexCount: readPayloadHexCount(payload.hexCount),
+      activity: readPayloadActivity(payload.activity),
+    };
+  });
+  const lost = buildZonesLost(stealRows, await loadPlayerWorlds(stealRows.map((r) => r.userId)));
+  for (const { userId, event } of lost.events) add(userId, event);
+  // Une abstention se compte : sans cette trace, « aucune zone perdue » et
+  // « on n'a pas su le dire » deviendraient indiscernables dans les métriques.
+  if (lost.unquantifiable.length > 0) {
+    console.warn(
+      `digest_job: zones perdues non chiffrables pour ${lost.unquantifiable.length} joueur(s) ` +
+        `(pertes mêlant deux mondes, ou payload illisible)`,
+    );
+  }
 
   // Badges débloqués sur la semaine.
   const { data: badges, error: badgesError } = await supabase
@@ -522,9 +682,12 @@ async function crewDigests(now: Date): Promise<UserDigest[]> {
     .gte('started_at', since)
     .in('user_id', [...crewOfUser.keys()]);
   if (runsError) throw new Error(`runs read: ${runsError.message}`);
+  // PAR DISCIPLINE (0071) : l'activité territoriale d'un crew se lit monde par
+  // monde. « 9 zones prises » pour 6 à pied et 3 à vélo était une somme
+  // interdite (E14), envoyée à TOUS les membres du crew.
   const { data: hexRows, error: hexError } = await supabase
     .from('hex_claims')
-    .select('owner_user_id')
+    .select('owner_user_id, activity')
     .gte('claimed_at', since)
     .in('owner_user_id', [...crewOfUser.keys()]);
   if (hexError) throw new Error(`hex_claims read: ${hexError.message}`);
@@ -534,18 +697,27 @@ async function crewDigests(now: Date): Promise<UserDigest[]> {
     const crewId = crewOfUser.get(r.user_id)!;
     crewRuns.set(crewId, (crewRuns.get(crewId) ?? 0) + 1);
   }
-  const crewHexes = new Map<string, number>();
+  /** crew → monde → hexes pris sur 24 h. Deux mondes, deux compteurs. */
+  const crewHexes = new Map<string, Map<Activity, number>>();
   for (const h of hexRows ?? []) {
     const crewId = crewOfUser.get(h.owner_user_id as string)!;
-    crewHexes.set(crewId, (crewHexes.get(crewId) ?? 0) + 1);
+    const activity = readActivity(h.activity);
+    const byWorld = crewHexes.get(crewId) ?? new Map<Activity, number>();
+    byWorld.set(activity, (byWorld.get(activity) ?? 0) + 1);
+    crewHexes.set(crewId, byWorld);
   }
 
   // Un digest identique pour chaque membre du crew actif.
   const events = new Map<string, DigestEvent[]>();
   for (const [crewId, users] of usersOfCrew) {
     const crewEvents: DigestEvent[] = [
+      // `crew_runs` n'a pas de monde : c'est un compte de SORTIES du crew, pas
+      // un territoire. Le nombre de courses n'est pas une lecture compétitive
+      // entre disciplines — il dit seulement « le crew a bougé ».
       { type: 'crew_runs', count: crewRuns.get(crewId) ?? 0 },
-      { type: 'hexes_gained', count: crewHexes.get(crewId) ?? 0 },
+      ...[...(crewHexes.get(crewId) ?? new Map<Activity, number>())].map(
+        ([activity, count]): DigestEvent => ({ type: 'hexes_gained', count, activity }),
+      ),
     ];
     if (crewEvents.every((e) => e.count <= 0)) continue; // crew silencieux : rien
     for (const userId of users) events.set(userId, crewEvents);

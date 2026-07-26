@@ -83,6 +83,7 @@ import { useMapSheetLayout } from './mapUiStore';
 import { useRealTerritories } from './hexClaims';
 import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
+import { competitiveReadAllowed } from '../../ui/activityLens';
 import { selectZoneView } from './zoneSelection';
 import { zoneFocusLat } from './zoneFocus';
 import { sectorPointLayers } from './allTerritories';
@@ -322,14 +323,20 @@ export function MapScreen() {
 
   /**
    * LENTILLE Run / Bike (planche E14), persistée — PARITÉ STRICTE avec la
-   * variante native. En Bike, cet écran ne peint AUCUN territoire, AUCUN
-   * secteur, AUCUN widget, AUCUN état vide de course à pied : tout cela dérive
-   * de `hex_claims`, une table qui ne sait parler que de course à pied. Restent
-   * peints le FOND, le point « moi » et l'attribution — neutres vis-à-vis de
-   * l'activité.
+   * variante native.
+   *
+   * ─── LE MODE BIKE EST ROUVERT (fondateur, 26/07/2026) ─────────────────────
+   * PARITÉ STRICTE avec `MapScreen.tsx` : la lecture des captures est bornée à
+   * la lentille (`useRealTerritories(crewIds, activity)`) depuis que
+   * `hex_claims` porte `activity` (0070, appliquée le 25/07), donc les couches
+   * de jeu, le widget, le tap et l'état vide existent dans les DEUX mondes.
+   * Seuls les SECTEURS restent bornés à la lentille par défaut : leur source
+   * (`sector_snapshot`, PK `sector_id` seul) mélange encore les disciplines —
+   * règle dérivée de `competitiveReadAllowed`, pas écrite ici à la main.
    */
   const { activity } = useMapActivity();
-  const bike = activity === 'bike';
+  /** Les secteurs sont-ils lisibles sous CETTE lentille ? (source mono-pot) */
+  const sectorsReadable = competitiveReadAllowed(activity, false);
 
   /**
    * Labels en langue LOCALE — PARITÉ NATIVE (le correctif « la map est en
@@ -402,15 +409,18 @@ export function MapScreen() {
   const viewerCrewId = myCrew?.id ?? null;
   const sectorViews = useMemo(
     () =>
-      sectorViewsFor(sectorRows ?? [], {
-        userId: viewerUserId,
-        crewId: viewerCrewId,
-        resolved: viewerResolved,
-      }),
-    [sectorRows, viewerUserId, viewerCrewId, viewerResolved],
+      // Source MONO-POT hors lentille par défaut : rien plutôt qu'une somme.
+      sectorsReadable
+        ? sectorViewsFor(sectorRows ?? [], {
+            userId: viewerUserId,
+            crewId: viewerCrewId,
+            resolved: viewerResolved,
+          })
+        : [],
+    [sectorRows, viewerUserId, viewerCrewId, viewerResolved, sectorsReadable],
   );
   const { territories, isReal, failed, signedOut, loading, reload } =
-    useRealTerritories(crewIds);
+    useRealTerritories(crewIds, activity);
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
@@ -435,8 +445,8 @@ export function MapScreen() {
    * le peek mission démo actuel, étiqueté par la note de source.
    */
   const widget = useMemo(() => {
-    // Lentille Bike : le widget lit MES captures à pied — muet ici (E14).
-    if (bike || !isReal || territories === null) return null;
+    // Le widget lit MES captures DE LA LENTILLE COURANTE (lecture déjà bornée).
+    if (!isReal || territories === null) return null;
     const lastResult = getLastRunResult();
     const ob = lastResult?.openBoundary;
     return buildRealWidgetView({
@@ -451,7 +461,7 @@ export function MapScreen() {
     // Parité native : sans `locale`, le peek du HUD parlait français à tout le
     // monde (défaut de buildRealWidgetView).
     locale);
-  }, [bike, isReal, territories, locale]);
+  }, [isReal, territories, locale]);
 
   /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
   const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
@@ -474,20 +484,17 @@ export function MapScreen() {
   const paintedTerritories = territories ?? [];
   const layers = useMemo(
     () =>
-      // Lentille Bike (E14) : AUCUNE couche de jeu. `[]` — et non « des couches
-      // vides » — pour qu'aucune frontière, aucun secteur, aucun accent de zone
-      // ne puisse apparaître sous une étiquette vélo. Parité stricte natif ↔ web.
-      bike
-        ? []
-        : battleGameLayers(
-            emph,
-            selectedParcours,
-            basemap,
-            selectedZoneId,
-            paintedTerritories,
-            sectorViews,
-          ),
-    [bike, emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      // ROUVERT LE 26/07/2026 : couches de jeu dans les DEUX mondes, chacune
+      // alimentée par une lecture bornée à sa discipline. Parité stricte natif ↔ web.
+      battleGameLayers(
+        emph,
+        selectedParcours,
+        basemap,
+        selectedZoneId,
+        paintedTerritories,
+        sectorViews,
+      ),
+    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
@@ -495,18 +502,15 @@ export function MapScreen() {
    * aujourd'hui en production (0 capture ⇒ 0 secteur snapshoté).
    */
   const sectorLayers = useMemo(
-    () => (bike ? [] : sectorPointLayers(sectorViews, locale)),
-    [bike, sectorViews, locale],
+    () => sectorPointLayers(sectorViews, locale),
+    [sectorViews, locale],
   );
 
-  /** Tap carte → zone tapée (null sur le vide = désélection). En Bike aucune
-   *  zone n'est peinte, donc rien à sélectionner : le tap ne fait rien. */
-  const onMapPress = useCallback(
-    (e: RealMapPressEvent) => {
-      setSelectedZoneId(bike ? null : (e.zoneId ?? null));
-    },
-    [bike],
-  );
+  /** Tap carte → zone tapée (null sur le vide = désélection). Actif dans les
+   *  DEUX lentilles : chacune peint ses propres zones (26/07/2026). */
+  const onMapPress = useCallback((e: RealMapPressEvent) => {
+    setSelectedZoneId(e.zoneId ?? null);
+  }, []);
   /** Fermer la sheet de zone → carte nue (retour au peek mission). */
   const closeZone = useCallback(() => setSelectedZoneId(null), []);
 
@@ -525,18 +529,17 @@ export function MapScreen() {
   // donc un joueur connecté lisait « Pas encore connecté » le temps de la requête.
   // `loading` passe AVANT tout le reste : restauration de session ou lecture en
   // vol ⇒ on n'affirme RIEN (un état de chargement n'est pas un état vide).
-  // En Bike, aucun de ces trois états ne s'applique : ils décrivent la lecture
-  // des zones de COURSE À PIED. Le peek Bike parle à leur place (E14).
-  const emptyState: MapEmptyState | null =
-    bike || loading
-      ? null
-      : failed
-        ? 'failed'
-        : signedOut
-          ? 'signed-out'
-          : territories !== null && territories.length === 0
-            ? 'empty'
-            : null;
+  // Les trois états valent dans les DEUX lentilles depuis le 26/07/2026 : ils
+  // décrivent la lecture des zones DE LA DISCIPLINE COURANTE.
+  const emptyState: MapEmptyState | null = loading
+    ? null
+    : failed
+      ? 'failed'
+      : signedOut
+        ? 'signed-out'
+        : territories !== null && territories.length === 0
+          ? 'empty'
+          : null;
 
   const onEmptyAction = useCallback(() => {
     if (failed) {
@@ -554,8 +557,8 @@ export function MapScreen() {
    * en chartreuse sur iPhone.
    */
   const selectedZone: MapZoneView | null = useMemo(
-    () => (bike ? null : selectZoneView(territories, sectorViews, selectedZoneId)),
-    [bike, selectedZoneId, territories, sectorViews],
+    () => selectZoneView(territories, sectorViews, selectedZoneId),
+    [selectedZoneId, territories, sectorViews],
   );
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
@@ -599,16 +602,19 @@ export function MapScreen() {
             : null;
   const mapNote =
     locationNote ??
-    // En Bike non plus : la note parle des zones de COURSE À PIED, seule la
-    // localisation reste pertinente (parité stricte avec la variante native).
-    (bike || loading || hudCarriesEmptyState
+    (loading || hudCarriesEmptyState
       ? null
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
-        dataNote(isReal, failed, territories?.length ?? 0, locale)) ??
+        dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS, qui n'est PAS « aucun secteur ». Parité native.
-    (sectorStatus === 'error' ? resolve(C.sectorNoteFailed, locale) : null);
+    (sectorsReadable && sectorStatus === 'error'
+      ? // Hors lentille par défaut, AUCUN secteur n'est peint (source mono-pot) :
+        // annoncer « secteurs non chargés » y serait un bruit sur une couche que
+        // l'écran ne montre de toute façon pas — une phrase qui ne mène à rien.
+        resolve(C.sectorNoteFailed, locale)
+      : null);
 
   /**
    * Recentrer — et JAMAIS un bouton mort (parité native). On vole vers la

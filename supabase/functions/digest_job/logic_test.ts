@@ -5,9 +5,15 @@
  * Les bornes horaires sont testées en heure de PARIS (quiet hours = heure
  * locale du joueur) : le 3 juillet, Paris = UTC+2 → 20:59 Paris = 18:59 UTC.
  */
-import { assertEquals } from 'jsr:@std/assert@^1';
-import { PUSH_MAX_PER_DAY } from '../_shared/game-rules.ts';
-import { buildChallengeNudge, buildDigest, canPush, type PushUser } from './logic.ts';
+import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@^1';
+import { DEFAULT_ACTIVITY, PUSH_MAX_PER_DAY } from '../_shared/game-rules.ts';
+import {
+  buildChallengeNudge,
+  buildDigest,
+  canPush,
+  type PushUser,
+  readActivity,
+} from './logic.ts';
 
 const USER: PushUser = { id: 'user-1' };
 /** Instant UTC correspondant à une heure de Paris (été : UTC+2). */
@@ -104,6 +110,63 @@ Deno.test('doublons fusionnés par type, comptes nuls/négatifs ignorés', () =>
 Deno.test('aucun événement (ou que des zéros) → null, jamais de digest vide', () => {
   assertEquals(buildDigest([], 'weekly'), null);
   assertEquals(buildDigest([{ type: 'hexes_gained', count: 0 }], 'crew'), null);
+});
+
+// ─── E14 : les deux mondes se lisent côte à côte, JAMAIS additionnés ──────────
+
+Deno.test('territoire : run et bike font DEUX lignes, jamais un total', () => {
+  const d = buildDigest([
+    { type: 'hexes_gained', count: 2, activity: 'bike' },
+    { type: 'hexes_gained', count: 3, activity: 'run' },
+  ], 'weekly');
+  // Ordre : course puis vélo (ACTIVITIES), quel que soit l'ordre d'arrivée.
+  assertEquals(d!.body, '+3 hexes gagnés à pied, +2 hexes gagnés à vélo.');
+  assertEquals(d!.itemCount, 2);
+  assert(!/\b5\b/.test(d!.body), 'la somme des deux mondes est interdite (E14).');
+});
+
+Deno.test('un seul monde : la discipline est TOUT DE MÊME nommée', () => {
+  // « 3 hexes gagnés » tout court laisserait un cycliste croire qu'on lui parle
+  // de course à pied — le suffixe n'est pas décoratif, il lève l'ambiguïté.
+  const d = buildDigest([{ type: 'hexes_gained', count: 3, activity: 'bike' }], 'weekly');
+  assertEquals(d!.body, '+3 hexes gagnés à vélo.');
+});
+
+Deno.test('fusion des doublons PAR MONDE, jamais entre mondes', () => {
+  const d = buildDigest([
+    { type: 'hexes_defended', count: 1, activity: 'run' },
+    { type: 'hexes_defended', count: 2, activity: 'run' },
+    { type: 'hexes_defended', count: 4, activity: 'bike' },
+  ], 'weekly');
+  assertEquals(d!.body, '3 hexes défendus à pied, 4 hexes défendus à vélo.');
+  assertEquals(d!.itemCount, 2);
+});
+
+Deno.test('un compte SANS monde reste sans suffixe (badges, courses du crew)', () => {
+  const d = buildDigest([
+    { type: 'hexes_gained', count: 1, activity: 'run' },
+    { type: 'badges_unlocked', count: 2 },
+    { type: 'crew_runs', count: 5 },
+  ], 'crew');
+  assertEquals(d!.body, '+1 hex gagné à pied, 2 badges débloqués, 5 courses du crew.');
+});
+
+// ─── readActivity : un fait, jamais un repli inventé ─────────────────────────
+
+Deno.test('readActivity : absente ⇒ course à pied (fait, pas repli)', () => {
+  // Toute ligne antérieure à 0070 EST de la course : le vélo n'existait pas.
+  assertEquals(readActivity(null), DEFAULT_ACTIVITY);
+  assertEquals(readActivity(undefined), 'run');
+});
+
+Deno.test('readActivity : valeur connue ⇒ elle-même', () => {
+  assertEquals(readActivity('run'), 'run');
+  assertEquals(readActivity('bike'), 'bike');
+});
+
+Deno.test('readActivity : valeur illisible ⇒ LÈVE (un chiffre faux part sur un écran)', () => {
+  assertThrows(() => readActivity('walk'));
+  assertThrows(() => readActivity(42));
 });
 
 // ─── buildChallengeNudge (AMENDEMENT-07 §9, motivation §12, anti-shame) ───────

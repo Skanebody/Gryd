@@ -65,15 +65,30 @@ export const flags = {
    * vélo ou la map running ». Le commutateur est donc VISIBLE sur la Carte, et
    * il bascule RÉELLEMENT (préférence `gryd.mapactivity`, cf. map/mapPref.ts).
    *
-   * CE DRAPEAU OUVRE UNE LENTILLE D'AFFICHAGE, ET RIEN D'AUTRE. IL NE DÉCIDE
-   * AUCUNE DISCIPLINE D'ENREGISTREMENT. Il n'affirme pas non plus que le vélo
-   * est implémenté. Il dit une seule chose : « la lentille Bike de la carte est
-   * offerte à l'utilisateur ». En mode Bike, la Carte n'affiche AUCUN
-   * territoire, AUCUNE mission, AUCUN classement, et le bouton GO se retire —
-   * parce que le vélo n'existe toujours pas sous l'écran. L'univers Bike est
-   * HONNÊTEMENT VIDE et il le DIT (« Ta carte Bike commence ici · GRYD ne
-   * chronomètre pas encore le vélo »), au lieu de rejouer les données Run sous
-   * une étiquette vélo, ce qui serait la donnée fabriquée que la charte interdit.
+   * ─── CE QUE CE DRAPEAU VEUT DIRE DEPUIS LE 26/07/2026 ─────────────────────
+   * Décision fondateur : « il faut tout brancher pour que la partie bike
+   * fonctionne dès maintenant […] il faut avoir sa propre data, ses propres
+   * classements etc ». Le vélo est une DISCIPLINE RÉELLE : `runs.activity`,
+   * `hex_claims (h3index, activity)` et `season_scores (season_id, user_id,
+   * activity)` existent en base (migration 0070, appliquée le 25/07), les
+   * bornes anti-triche sont par discipline, et les lectures clientes portent
+   * `.eq('activity', …)`.
+   *
+   * Ce drapeau ouvre donc la LENTILLE (le commutateur E14 est offert), et la
+   * lentille borne de VRAIES lectures : couches de carte, mission, historique,
+   * statistiques et classement montrent chacun le monde choisi. Le bouton GO
+   * existe dans les deux mondes et DÉCLARE ce qu'il lance
+   * (`START_ACTIVITY_PARAM`).
+   *
+   * Ce commentaire affirmait l'inverse jusqu'au matin du 26/07 (« en mode Bike,
+   * la Carte n'affiche AUCUN territoire […] GRYD ne chronomètre pas encore le
+   * vélo »). C'était exact la veille. Le garder aurait été le mensonge
+   * symétrique : une doc qui NIE ce que le code tient est la même faute qu'une
+   * doc qui promet au-delà de lui.
+   *
+   * IL NE DÉCIDE TOUJOURS AUCUNE DISCIPLINE D'ENREGISTREMENT : une préférence
+   * d'affichage ne décide jamais EN SILENCE de la nature d'un effort (voir
+   * ci-dessous).
    *
    * ─── CE QUE CE DRAPEAU A FAILLI COÛTER (correctif du 25/07/2026) ───────────
    * Il a été ouvert alors que `features/run/gps/runActivity.ts` DÉRIVAIT la
@@ -89,21 +104,28 @@ export const flags = {
    * (`PreflightApi.confirmStart(activity)`, paramètre obligatoire), et tous les
    * chemins déclarent `run` tant que les quatre chantiers ci-dessous manquent.
    *
-   * CE QUI RESTE À LIVRER avant que « Bike » veuille dire un vrai univers
-   * (Spéc Unifiée §5.1-5.2) — rien de tout ça n'existe aujourd'hui :
-   *   1. une COLONNE D'ACTIVITÉ sur `runs` (aujourd'hui `source` ne vaut que
-   *      gps|healthkit|strava|gpx : impossible de distinguer une sortie vélo) ;
-   *   2. un MOTEUR vélo : profil de routage (refusé par game-rules à ce jour),
-   *      seuils de vitesse/anti-abus propres au vélo, règles de capture ;
-   *   3. des TERRITOIRES et des CLASSEMENTS SÉPARÉS par discipline (§ séparation
-   *      stricte de la planche E14 : jamais Run + Bike dans une même lecture
-   *      compétitive, jamais sommés) ;
-   *   4. la propagation du commutateur aux autres surfaces de la planche
-   *      (Classement E11, Historique, Statistiques E18) — la Carte est seule
-   *      câblée pour l'instant.
-   * Tant que ces quatre points ne sont pas livrés, tout écran qui lit
-   * `flags.bike` doit rester dans la même discipline : montrer le VIDE et le
-   * NOMMER, jamais un contenu de remplacement.
+   * LES QUATRE CHANTIERS QUI MANQUAIENT SONT LIVRÉS : colonne `runs.activity`
+   * (1), moteur et routage par discipline (2), territoires et classements
+   * séparés (3), commutateur propagé aux quatre surfaces E14 (4).
+   *
+   * CE QUI RESTE OUVERT, ET QU'AUCUN ÉCRAN NE DOIT MASQUER :
+   *   · `sector_snapshot` n'est PAS discipliné (PK `sector_id` seul, 0037,
+   *     alimenté par des vues non disciplinées) : les secteurs ne sont peints
+   *     que sous la lentille par défaut (`competitiveReadAllowed`) ;
+   *   · `specialty_leaderboard` et `user_badges` s'appuient sur `user_stats`,
+   *     MONO-POT : mêmes bornes.
+   * Sur ces deux points, la règle d'avant tient toujours : montrer le VIDE et
+   * le NOMMER, jamais un contenu de remplacement.
+   *
+   * CE QUI A ÉTÉ REFERMÉ, ET QUE CE COMMENTAIRE DÉCLARAIT ENCORE OUVERT : le
+   * planificateur d'itinéraire ne code PLUS le profil piéton en dur. Il dérive
+   * son instance OSRM de `plannerRoutingProfile(activity)`
+   * (`features/route/liveRouting.ts`) et ses bornes de `plannerBounds(activity)`.
+   * « MA ROUTE » n'est donc plus retiré en lentille vélo : le Classement pousse
+   * `plannerHref(activity)`, et la discipline voyage jusqu'au planificateur.
+   * Un avertissement qui survit à sa cause use la confiance dans les
+   * avertissements vrais — les deux ci-dessus — exactement comme une donnée
+   * fabriquée.
    */
   bike: true,
 } as const;

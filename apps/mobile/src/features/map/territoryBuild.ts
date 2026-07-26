@@ -8,7 +8,7 @@
  * Zéro import React/Supabase ici : Deno charge ce module tel quel, sans drift.
  */
 import { cellArea, cellToParent } from 'h3-js';
-import { SECTOR_H3_RESOLUTION } from '@klaim/shared';
+import { DEFAULT_ACTIVITY, SECTOR_H3_RESOLUTION, type Activity } from '@klaim/shared';
 import { cellsToTerritory, territoryId, type TerritoryId, type TerritoryState } from './territory';
 // Le centroïde d'un paquet de cellules existe DÉJÀ, pur et testé, du côté
 // mission : on l'importe plutôt que d'en écrire un second (deux centroïdes
@@ -255,15 +255,26 @@ export function buildTerritories(
  * `locale` traduit la note (module PUR : résolution i18n directe via le
  * catalogue, jamais d'import du store) — défaut 'fr', les écrans passent
  * useLocale().
+ *
+ * `activity` (26/07/2026) — SEUL le cas « vide réel » en dépend, et il en dépend
+ * pour une raison de fond : cette note porte un VERBE (« Cours pour prendre ta
+ * première zone »). Sous la lentille vélo, elle décrivait donc un effort que le
+ * joueur n'est pas en train de regarder — et celui qui la suivrait capturerait
+ * dans l'AUTRE monde que celui qu'il a sous les yeux. Les deux autres cas
+ * (« échec de lecture », « pas connecté ») parlent du réseau et du compte : ils
+ * n'ont pas de discipline, et les décliner en inventerait une.
  */
 export function dataNote(
   isReal: boolean,
   failed: boolean,
   count = 0,
   locale: Locale = 'fr',
+  activity: Activity = DEFAULT_ACTIVITY,
 ): string | null {
   if (failed) return resolve(C.dataNoteFailed, locale);
   if (!isReal) return resolve(C.dataNoteSignedOut, locale);
-  if (count === 0) return resolve(C.dataNoteEmpty, locale);
+  if (count === 0) {
+    return resolve(activity === 'bike' ? C.dataNoteEmptyBike : C.dataNoteEmpty, locale);
+  }
   return null;
 }

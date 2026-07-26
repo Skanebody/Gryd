@@ -75,6 +75,15 @@ export function useMyStreak(): MyStreak {
       const since = new Date(now.getTime() - STREAK_HISTORY_WEEKS * 7 * MS_PER_DAY)
         .toISOString();
       const [runsRes, gelsRes] = await Promise.all([
+        // ─── LECTURE TOUTES DISCIPLINES, ET C'EST VOLONTAIRE (E14, 26/07/2026) ──
+        // AUCUN `.eq('activity', …)`, et il ne faut PAS en ajouter un.
+        // `ACTIVITY_SCOPE.streak` vaut `global` (game-rules) : la série mesure
+        // la CONSTANCE D'UNE PERSONNE, pas la pratique d'un sport. Un joueur
+        // qui alterne course et vélo est régulier — le scinder lui montrerait
+        // deux séries cassées là où il n'en a qu'une, intacte, et ce serait
+        // faux au sens propre.
+        // C'est aussi ce que fait le serveur : `users.streak_weeks` n'a pas de
+        // discipline (la table `users` n'a pas de colonne `activity`).
         supabase!
           .from('runs')
           .select('started_at')

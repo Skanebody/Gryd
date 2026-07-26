@@ -96,7 +96,56 @@ export const C = defineCatalog({
     pt: 'ENTRAR',
   },
 
-  // ── Contexte lecteur d'écran des actions (verbe + pourquoi) ──
+  /**
+   * DISCIPLINE ANNONCÉE PAR LE BOUTON GO (E14, 26/07/2026).
+   *
+   * Le bouton dit « GO » dans les deux mondes (override fondateur
+   * AMENDEMENT-38 : le mot ne change jamais) et sa seule marque visuelle de
+   * discipline est un PICTO. Un picto n'est pas lu par VoiceOver : sans ces
+   * deux entrées, un utilisateur non-voyant appuierait sur « GO » sans savoir
+   * s'il enregistre une course ou une sortie vélo — c'est-à-dire exactement la
+   * décision silencieuse que l'arbitrage du 25/07 interdit.
+   * Elles nomment CE QUI VA ÊTRE ENREGISTRÉ, pas la lentille de la carte.
+   */
+  goActivityRunA11y: {
+    fr: 'course à pied',
+    en: 'run',
+    es: 'carrera a pie',
+    de: 'Lauf',
+    pt: 'corrida a pé',
+  },
+  goActivityBikeA11y: {
+    fr: 'sortie vélo',
+    en: 'bike ride',
+    es: 'salida en bici',
+    de: 'Radausfahrt',
+    pt: 'pedal',
+  },
+
+  /**
+   * ── Contexte lecteur d'écran des actions (verbe + pourquoi) ───────────────
+   *
+   * TROIS PAIRES, PAS TROIS PHRASES (26/07/2026). Ces libellés sont COLLÉS au
+   * mot de discipline (`goActivity*A11y`) dans l'énoncé du bouton GO. Tant
+   * qu'ils disaient « course » quelle que soit la lentille, VoiceOver annonçait
+   * mot pour mot « GO — sortie vélo — Lancer une course libre » : la seule
+   * phrase de l'app qui se contredise DANS LA MÊME RESPIRATION, sur le CTA le
+   * plus important, et pour les seuls utilisateurs qui ne peuvent pas la
+   * contourner du regard. La Carte PORTE la lentille (elle l'affiche et elle la
+   * déclare au départ) : le correctif juste est donc un JUMEAU par discipline,
+   * pas une neutralisation — l'écran sait de quel monde il parle.
+   *
+   * Convention du repo (`historique.ts` : `a11yRunEffort` / `a11yRunEffortBike`)
+   * : la clé NUE est le monde « à pied », le suffixe `Bike` son jumeau.
+   *
+   * ⚠️ L'ALLEMAND A ÉTÉ REFORMULÉ, ET CE N'EST PAS COSMÉTIQUE. « Verteidigungs-
+   * lauf » / « Eroberungslauf » nomment bel et bien la course à pied, mais le
+   * garde-fou (`disciplineVocabulary.ts`) cherche `\bLauf\b` : dans un composé
+   * soudé il n'y a PAS de frontière de mot, et ces deux phrases passaient donc
+   * pour neutres. Un jumeau que le filet ne voit pas n'est pas verrouillé. La
+   * forme analytique (« Lauf zur Verteidigung ») dit exactement la même chose
+   * et reste lisible par le test.
+   */
   a11yRun: {
     fr: 'Lancer une course libre',
     en: 'Start a free run',
@@ -104,20 +153,53 @@ export const C = defineCatalog({
     de: 'Freien Lauf starten',
     pt: 'Começar uma corrida livre',
   },
+  /** Jumeau VÉLO de `a11yRun` (course libre → sortie vélo libre). */
+  a11yRunBike: {
+    fr: 'Lancer une sortie vélo libre',
+    en: 'Start a free ride',
+    es: 'Inicia una salida en bici libre',
+    de: 'Freie Radausfahrt starten',
+    pt: 'Começar um pedal livre',
+  },
   a11yDefendre: {
     fr: 'Défendre {zone} — lancer la course de défense',
     en: 'Defend {zone} — start the defense run',
     es: 'Defiende {zone} — inicia la carrera de defensa',
-    de: '{zone} schützen — Verteidigungslauf starten',
+    de: '{zone} schützen — Lauf zur Verteidigung starten',
     pt: 'Defender {zone} — começar a corrida de defesa',
+  },
+  /** Jumeau VÉLO de `a11yDefendre`. */
+  a11yDefendreBike: {
+    fr: 'Défendre {zone} — lancer la sortie vélo de défense',
+    en: 'Defend {zone} — start the defense ride',
+    es: 'Defiende {zone} — inicia la salida en bici de defensa',
+    de: '{zone} schützen — Radausfahrt zur Verteidigung starten',
+    pt: 'Defender {zone} — começar o pedal de defesa',
   },
   a11yConquerir: {
     fr: 'Conquérir {zone} — lancer la course de conquête',
     en: 'Conquer {zone} — start the conquest run',
     es: 'Conquista {zone} — inicia la carrera de conquista',
-    de: '{zone} erobern — Eroberungslauf starten',
+    de: '{zone} erobern — Lauf zur Eroberung starten',
     pt: 'Conquistar {zone} — começar a corrida de conquista',
   },
+  /** Jumeau VÉLO de `a11yConquerir`. */
+  a11yConquerirBike: {
+    fr: 'Conquérir {zone} — lancer la sortie vélo de conquête',
+    en: 'Conquer {zone} — start the conquest ride',
+    es: 'Conquista {zone} — inicia la salida en bici de conquista',
+    de: '{zone} erobern — Radausfahrt zur Eroberung starten',
+    pt: 'Conquistar {zone} — começar o pedal de conquista',
+  },
+  /**
+   * PAS DE JUMEAU ICI, ET C'EST LE CORRECTIF (26/07/2026). `a11yTerminer` et
+   * `a11yRejoindre` ne nomment AUCUNE discipline : refermer une boucle de crew
+   * et rejoindre une mission se disent à l'identique dans les deux mondes. Leur
+   * fabriquer un doublon « à vélo » n'ajouterait pas une information, il
+   * ajouterait un texte de plus à maintenir — et il suggérerait deux mécaniques
+   * là où il n'en existe qu'une. Le mot de discipline reste porté UNE fois, par
+   * le préfixe du bouton (`goActivity*A11y`).
+   */
   a11yTerminer: {
     fr: 'Terminer {zone} — refermer la boucle du crew',
     en: 'Finish {zone} — close the crew loop',
@@ -252,13 +334,25 @@ export const C = defineCatalog({
     de: 'Abbrechen',
     pt: 'Cancelar',
   },
-  // « Où est mon run » (fiabilité 21/07) : le slot pendingUpload rendu VISIBLE.
+  /**
+   * « Où est mon run » (fiabilité 21/07) : le slot pendingUpload rendu VISIBLE.
+   *
+   * NEUTRALISÉ le 26/07/2026, et surtout PAS jumelé. La tentation était de
+   * suivre la lentille de la Carte comme le fait GO deux composants plus haut —
+   * ç'aurait été un mensonge d'un genre plus retors : l'envoi en attente est
+   * une sortie DÉJÀ TERMINÉE, sa discipline est celle du jour où elle a été
+   * courue (ou roulée), pas celle du commutateur d'aujourd'hui. Un cycliste
+   * regardant la lentille Run aurait lu « 1 course à synchroniser » pour son
+   * pedal. Et la source ne permet même pas de trancher : `hasPendingUpload()`
+   * (`lib/pendingUpload.ts:56`) rend un BOOLÉEN — la discipline du payload
+   * n'est pas exposée. On dit donc le seul mot vrai dans les deux cas.
+   */
   pendingRunNote: {
-    fr: '1 course à synchroniser — toucher pour envoyer',
-    en: '1 run to sync — tap to send',
-    es: '1 carrera por sincronizar — toca para enviar',
-    de: '1 Lauf zu synchronisieren — tippen zum Senden',
-    pt: '1 corrida para sincronizar — toque para enviar',
+    fr: '1 sortie à synchroniser — toucher pour envoyer',
+    en: '1 activity to sync — tap to send',
+    es: '1 salida por sincronizar — toca para enviar',
+    de: '1 Aktivität zu synchronisieren — tippen zum Senden',
+    pt: '1 atividade para sincronizar — toque para enviar',
   },
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -397,25 +491,11 @@ export const C = defineCatalog({
     pt: 'Carregando seu território',
   },
 
-  // ── LENTILLE BIKE (planche E14) — la sheet cesse d'être défensive. Elle
-  //    répond aux quatre questions (où suis-je · à quoi ça sert · quoi
-  //    maintenant · ce que j'y gagne) au lieu d'énumérer trois absences.
-  //    INTERDITS TENUS ICI : aucun CTA « première sortie vélo » (il serait
-  //    enregistré comme une course À PIED — bouton mort ou mensonge), aucune
-  //    mission vélo dessinée (ni distance ni zone n'ont de source). ──
-  bikeLensLine: {
-    fr: 'Carte nue pour rouler : GRYD n’enregistre pas encore les sorties vélo.',
-    en: 'A bare map to ride with: GRYD doesn’t record rides yet.',
-    es: 'Un mapa limpio para rodar: GRYD aún no registra salidas en bici.',
-    de: 'Eine nackte Karte zum Fahren: GRYD zeichnet Ausfahrten noch nicht auf.',
-    pt: 'Um mapa limpo para pedalar: a GRYD ainda não registra pedais.',
-  },
-  /** LA seule action vraie de cette lentille — dite positivement. */
-  bikeBackToRun: {
-    fr: 'Revenir à la carte Run',
-    en: 'Back to the Run map',
-    es: 'Volver al mapa Run',
-    de: 'Zurück zur Run-Karte',
-    pt: 'Voltar ao mapa Run',
-  },
+  // ── RETIRÉ LE 26/07/2026 : `bikeLensLine` (« carte nue pour rouler : GRYD
+  //    n'enregistre pas encore les sorties vélo ») et `bikeBackToRun`
+  //    (« Revenir à la carte Run »). Les deux servaient un peek qui n'existe
+  //    plus : le vélo enregistre, la lentille Bike montre le même HUD que la
+  //    lentille Run, et « revenir en Run » est une bascule de commutateur, pas
+  //    une action d'écran. Laisser la phrase aurait fait dire à l'app qu'elle
+  //    n'enregistre pas ce qu'elle enregistre. ──
 });

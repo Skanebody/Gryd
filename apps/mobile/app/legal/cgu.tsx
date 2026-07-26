@@ -25,6 +25,19 @@
  * · La suppression de compte affirmée SANS CONDITION : elle n'est armée que si
  *   une session existe (`confidentialite.tsx:238`). La phrase porte sa réserve.
  *
+ * ─── 26/07/2026 : LE CONTRAT NE TRAITE PLUS LE VÉLO EN FRAUDE ──────────────
+ * Le vélo est une discipline RÉELLE depuis la décision fondateur du 26/07/2026.
+ * Trois articles rendus par cet écran disaient le contraire — l'OBJET et les
+ * RÈGLES DU JEU (« uniquement par des courses à pied réelles ») et surtout
+ * l'ANTI-TRICHE, qui listait « vélo » parmi les simulations INTERDITES. Un
+ * document contractuel embarqué qui qualifie de fraude la fonctionnalité livrée
+ * est la pire forme du mensonge que la charte interdit : il engage l'éditeur.
+ * La réécriture vit dans `catalog/legal.ts` (chaque clause porte son pourquoi) ;
+ * CET ÉCRAN N'A PAS BOUGÉ — mêmes clés, même ordre d'articles, même châssis :
+ * la correction est entièrement dans le texte, pas dans la composition.
+ * L'interdit, lui, n'est pas desserré : il vise désormais le fait de DÉCLARER
+ * une discipline pour une autre, les engins motorisés et le GPS falsifié.
+ *
  * ─── ÉCARTS ASSUMÉS ────────────────────────────────────────────────────────
  * · AUCUN POINT D'ENTRÉE À L'INSCRIPTION. Le seul chemin vers les CGU est
  *   Réglages › À propos › Légal, soit 4 taps — un lien « Conditions » sous le

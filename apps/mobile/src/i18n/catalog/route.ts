@@ -35,12 +35,26 @@ import { defineCatalog } from '../types';
 
 export const C = defineCatalog({
   // ── UI partagée : ErrorBoundary (écran d'erreur brandé) ──────────────────
+  //
+  // ─── POURQUOI « SORTIE » ET NON « COURSE » (26/07/2026) ───────────────────
+  // Ces textes-là NE PORTENT PAS la lentille : `ErrorBoundary` s'interpose
+  // au-dessus de n'importe quel écran, y compris ceux du monde vélo, et il ne
+  // reçoit AUCUNE discipline (`ui/ErrorBoundary.tsx` — pas une prop, pas un
+  // paramètre d'URL). Il n'a donc aucun moyen de savoir quel effort la personne
+  // préparait, et un jumeau par discipline y serait un texte sans surface :
+  // rien ne pourrait le choisir.
+  // Ce qui reste possible — et exigible — c'est de ne pas AFFIRMER l'effort :
+  // un cycliste dont l'app plante lisait « Reprends ta course. », un verbe qui
+  // décrit ce qu'il ne faisait pas. Le vocabulaire neutre du projet est celui
+  // que `catalog/runGps.ts` emploie déjà pour la pill de la sortie en cours
+  // (« Sortie enregistrée comme … » / outing / salida / Aktivität / atividade).
+  // Verrouillé par `catalog/route.test.ts`.
   errorTitle: {
-    fr: 'Reprends ta course.',
-    en: 'Get back to your run.',
-    es: 'Retoma tu carrera.',
-    de: 'Zurück in deinen Lauf.',
-    pt: 'Retome sua corrida.',
+    fr: 'Reprends ta sortie.',
+    en: 'Get back to your outing.',
+    es: 'Retoma tu salida.',
+    de: 'Zurück in deine Aktivität.',
+    pt: 'Retome sua atividade.',
   },
   errorSubtitle: {
     fr: "Un accroc technique a coupé la scène. Ton territoire, lui, n'a pas bougé.",
@@ -86,11 +100,11 @@ export const C = defineCatalog({
     pt: 'Esta tela não pôde ser exibida.',
   },
   crashBodyDisplay: {
-    fr: "C'est l'affichage qui a lâché, pas ton compte : tes courses envoyées et tes territoires sont côté serveur, ils n'ont pas bougé.",
-    en: 'The display gave out, not your account: your uploaded runs and your territories are on the server, and they have not moved.',
-    es: 'Ha fallado la pantalla, no tu cuenta: tus carreras enviadas y tus territorios están en el servidor y no se han movido.',
-    de: 'Die Anzeige hat ausgesetzt, nicht dein Konto: deine übertragenen Läufe und deine Gebiete liegen auf dem Server und sind unverändert.',
-    pt: 'Foi a exibição que falhou, não a sua conta: suas corridas enviadas e seus territórios estão no servidor e não se moveram.',
+    fr: "C'est l'affichage qui a lâché, pas ton compte : tes sorties envoyées et tes territoires sont côté serveur, ils n'ont pas bougé.",
+    en: 'The display gave out, not your account: your uploaded outings and your territories are on the server, and they have not moved.',
+    es: 'Ha fallado la pantalla, no tu cuenta: tus salidas enviadas y tus territorios están en el servidor y no se han movido.',
+    de: 'Die Anzeige hat ausgesetzt, nicht dein Konto: deine übertragenen Aktivitäten und deine Gebiete liegen auf dem Server und sind unverändert.',
+    pt: 'Foi a exibição que falhou, não a sua conta: suas atividades enviadas e seus territórios estão no servidor e não se moveram.',
   },
   crashTitleNetwork: {
     fr: "GRYD n'a pas pu joindre le serveur.",
@@ -100,11 +114,11 @@ export const C = defineCatalog({
     pt: 'O GRYD não conseguiu acessar o servidor.',
   },
   crashBodyNetwork: {
-    fr: "La connexion s'est coupée pendant le chargement. Rien n'est perdu : tes courses envoyées et tes territoires restent côté serveur. Vérifie ton réseau, puis réessaie.",
-    en: 'The connection dropped while loading. Nothing is lost: your uploaded runs and your territories stay on the server. Check your network, then try again.',
-    es: 'La conexión se cortó durante la carga. No se pierde nada: tus carreras enviadas y tus territorios siguen en el servidor. Revisa tu red y reinténtalo.',
-    de: 'Die Verbindung ist beim Laden abgebrochen. Nichts geht verloren: deine übertragenen Läufe und deine Gebiete bleiben auf dem Server. Prüfe dein Netz und versuche es erneut.',
-    pt: 'A conexão caiu durante o carregamento. Nada se perde: suas corridas enviadas e seus territórios continuam no servidor. Verifique sua rede e tente de novo.',
+    fr: "La connexion s'est coupée pendant le chargement. Rien n'est perdu : tes sorties envoyées et tes territoires restent côté serveur. Vérifie ton réseau, puis réessaie.",
+    en: 'The connection dropped while loading. Nothing is lost: your uploaded outings and your territories stay on the server. Check your network, then try again.',
+    es: 'La conexión se cortó durante la carga. No se pierde nada: tus salidas enviadas y tus territorios siguen en el servidor. Revisa tu red y reinténtalo.',
+    de: 'Die Verbindung ist beim Laden abgebrochen. Nichts geht verloren: deine übertragenen Aktivitäten und deine Gebiete bleiben auf dem Server. Prüfe dein Netz und versuche es erneut.',
+    pt: 'A conexão caiu durante o carregamento. Nada se perde: suas atividades enviadas e seus territórios continuam no servidor. Verifique sua rede e tente de novo.',
   },
   // §A — libellés COURTS, jamais tronqués à 375 px.
   crashRetry: {
@@ -142,11 +156,11 @@ export const C = defineCatalog({
     pt: 'O GRYD foi interrompido',
   },
   crashAlertBody: {
-    fr: "L'app s'est arrêtée avant d'avoir pu dessiner l'écran. Tes courses envoyées et tes territoires sont côté serveur, intacts. Relance GRYD pour reprendre.",
-    en: 'The app stopped before it could draw the screen. Your uploaded runs and your territories are on the server, untouched. Relaunch GRYD to pick up where you left off.',
-    es: 'La app se detuvo antes de poder dibujar la pantalla. Tus carreras enviadas y tus territorios están en el servidor, intactos. Reinicia GRYD para continuar.',
-    de: 'Die App hat gestoppt, bevor der Bildschirm gezeichnet werden konnte. Deine übertragenen Läufe und deine Gebiete liegen unverändert auf dem Server. Starte GRYD neu, um weiterzumachen.',
-    pt: 'O app parou antes de conseguir desenhar a tela. Suas corridas enviadas e seus territórios estão no servidor, intactos. Reinicie o GRYD para continuar.',
+    fr: "L'app s'est arrêtée avant d'avoir pu dessiner l'écran. Tes sorties envoyées et tes territoires sont côté serveur, intacts. Relance GRYD pour reprendre.",
+    en: 'The app stopped before it could draw the screen. Your uploaded outings and your territories are on the server, untouched. Relaunch GRYD to pick up where you left off.',
+    es: 'La app se detuvo antes de poder dibujar la pantalla. Tus salidas enviadas y tus territorios están en el servidor, intactos. Reinicia GRYD para continuar.',
+    de: 'Die App hat gestoppt, bevor der Bildschirm gezeichnet werden konnte. Deine übertragenen Aktivitäten und deine Gebiete liegen unverändert auf dem Server. Starte GRYD neu, um weiterzumachen.',
+    pt: 'O app parou antes de conseguir desenhar a tela. Suas atividades enviadas e seus territórios estão no servidor, intactos. Reinicie o GRYD para continuar.',
   },
   crashAlertOk: {
     fr: 'Compris',
@@ -323,12 +337,35 @@ export const C = defineCatalog({
     de: 'Start',
     pt: 'Largada',
   },
+  /**
+   * ─── LES TROIS JUMEAUX DU PLANIFICATEUR (26/07/2026) ──────────────────────
+   * `secWhy`, `adjustRun` et `a11yObjectiveGroup` NOMMENT l'effort, et l'écran
+   * qui les rend PORTE la lentille : `/route-planner` relit sa discipline dans
+   * l'URL (`parseStartActivity`, route-planner.tsx) et l'AFFICHE lui-même dans
+   * son propre kicker (« CONQUÉRIR · BIKE · République »). Il est atteignable
+   * en vélo par deux chemins qui transmettent la discipline —
+   * `BattleMapOverlays.openPlanner` et l'écran Classement, tous deux via
+   * `plannerHref(activity)`. Les rendre sans condition faisait donc dire à
+   * l'écran, à quatre lignes d'intervalle, « BIKE » puis « cette course ».
+   *
+   * Un jumeau par discipline, PAS une neutralisation : ici le mot désigne
+   * l'objet de l'écran lui-même (la sortie qu'on prépare, ici et maintenant),
+   * pas un ailleurs. Le nommer précisément est possible et utile.
+   * La sélection vit dans `features/route/plannerCopy.ts` (pure, testée).
+   */
   secWhy: {
     fr: 'Pourquoi cette course',
     en: 'Why this run',
     es: 'Por qué esta carrera',
     de: 'Warum dieser Lauf',
     pt: 'Por que esta corrida',
+  },
+  secWhyBike: {
+    fr: 'Pourquoi cette sortie vélo',
+    en: 'Why this ride',
+    es: 'Por qué esta salida en bici',
+    de: 'Warum diese Radtour',
+    pt: 'Por que esta pedalada',
   },
   secFormats: {
     fr: 'Formats',
@@ -418,6 +455,9 @@ export const C = defineCatalog({
   },
 
   // ── « Ajuster » : objectif, distance, variantes ──────────────────────────
+  // `adjustRun` est à la fois le LIBELLÉ VISIBLE de l'accordéon et son libellé
+  // d'accessibilité : sous lentille vélo il était donc lu à voix haute
+  // « Ajuster la course » à quelqu'un qui prépare une sortie à vélo.
   adjustRun: {
     fr: 'Ajuster la course',
     en: 'Adjust the run',
@@ -425,12 +465,26 @@ export const C = defineCatalog({
     de: 'Lauf anpassen',
     pt: 'Ajustar a corrida',
   },
+  adjustRunBike: {
+    fr: 'Ajuster la sortie vélo',
+    en: 'Adjust the ride',
+    es: 'Ajustar la salida en bici',
+    de: 'Radtour anpassen',
+    pt: 'Ajustar a pedalada',
+  },
   a11yObjectiveGroup: {
     fr: 'Objectif de la course',
     en: 'Run objective',
     es: 'Objetivo de la carrera',
     de: 'Ziel des Laufs',
     pt: 'Objetivo da corrida',
+  },
+  a11yObjectiveGroupBike: {
+    fr: 'Objectif de la sortie vélo',
+    en: 'Ride objective',
+    es: 'Objetivo de la salida en bici',
+    de: 'Ziel der Radtour',
+    pt: 'Objetivo da pedalada',
   },
   a11yDecreaseDistance: {
     fr: 'Diminuer la distance',
@@ -574,6 +628,27 @@ export const C = defineCatalog({
   // toujours pouvoir savoir POURQUOI on lui propose ça. « Adapté à tes
   // habitudes » n'est autorisé QUE dans l'état `learned`. Les trois autres
   // états disent le défaut ET sa cause.
+  //
+  // ─── POURQUOI `whyLearned` ET `whyDefaultLearning` N'ONT PAS DE JUMEAU ────
+  // Elles nomment des « courses » (« {n} courses analysées », « encore {n}
+  // courses pour personnaliser ») et le balayage du 26/07/2026 les a relevées.
+  // Elles restent pourtant TELLES QUELLES, et c'est un refus argumenté, pas un
+  // oubli : sous lentille vélo, elles sont STRUCTURELLEMENT INATTEIGNABLES.
+  //   · `useRouteSuggestion` calcule `habitsReadable =
+  //     competitiveReadAllowed(activity, HABITS_SOURCE_IS_DISCIPLINED)` avec
+  //     `HABITS_SOURCE_IS_DISCIPLINED = false` — la RPC `habits_inputs` (0055)
+  //     lit `public.runs` SANS filtre `activity`, elle mélange les deux mondes ;
+  //   · hors course à pied, `habitsReadable` est donc faux, la lecture est
+  //     remplacée par `{ status: 'unavailable' }`, `routeDistancePrefsFrom`
+  //     rend `learning: 'unknown'`, et `resolveRouteSuggestion` sort en
+  //     `source: 'default'`, `cause: 'unavailable'`.
+  // L'écran affiche alors `whyDefaultUnknown` (« rien d'appris pour l'instant »),
+  // qui ne nomme aucun effort. Écrire les jumeaux aujourd'hui créerait deux
+  // vérités à maintenir pour une surface qui n'existe pas.
+  // ⚠️ LE JOUR OÙ `habits_inputs` PORTERA `activity` : passer
+  // `HABITS_SOURCE_IS_DISCIPLINED` à `true` rend ces deux phrases atteignables
+  // à vélo — elles devront alors recevoir leurs jumelles EN MÊME TEMPS.
+  // `features/route/plannerCopy.test.ts` garde cette invariance sous test.
   whyLearned: {
     fr: 'Adapté à tes habitudes : ~{km} km · {n} courses analysées',
     en: 'Matched to your habits: ~{km} km · {n} runs analysed',

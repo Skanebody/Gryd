@@ -96,9 +96,13 @@ function nextBasemap(value: BasemapKey): BasemapKey {
  * stockée si différente) — jamais de flash au reload puisque le défaut EST déjà
  * le sombre. `toggle()` sans argument cycle les trois fonds (dark → color →
  * satellite → dark) ; `toggle(key)` fixe une valeur précise (le menu Calques
- * propose ainsi 3 options explicites — AMENDEMENT-28). `styleUrl` (héritage,
- * inutilisé hors du hook) retombe sur le sombre pour `satellite` (raster sans
- * styleURL — les forks RealMap le résolvent eux-mêmes).
+ * propose ainsi 3 options explicites — AMENDEMENT-28).
+ *
+ * ⚠ `styleUrl` est un HÉRITAGE, inutilisé hors de ce hook, et ce n'est PLUS le
+ * style servi : le fond sombre est embarqué (`grydBasemapStyle.ts`) et le
+ * satellite est un raster construit sur place. Ce champ ne rend que l'URL CARTO
+ * de PROVENANCE (repli sombre pour `satellite`). Les forks RealMap résolvent
+ * eux-mêmes le vrai style ; ne pas rebrancher un rendu dessus.
  */
 export function useBasemapStyle(): {
   basemap: BasemapKey;
@@ -229,25 +233,25 @@ export function useMap3d(): {
 // les clés et les prouve distinctes).
 //
 // CE QUE CE RÉGLAGE FAIT, ET CE QU'IL NE FAIT PAS. Il choisit la LENTILLE d'un
-// écran, rien d'autre. En 'bike', la surface concernée n'affiche AUCUN
-// territoire, AUCUNE mission et AUCUN classement : le vélo n'existe pas encore
-// sous l'écran (tous les chemins de départ déclarent 'run', cf.
-// `features/run/gps/runActivity.ts`). Rejouer les données Run sous une étiquette
-// vélo serait exactement la donnée fabriquée que la charte interdit ; l'univers
-// Bike est donc honnêtement VIDE, et chaque écran le DIT.
+// écran, rien d'autre — mais depuis le 26/07/2026 cette lentille est passée aux
+// LECTURES (`useRealTerritories(crewIds, activity)`, `useMyRunHistory`,
+// `useStats`, `useSeasonLeaderboard`…), qui la traduisent en
+// `.eq('activity', …)`. Les deux mondes existent donc vraiment en base
+// (migration 0070, appliquée le 25/07) et chacun montre SES lignes.
 //
-// IL NE DÉCIDE AUCUNE DISCIPLINE D'ENREGISTREMENT. Une préférence d'AFFICHAGE
-// ne décide jamais de la nature d'un effort enregistré (arbitrage du 25/07/2026,
-// détaillé dans `runActivity.ts`) : rien dans `features/run/**` ne lit ce module.
+// Ce commentaire a porté l'inverse jusqu'au matin du 26/07 : « en 'bike', la
+// surface n'affiche AUCUN territoire, AUCUNE mission et AUCUN classement ».
+// C'était vrai tant que rien ne pouvait être enregistré à vélo ; la décision
+// fondateur du même jour l'a rendu faux, et le laisser aurait fait dire à la
+// doc que l'app ne fait pas ce qu'elle fait.
 //
-// ET LE CONTRÔLE LE DIT AVANT LE TAP (retour fondateur du 26/07/2026). Ce
-// module mémorise une lentille dont l'une des deux valeurs ne contient rien ;
-// tant que le commutateur affichait deux segments identiques, la déception
-// arrivait APRÈS la bascule — « fausse affordance ». Le segment Bike porte
-// désormais sa marque d'état (`ui/activityLens.ts` → `activitySegments`,
-// dérivée de `RECORDED_ACTIVITIES`). La valeur persistée ici, elle, ne change
-// pas d'un iota : une préférence reste une préférence, y compris vers un monde
-// vide — l'utilisateur a le droit d'y aller, il a juste le droit de le SAVOIR.
+// IL NE DÉCIDE AUCUNE DISCIPLINE D'ENREGISTREMENT, ET ÇA NE CHANGE PAS. Une
+// préférence d'AFFICHAGE ne décide jamais EN SILENCE de la nature d'un effort
+// enregistré (arbitrage du 25/07/2026, détaillé dans `runActivity.ts`) : rien
+// dans `features/run/**` ne lit ce module. Les écrans qui lancent une sortie
+// DÉCLARENT sa discipline dans l'URL (`ui/activityLens.ts` →
+// `withStartActivity`), et le préflight l'AFFICHE avant le premier mètre —
+// déclarer et montrer, ce n'est pas deviner.
 
 /**
  * Les deux lentilles (planche E14) — jamais mélangées (§ séparation stricte).

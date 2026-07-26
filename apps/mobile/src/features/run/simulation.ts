@@ -32,6 +32,7 @@
  */
 import type { RunMode } from '@klaim/shared';
 import { decimalSeparator } from '../../ui/format';
+import { formatPaceMmSs } from './gps/liveRate';
 
 // ─── Modes ───────────────────────────────────────────────────────────────────
 
@@ -69,11 +70,28 @@ export function formatClock(totalS: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-/** Allure « 5'28 » (s/km → min'sec). */
+/**
+ * Allure « 5'28 » (s/km → min'sec).
+ *
+ * ─── LE FORMATAGE A DÉMÉNAGÉ, LE CONTRAT DÉGÉNÉRÉ EST RESTÉ (26/07/2026) ────
+ * Le cœur du rendu vit désormais dans `gps/liveRate.ts` : c'est le seul module
+ * PUR (aucun import de `ui/format`, donc du store i18n, donc de React) où il
+ * soit chargeable sous Deno — ici, il n'a jamais pu être testé. Une seule
+ * vérité pour « ce qu'est une allure affichée », partagée par l'écran de
+ * course, le Résultat et la carte de partage.
+ *
+ * Le repli `0'00` de l'allure NON MESURÉE, lui, n'est pas corrigé ici, et c'est
+ * délibéré : c'est un zéro nu, donc une faute — mais il ne reste qu'UN appelant
+ * qui ne filtre pas en amont (`app/course-result.tsx`, `paceLabel` de la carte
+ * de partage), et cet appelant est hors du périmètre de ce lot. Changer la
+ * valeur sous ses pieds sans pouvoir vérifier ce que les gabarits de partage en
+ * font remplacerait un mensonge par un risque. C'est SIGNALÉ, pas masqué.
+ * L'écran de course, lui, ne peut plus l'atteindre : il passe par
+ * `liveRateDisplay`, qui écarte les cas dégénérés AVANT tout formatage.
+ */
 export function formatPace(sPerKm: number): string {
   if (!Number.isFinite(sPerKm) || sPerKm <= 0) return `0'00`;
-  const s = Math.round(sPerKm);
-  return `${Math.floor(s / 60)}'${String(s % 60).padStart(2, '0')}`;
+  return formatPaceMmSs(sPerKm);
 }
 
 /** Distance « 8,20 » (km, 2 décimales) — séparateur décimal de la langue (§26). */

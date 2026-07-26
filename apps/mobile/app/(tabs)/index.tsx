@@ -34,7 +34,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, fontSizes, gameColors, iconSizes, radii } from '@klaim/shared';
 import { MapScreen } from '../../src/features/map/MapScreen';
-import { deriveContextualAction } from '../../src/features/nav/contextualAction';
+import { deriveContextualAction, goButtonA11yLabel } from '../../src/features/nav/contextualAction';
 import { GO_BUTTON_GAP, NAV_BAR_HEIGHT } from '../../src/features/nav/metrics';
 import { C } from '../../src/i18n/catalog/nav';
 import { C as M } from '../../src/i18n/catalog/mission';
@@ -57,6 +57,13 @@ import {
   ACTIVITY_SWITCH_HEIGHT,
   ACTIVITY_SWITCH_WIDTH,
 } from '../../src/features/map/MapActivitySwitch';
+// `withStartActivity` vit dans `ui/activityLens` (pur, testé sous Deno) : c'est
+// la MÊME dérivation que celle des états vides Bike du Classement, de
+// l'Historique et des Statistiques. Une copie locale aurait fini par diverger de
+// l'une d'elles, et un seul écran oublié suffit à enregistrer une course à pied
+// depuis un monde vélo.
+import { BikeGlyph } from '../../src/ui/ActivitySwitch';
+import { withStartActivity } from '../../src/ui/activityLens';
 import { useReduceMotion } from '../../src/ui/game/anim';
 import { Icon } from '../../src/ui/Icon';
 import { effectiveInitials, useMyProfile } from '../../src/features/social/profileStore';
@@ -251,13 +258,20 @@ function MapGoButton() {
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
   const locale = useLocale();
-  const action = useMemo(() => deriveContextualAction({ screen: 'map' }, locale), [locale]);
+  // La discipline est lue AVANT la dérivation : c'est elle qui décide des mots
+  // de l'action (`deriveContextualAction`) autant que de la cible du push
+  // (`withStartActivity`). Une seule et même valeur pour les deux — sinon le
+  // bouton pourrait annoncer un monde et en lancer un autre.
+  const { activity } = useMapActivity();
+  const action = useMemo(
+    () => deriveContextualAction({ screen: 'map' }, locale, activity),
+    [locale, activity],
+  );
   // E04 (planche + §A.4) : quand un sheet de DÉCISION de zone est ouvert, son CTA
   // (REPRENDRE) devient l'unique CTA primaire — GO se retire pour ne pas peindre
   // deux CTA à la fois. Il revient dès la fermeture du sheet.
   const zoneOpen = useZoneSheetOpen();
   const sheet = useMapSheetLayout();
-  const { activity } = useMapActivity();
   const reduce = useReduceMotion();
   /** 0 = pill, 1 = rond (largeur + opacité du picto). */
   const morph = useRef(new Animated.Value(0)).current;
@@ -300,25 +314,32 @@ function MapGoButton() {
   }, [sheet.expanded, shift, reduce, morph, lift]);
 
   /**
-   * LENTILLE BIKE — GO est MASQUÉ, et c'est un choix argumenté.
-   * Le départ de course écrit une course À PIED (`runs` n'a aucune colonne de
-   * type d'activité) : un GO en mode vélo enregistrerait une sortie vélo comme
-   * une course à pied — un mensonge — ou échouerait toujours — un bouton mort.
-   * Restaient deux options : le peindre indisponible avec son motif, ou le
-   * retirer. On retire, pour deux raisons : « l'absence d'un bouton n'est pas un
-   * mensonge, un bouton qui échoue toujours en est un » (CLAUDE.md), et le MOTIF
-   * est déjà écrit à l'endroit où l'œil va — le peek Bike, juste en dessous
-   * (« GRYD ne chronomètre pas encore le vélo »). Le répéter sur un bouton grisé
-   * ferait deux messages pour une seule situation (§A : 1 écran = 1 décision).
-   * La note « où est mon run », elle, RESTE : elle parle de fiabilité d'envoi,
-   * pas de territoire, et la taire cacherait un vrai problème.
+   * ─── GO EST ROUVERT EN LENTILLE BIKE (fondateur, 26/07/2026) ───────────────
+   * Il était MASQUÉ ici, et le motif était bon : « le départ écrit une course à
+   * pied ; un GO en mode vélo enregistrerait une sortie vélo comme une course —
+   * un mensonge — ou échouerait toujours — un bouton mort ». Les deux branches
+   * de l'alternative ont disparu le même jour : `runs.activity` existe (0070,
+   * appliquée), les bornes anti-triche sont par discipline, et le départ SAIT
+   * recevoir une discipline.
+   *
+   * COMMENT LA DISCIPLINE VOYAGE, ET POURQUOI PAS AUTREMENT. Le départ ne LIT
+   * PAS `gryd.mapactivity` — c'est l'interdit du 25/07, et il tient : une
+   * préférence d'AFFICHAGE ne décide jamais en silence de la NATURE d'un effort.
+   * Cet écran DÉCLARE donc explicitement, par le paramètre d'URL contractuel
+   * `START_ACTIVITY_PARAM` (`features/run/gps/runActivity.ts`) :
+   * `/course-live?mode=conquete&activity=bike`. La différence n'est pas
+   * cosmétique — ici c'est l'écran qui écrit ce qu'il lance, et le préflight
+   * AFFICHE cette déclaration avant le premier mètre, corrigeable d'un tap.
+   *
+   * `withStartActivity` est volontairement défensif sur le `?` / `&` : les
+   * `targetHref` de `deriveContextualAction` portent déjà une query pour
+   * certains verbes (intention, route) et pas pour d'autres.
    */
-  const bike = activity === 'bike';
   if (zoneOpen) return null;
 
   const go = () => {
     haptics.medium();
-    router.push(action.targetHref);
+    router.push(withStartActivity(action.targetHref, activity));
   };
   const btnWidth = morph.interpolate({
     inputRange: [0, 1],
@@ -332,27 +353,40 @@ function MapGoButton() {
       pointerEvents="box-none"
     >
       <PendingRunNote />
-      {bike ? null : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`GO — ${action.a11yLabel}`}
-          onPress={go}
-          style={({ pressed }) => [pressed && styles.pressed]}
-          testID="map-run-button"
-        >
-          <Animated.View style={[styles.runBtn, { width: btnWidth }]}>
-            {/* Picto basket (planche) — il s'efface quand la pill devient rond ;
-                le mot « GO » reste dans les deux états (AMENDEMENT-38). */}
-            <Animated.View
-              style={[styles.runGlyph, { opacity: glyphOpacity }]}
-              pointerEvents="none"
-            >
+      <Pressable
+        accessibilityRole="button"
+        // Le lecteur d'écran entend CE QUI VA ÊTRE ENREGISTRÉ : « GO — course à
+        // pied … » / « GO — sortie vélo … ». Un « GO » nu laisserait le seul
+        // indice de discipline à un commutateur visuel, en haut de l'écran.
+        // L'énoncé est COMPOSÉ AILLEURS (`nav/contextualAction.ts`, fonction
+        // pure) : tant qu'il vivait dans ce JSX, aucun test Deno ne pouvait
+        // constater qu'il se contredisait sous lentille vélo.
+        accessibilityLabel={goButtonA11yLabel(action, activity, locale)}
+        onPress={go}
+        style={({ pressed }) => [pressed && styles.pressed]}
+        testID="map-run-button"
+      >
+        <Animated.View style={[styles.runBtn, { width: btnWidth }]}>
+          {/* Picto de la DISCIPLINE (planche : « toujours texte + icône ») — il
+              s'efface quand la pill devient rond ; le mot « GO » reste dans les
+              deux états (AMENDEMENT-38). Le picto change avec la lentille : le
+              bouton dit ce qu'il lance, il ne se contente pas de le savoir. */}
+          <Animated.View
+            style={[styles.runGlyph, { opacity: glyphOpacity }]}
+            pointerEvents="none"
+          >
+            {/* Pas de clé `velo` dans `@klaim/shared/icons` (packages/ est hors
+                de ce chantier) : on réutilise LE dessin du commutateur plutôt
+                que d'en recopier un second, qui finirait par en différer. */}
+            {activity === 'bike' ? (
+              <BikeGlyph size={iconSizes.md} color={colors.noir} />
+            ) : (
               <Icon name="basket" size={iconSizes.md} color={colors.noir} />
-            </Animated.View>
-            <Text style={styles.runLabel}>GO</Text>
+            )}
           </Animated.View>
-        </Pressable>
-      )}
+          <Text style={styles.runLabel}>GO</Text>
+        </Animated.View>
+      </Pressable>
     </Animated.View>
   );
 }
@@ -407,7 +441,12 @@ function MissionLine() {
   const [detailOpen, setDetailOpen] = useState(false);
   // La mission RÉELLE dérivée de MES vraies captures + ma position.
   // null sans session / pendant la lecture / en cas d'échec (voir hook).
-  const { mission: realMission } = useRealMission();
+  // La mission est dérivée de MES captures DE LA LENTILLE COURANTE : le hook
+  // borne sa lecture de `hex_claims` à la discipline (`.eq('activity', …)`).
+  // Avant le 26/07 la ligne était simplement RETIRÉE en Bike, faute de zones
+  // vélo lisibles ; elle existe désormais dans les deux mondes, et une mission
+  // vélo ne peut pas se retrouver dans la lentille course (ni l'inverse).
+  const { mission: realMission } = useRealMission(activity);
 
   // Retour sur la Carte = détail refermé (même règle « carte nue » que le HUD).
   // TOUS les hooks AVANT les retours conditionnels ci-dessous (Rules of Hooks) :
@@ -420,11 +459,6 @@ function MissionLine() {
 
   // « Carte nue » : l'utilisateur a masqué tout le HUD → plus de ligne mission.
   if (hudHidden) return null;
-
-  // Lentille BIKE (planche E14) : la mission est dérivée de MES captures À PIED
-  // (useRealMission → hex_claims). L'afficher sous étiquette vélo serait une
-  // mission de course à pied déguisée en mission vélo — donnée fabriquée.
-  if (activity === 'bike') return null;
 
   // Mission RÉELLE ou RIEN. Deux cas :
   //  • null / lecture en cours / first_capture → RIEN : le widget « Prends ta

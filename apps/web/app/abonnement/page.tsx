@@ -161,10 +161,13 @@ export default function AbonnementPage() {
                 </li>
               ))}
             </ul>
+            {/* « se gagne en courant » excluait les cyclistes de la garantie
+                anti-pay-to-win depuis que le vélo capture du territoire
+                (26/07/2026). Même correction que la CGU embarquée, cguAboBody1. */}
             <p className={styles.creedNote}>
-              Tout ce qui compte au classement se gagne <b>en courant</b>. Le Club habille,
-              partage et informe — il ne conquiert ni ne protège jamais une seule zone à ta
-              place.
+              Tout ce qui compte au classement se gagne <b>en courant ou en roulant</b>. Le
+              Club habille, partage et informe — il ne conquiert ni ne protège jamais une
+              seule zone à ta place.
             </p>
           </aside>
         </Reveal>

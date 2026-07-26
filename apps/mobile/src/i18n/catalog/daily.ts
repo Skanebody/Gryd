@@ -60,11 +60,11 @@ export const C = defineCatalog({
     pt: 'O GRYD não conseguiu ler a zona do dia.',
   },
   dailyZoneUnavailableDetail: {
-    fr: 'Elle revient dès que la connexion tient. Ta course, elle, compte quand même.',
-    en: 'It comes back as soon as the connection holds. Your run counts either way.',
-    es: 'Vuelve en cuanto la conexión aguante. Tu carrera cuenta igualmente.',
-    de: 'Sie kommt zurück, sobald die Verbindung hält. Dein Lauf zählt trotzdem.',
-    pt: 'Ela volta assim que a conexão firmar. Sua corrida conta do mesmo jeito.',
+    fr: 'Elle revient dès que la connexion tient. Ta sortie, elle, compte quand même.',
+    en: 'It comes back as soon as the connection holds. Your outing counts either way.',
+    es: 'Vuelve en cuanto la conexión aguante. Tu salida cuenta igualmente.',
+    de: 'Sie kommt zurück, sobald die Verbindung hält. Deine Aktivität zählt trotzdem.',
+    pt: 'Ela volta assim que a conexão firmar. Sua atividade conta do mesmo jeito.',
   },
   /** Secteur RÉEL sans nom géocodé — on ne fabrique pas de quartier. */
   dailyZoneUnnamed: {
@@ -131,13 +131,22 @@ export const C = defineCatalog({
     de: '{km}, deine eingestellte Distanz. Eine Auszeichnung, keine Punkte.',
     pt: '{km}, a distância que você definiu. Uma distinção, nenhum ponto.',
   },
-  /** Apprentissage en cours, reste connu : on annonce le compte exact. */
+  /**
+   * Apprentissage en cours, reste connu : on annonce le compte exact.
+   *
+   * Le compte vient de `runsBeforeLearning` (features/route/suggestion.ts), lui
+   * même alimenté par la RPC `habits_inputs` (migration 0055), qui n'a AUCUNE
+   * colonne `activity` : les sorties vélo entrent dans l'échantillon. Le nombre
+   * affiché est donc un nombre de SORTIES, pas de courses à pied.
+   * (Le nom de variable `{runs}` reste tel quel — il est lu par
+   * `ui/game/DailyFocusBlock.tsx`, il ne s'affiche jamais.)
+   */
   dailyZoneEffortLearning: {
-    fr: 'Encore {runs} courses pour adapter la distance. Une distinction, aucun point.',
-    en: '{runs} more runs to match the distance to you. A mark of honour, no points.',
-    es: 'Faltan {runs} carreras para adaptar la distancia. Una distinción, ningún punto.',
-    de: 'Noch {runs} Läufe, dann passt GRYD die Distanz an. Eine Auszeichnung, keine Punkte.',
-    pt: 'Faltam {runs} corridas para adaptar a distância. Uma distinção, nenhum ponto.',
+    fr: 'Encore {runs} sorties pour adapter la distance. Une distinction, aucun point.',
+    en: '{runs} more outings to match the distance to you. A mark of honour, no points.',
+    es: 'Faltan {runs} salidas para adaptar la distancia. Una distinción, ningún punto.',
+    de: 'Noch {runs} Aktivitäten, dann passt GRYD die Distanz an. Eine Auszeichnung, keine Punkte.',
+    pt: 'Faltam {runs} atividades para adaptar a distância. Uma distinção, nenhum ponto.',
   },
   /** Apprentissage en cours, reste INCONNU : on ne fabrique pas le nombre. */
   dailyZoneEffortLearningSoon: {
@@ -217,20 +226,31 @@ export const C = defineCatalog({
     de: '{done} von {total}',
     pt: '{done} de {total}',
   },
-  /** Les 5 paliers, formulés comme des invitations — jamais comme des quotas. */
+  /**
+   * Les 5 paliers, formulés comme des invitations — jamais comme des quotas.
+   *
+   * AUCUN d'eux ne nomme une discipline, et ce n'est pas une politesse : les
+   * quatre faits qui les valident (`bestRunDistanceM`, `loopRuns`,
+   * `hexesCaptured`, `shares`) sont lus par la RPC `welcome_challenge_facts`
+   * (migration 0052) dans `user_stats`, table SANS colonne `activity`.
+   * `applyRunToStats` (_shared/engine/badges.ts) y écrit pour TOUTE sortie
+   * valide : un cycliste cochait donc « Cours 3 km » EN ROULANT — la copie
+   * décrivait un geste que la mécanique n'exige pas. Les clés gardent leur nom
+   * (`…Run3k`), il est lu par `game-rules` et ne s'affiche jamais.
+   */
   welcomeStepRun3k: {
-    fr: 'Cours 3 km d’une traite',
-    en: 'Run 3 km in one go',
-    es: 'Corre 3 km de una vez',
-    de: 'Lauf 3 km am Stück',
-    pt: 'Corra 3 km de uma vez',
+    fr: '3 km d’une traite',
+    en: '3 km in one go',
+    es: '3 km de una vez',
+    de: '3 km am Stück',
+    pt: '3 km de uma vez',
   },
   welcomeStepRun5k: {
-    fr: 'Cours 5 km d’une traite',
-    en: 'Run 5 km in one go',
-    es: 'Corre 5 km de una vez',
-    de: 'Lauf 5 km am Stück',
-    pt: 'Corra 5 km de uma vez',
+    fr: '5 km d’une traite',
+    en: '5 km in one go',
+    es: '5 km de una vez',
+    de: '5 km am Stück',
+    pt: '5 km de uma vez',
   },
   welcomeStepLoop: {
     fr: 'Ferme une boucle',
@@ -247,11 +267,11 @@ export const C = defineCatalog({
     pt: 'Capture sua primeira zona',
   },
   welcomeStepShare: {
-    fr: 'Partage une course',
-    en: 'Share a run',
-    es: 'Comparte una carrera',
-    de: 'Teile einen Lauf',
-    pt: 'Compartilhe uma corrida',
+    fr: 'Partage une sortie',
+    en: 'Share an outing',
+    es: 'Comparte una salida',
+    de: 'Teile eine Aktivität',
+    pt: 'Compartilhe uma atividade',
   },
   /** LA phrase anti-shame. Elle est dite, pas sous-entendue. */
   welcomeNoRush: {

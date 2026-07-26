@@ -31,9 +31,18 @@
  *    n'affirme RIEN ;
  *  · 'failed'     — ses courses existent, on n'a pas su les lire ;
  *  · 'ready'      — lu. `activity === null` = il n'a réellement aucune course.
+ *
+ * ─── DE QUELLE DISCIPLINE PARLE CETTE LIGNE (E14, 26/07/2026) ───────────────
+ * La lecture reste TOUTES DISCIPLINES, et c'est le bon choix : dater n'est pas
+ * sommer. Mais la ligne ne DISAIT pas de quel monde elle parlait, alors que la
+ * métrique de territoire juste au-dessus est, elle, disciplinée — un cycliste
+ * lisait « dernière course » sous un bloc titré « Territoire à vélo ».
+ * `runs.activity` (migration 0070) est donc rendue avec la ligne, et c'est la
+ * COPIE qui lève l'ambiguïté. Elle vaut `null` quand la colonne est illisible :
+ * on ne nomme jamais un monde qu'on ignore.
  */
 import { useEffect, useState } from 'react';
-import type { IngestRunResponse } from '@klaim/shared';
+import { ACTIVITIES, type Activity, type IngestRunResponse } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 
@@ -49,6 +58,14 @@ export interface LastActivity {
   captured: number | null;
   /** Zones défendues. `null` = inconnu, jamais 0 par défaut. */
   defended: number | null;
+  /**
+   * DISCIPLINE DE CETTE SORTIE (`runs.activity`, migration 0070). `null` quand
+   * la colonne est illisible ou porte une valeur inconnue — et surtout PAS
+   * `DEFAULT_ACTIVITY` : nommer « course à pied » une sortie dont on ignore la
+   * nature serait exactement l'affirmation gratuite que ce hook refuse partout
+   * ailleurs. L'écran retombe alors sur une copie sans discipline.
+   */
+  activity: Activity | null;
 }
 
 export interface MyLastActivity {
@@ -61,6 +78,18 @@ export interface MyLastActivity {
 interface LastRunRow {
   started_at: string;
   celebration: unknown;
+  /** `runs.activity` (0070) — typée large : la réponse réseau est une promesse. */
+  activity: unknown;
+}
+
+/**
+ * Discipline DÉCLARÉE de la sortie, ou `null`. Pure : on ne devine pas, on ne
+ * replie pas sur la course à pied, on rend `null` et l'écran se tait.
+ */
+export function parseRunActivity(raw: unknown): Activity | null {
+  return typeof raw === 'string' && (ACTIVITIES as readonly string[]).includes(raw)
+    ? (raw as Activity)
+    : null;
 }
 
 /**
@@ -106,9 +135,33 @@ export function useMyLastActivity(): MyLastActivity {
     setFailed(false);
 
     void (async () => {
+      // ─── TOUTES DISCIPLINES, ET C'EST UN CHOIX ASSUMÉ (E14, 26/07/2026) ──
+      // Cette ligne répond à « ta dernière sortie, c'était quand » sur le
+      // PROFIL — un écran qui n'a PAS de commutateur E14 (la planche le pose
+      // sur Carte, Classement, Historique, Statistiques ; le Profil montre une
+      // carte de visite, pas un monde). Filtrer sur la course à pied ferait
+      // dire « tu n'as rien fait » à quelqu'un qui a roulé hier : ce serait un
+      // mensonge par omission, pas une séparation.
+      //
+      // Ce n'est PAS une somme (E14 interdit de sommer, pas de dater) : on rend
+      // UNE ligne, la plus récente, sans additionner quoi que ce soit.
+      //
+      // ─── L'AMBIGUÏTÉ EST LEVÉE (26/07/2026) ─────────────────────────────
+      // Ce bloc portait, jusqu'à ce correctif, une « LIMITE HONNÊTE, NON
+      // RÉSOLUE » : la ligne ne disait pas de quelle discipline elle parlait.
+      // Sur un écran où la métrique de territoire est, elle, DISCIPLINÉE (le
+      // bloc de métriques est titré « Territoire à vélo »), un cycliste lisait
+      // juste au-dessus « Hier · dernière course » — deux mondes dans le même
+      // regard, sans que rien ne les distingue.
+      //
+      // La colonne `runs.activity` est DEMANDÉE ici, et c'est bien un datage :
+      // on lit la discipline de LA ligne rendue, on n'en filtre aucune et on
+      // n'additionne rien. C'est la COPIE qui lève l'ambiguïté (catalogue du
+      // Profil), pas un filtre — filtrer ferait retomber la ligne dans le
+      // mensonge par omission qu'elle évitait déjà.
       const { data, error } = await client
         .from('runs')
-        .select('started_at, celebration')
+        .select('started_at, celebration, activity')
         .eq('user_id', userId)
         .order('started_at', { ascending: false })
         .limit(1);
@@ -134,7 +187,11 @@ export function useMyLastActivity(): MyLastActivity {
         setRead(true);
         return;
       }
-      setActivity({ startedAtMs, ...impactOf(row.celebration) });
+      setActivity({
+        startedAtMs,
+        ...impactOf(row.celebration),
+        activity: parseRunActivity(row.activity),
+      });
       setRead(true);
     })().catch(() => {
       // Sans ce catch, un throw synchrone du client laisserait le hook à jamais

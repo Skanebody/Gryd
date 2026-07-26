@@ -78,7 +78,7 @@
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, spacing, typography } from '@klaim/shared';
+import { DEFAULT_ACTIVITY, colors, spacing, typography } from '@klaim/shared';
 import { flags } from '../src/lib/flags';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
@@ -171,11 +171,19 @@ export default function AujourdhuiScreen() {
    * pré-calculé : on part en conquête SANS route pré-remplie (`intentionHref`),
    * ce qui est exactement ce que le CTA promet — le tracé réel décide, le
    * serveur attribue.
+   *
+   * LA DISCIPLINE EST DÉCLARÉE, EXPLICITEMENT (E14, 26/07/2026). Cet écran ne
+   * porte PAS le commutateur Run/Bike : il n'a aucune lentille à respecter, et
+   * il n'ira jamais lire celle d'un autre écran — une préférence d'AFFICHAGE ne
+   * décide pas de la NATURE d'un effort (interdit du 25/07). Il déclare donc la
+   * course à pied, en toutes lettres plutôt qu'en se taisant : le jour où on lui
+   * câble une porte depuis une surface qui porte une lentille, c'est CETTE ligne
+   * qu'on change, et la discipline reste corrigeable d'un tap au préflight.
    */
   const goNow = () => {
     haptics.medium();
-    track(EVENTS.runStart, { mode: 'conquete', context: 'CONQUERIR' });
-    router.push(intentionHref('conquest'));
+    track(EVENTS.runStart, { mode: 'conquete', context: 'CONQUERIR', activity: DEFAULT_ACTIVITY });
+    router.push(intentionHref('conquest', undefined, DEFAULT_ACTIVITY));
   };
 
   return (

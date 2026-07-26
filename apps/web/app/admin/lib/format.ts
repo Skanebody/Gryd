@@ -50,12 +50,22 @@ export const STATUS_LABELS: Record<RunStatus, string> = {
   rejected: 'Rejetée',
 };
 
+/**
+ * ⚠️ 26/07/2026 — CES LIBELLÉS DÉCRIVAIENT UN MOTEUR QUI N'EXISTE PLUS. Depuis
+ * que le vélo est une discipline réelle, chaque motif de rejet se juge contre
+ * les bornes de la discipline DÉCLARÉE (`activityRules(activity)`) : « anti-vélo »
+ * est devenu faux (rouler n'est plus une fraude, et la borne haute d'une sortie
+ * à vélo vise le véhicule motorisé), et les seuils recopiés (« < 1 km »,
+ * « > 100 km ») ne valent que pour la course à pied — c'étaient en prime des
+ * nombres magiques, figés le jour où game-rules.ts évoluerait. Les libellés
+ * nomment donc le motif, jamais la valeur : celle-ci vit dans game-rules.ts.
+ */
 export const REJECT_REASON_LABELS: Record<RejectReason, string> = {
-  too_short: 'Trop courte (< 1 km)',
-  too_brief: 'Trop brève (< 6 min)',
-  pace_too_fast: 'Allure trop rapide (anti-vélo)',
-  pace_too_slow: 'Allure trop lente',
-  too_far: 'Trop longue (> 100 km, plafond anti-abus)',
+  too_short: 'Trop courte pour sa discipline',
+  too_brief: 'Trop brève pour sa discipline',
+  pace_too_fast: 'Allure trop rapide pour sa discipline',
+  pace_too_slow: 'Allure trop lente pour sa discipline',
+  too_far: 'Trop longue pour sa discipline (plafond anti-abus)',
   no_valid_points: 'Aucun point GPS exploitable',
 };
 

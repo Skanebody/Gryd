@@ -18,9 +18,21 @@
  *   que le joueur TIENT du territoire à cet endroit. Aucune lecture de
  *   `hex_claims` n'a lieu sur cet écran — c'était un fait de jeu inventé, de la
  *   même famille que les « +N zones » supprimés du même écran.
+ *
+ * ─── CE QUI A ÉTÉ RETIRÉ LE 26/07/2026 : LES QUATRE BORNES SANS SOURCE ────────
+ * `GEN_MIN_KM = 1.5`, `GEN_MAX_KM = 50`, `GEN_STEP_KM = 0.5`,
+ * `GEN_DEFAULT_KM = 3.4` pilotaient TOUTES les distances du planificateur, et
+ * aucune ne venait de `game-rules.ts`. Tant que GRYD ne chronométrait que la
+ * course, c'était une entorse tolérée à « aucun nombre magique » ; depuis que le
+ * vélo est réel, c'était une boucle de 3 km proposée à un cycliste dont le
+ * périmètre minimal de capture est 5 000 m — une sortie STRUCTURELLEMENT
+ * incapturable. Les bornes vivent désormais dans `activityPlanning.ts`, qui ne
+ * fait que LIRE `activityRouting(activity)` (game-rules).
  */
+import { type Activity } from '@klaim/shared';
 import { C } from '../../i18n/catalog/route';
 import type { Entry } from '../../i18n/types';
+import { formatBandsKm } from './activityPlanning';
 import type { PlannerIntention } from './types';
 
 export type { PlannerIntention } from './types';
@@ -30,32 +42,24 @@ export const PLANNER_INTENTION_LABELS: Record<PlannerIntention, Entry> = {
   defendre: C.intentDefend,
 };
 
-// Bornes de distance : du footing au TRAIL (des coureurs font 50 km).
-export const GEN_MIN_KM = 1.5;
-export const GEN_MAX_KM = 50;
-export const GEN_STEP_KM = 0.5;
-export const GEN_DEFAULT_KM = 3.4;
-
-/**
- * Bandes de FORMAT (km) — MESURES DE COMPOSITION, pas des règles de jeu : elles
- * ne choisissent qu'un adjectif d'affichage (« format court / moyen / grande
- * boucle ») et n'entrent dans aucun calcul de score ni de territoire.
- */
-const SHORT_FORMAT_MAX_KM = 3;
-const MEDIUM_FORMAT_MAX_KM = 6;
-
 /**
  * Ce qu'on peut dire de VRAI d'une boucle routée, sans rien lire d'autre que sa
  * géométrie. Deux faits invariants (elle part de ta position, elle suit les
  * rues) + la bande de format déduite de la distance mesurée. Aucune de ces
  * puces n'affirme quoi que ce soit sur le territoire ou sur le score.
+ *
+ * La bande est celle de LA DISCIPLINE (`formatBandsKm`) : avec les seuils de la
+ * course, la plus PETITE sortie vélo proposée — 15 km — se serait annoncée comme
+ * une « grande boucle ». Un adjectif n'attribue rien, mais il ne doit pas non
+ * plus décrire un effort qui n'est pas celui-là.
  */
-export function generatedReasons(distanceKm: number): Entry[] {
+export function generatedReasons(distanceKm: number, activity: Activity): Entry[] {
+  const { shortMaxKm, mediumMaxKm } = formatBandsKm(activity);
   return [
     C.reasonAtYourDoor,
-    distanceKm <= SHORT_FORMAT_MAX_KM
+    distanceKm <= shortMaxKm
       ? C.reasonShortFormat
-      : distanceKm <= MEDIUM_FORMAT_MAX_KM
+      : distanceKm <= mediumMaxKm
         ? C.reasonMediumFormat
         : C.reasonLongLoop,
     C.reasonFollowsStreets,

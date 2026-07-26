@@ -3,6 +3,13 @@
  * DONNÉES (pas d'UI) des 6 sections de « Comment GRYD calcule tes zones » et de
  * la FAQ « Calculs & règles du jeu » (20 Q/R §33 + FAQ courte post-run §34).
  *
+ * DISCIPLINE (E14, 26/07/2026) : ces deux pages ne portent AUCUNE lentille —
+ * elles n'affichent ni ne connaissent la discipline du lecteur. Leur copie est
+ * donc NEUTRALISÉE, jamais dédoublée (le détail et le vocabulaire des 5 langues
+ * sont documentés en tête de `i18n/catalog/explain.ts`). Corollaire ici : les
+ * seules VALEURS injectées sont celles qui sont identiques dans les deux
+ * disciplines — `copyDiscipline.test.ts` refuse toute borne divergente.
+ *
  * i18n : chaque texte est une `Entry` (5 langues, catalogue
  * i18n/catalog/explain.ts) que les ÉCRANS résolvent via t() à l'affichage —
  * la bascule de langue reste donc instantanée malgré le module scope. Les
@@ -41,8 +48,7 @@ import {
   lockHoursLabel,
   newPlayerDaysEntry,
   pioneerBonusMaxEntry,
-  runMinDistanceLabel,
-  runMinDurationLabel,
+  minDurationLabel,
   verifyTiersLabel,
   verifyTiersSentenceEntry,
   widthMinLabel,
@@ -87,7 +93,7 @@ export interface ExplainSection {
 
 /**
  * Les 8 scènes de la visite guidée, dans l'ordre où on se pose les questions :
- * comment une course devient une zone (1-2) → ce qu'on y gagne (3) → ce qui se
+ * comment une sortie devient une zone (1-2) → ce qu'on y gagne (3) → ce qui se
  * passe quand on est plusieurs dessus (4-5) → comment on la garde (6-7) → ce
  * qui peut l'invalider (8).
  * La scène « bonus ciblés » a QUITTÉ la visite (ce n'est pas une mécanique de
@@ -120,7 +126,7 @@ export const EXPLAIN_SECTIONS: readonly ExplainSection[] = [
     schemaId: 'valeur_zone',
   },
   {
-    // AMENDEMENT-41 (LE RELAIS) : la sortie de run club, absente de la visite.
+    // AMENDEMENT-41 (LE RELAIS) : la sortie de groupe, absente de la visite.
     id: 'le_relais',
     icon: 'crew',
     title: C.secRelaisTitle,
@@ -213,7 +219,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     schemaId: 'ligne_vs_boucle',
   },
   {
-    // AMENDEMENT-41 (LE RELAIS) : la question n°1 d'une sortie de run club.
+    // AMENDEMENT-41 (LE RELAIS) : la question n°1 d'une sortie de groupe.
     id: 'q-relay',
     category: 'zones',
     icon: 'crew',
@@ -235,12 +241,15 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     icon: 'boucle_ouverte',
     q: C.q3Q,
     // UNE raison de refus par ligne, chaque seuil étiqueté (zéro-friction).
+    // Les quatre valeurs injectées sont celles qui valent à l'IDENTIQUE dans
+    // les deux disciplines (tolérance de fermeture, gate GPS, largeur, durée) —
+    // la distance minimale, elle, DIFFÈRE et n'est donc plus chiffrée ici
+    // (voir `q3A` dans le catalogue, et `copyDiscipline.test.ts`).
     a: fillEntry(C.q3A, {
       close: closeToleranceLabel(),
       gps: gpsGateLabel(),
       width: widthMinLabel(),
-      dist: runMinDistanceLabel(),
-      dur: runMinDurationLabel(),
+      dur: minDurationLabel(),
     }),
   },
   {
@@ -432,7 +441,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
 
 // ─── FAQ courte post-run (§34) ───────────────────────────────────────────────
 
-/** Une réponse express post-course (lien « Comment est calculé ce résultat ? »). */
+/** Une réponse express post-sortie (lien « Comment est calculé ce résultat ? »). */
 export interface PostRunFaqItem {
   id: string;
   icon: IconName;

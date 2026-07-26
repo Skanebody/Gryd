@@ -57,6 +57,7 @@ import {
   basemapAttribution,
   buildings3dStyle,
   localizedBasemapSpec,
+  prefetchLocalizedBasemaps,
   satelliteStyleSpec,
   type BasemapKey,
 } from '../../features/map/mapStyle';
@@ -64,21 +65,30 @@ import { useReduceMotion } from './anim';
 
 // ─── API commune (dupliquée à l'identique dans RealMap.web.tsx — fork RN) ───
 
-/** Style vectoriel sombre de dev SANS CLÉ (AMENDEMENT-13 §1 — O6 pour la prod). */
+/**
+ * URL du style CARTO dark-matter dont le fond sombre GRYD est DÉRIVÉ. Conservée
+ * comme PROVENANCE (et pour l'API publique de ui/game) : plus rien ne la
+ * télécharge — le style sombre est embarqué (`features/map/grydBasemapStyle.ts`).
+ */
 export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
 
 /**
- * Résout le style du fond demandé (défaut sombre). `dark`/`color` = styleURL
- * vectoriel CARTO ; `satellite` (AMENDEMENT-28) = le StyleSpecification RASTER
- * Esri sérialisé en JSON (le binding natif `mapStyle` accepte une URL OU une
- * chaîne JSON de style) — keyless, une seule source raster + un layer raster.
+ * Résout le style du fond demandé (défaut sombre). Le binding natif `mapStyle`
+ * accepte une URL OU une chaîne JSON de style — les trois fonds passent donc par
+ * la même prop :
+ *   · `dark`      → le style GRYD EMBARQUÉ, disponible IMMÉDIATEMENT (noms en
+ *                   langue locale inclus). C'est aussi le fond qui gagne le plus
+ *                   ici : le natif n'a JAMAIS eu d'équivalent des reteintes à
+ *                   chaud du fork web, il affichait donc le dark-matter brut —
+ *                   il reçoit désormais les tokens GRYD comme la version web ;
+ *   · `color`     → la spec Voyager localisée si le téléchargement a abouti,
+ *                   sinon l'URL brute (la carte s'affiche, en anglais, plutôt que
+ *                   rien) ; le remount par `key` la localise à l'arrivée ;
+ *   · `satellite` → le style RASTER Esri sérialisé (AMENDEMENT-28).
  */
 function basemapStyleUrl(basemap: BasemapKey | undefined): string {
   if (basemap === 'satellite') return JSON.stringify(satelliteStyleSpec());
   const key = basemap ?? 'dark';
-  // Labels en langue LOCALE (spec patchée name_en→name) si le préchargement a
-  // abouti — sinon l'URL CARTO brute. Lu AU MONTAGE uniquement : l'appelant
-  // remonte la carte via sa key quand la spec localisée devient disponible.
   return localizedBasemapSpec(key) ?? MAP_BASEMAP_STYLES[key];
 }
 
@@ -522,6 +532,15 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
    * natif (upgrade du binding, cf. O6). Les BÂTIMENTS 3D, eux, sont rendus ici.
    */
   const is3d = pitch > 0;
+  /**
+   * Prépare le style du fond RÉELLEMENT affiché. Ne fait rien pour `dark`
+   * (embarqué) ni `satellite` (raster construit sur place) : seul le Voyager clair
+   * a encore un style à télécharger, et il ne se télécharge QUE si on l'affiche —
+   * jamais « au cas où » depuis le premier écran.
+   */
+  useEffect(() => {
+    prefetchLocalizedBasemaps(basemap);
+  }, [basemap]);
   const cameraRef = useRef<CameraRef>(null);
   /** Réf MapView — queryRenderedFeaturesAtPoint au tap (§3 tap→zone). */
   const mapViewRef = useRef<MapViewRef>(null);

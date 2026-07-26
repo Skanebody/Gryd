@@ -96,7 +96,11 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     id: 'jeu',
     label: C.grpJeu,
     rows: [
-      { section: 'course', label: C.rowCourse, detail: C.rowCourseDetail, icon: 'route' },
+      // Le SLUG reste `course` (URL déjà installée, cf. `SettingsSectionId`) ;
+      // le LIBELLÉ, lui, ne peut plus dire « Course » : cette sous-page règle
+      // le style de jeu, les haptiques et les unités de TOUTE sortie, vélo
+      // compris — et elle ne lit aucune discipline (aucun commutateur E14 ici).
+      { section: 'course', label: C.rowActivite, detail: C.rowActiviteDetail, icon: 'route' },
       // Mes parcours : le seul endroit où l'on voit ce que GRYD a déduit des
       // habitudes, et où l'on coupe l'apprentissage. Une page de transparence
       // ne se cache pas derrière un autre réglage.

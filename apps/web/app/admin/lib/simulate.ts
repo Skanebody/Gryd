@@ -56,9 +56,18 @@ export interface SimParams {
   density: ZoneDensity;
 }
 
+/**
+ * ⚠️ 26/07/2026 — `bike` N'EST PLUS « UNE TRICHE », C'EST UNE DISCIPLINE DÉCLARÉE
+ * POUR UNE AUTRE. Le simulateur soumet toujours une COURSE À PIED : une trace à
+ * 22 km/h y reste hors bornes et doit être rejetée. Ce qui change, c'est le
+ * libellé — rouler en déclarant du vélo est parfaitement légitime depuis que
+ * `runs.activity` existe (migration 0070), et un tableau de bord qui dit
+ * « Vélo → rejetée » sans dire « déclaré en course à pied » ferait croire au
+ * fondateur que le moteur refuse la discipline elle-même.
+ */
 export const CHEAT_LABELS: Record<CheatMode, string> = {
   none: 'Aucun — course honnête',
-  bike: 'Vélo (~22 km/h)',
+  bike: 'Vélo (~22 km/h) déclaré en course à pied',
   car: 'Voiture (45 km/h)',
   car_city: 'Voiture en ville (~18 km/h, zéro pas)',
   gps_jump: 'Sauts GPS (téléportations)',
@@ -75,7 +84,7 @@ export const PRESETS: { id: string; label: string; expect: RunStatus; params: Si
   },
   {
     id: 'bike',
-    label: 'Vélo (doit être rejetée)',
+    label: 'Vélo déclaré en course à pied (doit être rejetée)',
     expect: 'rejected',
     params: { city: 'paris', distanceKm: 6, paceSKm: 330, noiseM: 4, cheat: 'bike', source: 'gps', density: 'active' },
   },

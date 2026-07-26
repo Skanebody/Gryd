@@ -40,9 +40,16 @@ const device = (over: Partial<PushDevice> = {}): PushDevice => ({
   ...over,
 });
 
+/** Menace dans UN monde — la brique de tous les cas ci-dessous. */
+const world = (
+  activity: Activity,
+  hexCount: number,
+  at = paris('2026-07-06T10:00:00'),
+) => ({ activity, hexCount, earliestDecayAt: at });
+
 const target = (over: Partial<DecayTarget> = {}): DecayTarget => ({
   userId: USER,
-  hexCount: 3,
+  perActivity: [world('run', 3)],
   earliestDecayAt: paris('2026-07-06T10:00:00'),
   ...over,
 });
@@ -130,7 +137,7 @@ Deno.test('les envois d\'hier ne consomment pas le cap d\'aujourd\'hui', () => {
 
 Deno.test('le corps porte le compte réel et un délai borné à la fenêtre', () => {
   const now = paris('2026-07-03T10:00:00');
-  const msg = buildDecayPush(device(), 3, paris('2026-07-06T10:00:00'), now);
+  const msg = buildDecayPush(device(), target(), now);
   assert(msg.body.includes('3 zones'));
   assert(msg.body.includes('3 j'));
   assertEquals(msg.data.cta, 'defend');
@@ -139,19 +146,150 @@ Deno.test('le corps porte le compte réel et un délai borné à la fenêtre', (
 
 Deno.test('singulier vs pluriel', () => {
   const now = paris('2026-07-03T10:00:00');
-  const one = buildDecayPush(device(), 1, paris('2026-07-05T10:00:00'), now);
+  const at = paris('2026-07-05T10:00:00');
+  const one = buildDecayPush(
+    device(),
+    target({ perActivity: [world('run', 1, at)], earliestDecayAt: at }),
+    now,
+  );
   assert(one.body.startsWith('1 zone '));
 });
 
 Deno.test('les 5 langues existent et parlent d\'action', () => {
   const now = paris('2026-07-03T10:00:00');
+  const at = paris('2026-07-05T10:00:00');
   for (const locale of PUSH_LOCALES) {
-    const msg = buildDecayPush(device({ locale }), 2, paris('2026-07-05T10:00:00'), now);
+    const msg = buildDecayPush(
+      device({ locale }),
+      target({ perActivity: [world('run', 2, at)], earliestDecayAt: at }),
+      now,
+    );
     assert(msg.title.length > 0, `titre ${locale}`);
     assert(msg.body.includes('2'), `compte ${locale}`);
     // Aucun placeholder oublié : un « {n} » à l'écran, c'est un mensonge de plus.
     assert(!msg.body.includes('{'), `placeholder résiduel ${locale}`);
   }
+});
+
+// ─── LE CYCLISTE EST AVERTI, ET DANS SA LANGUE ───────────────────────────────
+//
+// Le défaut réparé : `DECAY_COPY` n'avait aucune variante vélo, si bien que
+// `decay_job` ne poussait QUE les joueurs dont la menace était entièrement à
+// pied. Ne rien pousser plutôt que pousser faux était le bon arbitrage — mais
+// il laissait la moitié du jeu perdre son territoire sans avertissement.
+
+Deno.test('LE DÉFAUT : un cycliste reçoit une action qui SAUVE sa zone', () => {
+  const now = paris('2026-07-03T10:00:00');
+  const msg = buildDecayPush(
+    device(),
+    target({ perActivity: [world('bike', 4)] }),
+    now,
+  );
+  assert(msg.body.includes('4 zones à vélo'), `monde nommé : « ${msg.body} »`);
+  assert(msg.body.includes('sortie vélo'), `action cyclable : « ${msg.body} »`);
+  // Prescrire « une course » à un cycliste, c'est l'envoyer courir pour rien :
+  // un claim de course ne défend pas un claim vélo (clé composite, 0070).
+  assert(!/course/i.test(msg.body), `action à pied prescrite à un cycliste : « ${msg.body} »`);
+});
+
+Deno.test('les 5 langues savent dire le vélo, sans jamais prescrire la course', () => {
+  const now = paris('2026-07-03T10:00:00');
+  const bodies = new Set<string>();
+  for (const locale of PUSH_LOCALES) {
+    const runMsg = buildDecayPush(device({ locale }), target({ perActivity: [world('run', 2)] }), now);
+    const bikeMsg = buildDecayPush(
+      device({ locale }),
+      target({ perActivity: [world('bike', 2)] }),
+      now,
+    );
+    assert(!bikeMsg.body.includes('{'), `placeholder résiduel ${locale}`);
+    assert(bikeMsg.body.includes('2'), `compte ${locale}`);
+    // La preuve qu'une VRAIE traduction a été écrite et pas un copier-coller :
+    // les deux mondes ne peuvent pas dire la même phrase.
+    assert(
+      bikeMsg.body !== runMsg.body,
+      `${locale} : la phrase vélo est identique à la phrase course — le monde ` +
+        `n'est donc nommé nulle part.`,
+    );
+    bodies.add(bikeMsg.body);
+  }
+  assertEquals(bodies.size, PUSH_LOCALES.length, 'deux langues rendent le même texte');
+});
+
+Deno.test('MENACE MIXTE : les deux mondes énoncés, jamais additionnés', () => {
+  const now = paris('2026-07-03T10:00:00');
+  const soon = paris('2026-07-04T10:00:00'); // le vélo part en PREMIER
+  const later = paris('2026-07-06T10:00:00');
+  const msg = buildDecayPush(
+    device(),
+    target({
+      perActivity: [world('run', 3, later), world('bike', 2, soon)],
+      earliestDecayAt: soon,
+    }),
+    now,
+  );
+  assert(msg.body.includes('3 zones à pied'), `monde course absent : « ${msg.body} »`);
+  assert(msg.body.includes('2 zones à vélo'), `monde vélo absent : « ${msg.body} »`);
+  // La somme interdite (E14) : 3 + 2 = 5 ne doit apparaître nulle part.
+  assert(!/\b5\b/.test(msg.body), `somme des deux mondes : « ${msg.body} »`);
+  // Le délai est celui de la PREMIÈRE échéance (1 j, le vélo), dit « au plus
+  // tôt » — sinon le joueur croit que tout part le même jour.
+  assert(msg.body.includes('1 j au plus tôt'), `délai mixte : « ${msg.body} »`);
+});
+
+Deno.test('MENACE MIXTE : aucun des deux mondes ne disparaît, dans les 5 langues', () => {
+  const now = paris('2026-07-03T10:00:00');
+  for (const locale of PUSH_LOCALES) {
+    const msg = buildDecayPush(
+      device({ locale }),
+      target({ perActivity: [world('run', 3), world('bike', 2)] }),
+      now,
+    );
+    assert(msg.body.includes('3'), `${locale} : le compte course a disparu`);
+    assert(msg.body.includes('2'), `${locale} : le compte vélo a disparu`);
+    assert(!/\b5\b/.test(msg.body), `${locale} : les deux mondes ont été sommés`);
+    assert(!msg.body.includes('{'), `${locale} : placeholder résiduel`);
+  }
+});
+
+Deno.test('le payload du push porte les comptes PAR MONDE, jamais un total', () => {
+  const now = paris('2026-07-03T10:00:00');
+  const msg = buildDecayPush(
+    device(),
+    target({ perActivity: [world('run', 3), world('bike', 2)] }),
+    now,
+  );
+  assertEquals(msg.data.byActivity, [
+    { activity: 'run', hexCount: 3 },
+    { activity: 'bike', hexCount: 2 },
+  ]);
+  // Un `hexCount` mêlé laissé dans le payload serait une somme qu'un client
+  // pourrait réafficher par mégarde.
+  assertEquals(msg.data.hexCount, undefined);
+});
+
+Deno.test('un avertissement SANS monde menacé lève, il ne s\'envoie pas', () => {
+  const now = paris('2026-07-03T10:00:00');
+  // Impossible par construction (groupWarningsByUser n'en produit aucun) : le
+  // cas testé est le SENS du repli. decay_job enveloppe la livraison dans un
+  // try/catch et remonte l'échec — l'inbox, elle, est déjà écrite.
+  let threw = false;
+  try {
+    buildDecayPush(device(), target({ perActivity: [] }), now);
+  } catch {
+    threw = true;
+  }
+  assert(threw, 'une notification creuse ne doit jamais partir en silence');
+});
+
+Deno.test('la menace vélo n\'est plus filtrée à l\'envoi : elle est POUSSÉE', () => {
+  // C'est le pendant « sélection » du correctif de copie : planDecayPushes ne
+  // connaît aucune discipline privilégiée, il pousse ce que la copie sait dire.
+  const p = plan([device()], paris('2026-07-03T10:00:00'), [], target({
+    perActivity: [world('bike', 4)],
+  }));
+  assertEquals(p.sends.length, 1);
+  assert(p.sends[0].messages[0].body.includes('vélo'));
 });
 
 Deno.test('jamais « dans 0 j », jamais plus que la fenêtre d\'avertissement', () => {

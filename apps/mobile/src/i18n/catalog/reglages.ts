@@ -9,6 +9,27 @@
  * §A CONTRAIGNANT : labels de lignes, CTA et kickers restent COURTS dans les
  * 5 langues (l'allemand est reformulé concis : « Spieler melden », « Endgültig
  * löschen » — jamais de composé à rallonge qui tronque à 375px).
+ *
+ * ─── VOCABULAIRE NEUTRALISÉ LE 26/07/2026 (vélo = discipline RÉELLE) ─────────
+ * AUCUN des écrans servis par ce catalogue ne porte le commutateur E14 :
+ * Paramètres, ses sous-pages, Confidentialité, Aide et le Code de conduite ne
+ * LISENT jamais de discipline, ils gouvernent les DEUX. Le remède n'est donc
+ * PAS un jumeau par discipline (il n'y aurait aucune surface pour le choisir),
+ * c'est la NEUTRALISATION : ces textes ne nomment plus « la course » quand ils
+ * parlent de n'importe quelle sortie — réglages pendant l'effort, statut de
+ * validation, export RGPD, suppression de compte, règles de conduite.
+ *
+ * Choix de mots, tenu partout ici : FR « sortie » (le terme déjà employé par
+ * les CGU, le Résultat et l'écran de course), et « activité » dans les quatre
+ * autres langues, où c'est le neutre naturel — « Lauf » dit la course, et
+ * « Ausfahrt » dit le vélo. SEULE EXCEPTION en FR : un libellé de LIGNE seul,
+ * où « Sortie » se lirait « Quitter » dans une liste de réglages ; là aussi
+ * c'est « Activité ».
+ *
+ * CE QUI N'EST PAS NEUTRALISÉ, ET POURQUOI : `tagline` (« Cours pour ton crew.
+ * Conquiers ta ville. ») est la BASELINE de marque (AMENDEMENT-42, CLAUDE.md).
+ * Une signature de marque n'est pas une description de fonctionnalité ; la
+ * réécrire serait changer le produit, pas corriger un mensonge.
  */
 import { defineCatalog } from '../types';
 
@@ -224,14 +245,20 @@ export const C = defineCatalog({
     de: 'Sichtbarkeit, Blockieren, DSGVO',
     pt: 'Visibilidade, bloqueio, LGPD',
   },
-  rowCourse: {
-    fr: 'Course',
-    en: 'Run',
-    es: 'Carrera',
-    de: 'Lauf',
-    pt: 'Corrida',
+  /**
+   * Ligne « Jeu » → sous-page `/parametres/course`. Elle s'appelait « Course »
+   * / « Run » / « Lauf », alors qu'elle gouverne le style de jeu, les retours
+   * haptiques et les unités de TOUTE sortie, vélo compris. Le SLUG de route
+   * reste `course` : une URL déjà installée ne se réécrit pas pour un libellé.
+   */
+  rowActivite: {
+    fr: 'Activité',
+    en: 'Activity',
+    es: 'Actividad',
+    de: 'Aktivität',
+    pt: 'Atividade',
   },
-  rowCourseDetail: {
+  rowActiviteDetail: {
     fr: 'Style de jeu, vibrations, unités',
     en: 'Play style, haptics, units',
     es: 'Estilo de juego, vibración, unidades',
@@ -306,12 +333,13 @@ export const C = defineCatalog({
     de: 'Hilfe',
     pt: 'Ajuda',
   },
+  /** L'Aide explique le refus d'une sortie QUELLE QUE SOIT sa discipline. */
   rowAideDetail: {
-    fr: 'Course non comptée, signalement',
-    en: 'Run not counted, reporting',
-    es: 'Carrera no contada, reportes',
-    de: 'Lauf nicht gezählt, Meldungen',
-    pt: 'Corrida não contada, denúncias',
+    fr: 'Sortie non comptée, signalement',
+    en: 'Activity not counted, reporting',
+    es: 'Actividad no contada, reportes',
+    de: 'Aktivität nicht gezählt, Meldungen',
+    pt: 'Atividade não contada, denúncias',
   },
   rowApropos: {
     fr: 'À propos',
@@ -419,11 +447,11 @@ export const C = defineCatalog({
     pt: 'CONTA',
   },
   exportDataDetail: {
-    fr: 'Copie RGPD de tes courses et zones',
-    en: 'GDPR copy of your runs and zones',
-    es: 'Copia RGPD de tus carreras y zonas',
-    de: 'DSGVO-Kopie deiner Läufe und Zonen',
-    pt: 'Cópia RGPD das suas corridas e zonas',
+    fr: 'Copie RGPD de tes sorties et zones',
+    en: 'GDPR copy of your activities and zones',
+    es: 'Copia RGPD de tus actividades y zonas',
+    de: 'DSGVO-Kopie deiner Aktivitäten und Zonen',
+    pt: 'Cópia RGPD das suas atividades e zonas',
   },
   deleteAccountDetail: {
     fr: "Depuis l'app — irréversible, c'est ton droit",
@@ -562,12 +590,18 @@ export const C = defineCatalog({
     de: 'Solo-Fokus · Mix · Crew-Krieg',
     pt: 'Foco solo · Misto · Guerra de crew',
   },
-  secPendantCourse: {
-    fr: 'PENDANT LA COURSE',
-    en: 'DURING THE RUN',
-    es: 'DURANTE LA CARRERA',
-    de: 'WÄHREND DES LAUFS',
-    pt: 'DURANTE A CORRIDA',
+  /**
+   * Sur-titre des réglages qui s'appliquent PENDANT l'effort (haptiques,
+   * unités). Il disait « PENDANT LA COURSE » sur une sous-page qui n'a aucune
+   * lentille et qui règle aussi bien une sortie vélo : un cycliste y lisait un
+   * réglage qui semblait ne pas le concerner.
+   */
+  secPendantSortie: {
+    fr: 'PENDANT LA SORTIE',
+    en: 'DURING THE ACTIVITY',
+    es: 'DURANTE LA ACTIVIDAD',
+    de: 'WÄHREND DER AKTIVITÄT',
+    pt: 'DURANTE A ATIVIDADE',
   },
   hapticsTitle: {
     fr: 'Retours haptiques',
@@ -689,11 +723,11 @@ export const C = defineCatalog({
   // Les heures et le plafond sont INTERPOLÉS depuis game-rules (PUSH_QUIET_HOURS_*,
   // PUSH_MAX_PER_DAY) : aucun nombre de règle ne vit dans une chaîne.
   pushQuietNote: {
-    fr: 'Rien entre {start} h et {end} h, {max} notifications par jour au maximum, et jamais une par course.',
-    en: 'Nothing between {start}:00 and {end}:00, {max} notifications a day at most, and never one per run.',
-    es: 'Nada entre las {start} h y las {end} h, {max} notificaciones al día como máximo, y nunca una por carrera.',
-    de: 'Nichts zwischen {start} und {end} Uhr, höchstens {max} Mitteilungen pro Tag, und nie eine pro Lauf.',
-    pt: 'Nada entre {start} h e {end} h, no máximo {max} notificações por dia, e nunca uma por corrida.',
+    fr: 'Rien entre {start} h et {end} h, {max} notifications par jour au maximum, et jamais une par sortie.',
+    en: 'Nothing between {start}:00 and {end}:00, {max} notifications a day at most, and never one per activity.',
+    es: 'Nada entre las {start} h y las {end} h, {max} notificaciones al día como máximo, y nunca una por actividad.',
+    de: 'Nichts zwischen {start} und {end} Uhr, höchstens {max} Mitteilungen pro Tag, und nie eine pro Aktivität.',
+    pt: 'Nada entre {start} h e {end} h, no máximo {max} notificações por dia, e nunca uma por atividade.',
   },
   notifsNote: {
     fr: 'Frontières ouvertes, défenses, rivaux : seulement ce qui compte pour toi. Jamais de rappel culpabilisant.',
@@ -906,11 +940,11 @@ export const C = defineCatalog({
    * Celle-ci ne décrit que ce que le code fait, aujourd'hui, dans ce build.
    */
   privSubtitle: {
-    fr: 'GRYD n’expose ton profil ni tes courses à aucun autre joueur pour l’instant : il n’y a ni profil public, ni fil d’activité. La seule chose que tu peux publier toi-même, c’est un partage — et ses extrémités sont floutées par défaut.',
-    en: 'GRYD does not expose your profile or your runs to any other player yet: there is no public profile and no activity feed. The only thing you can publish yourself is a share — and its endpoints are blurred by default.',
-    es: 'GRYD todavía no expone tu perfil ni tus carreras a ningún otro jugador: no hay perfil público ni feed de actividad. Lo único que puedes publicar tú es un compartido — y sus extremos se difuminan por defecto.',
-    de: 'GRYD zeigt dein Profil und deine Läufe bisher keinem anderen Spieler: Es gibt weder ein öffentliches Profil noch einen Aktivitäts-Feed. Das Einzige, was du selbst veröffentlichen kannst, ist ein geteilter Lauf — und dessen Enden sind standardmäßig unscharf.',
-    pt: 'O GRYD ainda não expõe seu perfil nem suas corridas a nenhum outro jogador: não existe perfil público nem feed de atividade. A única coisa que você mesmo pode publicar é um compartilhamento — e as pontas dele ficam borradas por padrão.',
+    fr: 'GRYD n’expose ton profil ni tes sorties à aucun autre joueur pour l’instant : il n’y a ni profil public, ni fil d’activité. La seule chose que tu peux publier toi-même, c’est un partage — et ses extrémités sont floutées par défaut.',
+    en: 'GRYD does not expose your profile or your activities to any other player yet: there is no public profile and no activity feed. The only thing you can publish yourself is a share — and its endpoints are blurred by default.',
+    es: 'GRYD todavía no expone tu perfil ni tus actividades a ningún otro jugador: no hay perfil público ni feed de actividad. Lo único que puedes publicar tú es un compartido — y sus extremos se difuminan por defecto.',
+    de: 'GRYD zeigt dein Profil und deine Aktivitäten bisher keinem anderen Spieler: Es gibt weder ein öffentliches Profil noch einen Aktivitäts-Feed. Das Einzige, was du selbst veröffentlichen kannst, ist eine geteilte Aktivität — und deren Enden sind standardmäßig unscharf.',
+    pt: 'O GRYD ainda não expõe seu perfil nem suas atividades a nenhum outro jogador: não existe perfil público nem feed de atividade. A única coisa que você mesmo pode publicar é um compartilhamento — e as pontas dele ficam borradas por padrão.',
   },
   // ── Libellés de visibilité du profil (ex-`features/privacy/labels.ts`, FR en
   //    dur : c'était la valeur affichée dans l'en-tête de la card) ──
@@ -1375,11 +1409,11 @@ export const C = defineCatalog({
     pt: 'EXPORTAR (RGPD)',
   },
   exportNote: {
-    fr: "Récupère une copie de toutes tes données — courses, zones, profil — au format JSON, via le partage. Ça n'efface rien.",
-    en: 'Get a copy of all your data — runs, zones, profile — as JSON, via the share sheet. Nothing gets deleted.',
-    es: 'Recibe una copia de todos tus datos — carreras, zonas, perfil — en formato JSON, mediante el menú de compartir. No borra nada.',
-    de: 'Hol dir eine Kopie all deiner Daten — Läufe, Zonen, Profil — als JSON über das Teilen-Menü. Es wird nichts gelöscht.',
-    pt: 'Receba uma cópia de todos os seus dados — corridas, zonas, perfil — em JSON, pelo compartilhamento. Nada é apagado.',
+    fr: "Récupère une copie de toutes tes données — sorties, zones, profil — au format JSON, via le partage. Ça n'efface rien.",
+    en: 'Get a copy of all your data — activities, zones, profile — as JSON, via the share sheet. Nothing gets deleted.',
+    es: 'Recibe una copia de todos tus datos — actividades, zonas, perfil — en formato JSON, mediante el menú de compartir. No borra nada.',
+    de: 'Hol dir eine Kopie all deiner Daten — Aktivitäten, Zonen, Profil — als JSON über das Teilen-Menü. Es wird nichts gelöscht.',
+    pt: 'Receba uma cópia de todos os seus dados — atividades, zonas, perfil — em JSON, pelo compartilhamento. Nada é apagado.',
   },
   /**
    * ÉTAT ① « pas connecté » du bloc RGPD. Le CTA « Exporter » était peint quel
@@ -1466,11 +1500,11 @@ export const C = defineCatalog({
     pt: 'Invisível na hora. Excluída em {d} dias.',
   },
   deleteConfirmBody: {
-    fr: "Dès maintenant : ton profil, ton pseudo et tes scores disparaissent des classements et du roster de ton crew. Personne ne te voit plus.\n\nDans {d} jours : ton compte, tes courses et ton territoire sont supprimés pour de bon. Les zones que tu tiens redeviennent libres. Là, c'est irréversible.\n\nAvant l'échéance : reconnecte-toi et tout revient comme avant.",
-    en: 'Right now: your profile, your name and your scores disappear from leaderboards and from your crew roster. Nobody can see you anymore.\n\nIn {d} days: your account, your runs and your territory are deleted for good. The zones you hold become free again. That step is irreversible.\n\nBefore the deadline: sign back in and everything comes back.',
-    es: 'Ahora mismo: tu perfil, tu nombre y tus puntos desaparecen de las clasificaciones y del roster de tu crew. Nadie te ve.\n\nEn {d} días: tu cuenta, tus carreras y tu territorio se eliminan para siempre. Las zonas que dominas quedan libres. Ese paso es irreversible.\n\nAntes del plazo: vuelve a iniciar sesión y todo se recupera.',
-    de: 'Ab sofort: Dein Profil, dein Name und deine Punkte verschwinden aus Ranglisten und aus dem Roster deines Crews. Niemand sieht dich mehr.\n\nIn {d} Tagen: Konto, Läufe und Gebiet werden endgültig gelöscht. Deine Zonen werden wieder frei. Dieser Schritt ist endgültig.\n\nVorher: Melde dich wieder an, dann ist alles zurück.',
-    pt: 'Agora: seu perfil, seu nome e sua pontuação somem dos rankings e do roster do seu crew. Ninguém mais te vê.\n\nEm {d} dias: sua conta, suas corridas e seu território são excluídos de vez. As zonas que você domina ficam livres. Esse passo é irreversível.\n\nAntes do prazo: entre de novo e tudo volta.',
+    fr: "Dès maintenant : ton profil, ton pseudo et tes scores disparaissent des classements et du roster de ton crew. Personne ne te voit plus.\n\nDans {d} jours : ton compte, tes sorties et ton territoire sont supprimés pour de bon. Les zones que tu tiens redeviennent libres. Là, c'est irréversible.\n\nAvant l'échéance : reconnecte-toi et tout revient comme avant.",
+    en: 'Right now: your profile, your name and your scores disappear from leaderboards and from your crew roster. Nobody can see you anymore.\n\nIn {d} days: your account, your activities and your territory are deleted for good. The zones you hold become free again. That step is irreversible.\n\nBefore the deadline: sign back in and everything comes back.',
+    es: 'Ahora mismo: tu perfil, tu nombre y tus puntos desaparecen de las clasificaciones y del roster de tu crew. Nadie te ve.\n\nEn {d} días: tu cuenta, tus actividades y tu territorio se eliminan para siempre. Las zonas que dominas quedan libres. Ese paso es irreversible.\n\nAntes del plazo: vuelve a iniciar sesión y todo se recupera.',
+    de: 'Ab sofort: Dein Profil, dein Name und deine Punkte verschwinden aus Ranglisten und aus dem Roster deines Crews. Niemand sieht dich mehr.\n\nIn {d} Tagen: Konto, Aktivitäten und Gebiet werden endgültig gelöscht. Deine Zonen werden wieder frei. Dieser Schritt ist endgültig.\n\nVorher: Melde dich wieder an, dann ist alles zurück.',
+    pt: 'Agora: seu perfil, seu nome e sua pontuação somem dos rankings e do roster do seu crew. Ninguém mais te vê.\n\nEm {d} dias: sua conta, suas atividades e seu território são excluídos de vez. As zonas que você domina ficam livres. Esse passo é irreversível.\n\nAntes do prazo: entre de novo e tudo volta.',
   },
   // ── État « suppression programmée » (0046) ──
   deletionPendingTitle: {
@@ -1502,11 +1536,11 @@ export const C = defineCatalog({
     pt: 'Conta restaurada',
   },
   deletionRestoredBody: {
-    fr: 'La suppression est annulée. Ton profil, tes courses et ton territoire sont de nouveau visibles.',
-    en: 'The deletion is cancelled. Your profile, your runs and your territory are visible again.',
-    es: 'La eliminación se ha cancelado. Tu perfil, tus carreras y tu territorio vuelven a ser visibles.',
-    de: 'Die Löschung ist abgebrochen. Profil, Läufe und Gebiet sind wieder sichtbar.',
-    pt: 'A exclusão foi cancelada. Seu perfil, suas corridas e seu território estão visíveis de novo.',
+    fr: 'La suppression est annulée. Ton profil, tes sorties et ton territoire sont de nouveau visibles.',
+    en: 'The deletion is cancelled. Your profile, your activities and your territory are visible again.',
+    es: 'La eliminación se ha cancelado. Tu perfil, tus actividades y tu territorio vuelven a ser visibles.',
+    de: 'Die Löschung ist abgebrochen. Profil, Aktivitäten und Gebiet sind wieder sichtbar.',
+    pt: 'A exclusão foi cancelada. Seu perfil, suas atividades e seu território estão visíveis de novo.',
   },
   deletionScheduledTitle: {
     fr: 'Suppression enregistrée',
@@ -1568,12 +1602,21 @@ export const C = defineCatalog({
     de: 'HILFE',
     pt: 'AJUDA',
   },
+  /**
+   * ─── L'ÉCRAN QU'OUVRE UN CYCLISTE DONT LA SORTIE VIENT D'ÊTRE REFUSÉE ──────
+   * L'Aide n'a AUCUNE lentille : elle ne lit aucune discipline, elle explique
+   * la validation, qui s'applique aux deux (`ingest_run` valide `run` ET `bike`
+   * avec des bornes par discipline). Elle parlait pourtant, de bout en bout,
+   * au seul coureur — sous-titre, sur-titre « MA COURSE », « Pourquoi ma course
+   * n'a pas compté ? ». Quelqu'un venait y chercher pourquoi SA sortie vélo
+   * avait été rejetée, et l'app lui répondait à côté. Neutralisation intégrale.
+   */
   supportSubtitle: {
-    fr: 'Comprendre pourquoi une course compte — ou pas — et faire valoir tes droits.',
-    en: 'Understand why a run counts — or not — and exercise your rights.',
-    es: 'Entiende por qué una carrera cuenta — o no — y haz valer tus derechos.',
-    de: 'Versteh, warum ein Lauf zählt — oder nicht — und nutz deine Rechte.',
-    pt: 'Entenda por que uma corrida conta — ou não — e faça valer seus direitos.',
+    fr: 'Comprendre pourquoi une sortie compte — ou pas — et faire valoir tes droits.',
+    en: 'Understand why an activity counts — or not — and exercise your rights.',
+    es: 'Entiende por qué una actividad cuenta — o no — y haz valer tus derechos.',
+    de: 'Versteh, warum eine Aktivität zählt — oder nicht — und nutz deine Rechte.',
+    pt: 'Entenda por que uma atividade conta — ou não — e faça valer seus direitos.',
   },
   secComprendreCalculs: {
     fr: 'COMPRENDRE LES CALCULS',
@@ -1582,12 +1625,12 @@ export const C = defineCatalog({
     de: 'BERECHNUNG VERSTEHEN',
     pt: 'ENTENDER OS CÁLCULOS',
   },
-  secMaCourse: {
-    fr: 'MA COURSE',
-    en: 'MY RUN',
-    es: 'MI CARRERA',
-    de: 'MEIN LAUF',
-    pt: 'MINHA CORRIDA',
+  secMaSortie: {
+    fr: 'MA SORTIE',
+    en: 'MY ACTIVITY',
+    es: 'MI ACTIVIDAD',
+    de: 'MEINE AKTIVITÄT',
+    pt: 'MINHA ATIVIDADE',
   },
   secSignaler: {
     fr: 'SIGNALER',
@@ -1604,18 +1647,18 @@ export const C = defineCatalog({
     pt: 'MEUS DADOS',
   },
   whyNotCountedTitle: {
-    fr: 'Pourquoi ma course n’a pas compté ?',
-    en: 'Why didn’t my run count?',
-    es: '¿Por qué mi carrera no contó?',
-    de: 'Warum zählte mein Lauf nicht?',
-    pt: 'Por que minha corrida não contou?',
+    fr: 'Pourquoi ma sortie n’a pas compté ?',
+    en: 'Why didn’t my activity count?',
+    es: '¿Por qué mi actividad no contó?',
+    de: 'Warum zählte meine Aktivität nicht?',
+    pt: 'Por que minha atividade não contou?',
   },
   whyNotCountedBody: {
-    fr: 'Boucle non fermée, GPS trop faible, zone trop étroite ou interdite… GRYD calcule chaque zone selon des règles claires. Voir comment une course devient une zone — ou pas.',
-    en: 'Unclosed loop, weak GPS, area too narrow or off-limits… GRYD scores every zone by clear rules. See how a run becomes a zone — or not.',
-    es: 'Bucle sin cerrar, GPS débil, zona demasiado estrecha o prohibida… GRYD calcula cada zona con reglas claras. Mira cómo una carrera se convierte en zona — o no.',
-    de: 'Runde nicht geschlossen, GPS zu schwach, Zone zu schmal oder gesperrt… GRYD berechnet jede Zone nach klaren Regeln. Sieh, wie ein Lauf zur Zone wird — oder nicht.',
-    pt: 'Volta não fechada, GPS fraco, zona estreita demais ou proibida… O GRYD calcula cada zona com regras claras. Veja como uma corrida vira uma zona — ou não.',
+    fr: 'Boucle non fermée, GPS trop faible, zone trop étroite ou interdite… GRYD calcule chaque zone selon des règles claires. Voir comment une sortie devient une zone — ou pas.',
+    en: 'Unclosed loop, weak GPS, area too narrow or off-limits… GRYD scores every zone by clear rules. See how an activity becomes a zone — or not.',
+    es: 'Bucle sin cerrar, GPS débil, zona demasiado estrecha o prohibida… GRYD calcula cada zona con reglas claras. Mira cómo una actividad se convierte en zona — o no.',
+    de: 'Runde nicht geschlossen, GPS zu schwach, Zone zu schmal oder gesperrt… GRYD berechnet jede Zone nach klaren Regeln. Sieh, wie eine Aktivität zur Zone wird — oder nicht.',
+    pt: 'Volta não fechada, GPS fraco, zona estreita demais ou proibida… O GRYD calcula cada zona com regras claras. Veja como uma atividade vira uma zona — ou não.',
   },
   faqRulesBody: {
     fr: 'La FAQ complète, détails au tap : zones, défense, crew, Verify, points et bonus.',
@@ -1624,15 +1667,17 @@ export const C = defineCatalog({
     de: 'Die ganze FAQ, Details per Tipp: Zonen, Abwehr, Crew, Verify, Punkte und Boni.',
     pt: 'A FAQ completa, detalhes ao tocar: zonas, defesa, crew, Verify, pontos e bônus.',
   },
-  /** Titre du bloc d'explication « statut d'une course » (ex-`notCountedTitle`,
+  /** Titre du bloc d'explication « statut d'une sortie » (ex-`notCountedTitle`,
    *  qui reprenait mot pour mot le titre de la ligne de navigation juste
-   *  au-dessus — deux entrées identiques pour deux contenus différents). */
+   *  au-dessus — deux entrées identiques pour deux contenus différents).
+   *  Le NOM de clé garde `run` : c'est `runs.status`, la colonne, qu'il
+   *  désigne — et cette colonne porte bien les deux disciplines. */
   runStatusTitle: {
-    fr: 'Le statut d’une course',
-    en: 'A run’s status',
-    es: 'El estado de una carrera',
-    de: 'Der Status eines Laufs',
-    pt: 'O status de uma corrida',
+    fr: 'Le statut d’une sortie',
+    en: 'An activity’s status',
+    es: 'El estado de una actividad',
+    de: 'Der Status einer Aktivität',
+    pt: 'O status de uma atividade',
   },
 
   /**
@@ -1641,11 +1686,11 @@ export const C = defineCatalog({
    * droit que le code ne tient pas.
    */
   notCountedBody: {
-    fr: 'Une course peut être vérifiée, partielle, stats only, doublon ou rejetée. Seules les courses vérifiées capturent du territoire — les autres comptent quand même pour ta performance. GRYD affiche le statut de chaque course et la règle qui l’a produit.',
-    en: 'A run can be verified, partial, stats only, duplicate or rejected. Only verified runs capture territory — the others still count toward your performance. GRYD shows each run’s status and the rule behind it.',
-    es: 'Una carrera puede ser verificada, parcial, solo stats, duplicada o rechazada. Solo las carreras verificadas capturan territorio — las demás cuentan igualmente para tu rendimiento. GRYD muestra el estado de cada carrera y la regla que lo produjo.',
-    de: 'Ein Lauf kann verifiziert, partiell, nur Stats, Duplikat oder abgelehnt sein. Nur verifizierte Läufe erobern Gebiet — die anderen zählen trotzdem für deine Leistung. GRYD zeigt den Status jedes Laufs und die Regel dahinter.',
-    pt: 'Uma corrida pode ser verificada, parcial, só stats, duplicada ou rejeitada. Só as corridas verificadas capturam território — as outras contam mesmo assim para seu desempenho. O GRYD mostra o status de cada corrida e a regra por trás dele.',
+    fr: 'Une sortie peut être vérifiée, partielle, stats only, doublon ou rejetée. Seules les sorties vérifiées capturent du territoire — les autres comptent quand même pour ta performance. GRYD affiche le statut de chaque sortie et la règle qui l’a produit.',
+    en: 'An activity can be verified, partial, stats only, duplicate or rejected. Only verified activities capture territory — the others still count toward your performance. GRYD shows each activity’s status and the rule behind it.',
+    es: 'Una actividad puede ser verificada, parcial, solo stats, duplicada o rechazada. Solo las actividades verificadas capturan territorio — las demás cuentan igualmente para tu rendimiento. GRYD muestra el estado de cada actividad y la regla que lo produjo.',
+    de: 'Eine Aktivität kann verifiziert, partiell, nur Stats, Duplikat oder abgelehnt sein. Nur verifizierte Aktivitäten erobern Gebiet — die anderen zählen trotzdem für deine Leistung. GRYD zeigt den Status jeder Aktivität und die Regel dahinter.',
+    pt: 'Uma atividade pode ser verificada, parcial, só stats, duplicada ou rejeitada. Só as atividades verificadas capturam território — as outras contam mesmo assim para seu desempenho. O GRYD mostra o status de cada atividade e a regra por trás dele.',
   },
   segmentExcludedTitle: {
     fr: 'Segment exclu',
@@ -1655,18 +1700,18 @@ export const C = defineCatalog({
     pt: 'Trecho excluído',
   },
   segmentExcludedBody: {
-    fr: "Les portions en zone privée, sans signal GPS fiable ou au déplacement invraisemblable sont retirées du calcul. Le reste de la course reste valide, rien d'autre n'est perdu.",
-    en: 'Stretches in private areas, without reliable GPS or with implausible movement are removed from the calculation. The rest of the run stays valid — nothing else is lost.',
-    es: 'Los tramos en zona privada, sin señal GPS fiable o con desplazamiento inverosímil se retiran del cálculo. El resto de la carrera sigue siendo válido, no se pierde nada más.',
-    de: 'Abschnitte in Privatzonen, ohne verlässliches GPS oder mit unplausibler Bewegung werden aus der Berechnung entfernt. Der Rest des Laufs bleibt gültig — sonst geht nichts verloren.',
-    pt: 'Trechos em área privada, sem sinal de GPS confiável ou com deslocamento implausível são retirados do cálculo. O resto da corrida continua válido, nada mais se perde.',
+    fr: "Les portions en zone privée, sans signal GPS fiable ou au déplacement invraisemblable sont retirées du calcul. Le reste de la sortie reste valide, rien d'autre n'est perdu.",
+    en: 'Stretches in private areas, without reliable GPS or with implausible movement are removed from the calculation. The rest of the activity stays valid — nothing else is lost.',
+    es: 'Los tramos en zona privada, sin señal GPS fiable o con desplazamiento inverosímil se retiran del cálculo. El resto de la actividad sigue siendo válido, no se pierde nada más.',
+    de: 'Abschnitte in Privatzonen, ohne verlässliches GPS oder mit unplausibler Bewegung werden aus der Berechnung entfernt. Der Rest der Aktivität bleibt gültig — sonst geht nichts verloren.',
+    pt: 'Trechos em área privada, sem sinal de GPS confiável ou com deslocamento implausível são retirados do cálculo. O resto da atividade continua válido, nada mais se perde.',
   },
   dataExportBody: {
-    fr: 'Reçois une copie complète de tes courses, zones, badges et réglages.',
-    en: 'Get a full copy of your runs, zones, badges and settings.',
-    es: 'Recibe una copia completa de tus carreras, zonas, insignias y ajustes.',
-    de: 'Hol dir eine vollständige Kopie deiner Läufe, Zonen, Badges und Einstellungen.',
-    pt: 'Receba uma cópia completa das suas corridas, zonas, badges e ajustes.',
+    fr: 'Reçois une copie complète de tes sorties, zones, badges et réglages.',
+    en: 'Get a full copy of your activities, zones, badges and settings.',
+    es: 'Recibe una copia completa de tus actividades, zonas, insignias y ajustes.',
+    de: 'Hol dir eine vollständige Kopie deiner Aktivitäten, Zonen, Badges und Einstellungen.',
+    pt: 'Receba uma cópia completa das suas atividades, zonas, badges e ajustes.',
   },
   dataDeleteTitle: {
     fr: 'Supprimer mes données',
@@ -1711,11 +1756,11 @@ export const C = defineCatalog({
     pt: 'O que o GRYD ainda não sabe receber',
   },
   supportNoChannelBody: {
-    fr: 'Signaler une zone dangereuse, contester un statut de course ou écrire au support n’est pas possible depuis l’app : ces remontées n’ont pas de destination. Le seul contact publié est l’adresse du siège, dans les Mentions légales.',
-    en: 'Reporting a dangerous area, contesting a run status or writing to support is not possible from the app: those messages have no destination. The only published contact is the registered office address, in the Legal notice.',
-    es: 'Reportar una zona peligrosa, impugnar el estado de una carrera o escribir al soporte no es posible desde la app: esos mensajes no tienen destino. El único contacto publicado es la dirección de la sede, en el Aviso legal.',
-    de: 'Eine gefährliche Zone melden, einen Laufstatus anfechten oder den Support anschreiben geht aus der App nicht: Diese Meldungen haben kein Ziel. Der einzige veröffentlichte Kontakt ist die Anschrift des Sitzes im Impressum.',
-    pt: 'Denunciar uma zona perigosa, contestar o status de uma corrida ou escrever ao suporte não é possível pelo app: essas mensagens não têm destino. O único contato publicado é o endereço da sede, no Aviso legal.',
+    fr: 'Signaler une zone dangereuse, contester un statut de sortie ou écrire au support n’est pas possible depuis l’app : ces remontées n’ont pas de destination. Le seul contact publié est l’adresse du siège, dans les Mentions légales.',
+    en: 'Reporting a dangerous area, contesting an activity status or writing to support is not possible from the app: those messages have no destination. The only published contact is the registered office address, in the Legal notice.',
+    es: 'Reportar una zona peligrosa, impugnar el estado de una actividad o escribir al soporte no es posible desde la app: esos mensajes no tienen destino. El único contacto publicado es la dirección de la sede, en el Aviso legal.',
+    de: 'Eine gefährliche Zone melden, den Status einer Aktivität anfechten oder den Support anschreiben geht aus der App nicht: Diese Meldungen haben kein Ziel. Der einzige veröffentlichte Kontakt ist die Anschrift des Sitzes im Impressum.',
+    pt: 'Denunciar uma zona perigosa, contestar o status de uma atividade ou escrever ao suporte não é possível pelo app: essas mensagens não têm destino. O único contato publicado é o endereço da sede, no Aviso legal.',
   },
   supportLegalCta: {
     fr: 'Voir les Mentions légales',
@@ -1732,11 +1777,11 @@ export const C = defineCatalog({
    * et nomme le seul canal qui existe vraiment.
    */
   supportFootnote: {
-    fr: 'Chaque décision de vérification est explicable : la règle appliquée est affichée avec la course. GRYD n’a pas encore de canal de contestation dans l’app — le seul point de contact publié est l’adresse postale du siège, dans les Mentions légales.',
-    en: 'Every verification decision is explainable: the rule applied is shown with the run. GRYD has no in-app appeal channel yet — the only published point of contact is the registered office address, in the Legal notice.',
-    es: 'Cada decisión de verificación es explicable: la regla aplicada se muestra junto a la carrera. GRYD todavía no tiene canal de reclamación en la app — el único punto de contacto publicado es la dirección postal de la sede, en el Aviso legal.',
-    de: 'Jede Verifizierungsentscheidung ist erklärbar: Die angewandte Regel steht beim Lauf. GRYD hat noch keinen Einspruchskanal in der App — der einzige veröffentlichte Kontakt ist die Postanschrift des Sitzes im Impressum.',
-    pt: 'Toda decisão de verificação é explicável: a regra aplicada aparece junto da corrida. O GRYD ainda não tem canal de contestação no app — o único ponto de contato publicado é o endereço postal da sede, no Aviso legal.',
+    fr: 'Chaque décision de vérification est explicable : la règle appliquée est affichée avec la sortie. GRYD n’a pas encore de canal de contestation dans l’app — le seul point de contact publié est l’adresse postale du siège, dans les Mentions légales.',
+    en: 'Every verification decision is explainable: the rule applied is shown with the activity. GRYD has no in-app appeal channel yet — the only published point of contact is the registered office address, in the Legal notice.',
+    es: 'Cada decisión de verificación es explicable: la regla aplicada se muestra junto a la actividad. GRYD todavía no tiene canal de reclamación en la app — el único punto de contacto publicado es la dirección postal de la sede, en el Aviso legal.',
+    de: 'Jede Verifizierungsentscheidung ist erklärbar: Die angewandte Regel steht bei der Aktivität. GRYD hat noch keinen Einspruchskanal in der App — der einzige veröffentlichte Kontakt ist die Postanschrift des Sitzes im Impressum.',
+    pt: 'Toda decisão de verificação é explicável: a regra aplicada aparece junto da atividade. O GRYD ainda não tem canal de contestação no app — o único ponto de contato publicado é o endereço postal da sede, no Aviso legal.',
   },
 
   // ── Code de conduite ──
@@ -1754,12 +1799,22 @@ export const C = defineCatalog({
     de: 'COMMUNITY',
     pt: 'COMUNIDADE',
   },
+  /**
+   * ─── LES RÈGLES DE CONDUITE VALENT POUR TOUT LE MONDE, DONC POUR LES DEUX ──
+   * Ce sous-titre, `respectTitle`/`respectBody` et `securiteBody` ne parlaient
+   * qu'à des coureurs : « pousse à courir », « Respecte les autres coureurs »,
+   * « Cours en respectant le code de la route ». Sur un texte de conduite, la
+   * discipline nommée devient un périmètre : un cycliste pouvait lire qu'il
+   * n'était pas concerné — y compris par la consigne de SÉCURITÉ. C'est le
+   * pire endroit pour un mot trop étroit. Aucune règle n'est affaiblie ; leur
+   * portée est simplement dite entière.
+   */
   conduiteSubtitle: {
-    fr: 'GRYD est un jeu qui pousse à courir, pas à se rabaisser. Ces règles s’appliquent à tout le monde, tout le temps.',
-    en: 'GRYD is a game that pushes you to run, not to put anyone down. These rules apply to everyone, all the time.',
-    es: 'GRYD es un juego que te empuja a correr, no a menospreciar a nadie. Estas reglas se aplican a todo el mundo, todo el tiempo.',
-    de: 'GRYD ist ein Spiel, das zum Laufen pusht, nicht zum Runtermachen. Diese Regeln gelten für alle, jederzeit.',
-    pt: 'GRYD é um jogo que empurra você a correr, não a diminuir ninguém. Estas regras valem para todo mundo, o tempo todo.',
+    fr: 'GRYD est un jeu qui pousse à se dépasser, pas à se rabaisser. Ces règles s’appliquent à tout le monde, tout le temps.',
+    en: 'GRYD is a game that pushes you to go further, not to put anyone down. These rules apply to everyone, all the time.',
+    es: 'GRYD es un juego que te empuja a superarte, no a menospreciar a nadie. Estas reglas se aplican a todo el mundo, todo el tiempo.',
+    de: 'GRYD ist ein Spiel, das zum Übertreffen pusht, nicht zum Runtermachen. Diese Regeln gelten für alle, jederzeit.',
+    pt: 'GRYD é um jogo que empurra você a se superar, não a diminuir ninguém. Estas regras valem para todo mundo, o tempo todo.',
   },
   secLesRegles: {
     fr: 'LES RÈGLES',
@@ -1776,18 +1831,18 @@ export const C = defineCatalog({
     pt: 'MODERAÇÃO',
   },
   respectTitle: {
-    fr: 'Respecte les autres coureurs',
-    en: 'Respect other runners',
-    es: 'Respeta a los demás corredores',
-    de: 'Respektiere andere Läufer',
-    pt: 'Respeite os outros corredores',
+    fr: 'Respecte les autres joueurs',
+    en: 'Respect other players',
+    es: 'Respeta a los demás jugadores',
+    de: 'Respektiere andere Spieler',
+    pt: 'Respeite os outros jogadores',
   },
   respectBody: {
-    fr: 'On se pousse à courir, jamais à se rabaisser. Encouragements et fair-play, dans le crew comme face aux rivaux. Pas de moquerie, pas d’acharnement.',
-    en: 'We push each other to run, never to put each other down. Encouragement and fair play, in the crew and against rivals. No mocking, no pile-ons.',
-    es: 'Nos empujamos a correr, nunca a menospreciarnos. Ánimo y juego limpio, en el crew y frente a los rivales. Sin burlas, sin ensañamiento.',
-    de: 'Wir pushen uns zum Laufen, nie zum Runtermachen. Anfeuern und Fairplay, in der Crew wie gegen Rivalen. Kein Spott, kein Nachtreten.',
-    pt: 'A gente se empurra para correr, nunca para diminuir alguém. Incentivo e fair play, no crew e diante dos rivais. Sem zombaria, sem perseguição.',
+    fr: 'On se pousse à se dépasser, jamais à se rabaisser. Encouragements et fair-play, dans le crew comme face aux rivaux. Pas de moquerie, pas d’acharnement.',
+    en: 'We push each other to go further, never to put each other down. Encouragement and fair play, in the crew and against rivals. No mocking, no pile-ons.',
+    es: 'Nos empujamos a superarnos, nunca a menospreciarnos. Ánimo y juego limpio, en el crew y frente a los rivales. Sin burlas, sin ensañamiento.',
+    de: 'Wir pushen uns zum Übertreffen, nie zum Runtermachen. Anfeuern und Fairplay, in der Crew wie gegen Rivalen. Kein Spott, kein Nachtreten.',
+    pt: 'A gente se empurra para se superar, nunca para diminuir alguém. Incentivo e fair play, no crew e diante dos rivais. Sem zombaria, sem perseguição.',
   },
   zeroHaineTitle: {
     fr: 'Tolérance zéro : harcèlement et haine',
@@ -1844,12 +1899,14 @@ export const C = defineCatalog({
     de: 'Sicherheit geht vor Spiel',
     pt: 'A segurança vem antes do jogo',
   },
+  /** Consigne de SÉCURITÉ : elle doit atteindre le cycliste, qui partage la
+   *  chaussée avec les voitures — la nommer « Cours » l'en excluait. */
   securiteBody: {
-    fr: 'Cours en respectant le code de la route et les lieux privés. Aucune zone ne vaut de se mettre, ni de mettre quelqu’un, en danger.',
-    en: 'Run while respecting traffic rules and private property. No zone is worth putting yourself — or anyone — in danger.',
-    es: 'Corre respetando las normas de tráfico y los lugares privados. Ninguna zona vale ponerte en peligro, ni poner a nadie.',
-    de: 'Lauf mit Rücksicht auf Verkehrsregeln und Privatgelände. Keine Zone ist es wert, dich oder andere in Gefahr zu bringen.',
-    pt: 'Corra respeitando as leis de trânsito e os lugares privados. Nenhuma zona vale se colocar, ou colocar alguém, em perigo.',
+    fr: 'Respecte le code de la route et les lieux privés, à pied comme à vélo. Aucune zone ne vaut de se mettre, ni de mettre quelqu’un, en danger.',
+    en: 'Respect traffic rules and private property, on foot as on a bike. No zone is worth putting yourself — or anyone — in danger.',
+    es: 'Respeta las normas de tráfico y los lugares privados, a pie o en bici. Ninguna zona vale ponerte en peligro, ni poner a nadie.',
+    de: 'Halte dich an Verkehrsregeln und Privatgelände, zu Fuß wie auf dem Rad. Keine Zone ist es wert, dich oder andere in Gefahr zu bringen.',
+    pt: 'Respeite as leis de trânsito e os lugares privados, a pé ou de bike. Nenhuma zona vale se colocar, ou colocar alguém, em perigo.',
   },
   reportEnfTitle: {
     fr: 'Signale ce qui te choque',

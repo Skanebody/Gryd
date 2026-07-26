@@ -40,6 +40,39 @@ const CASING = withAlpha(colors.carbonImmersive, 0.55);
 /** Départ de la boucle (1er point de LOOP_D). */
 const START = { x: 95, y: 495 };
 
+/**
+ * REMONTÉE DU TRACÉ — CORRECTION D'UNE COLLISION MESURÉE (26/07/2026).
+ *
+ * ─── CE QUI A ÉTÉ MESURÉ (et pas supposé) ───────────────────────────────────
+ * Le bloc de texte du bas de `E01Hero` (kicker → titre → sous-titre → CTA →
+ * frise → lien de connexion) est ancré à `bottom: 0`. Sa hauteur, avec les
+ * tailles RÉELLEMENT rendues (fontes Inter / Inter Tight mesurées à 375 pt) :
+ * 16 (kicker) + 88 (titre 2 lignes) + 44,8 (sous-titre 2 lignes) + 56
+ * (`sizes.buttonLg`) + 5 (frise) + 44 (`sizes.touchTarget`) + 5 × 12 d'écart
+ * + inset bas + 20. Le bloc commence donc à y 444,2 sur un 375×812 (inset 34)
+ * et à y 333,2 sur un 375×667 (inset 0).
+ * Bbox du tracé rendue dans un SVG aux mêmes dimensions :
+ *   375×812 — AVANT y 285 → 501 : le tracé descendait 56,8 px À L'INTÉRIEUR du
+ *             bloc de texte ; APRÈS y 140 → 356, dégagement 88,2 px ;
+ *   375×667 — AVANT y 234 → 411,5 (collision 78,3 px) ; APRÈS y 115 → 292,4,
+ *             dégagement 40,8 px (`preserveAspectRatio` y ramène l'échelle
+ *             à 0,821).
+ * Concrètement, AVANT : le montant vertical à x = 95 traversait les lettres de
+ * « COMMENT ÇA MARCHE » (le kicker s'étend de x 16 à x ≈ 184 en français), et
+ * le point de départ tombait dans la première ligne du titre display. Le voile
+ * n'y changeait rien — à cette hauteur seul `scrim1` (25 %) est posé, `scrim2`
+ * ne commençant qu'à y 487. Ce n'était donc PAS un « héros derrière le texte »
+ * assumé mais une collision : un trait chartreuse à 75 % d'opacité derrière un
+ * sur-titre gris de 12 px.
+ *
+ * ─── LE CORRECTIF ───────────────────────────────────────────────────────────
+ * On remonte la FENÊTRE du viewBox plutôt que de réécrire les coordonnées du
+ * parcours : le dessin reste lisible tel qu'il a été tracé, et le haut du tracé
+ * (y 140 sur 812, y 115 sur 667) reste sous la chip « Exemple » et le lien
+ * « Passer » (y ≈ 78 et y ≈ 54).
+ */
+const LOOP_LIFT = 145;
+
 export function E01Route() {
   const reduce = useReduceMotion();
   const offset = useRef(new Animated.Value(reduce ? 0 : LOOP_LEN)).current;
@@ -75,7 +108,7 @@ export function E01Route() {
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <Svg width="100%" height="100%" viewBox="0 0 375 812">
+      <Svg width="100%" height="100%" viewBox={`0 ${LOOP_LIFT} 375 812`}>
         {/* Remplissage intérieur (zone prise) — sous le tracé. */}
         <AnimatedPath d={LOOP_D} fill={colors.chartreuse} fillOpacity={fill} stroke="none" />
         {/* Casing sombre — contraste sur le fond (§B casing + core). La teinte

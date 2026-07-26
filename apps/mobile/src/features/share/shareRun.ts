@@ -11,6 +11,7 @@
  * Carte), il n'affiche AUCUNE carte : un état vide qui dit la vérité. Il n'y a
  * plus de « mode exemple » — voir l'en-tête de app/partage.tsx.
  */
+import { DEFAULT_ACTIVITY } from '@klaim/shared';
 import type { RunIntention } from '../run/intention';
 import type { LiveRunMode } from '../run/simulation';
 import type { NarrativeVerdict } from './narrative';
@@ -66,6 +67,15 @@ export function getShareRun(): ShareRunData | null {
  * affirmation du SERVEUR — jamais un défaut de rendu.
  */
 const NEUTRAL_SHARE_CARD: ShareDemoData = {
+  /**
+   * DISCIPLINE (26/07/2026) : `DEFAULT_ACTIVITY` ('run', game-rules) n'est PAS
+   * un repli de commodité — c'est la discipline DÉCLARÉE du jeu, donc exactement
+   * le comportement d'avant le vélo pour tout appelant qui n'a rien à en dire.
+   * Ce défaut n'est jamais la source réelle : /partage écrase ce champ avec la
+   * discipline que le Résultat lui transmet (`START_ACTIVITY_PARAM`) avant de
+   * construire la moindre carte. Voir app/partage.tsx.
+   */
+  activity: DEFAULT_ACTIVITY,
   playerName: '',
   crewName: '',
   zoneName: '',

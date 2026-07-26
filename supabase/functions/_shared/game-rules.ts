@@ -2141,18 +2141,35 @@ export const DAILY_CHEST_BOOST_PER_DAY = 1;
 export const DAILY_CHEST_BOOST_PCT = 0.02;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Garde-fous de WALKABILITÉ des routes (sécurité — décision fondateur).
+// Garde-fous de PRATICABILITÉ des routes (sécurité — décision fondateur).
 // « Vérifier que les routes utilisées sont bien accessibles à pied et non des
 // autoroutes. » Deux couches complémentaires :
-//   1. GÉNÉRATION : toute route GRYD est produite au profil PIÉTON (OSRM/valhalla
-//      `foot`), qui EXCLUT structurellement autoroutes/voies rapides.
+//   1. GÉNÉRATION : toute route GRYD est produite au profil de routage de SA
+//      DISCIPLINE (OSRM/valhalla), qui EXCLUT structurellement autoroutes et
+//      voies rapides — `foot` pour la course, `bike` pour le vélo.
 //   2. VALIDATION (défense en profondeur, engine/route.ts) : on RE-VÉRIFIE la
 //      géométrie renvoyée (surtout pour les sources non maîtrisées — import
 //      Strava, tracé utilisateur) contre une DENYLIST de classes de voies + une
-//      plausibilité de connexité. Une route non piétonne n'est jamais proposée.
+//      plausibilité de connexité. Une route non praticable n'est jamais proposée.
 // Classes = valeurs OSM `highway=*`. Aucun nombre magique ailleurs.
+//
+// ⚠️ CE BLOC EST L'ÉTAT « COURSE À PIED ». Il portait, jusqu'au 26/07/2026, un
+// interdit GLOBAL (« jamais car/bike ») écrit à une époque où le vélo n'existait
+// pas dans le jeu. La DÉCISION FONDATEUR du 26/07/2026 (« il faut tout brancher
+// pour que la partie bike fonctionne dès maintenant ») rouvre cet interdit : le
+// profil et les classes de voies se lisent désormais PAR DISCIPLINE dans
+// `ACTIVITY_ROUTING` (bloc E14, fin de fichier). Les constantes ci-dessous
+// restent la source de la course à pied — `ACTIVITY_ROUTING.run` les RÉFÉRENCE
+// au lieu de les recopier, donc le comportement piéton ne peut pas dériver.
+// L'interdit qui reste ENTIER, dans les deux disciplines : `car`. Aucune route
+// GRYD n'est produite au profil automobile, jamais.
 // ═══════════════════════════════════════════════════════════════════════════
-/** Profil de routage AUTORISÉ pour toute génération d'itinéraire GRYD (jamais car/bike). */
+/**
+ * Profil de routage de la COURSE À PIED (OSRM `foot`). Ce n'est PLUS « le »
+ * profil GRYD : depuis le 26/07/2026 il vaut `ACTIVITY_ROUTING.run.profile`,
+ * et le vélo a le sien. Conservé sous ce nom parce qu'il EST la valeur piétonne
+ * et que la renommer ne changerait rien à ce qu'elle dit.
+ */
 export const ROUTE_PEDESTRIAN_PROFILE = 'foot' as const;
 
 /**
@@ -2419,20 +2436,109 @@ export type HabitSlotKey = (typeof HABITS_SLOTS)[number]['key'];
 
 /**
  * Distances cibles proposées en un tap (m). Échelle de coureur, pas de machine :
- * du 3 km d'un soir de semaine à la sortie longue de 15 km. Un ultra-traileur
+ * de la boucle de récupération à la sortie longue de 15 km. Un ultra-traileur
  * n'a pas de pastille dédiée — il n'a pas besoin d'une SUGGESTION quotidienne.
+ *
+ * POURQUOI 2 km OUVRE LA TABLE (rétabli le 26/07/2026). Le chantier vélo avait
+ * fait démarrer cette table à 3 km, et la « boucle courte » du planificateur —
+ * 2 km avant le vélo — avait disparu avec elle. C'est la sortie du DÉBUTANT et
+ * celle de la RÉCUPÉRATION : les deux profils que le produit peut le moins se
+ * permettre de perdre. 2 000 m n'est pas un nombre repris tel quel : il vaut
+ * 2 × LOOP_MIN_PERIMETER_M, soit la plus petite boucle qui fasse une zone avec
+ * une marge de routage confortable (OSRM rend la longueur des rues trouvées,
+ * jamais la cible au mètre près). La même dérivation à vélo donne 10 km
+ * (2 × BIKE_LOOP_MIN_PERIMETER_M) — et c'est EXACTEMENT le facteur de longueur
+ * ×5 de la planche E14, parce que 5 000 / 1 000 = 5. Les deux raisonnements
+ * tombent sur le même nombre : c'est ce qui les rend fiables.
  */
-export const ROUTE_TARGET_DISTANCE_CHOICES_M = [3_000, 5_000, 8_000, 10_000, 15_000] as const;
+export const ROUTE_TARGET_DISTANCE_CHOICES_M = [
+  2_000,
+  3_000,
+  5_000,
+  8_000,
+  10_000,
+  15_000,
+] as const;
 
 /** Plancher d'une distance cible = plancher d'une course qui compte (§3.2). */
 export const ROUTE_TARGET_DISTANCE_MIN_M = RUN_MIN_DISTANCE_M;
 
 /**
- * Plafond d'une distance cible : le marathon. Au-delà, GRYD ne « propose » plus
- * une sortie du jour — RUN_MAX_DISTANCE_M (100 km) reste la borne de ce qui est
- * INGÉRABLE, jamais de ce qui est SUGGÉRABLE. Deux notions distinctes.
+ * Plafond d'une distance cible ENREGISTRABLE : le marathon. Au-delà, GRYD ne
+ * « propose » plus une sortie du jour — RUN_MAX_DISTANCE_M (100 km) reste la
+ * borne de ce qui est INGÉRABLE, jamais de ce qui est SUGGÉRABLE.
+ *
+ * ⚠️ CETTE BORNE EST CELLE DE LA PRÉFÉRENCE PERSISTÉE, PAS CELLE DU SÉLECTEUR.
+ * Elle est le MIROIR EXACT de la contrainte SQL de `route_preferences`
+ * (`0054_route_preferences.sql` : `target_distance_m between 1000 and 42195`),
+ * migration APPLIQUÉE. La remonter ici sans migration ferait afficher un choix
+ * que la base refuserait — le bouton mort de manuel. Le planificateur, lui,
+ * n'écrit RIEN : ses bornes à lui sont plus bas (`ROUTE_PLANNER_*_M`).
  */
 export const ROUTE_TARGET_DISTANCE_MAX_M = 42_195;
+
+// ─── BORNES DU PLANIFICATEUR (≠ bornes de la préférence enregistrée) ─────────
+/**
+ * POURQUOI DEUX JEUX DE BORNES, ET PAS UN (26/07/2026).
+ *
+ * Le chantier vélo a fait lire au planificateur les bornes de la PRÉFÉRENCE
+ * (`ROUTE_TARGET_DISTANCE_*`). L'intention était juste — les quatre nombres
+ * qu'il portait avant (`generator.ts` : 1,5 / 50 / 0,5 / 3,4 km) ne venaient de
+ * nulle part. Mais le résultat a coûté deux choses AU COUREUR :
+ *   · le plancher est passé de 1,5 à 3 km → plus de boucle de 2 km ;
+ *   · le plafond de 50 à 42,195 km       → plus de trail au-delà du marathon.
+ *
+ * Ce sont deux notions DIFFÉRENTES, et les confondre était le vrai défaut :
+ *   · une PRÉFÉRENCE est ÉCRITE dans `route_preferences`, donc bornée par une
+ *     contrainte SQL déjà en production (1 000 … 42 195 m) ;
+ *   · une cible de PLANIFICATEUR n'est écrite nulle part. Elle ne borne qu'un
+ *     appel de routage. Rien dans le jeu ne la limite — seules la géométrie de
+ *     capture (en bas) et la plausibilité humaine (en haut) la limitent.
+ *
+ * Les bornes ci-dessous sont donc DÉRIVÉES, discipline par discipline, du seul
+ * fait de jeu qui les concerne : le périmètre minimal d'une boucle qui fait une
+ * zone. Elles retombent sur les valeurs d'avant le chantier vélo pour la course
+ * — cette fois avec une source.
+ */
+
+/**
+ * Marge de routage du PLANCHER : la plus petite boucle atteignable au sélecteur
+ * vaut 1,5 × le périmètre minimal de sa discipline. Pourquoi une marge : le
+ * planificateur demande une CIBLE, OSRM répond avec la longueur des rues qu'il a
+ * trouvées. Une cible posée pile sur le périmètre minimal reviendrait une fois
+ * sur deux EN DESSOUS, et la boucle ne ferait aucune zone — un effort réel, zéro
+ * territoire, et personne pour le dire avant la fin.
+ */
+export const PLANNER_FLOOR_PERIMETER_FACTOR = 1.5;
+
+/**
+ * Facteur du DÉFAUT : quand on ne sait rien du joueur (pas assez de courses,
+ * apprentissage coupé, réglages illisibles), on propose 3 × le périmètre minimal
+ * de sa discipline. Assez pour traverser plusieurs zones, assez court pour ne
+ * rien présumer de quelqu'un qu'on ne connaît pas.
+ */
+export const PLANNER_DEFAULT_PERIMETER_FACTOR = 3;
+
+/** Plancher du sélecteur du planificateur, COURSE À PIED (m) → 1 500 m. */
+export const ROUTE_PLANNER_MIN_M = PLANNER_FLOOR_PERIMETER_FACTOR * LOOP_MIN_PERIMETER_M;
+
+/** Distance proposée quand rien n'est su du coureur (m) → 3 000 m. */
+export const ROUTE_PLANNER_DEFAULT_M = PLANNER_DEFAULT_PERIMETER_FACTOR * LOOP_MIN_PERIMETER_M;
+
+/**
+ * Plafond du sélecteur, COURSE À PIED (m) : 50 km, le « 50K » — la première
+ * distance normalisée du trail au-delà du marathon, et la borne que le
+ * planificateur portait avant le chantier vélo (« des coureurs font 50 km »).
+ *
+ * Écrit en clair, et pas dérivé, VOLONTAIREMENT : c'est un repère du monde réel
+ * (une distance d'épreuve), au même titre que les 42 195 m du marathon. L'écrire
+ * `RUN_MAX_DISTANCE_M / 2` donnerait le même nombre aujourd'hui mais inventerait
+ * un lien qui n'existe pas — le jour où la borne ANTI-ABUS bougerait, le plafond
+ * du suggérable la suivrait sans que personne l'ait décidé.
+ * Contrôle de cohérence : 50 km reste bien SOUS RUN_MAX_DISTANCE_M (100 km) —
+ * on ne propose jamais une sortie que l'ingestion refuserait.
+ */
+export const ROUTE_PLANNER_MAX_M = 50_000;
 
 /**
  * Forme de parcours souhaitée. `any` = GRYD choisit (défaut assumé) ; `loop` =
@@ -2474,9 +2580,14 @@ export const ZONE_CENTER_SPACING_M = 114;
 // ═══════════════════════════════════════════════════════════════════════════
 // E14 — DEUX DISCIPLINES, DEUX UNIVERS (planche docs/design/vague-1/PLANCHES.md
 // §E14, décision fondateur 24/07/2026 : « une version bike et une version
-// running »). ÉTAPE 2 : la FONDATION PURE (constantes + moteur). Le territoire
-// et les classements séparés (colonne `activity` sur hex_claims / season_scores)
-// sont l'étape SUIVANTE — voir « CE QUI RESTE EN SUSPENS » en fin de bloc.
+// running »).
+//
+// OÙ ON EN EST, au 26/07/2026 : ① les BORNES par discipline (ce bloc-ci) ; ②
+// le SCHÉMA séparé (migration 0070, APPLIQUÉE en production le 25/07/2026) ;
+// ③ le ROUTAGE par discipline et la FRONTIÈRE séparé/global (les deux blocs qui
+// suivent `activityRules`, 26/07/2026). Ce qui n'est PAS fait est listé dans
+// « CE QUI RESTE EN SUSPENS » en fin de bloc — c'est cette liste qui fait foi,
+// pas ce résumé.
 //
 // POURQUOI CE BLOC EXISTE : toutes les bornes anti-triche de §3.2 ont été
 // calibrées pour la COURSE À PIED (RUN_AVG_PACE_MIN_S_KM porte littéralement le
@@ -2805,6 +2916,294 @@ export function activityRules(activity: Activity = DEFAULT_ACTIVITY): ActivityRu
   return ACTIVITY_RULES[activity] ?? RUN_RULES;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E14 × ROUTAGE — LE PLANIFICATEUR SAIT ENFIN PROPOSER UNE BOUCLE VÉLO
+// (DÉCISION FONDATEUR 26/07/2026 : « il faut tout brancher pour que la partie
+//  bike fonctionne dès maintenant […] il faut le mettre entier et le pousser
+//  maintenant ».)
+//
+// CE QUI CHANGE, ET POURQUOI C'EST UN CHANGEMENT DE RÈGLE, PAS UN RÉGLAGE :
+// `ROUTE_PEDESTRIAN_PROFILE` portait, en commentaire, « jamais car/bike ».
+// C'était JUSTE : à cette date, toute route GRYD était une route de coureur, et
+// router un coureur au profil vélo l'aurait envoyé sur des voies qu'il n'a rien
+// à faire d'emprunter. Ça ne l'est plus — refuser le profil vélo à une sortie
+// DÉCLARÉE vélo, c'est refuser au cycliste la seule aide que le jeu sait
+// donner : une boucle qui suit de vraies rues. L'interdit devient donc une
+// RÈGLE PAR DISCIPLINE ; il ne disparaît pas, il se lit à la bonne ligne.
+//
+// CE QUI NE CHANGE PAS : le profil `car` reste interdit dans TOUTES les
+// disciplines (aucune route GRYD n'est produite pour une voiture), et la
+// DENYLIST de voies rapides reste DURE dans les deux mondes.
+//
+// PÉRIMÈTRE : ce bloc décrit une SUGGESTION, jamais une règle de jeu. Aucune de
+// ces constantes n'entre dans un claim, un score, un decay ou une protection.
+// Un cycliste qui ignore la boucle proposée capture exactement pareil (§22,
+// anti pay-to-win) — la même frontière que celle déjà posée pour les
+// PRÉFÉRENCES DE PARCOURS (`ROUTE_TARGET_DISTANCE_*`).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Profil de routage du VÉLO (OSRM `bike` / valhalla `bicycle`). Ce n'est pas un
+ * choix esthétique : le profil piéton route par des passages, des escaliers et
+ * des sens interdits piétonnisés qu'un vélo ne peut pas prendre, et il ignore
+ * les pistes cyclables qui sont précisément le bon terrain. Router un cycliste
+ * au profil `foot` produirait un tracé que personne ne peut suivre — donc un
+ * bouton qui ment (§ « aucun bouton mort », « l'app ne ment jamais »).
+ */
+export const BIKE_ROUTING_PROFILE = 'bike' as const;
+
+/**
+ * DENYLIST vélo — IDENTIQUE à la denylist piétonne, et ce n'est pas un raccourci.
+ * En France, le code de la route interdit la bicyclette sur autoroute ET sur
+ * route express (motorway/trunk et leurs bretelles `*_link`) exactement comme au
+ * piéton ; raceway/bus_guideway/construction/proposed ne sont utilisables par
+ * personne. La classe de voies dangereuses ne dépend donc pas de la discipline —
+ * inventer une seconde liste, c'est fabriquer une divergence qui finira par
+ * dériver. On RÉFÉRENCE la liste piétonne : les deux ne peuvent pas diverger.
+ */
+export const BIKE_ROUTE_FORBIDDEN_HIGHWAY_CLASSES: readonly string[] =
+  ROUTE_FORBIDDEN_HIGHWAY_CLASSES;
+
+/**
+ * ALLOWLIST vélo = allowlist piétonne MOINS `steps`. Un escalier n'est ni
+ * interdit ni dangereux : il est IMPRATICABLE à vélo (on descend et on porte).
+ * Il ne mérite donc pas la denylist (qui rejette DUREMENT la route entière),
+ * mais il ne peut pas non plus rester « normalement praticable » : hors
+ * allowlist, il devient `unknown_class`, le signal DOUX déjà prévu par
+ * engine/route.ts — remonté pour audit, jamais un rejet. C'est exactement la
+ * gradation que ce moteur sait exprimer, et le seul écart honnête entre les
+ * deux disciplines.
+ * DÉRIVÉE (filtre), jamais recopiée : ajouter une classe piétonne l'ajoute ici.
+ */
+export const BIKE_ROUTE_RIDEABLE_HIGHWAY_CLASSES: readonly string[] =
+  ROUTE_WALKABLE_HIGHWAY_CLASSES.filter((cls) => cls !== 'steps');
+
+/**
+ * Distances cibles proposées en un tap à VÉLO (m). DÉRIVÉES de l'échelle course
+ * par le facteur de LONGUEUR ×5 déjà établi plus haut (planche E14 : boucle
+ * course de référence 900 m ↔ boucle vélo 4 800 m, soit 5,33 arrondi
+ * prudemment à 5) : [2, 3, 5, 8, 10, 15] km → [10, 15, 25, 40, 50, 75] km.
+ *
+ * Le rapport « plus petite suggestion / périmètre minimal de boucle » est le
+ * MÊME dans les deux disciplines (2 000/1 000 = 10 000/5 000 = 2), donc la plus
+ * petite sortie proposée fait toujours une zone — jamais une suggestion qui ne
+ * peut rien capturer. Ce n'est pas une coïncidence entretenue à la main : le
+ * facteur de longueur E14 (×5) EST le rapport des deux périmètres minimaux
+ * (5 000 / 1 000), donc les deux tables restent alignées par construction.
+ *
+ * La table s'ouvre à 10 km depuis le 26/07/2026 (elle démarrait à 15 km) :
+ * conséquence mécanique du 2 km rendu au coureur. Un cycliste gagne au passage
+ * la sortie courte qui lui manquait — 10 km font deux fois le périmètre de
+ * capture vélo, ils font donc bien une zone.
+ */
+export const BIKE_ROUTE_TARGET_DISTANCE_CHOICES_M = [
+  10_000,
+  15_000,
+  25_000,
+  40_000,
+  50_000,
+  75_000,
+] as const;
+
+/** Plancher d'une distance cible vélo = plancher d'une sortie qui compte (§3.2). */
+export const BIKE_ROUTE_TARGET_DISTANCE_MIN_M = BIKE_MIN_DISTANCE_M;
+
+/**
+ * Plafond d'une distance cible vélo : 210 975 m = 5 × le marathon, par le même
+ * facteur de longueur. Le raisonnement de la course est repris tel quel — le
+ * plafond du SUGGÉRABLE est l'épreuve longue de référence de la discipline, pas
+ * le plafond de l'INGÉRABLE (BIKE_MAX_DISTANCE_M, 400 km). Contrôle de
+ * plausibilité : 5 × 42,195 km ≈ 211 km tombe à 5 % du brevet randonneur de
+ * 200 km, l'épreuve longue grand public du vélo — la dérivation arrive donc où
+ * le réel l'attend, ce qui vaut mieux qu'un chiffre choisi pour y arriver.
+ * Comme à pied, le suggérable reste nettement sous l'ingérable (211 < 400).
+ */
+export const BIKE_ROUTE_TARGET_DISTANCE_MAX_M = 210_975;
+
+/**
+ * Plancher du sélecteur du planificateur, VÉLO (m) → 7 500 m. MÊME règle que la
+ * course (`ROUTE_PLANNER_MIN_M`), appliquée au périmètre du VÉLO : chaque
+ * discipline tient sa borne de SA géométrie de capture, jamais de celle de
+ * l'autre. Conséquence assumée : un cycliste peut désormais viser une boucle de
+ * 8 km, plus courte que la plus petite pastille (10 km) — et elle fait quand
+ * même une zone, puisque 7 500 m > BIKE_LOOP_MIN_PERIMETER_M (5 000 m).
+ */
+export const BIKE_ROUTE_PLANNER_MIN_M =
+  PLANNER_FLOOR_PERIMETER_FACTOR * BIKE_LOOP_MIN_PERIMETER_M;
+
+/** Distance proposée quand rien n'est su du cycliste (m) → 15 000 m. */
+export const BIKE_ROUTE_PLANNER_DEFAULT_M =
+  PLANNER_DEFAULT_PERIMETER_FACTOR * BIKE_LOOP_MIN_PERIMETER_M;
+
+/**
+ * Plafond du sélecteur, VÉLO (m). IDENTIQUE au plafond de la cible vélo — et il
+ * n'y a rien à corriger ici : la borne de préférence du vélo n'a jamais été
+ * amputée par une contrainte SQL, parce qu'elle n'est pas encore enregistrable
+ * (`route_preferences` ne porte pas de discipline, cf. « en suspens » E14). Le
+ * repère reste celui de la discipline : ~211 km, l'ordre de grandeur du brevet
+ * randonneur de 200 km, très en dessous de BIKE_MAX_DISTANCE_M (400 km).
+ * L'alias existe pour que le planificateur lise TOUJOURS un champ `planner*`,
+ * et jamais par erreur une borne de préférence.
+ */
+export const BIKE_ROUTE_PLANNER_MAX_M = BIKE_ROUTE_TARGET_DISTANCE_MAX_M;
+
+/**
+ * Règles de ROUTAGE d'une discipline — tout ce dont un planificateur a besoin
+ * pour proposer un tracé, et rien de plus. Séparé d'`ActivityRuleSet`
+ * VOLONTAIREMENT : celui-ci porte des bornes ANTI-TRICHE (elles décident si un
+ * effort compte), celui-là une SUGGESTION (elle ne décide de rien). Les mélanger
+ * ferait croire qu'une préférence de parcours est une règle de jeu.
+ */
+export interface ActivityRoutingRules {
+  /** Profil de routage OSRM/valhalla. Jamais `car`, dans aucune discipline. */
+  readonly profile: string;
+  /** Classes OSM interdites — rejet DUR d'une route qui en contient une. */
+  readonly forbiddenHighwayClasses: readonly string[];
+  /** Classes OSM normalement praticables ; hors liste ⇒ signal DOUX. */
+  readonly usableHighwayClasses: readonly string[];
+  /** Distances cibles proposées en un tap (m). */
+  readonly targetDistanceChoicesM: readonly number[];
+  /**
+   * Plancher d'une distance cible ENREGISTRABLE (m) = plancher d'une sortie qui
+   * compte. C'est une borne de PRÉFÉRENCE (elle part en base) — le sélecteur du
+   * planificateur, lui, lit `plannerMinM`.
+   */
+  readonly targetDistanceMinM: number;
+  /**
+   * Plafond d'une distance ENREGISTRABLE (m) — jamais le plafond d'ingestion,
+   * et jamais non plus celui du sélecteur (`plannerMaxM`). Pour la course, ce
+   * champ est le miroir d'une contrainte SQL en production (0054).
+   */
+  readonly targetDistanceMaxM: number;
+  /**
+   * Plancher du SÉLECTEUR du planificateur (m). Distinct de
+   * `targetDistanceMinM` : une cible de planificateur n'est écrite nulle part,
+   * elle n'est bornée que par la géométrie de capture de la discipline.
+   */
+  readonly plannerMinM: number;
+  /** Distance proposée par le planificateur quand rien n'est su du joueur (m). */
+  readonly plannerDefaultM: number;
+  /** Plafond du SÉLECTEUR du planificateur (m) — plausibilité humaine, pas SQL. */
+  readonly plannerMaxM: number;
+  /**
+   * Périmètre minimal d'une boucle qui fait une ZONE (m). Recopié depuis
+   * `ACTIVITY_RULES[activity].loopMinPerimeterM` — le planificateur ne doit
+   * JAMAIS proposer une boucle plus courte que ce que le moteur sait capturer,
+   * sinon la suggestion promet une zone que la course ne rendra pas.
+   */
+  readonly loopMinPerimeterM: number;
+}
+
+/** Table COMPLÈTE du routage par discipline — seule porte d'entrée d'un planificateur. */
+export const ACTIVITY_ROUTING: Readonly<Record<Activity, ActivityRoutingRules>> = {
+  run: {
+    profile: ROUTE_PEDESTRIAN_PROFILE,
+    forbiddenHighwayClasses: ROUTE_FORBIDDEN_HIGHWAY_CLASSES,
+    usableHighwayClasses: ROUTE_WALKABLE_HIGHWAY_CLASSES,
+    targetDistanceChoicesM: ROUTE_TARGET_DISTANCE_CHOICES_M,
+    targetDistanceMinM: ROUTE_TARGET_DISTANCE_MIN_M,
+    targetDistanceMaxM: ROUTE_TARGET_DISTANCE_MAX_M,
+    plannerMinM: ROUTE_PLANNER_MIN_M,
+    plannerDefaultM: ROUTE_PLANNER_DEFAULT_M,
+    plannerMaxM: ROUTE_PLANNER_MAX_M,
+    loopMinPerimeterM: LOOP_MIN_PERIMETER_M,
+  },
+  bike: {
+    profile: BIKE_ROUTING_PROFILE,
+    forbiddenHighwayClasses: BIKE_ROUTE_FORBIDDEN_HIGHWAY_CLASSES,
+    usableHighwayClasses: BIKE_ROUTE_RIDEABLE_HIGHWAY_CLASSES,
+    targetDistanceChoicesM: BIKE_ROUTE_TARGET_DISTANCE_CHOICES_M,
+    targetDistanceMinM: BIKE_ROUTE_TARGET_DISTANCE_MIN_M,
+    targetDistanceMaxM: BIKE_ROUTE_TARGET_DISTANCE_MAX_M,
+    plannerMinM: BIKE_ROUTE_PLANNER_MIN_M,
+    plannerDefaultM: BIKE_ROUTE_PLANNER_DEFAULT_M,
+    plannerMaxM: BIKE_ROUTE_PLANNER_MAX_M,
+    loopMinPerimeterM: BIKE_LOOP_MIN_PERIMETER_M,
+  },
+};
+
+/**
+ * Règles de routage d'une discipline. Argument absent ⇒ DEFAULT_ACTIVITY :
+ * tout appelant qui ignore encore la notion de discipline obtient EXACTEMENT le
+ * routage piéton d'avant le vélo.
+ */
+export function activityRouting(activity: Activity = DEFAULT_ACTIVITY): ActivityRoutingRules {
+  return ACTIVITY_ROUTING[activity] ?? ACTIVITY_ROUTING.run;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E14 × E12 — LA FRONTIÈRE « SÉPARÉ / GLOBAL », ÉCRITE UNE FOIS POUR TOUTES
+//
+// ⚠️ OVERRIDE EXPLICITE DE LA PLANCHE E12 — DÉCISION FONDATEUR DU 26/07/2026.
+// La planche `docs/design/vague-1/PLANCHES.md` §E12 dit, mot pour mot :
+// « Run et Bike ont des rangs SÉPARÉS. » Elle a été écrite le 24/07/2026, avant
+// que le vélo soit branché, et sa carte de rang mêle DEUX choses que le produit
+// distingue désormais : le RANG DE SAISON (Argent II, « Rang local · Run ») et
+// le NIVEAU DU JOUEUR (Niveau 12, « 2 340 / 3 000 XP »).
+//
+// LE FONDATEUR TRANCHE, le 26/07/2026, mot pour mot : « LE NIVEAU DOIT ÊTRE
+// GLOBAL […] un kilomètre à vélo fait progresser le même joueur qu'un kilomètre
+// à pied. » Donc :
+//   · RANG DE SAISON, POINTS DE SAISON, CLASSEMENTS  → SÉPARÉS (E12 tient) ;
+//   · NIVEAU ET XP DU JOUEUR                         → GLOBAUX (E12 est
+//     OVERRIDÉ sur ce point précis, et sur celui-là seulement).
+//
+// POURQUOI CETTE DISTINCTION EST COHÉRENTE, ET PAS UN COMPROMIS : un CLASSEMENT
+// compare des joueurs entre eux — mêler deux disciplines y fabriquerait une
+// hiérarchie fausse (E14 : « jamais Run + Bike dans une même lecture
+// compétitive »). Un NIVEAU ne compare personne : il mesure le chemin parcouru
+// par UNE personne. Scinder son XP punirait le joueur complet, qui verrait deux
+// demi-progressions au lieu d'une — exactement le contraire de ce que le niveau
+// raconte.
+//
+// CE BLOC EST LA SOURCE DE CETTE FRONTIÈRE. Il est DATA, et il est TESTÉ
+// (supabase/functions/ingest_run/activity_scope_test.ts + engine/activityScope.ts) :
+// un agent qui « corrigerait la conformité » en scindant l'XP, ou en sommant les
+// territoires, fera tomber la suite — la décision produit est une propriété
+// vérifiée, pas un commentaire qu'on peut lire de travers.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Les dimensions du jeu qui doivent choisir un camp. La valeur dit CE QUE LA
+ * DIMENSION EST, pas ce que le code en fait aujourd'hui (l'écart entre les deux
+ * est un bug, et c'est précisément ce que les tests mesurent) :
+ *   · `per_activity` — deux mondes qui ne se voient pas et ne se somment jamais ;
+ *   · `global`       — une seule valeur, nourrie par les deux disciplines.
+ */
+export const ACTIVITY_SCOPE = {
+  /** E14 : deux lignes `hex_claims`, deux propriétaires. Jamais additionnées. */
+  territory: 'per_activity',
+  /** `runs.activity` — une sortie appartient à une discipline et une seule. */
+  runs: 'per_activity',
+  /** E12/E14 : `season_scores` est clé par (saison, joueur, DISCIPLINE). */
+  seasonPoints: 'per_activity',
+  /** E12 : le rang de saison se calcule DANS un monde (`rank_cache` gelé par discipline). */
+  seasonRank: 'per_activity',
+  /** Vues `player_leaderboard` / `crew_leaderboard` / `sector_control` : une ligne par monde. */
+  leaderboards: 'per_activity',
+  /** Historique de courses : filtrable par discipline (index `runs_user_activity_started_idx`). */
+  history: 'per_activity',
+  /** Missions et objectifs : une mission vélo ne se termine pas en courant. */
+  missions: 'per_activity',
+  /** OVERRIDE FONDATEUR 26/07/2026 : le joueur progresse, pas sa discipline. */
+  xp: 'global',
+  /** Idem — `users.level` est dérivé de `users.xp`, il ne peut pas être scindé sans lui. */
+  level: 'global',
+  /**
+   * Foulées : monnaie de progression personnelle, même raisonnement que l'XP.
+   * (Statu quo assumé et ANTÉRIEUR à l'override — inscrit ici pour que la
+   * frontière soit lisible d'un seul endroit, pas pour l'élargir en douce.)
+   */
+  foulees: 'global',
+  /** Série de jours actifs : elle mesure la CONSTANCE d'une personne, pas un sport. */
+  streak: 'global',
+} as const satisfies Readonly<Record<string, 'per_activity' | 'global'>>;
+
+/** Dimension du jeu soumise à la frontière séparé/global. */
+export type ActivityScopedDimension = keyof typeof ACTIVITY_SCOPE;
+/** Camp d'une dimension : deux mondes, ou un seul. */
+export type ActivityScopeKind = (typeof ACTIVITY_SCOPE)[ActivityScopedDimension];
+
 // ─── CE QUI RESTE EN SUSPENS (à ne pas promettre, à ne pas oublier) ──────────
 // 1. ANTI-TRICHE §8 DE LA SPÉC UNIFIÉE — les signaux « pattern d'accélération »,
 //    « arrêts », « altitude/dénivelé » et « cohérence de trajectoire routière »
@@ -2812,53 +3211,77 @@ export function activityRules(activity: Activity = DEFAULT_ACTIVITY): ActivityRu
 //    définie). Sans eux, aucune borne de vitesse ne sépare un cycliste d'une
 //    voiture EN VILLE. Les bornes ci-dessus arrêtent le véhicule LANCÉ et les
 //    payloads forgés : c'est tout ce qu'elles prétendent faire.
-// 2. TERRITOIRE ET CLASSEMENTS — ÉCRIT AU NIVEAU DU SCHÉMA, PAS ENCORE APPLIQUÉ
-//    (migration 0070, révisée le 25/07/2026). Elle donne à `hex_claims` la clé
-//    primaire COMPOSITE `(h3index, activity)` et à `season_scores` la clé
-//    `(season_id, user_id, activity)` : un claim vélo ne peut plus voler la zone
-//    d'un coureur (deux lignes, deux propriétaires) et les points ne peuvent
-//    plus être sommés (deux lignes de score). `claim_hexes` prend un 6ᵉ argument
-//    `p_activity` (défaut 'run'), et les mêmes colonnes sont portées par `runs`,
-//    `hex_co_captures`, `partial_boundaries`, `steal_push_queue`,
-//    `contested_group_runs`, `outposts`, `routes`, plus les agrégats
-//    `player_leaderboard` / `crew_leaderboard` / `sector_control`.
-//    CE QUE ÇA VAUT AUJOURD'HUI, dit plutôt que promis : la migration n'est ni
-//    committée ni appliquée, donc AUCUNE de ces garanties n'est en base. Et le
-//    test qui les prouve — supabase/tests/activity_dimension.pglite.test.mjs,
-//    Postgres réel en WASM — N'EST PAS REJOUABLE DANS CE DÉPÔT : `@electric-sql/
-//    pglite` n'y est pas installé, le fichier sort 2 en disant « NON EXÉCUTÉ ».
-//    La commande pour le rejouer ailleurs est écrite en toutes lettres dans la
-//    migration ; d'ici là, ces invariants sont raisonnés, pas mesurés.
-//    CE QUI RESTE VRAIMENT OUVERT. Ce n'est PLUS `flags.bike` qui tient la
-//    porte : ce drapeau est OUVERT depuis le 25/07/2026 et n'ouvre qu'une
-//    LENTILLE D'AFFICHAGE. Ce qui garantit qu'aucune ligne `bike` n'entre en
-//    base, c'est que la discipline d'une sortie est DÉCLARÉE par le chemin qui
-//    lance la course (`runActivity.ts` → `DECLARED_START_ACTIVITY = 'run'`) :
-//      · L'ORDRE — la colonne `activity` n'existe pas encore en base : tout
-//        filtre `.eq('activity', …)` casserait la lecture. On applique 0070,
-//        PUIS on déploie les Edge Functions (`ingest_run` en dépend DÉJÀ :
-//        `claim_hexes` à 6 arguments n'existe qu'après la migration), PUIS on
-//        filtre les derniers lecteurs clients.
-//      · UN LECTEUR CLIENT, le dernier — `features/map/hexClaims.ts:129-130` lit
-//        `hex_claims` sans `activity`. Il ne fait plus TOMBER le rendu
-//        (`territoryBuild.ts` dédoublonne les cellules avant
-//        `cellsToMultiPolygon` depuis le commit 2b88711) : il MÉLANGE en
-//        silence, une zone tenue à vélo étant peinte comme une zone de course
-//        sur les 7 surfaces qui affichent le territoire. Son filtre part AVEC
-//        l'application de la migration, pas avant (chantier `features/map/`).
-//      · JOBS — `decay_job` (écrit par `h3index` seul ; un garde-fou SQL empêche
-//        le dégât territorial, pas l'avertissement volé), `digest_job`, et
-//        `recompute_sectors` → `sector_snapshot` dont la clé primaire est
-//        `sector_id` SEUL.
+// 2. TERRITOIRE ET CLASSEMENTS — APPLIQUÉS EN PRODUCTION DEPUIS LE 25/07/2026
+//    (migration 0070). Elle donne à `hex_claims` la clé primaire COMPOSITE
+//    `(h3index, activity)` et à `season_scores` la clé `(season_id, user_id,
+//    activity)` : un claim vélo ne peut plus voler la zone d'un coureur (deux
+//    lignes, deux propriétaires) et les points ne peuvent plus être sommés (deux
+//    lignes de score). `claim_hexes` prend un 6ᵉ argument `p_activity` (défaut
+//    'run'), et les mêmes colonnes sont portées par `runs`, `hex_co_captures`,
+//    `partial_boundaries`, `steal_push_queue`, `contested_group_runs`,
+//    `outposts`, `routes`, plus les agrégats `player_leaderboard` /
+//    `crew_leaderboard` / `sector_control`. `ingest_run` est DÉPLOYÉ avec la
+//    signature à 6 arguments.
+//    CE QUE ÇA VAUT, dit plutôt que promis : les 32 invariants SQL ont été
+//    vérifiés sur Postgres réel HORS de ce dépôt (`supabase/tests/
+//    activity_dimension.pglite.test.mjs` — `@electric-sql/pglite` n'est pas
+//    installé ici, le fichier sort 2 en disant « NON EXÉCUTÉ » ; la commande
+//    pour le rejouer est écrite dans la migration). Depuis ce dépôt, ce qui est
+//    MESURÉ est la LECTURE du SQL appliqué : supabase/functions/_shared/
+//    activity_scope_test.ts vérifie les clés composites, l'upsert discipliné des
+//    scores et le crédit d'XP resté global — c'est une preuve d'INTENTION du
+//    fichier, pas une exécution.
+//    CE QUI RESTE OUVERT AU 26/07/2026, côté MOTEUR ET SERVEUR :
+//      · JOBS — `recompute_sectors` alimente `sector_snapshot`, dont la clé
+//        primaire est `sector_id` SEUL (migration 0037:14, inchangée : 0070 et
+//        0071 disent noir sur blanc ne pas y toucher) : le monde Bike y
+//        écraserait le monde Run. Cette table est lue par la carte — sa
+//        correction est un chantier CONJOINT schéma + `features/map/`, elle ne
+//        peut pas être faite d'un seul côté.
+//        REFERMÉ LE 26/07/2026 : `decay_job` écrit désormais PAR DISCIPLINE
+//        (`groupKeysByActivity`) ; le garde-fou SQL n'est plus la seule défense.
+//        REFERMÉ AUSSI, ET CE PARAGRAPHE L'A NIÉ TROP LONGTEMPS : `digest_job`
+//        ne somme PLUS les deux mondes. Il sélectionne `activity` et groupe le
+//        récap par « joueur + monde » (`worldKey` / `splitKey`,
+//        supabase/functions/digest_job/index.ts:573-603, commentaire « PAR
+//        DISCIPLINE (0071) ») ; les zones perdues passent par `buildZonesLost`,
+//        qui refuse de chiffrer plutôt que de mêler quand la discipline ne se
+//        tranche pas. Laisser écrit qu'un défaut corrigé est ouvert use la
+//        confiance dans les avertissements de cette liste qui, eux, sont vrais.
+//      · RPC non disciplinées qui lisent `hex_claims` : `crew_overview` (0044/
+//        0046), `crew_mission_inputs` (0049), `daily_zone_inputs` (0052/0053),
+//        `crew_pings_feed` (0051), `welcome_challenge_facts` (0052),
+//        `habits_inputs` (0055), vues `sector_holdings` (0061) et
+//        `sector_activity` (0040). Chacune change un CONTRAT lu par le mobile :
+//        à faire avec l'écran concerné, jamais en aveugle.
 //      · AGRÉGATS PERSONNELS — `user_stats` et la vue `specialty_leaderboard`
-//        (voir §4).
+//        (voir §4) : le seul CLASSEMENT COMPARATIF qui mélange encore les deux
+//        mondes, et donc le prochain à traiter.
+//    CÔTÉ CLIENT, LES DEUX DERNIERS POINTS ONT ÉTÉ REFERMÉS LE 26/07/2026 — ils
+//    étaient encore déclarés ouverts ici alors que le code les tient :
+//      · `features/map/hexClaims.ts` FILTRE désormais (`.eq('activity',
+//        activity)`, :188) et la lentille est une dépendance de l'effet (:225) :
+//        basculer relit. La SECONDE lecture du même fichier (:322) omet le `.eq`
+//        VOLONTAIREMENT et demande la colonne — elle sert à compter les deux
+//        mondes sans les confondre ; son commentaire le dit sur place.
+//      · `features/run/gps/runActivity.ts` ne force plus rien : la discipline
+//        est DÉCLARÉE par le chemin de départ (`START_ACTIVITY_PARAM`) puis
+//        montrée au joueur au préflight avant tout enregistrement. Ce qui
+//        subsiste est `UNDECLARED_START_ACTIVITY` (:81), la valeur d'un chemin
+//        qui ne déclare RIEN — un chemin antérieur au vélo, donc de la course à
+//        pied. Ce n'est pas un forçage, c'est le comportement historique laissé
+//        intact ; le symbole `DECLARED_START_ACTIVITY` nommé ici n'existe plus.
 //    REFERMÉS LE 25/07/2026, à ne plus compter comme ouverts : `season_close`
 //    (gel de `rank_cache` et départages §13 par discipline), `steal_push_job`
 //    (il lit la discipline rendue par la RPC), `features/mission/
 //    useRealMissionCore.ts`, `features/social/leagueBoard.ts` et
 //    `features/social/economy.ts`.
 //    La liste complète et datée vit dans le bloc « CE QUI RESTE EN SUSPENS » de
-//    supabase/migrations/0070_activity_dimension.sql : c'est elle qui fait foi.
+//    supabase/migrations/0070_activity_dimension.sql — ATTENTION, ce bloc DATE
+//    du 25/07/2026 et décrit la migration comme non appliquée : elle l'a été
+//    depuis, et une migration appliquée ne se réécrit JAMAIS. Sur l'état
+//    d'application, c'est le présent commentaire qui fait foi ; sur le contenu
+//    du schéma, c'est le SQL.
 // 3. PLAFONDS PARTAGÉS — MAX_CLAIMS_PER_DAY (1 200) et INGEST_MAX_RUNS_PER_HOUR
 //    (30) restent PAR COMPTE : un cycliste consomme le quota du coureur.
 //    Arbitrage FONDATEUR (par compte, ou par compte × discipline ?) : non tranché

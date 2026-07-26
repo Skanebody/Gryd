@@ -23,7 +23,9 @@
  *
  * ─── HONNÊTETÉ ─────────────────────────────────────────────────────────────
  * Une ligne sans source ne s'affiche PAS (pas de tiret muet, pas de « 0 km »).
- * Aucun record du tout → une phrase qui invite à courir. Les trois autres états
+ * Aucun record du tout → une phrase qui invite à repartir, DANS LE SPORT
+ * REGARDÉ (26/07/2026 : elle disait « ta prochaine course » à un cycliste, sous
+ * trois blocs de statistiques vélo). Les trois autres états
  * (pas connecté · lecture en cours · échec) sont ceux de l'ÉCRAN : cette section
  * vit sous `status === 'ready'` et se dérive de la MÊME lecture que les blocs,
  * elle ne peut donc pas les contredire — c'est tout le bénéfice de la lecture
@@ -37,9 +39,10 @@ import {
   fonts,
   spacing,
   typography,
+  type Activity,
 } from '@klaim/shared';
 import { useT } from '../../../i18n/store';
-import { C } from '../../../i18n/catalog/performance';
+import { C, statsCopy } from '../../../i18n/catalog/performance';
 import type { Entry } from '../../../i18n/types';
 import { decimalSeparator } from '../../../ui/format';
 import { fmtPace } from '../../history/format';
@@ -76,14 +79,31 @@ interface Line {
   meta?: string | null;
 }
 
-export function RecordsSection({ records }: { records: PersonalRecords }) {
+/**
+ * `activity` est OBLIGATOIRE, sans défaut — même doctrine que `ZoneLeaderboard` :
+ * un défaut ferait retomber en silence sur la course, et c'est exactement le
+ * défaut corrigé ici. Le palmarès se dérive des MÊMES lignes que les blocs
+ * (`records.ts`, lecture bornée par `.eq('activity', …)`) : sous la lentille
+ * vélo, « Plus longue course » consacrait une SORTIE VÉLO sous un nom de course.
+ */
+export function RecordsSection({
+  records,
+  activity,
+}: {
+  records: PersonalRecords;
+  activity: Activity;
+}) {
   const t = useT();
+  // Seuls deux libellés de cette section nomment l'effort. « Plus longtemps »,
+  // « Meilleure allure », « Plus longue série » et « sur {km} km » sont déjà
+  // neutres : les jumeler ferait deux vérités à maintenir pour rien.
+  const S = statsCopy(activity);
 
   const lines: Line[] = [];
   if (records.longestDistance) {
     lines.push({
       key: 'distance',
-      label: C.recordLongest,
+      label: S.recordLongest,
       value: `${fmtNum(records.longestDistance.value / 1000, 1)} ${t(C.weekKm)}`,
     });
   }
@@ -121,7 +141,7 @@ export function RecordsSection({ records }: { records: PersonalRecords }) {
     <View style={styles.section}>
       <Text style={styles.kicker}>{t(C.recordsPersonalTitle)}</Text>
       {lines.length === 0 ? (
-        <Text style={styles.empty}>{t(C.recordsNoneYet)}</Text>
+        <Text style={styles.empty}>{t(S.recordsNoneYet)}</Text>
       ) : (
         lines.map((line, i) => (
           // Groupé pour VoiceOver : la ligne se lit d'un bloc (« Meilleure

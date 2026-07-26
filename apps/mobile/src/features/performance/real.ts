@@ -21,6 +21,7 @@
  * plus qu'un TYPE (`PerfRecord`, la forme d'un record, pas ses valeurs).
  */
 import { useCallback, useEffect, useState } from 'react';
+import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 import { derivePerformance, type RealPerformance, type RunRow } from './derive';
@@ -42,7 +43,7 @@ export interface MyPerformance {
   reload: () => void;
 }
 
-export function useMyPerformance(): MyPerformance {
+export function useMyPerformance(activity: Activity = DEFAULT_ACTIVITY): MyPerformance {
   const { session, configured, loading: sessionLoading } = useSession();
   const userId = session?.user?.id ?? null;
   const [data, setData] = useState<RealPerformance | null>(null);
@@ -73,6 +74,14 @@ export function useMyPerformance(): MyPerformance {
           'started_at, distance_m, duration_s, avg_pace_s_km, status, gps_trust, motion_trust, step_count',
         )
         .eq('user_id', userId)
+        // E14 — UNE discipline (`runs.activity`, migration 0070). Cette lecture
+        // n'a plus d'appelant depuis le retour des records (cf. l'en-tête de
+        // `stats/useStats.ts`), mais elle compile toujours : la laisser
+        // non disciplinée en ferait un piège pour le prochain écran qui la
+        // rebranche — il hériterait d'un mélange sans qu'aucun test ne s'en
+        // aperçoive. Le défaut vaut `DEFAULT_ACTIVITY`, donc rien ne change
+        // pour un appelant qui ne connaît pas encore la notion.
+        .eq('activity', activity)
         .order('started_at', { ascending: false })
         .limit(RUN_HISTORY_LIMIT);
       if (cancelled) return;
@@ -93,7 +102,7 @@ export function useMyPerformance(): MyPerformance {
     return () => {
       cancelled = true;
     };
-  }, [configured, userId, tick]);
+  }, [configured, userId, tick, activity]);
 
   let status: PerformanceStatus = 'signed-out';
   if (configured && userId) {

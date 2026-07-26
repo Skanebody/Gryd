@@ -277,12 +277,34 @@ export const C = defineCatalog({
     de: '{progress}/{target} · Tagesmission',
     pt: '{progress}/{target} · missão do dia',
   },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LIEN « MON HISTORIQUE » DU PEEK MISSION — NEUTRALISÉ, PAS TWINÉ (26/07/2026)
+  //
+  // LE DÉFAUT. Ces deux textes étaient rendus SANS CONDITION par
+  // `BattleMapOverlays`, un fichier qui reçoit `activity` en prop et commute
+  // déjà dessus quatre-vingts lignes plus bas (`emptyBikeTitle`). Un cycliste
+  // dépliait donc sa sheet et lisait « Tes courses passées » — et son lecteur
+  // d'écran annonçait « Historique de mes courses ».
+  //
+  // POURQUOI PAS UN JUMEAU, ICI. La règle du projet est « écran qui porte la
+  // lentille ⇒ jumeau ». Elle ne s'applique pas à CE lien, pour une raison de
+  // fait et non de style : il ne décrit pas la carte, il décrit L'ÉCRAN OÙ IL
+  // MÈNE. Or `/historique` a sa PROPRE lentille, mémorisée sous sa propre clé
+  // (`gryd.activity.historique`, `ui/activityLens.ts`) et lue par
+  // `useActivityLens('historique')` — la préférence de la Carte n'y voyage pas,
+  // et ce lien ne transmet aucun paramètre. Écrire « Tes sorties vélo passées »
+  // promettrait donc un filtrage que la destination n'applique pas forcément :
+  // on remplacerait un mensonge par un autre, mieux habillé.
+  // Le seul texte VRAI dans les deux mondes est celui qui ne nomme aucun effort.
+  // Verrouillé par `catalog/map.test.ts` — dans les deux sens : il tombe si la
+  // course revient, et il tombe si quelqu'un fabrique un jumeau de réflexe.
+  // ═══════════════════════════════════════════════════════════════════════════
   historyA11y: {
-    fr: 'Historique de mes courses',
-    en: 'My run history',
-    es: 'Historial de mis carreras',
-    de: 'Verlauf meiner Läufe',
-    pt: 'Histórico das minhas corridas',
+    fr: 'Historique de mes sorties',
+    en: 'My outing history',
+    es: 'Historial de mis salidas',
+    de: 'Verlauf meiner Aktivitäten',
+    pt: 'Histórico das minhas atividades',
   },
   myHistory: {
     fr: 'Mon historique',
@@ -291,12 +313,13 @@ export const C = defineCatalog({
     de: 'Mein Verlauf',
     pt: 'Meu histórico',
   },
+  /** Clé historiquement nommée `pastRuns` — son texte, lui, ne l'est plus. */
   pastRuns: {
-    fr: 'Tes courses passées',
-    en: 'Your past runs',
-    es: 'Tus carreras pasadas',
-    de: 'Deine bisherigen Läufe',
-    pt: 'Suas corridas passadas',
+    fr: 'Tes sorties passées',
+    en: 'Your past outings',
+    es: 'Tus salidas pasadas',
+    de: 'Deine bisherigen Aktivitäten',
+    pt: 'Suas atividades passadas',
   },
 
   // ── Sheet de ZONE (§3/§10 — 1er niveau) ──
@@ -472,6 +495,20 @@ export const C = defineCatalog({
     de: 'Lauf los, hol dir deine erste Zone',
     pt: 'Corra para tomar sua primeira zona',
   },
+  /**
+   * LE MÊME FAIT, SOUS LA LENTILLE VÉLO (26/07/2026). Ce n'est pas une
+   * traduction de politesse : la note ci-dessus dit « COURS », un verbe qui
+   * décrit un autre effort que celui du joueur qui regarde sa carte vélo. La
+   * servir telle quelle sous une étiquette vélo serait une instruction fausse —
+   * et le joueur qui la suivrait capturerait dans l'autre monde.
+   */
+  dataNoteEmptyBike: {
+    fr: 'Roule pour prendre ta première zone',
+    en: 'Ride to take your first zone',
+    es: 'Rueda y toma tu primera zona',
+    de: 'Fahr los, hol dir deine erste Zone',
+    pt: 'Pedale para tomar sua primeira zona',
+  },
 
   /**
    * Natif sans compte : on ne peint AUCUNE démo, donc « démonstration » serait
@@ -620,12 +657,64 @@ export const C = defineCatalog({
     de: 'Noch keine Zone erobert',
     pt: 'Nenhuma zona capturada',
   },
+  /**
+   * NEUTRALISÉE (26/07/2026) — elle disait « EN COURANT ».
+   *
+   * Sur la Carte, cette ligne est déjà la branche « course » d'un couple
+   * jumelé (`emptyBikeTitle`/`emptyBikeLine`, BattleMapOverlays.tsx:1265-1272) :
+   * la lentille y est connue, l'ancienne formulation n'y mentait pas.
+   *
+   * Mais elle a un SECOND consommateur, et lui n'a pas de lentille à l'écran :
+   * `/territoire` (app/territoire.tsx:246) et `TerritoryFranceMap.tsx:187` la
+   * rendent dans l'état VIDE — or la ligne de portée (« MON TERRITOIRE ·
+   * COURSE / À VÉLO ») n'est montée que si `metricKeys.length > 0`, donc JAMAIS
+   * quand il n'y a rien à afficher (features/territory/pageState.ts:91-99). Un
+   * cycliste sans aucune zone lisait donc « ferme une boucle EN COURANT » sans
+   * qu'aucun mot d'écran ne lui dise de quel monde on parle : une consigne
+   * incomplète, pas un mensonge — d'où une DETTE, pas un blocage.
+   *
+   * Neutralisation plutôt que jumeau : ajouter un `emptyNoneLineBike` ici
+   * n'aiderait pas /territoire, qui n'a précisément pas de quoi choisir dans
+   * cet état. Le couple de la Carte, lui, reste intact et toujours plus
+   * précis — c'est le sens du jumeau : dire PLUS quand on sait.
+   */
   emptyNoneLine: {
-    fr: 'Ferme une boucle en courant : elle devient ta zone.',
-    en: 'Close a loop while running: it becomes your zone.',
-    es: 'Cierra un bucle corriendo: será tu zona.',
-    de: 'Schließe beim Laufen eine Schleife – sie wird deine Zone.',
-    pt: 'Feche um circuito correndo: ele vira sua zona.',
+    fr: 'Ferme une boucle pendant une sortie : elle devient ta zone.',
+    en: 'Close a loop during an activity: it becomes your zone.',
+    es: 'Cierra un bucle durante una actividad: será tu zona.',
+    de: 'Schließe während einer Aktivität eine Schleife – sie wird deine Zone.',
+    pt: 'Feche um circuito durante uma atividade: ele vira sua zona.',
+  },
+
+  /**
+   * ÉTAT VIDE DU MONDE VÉLO (26/07/2026) — le pendant exact de `emptyNone`.
+   *
+   * Ces deux entrées remplacent l'ancien peek « Le vélo n'est pas encore
+   * chronométré », qui parlait du PRODUIT (une fonctionnalité manquante). Le
+   * vélo enregistre désormais : ce qui est vide, c'est le territoire DE CE
+   * JOUEUR, exactement comme chez un nouveau venu à pied. La copie dit donc un
+   * COMMENCEMENT, pas une absence, et elle ne promet rien qu'un GO ne tienne.
+   *
+   * Elles restent DISTINCTES de `emptyNone` pour une raison factuelle, pas
+   * cosmétique : l'action n'est pas la même. « Ferme une boucle en courant » et
+   * « ferme une boucle à vélo » ne décrivent pas le même effort, et l'échelle
+   * non plus (une boucle vélo suggérée fait ~5 × la distance d'une boucle à
+   * pied — ACTIVITY_ROUTING, game-rules). Réutiliser la phrase de la course
+   * enverrait le cycliste chercher une zone à 900 m.
+   */
+  emptyBikeTitle: {
+    fr: 'Ton territoire vélo commence ici',
+    en: 'Your cycling turf starts here',
+    es: 'Tu territorio en bici empieza aquí',
+    de: 'Dein Rad-Gebiet beginnt hier',
+    pt: 'Seu território de bike começa aqui',
+  },
+  emptyBikeLine: {
+    fr: 'Ferme une boucle à vélo : elle devient ta zone, à part de tes zones à pied.',
+    en: 'Close a loop on your bike: it becomes your zone, separate from your running ones.',
+    es: 'Cierra un bucle en bici: será tu zona, aparte de las que ganas a pie.',
+    de: 'Schließe eine Schleife auf dem Rad – sie wird deine Zone, getrennt von den Laufzonen.',
+    pt: 'Feche um circuito de bike: vira sua zona, separada das que você ganha a pé.',
   },
   emptyFailedTitle: {
     fr: 'Territoire non chargé',
@@ -687,89 +776,19 @@ export const C = defineCatalog({
     de: 'Radkarte',
     pt: 'Mapa de bike',
   },
-  /**
-   * MARQUE D'ÉTAT du segment Bike (retour fondateur du 26/07/2026) — affichée
-   * SOUS le libellé « BIKE », donc AVANT le tap.
-   *
-   * ─── POURQUOI CE MOT-LÀ, ET PAS « BÊTA » ───────────────────────────────────
-   * L'arbitrage proposait « BÊTA ou équivalent ». « Bêta » dit « ça marche, avec
-   * des bugs » — et ce serait faux : ici RIEN n'est enregistré. « Aperçu » dit
-   * « une version réduite existe » : faux aussi, il n'y a pas de version réduite,
-   * il n'y a rien. « Bientôt » serait la faute inverse — une promesse de date
-   * qu'aucun code ne tient (CLAUDE.md : « une doc ne promet jamais au-delà du
-   * code », et la même règle vaut pour un badge de 10 px).
-   * « PAS ENCORE » ne dit qu'une chose, et elle est vraie sans réserve : ce n'est
-   * pas là. Aucune promesse de délai, aucune suggestion que ça fonctionne à
-   * moitié. Le jour où le vélo s'enregistrera, la marque disparaîtra toute seule
-   * (`activitySegments` la dérive de `RECORDED_ACTIVITIES`).
-   */
-  activityBikeMark: {
-    fr: 'PAS ENCORE',
-    en: 'NOT YET',
-    es: 'AÚN NO',
-    de: 'NOCH NICHT',
-    pt: 'AINDA NÃO',
-  },
-  /**
-   * La même marque, ÉNONCÉE pour le lecteur d'écran : « PAS ENCORE » seul ne
-   * dit pas de quoi. Concaténée au libellé de surface (« Carte vélo — pas
-   * encore chronométré ») par `ui/ActivitySwitch.tsx`.
-   */
-  activityBikeMarkA11y: {
-    fr: 'pas encore chronométré',
-    en: 'not tracked yet',
-    es: 'aún no se cronometra',
-    de: 'noch nicht aufgezeichnet',
-    pt: 'ainda não é cronometrado',
-  },
-
-  // ── ÉTAT VIDE de la lentille Bike sur la Carte (planche E14, réécrit le
-  //    26/07/2026). Il énumérait ce qui n'existe pas — « aucune sortie, aucun
-  //    territoire, aucun classement » — donc il était DÉFENSIF : il se
-  //    justifiait au lieu d'orienter. Les trois lignes répondent désormais aux
-  //    quatre questions d'un bon état vide : où suis-je · à quoi ça sert ·
-  //    qu'est-ce que je fais MAINTENANT · qu'est-ce que j'y gagne.
-  //
-  //    CE QU'ELLES NE FONT PAS, ET C'EST LE CŒUR DU SUJET : elles ne posent
-  //    aucun CTA « Commencer ma première sortie vélo » (aucun moteur vélo
-  //    n'existe — la sortie serait enregistrée comme une course À PIED, donc un
-  //    bouton mort doublé d'un mensonge) et elles ne dessinent aucune mission
-  //    vélo (ni distance, ni durée, ni zone n'ont de source). L'action vers
-  //    l'avant est RÉELLE et déjà à l'écran : le segment « RUN » du commutateur,
-  //    en haut. On la dit positivement, avec ce qu'elle rapporte.
-  //
-  //    Les clés gardent leur nom historique : les renommer demanderait de
-  //    toucher `features/map/BattleMapOverlays.tsx`, hors du périmètre de ce
-  //    chantier. ──
-
-  /** 1. OÙ SUIS-JE + état, énoncé UNE fois, sans énumérer les absences. */
-  bikeStartTitle: {
-    fr: 'Le vélo n’est pas encore chronométré',
-    en: 'Cycling isn’t tracked yet',
-    es: 'La bici aún no se cronometra',
-    de: 'Radfahren wird noch nicht erfasst',
-    pt: 'A bike ainda não é cronometrada',
-  },
-  /** 2. À QUOI ÇA SERT : ce que GRYD compte vraiment, dit positivement. */
-  bikeStartLine: {
-    fr: 'GRYD compte les boucles fermées à pied : ce sont elles qui prennent du territoire.',
-    en: 'GRYD counts closed loops on foot: those are what take territory.',
-    es: 'GRYD cuenta los bucles cerrados a pie: son ellos los que toman territorio.',
-    de: 'GRYD zählt geschlossene Schleifen zu Fuß: nur sie erobern Gebiet.',
-    pt: 'A GRYD conta voltas fechadas a pé: são elas que tomam território.',
-  },
-  /**
-   * 3. QUOI MAINTENANT + QU'EST-CE QUE J'Y GAGNE. Elle désigne un contrôle
-   * RÉEL et visible (le segment « RUN », en haut de l'écran) — jamais un bouton
-   * qu'on aurait peint ici et qui échouerait toujours.
-   */
-  bikeStartRunSafe: {
-    fr: 'Touche RUN, en haut : ta boucle devient ta zone.',
-    en: 'Tap RUN, above: your loop becomes your turf.',
-    es: 'Toca RUN, arriba: tu bucle se vuelve tu zona.',
-    de: 'Oben auf RUN tippen: Schleife wird Gebiet.',
-    pt: 'Toque em RUN, acima: sua volta vira sua zona.',
-  },
+  // ── RETIRÉES LE 26/07/2026 (« le vélo devient réel », décision fondateur) ──
+  //    Cinq entrées ont disparu d'ici, et il vaut mieux dire lesquelles que
+  //    laisser un trou :
+  //      · `activityBikeMark` / `activityBikeMarkA11y` — la marque « PAS ENCORE »
+  //        du segment Bike. Elle affirmait une propriété de la DISCIPLINE
+  //        (« rien ne peut être enregistré à vélo ») qui est devenue fausse ;
+  //      · `bikeStartTitle` / `bikeStartLine` / `bikeStartRunSafe` — le peek
+  //        « Le vélo n'est pas encore chronométré ». Il parlait du PRODUIT ;
+  //        ce qui est vide désormais, c'est le territoire DE CE JOUEUR, et
+  //        `emptyBikeTitle` / `emptyBikeLine` (plus haut) le disent comme un
+  //        début.
+  //    Elles ne sont pas « en attente de retour » : leur cause a disparu. Les
+  //    ressusciter demanderait de rendre le vélo non enregistrable à nouveau.
 
   // ── Sheet d'une VRAIE zone tapée (hex_claims) — couleur par RÔLE, jamais par
   //    crew. Aucun nom de crew n'est affiché ici : la table ne le porte pas, et
@@ -902,6 +921,25 @@ export const C = defineCatalog({
     es: 'Sin ranking hasta que alguien corra aquí.',
     de: 'Keine Rangliste, bis hier jemand läuft.',
     pt: 'Sem ranking até alguém correr aqui.',
+  },
+  /**
+   * LE MÊME FAIT, SOUS LA LENTILLE VÉLO (26/07/2026) — même raison que
+   * `dataNoteEmptyBike` : la phrase ci-dessus porte un VERBE (« a couru »), et
+   * `/territoire` la rendait SANS CONDITION alors que l'écran porte le
+   * commutateur de discipline et affiche « À vélo » quatre blocs plus haut. La
+   * page se contredisait donc elle-même : « à vélo » en en-tête, « personne n'a
+   * couru ici » en pied de page.
+   * Le classement lui-même est SÉPARÉ par monde (décision fondateur 26/07) :
+   * ce n'est pas une politesse de traduction, c'est le bon fait.
+   * Court dans les 5 langues — la ligne vit sous un titre de section, jamais
+   * tronquée (§A).
+   */
+  zoneBoardEmptyBike: {
+    fr: 'Aucun classement tant que personne n’a roulé ici.',
+    en: 'No leaderboard until someone rides here.',
+    es: 'Sin ranking hasta que alguien ruede aquí.',
+    de: 'Keine Rangliste, bis hier jemand fährt.',
+    pt: 'Sem ranking até alguém pedalar aqui.',
   },
 
   // ── Widget « Mon territoire » (8 états — territoryWidget.ts) ──

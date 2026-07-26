@@ -38,12 +38,22 @@ export const C = defineCatalog({
     de: 'SAISON 0',
     pt: 'TEMPORADA 0',
   },
+  /**
+   * NEUTRALISÉE (26/07/2026) — elle disait « pour RUN CLUBS ».
+   *
+   * Ce n'est PAS la baseline de marque (celle-ci vit dans `reglages.ts`,
+   * `tagline`, et a le droit de nommer la course : la réécrire changerait le
+   * produit). C'est le sous-titre de l'onglet Crew SANS CREW, c'est-à-dire
+   * l'écran qui invite à en fonder un — et depuis que le vélo est une
+   * discipline réelle, un crew peut être un crew de cyclistes. Nommer la seule
+   * clientèle « run clubs » sur l'écran d'invitation excluait la moitié du jeu.
+   */
   emptySubtitle: {
-    fr: 'Le jeu de conquête de territoire pour run clubs.',
-    en: 'The territory conquest game for run clubs.',
-    es: 'El juego de conquista de territorio para run clubs.',
-    de: 'Das Revier-Eroberungsspiel für Run Clubs.',
-    pt: 'O jogo de conquista de território para run clubs.',
+    fr: 'Le jeu de conquête de territoire, en équipe.',
+    en: 'The territory conquest game, as a team.',
+    es: 'El juego de conquista de territorio, en equipo.',
+    de: 'Das Revier-Eroberungsspiel — im Team.',
+    pt: 'O jogo de conquista de território, em equipe.',
   },
   emptyTitle: {
     fr: 'Personne ne tient un quartier seul.',
@@ -52,12 +62,20 @@ export const C = defineCatalog({
     de: 'Niemand hält ein Viertel allein.',
     pt: 'Ninguém segura um bairro sozinho.',
   },
+  /**
+   * NEUTRALISÉE (26/07/2026) — « le territoire de ses COUREURS ».
+   *
+   * C'est la promesse même du crew, et elle est FACTUELLEMENT plus large que ce
+   * qu'elle disait : `crew_overview` (migrations 0044/0046) somme les hex du
+   * crew SANS filtre de discipline. Le territoire cumulé inclut donc déjà les
+   * zones prises à vélo — le mot « coureurs » décrivait mal le calcul lui-même.
+   */
   emptyBody: {
-    fr: 'Un crew cumule le territoire de ses coureurs — et le défend quand tu dors. Fonde le tien ou rejoins-en un en 1 tap.',
-    en: 'A crew stacks the territory of its runners — and defends it while you sleep. Found yours or join one in 1 tap.',
-    es: 'Un crew suma el territorio de sus corredores — y lo defiende mientras duermes. Funda el tuyo o únete a uno en 1 toque.',
-    de: 'Ein Crew bündelt das Revier seiner Läufer — und verteidigt es, während du schläfst. Gründe deins oder tritt mit 1 Tipp bei.',
-    pt: 'Um crew soma o território dos seus corredores — e o defende enquanto você dorme. Funde o seu ou entre em um com 1 toque.',
+    fr: 'Un crew cumule le territoire de ses membres — et le défend quand tu dors. Fonde le tien ou rejoins-en un en 1 tap.',
+    en: 'A crew stacks the territory of its members — and defends it while you sleep. Found yours or join one in 1 tap.',
+    es: 'Un crew suma el territorio de sus miembros — y lo defiende mientras duermes. Funda el tuyo o únete a uno en 1 toque.',
+    de: 'Ein Crew bündelt das Revier seiner Mitglieder — und verteidigt es, während du schläfst. Gründe deins oder tritt mit 1 Tipp bei.',
+    pt: 'Um crew soma o território dos seus membros — e o defende enquanto você dorme. Funde o seu ou entre em um com 1 toque.',
   },
   createMyCrew: {
     fr: 'Créer mon crew',
@@ -374,12 +392,21 @@ export const C = defineCatalog({
     de: 'Gelände in {sector} erobern',
     pt: 'Ganhar terreno em {sector}',
   },
+  /**
+   * NEUTRALISÉE (26/07/2026) — « là où on COURT ».
+   *
+   * L'écran Crew ne porte AUCUN commutateur de discipline et ses sources ne
+   * sont pas disciplinées (`crew_mission_inputs`, migration 0049 : les hex du
+   * crew sont comptés toutes disciplines confondues). Un jumeau serait donc un
+   * texte sans surface pour le choisir, et il inventerait deux missions là où
+   * le moteur n'en calcule qu'une. Seule la NEUTRALISATION est honnête ici.
+   */
   cmCapture: {
-    fr: 'Prendre du terrain là où on court',
-    en: 'Take ground where we run',
-    es: 'Ganar terreno donde corremos',
-    de: 'Gelände erobern, wo wir laufen',
-    pt: 'Ganhar terreno onde corremos',
+    fr: 'Prendre du terrain là où on passe',
+    en: 'Take ground where we go',
+    es: 'Ganar terreno por donde pasamos',
+    de: 'Gelände erobern, wo wir unterwegs sind',
+    pt: 'Ganhar terreno por onde passamos',
   },
   /**
    * `freeHexes` = cellules du secteur SANS capture vivante. C'est une BORNE
@@ -389,11 +416,11 @@ export const C = defineCatalog({
    * jamais quantifier ce qui est réellement atteignable.
    */
   cmCaptureGap: {
-    fr: 'Du terrain reste à prendre là où votre crew court déjà.',
-    en: 'There is still ground to take where your crew already runs.',
-    es: 'Queda terreno por tomar donde tu crew ya corre.',
-    de: 'Dort, wo euer Crew schon läuft, ist noch Gelände zu holen.',
-    pt: 'Ainda há terreno a tomar onde seu crew já corre.',
+    fr: 'Du terrain reste à prendre là où votre crew passe déjà.',
+    en: 'There is still ground to take where your crew already goes.',
+    es: 'Queda terreno por tomar por donde tu crew ya pasa.',
+    de: 'Dort, wo euer Crew schon unterwegs ist, ist noch Gelände zu holen.',
+    pt: 'Ainda há terreno a tomar por onde seu crew já passa.',
   },
   /** Aucune mission — crew sans aucun fait exploitable. Honnête, pas un échec. */
   cmNoneNoData: {
@@ -404,12 +431,13 @@ export const C = defineCatalog({
     pt: 'Nada a defender por enquanto: a primeira zona conquistada dará ao crew sua primeira prioridade.',
   },
   /** Aucune mission — on a lu, et tout va bien. On le dit aussi. */
+  /** ⚠️ « Nichts LÄUFT AB » reste : c'est l'expiration, pas la course à pied. */
   cmNoneStable: {
-    fr: 'Rien n’expire, rien n’a été perdu : tout est stable. Courez pour agrandir le territoire.',
-    en: 'Nothing expiring, nothing lost: all stable. Run to grow the territory.',
-    es: 'Nada expira, nada se perdió: todo estable. Corred para ampliar el territorio.',
-    de: 'Nichts läuft ab, nichts ging verloren: alles stabil. Lauft, um das Revier zu vergrößern.',
-    pt: 'Nada expira, nada foi perdido: tudo estável. Corram para ampliar o território.',
+    fr: 'Rien n’expire, rien n’a été perdu : tout est stable. Sortez pour agrandir le territoire.',
+    en: 'Nothing expiring, nothing lost: all stable. Head out to grow the territory.',
+    es: 'Nada expira, nada se perdió: todo estable. Salid para ampliar el territorio.',
+    de: 'Nichts läuft ab, nichts ging verloren: alles stabil. Geht raus, um das Revier zu vergrößern.',
+    pt: 'Nada expira, nada foi perdido: tudo estável. Saiam para ampliar o território.',
   },
   /** Action INLINE (§A : le seul CTA chartreuse de l'écran reste « Inviter »). */
   cmSeeOnMap: {
@@ -506,26 +534,35 @@ export const C = defineCatalog({
     de: 'Behaltet das hier im Auge',
     pt: 'Fiquem de olho aqui',
   },
-  /** RASSEMBLEMENT — pertinent dans TOUTES les situations. */
+  /**
+   * RASSEMBLEMENT — pertinent dans TOUTES les situations.
+   *
+   * FUITE COLMATÉE DANS DEUX LANGUES SUR CINQ (26/07/2026) : fr/es/pt disaient
+   * déjà « Sortie » / « Salida » / « Treino », l'anglais « Group RUN » et
+   * l'allemand « LAUF » nommaient la course à pied. Ces trois signaux partent
+   * dans le chat d'un crew qui peut rouler — un cycliste ne peut pas proposer
+   * un rassemblement sans que l'app le corrige. On neutralise les DEUX langues
+   * fautives ; on ne réécrit pas les trois déjà justes.
+   */
   sigGatherTonight: {
     fr: 'Sortie ce soir ?',
-    en: 'Group run tonight?',
+    en: 'Group outing tonight?',
     es: '¿Salida esta noche?',
-    de: 'Lauf heute Abend?',
+    de: 'Gemeinsam raus heute Abend?',
     pt: 'Treino hoje à noite?',
   },
   sigGatherTomorrow: {
     fr: 'Sortie demain matin ?',
-    en: 'Group run tomorrow morning?',
+    en: 'Group outing tomorrow morning?',
     es: '¿Salida mañana por la mañana?',
-    de: 'Lauf morgen früh?',
+    de: 'Gemeinsam raus morgen früh?',
     pt: 'Treino amanhã de manhã?',
   },
   sigGatherWeekend: {
     fr: 'Sortie ce week-end ?',
-    en: 'Group run this weekend?',
+    en: 'Group outing this weekend?',
     es: '¿Salida este fin de semana?',
-    de: 'Lauf am Wochenende?',
+    de: 'Gemeinsam raus am Wochenende?',
     pt: 'Treino neste fim de semana?',
   },
   /**
@@ -656,11 +693,11 @@ export const C = defineCatalog({
   },
   /** Crew sans aucun hex : on le DIT, on ne décore pas un zéro. */
   rlNoTerritory: {
-    fr: 'Votre crew n’a pas encore de territoire — courez pour en prendre.',
-    en: 'Your crew holds no territory yet — go run and take some.',
-    es: 'Tu crew aún no tiene territorio — corre para conquistarlo.',
-    de: 'Euer Crew hält noch kein Revier — lauft los und erobert welches.',
-    pt: 'Seu crew ainda não tem território — corra para conquistar.',
+    fr: 'Votre crew n’a pas encore de territoire — sortez pour en prendre.',
+    en: 'Your crew holds no territory yet — head out and take some.',
+    es: 'Tu crew aún no tiene territorio — sal a conquistarlo.',
+    de: 'Euer Crew hält noch kein Revier — geht raus und erobert welches.',
+    pt: 'Seu crew ainda não tem território — saia para conquistar.',
   },
   /** Part d'un membre dans le territoire du crew (maillon 4). */
   rlContributionPct: {
@@ -712,12 +749,14 @@ export const C = defineCatalog({
     de: 'Willkommen bei {name}',
     pt: 'Bem-vindo ao {name}',
   },
+  /** Flash juste après la fondation : « premiers membres » est exact — il n'y a
+   *  encore que le fondateur, et un crew se remplit sans distinction de monde. */
   rlCreated: {
-    fr: '{name} est fondé — invite tes coureurs',
-    en: '{name} is founded — invite your runners',
-    es: '{name} está fundado — invita a tus corredores',
-    de: '{name} ist gegründet — lade deine Läufer ein',
-    pt: '{name} foi fundado — convide seus corredores',
+    fr: '{name} est fondé — invite tes premiers membres',
+    en: '{name} is founded — invite your first members',
+    es: '{name} está fundado — invita a tus primeros miembros',
+    de: '{name} ist gegründet — lade deine ersten Mitglieder ein',
+    pt: '{name} foi fundado — convide seus primeiros membros',
   },
   rlLeft: {
     fr: 'Tu as quitté le crew',
@@ -954,11 +993,11 @@ export const C = defineCatalog({
     pt: 'PARA COMEÇAR BEM',
   },
   stepInvite: {
-    fr: 'Invitez des coureurs de votre quartier',
-    en: 'Invite runners from your neighborhood',
-    es: 'Invita a corredores de tu barrio',
-    de: 'Lade Läufer aus eurem Viertel ein',
-    pt: 'Convide corredores do seu bairro',
+    fr: 'Invitez des joueurs de votre quartier',
+    en: 'Invite players from your neighborhood',
+    es: 'Invita a jugadores de tu barrio',
+    de: 'Lade Spieler aus eurem Viertel ein',
+    pt: 'Convide jogadores do seu bairro',
   },
   /** Action de l'étape 1 — libellé COURT (allemand concis), jamais tronqué. */
   stepInviteAction: {

@@ -15,11 +15,19 @@
  * position inventée). Le web branche donc le MÊME cœur que le natif, avec la
  * seule chose qui doit différer : la façon de lire la position.
  */
+import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import { getCurrentPositionOnce } from '../map/webGeolocation';
 import { useRealMissionCore } from './useRealMissionCore';
 
 export type { UseRealMissionResult } from './useRealMissionCore';
 
-export function useRealMission() {
-  return useRealMissionCore(getCurrentPositionOnce);
+/**
+ * `activity` — LA LENTILLE (E14). Le cœur borne sa lecture de `hex_claims` à
+ * cette discipline (clé primaire composite depuis 0070) : une mission vélo ne
+ * peut donc pas apparaître dans la lentille course, ni l'inverse. Omise ⇒
+ * `DEFAULT_ACTIVITY`, c'est-à-dire le comportement d'avant le vélo pour les
+ * surfaces qui n'ont pas de commutateur.
+ */
+export function useRealMission(activity: Activity = DEFAULT_ACTIVITY) {
+  return useRealMissionCore(getCurrentPositionOnce, activity);
 }

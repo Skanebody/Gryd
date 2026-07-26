@@ -27,6 +27,7 @@
  * réellement utilisé (réglages, « Mes parcours ») vient de `@klaim/shared` —
  * celui d'ici en était un homonyme fantôme.
  */
+import type { Activity } from '@klaim/shared';
 import type { LatLngPoint } from '../map/basemap';
 
 /**
@@ -41,9 +42,9 @@ export type PlannerIntention = 'conquerir' | 'defendre';
 export const PLANNER_INTENTIONS: readonly PlannerIntention[] = ['conquerir', 'defendre'];
 
 /**
- * Une boucle piétonne RÉELLEMENT routée (OSRM foot), telle qu'elle revient du
- * réseau. Chaque champ est une MESURE ou un fait observé — rien n'est dérivé
- * d'une règle de jeu, rien n'anticipe une décision serveur.
+ * Une boucle RÉELLEMENT routée (OSRM, au profil de sa discipline), telle qu'elle
+ * revient du réseau. Chaque champ est une MESURE ou un fait observé — rien n'est
+ * dérivé d'une règle de jeu, rien n'anticipe une décision serveur.
  */
 export interface PlannedLoop {
   /** Identité stable de la proposition (clé de rendu + sélection). */
@@ -60,4 +61,12 @@ export interface PlannedLoop {
   distanceKm: number;
   /** L'objectif demandé par le joueur (oriente la boucle). Un choix, pas un calcul. */
   intention: PlannerIntention;
+  /**
+   * Discipline dans laquelle cette boucle a été routée. Ce n'est PAS une
+   * décoration : le profil de routage en dépend (`foot` / `bike`), donc deux
+   * boucles de même longueur au même endroit ne sont pas la même boucle. Le
+   * champ existe pour qu'aucun écran ne puisse afficher un tracé de coureur
+   * sous une lentille vélo sans que ce soit visible dans la donnée.
+   */
+  activity: Activity;
 }

@@ -13,6 +13,19 @@
  *
  * Invariants jamais traduits : GRYD, les noms de tiers (Bronze, Argent…) tels
  * que définis par le catalogue de jeu.
+ *
+ * ─── LES BADGES SONT GLOBAUX ⇒ NEUTRALISATION, JAMAIS DE JUMEAU (26/07/2026) ─
+ * Preuve serveur : `awardBadges` (supabase/functions/ingest_run/index.ts) est
+ * appelé sur les DEUX chemins d'ingestion sans jamais recevoir de discipline, et
+ * `applyRunToStats` (_shared/engine/badges.ts) incrémente `runsValid`,
+ * `totalDistanceM` et `bestRunDistanceM` pour toute sortie valide — la table
+ * `user_stats` n'a pas de colonne `activity`. Une première sortie VÉLO ouvre
+ * donc bien un badge.
+ *
+ * Le châssis affirmait l'inverse (« ta première course en ouvre un »). Corrigé
+ * par neutralisation : un jumeau `…Bike` inventerait deux collections là où le
+ * joueur n'en a qu'une, et /badges n'a aucun commutateur de discipline pour le
+ * choisir. Verrouillé par `badges.test.ts`.
  */
 import { defineCatalog } from '../types';
 
@@ -140,11 +153,11 @@ export const C = defineCatalog({
     pt: 'Insígnia secreta',
   },
   secretRequirement: {
-    fr: 'Condition secrète — continue à courir pour la découvrir.',
-    en: 'Secret condition — keep running to find it.',
-    es: 'Condición secreta: sigue corriendo para descubrirla.',
-    de: 'Geheime Bedingung – lauf weiter, um sie zu entdecken.',
-    pt: 'Condição secreta — continue correndo para descobrir.',
+    fr: 'Condition secrète — enchaîne les sorties pour la découvrir.',
+    en: 'Secret condition — keep your outings going to find it.',
+    es: 'Condición secreta: encadena salidas para descubrirla.',
+    de: 'Geheime Bedingung – bleib aktiv, um sie zu entdecken.',
+    pt: 'Condição secreta — siga com suas atividades para descobrir.',
   },
   reward: {
     fr: 'Récompense : {reward}',
@@ -198,11 +211,11 @@ export const C = defineCatalog({
     pt: 'Entrar',
   },
   emptyLine: {
-    fr: 'Aucun badge encore — ta première course en ouvre un.',
-    en: 'No badge yet — your first run opens one.',
-    es: 'Ninguna insignia aún: tu primera carrera abre una.',
-    de: 'Noch kein Abzeichen – dein erster Lauf öffnet eines.',
-    pt: 'Nenhuma insígnia ainda — sua primeira corrida abre uma.',
+    fr: 'Aucun badge encore — ta première sortie en ouvre un.',
+    en: 'No badge yet — your first outing opens one.',
+    es: 'Ninguna insignia aún: tu primera salida abre una.',
+    de: 'Noch kein Abzeichen – deine erste Aktivität öffnet eines.',
+    pt: 'Nenhuma insígnia ainda — sua primeira atividade abre uma.',
   },
   failedTitle: {
     fr: 'On n’a pas pu charger tes badges.',

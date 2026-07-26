@@ -7,7 +7,8 @@
  * QR, XP, km. Chips/CTA courts dans TOUTES les langues (§A — troncature interdite
  * à 375px). Les {placeholders} sont identiques dans les 5 langues.
  */
-import { defineCatalog } from '../types';
+import type { Activity } from '@klaim/shared';
+import { defineCatalog, type Entry } from '../types';
 
 export const C = defineCatalog({
   // ─── Onglet Profil : header / player card ──────────────────────────────────
@@ -295,12 +296,28 @@ export const C = defineCatalog({
     de: 'Statistiken',
     pt: 'Estatísticas',
   },
+  /**
+   * ─── POURQUOI « SORTIES » ET PLUS « COURSES » (26/07/2026) ────────────────
+   * Ce libellé sert DEUX fois sur le Profil : la ligne de raccourci, et l'a11y
+   * de la preview d'historique (lue à voix haute). Sa destination `/historique`
+   * porte le commutateur E14 : elle montre AUSSI le monde vélo. Nommer
+   * « courses » l'entrée d'un écran qui liste des sorties vélo, c'est la faute
+   * de cette vague — un écran qui connaît la discipline et se contredit.
+   *
+   * Le Profil n'a PAS de lentille : pas de jumeau ici (un « Historique à vélo »
+   * mènerait à une page dont la lentille persistée peut être « à pied » — un
+   * mensonge de plus, pas un correctif). NEUTRALISATION, donc.
+   *
+   * En FR le mot est « sortie » (le terme du reste du dépôt : CGU, résultat,
+   * course-live) ; dans les quatre autres langues « activité », qui y est le
+   * neutre naturel — « Ausfahrt » en allemand dit déjà le vélo.
+   */
   linkHistory: {
-    fr: 'Historique de courses',
-    en: 'Run history',
-    es: 'Historial de carreras',
-    de: 'Lauf-Historie',
-    pt: 'Histórico de corridas',
+    fr: 'Historique des sorties',
+    en: 'Activity history',
+    es: 'Historial de actividades',
+    de: 'Aktivitäten-Verlauf',
+    pt: 'Histórico de atividades',
   },
   linkPrivacy: {
     fr: 'Confidentialité & géoloc',
@@ -443,12 +460,19 @@ export const C = defineCatalog({
     de: 'Verfügbar',
     pt: 'Disponível',
   },
+  /**
+   * NEUTRALISÉE (26/07/2026) — elle disait « un autre coureur ».
+   *
+   * Un @handle est unique pour TOUT LE MONDE : la personne qui l'a pris avant
+   * toi peut n'avoir jamais couru de sa vie. Le mot juste est donc « joueur »,
+   * et l'allemand perd au passage son « Läuferin » (le seul genré des cinq).
+   */
   handleTaken: {
-    fr: 'Déjà pris par un autre coureur.',
-    en: 'Already taken by another runner.',
-    es: 'Ya lo usa otro corredor.',
-    de: 'Schon von einer anderen Läuferin vergeben.',
-    pt: 'Já usado por outro corredor.',
+    fr: 'Déjà pris par un autre joueur.',
+    en: 'Already taken by another player.',
+    es: 'Ya lo usa otro jugador.',
+    de: 'Bereits von jemand anderem vergeben.',
+    pt: 'Já usado por outro jogador.',
   },
   /** Marque, terme officiel ou trompeur (table reserved_handles). */
   handleReserved: {
@@ -567,12 +591,13 @@ export const C = defineCatalog({
     de: 'KURZ-BIO',
     pt: 'BIO CURTA',
   },
+  /** Un joueur qui ne fait que rouler n'a pas de « manière de courir ». */
   bioPlaceholder: {
-    fr: 'Une ligne sur ta manière de courir (optionnel).',
-    en: 'One line about how you run (optional).',
-    es: 'Una línea sobre tu forma de correr (opcional).',
-    de: 'Eine Zeile darüber, wie du läufst (optional).',
-    pt: 'Uma linha sobre seu jeito de correr (opcional).',
+    fr: 'Une ligne sur ta façon de t’entraîner (optionnel).',
+    en: 'One line about how you train (optional).',
+    es: 'Una línea sobre cómo entrenas (opcional).',
+    de: 'Eine Zeile darüber, wie du trainierst (optional).',
+    pt: 'Uma linha sobre como você treina (opcional).',
   },
   sectionAvatar: {
     fr: 'AVATAR',
@@ -767,12 +792,28 @@ export const C = defineCatalog({
   },
 
   // ─── profileStore (défauts + validation @handle + palette avatar) ─────────
-  defaultRunnerName: {
-    fr: 'Coureur',
-    en: 'Runner',
-    es: 'Corredor',
-    de: 'Läufer',
-    pt: 'Corredor',
+  /**
+   * NOM DE REPLI D'UN JOUEUR — « Coureur » jusqu'au 26/07/2026.
+   *
+   * Ce mot n'est PAS le nom d'une sortie, c'est le nom d'une PERSONNE : celle
+   * dont la session ne porte ni nom de compte ni e-mail. Depuis que le vélo est
+   * une discipline réelle, appeler « Coureur » quelqu'un qui n'a peut-être
+   * jamais couru est le même défaut que d'appeler « course » une sortie à vélo.
+   *
+   * ⚠️ IL A UN FRÈRE DE SANG, ET ILS CHANGENT ENSEMBLE : `features/social/
+   * playerHandle.ts` DÉRIVE le @handle de repli de ce mot (minuscules, a-z0-9_).
+   * C'est pourquoi les cinq traductions sont choisies pour survivre au filtre
+   * ASCII : « Läufer » y devenait « lufer » (le « ä » est supprimé), un pseudo
+   * qui ne veut rien dire ; « Spieler » donne « spieler ». `playerHandle.test.ts`
+   * verrouille ce fait pour les 5 langues — une traduction future qui ne
+   * passerait pas le filtre échoue au test au lieu de mutiler un pseudo.
+   */
+  defaultPlayerName: {
+    fr: 'Joueur',
+    en: 'Player',
+    es: 'Jugador',
+    de: 'Spieler',
+    pt: 'Jogador',
   },
   handleRequired: {
     fr: 'Le @handle est requis.',
@@ -1154,12 +1195,19 @@ export const C = defineCatalog({
     de: 'Noch keine eigene Zone.',
     pt: 'Nenhuma zona sua por enquanto.',
   },
+  /**
+   * PREMIÈRE MISSION — servie quand le joueur ne tient AUCUNE zone dans AUCUNE
+   * des deux disciplines (`isNewPlayerAcrossActivities`). Le corps promettait
+   * la première zone à « une course » : depuis 0070, une sortie vélo capture
+   * exactement de la même façon (`hex_claims` clé `(h3index, activity)`). Le
+   * geste qui remplit l'écran ne se nomme donc plus par une seule discipline.
+   */
   territoryEmptyBody: {
-    fr: 'Une course suffit : le terrain que tu boucles devient le tien.',
-    en: 'One run is enough: the ground you loop becomes yours.',
-    es: 'Basta una carrera: el terreno que cierras pasa a ser tuyo.',
-    de: 'Ein Lauf genügt: Was du umrundest, gehört dir.',
-    pt: 'Uma corrida basta: o terreno que você fecha vira seu.',
+    fr: 'Une sortie suffit : le terrain que tu boucles devient le tien.',
+    en: 'One activity is enough: the ground you loop becomes yours.',
+    es: 'Basta una salida: el terreno que cierras pasa a ser tuyo.',
+    de: 'Eine Aktivität genügt: Was du umrundest, gehört dir.',
+    pt: 'Uma saída basta: o terreno que você fecha vira seu.',
   },
   territoryEmptyCta: {
     fr: 'Prendre ma première zone',
@@ -1188,12 +1236,18 @@ export const C = defineCatalog({
     de: 'Dein Territorium wird geladen …',
     pt: 'Carregando seu território…',
   },
+  /**
+   * Les badges sont ATTRIBUÉS DANS LES DEUX DISCIPLINES : `ingest_run` appelle
+   * `awardBadges` sans le moindre filtre d'activité (index.ts:1402 et :3271).
+   * Promettre le premier badge à la « première course » disait donc à un
+   * cycliste qu'il devait chausser des baskets pour l'ouvrir. Faux.
+   */
   badgesEmptyLine: {
-    fr: 'Aucun badge débloqué. Ta première course en ouvre un.',
-    en: 'No badge unlocked yet. Your first run opens one.',
-    es: 'Ninguna insignia desbloqueada. Tu primera carrera abre una.',
-    de: 'Noch kein Abzeichen. Dein erster Lauf schaltet eines frei.',
-    pt: 'Nenhuma insígnia desbloqueada. Sua primeira corrida abre uma.',
+    fr: 'Aucun badge débloqué. Ta première sortie en ouvre un.',
+    en: 'No badge unlocked yet. Your first activity opens one.',
+    es: 'Ninguna insignia desbloqueada. Tu primera actividad abre una.',
+    de: 'Noch kein Abzeichen. Deine erste Aktivität schaltet eines frei.',
+    pt: 'Nenhuma insígnia desbloqueada. Sua primeira atividade abre uma.',
   },
   badgesFailedLine: {
     fr: 'Tes badges n’ont pas pu être chargés.',
@@ -1255,14 +1309,18 @@ export const C = defineCatalog({
    * MISE À JOUR (recalage E16) : le QR EXISTE désormais (route `/qr`, généré
    * localement). Continuer à dire « le QR arrivera » serait le symétrique exact
    * du mensonge qu'on corrige partout. La phrase annonce donc le code livré, et
-   * ne promet plus que ce qui manque VRAIMENT : la recherche de coureurs.
+   * ne promet plus que ce qui manque VRAIMENT : la recherche de joueurs.
+   *
+   * NEUTRALISÉE (26/07/2026) : elle promettait « la recherche de COUREURS ».
+   * Ce qui manque n'est pas un annuaire de coureurs — c'est la recherche de
+   * JOUEURS, cyclistes compris, et la promesse doit dire ce qui arrivera.
    */
   qrHintReal: {
-    fr: 'Ton @ est ton identité GRYD. Montre ton code pour qu’on te retrouve — la recherche de coureurs, elle, arrivera plus tard.',
-    en: 'Your @ is your GRYD identity. Show your code so people can find you — runner search will come later.',
-    es: 'Tu @ es tu identidad GRYD. Muestra tu código para que te encuentren; la búsqueda de corredores llegará más tarde.',
-    de: 'Dein @ ist deine GRYD-Identität. Zeig deinen Code, damit man dich findet — die Läufersuche kommt später.',
-    pt: 'Seu @ é sua identidade GRYD. Mostre seu código para te encontrarem — a busca de corredores chega depois.',
+    fr: 'Ton @ est ton identité GRYD. Montre ton code pour qu’on te retrouve — la recherche de joueurs, elle, arrivera plus tard.',
+    en: 'Your @ is your GRYD identity. Show your code so people can find you — player search will come later.',
+    es: 'Tu @ es tu identidad GRYD. Muestra tu código para que te encuentren; la búsqueda de jugadores llegará más tarde.',
+    de: 'Dein @ ist deine GRYD-Identität. Zeig deinen Code, damit man dich findet — die Spielersuche kommt später.',
+    pt: 'Seu @ é sua identidade GRYD. Mostre seu código para te encontrarem — a busca de jogadores chega depois.',
   },
   /** Action de la carte « mon @ » sur Amis : ouvre le code QR réel (route /qr). */
   friendsShowMyCode: {
@@ -1384,14 +1442,128 @@ export const C = defineCatalog({
     pt: 'km temporada',
   },
 
-  // ── Carte signature (aperçu des contours réels de mes zones) ───────────────
-  sectionSignatureMap: {
-    fr: 'CARTE SIGNATURE',
-    en: 'SIGNATURE MAP',
-    es: 'MAPA FIRMA',
-    de: 'SIGNATUR-KARTE',
-    pt: 'MAPA ASSINATURA',
+  // ── LA DISCIPLINE DONT PARLE CE BLOC (E14, vélo réel 26/07/2026) ───────────
+  //
+  // Le Profil n'a PAS de commutateur Run/Bike (la planche E14 le pose sur la
+  // Carte, le Classement, l'Historique et les Statistiques — le Profil est une
+  // carte de visite, pas un monde). Il lisait donc `hex_claims` dans le monde
+  // par DÉFAUT : un joueur qui ne roule qu'à vélo y était déclaré « nouveau ».
+  //
+  // Une surface sans commutateur n'a que deux réponses honnêtes : montrer les
+  // deux mondes côte à côte, ou DIRE lequel elle montre. Ces libellés sont la
+  // seconde moitié de cette règle — sans eux, le bloc choisirait en silence.
+  //
+  // Ils nomment AUSSI ce que les deux autres cellules ne disent pas : défenses
+  // et km viennent de `user_stats`, qui n'est PAS disciplinée (0070 « ce qui
+  // reste en suspens » §2). Les laisser sous un titre « à vélo » serait la somme
+  // que la planche interdit.
+  /** Bloc mono-discipline : le monde nommé + la portée des deux autres chiffres. */
+  metricsScopeRun: {
+    fr: 'Territoire à pied. Défenses et km : toutes disciplines.',
+    en: 'Running territory. Defenses and km: all disciplines.',
+    es: 'Territorio a pie. Defensas y km: todas las disciplinas.',
+    de: 'Lauf-Gebiet. Verteidigungen und km: alle Disziplinen.',
+    pt: 'Território a pé. Defesas e km: todas as disciplinas.',
   },
+  metricsScopeBike: {
+    fr: 'Territoire à vélo. Défenses et km : toutes disciplines.',
+    en: 'Cycling territory. Defenses and km: all disciplines.',
+    es: 'Territorio en bici. Defensas y km: todas las disciplinas.',
+    de: 'Rad-Gebiet. Verteidigungen und km: alle Disziplinen.',
+    pt: 'Território de bike. Defesas e km: todas as disciplinas.',
+  },
+  /**
+   * Portée SEULE, sans la clause sur les chiffres non disciplinés : sert aux
+   * écrans qui ne montrent QUE du territoire (/territoire). Y coller la phrase
+   * « Défenses et km : toutes disciplines » parlerait de deux métriques que ces
+   * écrans n'affichent pas — une doc qui promet au-delà de l'écran.
+   */
+  worldScopeRun: {
+    fr: 'Territoire à pied',
+    en: 'Running territory',
+    es: 'Territorio a pie',
+    de: 'Lauf-Gebiet',
+    pt: 'Território a pé',
+  },
+  worldScopeBike: {
+    fr: 'Territoire à vélo',
+    en: 'Cycling territory',
+    es: 'Territorio en bici',
+    de: 'Rad-Gebiet',
+    pt: 'Território de bike',
+  },
+  /** Bloc hybride : dire que les deux mondes ne s'additionnent JAMAIS (E14). */
+  metricsScopeBoth: {
+    fr: 'Deux mondes séparés — jamais additionnés.',
+    en: 'Two separate worlds — never added up.',
+    es: 'Dos mundos separados: nunca se suman.',
+    de: 'Zwei getrennte Welten — nie addiert.',
+    pt: 'Dois mundos separados — nunca somados.',
+  },
+  /** Bloc des chiffres NON disciplinés, quand il est rendu à part (hybride). */
+  metricsScopeAll: {
+    fr: 'Défenses et km : toutes disciplines.',
+    en: 'Defenses and km: all disciplines.',
+    es: 'Defensas y km: todas las disciplinas.',
+    de: 'Verteidigungen und km: alle Disziplinen.',
+    pt: 'Defesas e km: todas as disciplinas.',
+  },
+  /** En-tête du bloc territorial d'UN monde (rendu quand il y en a deux). */
+  sectionTerritoryRun: {
+    fr: 'MON TERRITOIRE · À PIED',
+    en: 'MY TERRITORY · RUNNING',
+    es: 'MI TERRITORIO · A PIE',
+    de: 'MEIN GEBIET · LAUFEN',
+    pt: 'MEU TERRITÓRIO · A PÉ',
+  },
+  sectionTerritoryBike: {
+    fr: 'MON TERRITOIRE · À VÉLO',
+    en: 'MY TERRITORY · CYCLING',
+    es: 'MI TERRITORIO · EN BICI',
+    de: 'MEIN GEBIET · RAD',
+    pt: 'MEU TERRITÓRIO · DE BIKE',
+  },
+  /** Carte signature : une par monde, chacune nommée (jamais deux silhouettes fondues). */
+  sectionSignatureMapRun: {
+    fr: 'CARTE SIGNATURE · À PIED',
+    en: 'SIGNATURE MAP · RUNNING',
+    es: 'MAPA FIRMA · A PIE',
+    de: 'SIGNATUR-KARTE · LAUFEN',
+    pt: 'MAPA ASSINATURA · A PÉ',
+  },
+  sectionSignatureMapBike: {
+    fr: 'CARTE SIGNATURE · À VÉLO',
+    en: 'SIGNATURE MAP · CYCLING',
+    es: 'MAPA FIRMA · EN BICI',
+    de: 'SIGNATUR-KARTE · RAD',
+    pt: 'MAPA ASSINATURA · DE BIKE',
+  },
+  /**
+   * Portée COURTE, insérée dans une phrase (« +3 zones à vélo »). Distincte du
+   * nom de discipline de `catalog/runGps` (« course à pied », « vélo »), qui se
+   * décline en sujet ; ici il faut un complément, et le mot doit rester court
+   * pour ne jamais pousser la ligne de preview à la troncature (§A.9).
+   */
+  scopeRun: {
+    fr: 'à pied',
+    en: 'on foot',
+    es: 'a pie',
+    de: 'zu Fuß',
+    pt: 'a pé',
+  },
+  scopeBike: {
+    fr: 'à vélo',
+    en: 'by bike',
+    es: 'en bici',
+    de: 'mit dem Rad',
+    pt: 'de bike',
+  },
+
+  // ── Carte signature (aperçu des contours réels de mes zones) ───────────────
+  // `sectionSignatureMap` (« CARTE SIGNATURE », sans discipline) a été RETIRÉE
+  // le 26/07/2026 : il y a désormais une silhouette par monde, et chacune porte
+  // le nom du sien (`SECTION_SIGNATURE_MAP`). Un titre neutre au-dessus de la
+  // carte d'un seul des deux mondes laisserait croire qu'on voit tout.
   seeMyMap: {
     fr: 'Voir ma carte',
     en: 'See my map',
@@ -1422,13 +1594,37 @@ export const C = defineCatalog({
     de: 'Abzeichen · {n}',
     pt: 'Insígnias · {n}',
   },
-  previewHistory: {
-    fr: 'Historique des courses · {n}',
-    en: 'Run history · {n}',
-    es: 'Historial de carreras · {n}',
-    de: 'Lauf-Historie · {n}',
-    pt: 'Histórico de corridas · {n}',
-  },
+  // ─── `previewHistory` A ÉTÉ SUPPRIMÉE LE 26/07/2026, ET C'EST LE CORRECTIF ──
+  //
+  // Elle valait « Historique des courses · {n} » avec n = `user_stats.runs_valid`.
+  // DEUX mensonges dans une seule ligne, et le second était mesurable :
+  //   (a) le mot « courses » : `runs_valid` est incrémenté par `applyRunToStats`
+  //       (supabase/functions/_shared/engine/badges.ts:287) pour CHAQUE sortie
+  //       valide, vélo compris — `awardBadges` n'a aucun filtre d'activité ;
+  //   (b) le NOMBRE : la migration 0070 déclare `user_stats` NON disciplinée
+  //       (« ce qui reste en suspens » §2), alors que la destination
+  //       `/historique` lit `.eq('activity', …)` (features/history/real.ts:238).
+  //       Le Profil annonçait 12, le tap en montrait 8.
+  //
+  // Trois issues honnêtes existaient. On n'a pas pris (i) « lire un compte par
+  // discipline » : AUCUNE lecture disciplinée de comptes n'existe côté client
+  // (ni `useMyBadges`, ni `useMyEconomy`, ni `useRealTerritoriesByActivity` ne
+  // comptent des sorties), et en fabriquer une coûterait deux requêtes réseau
+  // pour une ligne de preview, sur un écran qui budgète ses lectures.
+  // On n'a pas pris (ii) « assumer le total en le disant toutes disciplines »
+  // non plus, et c'est le point : la discipline n'est qu'UN des TROIS écarts
+  // entre ce compteur et sa destination —
+  //   · discipline : toutes vs une seule ;
+  //   · statut     : `runs_valid` ignore les rejetées/doublons, que
+  //                  `/historique` affiche pourtant (aucun filtre de statut) ;
+  //   · plafond    : la liste est bornée à HISTORY_LIMIT = 200.
+  // Étiqueter « toutes disciplines » n'aurait réparé qu'un tiers de l'écart et
+  // laissé 12 vs 8 intact dès qu'une sortie est rejetée. On prend donc (iii) :
+  // PLUS DE NOMBRE. La ligne redevient ce qu'elle est — une navigation — et le
+  // vrai compte se lit là où la liste vit, sous sa propre lentille.
+  // Aucune donnée n'est perdue : `runs_valid` continue de nourrir badges et
+  // spécialisations, où il n'est comparé à aucune liste.
+  // Le libellé de la ligne est `linkHistory` (déjà neutralisée, déjà son a11y).
   previewShare: {
     fr: 'Partager ma carte',
     en: 'Share my card',
@@ -1456,20 +1652,80 @@ export const C = defineCatalog({
     de: '{when} · {n} Zonen verteidigt',
     pt: '{when} · {n} zonas defendidas',
   },
-  /** Impact INCONNU (payload absent) — surtout pas « +0 zone ». */
+  /**
+   * Impact INCONNU (payload absent) — surtout pas « +0 zone ».
+   *
+   * ET DISCIPLINE INCONNUE (`runs.activity` illisible). Cette entrée disait
+   * « dernière course » : sa propre doc, deux blocs plus bas, promet pourtant
+   * qu'« on ne nomme jamais un monde qu'on ignore ». « Course » EST un monde.
+   * Le repli neutre est donc devenu neutre pour de bon — le jumeau discipliné
+   * (`previewActivityPlainRun`), lui, garde le mot juste.
+   */
   previewActivityPlain: {
+    fr: '{when} · dernière sortie',
+    en: '{when} · last activity',
+    es: '{when} · última actividad',
+    de: '{when} · letzte Aktivität',
+    pt: '{when} · última atividade',
+  },
+
+  // ── DE QUELLE DISCIPLINE PARLE CETTE LIGNE ? (E14, 26/07/2026) ─────────────
+  //
+  // La lecture de « ta dernière sortie » est TOUTES DISCIPLINES, et c'est juste :
+  // c'est un DATAGE, pas une somme (E14 interdit de sommer, pas de dater), et
+  // filtrer sur la course à pied ferait dire « tu n'as rien fait » à quelqu'un
+  // qui a roulé hier.
+  //
+  // Mais la ligne ne DISAIT pas de quel monde elle parlait, sur un écran où la
+  // métrique de territoire est, elle, disciplinée : un cycliste lisait « Hier ·
+  // dernière course » juste au-dessus d'un bloc titré « Territoire à vélo ».
+  // Ambigu, donc à lever — par la COPIE, pas par un filtre qui mentirait.
+  //
+  // Les variantes ci-dessous ne sont employées que lorsque la discipline est
+  // RÉELLEMENT lue (`runs.activity`). Quand elle ne l'est pas, les trois
+  // libellés neutres ci-dessus servent : on ne nomme pas un monde qu'on ignore.
+  previewActivityCapturedIn: {
+    fr: '{when} · +{n} zones {sport}',
+    en: '{when} · +{n} zones {sport}',
+    es: '{when} · +{n} zonas {sport}',
+    de: '{when} · +{n} Zonen {sport}',
+    pt: '{when} · +{n} zonas {sport}',
+  },
+  previewActivityDefendedIn: {
+    fr: '{when} · {n} zones défendues {sport}',
+    en: '{when} · {n} zones defended {sport}',
+    es: '{when} · {n} zonas defendidas {sport}',
+    de: '{when} · {n} Zonen verteidigt {sport}',
+    pt: '{when} · {n} zonas defendidas {sport}',
+  },
+  /** Impact inconnu, discipline connue : le mot juste de CETTE discipline. */
+  previewActivityPlainRun: {
     fr: '{when} · dernière course',
     en: '{when} · last run',
     es: '{when} · última carrera',
     de: '{when} · letzter Lauf',
     pt: '{when} · última corrida',
   },
+  previewActivityPlainBike: {
+    fr: '{when} · dernière sortie vélo',
+    en: '{when} · last ride',
+    es: '{when} · última salida en bici',
+    de: '{when} · letzte Radtour',
+    pt: '{when} · último pedal',
+  },
+  /**
+   * LU À VOIX HAUTE sur la ligne qui, à l'écran, dit déjà « … à vélo » : un
+   * lecteur d'écran annonçait « Voir mes courses récentes » juste après avoir
+   * lu « Hier · +3 zones à vélo ». La ligne porte la discipline, son action
+   * mène à `/historique` (les DEUX mondes) : l'action se neutralise, la ligne
+   * garde son jumeau.
+   */
   a11yRecentActivity: {
-    fr: 'Voir mes courses récentes',
-    en: 'See my recent runs',
-    es: 'Ver mis carreras recientes',
-    de: 'Meine letzten Läufe ansehen',
-    pt: 'Ver minhas corridas recentes',
+    fr: 'Voir mes sorties récentes',
+    en: 'See my recent activity',
+    es: 'Ver mi actividad reciente',
+    de: 'Meine letzten Aktivitäten ansehen',
+    pt: 'Ver minha atividade recente',
   },
 
   // ── Preview « PROCHAINE MISSION » (remise 25/07/2026, décision fondateur) ───
@@ -1545,3 +1801,49 @@ export const C = defineCatalog({
     pt: 'Meu código QR',
   },
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LES LIBELLÉS INDEXÉS PAR DISCIPLINE (E14, vélo réel — 26/07/2026)
+//
+// Le `Record<Activity, Entry>` n'est pas décoratif, c'est le même garde-fou que
+// `ACTIVITY_NAME` dans `catalog/runGps` : le jour où une troisième discipline
+// apparaît, le compilateur EXIGE sa phrase au lieu de laisser l'écran retomber
+// en silence sur la course à pied — c'est-à-dire de rejouer exactement le défaut
+// que ce chantier corrige.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Portée courte, en complément de phrase (« +3 zones à vélo »). */
+export const SCOPE_LABEL: Readonly<Record<Activity, Entry>> = {
+  run: C.scopeRun,
+  bike: C.scopeBike,
+};
+
+/** Phrase de portée sous le bloc de métriques mono-discipline. */
+export const METRICS_SCOPE: Readonly<Record<Activity, Entry>> = {
+  run: C.metricsScopeRun,
+  bike: C.metricsScopeBike,
+};
+
+/** Portée SEULE, pour les écrans qui ne montrent que du territoire. */
+export const WORLD_SCOPE: Readonly<Record<Activity, Entry>> = {
+  run: C.worldScopeRun,
+  bike: C.worldScopeBike,
+};
+
+/** En-tête du bloc territorial d'un monde (rendu quand le joueur en a deux). */
+export const SECTION_TERRITORY: Readonly<Record<Activity, Entry>> = {
+  run: C.sectionTerritoryRun,
+  bike: C.sectionTerritoryBike,
+};
+
+/** En-tête de la carte signature d'un monde. */
+export const SECTION_SIGNATURE_MAP: Readonly<Record<Activity, Entry>> = {
+  run: C.sectionSignatureMapRun,
+  bike: C.sectionSignatureMapBike,
+};
+
+/** « Ta dernière sortie » quand son impact est inconnu MAIS sa discipline lue. */
+export const PREVIEW_ACTIVITY_PLAIN: Readonly<Record<Activity, Entry>> = {
+  run: C.previewActivityPlainRun,
+  bike: C.previewActivityPlainBike,
+};

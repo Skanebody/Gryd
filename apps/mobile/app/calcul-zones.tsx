@@ -3,7 +3,7 @@
  * Print, 25/07/2026.
  *
  * L'objet : une VISITE GUIDÉE. On la lit une fois, dans l'ordre, et on comprend
- * comment une course devient un territoire. Les questions précises, elles, vivent
+ * comment une sortie devient un territoire. Les questions précises, elles, vivent
  * dans la FAQ — d'où le lien de pied, formulé en verbe + objet pour ne pas être
  * un quasi-homonyme du titre de cette page.
  *
@@ -16,7 +16,7 @@
  *  3. une ligne scannable de sortie vers la FAQ, séparée par un filet.
  *
  * L'ordre des scènes suit l'ordre des questions qu'on se pose : comment une
- * course devient une zone → ce qu'elle rapporte → ce qui se passe à plusieurs
+ * sortie devient une zone → ce qu'elle rapporte → ce qui se passe à plusieurs
  * dessus (LE RELAIS) → comment on la garde → pourquoi on la perd → ce qui peut
  * l'invalider.
  *
@@ -42,6 +42,16 @@
  *    code la tienne : la phrase dit désormais sa condition (catalogue explain,
  *    `secVieExample` ; même correction sur `q12A`, côté FAQ).
  *
+ * ── UNE VISITE POUR LES DEUX DISCIPLINES, SANS EN NOMMER AUCUNE ─────────────
+ * La visite n'affiche pas la discipline du lecteur, et ne peut pas la
+ * connaître : elle ne lit rien du joueur. Sa copie est donc NEUTRALISÉE
+ * (« sortie », « repasser ») plutôt que dédoublée — une scène jumelle par
+ * discipline serait un texte sans surface pour la choisir. Les règles énoncées
+ * ici (decay, cooldown, points, protections, défense, Verify) valent bien à
+ * l'identique dans les deux mondes ; les bornes qui DIFFÈRENT (distance,
+ * allure, périmètre de boucle) ne sont pas chiffrées. Verrouillé par
+ * `features/explain/copyDiscipline.test.ts`.
+ *
  * ── ÉCARTS ASSUMÉS ─────────────────────────────────────────────────────────
  *  · CET ÉCRAN N'A PAS QUATRE ÉTATS, ET C'EST VOLONTAIRE. Il ne fait AUCUNE
  *    lecture réseau : les textes sont statiques (content.ts) et toutes les
@@ -51,13 +61,15 @@
  *    un spinner ici affirmerait qu'on attend quelque chose qui n'existe pas.
  *  · LES CHIFFRES DE SCÉNARIO (+247/+214/+33, 79/21 %, 620 m) restent des
  *    EXEMPLES, préfixés « Exemple : » dans le catalogue et formulés de façon
- *    IMPERSONNELLE (« une course de 6,2 km », jamais « ta course ») : rattachés
+ *    IMPERSONNELLE (« une sortie de 6,2 km », jamais « ta sortie ») : rattachés
  *    au joueur, ils redeviendraient une donnée fabriquée sur lui.
  *  · AUCUN CTA CHARTREUSE : la page n'appelle aucune décision. La sortie vers la
  *    FAQ est une ligne scannable, pas un bouton plein.
  *
- * Accès : Support (« Pourquoi ma course n'a pas compté ? »), Paramètres, et le
- * lien post-run « Comment est calculé ce résultat ? ».
+ * Accès : Support (« Pourquoi ma sortie n'a pas compté ? »), Paramètres, et le
+ * lien post-run « Comment est calculé ce résultat ? ». La PORTE et la PAGE
+ * disent maintenant le même mot : le libellé du Support vit dans
+ * `i18n/catalog/reglages.ts` (`whyNotCountedTitle`), neutralisé de son côté.
  *
  * i18n : titres, phrases et exemples arrivent en `Entry` 5 langues (content.ts +
  * catalogue explain) et sont résolus ICI via t().

@@ -25,6 +25,29 @@
  * le type n'était jamais violé, c'est l'ENTRÉE qui était périmée. Deux relectures
  * ferment le trou : `revision` (le store a lu des réglages différents, y compris
  * après une écriture faite ailleurs dans l'app) et le retour sur l'écran.
+ *
+ * ═══ DISCIPLINE (E14, 26/07/2026) ═══════════════════════════════════════════
+ * Deux choses changent, et la seconde est une règle d'honnêteté, pas un réglage.
+ *
+ * 1. LES BORNES SONT CELLES DE LA DISCIPLINE (`plannerBounds(activity)`), donc
+ *    une suggestion vélo ne peut plus tomber sous le périmètre minimal d'une
+ *    boucle vélo.
+ *
+ * 2. HORS COURSE À PIED, ON N'APPREND RIEN — ET ON LE DIT. La source des
+ *    habitudes (RPC `habits_inputs`, migration 0055) lit `public.runs` SANS
+ *    aucun filtre `activity` : elle MÉLANGE les deux disciplines. L'afficher
+ *    sous une lentille vélo serait deux fautes à la fois — la somme Run+Bike
+ *    qu'E14 interdit dans une même lecture, et une distance « apprise » qui
+ *    n'aurait jamais été mesurée à vélo (les 5 km typiques d'un coureur,
+ *    remontés au plancher vélo de 15 km, présentés comme SES habitudes).
+ *    On réutilise donc le garde-fou existant `competitiveReadAllowed(activity,
+ *    sourceIsDisciplined)` avec `sourceIsDisciplined = false` : la lecture est
+ *    autorisée sous la lentille par défaut, refusée ailleurs. Le résolveur
+ *    retombe alors sur `source: 'default'`, cause `'unavailable'`, et l'écran
+ *    affiche « rien d'appris pour l'instant » — ce qui est exactement vrai.
+ *    Le jour où `habits_inputs` portera `activity`, il suffira de passer
+ *    `sourceIsDisciplined = true` ici : la garde est sur la SOURCE, pas sur la
+ *    discipline.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -46,24 +69,26 @@ import {
   type HabitProfile,
   type RoutePrefsRead,
   type RouteSuggestion,
-  type SuggestionBounds,
 } from './suggestion';
-import { GEN_DEFAULT_KM, GEN_MAX_KM, GEN_MIN_KM, GEN_STEP_KM } from './generator';
+import { plannerBounds } from './activityPlanning';
+import { competitiveReadAllowed } from '../../ui/activityLens';
 import {
   computeHabitsProfile,
+  DEFAULT_ACTIVITY,
   HABITS_HISTORY_DAYS,
   HABITS_MAX_RUNS,
   HABITS_MIN_RUNS,
+  type Activity,
   type HabitRunFact,
 } from '@klaim/shared';
 
-/** Bornes du planificateur — source unique, jamais recopiées. */
-const BOUNDS: SuggestionBounds = {
-  minKm: GEN_MIN_KM,
-  maxKm: GEN_MAX_KM,
-  stepKm: GEN_STEP_KM,
-  fallbackKm: GEN_DEFAULT_KM,
-};
+/**
+ * La source d'habitudes porte-t-elle la colonne `activity` ? NON (0055 :
+ * `habits_inputs` agrège `public.runs` sans filtre de discipline). Constante
+ * nommée plutôt qu'un `false` posé dans l'appel : le jour où la RPC devient
+ * disciplinée, c'est CETTE ligne qu'on change, et le commentaire est à côté.
+ */
+const HABITS_SOURCE_IS_DISCIPLINED = false;
 
 /** Forme normalisée que ce module produit à partir de `habits_inputs`. */
 interface HabitPayload {
@@ -179,7 +204,16 @@ function prefsRead(status: RoutePrefsStatus, prefs: RoutePrefs | null): RoutePre
   return { status };
 }
 
-export function useRouteSuggestion(): UseRouteSuggestionResult {
+/**
+ * @param activity Discipline de la sortie que l'écran prépare. Absent ⇒
+ * `DEFAULT_ACTIVITY` : tout appelant qui ignore encore la notion de discipline
+ * (l'écran « Aujourd'hui », par exemple, qui ne parle que de course) obtient
+ * EXACTEMENT le comportement d'avant le vélo, sans un seul `if` chez lui. C'est
+ * la même convention que `activityRules()` / `activityRouting()` côté game-rules.
+ */
+export function useRouteSuggestion(
+  activity: Activity = DEFAULT_ACTIVITY,
+): UseRouteSuggestionResult {
   const { session } = useSession();
   const { prefs, status, revision } = useRoutePrefs();
   const [profile, setProfile] = useState<HabitProfile>({ kind: 'unavailable' });
@@ -196,14 +230,25 @@ export function useRouteSuggestion(): UseRouteSuggestionResult {
    * `routeDistancePrefsFrom` refuse cette confusion : hors de `ready`,
    * l'apprentissage est `'unknown'`, et rien n'est affirmé sur ses réglages.
    */
-  const read: RoutePrefsRead = prefsRead(status, prefs);
+  /**
+   * A-t-on le droit d'utiliser la source d'habitudes SOUS CETTE LENTILLE ?
+   * Non disciplinée ⇒ seulement sous la lentille par défaut (cf. en-tête §2).
+   * Quand c'est non, on ne consomme NI le profil NI le réglage manuel : les deux
+   * viennent d'un monde qui ne distingue pas les disciplines, et les borner de
+   * force dans la plage vélo produirait un chiffre que personne n'a réglé.
+   */
+  const habitsReadable = competitiveReadAllowed(activity, HABITS_SOURCE_IS_DISCIPLINED);
+
+  const read: RoutePrefsRead = habitsReadable ? prefsRead(status, prefs) : { status: 'unavailable' };
   const distancePrefs = routeDistancePrefsFrom(read);
   const learning = distancePrefs.learning;
 
   useEffect(() => {
     // Apprentissage coupé OU réglages non lus OU hors session : aucune
     // lecture. `'unknown'` ne donne PAS le droit de lire les courses — on ne
-    // sait pas encore si on en a la permission.
+    // sait pas encore si on en a la permission. (`habitsReadable === false`
+    // produit précisément `'unknown'`, donc cette branche couvre aussi la
+    // lentille vélo : la RPC n'est même pas appelée.)
     if (learning !== 'on' || !supabase || !session) {
       // Le profil n'est plus utilisé du tout dans ces cas (le résolveur tranche
       // sur `learning`) : on le remet à « on ne sait pas » plutôt que de
@@ -243,7 +288,7 @@ export function useRouteSuggestion(): UseRouteSuggestionResult {
     // appareil, « oublier »). Sans lui, couper l'apprentissage ailleurs laissait
     // ce profil-ci intact — le type n'était jamais violé, c'est l'ENTRÉE qui
     // était périmée, et l'écran continuait de dire « adapté à tes habitudes ».
-  }, [session, learning, revision, focusTick]);
+  }, [session, learning, revision, focusTick, habitsReadable]);
 
   /**
    * Relecture au retour sur l'écran. Deux raisons, toutes deux réelles :
@@ -266,10 +311,15 @@ export function useRouteSuggestion(): UseRouteSuggestionResult {
   );
 
   return {
-    suggestion: resolveRouteSuggestion(profile, distancePrefs, BOUNDS),
+    // Bornes de LA DISCIPLINE : `resolveRouteSuggestion` aligne sur le pas puis
+    // borne, donc aucune suggestion ne peut sortir sous le plancher de son monde.
+    suggestion: resolveRouteSuggestion(profile, distancePrefs, plannerBounds(activity)),
     // `status === 'loading'` couvre la lecture des réglages : tant qu'on ne
     // sait pas si on a le droit d'apprendre, l'écran n'a rien de définitif à
     // dire. Une lecture RATÉE, elle, est une réponse : on ne charge plus.
-    loading: status === 'loading' || profileLoading,
+    // Sous une lentille où l'on n'a PAS le droit de lire, il n'y a rien à
+    // attendre : la réponse est déjà connue, faire tourner un compteur
+    // laisserait croire à une lecture qui n'a pas lieu.
+    loading: habitsReadable && (status === 'loading' || profileLoading),
   };
 }

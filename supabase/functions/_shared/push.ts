@@ -141,40 +141,183 @@ export interface PushMessage {
   priority: 'default';
 }
 
+/** Un couple singulier/pluriel. Le nombre décide, jamais l'appelant. */
+interface Plural {
+  one: string;
+  many: string;
+}
+
 /**
  * Textes du push decay, 5 langues (parité imposée par le type `Record`).
- * `{n}` = nombre de zones, `{d}` = jours restants avant la plus proche.
- * Structure volontaire : CE QUI SE PASSE, puis CE QUI LE RÈGLE. Aucune phrase
- * ne dit au joueur qu'il a mal fait.
+ *
+ * ═══ POURQUOI CETTE FORME A CHANGÉ (26/07/2026) ═════════════════════════════
+ * L'ancienne version n'avait QU'UNE phrase par langue : « {n} zones
+ * redeviennent neutres dans {d} j. Une course dessus les garde. » Deux fautes
+ * y étaient enfermées, et `decay_job` avait choisi — à raison — de ne PAS
+ * pousser plutôt que de les commettre :
+ *   · elle prescrivait UNE COURSE à un cycliste. Repasser à pied sur une zone
+ *     vélo n'en défend rien (le territoire est séparé depuis 0070) : c'était
+ *     envoyer quelqu'un courir pour rien ;
+ *   · pour un joueur menacé dans les DEUX mondes, son `{n}` unique aurait été
+ *     la somme que E14 interdit (« jamais Run + Bike… JAMAIS sommées »).
+ * Le résultat de ce refus était juste mais coûteux : la moitié du jeu perdait
+ * son territoire sans le moindre avertissement sur son téléphone. On écrit
+ * donc la copie qui manquait, au lieu de continuer à se taire.
+ *
+ * ═══ LA STRUCTURE, ET CE QU'ELLE INTERDIT ═══════════════════════════════════
+ * `count` (fragment « {n} zones à vélo ») est SÉPARÉ de `single` (la phrase) et
+ * de `save` (l'action). Ce découpage n'est pas de l'élégance : c'est ce qui
+ * rend le cas MIXTE énonçable sans addition. Les fragments se juxtaposent
+ * (« 3 zones à pied et 2 zones à vélo »), ils ne se cumulent jamais en un
+ * total. Et parce que la liste se construit en bouclant sur `perActivity`,
+ * une TROISIÈME discipline un jour n'exigerait aucune phrase de plus.
+ *
+ * Placeholders : `{n}` nombre de zones, `{c}` fragment de compte déjà rendu,
+ * `{d}` jours restants, `{save}` l'action qui sauve, `{list}` les mondes
+ * juxtaposés. Structure de chaque phrase : CE QUI SE PASSE, puis CE QUI LE
+ * RÈGLE. Aucune ne dit au joueur qu'il a mal fait.
  */
-const DECAY_COPY: Readonly<
-  Record<PushLocale, { title: string; one: string; many: string }>
-> = {
+interface DecayLocaleCopy {
+  title: string;
+  /** Fragment de compte PAR MONDE — « 1 zone à vélo » / « {n} zones à vélo ». */
+  count: Readonly<Record<Activity, Plural>>;
+  /** Phrase à UN SEUL monde menacé : `{c}`, `{d}`, `{save}`. */
+  single: Plural;
+  /**
+   * L'action qui SAUVE la zone, PAR MONDE. C'est le cœur du correctif : une
+   * course ne défend pas un territoire vélo, et l'inverse est vrai aussi.
+   */
+  save: Readonly<Record<Activity, Plural>>;
+  /** Liaison de la liste mixte (espaces compris — ils diffèrent d'une langue à l'autre). */
+  and: string;
+  /**
+   * Phrase à PLUSIEURS mondes : `{list}`, `{d}`. Le délai y est celui de la
+   * PREMIÈRE échéance et se dit « au plus tôt » — sans quoi le joueur croirait
+   * que tout part le même jour. Elle ne porte aucun total, et renvoie chaque
+   * monde à sa propre discipline plutôt que d'y prescrire une action unique.
+   */
+  mixed: string;
+}
+
+const DECAY_COPY: Readonly<Record<PushLocale, DecayLocaleCopy>> = {
   fr: {
     title: 'Ton territoire s’efface bientôt',
-    one: '1 zone redevient neutre dans {d} j. Une course dessus la garde.',
-    many: '{n} zones redeviennent neutres dans {d} j. Une course dessus les garde.',
+    count: {
+      run: { one: '1 zone à pied', many: '{n} zones à pied' },
+      bike: { one: '1 zone à vélo', many: '{n} zones à vélo' },
+    },
+    single: {
+      one: '{c} redevient neutre dans {d} j. {save}',
+      many: '{c} redeviennent neutres dans {d} j. {save}',
+    },
+    save: {
+      run: { one: 'Une course dessus la garde.', many: 'Une course dessus les garde.' },
+      bike: {
+        one: 'Une sortie vélo dessus la garde.',
+        many: 'Une sortie vélo dessus les garde.',
+      },
+    },
+    and: ' et ',
+    mixed: '{list} redeviennent neutres dans {d} j au plus tôt. ' +
+      'Chaque monde se défend dans sa discipline.',
   },
   en: {
     title: 'Your turf is fading soon',
-    one: '1 zone turns neutral in {d} d. A run across it keeps it.',
-    many: '{n} zones turn neutral in {d} d. A run across them keeps them.',
+    count: {
+      run: { one: '1 running zone', many: '{n} running zones' },
+      bike: { one: '1 cycling zone', many: '{n} cycling zones' },
+    },
+    single: {
+      one: '{c} turns neutral in {d} d. {save}',
+      many: '{c} turn neutral in {d} d. {save}',
+    },
+    save: {
+      run: { one: 'A run across it keeps it.', many: 'A run across them keeps them.' },
+      bike: { one: 'A ride across it keeps it.', many: 'A ride across them keeps them.' },
+    },
+    and: ' and ',
+    mixed: '{list} turn neutral in {d} d at the earliest. ' +
+      'Each world is defended in its own discipline.',
   },
   es: {
     title: 'Tu territorio se borra pronto',
-    one: '1 zona vuelve a ser neutral en {d} d. Una carrera por encima la conserva.',
-    many: '{n} zonas vuelven a ser neutrales en {d} d. Una carrera por encima las conserva.',
+    count: {
+      run: { one: '1 zona a pie', many: '{n} zonas a pie' },
+      bike: { one: '1 zona en bici', many: '{n} zonas en bici' },
+    },
+    single: {
+      one: '{c} vuelve a ser neutral en {d} d. {save}',
+      many: '{c} vuelven a ser neutrales en {d} d. {save}',
+    },
+    save: {
+      run: {
+        one: 'Una carrera por encima la conserva.',
+        many: 'Una carrera por encima las conserva.',
+      },
+      bike: {
+        one: 'Una salida en bici por encima la conserva.',
+        many: 'Una salida en bici por encima las conserva.',
+      },
+    },
+    and: ' y ',
+    mixed: '{list} vuelven a ser neutrales en {d} d como muy pronto. ' +
+      'Cada mundo se defiende en su disciplina.',
   },
   de: {
     title: 'Dein Gebiet verblasst bald',
-    one: '1 Zone wird in {d} T. wieder neutral. Ein Lauf darüber behält sie.',
-    many: '{n} Zonen werden in {d} T. wieder neutral. Ein Lauf darüber behält sie.',
+    count: {
+      run: { one: '1 Laufzone', many: '{n} Laufzonen' },
+      bike: { one: '1 Radzone', many: '{n} Radzonen' },
+    },
+    single: {
+      one: '{c} wird in {d} T. wieder neutral. {save}',
+      many: '{c} werden in {d} T. wieder neutral. {save}',
+    },
+    save: {
+      run: { one: 'Ein Lauf darüber behält sie.', many: 'Ein Lauf darüber behält sie.' },
+      bike: {
+        one: 'Eine Radtour darüber behält sie.',
+        many: 'Eine Radtour darüber behält sie.',
+      },
+    },
+    and: ' und ',
+    mixed: '{list} werden frühestens in {d} T. wieder neutral. ' +
+      'Jede Welt verteidigt man in ihrer Disziplin.',
   },
   pt: {
     title: 'Seu território vai sumir em breve',
-    one: '1 zona volta a ser neutra em {d} d. Uma corrida por cima mantém ela.',
-    many: '{n} zonas voltam a ser neutras em {d} d. Uma corrida por cima mantém elas.',
+    count: {
+      run: { one: '1 zona a pé', many: '{n} zonas a pé' },
+      bike: { one: '1 zona de bike', many: '{n} zonas de bike' },
+    },
+    single: {
+      one: '{c} volta a ser neutra em {d} d. {save}',
+      many: '{c} voltam a ser neutras em {d} d. {save}',
+    },
+    save: {
+      run: {
+        one: 'Uma corrida por cima mantém ela.',
+        many: 'Uma corrida por cima mantém elas.',
+      },
+      bike: { one: 'Um pedal por cima mantém ela.', many: 'Um pedal por cima mantém elas.' },
+    },
+    and: ' e ',
+    mixed: '{list} voltam a ser neutras em {d} d no mínimo. ' +
+      'Cada mundo se defende na sua disciplina.',
   },
+};
+
+/** Choisit la forme et remplace `{n}` — le nombre décide, pas l'appelant. */
+const pluralize = (p: Plural, n: number): string =>
+  (n === 1 ? p.one : p.many).split('{n}').join(String(n));
+
+/** Remplace chaque `{clé}` par sa valeur. Aucun `{` ne doit survivre à l'écran. */
+const fill = (template: string, values: Readonly<Record<string, string | number>>): string => {
+  let out = template;
+  for (const [key, value] of Object.entries(values)) {
+    out = out.split(`{${key}}`).join(String(value));
+  }
+  return out;
 };
 
 /**
@@ -188,34 +331,109 @@ export function daysUntilDecay(earliestDecayAt: Date, now: Date): number {
   return Math.min(DECAY_WARNING_DAYS_BEFORE, Math.max(1, raw));
 }
 
+/** Ce qui s'efface DANS UN MONDE. Jamais additionné à l'autre (miroir de
+ * `DecayActivityWarning`, decay_job/logic.ts). */
+export interface DecayActivityCount {
+  activity: Activity;
+  /**
+   * Hexes menacés dans CETTE discipline. La clé primaire `(h3index, activity)`
+   * (0070) garantit qu'un hexagone n'y figure qu'une fois.
+   */
+  hexCount: number;
+  /** Échéance la plus proche DANS CE MONDE — le « dans N jours » de sa phrase. */
+  earliestDecayAt: Date;
+}
+
+/**
+ * Ce que decay_job sait d'un joueur à avertir (miroir de `DecayWarning`).
+ *
+ * IL N'Y A PLUS DE `hexCount` GLOBAL, et c'est le point : un compte unique
+ * tous mondes confondus serait la somme interdite par E14, et c'est cette
+ * forme-là qui obligeait le job à ne pousser que les joueurs menacés
+ * uniquement à pied. `perActivity` porte la vérité, monde par monde.
+ */
+export interface DecayTarget {
+  userId: string;
+  /**
+   * Un bloc par discipline menacée, dans l'ordre de `ACTIVITIES`. JAMAIS
+   * sommés. NON VIDE — un avertissement sans monde menacé n'existe pas
+   * (`groupWarningsByUser` n'en produit aucun) ; `buildDecayPush` lève si
+   * l'invariant est rompu, plutôt que d'envoyer une phrase creuse.
+   */
+  perActivity: readonly DecayActivityCount[];
+  /**
+   * Échéance la plus proche, toutes disciplines. C'est un INSTANT, pas un
+   * compte : prendre le plus tôt des deux mondes ne mélange aucun territoire.
+   */
+  earliestDecayAt: Date;
+}
+
+/**
+ * Corps du push d'avertissement. PUR.
+ *
+ * TROIS CAS, et le troisième est celui qui manquait :
+ *  · UN monde → sa phrase, son compte, et l'action qui SAUVE dans cette
+ *    discipline (une course pour la course, une sortie vélo pour le vélo) ;
+ *  · DEUX mondes (menace MIXTE) → les deux comptes JUXTAPOSÉS, jamais
+ *    additionnés, jamais l'un effacé au profit de l'autre ; le délai est celui
+ *    de la première échéance et se dit « au plus tôt » ; aucune action unique
+ *    n'est prescrite puisqu'il en faudrait deux ;
+ *  · AUCUN monde → impossible par construction (cf. `DecayTarget.perActivity`).
+ *    On lève : `decay_job` enveloppe la livraison dans un `try/catch` et
+ *    l'échec y est REMONTÉ (`pushTransportError`) sans toucher à l'inbox déjà
+ *    écrite. Un bug d'appelant se voit ; une notification vide, non.
+ */
+function decayBody(copy: DecayLocaleCopy, target: DecayTarget, now: Date): string {
+  const parts = target.perActivity;
+  if (parts.length === 0) {
+    throw new Error('buildDecayPush: aucun monde menacé — appelant fautif');
+  }
+
+  if (parts.length === 1) {
+    const [{ activity, hexCount, earliestDecayAt }] = parts;
+    return fill(hexCount === 1 ? copy.single.one : copy.single.many, {
+      c: pluralize(copy.count[activity], hexCount),
+      d: daysUntilDecay(earliestDecayAt, now),
+      save: pluralize(copy.save[activity], hexCount),
+    });
+  }
+
+  return fill(copy.mixed, {
+    list: parts.map((p) => pluralize(copy.count[p.activity], p.hexCount)).join(copy.and),
+    d: daysUntilDecay(target.earliestDecayAt, now),
+  });
+}
+
 export function buildDecayPush(
   device: PushDevice,
-  hexCount: number,
-  earliestDecayAt: Date,
+  target: DecayTarget,
   now: Date,
 ): PushMessage {
   const copy = DECAY_COPY[device.locale] ?? DECAY_COPY.fr;
-  const days = daysUntilDecay(earliestDecayAt, now);
-  const template = hexCount === 1 ? copy.one : copy.many;
   return {
     to: device.expoToken,
     title: copy.title,
-    body: template.split('{n}').join(String(hexCount)).split('{d}').join(String(days)),
+    body: decayBody(copy, target, now),
     // Le tap ouvre la carte sur ce qui s'efface — une notification sans action
     // est du spam (§5). `hexIds` reste côté serveur : le payload est minimal.
-    data: { type: 'decay_warning', cta: 'defend', hexCount },
+    //
+    // `byActivity` et PAS un `hexCount` mêlé : c'est exactement le payload que
+    // decay_job écrit déjà dans l'inbox, pour que les deux surfaces racontent
+    // le même événement — et pour qu'aucun client ne puisse réafficher une
+    // somme des deux mondes qu'on aurait laissée traîner ici.
+    data: {
+      type: 'decay_warning',
+      cta: 'defend',
+      byActivity: target.perActivity.map((p) => ({
+        activity: p.activity,
+        hexCount: p.hexCount,
+      })),
+    },
     priority: 'default',
   };
 }
 
 // ─── Sélection ───────────────────────────────────────────────────────────────
-
-/** Ce que decay_job sait d'un joueur à avertir (miroir de DecayWarning). */
-export interface DecayTarget {
-  userId: string;
-  hexCount: number;
-  earliestDecayAt: Date;
-}
 
 export type SuppressReason =
   | PushBlockReason
@@ -277,7 +495,7 @@ export function planDecayPushes(
 
     sends.push({
       userId: target.userId,
-      messages: opted.map((d) => buildDecayPush(d, target.hexCount, target.earliestDecayAt, now)),
+      messages: opted.map((d) => buildDecayPush(d, target, now)),
     });
   }
 

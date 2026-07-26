@@ -21,7 +21,6 @@ import {
   resolveLocation,
   type MapAccessState,
   type MapDataState,
-  type MapLens,
   type MapLocationProvider,
   type MapPlan,
 } from './locationState.ts';
@@ -214,13 +213,20 @@ Deno.test('les 4 phrases de localisation : distinctes, traduites, et COMPACTES (
 // ═══════════════════════════════════════════════════════════════════════════
 // LA MATRICE « UN SEUL RÉCIT DOMINANT » (retour fondateur 25/07/2026)
 //
-// Ce bloc est le filet du livrable durable du lot : il balaie les 120
-// combinaisons (accès × lentille × données × capacité réglages) et verrouille
-// les invariants qui, s'ils cèdent, ramènent EXACTEMENT le défaut signalé —
+// Ce bloc est le filet du livrable durable du lot : il balaie les 60
+// combinaisons (accès × données × capacité réglages) et verrouille les
+// invariants qui, s'ils cèdent, ramènent EXACTEMENT le défaut signalé —
 // plusieurs récits concurrents, ou une alerte qui n'est qu'une phrase de plus.
-// ═══════════════════════════════════════════════════════════════════════════
-
-const LENSES: readonly MapLens[] = ['run', 'bike'];
+//
+// ⚠️ L'AXE « LENTILLE » A DISPARU LE 26/07/2026, et c'est le sujet du lot
+// « la lentille ». Il valait `['run','bike']` et doublait la matrice pour une
+// seule raison : en Bike, `mapPlan` court-circuitait tout (récit `bike`, GO
+// retiré, aucune barre). Ce court-circuit existait parce que le vélo n'était
+// enregistré nulle part. Il l'est désormais : la lentille décide QUELLES LIGNES
+// sont lues (`.eq('activity', …)`), donc elle arrive ici déjà digérée sous la
+// forme de `data`. Un monde vélo sans capture rend `data: 'empty'` — exactement
+// comme un monde course sans capture, et c'est le même récit `first-capture`.
+// Ne PAS réintroduire cet axe : ce serait rouvrir « bike = état spécial ».
 
 /** Les trois récits qui parlent de POSITION — ceux que la barre ne doit jamais doubler. */
 const LOCATION_NARRATIVES = ['grant-location', 'denied-location', 'retry-location'];
@@ -229,18 +235,15 @@ const LOCATION_NARRATIVES = ['grant-location', 'denied-location', 'retry-locatio
 function forEveryCombination(
   check: (plan: MapPlan, input: {
     access: MapAccessState;
-    lens: MapLens;
     data: MapDataState;
     canOpenSettings: boolean;
   }) => void,
 ): void {
   for (const access of MAP_ACCESS_STATES) {
-    for (const lens of LENSES) {
-      for (const data of MAP_DATA_STATES) {
-        for (const canOpenSettings of [true, false]) {
-          const input = { access, lens, data, canOpenSettings };
-          check(mapPlan(input), input);
-        }
+    for (const data of MAP_DATA_STATES) {
+      for (const canOpenSettings of [true, false]) {
+        const input = { access, data, canOpenSettings };
+        check(mapPlan(input), input);
       }
     }
   }
@@ -249,7 +252,6 @@ function forEveryCombination(
 Deno.test('matrice : chaque combinaison rend UN récit, jamais deux ni zéro', () => {
   const known = new Set([
     'skeleton',
-    'bike',
     'grant-location',
     'denied-location',
     'retry-location',
@@ -267,8 +269,8 @@ Deno.test('matrice : chaque combinaison rend UN récit, jamais deux ni zéro', (
       `récit inconnu « ${plan.narrative} » pour ${JSON.stringify(input)}`,
     );
   });
-  // 6 accès × 2 lentilles × 5 états de données × 2 capacités = 120.
-  assertEquals(seen, 120);
+  // 6 accès × 5 états de données × 2 capacités = 60.
+  assertEquals(seen, 60);
 });
 
 Deno.test('matrice : la barre haute ne DOUBLE jamais le récit de la sheet', () => {
@@ -314,31 +316,35 @@ Deno.test('matrice : jamais « ouvrir les réglages » là où la plateforme n�
   });
 });
 
-Deno.test('matrice : la lentille BIKE prime sur tout, et n’ouvre aucun CTA chartreuse', () => {
+Deno.test('matrice : GO reste légitime dans TOUS les états — y compris en lentille vélo', () => {
+  // Deux raisons, et la seconde est le delta du 26/07/2026 :
+  //  · un refus de localisation ne rend pas GO mort (le préflight redemande la
+  //    permission et explique le refus) — le peindre indisponible serait un
+  //    mensonge dans l'autre sens ;
+  //  · GO était retiré en lentille Bike parce qu'un départ y aurait enregistré
+  //    une course à pied. Le départ déclare désormais sa discipline
+  //    (`START_ACTIVITY_PARAM`), donc le bouton tient sa promesse dans les deux
+  //    mondes. Comme la lentille n'est plus un axe de cette matrice, `go` est
+  //    inconditionnellement vrai — et ce test le dit.
   forEveryCombination((plan, input) => {
-    if (input.lens !== 'bike') return;
-    assertEquals(plan.narrative, 'bike');
-    // GO enregistrerait une sortie vélo comme une course à pied : il se retire.
-    assertEquals(plan.go, false);
-    // Aucune barre de position : la lentille ne fait rien de la position.
-    assertEquals(plan.banner, 'none');
-    // L'action existe et elle est VRAIE (bascule de préférence, pas un moteur vélo).
-    assertEquals(plan.action, 'switch-to-run');
-  });
-});
-
-Deno.test('matrice : en Run, GO reste légitime dans TOUS les états', () => {
-  // Un refus de localisation ne rend pas GO mort : le préflight de course
-  // redemande la permission et explique le refus. Le peindre indisponible serait
-  // un mensonge dans l'autre sens.
-  forEveryCombination((plan, input) => {
-    if (input.lens === 'bike') return;
     assertEquals(plan.go, true, `GO retiré à tort sur ${JSON.stringify(input)}`);
   });
 });
 
+Deno.test('AUCUN récit ni action ne parle encore de « bike » / « switch-to-run »', () => {
+  // Garde structurel : ces deux valeurs ont été retirées des types. Ce test
+  // échoue si quelqu'un les réintroduit — c'est-à-dire s'il refait de la
+  // lentille vélo un état d'exception au lieu d'un monde ordinaire.
+  forEveryCombination((plan) => {
+    assertEquals(plan.narrative === ('bike' as unknown as typeof plan.narrative), false);
+    for (const action of [plan.action, plan.secondary, plan.bannerAction]) {
+      assertEquals(action === ('switch-to-run' as unknown as typeof action), false);
+    }
+  });
+});
+
 Deno.test('les trois états de position DEMANDENT trois choses différentes', () => {
-  const base = { lens: 'run' as const, data: 'empty' as const, canOpenSettings: true };
+  const base = { data: 'empty' as const, canOpenSettings: true };
   const unasked = mapPlan({ ...base, access: 'unasked' });
   const denied = mapPlan({ ...base, access: 'denied' });
   const unavailable = mapPlan({ ...base, access: 'unavailable' });
@@ -359,14 +365,14 @@ Deno.test('les trois états de position DEMANDENT trois choses différentes', ()
 });
 
 Deno.test('REFUS SUR WEB : pédagogie sans bouton, jamais un bouton mort', () => {
-  const plan = mapPlan({ access: 'denied', lens: 'run', data: 'empty', canOpenSettings: false });
+  const plan = mapPlan({ access: 'denied', data: 'empty', canOpenSettings: false });
   assertEquals(plan.narrative, 'denied-location');
   assertEquals(plan.action, 'none');
   assertEquals(plan.secondary, 'none');
 });
 
 Deno.test('CHARGEMENT ≠ VIDE : la sheet n’affirme rien pendant la lecture', () => {
-  const plan = mapPlan({ access: 'ok', lens: 'run', data: 'loading', canOpenSettings: true });
+  const plan = mapPlan({ access: 'ok', data: 'loading', canOpenSettings: true });
   assertEquals(plan.narrative, 'skeleton');
   assertEquals(plan.action, 'none');
 });
@@ -374,7 +380,7 @@ Deno.test('CHARGEMENT ≠ VIDE : la sheet n’affirme rien pendant la lecture', 
 Deno.test('« on ne sait pas encore » et « on cherche » ne déclenchent AUCUNE alerte', () => {
   for (const access of ['unknown', 'locating'] as const) {
     for (const data of MAP_DATA_STATES) {
-      const plan = mapPlan({ access, lens: 'run', data, canOpenSettings: true });
+      const plan = mapPlan({ access, data, canOpenSettings: true });
       assertEquals(plan.banner, 'none', `alerte prématurée : ${access} / ${data}`);
       assertEquals(
         LOCATION_NARRATIVES.includes(plan.narrative),
@@ -389,7 +395,6 @@ Deno.test('ce qui EMPÊCHE DE LIRE garde la sheet ; la position descend dans la 
   // Pas de session : aucune position ne rendra la carte utile tant que ça dure.
   const signedOut = mapPlan({
     access: 'unasked',
-    lens: 'run',
     data: 'signed-out',
     canOpenSettings: true,
   });
@@ -401,7 +406,6 @@ Deno.test('ce qui EMPÊCHE DE LIRE garde la sheet ; la position descend dans la 
   // Échec de lecture : on le dit et on le rejoue — jamais « tu n'as rien capturé ».
   const failed = mapPlan({
     access: 'denied',
-    lens: 'run',
     data: 'failed',
     canOpenSettings: true,
   });
@@ -411,13 +415,13 @@ Deno.test('ce qui EMPÊCHE DE LIRE garde la sheet ; la position descend dans la 
 });
 
 Deno.test('position connue : le territoire reprend la parole (et le widget son action)', () => {
-  const empty = mapPlan({ access: 'ok', lens: 'run', data: 'empty', canOpenSettings: true });
+  const empty = mapPlan({ access: 'ok', data: 'empty', canOpenSettings: true });
   // Courir EST l'action, et le bouton GO la porte déjà (§A.4) : pas de 2ᵉ CTA.
   assertEquals(empty.narrative, 'first-capture');
   assertEquals(empty.action, 'none');
   assertEquals(empty.banner, 'none');
 
-  const held = mapPlan({ access: 'ok', lens: 'run', data: 'territory', canOpenSettings: true });
+  const held = mapPlan({ access: 'ok', data: 'territory', canOpenSettings: true });
   assertEquals(held.narrative, 'territory');
   assertEquals(held.action, 'widget');
 });
@@ -426,7 +430,7 @@ Deno.test('la position passe devant le territoire quand celui-ci n’a rien d’
   // Un joueur qui ne se voit pas sur sa carte n'a aucune décision à prendre :
   // « où suis-je » précède « que faire ». La sheet est libre, elle porte l'action.
   for (const data of ['empty', 'territory'] as const) {
-    const plan = mapPlan({ access: 'unasked', lens: 'run', data, canOpenSettings: true });
+    const plan = mapPlan({ access: 'unasked', data, canOpenSettings: true });
     assertEquals(plan.narrative, 'grant-location');
     assertEquals(plan.banner, 'none', 'la sheet porte déjà la position : pas de barre');
   }

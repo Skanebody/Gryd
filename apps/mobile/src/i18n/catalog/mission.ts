@@ -189,13 +189,15 @@ export const C = defineCatalog({
     de: 'Mission starten',
     pt: 'Começar a missão',
   },
-  briefStartA11y: {
-    fr: 'Commencer la mission — démarrer une course de conquête',
-    en: 'Start the mission — begin a conquest run',
-    es: 'Empezar la misión — iniciar una carrera de conquista',
-    de: 'Mission starten — einen Eroberungslauf beginnen',
-    pt: 'Começar a missão — iniciar uma corrida de conquista',
-  },
+  // ─── `briefStartA11y` SUPPRIMÉ (26/07/2026) ────────────────────────────────
+  // « Commencer la mission — démarrer une COURSE de conquête », dans les cinq
+  // langues. Elle n'avait plus aucun appelant depuis que l'accessibilité du CTA
+  // se compose de `briefStart` + `ACTIVITY_NAME[activity]`
+  // (`features/map/MissionBriefingSheet.tsx`), justement pour nommer la
+  // discipline réelle. La garder, c'était laisser dans le catalogue une phrase
+  // fausse au mot près sous lentille vélo, prête à être re-consommée par le
+  // premier écran qui chercherait un libellé accessible tout fait. Une clé
+  // morte n'est pas neutre : c'est un piège en attente.
   /**
    * Microtexte CORRIGÉ. La planche dit « le GPS démarre après le compte à
    * rebours » : c'est l'inverse du code — la position est acquise AVANT

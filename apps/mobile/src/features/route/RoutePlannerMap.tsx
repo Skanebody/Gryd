@@ -171,8 +171,22 @@ export function RoutePlannerMap({ route, origin }: RoutePlannerMapProps) {
    * n'importe quel joueur, où qu'il soit. Les autres cartes avaient déjà leur
    * verrou `?? []` ; celle-ci était passée à travers. On lit désormais les VRAIES
    * captures, et `?? []` (pas de session / lecture en vol) peint une carte vide.
+   *
+   * ─── LA LENTILLE, POSÉE LE 26/07/2026 ────────────────────────────────────
+   * C'était la DERNIÈRE lecture de territoires sans discipline du dépôt : le
+   * hook retombait sur `DEFAULT_ACTIVITY` (course). Un cycliste qui ouvrait le
+   * planificateur voyait donc une carte VIDE sous son itinéraire alors qu'il
+   * tenait des zones — la clé primaire de `hex_claims` étant composite depuis
+   * 0070, ses captures vivent dans l'autre monde. Tout le reste du chemin
+   * déclarait déjà sa discipline (`startTargets.ts`, `liveRouting.ts`) ; il ne
+   * manquait que ce fil.
+   *
+   * La discipline est prise sur `route.activity`, pas sur une préférence : ce
+   * champ est la discipline dans laquelle la boucle affichée a RÉELLEMENT été
+   * routée (profil `foot` / `bike`). Peindre les territoires d'un autre monde
+   * que celui du tracé serait la même faute, déplacée d'un cran.
    */
-  const { territories } = useRealTerritories();
+  const { territories } = useRealTerritories(undefined, route.activity);
   const paintedTerritories = territories ?? [];
 
   /** Cadrage d'ouverture figé au montage (RealMap), puis fitBounds au tap. */

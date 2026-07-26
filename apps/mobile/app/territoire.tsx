@@ -60,14 +60,28 @@
  * · CLASSEMENT DE ZONE réduit à son titre + une phrase. Raison technique :
  *   aucune table, RPC ou vue n'agrège un palmarès de zone.
  *
+ * ─── LA PAGE DIT QUEL MONDE ELLE MONTRE (E14, vélo réel — 26/07/2026) ───────
+ * Elle lisait `hex_claims` SANS discipline, donc dans le monde par défaut : un
+ * joueur qui ne roule qu'à vélo ouvrait « Mon territoire » sur une carte vide
+ * et lisait « cours pour prendre ta première zone » alors qu'il tient des
+ * zones. La page lit maintenant les DEUX mondes pour savoir lequel est peuplé,
+ * en montre UN — le sien — et le NOMME au-dessus des métriques.
+ *
+ * Le commutateur n'apparaît QUE si les deux mondes ont réellement du
+ * territoire : sinon il ouvrirait sur un trou. Il est LOCAL et non mémorisé —
+ * /territoire n'est pas une des quatre surfaces où la planche E14 mémorise le
+ * choix « par onglet », et une page poussée qui rouvrirait un mois plus tard
+ * sur un monde qu'on ne se rappelle pas avoir choisi serait un piège.
+ *
  * Inchangé : screen('territoire') au montage (§8), vocabulaire zones/secteurs,
  * libellés courts NON tronqués, anti-shame, zéro position live.
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  DEFAULT_ACTIVITY,
   borderState,
   colors,
   elevation,
@@ -77,6 +91,7 @@ import {
   sizes,
   spacing,
   typography,
+  type Activity,
   type IconName,
 } from '@klaim/shared';
 import { TerritoryFranceMap } from '../src/features/territory/TerritoryFranceMap';
@@ -86,8 +101,12 @@ import {
   territoryPageState,
   territoryShowsMap,
 } from '../src/features/territory/pageState';
-import { useRealTerritories } from '../src/features/map/hexClaims';
+import { useMyWorlds, useRealTerritoriesByActivity } from '../src/features/map/hexClaims';
+import { profileTerritoryView } from '../src/features/territory/profileTerritory';
 import { formatKm2 } from '../src/features/widget/territoryWidget';
+import { ActivitySwitch } from '../src/ui/ActivitySwitch';
+import { flags } from '../src/lib/flags';
+import { WORLD_SCOPE, C as Cprofil } from '../src/i18n/catalog/profil';
 import { ZoneLeaderboard } from '../src/features/territory/ZoneLeaderboard';
 import { screen } from '../src/lib/analytics';
 import { Button } from '../src/ui/Button';
@@ -96,7 +115,7 @@ import { StackScreen } from '../src/ui/StackScreen';
 import { formatInt } from '../src/ui/format';
 import { useSession } from '../src/lib/session';
 import { useLocale, useT } from '../src/i18n/store';
-import { C } from '../src/i18n/catalog/historique';
+import { C, TERRITORY_SHARE_NOTE } from '../src/i18n/catalog/historique';
 import { C as Cmap } from '../src/i18n/catalog/map';
 
 /**
@@ -116,23 +135,66 @@ export default function TerritoireScreen() {
   }, []);
 
   /**
-   * Les VRAIES captures — même source et même hook que la Battle Map, pour que
-   * les deux écrans ne puissent pas se contredire. Appelé SANS `crewIds` :
-   * `stateFor` ne classe alors 'crew' que ce qui m'appartient (territoryBuild),
-   * ce qui est exactement le périmètre d'une page « Mon territoire ».
+   * Les VRAIES captures, DANS LES DEUX MONDES — même source que la Battle Map,
+   * pour que les deux écrans ne puissent pas se contredire. Appelé SANS
+   * `crewIds` : `stateFor` ne classe alors 'crew' que ce qui m'appartient
+   * (territoryBuild), ce qui est exactement le périmètre d'une page « Mon
+   * territoire ».
+   *
+   * ─── POURQUOI LES DEUX MONDES ICI (E14, 26/07/2026) ───────────────────────
+   * Cette page lisait `useRealTerritories()` sans discipline, donc le monde par
+   * défaut : un joueur qui ne roule qu'à vélo ouvrait « Mon territoire » sur
+   * une carte vide et lisait « cours pour prendre ta première zone » alors
+   * qu'il en tient. On lit les deux mondes pour SAVOIR lequel est peuplé, puis
+   * la page en montre UN et le NOMME (le commutateur ci-dessous est la sortie
+   * quand il y en a deux).
    */
-  const { territories, failed, signedOut, loading, reload } = useRealTerritories();
+  const { worlds, failed, signedOut, loading, reload } = useRealTerritoriesByActivity();
+  const myWorlds = useMyWorlds(worlds);
   // Un backend existe-t-il seulement ? Sans lui, « Se connecter » est un
   // cul-de-sac (l'écran d'auth redirige aussitôt vers la carte).
   const { configured } = useSession();
 
-  /** Mes possessions réelles : total de zones + surface réellement couverte. */
-  const mine = useMemo(
-    () => (territories ?? []).filter((ter) => ter.props.status === 'crew'),
-    [territories],
+  /**
+   * LENTILLE DE CETTE PAGE — locale, jamais persistée, et c'est un choix.
+   * La planche E14 mémorise le choix « par onglet » sur ses QUATRE surfaces ;
+   * /territoire n'en est pas une (c'est une page poussée depuis le Profil).
+   * Lui donner une clé de persistance la ferait s'ouvrir un mois plus tard sur
+   * un monde que le joueur ne se rappelle pas avoir choisi.
+   *
+   * `null` = le joueur n'a rien choisi → la page montre le monde qu'il POSSÈDE.
+   */
+  const [chosen, setChosen] = useState<Activity | null>(null);
+  const territoryView = useMemo(
+    () =>
+      myWorlds === null
+        ? null
+        : profileTerritoryView({
+            run: { areaM2: myWorlds.run.areaM2, zones: myWorlds.run.zones },
+            bike: { areaM2: myWorlds.bike.areaM2, zones: myWorlds.bike.zones },
+          }),
+    [myWorlds],
   );
-  const myZones = useMemo(() => mine.reduce((sum, ter) => sum + ter.zoneCount, 0), [mine]);
-  const myAreaM2 = useMemo(() => mine.reduce((sum, ter) => sum + ter.props.areaM2, 0), [mine]);
+  /**
+   * Le monde MONTRÉ. Sans choix explicite : celui que le joueur possède quand
+   * il n'en possède qu'un (c'est le correctif), sinon la discipline par défaut
+   * — qui, en hybride comme en compte neuf, ne masque rien d'inatteignable (le
+   * commutateur est là en hybride, et il n'y a rien à voir en compte neuf).
+   */
+  const shown: Activity =
+    chosen ?? (territoryView?.kind === 'single' ? territoryView.world.activity : DEFAULT_ACTIVITY);
+  /**
+   * Le commutateur n'apparaît QUE si les deux mondes ont du territoire. Sinon
+   * il ouvrirait sur un monde vide — et §A interdit de peindre une action dont
+   * le résultat est un trou. Son absence n'est pas un mensonge : la page dit
+   * quel monde elle montre, et il n'y en a qu'un.
+   */
+  const switchVisible = flags.bike && territoryView?.kind === 'both';
+
+  /** Mes possessions réelles DANS LE MONDE MONTRÉ — jamais une somme des deux. */
+  const world = myWorlds?.[shown] ?? null;
+  const myZones = world?.zones ?? 0;
+  const myAreaM2 = world?.areaM2 ?? 0;
 
   const pageState = territoryPageState({
     loading,
@@ -202,12 +264,34 @@ export default function TerritoireScreen() {
         </View>
       }
     >
+      {/* ── 0. LE MONDE MONTRÉ, DIT ET (s'il y en a deux) CHANGEABLE ────────
+             Une surface sans commutateur E14 ne doit pas choisir en silence :
+             la phrase de portée nomme la discipline, et le commutateur
+             n'apparaît que quand l'autre monde a réellement quelque chose à
+             montrer. §A : ce n'est pas un CTA (fond carbone, filet gris). ── */}
+      {territoryShowsMap(pageState) && metricKeys.length > 0 ? (
+        <View style={styles.lensRow}>
+          <Text style={styles.lensLabel}>{t(WORLD_SCOPE[shown])}</Text>
+          {switchVisible ? (
+            <ActivitySwitch
+              activity={shown}
+              onChange={setChosen}
+              runLabel={t(Cprofil.sectionTerritoryRun)}
+              bikeLabel={t(Cprofil.sectionTerritoryBike)}
+              testID="territoire-activity-switch"
+            />
+          ) : null}
+        </View>
+      ) : null}
+
       {/* ── 1. LE BLOC DE MÉTRIQUES — un seul bloc à séparateurs, 2 cellules
              MAX, jamais deux cards. Une métrique sans mesure DISPARAÎT : la
              page se TAIT plutôt que d'aligner un « 0 zone » sous un titre
              « Mon territoire », qui n'est pas une information mais un reproche
              (anti-shame). La surface contrôlée est LA mise en avant — c'est la
-             matière du jeu, et la seule cellule chartreuse de l'écran. ── */}
+             matière du jeu, et la seule cellule chartreuse de l'écran.
+             Les deux chiffres décrivent LE MONDE NOMMÉ juste au-dessus, jamais
+             une somme des deux (E14). ── */}
       {metricKeys.length > 0 ? (
         <View style={styles.metrics}>
           {metricKeys.map((key, i) =>
@@ -270,7 +354,13 @@ export default function TerritoireScreen() {
              en laissant croire qu'on regardait le territoire du joueur. ── */}
       {territoryShowsMap(pageState) ? (
         <View style={styles.mapWrap}>
-          <TerritoryFranceMap style={styles.map} testID="territoire-france-map" />
+          {/* La carte peint LE monde que la page vient de nommer — jamais les
+              deux superposés (cf. le bloc de tête de TerritoryFranceMap). */}
+          <TerritoryFranceMap
+            activity={shown}
+            style={styles.map}
+            testID="territoire-france-map"
+          />
         </View>
       ) : null}
 
@@ -287,12 +377,23 @@ export default function TerritoireScreen() {
              une ligne qu'aucun palmarès n'existe encore, au lieu d'afficher des
              coureurs qui n'existent pas. On ne le montre qu'à un joueur qui
              TIENT du territoire : sur une page déjà vide, une section de plus
-             qui dit « rien » n'apprend rien. ── */}
-      {pageState === 'held' ? <ZoneLeaderboard /> : null}
+             qui dit « rien » n'apprend rien.
+             Il reçoit le MONDE MONTRÉ : sans lui, la section disait « personne
+             n'a couru ici » sous un en-tête « À vélo » — l'écran se contredisait
+             sur lui-même (E14, 26/07/2026). ── */}
+      {pageState === 'held' ? <ZoneLeaderboard activity={shown} /> : null}
 
       {/* ── 6. Ce qui n'existe pas encore, dit à sa place : en bas, en gris,
-             après l'action (patron `qr.tsx`). ── */}
-      {pageState === 'held' ? <Text style={styles.footnote}>{t(C.territoryShareNote)}</Text> : null}
+             après l'action (patron `qr.tsx`).
+             ELLE AUSSI REÇOIT LE MONDE MONTRÉ (26/07/2026) : montée sous
+             `held`, donc dans l'état où `shown` peut valoir `bike` et où la
+             page IMPRIME « À vélo » quatre blocs plus haut, elle affirmait
+             « seule une COURSE terminée peut devenir une carte de partage ».
+             C'est le défaut que le commentaire du ZoneLeaderboard ci-dessus
+             décrit mot pour mot — la note de bas de page avait été oubliée. ── */}
+      {pageState === 'held' ? (
+        <Text style={styles.footnote}>{t(TERRITORY_SHARE_NOTE[shown])}</Text>
+      ) : null}
 
       {/* Dégagement du CTA flottant : `StackScreen` réserve la hauteur de la
           barre d'onglets, pas celle d'une barre d'action. Sans cette cale, la
@@ -305,6 +406,19 @@ export default function TerritoireScreen() {
 const styles = StyleSheet.create({
   // ── Bloc de métriques : UNE surface N1, colonnes séparées par un filet —
   //    jamais deux cards. La 1ʳᵉ colonne est plus large : c'est LA mise en avant.
+  /**
+   * Ligne « quel monde je regarde » : la phrase à gauche, le commutateur à
+   * droite quand il y a deux mondes. `flexShrink` sur le texte pour qu'il
+   * enroule au lieu de pousser la capsule hors de l'écran (§A.9).
+   */
+  lensRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  lensLabel: { flexShrink: 1, color: colors.gris, fontSize: fontSizes.xs, lineHeight: fontSizes.xs * 1.4 },
   metrics: {
     flexDirection: 'row',
     alignItems: 'stretch',

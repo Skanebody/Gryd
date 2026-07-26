@@ -2,27 +2,32 @@
 // Source : packages/engine/src/route.ts
 
 /**
- * GRYD — engine/route.ts : GARDE-FOUS de WALKABILITÉ des itinéraires.
+ * GRYD — engine/route.ts : GARDE-FOUS de PRATICABILITÉ des itinéraires.
  * « Vérifier que les routes utilisées sont bien accessibles à pied et non des
  * autoroutes. » Fonction PURE (aucune I/O, réseau, horloge) — SOURCE DE VÉRITÉ,
  * testée Deno, mirroir mobile dans apps/mobile/src/features/route/walkability.ts.
  *
  * Deux dimensions de contrôle (défense en profondeur — la génération se fait déjà
- * au profil piéton ROUTE_PEDESTRIAN_PROFILE, ceci RE-VÉRIFIE) :
+ * au profil de routage de la discipline, ceci RE-VÉRIFIE) :
  *   • CLASSES DE VOIES (si connues, ex. import Strava / génération taguée) :
- *     toute classe de ROUTE_FORBIDDEN_HIGHWAY_CLASSES (motorway/trunk…) → rejet
- *     DUR (non walkable). Classe hors allowlist/denylist → `unknown_class`
- *     (signal doux, pas un rejet).
+ *     toute classe interdite DANS LA DISCIPLINE (motorway/trunk…) → rejet DUR.
+ *     Classe hors allowlist/denylist → `unknown_class` (signal doux, pas un rejet).
  *   • CONNEXITÉ GÉOMÉTRIQUE : un saut > ROUTE_MAX_STEP_M entre deux sommets =
- *     `disconnected` (téléport / hors réseau) → non walkable. < ROUTE_MIN_POINTS
+ *     `disconnected` (téléport / hors réseau) → non praticable. < ROUTE_MIN_POINTS
  *     points → `too_short`.
+ *
+ * DISCIPLINE (E14, décision fondateur 26/07/2026) : les listes de classes se
+ * lisent dans `activityRouting(activity)`. Argument absent ⇒ DEFAULT_ACTIVITY,
+ * donc EXACTEMENT le contrôle piéton d'avant le vélo — la rétro-compatibilité
+ * est dans la signature, pas dans une intention.
  * Toutes les constantes viennent de @klaim/shared/game-rules (aucun nombre magique).
  */
 import {
-  ROUTE_FORBIDDEN_HIGHWAY_CLASSES,
+  type Activity,
+  activityRouting,
+  DEFAULT_ACTIVITY,
   ROUTE_MAX_STEP_M,
   ROUTE_MIN_POINTS,
-  ROUTE_WALKABLE_HIGHWAY_CLASSES,
 } from '../game-rules.ts';
 import { haversineM } from './validation.ts';
 
@@ -68,24 +73,45 @@ export interface RouteViolation {
 export interface RouteWalkabilityResult {
   /**
    * VRAI si aucune violation DURE : ni classe interdite, ni déconnexion, ni
-   * `too_short`. C'est LE verrou — une route non walkable n'est jamais proposée.
+   * `too_short`. C'est LE verrou — une route non praticable n'est jamais
+   * proposée. (Nom historique « walkable » : il vaut désormais « praticable
+   * DANS LA DISCIPLINE demandée » ; à vélo, il se lit « roulable ».)
    */
   walkable: boolean;
-  /** `walkable` ET aucun signal doux (`unknown_class`) — walkabilité stricte. */
+  /** `walkable` ET aucun signal doux (`unknown_class`) — praticabilité stricte. */
   ok: boolean;
   violations: readonly RouteViolation[];
 }
 
-const FORBIDDEN = new Set(ROUTE_FORBIDDEN_HIGHWAY_CLASSES);
-const WALKABLE = new Set(ROUTE_WALKABLE_HIGHWAY_CLASSES);
+/**
+ * Ensembles de classes PAR DISCIPLINE, construits une fois. `Set` plutôt que
+ * `Array.includes` pour la même raison qu'avant : le contrôle passe sur chaque
+ * segment d'un itinéraire.
+ */
+const CLASS_SETS: Readonly<Record<Activity, { forbidden: Set<string>; usable: Set<string> }>> = {
+  run: {
+    forbidden: new Set(activityRouting('run').forbiddenHighwayClasses),
+    usable: new Set(activityRouting('run').usableHighwayClasses),
+  },
+  bike: {
+    forbidden: new Set(activityRouting('bike').forbiddenHighwayClasses),
+    usable: new Set(activityRouting('bike').usableHighwayClasses),
+  },
+};
 
 /**
- * Contrôle de walkabilité d'un itinéraire (garde-fou piéton). Ordre des
+ * Contrôle de praticabilité d'un itinéraire dans SA discipline. Ordre des
  * violations STABLE : too_short, puis déconnexions (par index), puis classes.
+ *
+ * `activity` absent ⇒ course à pied : le comportement historique, à l'identique.
  */
-export function validateRouteWalkability(route: RouteToCheck): RouteWalkabilityResult {
+export function validateRouteWalkability(
+  route: RouteToCheck,
+  activity: Activity = DEFAULT_ACTIVITY,
+): RouteWalkabilityResult {
   const violations: RouteViolation[] = [];
   const pts = route.points;
+  const { forbidden, usable } = CLASS_SETS[activity] ?? CLASS_SETS.run;
 
   if (pts.length < ROUTE_MIN_POINTS) {
     violations.push({
@@ -111,9 +137,9 @@ export function validateRouteWalkability(route: RouteToCheck): RouteWalkabilityR
   // Classes de voies (si fournies) : denylist = rejet dur, hors allowlist = doux.
   if (route.roadClasses) {
     route.roadClasses.forEach((cls, i) => {
-      if (FORBIDDEN.has(cls)) {
+      if (forbidden.has(cls)) {
         violations.push({ kind: 'forbidden_class', index: i, detail: cls });
-      } else if (!WALKABLE.has(cls)) {
+      } else if (!usable.has(cls)) {
         violations.push({ kind: 'unknown_class', index: i, detail: cls });
       }
     });
@@ -126,7 +152,13 @@ export function validateRouteWalkability(route: RouteToCheck): RouteWalkabilityR
   return { walkable: !hard, ok: !hard && !soft, violations };
 }
 
-/** Raccourci booléen — VRAI si la route est praticable à pied (aucune violation dure). */
-export function isRouteWalkable(route: RouteToCheck): boolean {
-  return validateRouteWalkability(route).walkable;
+/**
+ * Raccourci booléen — VRAI si la route est praticable DANS SA DISCIPLINE
+ * (aucune violation dure). Discipline absente ⇒ course à pied.
+ */
+export function isRouteWalkable(
+  route: RouteToCheck,
+  activity: Activity = DEFAULT_ACTIVITY,
+): boolean {
+  return validateRouteWalkability(route, activity).walkable;
 }

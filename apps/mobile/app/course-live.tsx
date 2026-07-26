@@ -34,7 +34,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
+import { type Activity, colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -43,7 +43,8 @@ import { useRealRun } from '../src/features/run/gps/useRealRun';
 import type { RunUnavailableReason } from '../src/features/run/gps/locationAdapter';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
 import { RunPreflight } from '../src/features/run/gps/RunPreflight';
-import { C } from '../src/i18n/catalog/courseLive';
+import { parseStartActivity, START_ACTIVITY_PARAM } from '../src/features/run/gps/runActivity';
+import { C, COURSE_LIVE_COPY } from '../src/i18n/catalog/courseLive';
 import { useT } from '../src/i18n/store';
 
 /**
@@ -60,14 +61,24 @@ export default function CourseLiveScreen() {
 }
 
 function CourseLiveGate({ onRetry }: { onRetry: () => void }) {
-  const params = useLocalSearchParams<{ mode?: string }>();
-  // Le mode est la SEULE chose que l'URL décide encore. Les autres paramètres
-  // d'autrefois (`route`, `intention`, `boundary`, `mission`, `planned`) ne
-  // pilotaient que la course fabriquée : ils choisissaient une polyligne
-  // d'authoring, un nom de zone, une frontière crew inventée. Le tracé réel n'a
-  // besoin d'aucun d'eux — et le serveur (ingest_run) reste seul à classer
-  // conquis/défendu, APRÈS la course, d'après ce qui a été vraiment couru.
+  const params = useLocalSearchParams<{ mode?: string; activity?: string }>();
+  // Le MODE et la DISCIPLINE sont les deux seules choses que l'URL décide. Les
+  // paramètres d'autrefois (`route`, `intention`, `boundary`, `mission`,
+  // `planned`) ne pilotaient que la course fabriquée : ils choisissaient une
+  // polyligne d'authoring, un nom de zone, une frontière crew inventée. Le
+  // tracé réel n'a besoin d'aucun d'eux — et le serveur (ingest_run) reste seul
+  // à classer conquis/défendu, APRÈS la course, d'après ce qui a été couru.
   const mode = runModeFromParam(params.mode);
+  /**
+   * E14 — LA DISCIPLINE EST DÉCLARÉE PAR LE CHEMIN QUI LANCE (`?activity=bike`).
+   * Absente ⇒ course à pied, le comportement de tous les chemins existants.
+   * Elle n'est PAS appliquée en silence : le préflight l'affiche pendant le
+   * décompte et laisse la corriger — c'est ce qui sépare « informer le départ »
+   * (légitime) de « décider à la place du joueur » (le défaut du 25/07, où une
+   * lentille de carte oubliée envoyait une vraie course à pied dans le monde
+   * vélo). Voir `features/run/gps/runActivity.ts`.
+   */
+  const requestedActivity = parseStartActivity(params[START_ACTIVITY_PARAM]);
   const gate = useRealRun(mode);
   // Lecture EN COURS : on cherche la position, on n'affirme RIEN.
   // (Avant : `<View style={styles.root} />` — un rectangle noir muet. Derrière
@@ -77,11 +88,20 @@ function CourseLiveGate({ onRetry }: { onRetry: () => void }) {
   // E06 — acquisition OK : préflight + compte à rebours avant que la course
   // (horloge + capteurs) ne démarre vraiment. RunStarting (« lecture en cours »)
   // et RunUnavailable (bloquant) restent inchangés.
-  if (gate.kind === 'preflight') return <RunPreflight preflight={gate.preflight} />;
+  if (gate.kind === 'preflight')
+    return <RunPreflight preflight={gate.preflight} requestedActivity={requestedActivity} />;
   if (gate.kind === 'real') return <RealCourseLive run={gate.run} />;
   // Il n'existe AUCUN troisième chemin : le type `RealRunGate` n'a que ces
   // trois branches, et aucune ne fabrique de course.
-  return <RunUnavailable reason={gate.reason} onRetry={onRetry} />;
+  //
+  // La discipline DEMANDÉE accompagne le refus : c'est le premier écran qu'un
+  // cycliste voit quand sa localisation est coupée, et le lui refuser en
+  // l'appelant « course » ajoute au refus une erreur sur ce qu'il faisait. Elle
+  // n'a pas pu être confirmée (le préflight ne s'est jamais affiché) mais c'est
+  // la seule connue, et exactement celle que le préflight aurait montrée.
+  return (
+    <RunUnavailable reason={gate.reason} activity={requestedActivity} onRetry={onRetry} />
+  );
 }
 
 /**
@@ -115,32 +135,38 @@ function RunStarting() {
  */
 function RunUnavailable({
   reason,
+  activity,
   onRetry,
 }: {
   reason: RunUnavailableReason;
+  /** Discipline DÉCLARÉE par le chemin de départ — voir `COURSE_LIVE_COPY`. */
+  activity: Activity;
   onRetry: () => void;
 }) {
   const t = useT();
   const insets = useSafeAreaInsets();
   const web = Platform.OS === 'web';
+  const copy = COURSE_LIVE_COPY[activity];
 
   useEffect(() => {
     // Mesure du mur : combien de GO meurent faute de position, et POURQUOI
     // (le funnel pilote distinguait « pas de GPS » sans jamais savoir laquelle).
-    screen('course_live_no_gps', { platform: Platform.OS, reason });
-  }, [reason]);
+    // La discipline part avec : un mur qui ne tombe que sur les sorties vélo ne
+    // se verrait pas dans un compteur qui les mélange.
+    screen('course_live_no_gps', { platform: Platform.OS, reason, activity });
+  }, [reason, activity]);
 
   /** Une raison = une phrase. Elles ne se règlent pas au même endroit. */
   const body =
     reason === 'no-sensor'
-      ? C.noGpsNoSensorBody
+      ? copy.noGpsNoSensorBody
       : reason === 'services-off'
-        ? C.noGpsServicesOffBody
+        ? copy.noGpsServicesOffBody
         : reason === 'denied'
           ? web
-            ? C.noGpsDeniedWebBody
-            : C.noGpsNativeBody
-          : C.noGpsUnavailableBody;
+            ? copy.noGpsDeniedWebBody
+            : copy.noGpsNativeBody
+          : copy.noGpsUnavailableBody;
 
   /**
    * L'UNIQUE action chartreuse (§A). Les Réglages système n'existent que sur
@@ -177,7 +203,7 @@ function RunUnavailable({
       <View style={styles.blockedIcon}>
         <Icon name="gps" size={28} color={colors.gris} />
       </View>
-      <Text style={styles.blockedTitle}>{t(C.noGpsTitle)}</Text>
+      <Text style={styles.blockedTitle}>{t(copy.noGpsTitle)}</Text>
       <Text style={styles.blockedBody}>{t(body)}</Text>
 
       <View style={[styles.blockedActions, { paddingBottom: insets.bottom + spacing.lg }]}>

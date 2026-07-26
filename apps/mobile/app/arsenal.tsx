@@ -88,7 +88,7 @@ import {
 } from '@klaim/shared';
 import { Redirect, router } from 'expo-router';
 import { C } from '../src/i18n/catalog/flagged';
-import { SHOP_C } from '../src/i18n/catalog/arsenal';
+import { SHOP_C, shopPauseCopy } from '../src/i18n/catalog/arsenal';
 import { useT } from '../src/i18n/store';
 import { flags } from '../src/lib/flags';
 import { useSession } from '../src/lib/session';
@@ -166,6 +166,8 @@ function ArsenalBody() {
   const { wallet: rawWallet, ownedKeys: rawOwned, equipped } = arsenalInventory;
   const season = useActiveSeason();
   const runInProgress = useRunInProgress();
+  /** Copie de la pause boutique, dans le monde de la sortie EN COURS (E14). */
+  const runPause = shopPauseCopy(runInProgress.activity);
 
   /**
    * SOLDE ET INVENTAIRE : LUS, OU RIEN. `useArsenalInventory` ne fabrique plus
@@ -294,10 +296,17 @@ function ArsenalBody() {
       ) : null}
 
       {runInProgress.running ? (
-        /* Course en cours : la boutique se met en pause, on le DIT. */
+        /* Sortie en cours : la boutique se met en pause, on le DIT — et on le
+           dit DANS LE MONDE DE CETTE SORTIE. `useRunInProgress` remonte la
+           discipline persistée au départ (`activity`) depuis le 26/07 ; cet
+           écran ne lisait que le booléen `running` et rendait « Course en
+           cours. / on ne te vend rien pendant que tu cours » à un cycliste au
+           milieu de sa sortie. La donnée était là, seul le câblage manquait.
+           `activity` vaut `null` quand la discipline est INCONNUE : la copie
+           neutre s'applique alors — on ne devine pas (cf. shopPauseCopy). */
         <View style={styles.statePanel}>
-          <Text style={styles.statePanelTitle}>{t(SHOP_C.runBlockTitle)}</Text>
-          <Text style={styles.statePanelBody}>{t(SHOP_C.runBlockBody)}</Text>
+          <Text style={styles.statePanelTitle}>{t(runPause.title)}</Text>
+          <Text style={styles.statePanelBody}>{t(runPause.body)}</Text>
         </View>
       ) : null}
 

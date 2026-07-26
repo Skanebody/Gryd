@@ -12,18 +12,42 @@
  *   4. « SÉPARATION STRICTE : jamais Run + Bike dans une même lecture
  *      compétitive, jamais de somme ».
  *
- * ─── LE POINT D'HONNÊTETÉ, QUI EST TOUT LE SUJET ────────────────────────────
- * L'univers vélo est VIDE. Pas « pas encore rempli » : structurellement vide —
- * la discipline d'une sortie est DÉCLARÉE par le chemin qui la lance, et tous
- * déclarent la course à pied (`features/run/gps/runActivity.ts`,
- * `DECLARED_START_ACTIVITY: Extract<Activity, 'run'>`). Basculer en Bike sur le
- * Classement, l'Historique ou les Statistiques ne doit donc JAMAIS montrer les
- * données Run sous une étiquette vélo : ce serait exactement la donnée
- * fabriquée que la charte interdit. `activityIsRecorded` porte ce fait, et
- * `activitySwitch.test.ts` casse le jour où la déclaration s'élargit — pour que
- * la COPIE des états vides soit revue AVANT que le vélo n'existe, pas après.
+ * ─── LE VÉLO EST DEVENU UNE DISCIPLINE RÉELLE (fondateur, 26/07/2026) ───────
+ * Ce fichier a porté, du 25 au 26/07/2026, un « POINT D'HONNÊTETÉ » qui disait :
+ * « l'univers vélo est VIDE. Pas “pas encore rempli” : structurellement vide ».
+ * C'ÉTAIT VRAI À LA LETTRE, et ça ne l'est plus. Décision fondateur, mot pour
+ * mot : « il faut tout brancher pour que la partie bike fonctionne dès
+ * maintenant […] il faut avoir sa propre data, ses propres classements etc ».
+ * Le schéma est appliqué en production (migration 0070 : `runs.activity`,
+ * `hex_claims` clé `(h3index, activity)`, `season_scores` clé
+ * `(season_id, user_id, activity)`), le moteur est paramétré par discipline, et
+ * les lecteurs clients de ce chantier portent désormais `.eq('activity', …)`.
+ *
+ * CONSÉQUENCE DIRECTE ICI, et c'est tout le delta de ce fichier :
+ *   · `RECORDED_ACTIVITIES` / `activityIsRecorded` / la MARQUE « PAS ENCORE »
+ *     ont été RETIRÉS. Ils existaient pour dire « cette lentille ne peut RIEN
+ *     contenir » — une propriété de la DISCIPLINE. Elle est fausse maintenant :
+ *     une lentille vélo vide l'est parce que CE JOUEUR n'a pas encore roulé,
+ *     exactement comme une lentille course est vide chez un nouveau venu. Ce
+ *     n'est plus une marque sur un contrôle, c'est un ÉTAT VIDE d'écran — et un
+ *     état vide se dit comme un début, avec l'action qui le remplit.
+ *   · les deux segments redeviennent des PAIRS : même largeur, même grammaire,
+ *     même accent quand ils sont actifs. Une inégalité visuelle affirmerait une
+ *     hiérarchie entre les deux mondes que le produit ne pose plus.
+ *
+ * CE QUI N'A PAS CHANGÉ, ET NE DOIT PAS : `competitiveReadAllowed`. Certaines
+ * sources restent MONO-POT côté serveur (`user_stats` → `specialty_leaderboard`,
+ * `user_badges`) : elles mélangent réellement les deux disciplines, et les
+ * servir sous une étiquette vélo serait la somme que la planche interdit. Le
+ * garde-fou vit là, sur la SOURCE, pas sur la discipline.
  */
 import { ACTIVITIES, DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
+// Le NOM du paramètre de déclaration appartient au domaine du DÉPART, pas à la
+// lentille : on l'importe au lieu d'écrire « activity » en dur. Deux chaînes
+// égales aujourd'hui finiraient par diverger, et la divergence serait SILENCIEUSE
+// (la sortie repartirait dans la discipline par défaut, sans la moindre erreur).
+// Ce module reste PUR — `runActivity.ts` ne lit rien non plus.
+import { START_ACTIVITY_PARAM } from '../features/run/gps/runActivity';
 
 /** Les surfaces de la planche E14 qui portent le commutateur. */
 export const ACTIVITY_SURFACES = ['map', 'classement', 'historique', 'stats'] as const;
@@ -56,18 +80,42 @@ export function parseActivity(raw: string | null | undefined): Activity | null {
 }
 
 /**
- * Les disciplines dont GRYD sait RÉELLEMENT enregistrer une sortie aujourd'hui.
+ * DÉCLARATION DE DISCIPLINE sur une cible de départ (E14, 26/07/2026).
  *
- * Ce n'est pas une opinion : c'est le miroir de `DECLARED_START_ACTIVITY`, dont
- * le type `Extract<Activity, 'run'>` interdit au compilateur toute autre valeur.
- * Une surface qui bascule sur une discipline NON enregistrée doit rendre un
- * état vide NOMMÉ — jamais les lignes de l'autre monde sous une nouvelle
- * étiquette, jamais un « 0 » nu.
+ * Tout écran qui propose « lance ta première sortie » sous une lentille doit
+ * lancer CETTE discipline-là — sinon le joueur appuie depuis son monde vélo et
+ * enregistre une course à pied, c'est-à-dire exactement le scénario « il rentre
+ * chez lui avec 0 zone » que l'arbitrage du 25/07 a coûté cher à refermer.
+ *
+ * Le contrat est un paramètre d'URL nommé par `features/run/gps/runActivity.ts`
+ * (`START_ACTIVITY_PARAM`) : c'est le DÉPART qui le lit. Il ne va JAMAIS
+ * chercher la préférence de carte lui-même — l'interdit du 25/07 tient : une
+ * préférence d'AFFICHAGE ne décide jamais EN SILENCE de la NATURE d'un effort.
+ * Ici, ce n'est pas silencieux : l'écran écrit ce qu'il lance, et le préflight
+ * l'AFFICHE, corrigeable d'un tap, avant le premier mètre.
+ *
+ * On n'ajoute RIEN pour la discipline par défaut : une URL inchangée obtient le
+ * comportement exact d'avant le vélo (`UNDECLARED_START_ACTIVITY`), donc aucun
+ * chemin existant ne change de sens du fait de ce chantier.
+ *
+ * Le `?` / `&` est choisi d'après la cible : certains verbes de
+ * `deriveContextualAction` portent déjà une query (intention, route), d'autres
+ * non — concaténer un `?` en aveugle produirait une URL que le routeur ignore.
  */
-export const RECORDED_ACTIVITIES: readonly Activity[] = ['run'];
+export function withStartActivity(href: string, activity: Activity): string {
+  if (activity === DEFAULT_ACTIVITY) return href;
+  return `${href}${href.includes('?') ? '&' : '?'}${START_ACTIVITY_PARAM}=${activity}`;
+}
 
-export function activityIsRecorded(activity: Activity): boolean {
-  return RECORDED_ACTIVITIES.includes(activity);
+/**
+ * Cible de DÉPART D'UNE SORTIE depuis un écran qui n'est pas la Carte
+ * (Classement, Historique, Statistiques). Le mode `conquete` est celui du GO de
+ * la Carte : un départ lancé d'ailleurs ne doit pas être un autre départ.
+ */
+export const START_SORTIE_BASE_HREF = '/course-live?mode=conquete';
+
+export function startSortieHref(activity: Activity): string {
+  return withStartActivity(START_SORTIE_BASE_HREF, activity);
 }
 
 /** Ce que l'écran sait au moment de décider d'afficher le commutateur. */
@@ -96,18 +144,22 @@ export function activitySwitchVisible({ bikeEnabled, runLive }: ActivitySwitchCo
  * Le verrou de course a un piège qu'il faut nommer : le commutateur est retiré
  * pendant une course (« masqué, jamais grisé »), or la lentille est MÉMORISÉE.
  * Un joueur qui avait laissé son Historique en Bike, puis qui lance une course
- * et revient sur cet onglet, se retrouverait devant un état vide SANS AUCUN
- * MOYEN d'en sortir. Ce n'est plus un verrou, c'est un cul-de-sac — et un écran
- * dont on ne peut pas sortir est le cousin du bouton mort.
+ * à pied et revient sur cet onglet, se retrouverait devant le MAUVAIS monde
+ * sans aucun moyen d'en changer. Ce n'est plus un verrou, c'est un cul-de-sac —
+ * et un écran dont on ne peut pas sortir est le cousin du bouton mort.
  *
- * Tant qu'une course tourne, la surface montre donc le monde de CETTE course.
+ * Tant qu'une sortie tourne, la surface montre donc le monde de CETTE sortie.
  * C'est vrai (il s'y passe quelque chose de réel), c'est utile, et ça
  * n'ÉCRASE PAS la préférence : elle est mise en veille et revient telle quelle
- * à la fin. `liveActivity` est `null` quand aucune course ne tourne.
+ * à la fin. `liveActivity` est `null` quand aucune sortie ne tourne — ET quand
+ * la discipline de la sortie en cours n'est pas lisible : dans ce cas on ne
+ * DEVINE pas, on garde la préférence de l'utilisateur (une discipline inventée
+ * ferait basculer tout l'écran sur un monde qui n'est peut-être pas le sien).
  *
- * QUAND LE VÉLO SERA ENREGISTRABLE : l'appelant devra passer la discipline
- * DÉCLARÉE de la course en cours, pas une constante. La signature l'accepte
- * déjà ; c'est le seul endroit à revoir.
+ * ⚠️ DEPUIS QUE LE VÉLO EXISTE, `liveActivity` doit venir de la DISCIPLINE
+ * DÉCLARÉE de la sortie en cours (`StoredRun.activity`), jamais d'une constante :
+ * un cycliste dont l'écran basculerait en « run » verrait le mauvais territoire
+ * pendant tout son effort.
  */
 export function effectiveActivity(stored: Activity, liveActivity: Activity | null): Activity {
   return liveActivity ?? stored;
@@ -119,32 +171,32 @@ export function effectiveActivity(stored: Activity, liveActivity: Activity | nul
  *
  * `sourceIsDisciplined` = la source porte-t-elle vraiment la colonne `activity`
  * (migration 0070) ? Deux cas, et un seul est sûr :
- *   · source DISCIPLINÉE (`player_leaderboard`, `season_scores`, `hex_claims`) :
- *     chaque lentille lit son monde, donc tout est affichable ;
- *   · source MONO-POT (`user_stats` → vue `specialty_leaderboard`, `user_badges`,
- *     XP, Foulées — cf. 0070 « ce qui reste en suspens » §2 et §3) : ses chiffres
- *     mélangent les disciplines. Elle ne peut donc s'afficher que sous la
- *     lentille par DÉFAUT, la seule dont ces compteurs disent aujourd'hui la
- *     vérité — les servir sous une étiquette vélo serait la somme interdite.
+ *   · source DISCIPLINÉE (`player_leaderboard`, `season_scores`, `hex_claims`,
+ *     `runs`) : chaque lentille lit son monde, donc tout est affichable ;
+ *   · source MONO-POT (`user_stats` → vue `specialty_leaderboard`, `user_badges`
+ *     — cf. 0070 « ce qui reste en suspens » §2 et §3) : ses chiffres mélangent
+ *     les disciplines. Elle ne peut donc s'afficher que sous la lentille par
+ *     DÉFAUT, la seule dont ces compteurs disent aujourd'hui la vérité — les
+ *     servir sous une étiquette vélo serait la somme interdite.
  */
 export function competitiveReadAllowed(activity: Activity, sourceIsDisciplined: boolean): boolean {
   return sourceIsDisciplined || activity === DEFAULT_ACTIVITY;
 }
 
-// ─── LES DEUX SEGMENTS NE SONT PAS DES PAIRS (retour fondateur, 26/07/2026) ──
+// ─── LES DEUX SEGMENTS SONT DES PAIRS (fondateur, 26/07/2026) ────────────────
 //
-// Le constat, capture à l'appui : « l'utilisateur peut entrer dans Bike, mais
-// l'interface lui dit ENSUITE que le vélo n'est pas encore utilisable […] tu
-// crées une fausse affordance ». La fausse affordance ne venait PAS de la
-// présence du bouton — l'arbitrage garde le commutateur visible — elle venait de
-// l'ÉGALITÉ VISUELLE : deux capsules identiques, deux pictos de même poids, rien
-// qui distingue une lentille pleine d'une lentille creuse avant le tap.
+// Le 26/07 au matin, ce bloc portait l'inverse : « LES DEUX SEGMENTS NE SONT PAS
+// DES PAIRS », et le segment Bike affichait une marque « PAS ENCORE ». C'était
+// la bonne réponse à un vrai défaut (« tu crées une fausse affordance : l'UI lui
+// fait croire que la fonctionnalité est disponible ; le contenu lui dit ENSUITE
+// qu'elle ne l'est pas ») — mais la correction visait le SYMPTÔME. La cause,
+// c'était que le vélo n'existait pas. Le fondateur l'a fait exister le même
+// jour ; la marque n'a donc plus rien à marquer, et la laisser serait devenu le
+// mensonge symétrique : dire « pas encore » d'un monde qui enregistre vraiment.
 //
-// La correction est donc dérivée, pas peinte : un segment porte une MARQUE
-// D'ÉTAT si et seulement si sa discipline n'est pas enregistrable
-// (`activityIsRecorded`). Le jour où le vélo s'enregistrera, la marque
-// disparaîtra du seul fait que `RECORDED_ACTIVITIES` aura changé — personne
-// n'aura à se souvenir de retirer un badge à la main.
+// Ce qui reste de cet arbitrage, et qui ne bouge pas : « toujours texte + icône »
+// (un picto seul n'apprend rien à qui n'a jamais vu le contrôle), l'actif franc,
+// l'inactif nettement secondaire.
 
 /**
  * Libellés VISIBLES des segments. Le fondateur demande « toujours texte +
@@ -171,12 +223,6 @@ export interface ActivitySegment {
   label: string;
   /** Ce segment est-il la lentille courante ? */
   selected: boolean;
-  /**
-   * Ce segment porte-t-il la marque d'état ? Propriété de la DISCIPLINE, jamais
-   * de la sélection : la marque doit se lire AVANT le tap, sinon elle arrive
-   * trop tard pour empêcher la déception qu'elle est censée éviter.
-   */
-  marked: boolean;
 }
 
 export function activitySegments(selected: Activity): readonly ActivitySegment[] {
@@ -184,7 +230,6 @@ export function activitySegments(selected: Activity): readonly ActivitySegment[]
     activity,
     label: ACTIVITY_LABELS[activity],
     selected: activity === selected,
-    marked: !activityIsRecorded(activity),
   }));
 }
 
@@ -198,34 +243,38 @@ export function activitySegments(selected: Activity): readonly ActivitySegment[]
  * E14 spécifie « un petit commutateur (40 pt) » à pictos seuls, soit 84 × 40.
  * Le fondateur a tranché contre sa propre planche : « toujours texte + icône »,
  * un actif « extrêmement clair », un inactif « nettement secondaire ». La
- * divergence est ASSUMÉE et documentée ici plutôt que silencieuse. Elle a un
- * coût, honnêtement nommé : la rangée de la Carte cède ~50 pt à sa ligne
- * mission (`app/(tabs)/index.tsx` calcule sa marge depuis
- * `ACTIVITY_SWITCH_WIDTH`, donc la cohérence tient toute seule).
+ * divergence est ASSUMÉE et documentée ici plutôt que silencieuse.
  *
- * Les segments sont DÉLIBÉRÉMENT inégaux : le segment Bike est plus large parce
- * qu'il porte sa marque. Deux segments de même largeur seraient exactement
- * l'égalité visuelle que ce chantier retire.
+ * ─── LES DEUX SEGMENTS ONT LA MÊME LARGEUR (26/07/2026) ────────────────────
+ * Ils ne l'avaient pas : Bike était plus large de 44 pt pour loger sa marque
+ * « PAS ENCORE ». La marque est retirée, donc l'écart n'a plus de cause — et le
+ * garder aurait laissé une hiérarchie visuelle entre deux mondes désormais
+ * égaux. La largeur commune est DÉRIVÉE du plus long des deux libellés :
+ * « BIKE » pèse ~37,8 pt (cf. `estimateUppercaseWidth`), plus 2 × 6 pt de marge
+ * intérieure, soit 49,8 — on prend 56 pour garder de l'air aux tailles système
+ * agrandies, et parce que 56 > 44 satisfait aussi le plancher tactile.
+ * La capsule y gagne 24 pt de large et 8 pt de haut : la Carte les récupère
+ * pour sa ligne mission, qui calcule sa marge depuis `ACTIVITY_SWITCH_WIDTH`.
  */
 export const ACTIVITY_SWITCH_GEOMETRY = {
-  /** ≥ 44 : la cible tactile est ATTEINTE, plus simulée par un hitSlop. */
-  height: 58,
+  /** Filet + marge + segment de 44 : la cible tactile est ATTEINTE, pas simulée. */
+  height: 50,
   /** Filet de la capsule (compté dans la largeur : `borderBox` n'existe pas ici). */
   borderWidth: 1,
   /** Marge intérieure de la capsule (le fond actif s'y inscrit sans être rogné). */
   capsulePad: 2,
   /** Marge horizontale d'un segment, de part et d'autre du texte. */
   segmentPadH: 6,
-  /** ≥ 44 : cible tactile réelle, même sur le segment le plus étroit. */
-  runSegmentWidth: 46,
-  bikeSegmentWidth: 90,
+  /**
+   * Largeur COMMUNE aux deux segments (cf. la dérivation ci-dessus). Une seule
+   * constante, et pas deux égales : deux valeurs finiraient par diverger, et la
+   * divergence se lirait comme une hiérarchie.
+   */
+  segmentWidth: 56,
   iconSize: 16,
   /** Plancher a11y du projet : aucun texte porteur de sens sous 12 px. */
   labelSize: 12,
   labelTracking: 0.6,
-  /** La marque est une mention, pas un titre — 10 px, jamais moins. */
-  markSize: 10,
-  markTracking: 0.2,
 } as const;
 
 export const ACTIVITY_SWITCH_HEIGHT = ACTIVITY_SWITCH_GEOMETRY.height;
@@ -238,8 +287,7 @@ export const ACTIVITY_SWITCH_HEIGHT = ACTIVITY_SWITCH_GEOMETRY.height;
 export const ACTIVITY_SWITCH_WIDTH =
   ACTIVITY_SWITCH_GEOMETRY.borderWidth * 2 +
   ACTIVITY_SWITCH_GEOMETRY.capsulePad * 2 +
-  ACTIVITY_SWITCH_GEOMETRY.runSegmentWidth +
-  ACTIVITY_SWITCH_GEOMETRY.bikeSegmentWidth;
+  ACTIVITY_SWITCH_GEOMETRY.segmentWidth * ACTIVITIES.length;
 
 /** Hauteur utile d'un segment : la capsule moins son filet et sa marge. */
 export const ACTIVITY_SEGMENT_HEIGHT =
@@ -250,10 +298,10 @@ export const ACTIVITY_SEGMENT_HEIGHT =
 /**
  * Avances MOYENNES d'une capitale, en em. Volontairement PESSIMISTES : une
  * estimation qui sous-évalue laisserait passer la troncature qu'elle est censée
- * interdire. Le calibrage vient d'une MESURE, pas d'une intuition — « PAS
- * ENCORE » rendu à 10 px pèse ~68 pt sur une grotesque système, soit ~0,71 em
- * par capitale ; Inter est un peu plus large, on retient donc 0,75.
- * (Un premier jet à 0,68 avait déclaré la marque tenue alors qu'elle débordait :
+ * interdire. Le calibrage vient d'une MESURE, pas d'une intuition — un texte
+ * capitalisé rendu à 10 px pèse ~0,71 em par capitale sur une grotesque
+ * système ; Inter est un peu plus large, on retient donc 0,75.
+ * (Un premier jet à 0,68 avait déclaré un libellé tenu alors qu'il débordait :
  * l'estimation est là pour faire ÉCHOUER le test, pas pour rassurer.)
  */
 const CAPS_ADVANCE_EM = 0.75;
@@ -270,17 +318,17 @@ export function estimateUppercaseWidth(text: string, fontSize: number, tracking:
   return em * fontSize + Math.max(0, chars.length - 1) * tracking;
 }
 
-/** Largeur de texte disponible dans le segment Bike (marque comprise). */
-export const ACTIVITY_MARK_TEXT_BUDGET =
-  ACTIVITY_SWITCH_GEOMETRY.bikeSegmentWidth - 2 * ACTIVITY_SWITCH_GEOMETRY.segmentPadH;
+/** Largeur de texte disponible dans un segment (identique pour les deux). */
+export const ACTIVITY_LABEL_TEXT_BUDGET =
+  ACTIVITY_SWITCH_GEOMETRY.segmentWidth - 2 * ACTIVITY_SWITCH_GEOMETRY.segmentPadH;
 
-/** Une marque d'état tient-elle dans le segment sans être coupée (§A9) ? */
-export function activityMarkFits(mark: string): boolean {
+/** Un libellé de segment tient-il sans être coupé (§A9) ? */
+export function activityLabelFits(label: string): boolean {
   return (
     estimateUppercaseWidth(
-      mark,
-      ACTIVITY_SWITCH_GEOMETRY.markSize,
-      ACTIVITY_SWITCH_GEOMETRY.markTracking,
-    ) <= ACTIVITY_MARK_TEXT_BUDGET
+      label,
+      ACTIVITY_SWITCH_GEOMETRY.labelSize,
+      ACTIVITY_SWITCH_GEOMETRY.labelTracking,
+    ) <= ACTIVITY_LABEL_TEXT_BUDGET
   );
 }

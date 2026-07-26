@@ -47,13 +47,14 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, fonts, fontSizes, mapTokens, motion } from '@klaim/shared';
+import { colors, fonts, fontSizes, motion } from '@klaim/shared';
 import {
   MAP_3D,
   MAP_BASEMAP_STYLES,
   basemapAttribution,
   buildings3dStyle,
   localizedBasemapSpec,
+  prefetchLocalizedBasemaps,
   satelliteStyleSpec,
   type BasemapKey,
 } from '../../features/map/mapStyle';
@@ -61,24 +62,27 @@ import type { StyleSpecification } from 'maplibre-gl';
 
 // ─── API commune (dupliquée à l'identique dans RealMap.tsx — fork RN) ───────
 
-/** Style vectoriel sombre de dev SANS CLÉ (AMENDEMENT-13 §1 — O6 pour la prod). */
+/**
+ * URL du style CARTO dark-matter dont le fond sombre GRYD est DÉRIVÉ. Conservée
+ * comme PROVENANCE (et pour l'API publique de ui/game) : plus rien ne la
+ * télécharge — le style sombre est embarqué (`features/map/grydBasemapStyle.ts`).
+ */
 export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
 
 /**
- * Résout le style du fond demandé (défaut sombre). `dark`/`color` sont des
- * styleURL vectoriels CARTO ; `satellite` (AMENDEMENT-28) est un StyleSpecification
- * RASTER construit à la volée (photos Esri, keyless) — MapLibre accepte les deux.
+ * Résout le style du fond demandé (défaut sombre) :
+ *   · `dark`      → le style GRYD EMBARQUÉ, disponible IMMÉDIATEMENT. Aucune
+ *                   requête de style, aucun patch `name_en`→`name` à chaud,
+ *                   aucun remount une fois la spec arrivée : le premier écran de
+ *                   l'app n'attend plus le réseau pour avoir son fond aux tokens
+ *                   et ses noms de villes en langue locale ;
+ *   · `color`     → la spec Voyager localisée si elle a été téléchargée (le seul
+ *                   fond qui télécharge encore, et seulement quand on le choisit),
+ *                   sinon l'URL brute : le fond s'affiche quand même, en anglais,
+ *                   plutôt que rien — et le remount le localise à l'arrivée ;
+ *   · `satellite` → le StyleSpecification RASTER Esri construit à la volée (-28).
  * Les fonds CLAIRS (Voyager ET satellite) reçoivent un liseré sombre porteur sous
  * les traits chartreuse (withColorCasing, mapStyle) pour rester lisibles.
- *
- * ─── LABELS LOCAUX (correctif 21/07/2026) ───────────────────────────────────
- * `localizedBasemapSpec` renvoie la spec CARTO déjà patchée (name_en → name :
- * München, pas Munich) quand le préchargement a abouti. La variante NATIVE
- * l'utilisait depuis le commit 678f636, PAS celle-ci : localhost affichait donc
- * des noms de villes anglicisés là où l'iPhone affiche les noms locaux — le
- * fondateur qui vérifiait le correctif sur localhost concluait qu'il n'avait
- * pas été livré. `undefined` (préchargement pas encore fini, ou hors ligne) ⇒
- * URL brute : le fond s'affiche quand même, en anglais, plutôt que rien.
  */
 function basemapStyleUrl(basemap: BasemapKey | undefined): string | StyleSpecification {
   if (basemap === 'satellite') return satelliteStyleSpec() as unknown as StyleSpecification;
@@ -307,9 +311,6 @@ const MODE_3D_DEFAULT_PITCH = 52;
 const PULSE_PERIOD_MS = 2_400;
 /** Amplitude du pulse : l'opacité du contour oscille entre min et 1. */
 const PULSE_MIN_OPACITY_RATIO = 0.35;
-/** Labels des tuiles atténués (sobriété AMENDEMENT-13 §5). */
-const TILE_LABEL_OPACITY = 0.55;
-const TILE_ICON_OPACITY = 0.35;
 /**
  * AMENDEMENT-20 §1 — CARTE SILENCIEUSE pendant le run. Les labels de QUARTIERS /
  * lieux / plans d'eau / POI sont MASQUÉS (le tracé vert doit primer sur tout) :
@@ -339,15 +340,6 @@ const SILENT_MINOR_ROAD_WIDTH_FACTOR = 0.55;
  */
 const SILENT_ROAD_OPACITY = 0.5;
 
-/**
- * BATTLE MAP mode SOMBRE façon WAZE NUIT (retour fondateur) : fond dark propre,
- * ROUTES BIEN VISIBLES en gris (comme Waze — c'est une carte, pas un fond mort),
- * hiérarchie principales > secondaires, bâtiments discrets, POI masqués. Les
- * territoires GRYD (aplats renforcés) restent au 1er plan. Ajustables sans rendu.
- */
-const BATTLE_BUILDING_OPACITY = 0.16;
-const BATTLE_ROAD_OPACITY = 0.7;
-const BATTLE_MINOR_ROAD_OPACITY = 0.4;
 /** TestID de la carte de Course Live (LiveNavMap) → mode silencieux implicite. */
 const LIVE_RUN_TEST_ID = 'course-live-carte-reelle';
 /** Caméra de secours si ni `camera` ni `bounds` : monde entier (§4bis). */
@@ -434,13 +426,28 @@ function tileSourceLayer(layer: { 'source-layer'?: string }): string | undefined
 }
 
 /**
- * Amincit une `line-width` MapLibre par un facteur, que ce soit un nombre plat
- * OU une fonction à paliers `{ base?, stops: [[zoom, w], …] }` (cas des styles
- * vectoriels comme CARTO où la largeur dépend du zoom). Renvoie undefined si la
- * forme n'est pas reconnue (on ne touche alors pas au calque).
+ * Amincit une `line-width` MapLibre par un facteur. Trois formes possibles :
+ *   · un nombre plat ;
+ *   · une fonction à paliers `{ base?, stops: [[zoom, w], …] }` — la forme
+ *     historique, celle du Voyager distant ;
+ *   · une expression `['interpolate', ['linear'], ['zoom'], z, w, …]` — la forme
+ *     du style GRYD EMBARQUÉ. Sans cette branche, la carte silencieuse de run
+ *     n'amincirait plus rien sur le fond sombre (échec SILENCIEUX : la fonction
+ *     rendait `undefined` et l'appelant ne touchait pas au calque).
+ * Renvoie undefined si la forme n'est pas reconnue (on ne touche alors à rien).
  */
-function scaledLineWidth(width: unknown, factor: number): number | Record<string, unknown> | undefined {
+function scaledLineWidth(
+  width: unknown,
+  factor: number,
+): number | Record<string, unknown> | unknown[] | undefined {
   if (typeof width === 'number') return width * factor;
+  if (Array.isArray(width) && width[0] === 'interpolate') {
+    // ['interpolate', interpolation, input, stop0, out0, stop1, out1, …] : seules
+    // les SORTIES (index impairs à partir de 4) sont des largeurs.
+    return width.map((part, i) =>
+      i >= 4 && i % 2 === 0 && typeof part === 'number' ? part * factor : part,
+    );
+  }
   if (
     width &&
     typeof width === 'object' &&
@@ -494,69 +501,17 @@ function applySilentRunOverrides(map: MapLibreMap): void {
   }
 }
 
-/**
- * Surcharge du style dark-matter aux tokens GRYD (AMENDEMENT-13 §1) : eau plus
- * sombre, parcs quasi éteints, labels gris discrets. En mode `silent`
- * (AMENDEMENT-20 §1, Course Live) les labels de quartiers/lieux sont ensuite
- * MASQUÉS via applySilentRunOverrides. Défensif : les ids de calques varient
- * selon le style hébergé → filtres par sous-chaîne + try/catch (un style
- * différent ne doit JAMAIS faire tomber la carte).
- */
-function applyGrydStyleOverrides(map: MapLibreMap, silent = false): void {
-  const layers = map.getStyle()?.layers ?? [];
-  for (const layer of layers) {
-    try {
-      const id = layer.id.toLowerCase();
-      if (layer.type === 'background') {
-        map.setPaintProperty(layer.id, 'background-color', colors.noir);
-      } else if (layer.type === 'fill' && id.includes('water')) {
-        map.setPaintProperty(layer.id, 'fill-color', mapTokens.water);
-      } else if (
-        layer.type === 'fill' &&
-        (id.includes('park') || id.includes('green') || id.includes('wood'))
-      ) {
-        map.setPaintProperty(layer.id, 'fill-color', mapTokens.parks);
-      } else if (layer.type === 'fill' && id.includes('building')) {
-        // Bâtiments QUASI INVISIBLES : le jeu passe devant (retour fondateur).
-        map.setPaintProperty(layer.id, 'fill-opacity', BATTLE_BUILDING_OPACITY);
-      } else if (
-        layer.type === 'line' &&
-        (id.includes('road') ||
-          id.includes('street') ||
-          id.includes('bridge') ||
-          id.includes('tunnel') ||
-          id.includes('transit') ||
-          id.includes('rail'))
-      ) {
-        // Routes atténuées ; secondaires TRÈS faibles → fond noir carbone.
-        const minor =
-          id.includes('minor') ||
-          id.includes('service') ||
-          id.includes('path') ||
-          id.includes('secondary') ||
-          id.includes('tertiary') ||
-          id.includes('link') ||
-          id.includes('rail') ||
-          id.includes('pedestrian');
-        map.setPaintProperty(
-          layer.id,
-          'line-opacity',
-          minor ? BATTLE_MINOR_ROAD_OPACITY : BATTLE_ROAD_OPACITY,
-        );
-      } else if (layer.type === 'symbol') {
-        // Labels LIMITÉS : POI masqués, le reste gris discret (jamais criard).
-        const poi = id.includes('poi');
-        map.setPaintProperty(layer.id, 'text-color', colors.gris);
-        map.setPaintProperty(layer.id, 'text-opacity', poi ? 0 : TILE_LABEL_OPACITY);
-        map.setPaintProperty(layer.id, 'icon-opacity', poi ? 0 : TILE_ICON_OPACITY);
-      }
-    } catch {
-      // Calque sans cette propriété — on n'interrompt jamais le rendu.
-    }
-  }
-  // Carte silencieuse en run : masque quartiers/lieux, amincit rues secondaires.
-  if (silent) applySilentRunOverrides(map);
-}
+// AMENDEMENT-13 §1 — HISTORIQUE, à garder en tête : ici vivait
+// `applyGrydStyleOverrides`, qui reteintait à chaud le style dark-matter
+// TÉLÉCHARGÉ (fond, eau, parcs, bâti, opacité de chaque route, couleur de chaque
+// label) en devinant le rôle d'un calque par sous-chaîne de son id. Le style
+// sombre est désormais ÉCRIT (`features/map/grydBasemapStyle.ts`) : ses teintes
+// SONT les tokens dès la première frame, sa hiérarchie de voirie est explicite,
+// et il n'y a plus rien à deviner ni à repeindre. La fonction a été SUPPRIMÉE —
+// pas neutralisée : la garder aurait écrasé la hiérarchie du nouveau style par
+// ses deux opacités forfaitaires. Seule la carte SILENCIEUSE de run
+// (`applySilentRunOverrides`, ci-dessus) reste un vrai override, parce qu'elle
+// dépend d'un ÉTAT (on court) et non du style.
 
 /**
  * AMENDEMENT-27 — VRAI 3D : id du layer `fill-extrusion` des bâtiments de la
@@ -943,6 +898,15 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   const basemapRef = useRef<BasemapKey | undefined>(basemap);
   basemapRef.current = basemap;
   /**
+   * Prépare le style du fond RÉELLEMENT affiché. Ne fait rien pour `dark`
+   * (embarqué) ni `satellite` (raster construit sur place) : seul le Voyager clair
+   * a encore un style à télécharger, et il ne se télécharge QUE si on l'affiche —
+   * jamais « au cas où » depuis le premier écran.
+   */
+  useEffect(() => {
+    prefetchLocalizedBasemaps(basemap);
+  }, [basemap]);
+  /**
    * Mode 3D (AMENDEMENT-24) lisible par le handler `load` (posé une fois) et
    * l'upsert. `extrudeZones` de partage ne change jamais après montage (la
    * carte 3D est un template dédié), mais on garde le miroir à jour par sûreté.
@@ -1039,13 +1003,14 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     };
 
     map.on('load', () => {
-      // Les fonds CLAIRS (Voyager ET satellite Esri — AMENDEMENT-28) sont laissés
-      // TELS QUELS : les overrides GRYD n'éteignent le décor (eau/parcs/labels)
-      // que pour le fond sombre vectoriel. Le satellite est un raster (aucun
-      // calque vectoriel à surcharger). En Course Live (silentRef), les labels de
-      // quartiers sont EN PLUS masqués (§1) — sur les styles vectoriels seulement.
-      if (basemapRef.current !== 'color' && basemapRef.current !== 'satellite') {
-        applyGrydStyleOverrides(map, silentRef.current);
+      // Plus AUCUNE reteinte à chaud : le fond sombre est le style GRYD EMBARQUÉ
+      // (déjà aux tokens), le Voyager clair et le satellite raster étaient déjà
+      // laissés tels quels. Reste le seul override qui dépend d'un ÉTAT et non du
+      // style : la carte SILENCIEUSE de Course Live (§1) — quartiers/lieux/bassins
+      // masqués, voirie atténuée — appliquée aux fonds VECTORIELS uniquement (le
+      // satellite est un raster : aucun calque vectoriel à silencer).
+      if (silentRef.current && basemapRef.current !== 'satellite') {
+        applySilentRunOverrides(map);
       }
       // AMENDEMENT-27/28 — VRAI 3D : si la carte s'ouvre déjà pitchée (partage/
       // historique, ou mode3d), branche le relief + (hors satellite) les bâtiments

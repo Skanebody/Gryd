@@ -293,9 +293,19 @@ export const C = defineCatalog({
     pt: 'Classificação de bike',
   },
   /**
-   * LENTILLE BIKE — l'état vide NOMMÉ, servi À LA PLACE du vide générique
-   * (« personne n'a encore couru cette saison ») : la cause n'est pas la même,
-   * et confondre les deux ferait croire que le vélo est ouvert mais désert.
+   * ÉTAT VIDE DU CLASSEMENT VÉLO — RÉÉCRIT LE 26/07/2026.
+   *
+   * Le corps disait « GRYD ne chronomètre pas encore le vélo : personne n'a de
+   * points vélo, ici ni ailleurs ». Deux fautes désormais : c'est faux (le vélo
+   * enregistre, `season_scores` est clé par `(season_id, user_id, activity)`), et
+   * « ni ailleurs » affirmait quelque chose sur le monde ENTIER que la lecture
+   * ne dit pas — elle ne lit que la saison de MA ville.
+   *
+   * La nouvelle copie ne dit QUE ce que la lecture a rendu : aucune ligne dans
+   * CE classement. Elle reste distincte du vide à pied parce que l'action ne
+   * l'est pas (« lance une sortie vélo », pas « cours »), et elle garde la
+   * mention de séparation stricte, qui explique pourquoi ce tableau est vide
+   * alors que le tableau à pied ne l'est peut-être pas.
    */
   bikeBoardTitle: {
     fr: 'Le classement Bike commence ici',
@@ -305,11 +315,11 @@ export const C = defineCatalog({
     pt: 'A classificação Bike começa aqui',
   },
   bikeBoardBody: {
-    fr: 'GRYD ne chronomètre pas encore le vélo : personne n’a de points vélo, ici ni ailleurs.',
-    en: 'GRYD doesn’t track cycling yet: nobody has Bike points, here or anywhere.',
-    es: 'GRYD aún no cronometra la bici: nadie tiene puntos de bici, ni aquí ni en otro sitio.',
-    de: 'GRYD misst Radfahren noch nicht: niemand hat Rad-Punkte, hier oder anderswo.',
-    pt: 'A GRYD ainda não cronometra bike: ninguém tem pontos de bike, aqui nem noutro lugar.',
+    fr: 'Personne n’est encore classé en vélo dans ta ville cette saison.',
+    en: 'Nobody is ranked on a bike in your city this season yet.',
+    es: 'Nadie está clasificado en bici en tu ciudad esta temporada.',
+    de: 'In deiner Stadt ist diese Saison noch niemand auf dem Rad platziert.',
+    pt: 'Ninguém está classificado de bike na tua cidade nesta temporada.',
   },
   /** SÉPARATION STRICTE (planche E14) : deux mondes, jamais une somme. */
   bikeBoardSeparate: {
@@ -318,5 +328,13 @@ export const C = defineCatalog({
     es: 'Los rangos a pie y en bici están separados: nunca se mezclan ni se suman.',
     de: 'Lauf- und Rad-Ränge bleiben getrennt: nie gemischt, nie addiert.',
     pt: 'Os postos a pé e de bike ficam separados: nunca misturados, nunca somados.',
+  },
+  /** CTA de l'état vide vélo — la sortie est DÉCLARÉE vélo, pas devinée. */
+  bikeBoardCta: {
+    fr: 'Lancer une sortie vélo',
+    en: 'Start a bike ride',
+    es: 'Empezar una salida en bici',
+    de: 'Radausfahrt starten',
+    pt: 'Começar um pedal',
   },
 });

@@ -44,6 +44,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import {
+  type Activity,
   GPS_SIGNAL_LOST_AFTER_S,
   colors,
   fonts,
@@ -55,20 +56,31 @@ import {
   spacing,
   withAlpha,
 } from '@klaim/shared';
-import { C } from '../../../i18n/catalog/runGps';
+import { ACTIVITY_NAME, C, RUN_GPS_COPY } from '../../../i18n/catalog/runGps';
 import { useT } from '../../../i18n/store';
 import type { Entry } from '../../../i18n/types';
 import { screen } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
+// Table de LIBELLÉS invariants (RUN / BIKE), la même que le commutateur de la
+// Carte : le joueur retrouve ici le mot exact qu'il a validé au préflight.
+// Aucune préférence n'est lue (garde-fou de `runActivity.test.ts`).
+import { ACTIVITY_LABELS } from '../../../ui/activityLens';
 import { Icon } from '../../../ui/Icon';
 import { ProgressBar } from '../../../ui/ProgressBar';
 import { SignalBars } from '../../../ui/SignalBars';
 import { signalLevel } from '../../../ui/signalLevel';
-import { formatInt } from '../../../ui/format';
+import { decimalSeparator, formatInt } from '../../../ui/format';
 import { RealMap, type RealMapGeoJSONLayer, type RealMapMarker } from '../../../ui/game/RealMap';
 import { TRACE_DASH, runTraceLayers, traceStyle } from '../../map/mapStyle';
-import { RUN_MODE_LABEL, formatClock, formatKm, formatPace, type LiveRunMode } from '../simulation';
+import { RUN_MODE_LABEL, formatClock, formatKm, type LiveRunMode } from '../simulation';
+// La 3ᵉ métrique du bandeau est DÉRIVÉE (grandeur de la discipline + absence de
+// mesure), donc pure et testée — jamais un `formatPace` appliqué à un zéro.
+import { liveRateDisplay } from './liveRate';
 import type { RealRunApi } from './gateTypes';
+// Le passage de relais vers le Résultat est PUR et TESTÉ (aller-retour de
+// sérialisation prouvé) : c'est le seul moyen qu'une clé oubliée dans l'objet
+// `params` — la discipline, en l'occurrence — échoue quelque part.
+import { courseResultParams } from './resultHandoff';
 import { LoopClosureSequence } from './LoopClosureSequence';
 import { roundLoopM } from './engine/loopHint';
 import {
@@ -110,16 +122,25 @@ const PAUSE_SIZE = 60;
 /** Diamètre des contrôles secondaires (verrou, aide, terminer). */
 const SMALL_CONTROL_SIZE = 48;
 
-/** Libellé de la pill principale selon la phase réelle (toujours visible). */
+/**
+ * Libellé de la pill principale selon la phase réelle (toujours visible).
+ *
+ * E14 — deux états DÉPENDENT de la discipline, et ce n'est pas cosmétique :
+ * afficher « EN COURSE » / « RUNNING » pendant une sortie vélo est faux au sens
+ * littéral, et un écran qui nomme mal ce qu'il enregistre ment discrètement.
+ * Les états neutres (EN PAUSE, PAUSE AUTO, RECHERCHE GPS) restent partagés :
+ * les décliner par discipline ajouterait dix chaînes pour zéro information.
+ */
 function statusLabel(run: RealRunApi): Entry {
   const s = run.snapshot;
+  const copy = RUN_GPS_COPY[run.activity];
   if (s.phase === 'paused-user') return C.statusPaused;
   // Retour terrain 20/07 : « EN PAUSE AUTO » seul se lisait comme un problème
   // GPS. On dit POURQUOI (l'arrêt) et COMMENT reprendre — pas un bug, un état.
   if (s.phase === 'paused-auto') return C.statusPausedAuto;
-  if (s.phase === 'finished') return C.statusFinished;
+  if (s.phase === 'finished') return copy.statusFinished;
   if (s.totalFixes === 0) return C.statusSearchingGps;
-  return C.statusRunning;
+  return copy.status;
 }
 
 /** FeatureCollection de lignes (les couches de carte n'acceptent que du GeoJSON). */
@@ -185,6 +206,23 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
    * onglet. Un bouton qui ne mène nulle part est un mensonge d'interface.
    */
   const openSettings = run.openSettings;
+  /**
+   * DISCIPLINE RÉELLEMENT ENREGISTRÉE. Elle pilote trois choses distinctes :
+   * le mot affiché (pill permanente + libellé d'état), les SEUILS de fermeture
+   * de boucle (1 km à pied, 5 km à vélo — sans elle, E08 promettrait au
+   * cycliste une capture que le serveur refuserait), et la possibilité même de
+   * fusionner une sortie interrompue.
+   */
+  const activity = run.activity;
+  /**
+   * TOUT ce que cet écran dit de l'effort, dans la langue de la discipline —
+   * état, limites d'enregistrement, aide arrière-plan, libellés lus à voix
+   * haute, grandeur de la 3ᵉ métrique. Une table plutôt que des ternaires
+   * dispersés : c'est ce qui rend une surface oubliée VISIBLE (cf.
+   * `RUN_GPS_COPY`, dont le Record exhaustif casse la compilation le jour où
+   * une discipline arrive sans ses phrases).
+   */
+  const copy = RUN_GPS_COPY[activity];
   const conquest = mode === 'conquete';
   const paused = s.phase === 'paused-user';
   /**
@@ -200,12 +238,21 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const here = s.tracePoints[s.tracePoints.length - 1] ?? null;
 
   // ── Fermeture de boucle : état PERMANENT (moteur pur, seuils SERVEUR) ──────
-  const phase = loopClosurePhase({ conquest, distanceM: s.distanceM, gapM: s.loopGapM });
+  const phase = loopClosurePhase({ conquest, activity, distanceM: s.distanceM, gapM: s.loopGapM });
   const progress = loopClosureProgress({
+    activity,
     distanceM: s.distanceM,
     gapM: s.loopGapM,
     farthestGapM: s.farthestGapM,
   });
+
+  /**
+   * 3ᵉ MÉTRIQUE : la grandeur de la discipline (allure à pied, vitesse à vélo)
+   * ET l'absence de mesure, décidées par un moteur pur. Tant que le tracker n'a
+   * pas de kilomètre, `paceSPerKm` vaut 0 : ce zéro n'est pas une allure, c'est
+   * « on ne sait pas encore » — il ne franchit jamais cette ligne (`liveRate`).
+   */
+  const rate = liveRateDisplay(activity, s.paceSPerKm, decimalSeparator());
 
   // §10 — UN SEUL avis temporaire à la fois (sûreté d'abord). La pill d'ÉTAT, la
   // pill de MODE et la pill de FERMETURE restent en contexte permanent ; tout le
@@ -223,8 +270,10 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   });
 
   useEffect(() => {
-    screen('course_live', { mode, gps: 'real' });
-  }, [mode]);
+    // La discipline accompagne la vue : sans elle, la mesure d'usage de l'écran
+    // live mélangerait deux mondes que le jeu sépare partout ailleurs.
+    screen('course_live', { mode, gps: 'real', activity });
+  }, [mode, activity]);
 
   // « Aucun run perdu » (analyse stratégique 21/07 — la fiabilité EST le
   // produit) : le signal GPS perdu n'était que VISUEL (pill), or un coureur
@@ -354,18 +403,23 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     finishedRef.current = true;
     haptics.success();
     void run.finish().then(({ distanceM, durationS, uploadQueued }) => {
-      // Ce qui part est exclusivement MESURÉ : la distance et la durée du
-      // tracker. AUCUNE valeur estimée mi-course (zones, fermeture, progression)
-      // ne franchit cette frontière — le Résultat lit le verdict SERVEUR.
+      // Ce qui part est exclusivement MESURÉ ou DÉCLARÉ : la distance et la
+      // durée du tracker, et LA DISCIPLINE de la sortie. AUCUNE valeur estimée
+      // mi-course (zones, fermeture, progression) ne franchit cette frontière —
+      // le Résultat lit le verdict SERVEUR.
+      //
+      // LA DISCIPLINE MANQUAIT ICI, et c'était toute la fuite : sans elle, le
+      // Résultat retombait sur la discipline par défaut du jeu et disait
+      // « COURSE TERMINÉE » à la fin de CHAQUE sortie vélo — en démentant le
+      // préflight, qui venait de montrer « sortie vélo » au même joueur. Le
+      // passage de relais est désormais une fonction PURE et TESTÉE
+      // (`resultHandoff.ts`) plutôt qu'un objet littéral : une clé oubliée dans
+      // un littéral n'est vérifiable par rien, et c'est exactement comme ça
+      // qu'un chantier entier de libellés vélo est resté inatteignable.
       // Fin hors-ligne : ligne discrète « envoi dès que possible » (anti-shame).
       router.replace({
         pathname: '/course-result',
-        params: {
-          mode,
-          dist: String(Math.round(distanceM)),
-          dur: String(Math.round(durationS)),
-          ...(uploadQueued ? { queued: '1' } : {}),
-        },
+        params: courseResultParams({ mode, activity, distanceM, durationS, uploadQueued }),
       });
     });
   };
@@ -384,7 +438,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     <View style={styles.root} onLayout={onLayout}>
       {/* ── 1. LE TRACÉ : carte dominante, position à 62 %, nav masquée ────── */}
       {camera !== null ? (
-        <View style={StyleSheet.absoluteFill} accessibilityLabel={t(C.a11yLiveMap)}>
+        <View style={StyleSheet.absoluteFill} accessibilityLabel={t(copy.a11yLiveMap)}>
           <RealMap
             style={StyleSheet.absoluteFill}
             camera={camera}
@@ -413,6 +467,25 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
                 faible (normal en intérieur, jamais rouge/anxiogène), neutre sinon. */}
             <SignalBars {...signalLevel(s.gpsTrust, s.signal, awaitingFirstFix)} />
           </View>
+
+          {/* ── CE QUI EST ENREGISTRÉ — contexte PERMANENT (E14) ─────────────
+              Personne ne doit découvrir APRÈS coup que sa sortie est partie
+              dans l'autre monde, dans un sens comme dans l'autre. Le libellé
+              d'état ne suffit pas : en pause ou en recherche GPS il ne nomme
+              plus la discipline. Cette pill, elle, ne bouge jamais.
+              Elle n'est PAS un contrôle : la discipline se fige au départ (une
+              sortie ne change pas de monde en chemin) — un commutateur ici
+              serait un bouton mort. Le mot est l'invariant du commutateur de la
+              Carte, l'a11y le dit en toutes lettres. */}
+          <View
+            style={styles.modePill}
+            accessibilityLabel={t(C.a11yLiveActivity, { name: t(ACTIVITY_NAME[activity]) })}
+          >
+            <Text style={styles.activityText} numberOfLines={1}>
+              {ACTIVITY_LABELS[activity]}
+            </Text>
+          </View>
+
           {/* Mode (social/privé) — CONTEXTE PERMANENT, pas un avis temporaire (§10). */}
           {!conquest ? (
             <View style={styles.modePill}>
@@ -428,18 +501,36 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           ) : null}
         </View>
 
-        {/* Trois métriques ÉGALES, tabulaires, lisibles d'un coup d'œil. */}
+        {/* Trois métriques ÉGALES, tabulaires, lisibles d'un coup d'œil.
+            La 3ᵉ (allure à pied, VITESSE à vélo) garde sa PLACE même quand rien
+            n'a encore été mesuré : elle affiche alors un tiret, jamais « 0'00 »
+            — un zéro nu se lirait comme une performance nulle, et faire
+            disparaître la case réorganiserait le bandeau au premier kilomètre,
+            en pleine course. Décision et cas dégénérés : `liveRate.ts`. */}
         <View style={styles.metrics}>
           <Metric value={formatClock(s.activeS)} label={t(C.timeLabel)} />
           <View style={styles.metricDivider} />
           <Metric value={formatKm(s.distanceM)} unit="KM" label={t(C.kickerDistance)} />
           <View style={styles.metricDivider} />
-          <Metric value={formatPace(s.paceSPerKm)} label={t(C.paceLabel)} />
+          <Metric
+            value={rate.value}
+            unit={rate.unit ?? undefined}
+            label={t(copy.rateLabel)}
+            // Un tiret ne se lit pas à voix haute : sans cela, un joueur non
+            // voyant entendrait le libellé sans jamais savoir qu'il n'y a pas
+            // encore de mesure — un silence qui se confond avec un bug.
+            valueA11y={rate.measured ? undefined : t(C.rateNotMeasured)}
+          />
         </View>
 
         {/* La FERMETURE en toutes lettres — le pendant du segment sur la carte. */}
         {phase !== 'idle' && s.loopGapM !== null ? (
-          <ClosurePill phase={phase} gapM={s.loopGapM} progress={progress} />
+          <ClosurePill
+            phase={phase}
+            activity={activity}
+            gapM={s.loopGapM}
+            progress={progress}
+          />
         ) : null}
 
         {/* §10 — L'UNIQUE avis temporaire, choisi par priorité (pur + testé). */}
@@ -453,19 +544,33 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         ) : notice === 'restore' && run.restore !== null ? (
           <RestoreRunCard
             distanceLabel={t(C.restoreKmFound, { km: formatKm(run.restore.distanceM) })}
+            // Discipline de la sortie RETROUVÉE (pas de celle en cours) : quand
+            // les deux diffèrent, « Reprendre » n'existe pas et la carte doit
+            // DIRE pourquoi — un bouton qui disparaît sans raison se lit comme
+            // un bug (cf. `canResumeInterrupted`). C'est elle, aussi, qui nomme
+            // l'effort dans le titre et dans les libellés lus à voix haute :
+            // une course retrouvée est une course, une sortie vélo une sortie.
+            activity={run.restore.activity}
             onResume={run.restore.resume}
             onDiscard={run.restore.discard}
           />
         ) : notice === 'bg_offer' ? (
-          <BackgroundRationaleCard onAllow={run.allowBackground} onLater={run.dismissBackground} />
+          <BackgroundRationaleCard
+            activity={activity}
+            onAllow={run.allowBackground}
+            onLater={run.dismissBackground}
+          />
         ) : notice === 'precise' ? (
           <PreciseLocationBanner onOpenSettings={run.openSettings} />
         ) : notice === 'foreground' ? (
           // Navigateur, ou permission « Toujours » refusée : « enregistré app ouverte ».
+          // La phrase du navigateur est déjà neutre (« garde cet onglet au
+          // premier plan ») et n'a donc pas de twin ; celle de la permission
+          // nommait l'effort, et suit la discipline.
           <View style={styles.modePill}>
             <Icon name="gps" size={iconSizes.xs} color={colors.gris} />
             <Text style={styles.modeText}>
-              {t(run.foregroundOnlyPlatform ? C.browserForegroundOnly : C.foregroundOnly)}
+              {t(run.foregroundOnlyPlatform ? C.browserForegroundOnly : copy.foregroundOnly)}
             </Text>
           </View>
         ) : null}
@@ -506,7 +611,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
               <View style={styles.pausedRow}>
                 <SmallControl
                   label={t(C.ctrlFinish)}
-                  accessibilityLabel={t(C.a11yFinishRun)}
+                  accessibilityLabel={t(copy.a11yFinishRun)}
                   onLongPress={finish}
                   danger
                 >
@@ -515,7 +620,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
                 {openSettings === null ? null : (
                   <SmallControl
                     label={t(C.ctrlGpsHelp)}
-                    accessibilityLabel={t(C.a11yGpsHelp)}
+                    accessibilityLabel={t(copy.a11yGpsHelp)}
                     onPress={() => setHelpVisible(true)}
                   >
                     <Icon name="gps" size={20} color={colors.blanc} />
@@ -537,7 +642,10 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
               <View style={styles.pauseWrap}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={paused ? t(C.a11yResumeRun) : t(C.a11yPauseRun)}
+                  // Le libellé VISIBLE (« PAUSE » / « REPRENDRE ») est neutre :
+                  // seule cette version lue nommait la course. §A : c'est le
+                  // pire cas, personne d'autre ne pouvait s'en apercevoir.
+                  accessibilityLabel={paused ? t(copy.a11yResumeRun) : t(copy.a11yPauseRun)}
                   accessibilityState={{ selected: paused }}
                   onPress={() => {
                     haptics.light();
@@ -570,6 +678,10 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           box={closure.box}
           zonesEstimated={closure.zonesEstimated}
           reduced={closure.reduced}
+          // Le badge « BOUCLE FERMÉE » est neutre ; sa version LUE ne l'était
+          // pas (« pendant cette course »). La discipline est figée au départ :
+          // pas besoin de la geler avec la caméra.
+          activity={activity}
           onDone={() => setClosure(null)}
         />
       ) : null}
@@ -577,6 +689,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       {openSettings === null ? null : (
         <BackgroundHelpSheet
           visible={helpVisible}
+          activity={activity}
           onClose={() => setHelpVisible(false)}
           onOpenSettings={openSettings}
         />
@@ -586,10 +699,26 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
 }
 
 /** Une des trois métriques d'en-tête (≥ 24 pt, chiffres tabulaires). */
-function Metric({ value, unit, label }: { value: string; unit?: string; label: string }) {
+function Metric({
+  value,
+  unit,
+  label,
+  valueA11y,
+}: {
+  value: string;
+  unit?: string;
+  label: string;
+  /** Ce qui est LU à la place du chiffre — utile quand il n'y en a pas (tiret). */
+  valueA11y?: string;
+}) {
   return (
     <View style={styles.metric}>
-      <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+      <Text
+        style={styles.metricValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        accessibilityLabel={valueA11y}
+      >
         {value}
         {unit ? <Text style={styles.metricUnit}> {unit}</Text> : null}
       </Text>
@@ -608,15 +737,18 @@ function Metric({ value, unit, label }: { value: string; unit?: string; label: s
  */
 function ClosurePill({
   phase,
+  activity,
   gapM,
   progress,
 }: {
   phase: LoopClosurePhase;
+  /** Les mètres manquants se comptent à la tolérance DE LA DISCIPLINE. */
+  activity: Activity;
   gapM: number;
   progress: number | null;
 }) {
   const t = useT();
-  const missing = formatInt(roundLoopM(loopMissingM(gapM)));
+  const missing = formatInt(roundLoopM(loopMissingM(gapM, activity)));
   const closed = phase === 'closed';
   const warn = phase === 'nearMiss';
   const tone = closed ? colors.chartreuse : warn ? gameColors.warn : colors.blanc;
@@ -765,6 +897,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxs,
   },
   modeText: { color: colors.gris, fontSize: fontSizes.xs },
+  // Discipline : même pill que le mode (contexte permanent, jamais un CTA), en
+  // capitales espacées comme le commutateur E14. Gris — la chartreuse dit
+  // « à moi / gagné » (§C), pas « voici ce que j'enregistre ».
+  activityText: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
 
   // Bandeau des 3 métriques : un VOILE sur la carte, pas une card (§A : jamais
   // de card dans card — la carte est la scène, le bandeau la survole).

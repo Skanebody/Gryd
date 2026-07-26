@@ -51,9 +51,18 @@
  *    AsyncStorage LOCAL), aucun moteur de « confrontations », aucune vue serveur
  *    de badges publics ; DÉFIER n'existe qu'au post-run et Suivre n'existe pas.
  *    La bâtir reviendrait à peindre un écran entier de faux + 4 boutons morts.
- *  · COMMUTATEUR RUN/BIKE : contrôle mort absolu. Le moteur de validation GPS
- *    REJETTE explicitement le pédalage (features/run/gps/engine/validation.ts) :
- *    l'onglet « Bike » n'aurait jamais aucune donnée, dans aucun état.
+ *  · COMMUTATEUR RUN/BIKE : toujours pas ici, mais PLUS POUR LA RAISON ÉCRITE
+ *    JUSQU'AU 26/07/2026. Ce paragraphe disait « contrôle mort absolu : le
+ *    moteur de validation GPS REJETTE le pédalage, l'onglet Bike n'aurait
+ *    jamais aucune donnée ». C'était vrai la veille ; le vélo est depuis une
+ *    discipline RÉELLE (bornes par discipline, `runs.activity` et `hex_claims
+ *    (h3index, activity)` en production). Le garder aurait été le mensonge
+ *    symétrique — une doc qui NIE ce que le code tient.
+ *    La planche E14 pose le commutateur sur QUATRE surfaces : Carte,
+ *    Classement, Historique, Statistiques. Le Profil n'en est pas une : c'est
+ *    une carte de visite, pas un monde qu'on arbitre. Il ne choisit pas pour
+ *    autant en silence — il montre le monde que le joueur POSSÈDE et le NOMME,
+ *    et les DEUX quand il en possède deux (jamais additionnés, E14).
  *  · « +18 % » / « 24,6 km cette semaine » : aucune source de tendance ni
  *    d'agrégat hebdomadaire n'existe sur cet écran. Non peints.
  *
@@ -102,7 +111,15 @@ import {
   playerLevelXpTable,
   playerTierForLevel,
 } from '../../src/features/crew/rules';
-import { useRealTerritories } from '../../src/features/map/hexClaims';
+import {
+  useMyWorlds,
+  useRealTerritoriesByActivity,
+} from '../../src/features/map/hexClaims';
+import {
+  illustratedWorlds,
+  isNewPlayerAcrossActivities,
+  profileTerritoryView,
+} from '../../src/features/territory/profileTerritory';
 import { useRealMission } from '../../src/features/mission/useRealMission';
 import { nextMissionRow } from '../../src/features/social/nextMissionRow';
 import { useRealCrew } from '../../src/features/crew/real';
@@ -120,7 +137,14 @@ import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { flags } from '../../src/lib/flags';
 import type { Entry } from '../../src/i18n/types';
 import { useLocale, useT } from '../../src/i18n/store';
-import { C } from '../../src/i18n/catalog/profil';
+import {
+  C,
+  METRICS_SCOPE,
+  PREVIEW_ACTIVITY_PLAIN,
+  SCOPE_LABEL,
+  SECTION_SIGNATURE_MAP,
+  SECTION_TERRITORY,
+} from '../../src/i18n/catalog/profil';
 import { C as M } from '../../src/i18n/catalog/mission';
 import { screen } from '../../src/lib/analytics';
 import { signOut } from '../../src/lib/auth';
@@ -402,27 +426,36 @@ export default function ProfilScreen() {
    * l'un des deux écrans à dépendre de l'autre. Deux lectures étroites plutôt
    * qu'un couplage : on paie une requête, pas une divergence de vérité.
    */
+  /**
+   * ─── LES DEUX MONDES, ET POURQUOI LE PROFIL LES LIT TOUS LES DEUX ─────────
+   * Cette lecture appelait `useRealTerritories()` SANS discipline, donc dans le
+   * monde par défaut. Depuis que le vélo enregistre (26/07/2026), c'était un
+   * mensonge net : un joueur qui ne roule qu'à vélo tombait dans `isNewPlayer`,
+   * ses quatre métriques disparaissaient et l'écran lui servait « PREMIÈRE
+   * MISSION » — l'app lui disait qu'il n'avait jamais rien pris alors qu'il
+   * tient du territoire.
+   *
+   * Le Profil n'a PAS de commutateur E14 (la planche le pose sur la Carte, le
+   * Classement, l'Historique et les Statistiques ; le Profil est une carte de
+   * visite, pas un monde). Il n'a donc que deux réponses honnêtes : montrer les
+   * deux mondes côte à côte, ou DIRE lequel il montre. IL FAIT LES DEUX, selon
+   * ce que le joueur possède réellement — décision PURE et testée
+   * (`features/territory/profileTerritory.ts`) :
+   *   · un seul monde peuplé → ce monde, NOMMÉ (« Territoire à vélo ») ;
+   *   · les deux             → les deux, côte à côte, JAMAIS additionnés ;
+   *   · aucun                → PREMIÈRE MISSION, qui a alors raison.
+   *
+   * Une SEULE requête (pas de `.eq('activity')`, la colonne est demandée et la
+   * séparation se fait en pur) : le coût réseau ne bouge pas.
+   */
   const {
-    territories,
+    worlds,
     failed: territoryFailed,
     loading: territoryLoading,
     reload: reloadTerritory,
-  } = useRealTerritories();
-  /** MES zones (status 'crew'). `null` = pas encore lu — jamais « zéro ». */
-  const mine = useMemo(
-    () => (territories === null ? null : territories.filter((x) => x.props.status === 'crew')),
-    [territories],
-  );
-  /** Somme RÉELLE des aires de mes zones (m²) — la métrique mise en avant. */
-  const controlledAreaM2 = useMemo(
-    () => (mine === null ? null : mine.reduce((sum, x) => sum + x.props.areaM2, 0)),
-    [mine],
-  );
-  /** Somme RÉELLE des hexagones tenus. */
-  const zonesHeld = useMemo(
-    () => (mine === null ? null : mine.reduce((sum, x) => sum + x.zoneCount, 0)),
-    [mine],
-  );
+  } = useRealTerritoriesByActivity();
+  /** MES zones et mes mesures, PAR MONDE. `null` = pas encore lu — jamais « zéro ». */
+  const myWorlds = useMyWorlds(worlds);
 
   /** Une lecture a échoué → on l'annonce et on propose de réessayer (jamais un 0 nu). */
   const loadFailed = economy.failed || badgesFailed || territoryFailed;
@@ -443,11 +476,31 @@ export default function ProfilScreen() {
   /** Modules de jeu : rendus UNIQUEMENT sur un compte lu avec succès. */
   const gameReady = !signedOut && !loadFailed && !loadingReal;
   /**
-   * Compte NEUF : lu, et il ne tient réellement aucune zone. La planche remplace
-   * alors les métriques par la PREMIÈRE MISSION — quatre zéros alignés se
-   * liraient « tu as échoué », alors qu'il n'a simplement pas encore couru.
+   * CE QUE LE BLOC TERRITORIAL RACONTE — décision PURE, testée sous Deno.
+   * `null` tant que la lecture n'a pas abouti : on ne conclut rien.
    */
-  const isNewPlayer = gameReady && mine !== null && mine.length === 0;
+  const territoryView = useMemo(
+    () =>
+      myWorlds === null
+        ? null
+        : profileTerritoryView({
+            run: { areaM2: myWorlds.run.areaM2, zones: myWorlds.run.zones },
+            bike: { areaM2: myWorlds.bike.areaM2, zones: myWorlds.bike.zones },
+          }),
+    [myWorlds],
+  );
+  /**
+   * Compte NEUF : lu, et il ne tient réellement aucune zone — DANS AUCUNE DES
+   * DEUX DISCIPLINES. La planche remplace alors les métriques par la PREMIÈRE
+   * MISSION — quatre zéros alignés se liraient « tu as échoué », alors qu'il
+   * n'a simplement pas encore couru.
+   *
+   * La question se posait auparavant sur le seul monde de la course à pied :
+   * un cycliste recevait donc l'écran de bienvenue à chaque ouverture de son
+   * Profil, indéfiniment. C'est le défaut central corrigé le 26/07/2026.
+   */
+  const isNewPlayer =
+    gameReady && territoryView !== null && isNewPlayerAcrossActivities(territoryView);
 
   const displayableBadges = useMemo(() => displayableBadgesFrom(unlockedIds), [unlockedIds]);
   const unlockedCount = unlockedIds.size;
@@ -551,10 +604,21 @@ export default function ProfilScreen() {
 
   // ── Libellé de l'activité récente ──────────────────────────────────────────
   /**
-   * « Hier · +3 zones ». Le NOM de zone de la planche (« Saint-Rémy ») n'a
-   * aucune source (displayName est NULL en base) et « +0,42 km² » non plus (le
-   * serveur renvoie des COMPTES d'hexagones, pas une aire). Impact inconnu →
+   * « Hier · +3 zones à vélo ». Le NOM de zone de la planche (« Saint-Rémy »)
+   * n'a aucune source (displayName est NULL en base) et « +0,42 km² » non plus
+   * (le serveur renvoie des COMPTES d'hexagones, pas une aire). Impact inconnu →
    * « dernière course », jamais « +0 zone ».
+   *
+   * ─── LA DISCIPLINE EST DITE (E14, 26/07/2026) ─────────────────────────────
+   * La lecture est TOUTES DISCIPLINES et c'est juste — c'est un datage, pas une
+   * somme. Mais la ligne ne disait pas de quel monde elle parlait, juste
+   * au-dessus d'un bloc de métriques titré, lui, « Territoire à vélo » : un
+   * cycliste lisait « dernière course ». On la nomme donc, à partir de
+   * `runs.activity` réellement lue.
+   *
+   * Quand la discipline est INCONNUE (`activity === null` : colonne illisible),
+   * on retombe sur les libellés neutres. On ne nomme jamais un monde qu'on
+   * ignore — inventer « à pied » ici serait la faute qu'on vient de corriger.
    */
   const activityLabel = useMemo(() => {
     const a = lastActivity.activity;
@@ -562,13 +626,22 @@ export default function ProfilScreen() {
     const days = calendarDaysAgo(a.startedAtMs, Date.now());
     const when =
       days === 0 ? t(C.timeAgoToday) : days === 1 ? t(C.timeAgoYesterday) : t(C.timeAgoDays, { n: days });
+    const sport = a.activity === null ? null : t(SCOPE_LABEL[a.activity]);
     if (a.captured !== null && a.captured > 0) {
-      return t(C.previewActivityCaptured, { when, n: formatInt(a.captured) });
+      const n = formatInt(a.captured);
+      return sport === null
+        ? t(C.previewActivityCaptured, { when, n })
+        : t(C.previewActivityCapturedIn, { when, n, sport });
     }
     if (a.defended !== null && a.defended > 0) {
-      return t(C.previewActivityDefended, { when, n: formatInt(a.defended) });
+      const n = formatInt(a.defended);
+      return sport === null
+        ? t(C.previewActivityDefended, { when, n })
+        : t(C.previewActivityDefendedIn, { when, n, sport });
     }
-    return t(C.previewActivityPlain, { when });
+    return a.activity === null
+      ? t(C.previewActivityPlain, { when })
+      : t(PREVIEW_ACTIVITY_PLAIN[a.activity], { when });
   }, [lastActivity.activity, t]);
 
   return (
@@ -700,44 +773,137 @@ export default function ProfilScreen() {
             aboutit ou lève `failed`) — jamais un chargement sans fin. */}
         {loadingReal ? <Text style={styles.stateInline}>{t(C.loadingNumbers)}</Text> : null}
 
-        {/* ══ 3 · QUATRE MÉTRIQUES — UN SEUL BLOC À SÉPARATEURS ════════════════
+        {/* ══ 3 · LES MÉTRIQUES, ET LE MONDE DONT ELLES PARLENT ════════════════
             Une seule mise en avant : la surface contrôlée (la matière du jeu).
-            Les quatre valeurs sont MESURÉES : aires et hexagones viennent de
+            Les valeurs sont MESURÉES : aires et hexagones viennent de
             `hex_claims`, défenses et km de saison de `user_stats` (déjà lus par
             useMyBadges — aucune requête de plus). Un « 0 » y est un FAIT pour un
             compte qui a couru sans rien prendre ; pour un compte qui n'a jamais
-            couru, c'est la PREMIÈRE MISSION qui prend la place (bloc suivant). */}
-        {gameReady && !isNewPlayer && controlledAreaM2 !== null && zonesHeld !== null ? (
-          <View style={styles.metrics}>
-            <View style={[styles.metricCell, styles.metricLead]}>
-              <Text
-                style={styles.metricLeadValue}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.7}
-              >
-                {formatKm2(controlledAreaM2, locale)}
-              </Text>
-              {/* §A.9 — on rétrécit/enroule, on ne tranche jamais un libellé. */}
-              <Text style={styles.metricLabel} numberOfLines={2}>
-                {t(C.statSurfaceControlled)}
-              </Text>
-            </View>
-            {[
-              { value: formatInt(zonesHeld), label: t(C.statZonesHeld) },
-              { value: formatInt(stat('defends')), label: t(C.statDefenses) },
-              { value: formatKm(stat('seasonDistanceM')), label: t(C.statSeasonKm) },
-            ].map((m) => (
-              <View key={m.label} style={[styles.metricCell, styles.metricDivided]}>
-                <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                  {m.value}
+            couru, c'est la PREMIÈRE MISSION qui prend la place (bloc suivant).
+
+            ─── CE QUI CHANGE LE 26/07/2026, ET POURQUOI ─────────────────────
+            Le bloc lisait le monde par DÉFAUT sans le dire. Il DIT désormais de
+            quelle discipline il parle, et il n'en choisit aucune : c'est le
+            territoire réel du joueur qui décide (`profileTerritoryView`).
+
+            MONO-DISCIPLINE — la composition de la planche E15 est INTACTE :
+            quatre métriques, un seul bloc à séparateurs, une seule mise en
+            avant. S'y ajoute UNE ligne de portée, et elle n'est pas décorative :
+            défenses et km viennent de `user_stats`, qui n'est PAS disciplinée
+            (0070 « ce qui reste en suspens » §2). Les laisser sous un titre
+            « à vélo » serait la somme que la planche E14 interdit.
+
+            HYBRIDE — écart ASSUMÉ à E15 : deux blocs de deux métriques au lieu
+            d'un de quatre. E14 est catégorique (« deux métriques côte à côte,
+            JAMAIS sommées ») et un même hexagone peut être tenu dans les deux
+            mondes : un total compterait deux fois la même parcelle de ville.
+            Défenses et km sortent alors du cadre territorial et vivent sur leur
+            propre ligne, explicitement « toutes disciplines ». */}
+        {gameReady && !isNewPlayer && territoryView !== null && territoryView.kind === 'single' ? (
+          <>
+            <View style={styles.metrics}>
+              <View style={[styles.metricCell, styles.metricLead]}>
+                <Text
+                  style={styles.metricLeadValue}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {formatKm2(territoryView.world.areaM2, locale)}
                 </Text>
+                {/* §A.9 — on rétrécit/enroule, on ne tranche jamais un libellé. */}
                 <Text style={styles.metricLabel} numberOfLines={2}>
-                  {m.label}
+                  {t(C.statSurfaceControlled)}
                 </Text>
               </View>
+              {[
+                { value: formatInt(territoryView.world.zones), label: t(C.statZonesHeld) },
+                { value: formatInt(stat('defends')), label: t(C.statDefenses) },
+                { value: formatKm(stat('seasonDistanceM')), label: t(C.statSeasonKm) },
+              ].map((m) => (
+                <View key={m.label} style={[styles.metricCell, styles.metricDivided]}>
+                  <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    {m.value}
+                  </Text>
+                  <Text style={styles.metricLabel} numberOfLines={2}>
+                    {m.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            {/* La phrase qui empêche le bloc de choisir en silence. Pleine
+                largeur : elle enroule, elle ne peut donc pas être tronquée. */}
+            <Text style={styles.metricsScope}>{t(METRICS_SCOPE[territoryView.world.activity])}</Text>
+          </>
+        ) : null}
+
+        {/* ══ 3ter · HYBRIDE : LES DEUX MONDES, CÔTE À CÔTE, JAMAIS SOMMÉS ═════ */}
+        {gameReady && !isNewPlayer && territoryView !== null && territoryView.kind === 'both' ? (
+          <>
+            {territoryView.worlds.map((world) => (
+              <View key={world.activity}>
+                <View style={styles.sectionRow}>
+                  <Icon name="carte" size={iconSizes.sm} color={colors.gris} />
+                  <Text style={styles.sectionRowLabel}>{t(SECTION_TERRITORY[world.activity])}</Text>
+                </View>
+                <View style={styles.metrics}>
+                  <View style={[styles.metricCell, styles.metricLead]}>
+                    <Text
+                      style={styles.metricLeadValue}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {formatKm2(world.areaM2, locale)}
+                    </Text>
+                    <Text style={styles.metricLabel} numberOfLines={2}>
+                      {t(C.statSurfaceControlled)}
+                    </Text>
+                  </View>
+                  <View style={[styles.metricCell, styles.metricDivided]}>
+                    <Text
+                      style={styles.metricValue}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {formatInt(world.zones)}
+                    </Text>
+                    <Text style={styles.metricLabel} numberOfLines={2}>
+                      {t(C.statZonesHeld)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
             ))}
-          </View>
+            <Text style={styles.metricsScope}>{t(C.metricsScopeBoth)}</Text>
+            {/* Les deux chiffres NON disciplinés, à part et nommés comme tels :
+                les répéter sous chaque monde les ferait lire « à vélo ». */}
+            <View style={styles.metrics}>
+              {[
+                { value: formatInt(stat('defends')), label: t(C.statDefenses) },
+                { value: formatKm(stat('seasonDistanceM')), label: t(C.statSeasonKm) },
+              ].map((m, i) => (
+                <View
+                  key={m.label}
+                  style={[styles.metricCell, i > 0 ? styles.metricDivided : null]}
+                >
+                  <Text
+                    style={styles.metricValue}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                  >
+                    {m.value}
+                  </Text>
+                  <Text style={styles.metricLabel} numberOfLines={2}>
+                    {m.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.metricsScope}>{t(C.metricsScopeAll)}</Text>
+          </>
         ) : null}
 
         {/* ══ 3bis · NOUVEAU JOUEUR : LA PREMIÈRE MISSION ══════════════════════
@@ -766,21 +932,32 @@ export default function ProfilScreen() {
         {/* ══ 4 · CARTE SIGNATURE (la preuve territoriale personnelle) ═════════
             Rendue UNIQUEMENT s'il y a quelque chose à montrer : une vignette
             vide ne serait pas une signature, ce serait un trou. Aucun label de
-            zone (aucune source — cf. SignatureMapCard). */}
-        {gameReady && mine !== null && mine.length > 0 ? (
-          <>
-            <View style={styles.sectionRow}>
-              <Icon name="pin" size={iconSizes.sm} color={colors.gris} />
-              <Text style={styles.sectionRowLabel}>{t(C.sectionSignatureMap)}</Text>
-            </View>
-            <SignatureMapCard
-              mine={mine}
-              linkLabel={t(C.seeMyMap)}
-              a11yLabel={t(C.a11yOpenTerritory)}
-              onPress={() => router.push('/territoire')}
-            />
-          </>
-        ) : null}
+            zone (aucune source — cf. SignatureMapCard).
+
+            UNE SILHOUETTE PAR MONDE, et jamais une seule pour les deux : la
+            couleur y dit le RÔLE (« moi »), pas la discipline — superposer les
+            deux mondes rendrait deux territoires distincts indiscernables, et
+            un hexagone tenu des deux côtés serait dessiné deux fois. Chaque
+            carte porte donc le nom de son monde. Pour un joueur mono-discipline,
+            c'est exactement une carte, comme avant. */}
+        {gameReady && territoryView !== null && myWorlds !== null
+          ? illustratedWorlds(territoryView).map((world) => (
+              <View key={world.activity}>
+                <View style={styles.sectionRow}>
+                  <Icon name="pin" size={iconSizes.sm} color={colors.gris} />
+                  <Text style={styles.sectionRowLabel}>
+                    {t(SECTION_SIGNATURE_MAP[world.activity])}
+                  </Text>
+                </View>
+                <SignatureMapCard
+                  mine={myWorlds[world.activity].mine}
+                  linkLabel={t(C.seeMyMap)}
+                  a11yLabel={t(C.a11yOpenTerritory)}
+                  onPress={() => router.push('/territoire')}
+                />
+              </View>
+            ))
+          : null}
 
         {/* ══ 5 · PROGRESSION EN UNE LIGNE ═════════════════════════════════════
             GRIP (le personnage à son rang — la progression a un visage, pose
@@ -907,11 +1084,35 @@ export default function ProfilScreen() {
               </Text>
             )}
 
-            {/* Historique — compteur GRATUIT (`runsValid`, déjà lu par
-                useMyBadges) : pas de lecture de `runs` juste pour un nombre. */}
+            {/* ══ HISTORIQUE — LE COMPTEUR QUI SOMMAIT LES DEUX MONDES ═══════
+                Cette ligne portait « Historique des courses · {n} » avec
+                n = `stat('runsValid')`. Le commentaire disait « compteur
+                GRATUIT » et c'était vrai — mais gratuit ne veut pas dire juste.
+
+                `runs_valid` vit dans `user_stats`, que la migration 0070 déclare
+                NON disciplinée (§ « ce qui reste en suspens »), et que
+                `applyRunToStats` incrémente pour toute sortie valide, vélo
+                compris (`awardBadges` n'a aucun filtre d'activité). La
+                destination, elle, est disciplinée : `useMyRunHistory` borne sa
+                lecture par `.eq('activity', …)`. Le Profil annonçait 12, le tap
+                en montrait 8.
+
+                LA CAUSE RACINE (un seul pot de stats pour deux mondes) se
+                corrige en base, pas ici : ce serait une migration + une reprise
+                d'`ingest_run`. Ce qui se décide ICI, c'est CE QUE L'ÉCRAN
+                AFFIRME — et un nombre qui mélange les mondes, sous une
+                navigation qui les sépare, affirme faux.
+
+                On ne l'étiquette pas « toutes disciplines » : la discipline
+                n'est qu'un des TROIS écarts avec la liste (statut et plafond
+                à 200 en sont deux autres, cf. le bloc de `catalog/profil.ts`).
+                Une étiquette n'en réparerait qu'un. On retire donc le nombre :
+                la ligne redevient une navigation, et le compte se lit là où la
+                liste vit, sous sa propre lentille. Le libellé et l'a11y sont la
+                MÊME entrée — une seule vérité à maintenir. */}
             <PreviewRow
               icon="historique"
-              label={t(C.previewHistory, { n: formatInt(stat('runsValid')) })}
+              label={t(C.linkHistory)}
               a11yLabel={t(C.linkHistory)}
               onPress={() => router.push('/historique')}
             />
@@ -1143,6 +1344,18 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.3,
     letterSpacing: 0.2,
+  },
+  /**
+   * Ligne de PORTÉE sous un bloc de métriques (« Territoire à vélo. Défenses et
+   * km : toutes disciplines. »). Pleine largeur et sans `numberOfLines` : elle
+   * enroule, donc elle ne peut pas être tronquée dans les cinq langues (§A.9).
+   * Gris secondaire : elle qualifie les chiffres, elle ne rivalise pas avec eux.
+   */
+  metricsScope: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.4,
+    marginTop: spacing.xs,
   },
 
   // ── En-têtes de section ──

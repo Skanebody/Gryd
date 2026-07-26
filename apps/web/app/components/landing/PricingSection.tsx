@@ -76,8 +76,10 @@ const STRINGS = {
     skinCap: 'Cosmétique · {min}–{max} Éclats',
     neverTitle: 'Jamais à vendre',
     neverItems: ['Des zones', 'Des points', 'Des kilomètres', 'La victoire'],
+    // « en courant » seul excluait les cyclistes de la garantie anti-pay-to-win
+    // depuis que le vélo capture du territoire (26/07/2026, cf. cguAboBody1).
     neverNote:
-      'Tout ce qui compte au classement se gagne en courant. L’Arsenal habille, protège, informe — il ne conquiert jamais à ta place.',
+      'Tout ce qui compte au classement se gagne en courant ou en roulant. L’Arsenal habille, protège, informe — il ne conquiert jamais à ta place.',
     offersLabel: 'Les offres',
     // Contenu RÉEL du pack — SKU_GRANTED_ITEM_KEYS.starter_pack + STARTER_PACK_ECLATS.
     // Ne plus annoncer le « Badge Founder » (exclusif Founder Pack) ni un
@@ -112,7 +114,7 @@ const STRINGS = {
     neverTitle: 'Never for sale',
     neverItems: ['Zones', 'Points', 'Kilometres', 'The win'],
     neverNote:
-      'Everything that counts on the leaderboard is earned by running. The Arsenal dresses, protects and informs — it never conquers for you.',
+      'Everything that counts on the leaderboard is earned by running or riding. The Arsenal dresses, protects and informs — it never conquers for you.',
     offersLabel: 'The bundles',
     starterFeatures: [
       'Neon Ivory trail',

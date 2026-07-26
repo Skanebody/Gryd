@@ -15,9 +15,13 @@
  *    la tolérance serveur couvre l'écart) ;
  *  - sinon → « retour ~N m » (vol d'oiseau, arrondi lisible 10 m).
  *
+ * Les deux seuils cités ci-dessus sont ceux de la DISCIPLINE de la sortie
+ * (26/07/2026) : 1 km de périmètre minimal à pied, 5 km à vélo. Les lire en dur
+ * revenait à promettre au cycliste une boucle quatre fois trop courte.
+ *
  * Zéro import React/natif : testé en Deno comme le reste du moteur.
  */
-import { LOOP_CLOSE_TOLERANCE_M, LOOP_MIN_PERIMETER_M } from '@klaim/shared';
+import { type Activity, activityRules } from '@klaim/shared';
 import { haversineM } from './validation';
 
 /** Écart départ ↔ position courante (m), null tant que la trace a < 2 points. */
@@ -55,12 +59,15 @@ export type LoopHint =
 
 export function loopHint(input: {
   conquest: boolean;
+  /** DISCIPLINE de la sortie — obligatoire : elle porte les deux seuils. */
+  activity: Activity;
   distanceM: number;
   gapM: number | null;
 }): LoopHint | null {
+  const rules = activityRules(input.activity);
   if (!input.conquest || input.gapM === null) return null;
-  if (input.distanceM < LOOP_MIN_PERIMETER_M) return null;
-  if (input.gapM <= LOOP_CLOSE_TOLERANCE_M) return { kind: 'ready' };
+  if (input.distanceM < rules.loopMinPerimeterM) return null;
+  if (input.gapM <= rules.loopCloseToleranceM) return { kind: 'ready' };
   return { kind: 'closing', gapM: input.gapM };
 }
 

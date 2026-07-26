@@ -6,7 +6,7 @@
  *   1. `StackScreen` : kicker « AIDE » + titre + sous-titre ;
  *   2. COMPRENDRE LES CALCULS — deux `ListRow` qui NAVIGUENT vers les pages
  *      d'explicabilité (calcul des zones, FAQ) ;
- *   3. MA COURSE — deux blocs d'EXPLICATION, non tappables : du contenu, pas des
+ *   3. MA SORTIE — deux blocs d'EXPLICATION, non tappables : du contenu, pas des
  *      contrôles ;
  *   4. SIGNALER — une `ListRow` vers le seul signalement RÉEL de l'app ;
  *   5. MES DONNÉES — export et suppression, réels, dans Confidentialité ;
@@ -149,7 +149,12 @@ export default function SupportScreen() {
         />
       ))}
 
-      <SectionLabel style={styles.kicker}>{t(C.secMaCourse)}</SectionLabel>
+      {/* « MA SORTIE » — cet écran est celui qu'ouvre quelqu'un dont la sortie
+          vient d'être refusée, et c'est aussi bien un cycliste : `ingest_run`
+          valide les deux disciplines, avec des bornes propres à chacune. L'Aide
+          ne LIT aucune discipline (aucun commutateur E14) : elle ne peut donc
+          pas avoir de jumeau, elle doit parler à tout le monde. */}
+      <SectionLabel style={styles.kicker}>{t(C.secMaSortie)}</SectionLabel>
       <ExplainBlock icon="aide" title={C.runStatusTitle} body={C.notCountedBody} />
       <ExplainBlock
         icon="pin"

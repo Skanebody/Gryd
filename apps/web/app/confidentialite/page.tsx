@@ -29,6 +29,22 @@
  * UE, le délai de grâce de 30 jours de la suppression de compte, et Google comme
  * fournisseur d'authentification.
  *
+ * ⚠️ 26/07/2026, SECONDE PASSE — LA FINALITÉ DÉCLARÉE ÉTAIT PLUS ÉTROITE QUE LE
+ * TRAITEMENT RÉEL. Le document annonçait « GRYD est un jeu de conquête de
+ * territoire par la course à pied », déclarait la localisation « pendant une
+ * course » et le podomètre lu « pour vérifier qu'il s'agit d'une vraie course à
+ * pied ». Depuis la décision fondateur du 26/07/2026, le vélo est une
+ * discipline RÉELLE (`ACTIVITIES = ['run', 'bike']`, `runs.activity`, clé
+ * primaire composite `hex_claims (h3index, activity)` — migration 0070, EN
+ * PRODUCTION) : les mêmes données sont donc traitées pour des sorties qui ne
+ * sont pas des courses à pied. Une finalité RGPD qui ne couvre pas le
+ * traitement réel n'est pas une imprécision de rédaction, c'est un DÉFAUT
+ * JURIDIQUE — la finalité est ce qui borne le traitement licite (art. 5.1.b).
+ * La correction est celle déjà portée côté mobile (`legal.ts`,
+ * `privacyDonneesBody2` / `privacyFinalitesBody2` / `privacyConservationBody`) :
+ * on dit ce qui est vérifié — la sincérité de l'effort dans la discipline
+ * DÉCLARÉE — sans prétendre que chaque capteur sert dans chaque discipline.
+ *
  * RÈGLE DE MAINTENANCE : ce document ne promet jamais au-delà du code. Avant de
  * réintroduire une ligne, vérifier le code, pas la rédaction précédente.
  *
@@ -51,7 +67,7 @@ const EFFECTIVE = '26 juillet 2026';
 export const metadata: Metadata = {
   title: 'Politique de confidentialité — GRYD',
   description:
-    'Comment GRYD collecte, utilise et protège tes données : localisation pendant les courses, mouvement, compte. Ta position n’est jamais publique, et GRYD ne lit aucune donnée de santé.',
+    'Comment GRYD collecte, utilise et protège tes données : localisation pendant tes sorties (course à pied et vélo), mouvement, compte. Ta position n’est jamais publique, et GRYD ne lit aucune donnée de santé.',
 };
 
 /** Sommaire ↔ ancres des sections (ordre de lecture). */
@@ -96,11 +112,14 @@ export default function ConfidentialitePage() {
         <header className={styles.hero}>
           <p className={styles.kicker}>Confidentialité</p>
           <h1 className={styles.heroTitle}>Politique de confidentialité</h1>
+          {/* La finalité annoncée ne peut pas être plus étroite que le traitement
+              réel : le vélo enregistre des sorties depuis le 26/07/2026. */}
           <p className={styles.heroSub}>
-            GRYD est un jeu de conquête de territoire par la course à pied. Cette page
-            explique, sans détour, quelles données nous traitons, pourquoi, combien de
-            temps, et comment tu gardes la main dessus. Elle s&rsquo;applique à
-            l&rsquo;application mobile GRYD et au site officiel GRYD.
+            GRYD est un jeu de conquête de territoire par l&rsquo;effort réel, dans deux
+            disciplines&nbsp;: la course à pied et le vélo. Cette page explique, sans
+            détour, quelles données nous traitons, pourquoi, combien de temps, et comment
+            tu gardes la main dessus. Elle s&rsquo;applique à l&rsquo;application mobile
+            GRYD et au site officiel GRYD.
           </p>
           <div className={styles.dateRow}>
             <span>
@@ -173,25 +192,31 @@ export default function ConfidentialitePage() {
               ton crew.
             </li>
             <li className={styles.item}>
-              <b>Localisation pendant une course&nbsp;:</b> ta position GPS, enregistrée{' '}
-              <b>uniquement quand tu as lancé une course</b>, pour tracer ton parcours et
-              déterminer quel territoire tu captures ou défends. Le suivi s&rsquo;arrête dès
-              que la course se termine.
+              <b>Localisation pendant une sortie&nbsp;:</b> ta position GPS, enregistrée{' '}
+              <b>uniquement quand tu as lancé une sortie</b> (course à pied ou vélo), pour
+              tracer ton parcours et déterminer quel territoire tu captures ou défends. Le
+              suivi s&rsquo;arrête dès la fin de la sortie.
             </li>
+            {/* La finalité disait « vérifier qu'il s'agit d'une vraie course à pied » :
+                la donnée est aussi lue sur une sortie à vélo, qui n'en est pas une. Ce
+                qui est vérifié, c'est la sincérité de l'effort dans la discipline
+                DÉCLARÉE — sans prétendre que chaque capteur sert dans chaque
+                discipline (le podomètre ne dit rien d'une sortie à vélo). */}
             <li className={styles.item}>
               <b>Mouvement & podomètre&nbsp;:</b> cadence, pas et cohérence de mouvement,
-              lus pendant la course par «&nbsp;GRYD Verify&nbsp;» pour vérifier qu&rsquo;il
-              s&rsquo;agit d&rsquo;une vraie course à pied (anti-triche).
+              lus pendant la sortie par «&nbsp;GRYD Verify&nbsp;» pour vérifier que
+              l&rsquo;effort enregistré est réel et correspond à la discipline que tu as
+              déclarée (anti-triche).
             </li>
             {/* Remplace « Santé importée (Apple Santé / HealthKit) » : ce traitement
                 n'existe pas (cf. l'en-tête). Ce qui existe RÉELLEMENT, et qui
                 n'était déclaré nulle part, c'est l'import d'un fichier de course
                 à ton initiative — un vrai envoi de tracé à nos serveurs. */}
             <li className={styles.item}>
-              <b>Courses importées, à ton initiative&nbsp;:</b> si tu importes un fichier
-              de course (GPX) ou connectes un service de suivi tiers, le tracé et les
+              <b>Sorties importées, à ton initiative&nbsp;:</b> si tu importes un fichier
+              d&rsquo;activité (GPX) ou connectes un service de suivi tiers, le tracé et les
               mesures de l&rsquo;activité importée sont envoyés à nos serveurs pour être
-              validés comme une course GRYD.
+              validés comme une sortie GRYD.
             </li>
             {/* Remplace « messages de chat de crew … réactions » : il n'y a AUCUNE
                 messagerie dans GRYD (aucun code ne lit ni n'écrit `crew_messages`).
@@ -273,9 +298,12 @@ export default function ConfidentialitePage() {
                   <td>Créer et sécuriser ton compte, te contacter au sujet du service.</td>
                   <td>Exécution du contrat (art. 6.1.b)</td>
                 </tr>
+                {/* Les finalités du tableau sont la borne juridique du traitement
+                    (art. 5.1.b) : les nommer « en course » les rendait plus étroites
+                    que le traitement réel depuis que le vélo enregistre. */}
                 <tr>
                   <td>
-                    <b>Localisation en course</b>
+                    <b>Localisation pendant une sortie</b>
                   </td>
                   <td>Tracer ton parcours, décider quel territoire tu captures / défends.</td>
                   <td>Exécution du contrat (art. 6.1.b)</td>
@@ -284,7 +312,10 @@ export default function ConfidentialitePage() {
                   <td>
                     <b>Mouvement & podomètre</b>
                   </td>
-                  <td>Vérifier qu&rsquo;une course est réelle (anti-triche, GRYD Verify).</td>
+                  <td>
+                    Vérifier qu&rsquo;une sortie est réelle et conforme à sa discipline
+                    déclarée (anti-triche, GRYD Verify).
+                  </td>
                   <td>Intérêt légitime — équité du jeu (art. 6.1.f)</td>
                 </tr>
                 {/* La ligne « Santé importée — consentement explicite (art. 9.2.a) »
@@ -292,9 +323,9 @@ export default function ConfidentialitePage() {
                     Remplacée par le traitement RÉEL du même endroit du parcours. */}
                 <tr>
                   <td>
-                    <b>Courses importées</b>
+                    <b>Sorties importées</b>
                   </td>
-                  <td>Faire compter une course enregistrée ailleurs (GPX, service tiers).</td>
+                  <td>Faire compter une sortie enregistrée ailleurs (GPX, service tiers).</td>
                   <td>Exécution du contrat (art. 6.1.b), sur ton initiative</td>
                 </tr>
                 <tr>
@@ -438,8 +469,8 @@ export default function ConfidentialitePage() {
               conservation (facturation, litige).
             </li>
             <li className={styles.item}>
-              <b>Tracés de course&nbsp;:</b> conservés avec ton compte&nbsp;; supprimés
-              lors de la suppression du compte.
+              <b>Tracés de tes sorties (course à pied comme vélo)&nbsp;:</b> conservés avec
+              ton compte&nbsp;; supprimés lors de la suppression du compte.
             </li>
             <li className={styles.item}>
               <b>Journaux techniques&nbsp;:</b> conservés au maximum <b>12 mois</b>, puis
@@ -509,7 +540,7 @@ export default function ConfidentialitePage() {
             Les échanges sont chiffrés en transit (HTTPS). L&rsquo;accès à la base de
             données est cloisonné par des règles de sécurité au niveau de chaque ligne
             (RLS)&nbsp;: un joueur ne peut jamais lire ou écrire les données d&rsquo;un
-            autre. L&rsquo;écriture des courses et des captures de territoire passe
+            autre. L&rsquo;écriture des sorties et des captures de territoire passe
             exclusivement par nos serveurs, jamais directement par l&rsquo;app cliente, ce
             qui empêche toute triche et protège l&rsquo;intégrité de tes données.
           </p>

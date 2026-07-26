@@ -34,16 +34,45 @@
  * monde de la course en cours : sans ça, un joueur resté en Bike se retrouverait
  * devant un état vide qu'aucun contrôle visible ne pourrait quitter.
  *
- * CE QU'IL CHANGE, ET SURTOUT CE QU'IL NE RÉÉTIQUETTE PAS : en lentille Bike,
- * les TROIS BLOCS DISPARAISSENT. Pas remplis de zéros — retirés. Un « 0,0 km »
- * ou un carré de régularité éteint sous une étiquette vélo affirmerait que le
- * joueur n'a pas roulé, alors que GRYD ne sait tout simplement pas mesurer le
- * vélo : tous les chemins de départ déclarent la course à pied
- * (`features/run/gps/runActivity.ts`), donc aucune sortie vélo n'existe. À la
- * place, un état vide NOMMÉ, sans CTA (proposer « lance-toi » enverrait vers un
- * départ qui enregistre une COURSE — un bouton qui ne peut pas tenir sa promesse).
- * Le PALMARÈS et la ligne Premium tombent avec le reste : les records se
- * dérivent des mêmes `runs`, et « ton meilleur 5 km » n'est pas un record vélo.
+ * CE QU'IL CHANGE DEPUIS LE 26/07/2026 : il BASCULE UNE VRAIE LECTURE. En
+ * lentille Bike, les trois blocs DISPARAISSAIENT — c'était juste tant que
+ * `runs` ne portait que des courses à pied. Le vélo enregistre désormais
+ * (décision fondateur ; `runs.activity`, migration 0070 appliquée) :
+ * `useStats(activity)` et `useRealTerritories(undefined, activity)` bornent
+ * leurs lectures par `.eq('activity', …)`, et les trois blocs — volume,
+ * territoire, régularité — décrivent LA DISCIPLINE CHOISIE.
+ *
+ * CE QU'IL NE RÉÉTIQUETTE TOUJOURS PAS : aucune ligne de course à pied
+ * n'apparaît sous une étiquette vélo. Ce n'est plus une branche d'affichage qui
+ * le garantit, c'est le filtre SQL — donc ça ne peut pas être oublié dans un
+ * coin de l'écran. Le PALMARÈS suit la même lecture (`records.ts` dérive des
+ * MÊMES lignes) : « ton meilleur 5 km » à vélo est le meilleur 5 km à vélo, pas
+ * un record de course affiché ailleurs.
+ * Quand la lentille vélo est vide, ce n'est plus l'absence d'une fonctionnalité
+ * mais le début de CE joueur : la planche E18 a la phrase (« roule deux fois et
+ * tes premières tendances apparaissent »), et le CTA DÉCLARE ce qu'il lance.
+ *
+ * ─── LA COPIE SUIT LA LECTURE (26/07/2026, seconde passe) ───────────────────
+ * La bascule de LECTURE était juste ; les MOTS ne suivaient que dans l'état
+ * vide. La branche `bike` de cet écran n'est atteinte QUE si la page n'a PAS de
+ * données : un cycliste qui a des sorties lisait donc tout le corps en
+ * vocabulaire coureur — « courses / sem. » sous le chiffre héros du bloc 3,
+ * « {n} de tes {total} courses » en conclusion du bloc 1, « Semaine sans
+ * course » à voix haute sur chaque carré éteint, « L'impact de certaines
+ * courses n'a pas été enregistré », et surtout « COURS 2 fois pour tes
+ * premières tendances » (« LAUF 2 Mal ») : un IMPÉRATIF qui ordonne de courir à
+ * quelqu'un qui roule, servi par les TROIS blocs. Les trois états de lecture
+ * (pas connecté / sans serveur / échec / chargement) fuyaient de la même façon,
+ * alors que le commutateur reste visible dans la barre pendant ces états.
+ *
+ * Le correctif n'ajoute PAS de `bike ? … : …` : les libellés qui NOMMENT
+ * l'effort sont indexés par `Activity` dans le catalogue (`statsCopy` →
+ * `STATS_COPY`), l'écran et `StatsBody` lisent ce jeu-là, et `RecordsSection`
+ * reçoit la discipline comme `ZoneLeaderboard` — sans défaut, parce qu'un
+ * défaut ferait retomber en silence sur la course. Ce qui est déjà NEUTRE
+ * (« Volume d'activité », « Semaine active », « Meilleure allure », les
+ * légendes de graphique) reste UNIQUE : dupliquer à l'identique créerait deux
+ * vérités à maintenir.
  *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE (aucun n'est masqué) ───────────────────────
  * 1. SEGMENT « SAISON » — rendu UNIQUEMENT quand une saison RÉELLE est ouverte
@@ -84,6 +113,7 @@ import {
   radii,
   sizes,
   spacing,
+  type Activity,
 } from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { flags } from '../src/lib/flags';
@@ -91,6 +121,7 @@ import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { StackScreen } from '../src/ui/StackScreen';
 import { ActivitySwitch, useActivityLens } from '../src/ui/ActivitySwitch';
+import { startSortieHref } from '../src/ui/activityLens';
 import { Segmented, type SegmentedOption } from '../src/ui/game';
 import { useSession } from '../src/lib/session';
 import { useRealTerritories } from '../src/features/map/hexClaims';
@@ -112,7 +143,7 @@ import {
 import { decimalSeparator } from '../src/ui/format';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
-import { C } from '../src/i18n/catalog/performance';
+import { C, statsCopy } from '../src/i18n/catalog/performance';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FORMATAGE — séparateur décimal de la langue, SANS Intl (Hermes n'embarque pas
@@ -203,15 +234,25 @@ function StatsBody({
   period,
   territory,
   records,
+  activity,
 }: {
   data: DerivedStats;
   period: StatsPeriod;
   territory: TerritoryRead;
   /** Palmarès dérivé des MÊMES lignes que les blocs (jamais d'une 2e lecture). */
   records: PersonalRecords;
+  /**
+   * LA DISCIPLINE LUE. Obligatoire, sans défaut : ce corps ne s'affichait
+   * qu'avec des données, donc c'est ici — et nulle part ailleurs — qu'un
+   * cycliste lisait tout l'écran en vocabulaire coureur. Un défaut ferait
+   * retomber en silence sur la course, c'est-à-dire sur le bug lui-même.
+   */
+  activity: Activity;
 }) {
   const t = useT();
   const { volume, weekly } = data;
+  /** Les libellés qui NOMMENT l'effort, indexés par discipline (`STATS_COPY`). */
+  const S = statsCopy(activity);
 
   // ── Repère temporel d'une semaine, en toutes lettres (VoiceOver + bulles) ──
   const whenLabel = (weeksAgo: number): string =>
@@ -247,12 +288,12 @@ function StatsBody({
     // vérité — on est lundi matin), ton NEUTRE, aucune conclusion.
     volumeNote =
       period === 'week'
-        ? t(C.weekNoRun)
+        ? t(S.weekNoRun)
         : period === 'month'
-          ? t(C.volumeNoRunMonth)
-          : t(C.volumeNoRunSeason);
+          ? t(S.volumeNoRunMonth)
+          : t(S.volumeNoRunSeason);
   } else if (!volume.enough) {
-    volumeNote = t(C.notEnoughData, { n: MIN_RUNS_FOR_TRENDS });
+    volumeNote = t(S.notEnoughData, { n: MIN_RUNS_FOR_TRENDS });
   } else if (volume.bestDayIndex !== null) {
     const day = t(DAY_FULL[volume.bestDayIndex] ?? C.dayMonFull);
     // Variante « captures » seulement si TOUS les payloads de la fenêtre sont
@@ -268,7 +309,7 @@ function StatsBody({
             n: volume.bestDayCaptures,
             total: volume.totalCaptures,
           })
-        : t(C.volumeBestDayRuns, { day, n: volume.bestDayRuns, total: volume.runs });
+        : t(S.volumeBestDayRuns, { day, n: volume.bestDayRuns, total: volume.runs });
   }
 
   // ═══ BLOC 2 — PROGRESSION TERRITORIALE ════════════════════════════════════
@@ -291,8 +332,8 @@ function StatsBody({
   let territoryNote: string | null = null;
   if (territory.loading) territoryNote = t(C.territoryLoading);
   else if (territory.failed || territory.areaKm2 === null) territoryNote = t(C.territoryFailed);
-  else if (!enoughWeeks) territoryNote = t(C.notEnoughData, { n: MIN_RUNS_FOR_TRENDS });
-  else if (captured === null) territoryNote = t(C.territoryImpactUnknown);
+  else if (!enoughWeeks) territoryNote = t(S.notEnoughData, { n: MIN_RUNS_FOR_TRENDS });
+  else if (captured === null) territoryNote = t(S.territoryImpactUnknown);
   else if (captured === 0) territoryNote = t(C.territoryNoCapture);
 
   const bestWeek =
@@ -300,8 +341,10 @@ function StatsBody({
 
   // ═══ BLOC 3 — RÉGULARITÉ ══════════════════════════════════════════════════
   const squares = weekly.weeks.map((w) => w.runs > 0);
+  // « Semaine active » est déjà neutre et reste unique ; seul le carré ÉTEINT
+  // nommait le sport (« Semaine sans course », lu à voix haute).
   const squareTexts = weekly.weeks.map((w) =>
-    t(w.runs > 0 ? C.weekActiveA11y : C.weekIdleA11y, { when: whenLabel(w.weeksAgo) }),
+    t(w.runs > 0 ? C.weekActiveA11y : S.weekIdleA11y, { when: whenLabel(w.weeksAgo) }),
   );
 
   const openPremium = () => {
@@ -381,7 +424,7 @@ function StatsBody({
       <StatBlock
         title={t(C.regularityTitle)}
         value={enoughWeeks ? fmtNum(weekly.avgRunsPerWeek, 1) : null}
-        unit={enoughWeeks ? t(C.regularityUnit) : null}
+        unit={enoughWeeks ? t(S.regularityUnit) : null}
         sub={enoughWeeks ? t(C.regularityAverageOver, { n: weekly.weeks.length }) : null}
         chart={
           enoughWeeks ? (
@@ -400,7 +443,7 @@ function StatsBody({
               : t(C.regularityBuilding)
             : null
         }
-        note={enoughWeeks ? null : t(C.notEnoughData, { n: MIN_RUNS_FOR_TRENDS })}
+        note={enoughWeeks ? null : t(S.notEnoughData, { n: MIN_RUNS_FOR_TRENDS })}
       />
 
       {/* LE PALMARÈS — sous les trois blocs, jamais à leur niveau : liste de
@@ -408,7 +451,7 @@ function StatsBody({
           PAS le commutateur de période : un record est « de tous les temps »
           par définition — le filtrer sur la semaine en ferait un simple
           maximum hebdomadaire déguisé en record. */}
-      <RecordsSection records={records} />
+      <RecordsSection records={records} activity={activity} />
 
       {/* Entrée Premium : une LIGNE légère en bas du gratuit, sans pression et
           sans jamais laisser croire que la heatmap existe déjà. Rendue seulement
@@ -436,18 +479,29 @@ export default function PerformanceScreen() {
   const t = useT();
   const { configured, session } = useSession();
   // Règle des hooks : tout est appelé INCONDITIONNELLEMENT, avant toute branche.
-  const stats = useStats();
+  // LENTILLE de CET onglet (planche E14, « mémorisé par onglet ») + éligibilité
+  // du commutateur (flags.bike, retiré pendant une course). Déclarée AVANT les
+  // lectures : ce sont elles qui en dépendent, plus l'inverse.
+  const { activity, setActivity, switchVisible } = useActivityLens('stats');
+  const bike = activity === 'bike';
+  /**
+   * LES ÉTATS DE LECTURE PARLENT AUSSI DU MONDE REGARDÉ (26/07/2026). Le
+   * commutateur vit dans la barre, hors de `stats.status` : un cycliste
+   * déconnecté, en échec ou en cours de lecture voit sa lentille affichée et
+   * lisait pourtant « tes courses ». Trois libellés, un seul aiguillage.
+   */
+  const S = statsCopy(activity);
+  const stats = useStats(activity);
   const seasonState = useActiveSeason();
   // MÊME source et MÊME hook que la carte et /territoire : les trois écrans ne
   // doivent pas pouvoir se contredire sur le km² tenu. Sans `crewIds`, seul ce
-  // qui m'appartient est classé 'crew' — le périmètre de « ma » surface.
-  const territories = useRealTerritories();
+  // qui m'appartient est classé 'crew' — le périmètre de « ma » surface. La
+  // lentille est passée : le km² affiché ici est celui de LA discipline lue par
+  // les trois blocs, sinon le bloc « territoire » raconterait un autre monde que
+  // le bloc « volume », dans le même écran.
+  const territories = useRealTerritories(undefined, activity);
   const [period, setPeriod] = useState<StatsPeriod>('week');
   const firstRender = useRef(true);
-  // LENTILLE de CET onglet (planche E14, « mémorisé par onglet ») + éligibilité
-  // du commutateur (flags.bike, retiré pendant une course).
-  const { activity, setActivity, switchVisible } = useActivityLens('stats');
-  const bike = activity === 'bike';
 
   const rawSeasonStart = seasonState.season ? Date.parse(seasonState.season.startsAt) : Number.NaN;
   const seasonStartMs =
@@ -504,94 +558,84 @@ export default function PerformanceScreen() {
   if (seasonStartMs !== null) periodOptions.push({ id: 'season', label: t(C.periodSeason) });
 
   let body: React.ReactNode;
-  if (bike) {
-    /**
-     * LENTILLE BIKE — l'état vide NOMMÉ, servi À LA PLACE de tout le reste.
-     *
-     * On ne consulte MÊME PAS `stats.status` ici, et c'est le point : les trois
-     * blocs, le palmarès et le commutateur de période se dérivent tous des
-     * mêmes lignes de `runs`, qui sont TOUTES des courses à pied (la discipline
-     * est déclarée au départ, `runActivity.ts`). Les rendre sous une étiquette
-     * vélo — même à zéro — affirmerait quelque chose sur un joueur cycliste que
-     * GRYD n'a jamais mesuré. On dit ce qu'il n'y a pas, et pourquoi.
-     *
-     * AUCUN CTA : le seul geste qui remplirait cette page est un départ de
-     * course, qui enregistre une COURSE À PIED. Le peindre ici serait un bouton
-     * qui ne peut pas tenir sa promesse (§A.4 / « aucun bouton mort »).
-     */
-    body = (
-      <StateBlock
-        title={t(C.bikeEmptyTitle)}
-        body={t(C.bikeEmptyBody)}
-        note={t(C.bikeEmptyRunSafe)}
-      />
-    );
-  } else {
-    switch (stats.status) {
-      case 'signed-out':
-        body = canSignIn ? (
+  switch (stats.status) {
+    case 'signed-out':
+      body = canSignIn ? (
+        <StateBlock
+          title={t(S.signedOutTitle)}
+          body={t(C.signedOutBody)}
+          ctaLabel={t(C.signIn)}
+          onPress={() => router.push('/sign-in')}
+        />
+      ) : (
+        <StateBlock title={t(S.noBackendTitle)} body={t(C.noBackendBody)} />
+      );
+      break;
+    case 'loading':
+      // Une ligne, pas un spinner plein écran. État BORNÉ : la lecture aboutit
+      // ou bascule sur `failed`. Un chargement n'affirme RIEN sur le joueur.
+      body = <Text style={styles.stateInline}>{t(S.loading)}</Text>;
+      break;
+    case 'failed':
+      body = (
+        <StateBlock
+          title={t(S.failedTitle)}
+          body={t(C.failedBody)}
+          ctaLabel={t(C.retry)}
+          onPress={stats.reload}
+        />
+      );
+      break;
+    case 'ready':
+      body =
+        derived && records && derived.countedRuns > 0 ? (
+          <>
+            {/* Le seul groupe de choix DU CONTENU (le commutateur Run/Bike
+                vit dans la barre, pas dans la page : il change de MONDE, pas
+                de fenêtre temporelle). `tone="surface"` : la chartreuse est
+                ici une couleur de DONNÉE (rôle « moi »), elle ne doit pas être
+                dépensée sur un filtre. */}
+            <Segmented
+              options={periodOptions}
+              value={period}
+              onChange={setPeriod}
+              tone="surface"
+              accessibilityLabel={t(C.periodA11y)}
+              style={styles.periods}
+            />
+            <StatsBody
+              data={derived}
+              period={period}
+              territory={territory}
+              records={records}
+              activity={activity}
+            />
+          </>
+        ) : bike ? (
+          // Compte relié, zéro sortie VÉLO ingérée. Ce n'est ni une panne ni
+          // une fonctionnalité manquante : c'est le point de départ de ce
+          // joueur dans cette discipline. Le CTA DÉCLARE le vélo
+          // (`startSortieHref`) — il ne le devine pas depuis la lentille, ce
+          // qui serait précisément l'interdit du 25/07.
           <StateBlock
-            title={t(C.signedOutTitle)}
-            body={t(C.signedOutBody)}
-            ctaLabel={t(C.signIn)}
-            onPress={() => router.push('/sign-in')}
+            title={t(C.bikeEmptyTitle)}
+            body={t(C.bikeEmptyBody)}
+            note={t(C.bikeEmptyRunSafe)}
+            ctaLabel={t(C.bikeEmptyCta)}
+            onPress={() => router.push(startSortieHref('bike'))}
           />
         ) : (
-          <StateBlock title={t(C.noBackendTitle)} body={t(C.noBackendBody)} />
-        );
-        break;
-      case 'loading':
-        // Une ligne, pas un spinner plein écran. État BORNÉ : la lecture aboutit
-        // ou bascule sur `failed`. Un chargement n'affirme RIEN sur le joueur.
-        body = <Text style={styles.stateInline}>{t(C.loading)}</Text>;
-        break;
-      case 'failed':
-        body = (
+          // Compte relié, zéro course ingérée : ce n'est pas une panne, c'est
+          // son point de départ. On dit ce que la page contiendra, et le seul
+          // geste qui la remplit.
           <StateBlock
-            title={t(C.failedTitle)}
-            body={t(C.failedBody)}
-            ctaLabel={t(C.retry)}
-            onPress={stats.reload}
+            title={t(C.emptyTitle)}
+            body={t(C.emptyBody)}
+            ctaLabel={t(C.emptyCta)}
+            onPress={() => router.push('/')}
           />
         );
-        break;
-      case 'ready':
-        body =
-          derived && records && derived.countedRuns > 0 ? (
-            <>
-              {/* Le seul groupe de choix DU CONTENU (le commutateur Run/Bike
-                  vit dans la barre, pas dans la page : il change de MONDE, pas
-                  de fenêtre temporelle). `tone="surface"` : la chartreuse est
-                  ici une couleur de DONNÉE (rôle « moi »), elle ne doit pas être
-                  dépensée sur un filtre. */}
-              <Segmented
-                options={periodOptions}
-                value={period}
-                onChange={setPeriod}
-                tone="surface"
-                accessibilityLabel={t(C.periodA11y)}
-                style={styles.periods}
-              />
-              <StatsBody
-                data={derived}
-                period={period}
-                territory={territory}
-                records={records}
-              />
-            </>
-          ) : (
-            // Compte relié, zéro course ingérée : ce n'est pas une panne, c'est
-            // son point de départ. On dit ce que la page contiendra, et le seul
-            // geste qui la remplit.
-            <StateBlock
-              title={t(C.emptyTitle)}
-              body={t(C.emptyBody)}
-              ctaLabel={t(C.emptyCta)}
-              onPress={() => router.push('/')}
-            />
-          );
-        break;
-    }
+      break;
   }
 
   return (

@@ -3,14 +3,16 @@
  *
  * Même fondation pure que le peek de la carte (une seule logique,
  * buildRealWidgetView) — rendu compact : titre de situation + 1-2 lignes + UNE
- * action en lien. RÉEL uniquement : sans session ou sans données, le composant
- * ne rend RIEN (le profil garde ses modules démo étiquetés) — on n'ajoute pas
- * un widget démo de plus.
+ * action en lien. RÉEL uniquement : sans session ou sans données, le hook rend
+ * `null` et le parent choisit son état vide — jamais un widget de démonstration.
+ * (La phrase « le profil garde ses modules démo étiquetés » a été retirée le
+ * 26/07/2026 : le mode vitrine n'existe plus depuis le 21/07, et une doc qui
+ * décrit une branche supprimée est aussi trompeuse qu'une donnée fabriquée.)
  */
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, fontSizes, radii, sizes, spacing, typography } from '@klaim/shared';
+import { colors, fontSizes, radii, sizes, spacing, typography, type Activity } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import { useEffectOncePerState } from './useEffectOncePerState';
 import { useRealTerritories } from '../map/hexClaims';
@@ -26,9 +28,24 @@ function actOn(view: TerritoryWidgetView): void {
   router.push(view.action === 'share' ? '/partage' : '/');
 }
 
-/** Le widget RÉEL, ou null (démo/pas de données) — le parent choisit son fallback. */
-export function useTerritoryWidgetView(): TerritoryWidgetView | null {
-  const { territories, isReal } = useRealTerritories();
+/**
+ * Le widget RÉEL, ou null (pas de données) — le parent choisit son fallback.
+ *
+ * ─── LA DISCIPLINE EST UN PARAMÈTRE OBLIGATOIRE (E14, 26/07/2026) ───────────
+ * Ce hook appelait `useRealTerritories()` sans discipline, donc dans le monde
+ * par défaut : la card aurait annoncé « tu ne tiens rien » à un cycliste qui
+ * tient du territoire, et « 0,00 km² » est précisément le zéro nu que la loi du
+ * projet interdit. Le paramètre est REQUIS, et pas optionnel avec un défaut :
+ * un défaut rétablirait le choix silencieux sans que le compilateur bronche.
+ *
+ * ÉTAT RÉEL DE CE COMPOSANT AU 26/07/2026 : il n'est monté NULLE PART. Le
+ * recalage du Profil sur la planche E15 l'a retiré (il portait le seul gros CTA
+ * chartreuse d'un écran qui n'en veut aucun — cf. le bloc de tête de
+ * `app/(tabs)/profil.tsx`). Le correctif n'a donc aucun effet visible
+ * aujourd'hui : il empêche le défaut de revenir avec le composant.
+ */
+export function useTerritoryWidgetView(activity: Activity): TerritoryWidgetView | null {
+  const { territories, isReal } = useRealTerritories(undefined, activity);
   return useMemo(() => {
     if (!isReal || territories === null) return null;
     const lastResult = getLastRunResult();

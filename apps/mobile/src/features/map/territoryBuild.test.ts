@@ -200,6 +200,32 @@ Deno.test('dataNote : les 3 cas de source ne sont JAMAIS confondus', () => {
   assertEquals(dataNote(true, false, 3), null);
 });
 
+Deno.test('dataNote : le VIDE parle la langue de la LENTILLE, pas toujours celle de la course', () => {
+  // La note du vide porte un VERBE (« Cours pour prendre ta première zone »).
+  // Servie telle quelle sous la lentille vélo, elle décrivait un effort que le
+  // joueur n'est pas en train de regarder — et celui qui l'aurait suivie aurait
+  // capturé dans l'AUTRE monde que celui affiché.
+  for (const locale of LOCALES) {
+    const course = dataNote(true, false, 0, locale, 'run');
+    const velo = dataNote(true, false, 0, locale, 'bike');
+    assert(course !== null && velo !== null);
+    assert(course !== velo, `${locale} : la note du vide est identique dans les deux mondes`);
+  }
+  // Le défaut reste EXACTEMENT le comportement d'avant le vélo : les surfaces
+  // sans commutateur (territoire, profil, widget) ne changent pas d'un mot.
+  assertEquals(dataNote(true, false, 0, 'fr'), dataNote(true, false, 0, 'fr', 'run'));
+});
+
+Deno.test('dataNote : compte et réseau n’ont PAS de discipline', () => {
+  // « Pas connecté » et « lecture échouée » parlent du compte et du réseau. Les
+  // décliner par lentille inventerait une différence entre « pas connecté à
+  // vélo » et « pas connecté à pied » — une distinction qui n'existe pas.
+  for (const locale of LOCALES) {
+    assertEquals(dataNote(false, false, 0, locale, 'bike'), dataNote(false, false, 0, locale, 'run'));
+    assertEquals(dataNote(false, true, 0, locale, 'bike'), dataNote(false, true, 0, locale, 'run'));
+  }
+});
+
 Deno.test('dataNote : plus AUCUN message ne parle de « démonstration »', () => {
   // 21/07/2026 — fin du mode vitrine. Le paramètre `demoPainted` et la copie
   // « Territoires de démonstration » ont disparu : aucune surface ne peint plus de

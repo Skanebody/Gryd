@@ -3,12 +3,20 @@
  *
  * Ces Entries respectent la règle i18n du projet (5 langues, parité forcée par
  * le type `Entry`) mais vivent ici plutôt que dans `i18n/catalog/result.ts` :
- * ce lot est produit en parallèle d'autres agents qui écrivent dans ce
- * catalogue partagé. TODO : les remonter dans `i18n/catalog/result.ts` au
- * prochain passage mono-agent (aucun changement de texte à prévoir).
+ * ce lot était produit en parallèle d'autres agents qui écrivaient dans ce
+ * catalogue partagé.
+ *
+ * ─── CE QUI EST PARTI DANS LE CATALOGUE (26/07/2026) ────────────────────────
+ * `traceUnavailableNote` est REMONTÉE dans `i18n/catalog/result.ts` (texte
+ * inchangé) : elle NOMME l'effort (« le tracé de cette course »), il lui fallait
+ * donc un jumeau vélo, et le servir depuis ici aurait exigé un SECOND aiguillage
+ * par discipline à côté de `RESULT_COPY` — deux vérités à maintenir pour un même
+ * écran. Ce qui reste ci-dessous ne nomme aucun effort : `traceUnavailable` est
+ * déjà neutre dans les cinq langues, et les états vides ne DÉCRIVENT aucune
+ * sortie (voir leur bloc plus bas).
  *
  * Elles couvrent le SEUL cas que le partage ne savait pas dire : « le tracé de
- * cette course n'est pas connu ». Avant, la carte de la card se contentait de ne
+ * cette sortie n'est pas connu ». Avant, la carte de la card se contentait de ne
  * rien dessiner → un carré entièrement vide, sans explication (état vide ≠ écran
  * blanc). Ici la card dit ce qu'elle ne peut pas montrer, et garde ses chiffres.
  */
@@ -27,14 +35,9 @@ export const SHARE_COPY = defineCatalog({
     de: 'Route nicht verfügbar',
     pt: 'Trajeto indisponível',
   },
-  /** Ligne d'explication sous l'aperçu (écran /partage, pas dans l'image). */
-  traceUnavailableNote: {
-    fr: 'Le tracé de cette course n’est pas encore disponible. Les chiffres, eux, sont bien les tiens.',
-    en: 'This run’s route isn’t available yet. The numbers, though, are really yours.',
-    es: 'El recorrido de esta carrera aún no está disponible. Las cifras sí son tuyas.',
-    de: 'Die Route dieses Laufs ist noch nicht verfügbar. Die Zahlen sind aber wirklich deine.',
-    pt: 'O trajeto desta corrida ainda não está disponível. Os números, esses são seus mesmo.',
-  },
+  // La ligne d'explication sous l'aperçu (« Le tracé de cette course n'est pas
+  // encore disponible… ») vit désormais dans `i18n/catalog/result.ts`, avec son
+  // jumeau vélo — voir l'en-tête de ce fichier.
 
   // ─── /partage SANS COURSE ARMÉE (21/07/2026) ──────────────────────────────
   // L'écran fabriquait une carte de partage COMPLÈTE (`shareRun?.card ??
@@ -43,6 +46,18 @@ export const SHARE_COPY = defineCatalog({
   // joueur. La note « Exemple » ne rachetait rien (« le bandeau n'y change
   // rien, c'est un run fabriqué à la place du sien »). Il n'y a donc plus de
   // carte du tout : trois états vides, trois copies distinctes.
+  //
+  // ─── POURQUOI CES TROIS-LÀ N'ONT PAS DE JUMEAU VÉLO (26/07/2026) ──────────
+  // Elles disent « tes courses », « le partage part du résultat d'une course ».
+  // Un jumeau vélo serait INSERVABLE : ces états ne s'affichent QUE lorsqu'aucune
+  // sortie n'est armée — il n'y a alors aucune discipline à lire, et le seul
+  // `activity` disponible viendrait d'une URL qui ne décrit aucune sortie. On ne
+  // choisirait donc pas la bonne version : on tirerait à pile ou face. Elles
+  // décrivent le PARCOURS PRODUIT, pas une sortie du joueur, et la discipline
+  // déclarée du jeu reste la course à pied (`DEFAULT_ACTIVITY`).
+  // C'est un écart ASSUMÉ et écrit, pas un oubli : le jour où l'app connaîtra la
+  // discipline habituelle du joueur hors course, ces trois phrases pourront la
+  // suivre. Tant qu'elle n'existe pas, on ne promet rien au-delà du code.
 
   /** Titre commun de l'écran quand aucune course n'est armée. */
   emptyTitle: {

@@ -20,7 +20,7 @@
  * sources n'introduit jamais de faux mètres.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Activity, RunMode } from '@klaim/shared';
+import { ACTIVITIES, type Activity, type RunMode } from '@klaim/shared';
 import type { RawFix } from '../features/run/gps/engine/gps';
 
 const ACTIVE_RUN_KEY = 'gryd.activeRun.v1';
@@ -56,6 +56,16 @@ async function readRun(key: string): Promise<StoredRun | null> {
     if (raw === null) return null;
     const parsed = JSON.parse(raw) as StoredRun;
     if (typeof parsed.runId !== 'string' || !Array.isArray(parsed.fixes)) return null;
+    // DISCIPLINE : on ne garde qu'une valeur du domaine. Une valeur inconnue
+    // (JSON tronqué, version d'app plus récente, bidouille manuelle) est
+    // TRAITÉE COMME ABSENTE — donc relue en course à pied, avec la raison déjà
+    // écrite sur `StoredRun.activity`. La laisser passer telle quelle
+    // enverrait une discipline inexistante au tracker PUIS au serveur, qui la
+    // rejetterait après coup : la sortie serait perdue à l'arrivée, pas au
+    // départ. On préfère un monde connu, quitte à ce qu'il soit le mauvais.
+    if (parsed.activity !== undefined && !(ACTIVITIES as readonly string[]).includes(parsed.activity)) {
+      return { ...parsed, activity: undefined };
+    }
     return parsed;
   } catch {
     return null; // stockage illisible → pas de reprise, jamais de crash

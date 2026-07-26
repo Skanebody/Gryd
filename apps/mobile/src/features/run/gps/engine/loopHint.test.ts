@@ -5,7 +5,7 @@
  * vol d'oiseau mesuré sur la vraie géodésie (pas un delta de degrés).
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { LOOP_CLOSE_TOLERANCE_M, LOOP_MIN_PERIMETER_M } from '@klaim/shared';
+import { activityRules, LOOP_CLOSE_TOLERANCE_M, LOOP_MIN_PERIMETER_M } from '@klaim/shared';
 import { farthestGapM, loopGapM, loopHint, roundLoopM } from './loopHint.ts';
 
 // République (départ) et un point ~500 m à l'est le long du même parallèle.
@@ -20,22 +20,29 @@ Deno.test('loopGapM : géodésie réelle (≈500 m à Paris), null si trace vide
 });
 
 Deno.test('loopHint : silencieux hors conquête et avant le périmètre minimal', () => {
-  assertEquals(loopHint({ conquest: false, distanceM: 5_000, gapM: 40 }), null);
-  assertEquals(loopHint({ conquest: true, distanceM: 5_000, gapM: null }), null);
+  const run = { conquest: true, activity: 'run' as const };
+  assertEquals(loopHint({ ...run, conquest: false, distanceM: 5_000, gapM: 40 }), null);
+  assertEquals(loopHint({ ...run, distanceM: 5_000, gapM: null }), null);
   // À 1 m sous le périmètre minimal : encore rien (pas de bruit au départ).
-  assertEquals(
-    loopHint({ conquest: true, distanceM: LOOP_MIN_PERIMETER_M - 1, gapM: 40 }),
-    null,
-  );
+  assertEquals(loopHint({ ...run, distanceM: LOOP_MIN_PERIMETER_M - 1, gapM: 40 }), null);
 });
 
 Deno.test('loopHint : « prête » EXACTEMENT sous la tolérance serveur, « retour » au-delà', () => {
-  const base = { conquest: true, distanceM: LOOP_MIN_PERIMETER_M };
+  const base = { conquest: true, activity: 'run' as const, distanceM: LOOP_MIN_PERIMETER_M };
   assertEquals(loopHint({ ...base, gapM: LOOP_CLOSE_TOLERANCE_M }), { kind: 'ready' });
   assertEquals(loopHint({ ...base, gapM: LOOP_CLOSE_TOLERANCE_M + 1 }), {
     kind: 'closing',
     gapM: LOOP_CLOSE_TOLERANCE_M + 1,
   });
+});
+
+Deno.test('loopHint : à vélo, le silence dure jusqu’au périmètre de LA discipline', () => {
+  // Même règle, autre échelle : annoncer « boucle prête » à 1 km à vélo
+  // promettrait une capture que le serveur refuse (5 km de périmètre minimal).
+  const bike = { conquest: true, activity: 'bike' as const };
+  const perimetre = activityRules('bike').loopMinPerimeterM;
+  assertEquals(loopHint({ ...bike, distanceM: LOOP_MIN_PERIMETER_M, gapM: 40 }), null);
+  assertEquals(loopHint({ ...bike, distanceM: perimetre, gapM: 40 }), { kind: 'ready' });
 });
 
 Deno.test('farthestGapM : le point le PLUS ÉLOIGNÉ atteint, pas le dernier', () => {

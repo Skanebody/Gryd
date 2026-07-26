@@ -21,15 +21,34 @@ import { LOCALES, format, type Entry } from '../../i18n/types.ts';
 
 /** Titre en 28 px gras : ~24 caractères par ligne sur 327 px utiles. */
 const TITLE_LINE_MAX = 24;
+/**
+ * TITRE HÉROS (E01Hero) : 40 px, PAS 28 — et le budget ne s'estime plus, il est
+ * MESURÉ (26/07/2026).
+ *
+ * Ce plafond a laissé passer un vrai débordement. Le titre « COURS. / PRENDS TA
+ * VILLE. » tenait le compte de caractères (16 ≤ 24) mais rendu à 375 pt avec la
+ * vraie fonte (InterTight_800ExtraBold 40 px, letterSpacing -0,4, 343 px utiles
+ * = 375 − 2 × spacing.md), il DÉBORDAIT dans trois langues sur cinq :
+ *   « TOMA TU CIUDAD. »    347,1 px   « NIMM DEINE STADT. »  379,3 px
+ *   « TOMA A TUA CIDADE. » 402,6 px                          (budget 343 px)
+ * — trois lignes au lieu des deux annoncées, sur un écran sans ScrollView.
+ * Pire cas observé : ~23,2 px par caractère (espagnol en capitales) → 343 / 23,2
+ * ≈ 14,8. On borne à 14, EN DESSOUS, pour garder de l'air.
+ */
+const HERO_TITLE_LINE_MAX = 14;
 /** Sous-titre en 16 px : 2 lignes de ~40 caractères. */
 const TAGLINE_MAX = 72;
 /** CTA en 16 px dans une pill pleine largeur : on s'arrête bien avant. */
 const CTA_MAX = 26;
 
+/** Titres des étapes 2-4 (grille standard, 28 px sur 327 px utiles). */
 const CARD_TITLES: Record<string, Entry> = {
-  mechanicTitle: C.mechanicTitle,
   rivalryTitle: C.rivalryTitle,
   cityTitle: C.cityTitle,
+};
+/** Titre plein cadre de la carte 1 (E01Hero, 40 px sur 343 px utiles). */
+const HERO_TITLES: Record<string, Entry> = {
+  mechanicTitle: C.mechanicTitle,
 };
 const CARD_TAGLINES: Record<string, Entry> = {
   mechanicTagline: C.mechanicTagline,
@@ -54,16 +73,24 @@ Deno.test('les titres des 3 cartes font EXACTEMENT 2 lignes, dans les 5 langues'
   // La coupure est typographique (un « \n » écrit), pas laissée au hasard des
   // largeurs : « FERME UNE BOUCLE. / PRENDS LA ZONE. » est une progression, pas
   // une phrase qui déborde.
-  for (const [key, entry] of Object.entries(CARD_TITLES)) {
-    for (const locale of LOCALES) {
-      const lines = entry[locale].split('\n');
-      assertEquals(lines.length, 2, `${key}.${locale} ne fait pas 2 lignes`);
-      for (const line of lines) {
-        assert(line.length > 0, `${key}.${locale} a une ligne vide`);
-        assert(
-          line.length <= TITLE_LINE_MAX,
-          `${key}.${locale} : ligne de ${line.length} caractères (max ${TITLE_LINE_MAX}) — « ${line} »`,
-        );
+  // Deux budgets, parce qu'il y a deux gabarits : la carte 1 est rendue plein
+  // cadre en 40 px (E01Hero), les cartes 2 et 3 dans la grille standard en 28 px.
+  const budgets: [Record<string, Entry>, number][] = [
+    [CARD_TITLES, TITLE_LINE_MAX],
+    [HERO_TITLES, HERO_TITLE_LINE_MAX],
+  ];
+  for (const [titles, max] of budgets) {
+    for (const [key, entry] of Object.entries(titles)) {
+      for (const locale of LOCALES) {
+        const lines = entry[locale].split('\n');
+        assertEquals(lines.length, 2, `${key}.${locale} ne fait pas 2 lignes`);
+        for (const line of lines) {
+          assert(line.length > 0, `${key}.${locale} a une ligne vide`);
+          assert(
+            line.length <= max,
+            `${key}.${locale} : ligne de ${line.length} caractères (max ${max}) — « ${line} »`,
+          );
+        }
       }
     }
   }
@@ -127,6 +154,7 @@ Deno.test('le placeholder {city} existe une fois et une seule dans les 5 langues
 Deno.test('la copy des 3 cartes emploie l’apostrophe typographique, jamais l’ASCII', () => {
   const entries: Record<string, Entry> = {
     ...CARD_TITLES,
+    ...HERO_TITLES,
     ...CARD_TAGLINES,
     ...CTAS,
     mechanicKicker: C.mechanicKicker,
@@ -177,6 +205,66 @@ Deno.test('les cartes pédagogiques ne NOMMENT aucun lieu', () => {
     for (const locale of LOCALES) {
       for (const name of forbidden) {
         assert(!entry[locale].includes(name), `une carte pédagogique nomme « ${name} » (${locale})`);
+      }
+    }
+  }
+});
+
+Deno.test('l’onboarding ne DÉCLARE aucune discipline, dans les 5 langues', () => {
+  /**
+   * LE MENSONGE LE PLUS EN AMONT DE TOUTE L'APP (corrigé le 26/07/2026). Le
+   * premier texte lu par un joueur annonçait un jeu de COURSE À PIED — « COURS.
+   * / PRENDS TA VILLE. », « Cours seul ou défends-la avec ton crew. », « Tu
+   * courras quand tu seras prêt. », « à ta première course » — alors que le vélo
+   * est une discipline RÉELLE, avec ses territoires et ses classements.
+   *
+   * Pourquoi NEUTRALISER et non pas décliner : l'onboarding ne porte AUCUNE
+   * lentille de discipline (le choix n'existe pas encore à ce stade). Une
+   * jumelle `…Bike` y serait un texte sans surface — la règle est donc « aucune
+   * discipline nommée », pas « les deux nommées ».
+   *
+   * Le périmètre est celui des phrases qui PROMETTENT quelque chose sur le jeu.
+   * Les libellés d'authentification en sont exclus à dessein (« Continuar por
+   * correo » n'est pas une promesse de course) — et les frontières de mots
+   * empêchent de toute façon « correo » ou « parcours » de faire un faux positif.
+   */
+  const PROMISES: Record<string, Entry> = {
+    mechanicKicker: C.mechanicKicker,
+    mechanicTitle: C.mechanicTitle,
+    mechanicTagline: C.mechanicTagline,
+    rivalryKicker: C.rivalryKicker,
+    rivalryTitle: C.rivalryTitle,
+    rivalryTagline: C.rivalryTagline,
+    rivalryDemoLabel: C.rivalryDemoLabel,
+    cityKicker: C.cityKicker,
+    cityTitle: C.cityTitle,
+    cityTagline: C.cityTagline,
+    profileKicker: C.profileKicker,
+    profileTitle: C.profileTitle,
+    firstRunGpsNote: C.firstRunGpsNote,
+    ageTagline: C.ageTagline,
+    ageBlockedTagline: C.ageBlockedTagline,
+    accountTaglineRequired: C.accountTaglineRequired,
+    notifTitle: C.notifTitle,
+    notifTagline: C.notifTagline,
+  };
+  const DISCIPLINE_WORDS = [
+    // course à pied
+    'cours', 'courir', 'courras', 'course', 'courses', 'run', 'runs', 'running',
+    'corre', 'correr', 'correrás', 'corra', 'carrera', 'corrida', 'lauf', 'laufen',
+    'läuft', 'pied',
+    // vélo
+    'roule', 'rouler', 'vélo', 'bike', 'ride', 'rides', 'riding', 'cycling',
+    'bici', 'pedala', 'pedalar', 'pedalea', 'rad', 'fahrrad', 'radeln',
+  ];
+  for (const [key, entry] of Object.entries(PROMISES)) {
+    for (const locale of LOCALES) {
+      for (const word of DISCIPLINE_WORDS) {
+        const re = new RegExp(`\\b${word}\\b`, 'i');
+        assert(
+          !re.test(entry[locale]),
+          `${key}.${locale} nomme une discipline (« ${word} ») — « ${entry[locale]} »`,
+        );
       }
     }
   }

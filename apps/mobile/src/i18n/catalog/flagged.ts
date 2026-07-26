@@ -1324,12 +1324,29 @@ export const C = defineCatalog({
     de: 'Deine Stadt ist noch nicht zugeordnet',
     pt: 'Sua cidade ainda não está vinculada',
   },
+  /**
+   * NEUTRALISÉ LE 26/07/2026 — CE TEXTE ÉNONÇAIT UN FAIT FAUX, pas seulement un
+   * mot mal choisi. Il promettait que la ville se rattache « au premier run
+   * compté » (« first counted run », « beim ersten gewerteten Lauf ») : le
+   * rattachement est fait par `ensureHomeCity`
+   * (`supabase/functions/ingest_run/index.ts:550`, appelée à :2728) qui n'a
+   * AUCUN filtre d'activité — une sortie VÉLO domicilie le joueur exactement
+   * comme une course. Un cycliste lisait donc une condition qu'il croyait ne
+   * pas remplir alors qu'il venait de la remplir.
+   *
+   * PAS DE JUMEAU ICI, et c'est délibéré : le fait est IDENTIQUE dans les deux
+   * mondes. Deux textes disciplinés laisseraient croire à deux règles de
+   * rattachement, alors que `users.city_id` est une colonne UNIQUE, hors
+   * discipline. C'est le contraire du bouton GO (qui, lui, PORTE la lentille).
+   * Le rendu le confirme : `classement.tsx:1068` sert cette phrase dans une
+   * branche qui n'a pas encore regardé la discipline.
+   */
   boardCityUnknownBody: {
-    fr: 'Un classement appartient à une ville. La tienne se rattache toute seule au premier run compté — on ne te montrera pas celui d’une autre.',
-    en: 'A leaderboard belongs to a city. Yours gets linked on your first counted run — we won’t show you someone else’s.',
-    es: 'Una clasificación pertenece a una ciudad. La tuya se vincula sola en tu primera carrera contada — no te mostraremos la de otra.',
-    de: 'Eine Rangliste gehört zu einer Stadt. Deine wird beim ersten gewerteten Lauf zugeordnet — die einer anderen zeigen wir dir nicht.',
-    pt: 'Um ranking pertence a uma cidade. A sua é vinculada na primeira corrida contada — não mostraremos o de outra.',
+    fr: 'Un classement appartient à une ville. La tienne se rattache toute seule au premier effort compté — on ne te montrera pas celui d’une autre.',
+    en: 'A leaderboard belongs to a city. Yours gets linked on your first counted effort — we won’t show you someone else’s.',
+    es: 'Una clasificación pertenece a una ciudad. La tuya se vincula sola en tu primer esfuerzo contado — no te mostraremos la de otra.',
+    de: 'Eine Rangliste gehört zu einer Stadt. Deine wird bei der ersten gewerteten Aktivität zugeordnet — die einer anderen zeigen wir dir nicht.',
+    pt: 'Um ranking pertence a uma cidade. A sua é vinculada no primeiro esforço contado — não mostraremos o de outra.',
   },
   /** La lecture a ÉCHOUÉ. Un échec n'est pas un vide : on ne laisse pas croire
    *  que la saison est déserte parce que le réseau a lâché. */
@@ -1402,12 +1419,20 @@ export const C = defineCatalog({
     de: 'Noch keine Missionen',
     pt: 'Ainda sem missões',
   },
+  /**
+   * NEUTRALISÉ le 26/07/2026. « Tant que rien n'a été COURU près de toi » —
+   * dans les cinq langues — sur un écran (`app/(tabs)/warroom.tsx`) qui ne
+   * porte AUCUNE lentille : il n'y lit ni `activity`, ni commutateur, et il
+   * s'affiche à l'identique pour un cycliste. Un jumeau y serait un texte sans
+   * surface pour le choisir ; le vocabulaire est donc ce qui doit céder. Les
+   * zones tenues, elles, viennent bien des deux disciplines.
+   */
   warNoDataBody: {
-    fr: 'Les missions naissent de zones réellement tenues et de frontières réellement ouvertes. Tant que rien n’a été couru près de toi, il n’y a rien à donner.',
-    en: 'Missions come from ground actually held and borders actually open. Until something has been run near you, there is nothing to hand out.',
-    es: 'Las misiones nacen de zonas realmente tomadas y fronteras realmente abiertas. Hasta que se corra algo cerca de ti, no hay nada que dar.',
-    de: 'Missionen entstehen aus wirklich gehaltenem Gebiet und wirklich offenen Grenzen. Solange bei dir nichts gelaufen wurde, gibt es nichts zu vergeben.',
-    pt: 'As missões nascem de zonas realmente tomadas e fronteiras realmente abertas. Enquanto nada for corrido perto de você, não há o que dar.',
+    fr: 'Les missions naissent de zones réellement tenues et de frontières réellement ouvertes. Tant que rien n’a été parcouru près de toi, il n’y a rien à donner.',
+    en: 'Missions come from ground actually held and borders actually open. Until something has been covered near you, there is nothing to hand out.',
+    es: 'Las misiones nacen de zonas realmente tomadas y fronteras realmente abiertas. Hasta que se recorra algo cerca de ti, no hay nada que dar.',
+    de: 'Missionen entstehen aus wirklich gehaltenem Gebiet und wirklich offenen Grenzen. Solange bei dir nichts zurückgelegt wurde, gibt es nichts zu vergeben.',
+    pt: 'As missões nascem de zonas realmente tomadas e fronteiras realmente abertas. Enquanto nada for percorrido perto de você, não há o que dar.',
   },
   warNoDataCta: {
     fr: 'Voir la carte',

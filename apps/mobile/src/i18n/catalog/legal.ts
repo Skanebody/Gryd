@@ -59,6 +59,44 @@
  *     vrai le jour où un e-mail de contact s'ouvrira.
  * La région d'hébergement, elle, n'était pas fausse : elle était NON SOURCÉE.
  * Elle l'est maintenant (cf. `LEGAL_HOSTING`).
+ *
+ * ─── 26/07/2026 : LES CGU NE QUALIFIENT PLUS DE FRAUDE CE QUE L'APP LIVRE ────
+ * Le vélo est devenu une discipline RÉELLE (décision fondateur du 26/07/2026 :
+ * territoires, courses, classements et statistiques SÉPARÉS ; XP et niveau
+ * GLOBAUX). Trois clauses le déclaraient encore tricheur, et c'était le défaut
+ * le plus grave possible dans ce fichier — un défaut CONTRACTUEL :
+ *  1. « Le territoire se capture UNIQUEMENT par des courses à pied réelles »
+ *     (`cguJeuBody`) : faux depuis que `hex_claims` a une clé primaire
+ *     `(h3index, activity)` et que `runs.activity` existe (migration 0070, EN
+ *     PRODUCTION). Un cycliste capture, et sa zone n'est pas celle du coureur.
+ *  2. « Simuler une course (voiture, VÉLO, GPS falsifié…) » (`cguTricheBody2`) :
+ *     la liste des pratiques INTERDITES nommait la fonctionnalité livrée.
+ *  3. « écarter les parcours impossibles à pied » (`cguTricheBody1`) : GRYD
+ *     Verify juge désormais un effort contre les bornes de SA discipline
+ *     (`ACTIVITY_RULES`, game-rules.ts), pas contre celles du piéton.
+ * Deux clauses voisines portaient la même faute et sont corrigées avec elles :
+ * l'OBJET du contrat (« un jeu de conquête par la course à pied ») et la clause
+ * de SÉCURITÉ (« GRYD se joue en courant »), qui doit couvrir la discipline
+ * réellement enregistrée — le code de la route ne se lit pas pareil à vélo.
+ *
+ * CE QUI N'EST PAS AFFAIBLI, ET C'EST LE CŒUR DE LA RÉÉCRITURE : l'interdit ne
+ * disparaît pas, il se déplace là où il est VRAI. Ce qui reste sanctionné, c'est
+ * de faire passer un effort pour ce qu'il n'est pas — rouler en déclarant une
+ * course à pied ou l'inverse —, tout engin motorisé, et le GPS falsifié.
+ *
+ * ⚠️ HONNÊTETÉ SUR CE QUE GRYD VERIFY SAIT FAIRE : `game-rules.ts` écrit noir sur
+ * blanc (commentaire de `BIKE_POINT_MAX_SPEED_KMH`, et « CE QUI RESTE EN
+ * SUSPENS » §1) qu'aucune borne de vitesse ne distingue un cycliste rapide d'une
+ * voiture EN VILLE, et que les signaux qui le pourraient (accélérations, arrêts,
+ * altitude, trajectoire) n'existent nulle part dans le code. La clause anti-triche
+ * le DIT désormais, au lieu de laisser croire à une détection totale : une CGU
+ * qui promet une capacité que le moteur n'a pas est un mensonge de plus, pas une
+ * protection de plus.
+ *
+ * ⚠️ AUCUN CHIFFRE DE JEU N'EST RECOPIÉ ICI. Les bornes par discipline vivent
+ * dans `packages/shared/src/game-rules.ts` (`ACTIVITY_RULES`) : les écrire dans
+ * un contrat en ferait des nombres magiques figés le jour de leur prochaine
+ * évolution. La clause dit qu'elles EXISTENT et diffèrent, jamais lesquelles.
  */
 import { defineCatalog, type Entry } from '../types';
 
@@ -106,7 +144,7 @@ export const LEGAL_HOSTING = {
  * traduire. À faire évoluer À LA MAIN à chaque changement de fond (comme la date
  * des pages web) : une date figée qui dérive silencieusement serait un mensonge.
  */
-export const LEGAL_LAST_UPDATED = '23/07/2026';
+export const LEGAL_LAST_UPDATED = '26/07/2026';
 
 /**
  * TEXTE DE RÉFÉRENCE FRANÇAISE, identique dans les cinq langues.
@@ -309,8 +347,15 @@ export const C = defineCatalog({
     pt: 'Termos de utilização',
   },
   cguObjetHeading: fr5('OBJET & ACCEPTATION'),
+  /**
+   * ⚠️ L'OBJET DU CONTRAT NE DÉCRIVAIT QU'UNE MOITIÉ DU JEU. Il disait « un jeu
+   * de conquête de territoire par la course à pied » — la définition même du
+   * service, donc l'endroit où l'omission coûte le plus cher, alors que le vélo
+   * capture réellement depuis le 26/07/2026 (`ACTIVITIES = ['run', 'bike']`,
+   * `runs.activity`, migration 0070 en production).
+   */
   cguObjetBody: fr5(
-    'GRYD, édité par NEXUS 1993, est un jeu de conquête de territoire par la course à pied : chaque course réelle capture ou défend du territoire sur une carte. Les présentes conditions encadrent l’usage de l’application GRYD. En créant un compte ou en utilisant le service, tu les acceptes, de même que la Politique de confidentialité. Elles sont volontairement courtes et lisibles.',
+    'GRYD, édité par NEXUS 1993, est un jeu de conquête de territoire par l’effort réel, dans deux disciplines : la course à pied et le vélo. Chaque sortie réellement enregistrée, dans la discipline que tu déclares, capture ou défend du territoire sur une carte. Les présentes conditions encadrent l’usage de l’application GRYD. En créant un compte ou en utilisant le service, tu les acceptes, de même que la Politique de confidentialité. Elles sont volontairement courtes et lisibles.',
   ),
   cguCompteHeading: fr5('TON COMPTE'),
   /**
@@ -323,18 +368,70 @@ export const C = defineCatalog({
     '· Tu dois avoir au moins {age} ans pour utiliser GRYD.\n· Tu es responsable de la confidentialité de ton accès et des activités menées depuis ton compte.\n· Tu fournis des informations exactes (pseudo, e-mail) et t’engages à ne pas usurper l’identité d’un tiers.\n· Si tu as créé un compte, tu peux le supprimer à tout moment depuis l’application (Réglages, puis Confidentialité).',
   ),
   cguJeuHeading: fr5('RÈGLES DU JEU'),
+  /**
+   * ⚠️ CLAUSE LA PLUS FAUSSE DU DOCUMENT AVANT LE 26/07/2026 : « uniquement par
+   * des courses à pied réelles ». Ce qu'elle dit maintenant est VÉRIFIABLE, et
+   * chaque affirmation est adossée à un fait de code — aucune n'est une intention :
+   *  · deux disciplines           → `ACTIVITIES = ['run', 'bike']` (game-rules) ;
+   *  · déclarée avant de partir   → `runs.activity`, argument `p_activity` de
+   *                                 `claim_hexes` (migration 0070, EN PRODUCTION) ;
+   *  · un hexagone, deux tenants  → clé primaire COMPOSITE `(h3index, activity)`
+   *                                 de `hex_claims` — un claim vélo ne peut pas
+   *                                 écraser la zone d'un coureur ;
+   *  · points jamais additionnés  → `season_scores` clé `(season_id, user_id,
+   *                                 activity)` + `ACTIVITY_SCOPE.seasonPoints` ;
+   *  · niveau et XP communs       → `ACTIVITY_SCOPE.xp/level = 'global'`
+   *                                 (OVERRIDE FONDATEUR explicite de la planche E12).
+   * CE QUI N'EST PAS ÉCRIT, VOLONTAIREMENT : « statistiques séparées ». Le
+   * game-rules le dit lui-même en suspens (§4) — `user_stats` et la vue
+   * `specialty_leaderboard` sont encore mono-pot. Promettre ici une séparation
+   * que le serveur ne tient pas serait exactement la faute qu'on corrige.
+   */
   cguJeuBody: fr5(
-    'Le territoire se capture uniquement par des courses à pied réelles, validées par nos serveurs. Captures, points, classements et badges sont attribués côté serveur : l’application ne décide jamais seule qu’une zone t’appartient. Les règles de jeu (distances, allures valides, décroissance des zones non défendues) peuvent évoluer pour préserver l’équilibre ; les changements importants sont annoncés dans l’app.',
+    'GRYD se joue dans deux disciplines : la course à pied et le vélo. Le territoire se capture uniquement par des sorties réelles, effectuées dans la discipline que tu déclares avant de partir, et validées par nos serveurs. Les deux disciplines forment deux mondes distincts : un même endroit de la carte peut être tenu par un coureur et par un cycliste sans que l’un prenne la zone de l’autre, et les points de saison d’une discipline ne s’ajoutent jamais à ceux de l’autre. Ta progression personnelle — ton niveau et ton expérience — reste commune aux deux : un kilomètre à vélo fait progresser le même joueur qu’un kilomètre à pied. Captures, points, classements et badges sont attribués côté serveur : l’application ne décide jamais seule qu’une zone t’appartient. Chaque discipline a ses propres bornes de distance, de durée et d’allure — celles du vélo ne sont pas celles de la course. Ces règles (bornes de validité, décroissance des zones non défendues) peuvent évoluer pour préserver l’équilibre ; les changements importants sont annoncés dans l’app.',
   ),
   cguTricheHeading: fr5('ANTI-TRICHE & JEU LOYAL'),
+  /**
+   * ⚠️ CETTE CLAUSE DÉCRIVAIT UN DÉTECTEUR DE PIÉTON (« écarter les parcours
+   * impossibles à pied ») ET PROMETTAIT PLUS QUE LE MOTEUR NE TIENT.
+   * 1. Ce que GRYD Verify fait VRAIMENT depuis le 26/07 : il compare l'effort aux
+   *    bornes de la discipline DÉCLARÉE (`activityRules(activity)` — allures
+   *    moyennes et par segment, vitesse instantanée, sauts GPS, précision).
+   * 2. Ce qu'il NE fait PAS, et qui est désormais DIT : séparer un cycliste
+   *    rapide d'une voiture en ville. `game-rules.ts` l'écrit deux fois
+   *    (commentaire de `BIKE_POINT_MAX_SPEED_KMH` : « on ne prétend donc pas que
+   *    le vélo est protégé de la voiture : il est protégé du véhicule rapide » ;
+   *    « CE QUI RESTE EN SUSPENS » §1 : les signaux d'accélération, d'arrêts et
+   *    d'altitude n'existent nulle part). Taire cette limite dans un contrat
+   *    aurait été promettre au-delà du code — la faute que ce fichier corrige
+   *    depuis le 25/07. La dire ne desserre RIEN : ce que la mesure n'attrape
+   *    pas, l'interdit ci-dessous le couvre, et la sanction suit.
+   * 3. « cadence » n'est plus listée comme signal : c'est un signal de PODOMÈTRE,
+   *    qui ne dit rien d'une sortie à vélo. La politique de confidentialité, elle,
+   *    continue de déclarer sa collecte — un contrat n'a pas à énumérer chaque
+   *    capteur, une politique RGPD si.
+   */
   cguTricheBody1: fr5(
-    'GRYD repose sur des courses honnêtes. Le système « GRYD Verify » recoupe GPS, vitesse, cadence et cohérence de mouvement pour écarter les parcours impossibles à pied. Sont interdits :',
+    'GRYD repose sur des efforts réels et sur une discipline déclarée sincèrement. Le système « GRYD Verify » recoupe le GPS, la vitesse et la cohérence du mouvement avec les bornes de la discipline que tu as déclarée : il écarte ce qui n’est pas humainement réalisable dans cette discipline — une allure impossible à pied, une vitesse impossible à vélo — ainsi que les tracés fabriqués. Il ne prétend pas faire davantage : aucune mesure de vitesse ne distingue à elle seule un cycliste rapide d’un véhicule qui roule en ville. C’est pourquoi les pratiques suivantes sont interdites, et sanctionnées :',
   ),
+  /**
+   * ⚠️ LA LISTE DES FRAUDES NOMMAIT LA FONCTIONNALITÉ LIVRÉE (« vélo »). La
+   * réécriture ne retire pas un interdit, elle le remet à sa place : ce qui est
+   * fautif n'a jamais été de rouler, c'est de faire passer un effort pour ce
+   * qu'il n'est pas. Le cas concret que l'ancienne rédaction visait — pédaler
+   * pour gagner des zones de coureur — reste couvert MOT POUR MOT par la
+   * première puce, et il l'est mieux : il est nommé, au lieu d'être déduit.
+   * NOTE JURIDIQUE : « véhicule à moteur » est employé au sens du code de la
+   * route (art. R311-1), qui en EXCLUT le cycle à pédalage assisté. On ne
+   * tranche donc pas ici le statut du VAE dans le jeu — ce serait une décision
+   * de règles, pas de rédaction, et elle appartient au fondateur.
+   */
   cguTricheBody2: fr5(
-    '· Simuler une course (voiture, vélo, GPS falsifié, spoofing de position).\n· Utiliser des outils automatisés, bots ou modifications de l’application.\n· Exploiter une faille pour capturer du territoire sans courir réellement.',
+    '· Déclarer une discipline pour une autre : rouler en déclarant une course à pied, ou courir en déclarant une sortie à vélo. Le vélo est une discipline à part entière de GRYD, avec ses propres zones, ses propres points et ses propres bornes — rouler n’est pas tricher, le faire passer pour une course, si.\n· Faire enregistrer par GRYD un effort produit par un engin motorisé : voiture, deux-roues à moteur, trottinette, gyropode ou tout autre véhicule à moteur.\n· Falsifier sa position (GPS simulé, spoofing), envoyer un tracé fabriqué, ou importer une sortie qui n’est pas la tienne.\n· Utiliser des outils automatisés, bots ou modifications de l’application.\n· Exploiter une faille pour capturer du territoire sans fournir l’effort correspondant.',
   ),
+  /** « course » ⇒ « sortie » : la sanction vaut dans les deux disciplines. */
   cguTricheBody3: fr5(
-    'Une course douteuse peut être rejetée ; un compte qui triche de façon répétée peut être suspendu ou fermé.',
+    'Une sortie douteuse peut être rejetée ; un compte qui triche de façon répétée peut être suspendu ou fermé.',
   ),
   cguContenuHeading: fr5('CONTENU & MODÉRATION'),
   /**
@@ -354,8 +451,9 @@ export const C = defineCatalog({
     'Nous nous engageons à examiner tout signalement sous {h} heures. Nous pouvons retirer un contenu et suspendre les comptes qui enfreignent ces règles.',
   ),
   cguAboHeading: fr5('ABONNEMENT & ACHATS — STATUT UNIQUEMENT'),
+  /** « se gagne en courant » excluait la moitié des joueurs de la garantie anti-p2w. */
   cguAboBody1: fr5(
-    'Le jeu est gratuit et complet. Le territoire ne s’achète jamais : tout ce qui compte au classement — zones, points, victoire — se gagne en courant. Aucun paiement ne donne le moindre avantage de jeu.',
+    'Le jeu est gratuit et complet. Le territoire ne s’achète jamais : tout ce qui compte au classement — zones, points, victoire — se gagne en courant ou en roulant. Aucun paiement ne donne le moindre avantage de jeu.',
   ),
   cguAboBody2: fr5(
     'GRYD ne propose qu’un seul abonnement, GRYD Club (bonus permanents de confort, d’information en lecture seule, de cosmétique et de statut), aux côtés d’achats ponctuels purement cosmétiques (Founder Pack, Starter Pack, cosmétiques). Aucune de ces offres n’apporte de territoire, de points, de victoire ni de protection : les objets qui touchent au jeu — bouclier, gel de série, information tactique — ne sont vendus dans aucune monnaie et ne sont inclus dans aucun abonnement.',
@@ -364,8 +462,17 @@ export const C = defineCatalog({
     'Les achats dans l’application sont traités par Apple (App Store) ou Google (Google Play) : facturation, renouvellement et remboursements suivent les règles de la plateforme. Les abonnements se renouvellent automatiquement jusqu’à leur annulation, que tu gères depuis les réglages de ton compte Apple ou Google. L’annulation prend effet à la fin de la période en cours ; tu conserves tes cosmétiques acquis, jamais tes zones (elles restent à toi tant que tu cours). Les Conditions Générales de Vente précisent prix, paiement et rétractation.',
   ),
   cguRespHeading: fr5('SÉCURITÉ & RESPONSABILITÉ'),
+  /**
+   * ⚠️ UNE CLAUSE DE SÉCURITÉ QUI NE CONNAÎT QU'UNE DISCIPLINE PROTÈGE MAL LA
+   * SECONDE. Elle disait « GRYD se joue en courant » et « ne cours pas dans des
+   * lieux dangereux » — or l'app enregistre des sorties à vélo depuis le
+   * 26/07/2026, où le risque, l'équipement et le code de la route ne se lisent
+   * pas de la même façon. Aucune obligation n'est INVENTÉE ici (pas de casque
+   * décrété obligatoire : la loi française ne l'impose qu'aux moins de 12 ans) —
+   * la clause renvoie à la règle applicable, elle ne la réécrit pas.
+   */
   cguRespBody1: fr5(
-    'GRYD se joue en courant dans le monde réel. Ta sécurité passe avant le jeu. Respecte le code de la route, ton environnement et tes limites physiques : ne cours pas dans des lieux dangereux, ne regarde pas ton écran en traversant. Demande l’avis d’un professionnel de santé avant de reprendre une activité sportive intense.',
+    'GRYD se joue dehors, en courant ou à vélo, dans le monde réel. Ta sécurité passe avant le jeu. Respecte le code de la route, ton environnement et tes limites physiques : ne cours pas et ne roule pas dans des lieux dangereux, ne regarde pas ton écran en traversant ni en roulant. À vélo, l’état de ta machine, ton équipement et le respect des règles de circulation restent sous ta seule responsabilité. Demande l’avis d’un professionnel de santé avant de reprendre une activité sportive intense.',
   ),
   cguRespBody2: fr5(
     'Le service est fourni « en l’état » et « selon disponibilité ». Dans toute la mesure permise par la loi, notre responsabilité est limitée aux dommages directs et prévisibles ; nous ne saurions être tenus responsables des dommages liés à ta pratique de la course, à l’usage des données de géolocalisation, ou à une interruption du service. Ces limitations ne s’appliquent ni en cas de faute lourde ou dolosive, ni en cas de dommage corporel, et ne restreignent aucun des droits impératifs que la loi française t’accorde en tant que consommateur.',
@@ -414,9 +521,17 @@ export const C = defineCatalog({
    * RÉACTIONS (persistées en AsyncStorage, elles ne quittent pas l'appareil).
    * Ajoutée : l'IMPORT DE COURSES (fichier GPX, service tiers connecté), qui
    * est un vrai envoi de tracé à nos serveurs et n'était déclaré nulle part.
+   *
+   * ⚠️ 26/07/2026 — LA FINALITÉ DÉCLARÉE ÉTAIT DEVENUE TROP ÉTROITE. Le
+   * podomètre était déclaré lu « pour vérifier qu'il s'agit d'une vraie course à
+   * pied » : depuis que le vélo s'enregistre, la donnée est lue sur une sortie
+   * qui n'est pas forcément une course, et une finalité RGPD qui ne couvre pas
+   * le traitement réel est un défaut juridique. La finalité est réécrite pour
+   * dire ce qui est vérifié (la sincérité de l'effort dans la discipline
+   * DÉCLARÉE), sans prétendre que chaque capteur sert dans chaque discipline.
    */
   privacyDonneesBody2: fr5(
-    '· Compte : ton adresse e-mail et un identifiant (via Sign in with Apple ou un autre fournisseur), ton pseudo et, si tu le choisis, ton crew.\n· Localisation pendant une course : ta position GPS, enregistrée uniquement quand tu as lancé une course, pour tracer ton parcours et déterminer le territoire capturé ou défendu. Le suivi s’arrête dès la fin de la course.\n· Mouvement & podomètre : cadence, pas et cohérence de mouvement, lus pendant la course par « GRYD Verify » pour vérifier qu’il s’agit d’une vraie course à pied.\n· Courses importées, à ton initiative : si tu importes un fichier de course (GPX) ou connectes un service de suivi tiers, le tracé et les mesures de l’activité importée sont envoyés à nos serveurs pour être validés comme une course GRYD.\n· Contenu que tu crées : ton pseudo, le nom de ton crew si tu en crées un, les signaux que tu envoies à ton crew (vocabulaire fermé, il n’y a pas de messagerie libre) et les signalements que tu nous adresses.\n· Données techniques & de jeu : modèle d’appareil, version de l’app, journaux d’erreur, statistiques de jeu (zones tenues, points, badges).',
+    '· Compte : ton adresse e-mail et un identifiant (via Sign in with Apple ou un autre fournisseur), ton pseudo et, si tu le choisis, ton crew.\n· Localisation pendant une sortie : ta position GPS, enregistrée uniquement quand tu as lancé une sortie (course à pied ou vélo), pour tracer ton parcours et déterminer le territoire capturé ou défendu. Le suivi s’arrête dès la fin de la sortie.\n· Mouvement & podomètre : cadence, pas et cohérence de mouvement, lus pendant la sortie par « GRYD Verify » pour vérifier que l’effort enregistré est réel et correspond à la discipline que tu as déclarée.\n· Sorties importées, à ton initiative : si tu importes un fichier d’activité (GPX) ou connectes un service de suivi tiers, le tracé et les mesures de l’activité importée sont envoyés à nos serveurs pour être validés comme une sortie GRYD.\n· Contenu que tu crées : ton pseudo, le nom de ton crew si tu en crées un, les signaux que tu envoies à ton crew (vocabulaire fermé, il n’y a pas de messagerie libre) et les signalements que tu nous adresses.\n· Données techniques & de jeu : modèle d’appareil, version de l’app, journaux d’erreur, statistiques de jeu (zones tenues, points, badges).',
   ),
   privacyDonneesBody3: fr5(
     'Nous ne collectons ni tes contacts, ni tes photos, ni tes données de navigation publicitaire, et GRYD ne lit aucune donnée d’Apple Santé ni de Google Health Connect : cette connexion n’existe pas dans l’application. GRYD ne diffuse aucune publicité.',
@@ -429,7 +544,7 @@ export const C = defineCatalog({
   privacyFinalitesHeading: fr5('POURQUOI & BASE LÉGALE'),
   privacyFinalitesBody1: fr5('Chaque traitement a une finalité précise et une base légale RGPD :'),
   privacyFinalitesBody2: fr5(
-    '· Compte & e-mail — créer et sécuriser ton compte, te contacter au sujet du service : exécution du contrat (art. 6.1.b).\n· Localisation en course — tracer ton parcours, décider du territoire capturé ou défendu : exécution du contrat (art. 6.1.b).\n· Mouvement & podomètre — vérifier qu’une course est réelle (anti-triche) : intérêt légitime à l’équité du jeu (art. 6.1.f).\n· Courses importées — faire compter une course enregistrée ailleurs : exécution du contrat (art. 6.1.b), sur ton initiative.\n· Signaux de crew — coordonner une zone avec ton crew : exécution du contrat (art. 6.1.b).\n· Signalements — protéger les joueurs des contenus et comportements abusifs : intérêt légitime à la sécurité des joueurs (art. 6.1.f).\n· Journaux & technique — faire fonctionner l’app, corriger les bugs, prévenir la fraude : intérêt légitime (art. 6.1.f).',
+    '· Compte & e-mail — créer et sécuriser ton compte, te contacter au sujet du service : exécution du contrat (art. 6.1.b).\n· Localisation pendant une sortie — tracer ton parcours, décider du territoire capturé ou défendu : exécution du contrat (art. 6.1.b).\n· Mouvement & podomètre — vérifier qu’une sortie est réelle et conforme à sa discipline déclarée (anti-triche) : intérêt légitime à l’équité du jeu (art. 6.1.f).\n· Sorties importées — faire compter une sortie enregistrée ailleurs : exécution du contrat (art. 6.1.b), sur ton initiative.\n· Signaux de crew — coordonner une zone avec ton crew : exécution du contrat (art. 6.1.b).\n· Signalements — protéger les joueurs des contenus et comportements abusifs : intérêt légitime à la sécurité des joueurs (art. 6.1.f).\n· Journaux & technique — faire fonctionner l’app, corriger les bugs, prévenir la fraude : intérêt légitime (art. 6.1.f).',
   ),
   privacyFinalitesBody3: fr5(
     'Quand un traitement repose sur le consentement (notifications), tu peux le retirer à tout moment, sans que cela affecte le reste du jeu.',
@@ -473,7 +588,7 @@ export const C = defineCatalog({
   ),
   privacyConservationHeading: fr5('DURÉES DE CONSERVATION'),
   privacyConservationBody: fr5(
-    '· Compte & données de jeu : tant que ton compte est actif.\n· Après suppression du compte : tes données personnelles sont effacées ou anonymisées sous 30 jours, sauf obligation légale de conservation (facturation, litige).\n· Tracés de course : conservés avec ton compte, supprimés à la suppression du compte.\n· Journaux techniques : conservés au maximum 12 mois, puis effacés.',
+    '· Compte & données de jeu : tant que ton compte est actif.\n· Après suppression du compte : tes données personnelles sont effacées ou anonymisées sous 30 jours, sauf obligation légale de conservation (facturation, litige).\n· Tracés de tes sorties (course à pied comme vélo) : conservés avec ton compte, supprimés à la suppression du compte.\n· Journaux techniques : conservés au maximum 12 mois, puis effacés.',
   ),
   privacyDroitsHeading: fr5('TES DROITS'),
   privacyDroitsBody1: fr5('Conformément au RGPD, tu disposes des droits suivants sur tes données :'),
@@ -485,7 +600,7 @@ export const C = defineCatalog({
   ),
   privacySecuriteHeading: fr5('SÉCURITÉ'),
   privacySecuriteBody: fr5(
-    'Les échanges sont chiffrés en transit (HTTPS). L’accès à la base de données est cloisonné par des règles de sécurité au niveau de chaque ligne (RLS) : un joueur ne peut jamais lire ou écrire les données d’un autre. L’écriture des courses et des captures de territoire passe exclusivement par nos serveurs, jamais directement par l’app cliente, ce qui empêche toute triche et protège l’intégrité de tes données.',
+    'Les échanges sont chiffrés en transit (HTTPS). L’accès à la base de données est cloisonné par des règles de sécurité au niveau de chaque ligne (RLS) : un joueur ne peut jamais lire ou écrire les données d’un autre. L’écriture des sorties et des captures de territoire passe exclusivement par nos serveurs, jamais directement par l’app cliente, ce qui empêche toute triche et protège l’intégrité de tes données.',
   ),
   privacyMineursHeading: fr5('MINEURS'),
   privacyMineursBody: fr5(

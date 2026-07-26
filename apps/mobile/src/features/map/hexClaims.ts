@@ -13,10 +13,15 @@
  * vitrine (21/07/2026) il n'y a plus de repli « démo étiquetée » : les appelants
  * peignent `territories ?? []`, c'est-à-dire une carte réellement vide.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ACTIVITIES, DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
 import { buildTerritories, type HexClaimRow, type RealTerritory } from './territoryBuild';
+import {
+  splitClaimsByActivity,
+  type HexClaimRowWithActivity,
+} from '../territory/claimsByActivity';
 
 export { buildTerritories, dbToH3, stateFor } from './territoryBuild';
 export type {
@@ -102,14 +107,63 @@ export interface UseRealTerritoriesResult {
  * prennent le rôle chartreuse (§C « moi/mon crew ») au lieu de rival. L'appelant
  * DOIT mémoïser le Set (sinon l'effet recharge à chaque rendu). null/undefined =
  * sans crew (ou roster pas encore chargé) : classification inchangée.
+ *
+ * ─── `activity` : LA LENTILLE, ET POURQUOI ELLE EST OBLIGATOIRE (26/07/2026) ─
+ * `hex_claims` a une clé primaire COMPOSITE `(h3index, activity)` depuis la
+ * migration 0070, APPLIQUÉE EN PRODUCTION le 25/07. Un joueur qui court ET qui
+ * roule y occupe donc DEUX lignes pour un même hexagone — l'une possédée dans
+ * le monde course, l'autre dans le monde vélo, éventuellement par deux
+ * propriétaires différents.
+ *
+ * Sans `.eq('activity', …)`, cette fonction rendait les deux mondes fondus en
+ * un : les zones vélo étaient peintes comme des zones de course sur les sept
+ * surfaces qui lisent ce hook, l'aire et le compte de zones étaient doublés sur
+ * une cellule tenue des deux côtés, et une échéance de decay vélo pouvait
+ * déclencher une mission « défends ta zone » dans la lentille course. La
+ * déduplication de `buildTerritories` (correctif du 25/07) empêchait le crash,
+ * pas le mensonge : elle est la CEINTURE, ce filtre est la correction.
+ *
+ * DÉFAUT = `DEFAULT_ACTIVITY`, ET CE DÉFAUT N'EST PLUS UNE RÉPONSE POUR UN
+ * ÉCRAN SANS LENTILLE (correctif du 26/07/2026). Il l'a été tant que le vélo
+ * n'enregistrait rien ; depuis qu'il enregistre, un écran qui prend ce défaut en
+ * silence dit à un cycliste qu'il n'a jamais rien pris. Le Profil, /territoire
+ * et le widget lisent désormais `useRealTerritoriesByActivity` (plus bas) : les
+ * DEUX mondes, en une requête, jamais sommés.
+ *
+ * PLUS AUCUN APPELANT NE PREND CE DÉFAUT EN SILENCE. `RoutePlannerMap` était la
+ * dernière exception, et elle est fermée depuis `RoutePlannerMap.tsx` (il passe
+ * `route.activity`, la discipline dans laquelle la boucle a RÉELLEMENT été
+ * routée). Le défaut ne sert donc plus qu'aux appelants qui déclarent
+ * explicitement leur discipline — c'est-à-dire à personne d'autre que la
+ * signature elle-même, gardée pour que tout appel existant conserve son sens
+ * exact.
+ *
+ * Ce commentaire a porté jusqu'au 26/07/2026 la mention « hors périmètre » et
+ * l'argument « MA ROUTE est de toute façon retiré en lentille vélo » : les deux
+ * sont FAUX aujourd'hui — le CTA est rendu dans les deux mondes et pousse
+ * `plannerHref(activity)`. Un défaut déclaré ouvert alors qu'il est réparé coûte
+ * la même chose qu'un défaut caché : la prochaine revue cesse de croire les
+ * avertissements.
  */
 export function useRealTerritories(
   crewIds?: ReadonlySet<string> | null,
+  activity: Activity = DEFAULT_ACTIVITY,
 ): UseRealTerritoriesResult {
   const { session, loading: sessionLoading } = useSession();
-  const [territories, setTerritories] = useState<RealTerritory[] | null>(null);
+  /**
+   * Le résultat porte LA DISCIPLINE DANS LAQUELLE IL A ÉTÉ LU. Sans ce couplage,
+   * la bascule de lentille laissait une fenêtre où `territories` contenait
+   * encore les zones du monde précédent alors que l'écran affichait déjà
+   * l'étiquette du nouveau : quelques centaines de millisecondes de territoire
+   * de course peint « vélo ». Une trame de mensonge reste un mensonge — le
+   * getter ci-dessous ne rend les lignes que si elles viennent du bon monde, ce
+   * qui replace l'écran en `loading` (« je ne sais pas encore ») pendant la
+   * bascule au lieu de le laisser affirmer.
+   */
+  const [read, setRead] = useState<{ activity: Activity; rows: RealTerritory[] } | null>(null);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
+  const territories = read !== null && read.activity === activity ? read.rows : null;
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
@@ -118,7 +172,7 @@ export function useRealTerritories(
     // rien. `sessionLoading` retombera, l'effet rejouera avec la vraie réponse.
     if (sessionLoading) return;
     if (!supabase || !session) {
-      setTerritories(null);
+      setRead(null);
       setFailed(false);
       return;
     }
@@ -127,25 +181,30 @@ export function useRealTerritories(
     void (async () => {
       const { data, error } = await supabase
         .from('hex_claims')
-        .select('h3index, owner_user_id, claim_type, decay_at, claimed_at');
+        .select('h3index, owner_user_id, claim_type, decay_at, claimed_at')
+        // E14 — UNE seule discipline par lecture. Voir l'en-tête : la clé
+        // primaire est composite depuis 0070, donc sans ce filtre les deux
+        // mondes se peignent l'un sur l'autre.
+        .eq('activity', activity);
       if (cancelled) return;
       if (error) {
         // Échec réseau → on NE bascule PAS sur la démo en la faisant passer pour du réel,
         // et on ne prétend PAS non plus que le joueur n'a rien capturé : `failed` permet
         // à l'écran de dire la vérité (« on n'a pas pu charger »), pas une approximation.
         console.error('[hexClaims] lecture hex_claims échouée :', error.message);
-        setTerritories(null);
+        setRead(null);
         setFailed(true);
         return;
       }
-      setTerritories(
-        buildTerritories(
+      setRead({
+        activity,
+        rows: buildTerritories(
           (data ?? []) as HexClaimRow[],
           session.user.id,
           undefined,
           crewIds,
         ),
-      );
+      });
     })().catch((e: unknown) => {
       // Symétrie avec features/performance/real.ts. supabase-js convertit
       // normalement les erreurs de fetch en `{ error }` plutôt qu'en rejet ; si
@@ -154,13 +213,16 @@ export function useRealTerritories(
       // muette, ni « échec » ni « vide », exactement le cul-de-sac interdit.
       if (cancelled) return;
       console.error('[hexClaims] lecture hex_claims rejetée :', e);
-      setTerritories(null);
+      setRead(null);
       setFailed(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [session, sessionLoading, tick, crewIds]);
+    // `activity` EST une dépendance : basculer la lentille doit relancer la
+    // lecture, sinon l'écran garderait les zones de l'autre monde jusqu'au
+    // prochain focus — c'est-à-dire mentirait le temps d'un écran entier.
+  }, [session, sessionLoading, tick, crewIds, activity]);
 
   // Pendant `sessionLoading`, on ne SAIT pas encore s'il y a une session :
   // répondre `true` reviendrait à traiter « je vérifie » comme « pas de compte ».
@@ -179,4 +241,163 @@ export function useRealTerritories(
     loading: !(signedOutNow || failed || territories !== null),
     reload,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LES SURFACES SANS COMMUTATEUR (26/07/2026)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Les DEUX mondes, lus en une seule requête et jamais fondus. */
+export interface UseRealTerritoriesByActivityResult {
+  /**
+   * `null` = on ne sait pas encore. Sinon les deux disciplines sont TOUJOURS
+   * présentes, éventuellement vides : « tu n'as pas encore de territoire à
+   * vélo » est un fait honnête, une clé absente serait un trou.
+   */
+  worlds: Readonly<Record<Activity, RealTerritory[]>> | null;
+  failed: boolean;
+  signedOut: boolean;
+  loading: boolean;
+  reload: () => void;
+}
+
+/**
+ * LECTURE DES DEUX MONDES pour les écrans QUI N'ONT PAS DE LENTILLE — Profil,
+ * /territoire, widget « Mon territoire ».
+ *
+ * ─── LE DÉFAUT SILENCIEUX QUE CE HOOK REMPLACE ──────────────────────────────
+ * Ces surfaces appelaient `useRealTerritories()` sans discipline, donc avec
+ * `DEFAULT_ACTIVITY`. La conséquence était PROUVÉE et sévère : un joueur qui ne
+ * roule QU'À VÉLO lisait zéro zone partout — le Profil le déclarait « nouveau
+ * joueur », masquait ses quatre métriques et lui affichait « PREMIÈRE
+ * MISSION ». L'app lui disait qu'il n'avait jamais rien pris alors qu'il tenait
+ * du territoire. Le commentaire d'origine assumait ce défaut (« elles restent
+ * exactement dans le monde qu'elles montraient hier ») ; il était vrai le jour
+ * où le vélo n'enregistrait rien, il est devenu faux le 26/07.
+ *
+ * ─── POURQUOI UNE SEULE REQUÊTE, ET PAS DEUX HOOKS FILTRÉS ──────────────────
+ * Deux `useRealTerritories(…, 'run' | 'bike')` auraient doublé le trafic sur une
+ * table déjà lue en entier, sur un écran qui déclenche déjà cinq lectures. Ici
+ * on retire le `.eq('activity', …)` et on demande la COLONNE : le serveur
+ * renvoie les deux mondes en un aller-retour, et la séparation se fait dans une
+ * fonction pure (`splitClaimsByActivity`), testée sous Deno.
+ *
+ * ─── CE QUI N'EST JAMAIS FAIT ICI ───────────────────────────────────────────
+ * Aucun total. Chaque monde est bâti par SON PROPRE `buildTerritories`, sur ses
+ * propres lignes. Fusionner reviendrait à peindre deux propriétaires
+ * contradictoires sur le même hexagone (clé primaire composite `(h3index,
+ * activity)`, 0070) et à compter deux fois une même parcelle de ville — la
+ * somme que la planche E14 interdit mot pour mot.
+ *
+ * L'écran qui consomme ce hook doit ENSUITE choisir, et il n'a que deux
+ * réponses honnêtes : montrer les deux mondes côte à côte, ou DIRE lequel il
+ * montre. Ne rien dire redeviendrait le défaut ci-dessus.
+ */
+export function useRealTerritoriesByActivity(
+  crewIds?: ReadonlySet<string> | null,
+): UseRealTerritoriesByActivityResult {
+  const { session, loading: sessionLoading } = useSession();
+  const [worlds, setWorlds] = useState<Record<Activity, RealTerritory[]> | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  const reload = useCallback(() => setTick((t) => t + 1), []);
+
+  useEffect(() => {
+    // Session en cours de RESTAURATION : on ne lit rien et on n'affirme rien.
+    if (sessionLoading) return;
+    if (!supabase || !session) {
+      setWorlds(null);
+      setFailed(false);
+      return;
+    }
+    let cancelled = false;
+    setFailed(false);
+    void (async () => {
+      const { data, error } = await supabase
+        .from('hex_claims')
+        // `activity` EST demandée, et il n'y a PAS de `.eq` : c'est la colonne
+        // qui sépare, pas le serveur. Voir l'en-tête — une seule requête pour
+        // deux mondes, séparés ensuite en pur.
+        .select('h3index, owner_user_id, claim_type, decay_at, claimed_at, activity');
+      if (cancelled) return;
+      if (error) {
+        console.error('[hexClaims] lecture des deux mondes échouée :', error.message);
+        setWorlds(null);
+        setFailed(true);
+        return;
+      }
+      const split = splitClaimsByActivity((data ?? []) as HexClaimRowWithActivity[]);
+      if (split.unknownCount > 0) {
+        // Impossible par contrainte SQL (0070:103-104). Si ça arrivait, on ne
+        // range PAS ces lignes dans la course à pied — on le dit dans les logs
+        // plutôt que de fabriquer du territoire dans un monde qui n'est pas le
+        // leur. L'écran, lui, sous-déclare : c'est le seul biais acceptable.
+        console.error(
+          `[hexClaims] ${split.unknownCount} capture(s) de discipline inconnue — ignorées`,
+        );
+      }
+      const built = {} as Record<Activity, RealTerritory[]>;
+      for (const a of ACTIVITIES) {
+        built[a] = buildTerritories(split.rows[a], session.user.id, undefined, crewIds);
+      }
+      setWorlds(built);
+    })().catch((e: unknown) => {
+      // Même filet que `useRealTerritories` : sans lui, un throw synchrone du
+      // client laisserait l'écran à jamais sur `loading` — ni « échec », ni
+      // « vide », le cul-de-sac muet que la charte interdit.
+      if (cancelled) return;
+      console.error('[hexClaims] lecture des deux mondes rejetée :', e);
+      setWorlds(null);
+      setFailed(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, sessionLoading, tick, crewIds]);
+
+  const signedOutNow = !sessionLoading && (!supabase || !session);
+
+  return {
+    worlds,
+    failed,
+    signedOut: signedOutNow,
+    loading: !(signedOutNow || failed || worlds !== null),
+    reload,
+  };
+}
+
+/**
+ * MES possessions dans un monde donné (`status === 'crew'`), avec leurs deux
+ * mesures. Fonction d'écran plutôt que de moteur : elle ne fait que filtrer et
+ * réduire des lignes déjà bâties — mais elle vit ici pour que les trois surfaces
+ * sans lentille ne puissent pas en écrire trois variantes divergentes.
+ */
+export interface MyWorld {
+  mine: RealTerritory[];
+  /** Somme des aires de MES zones, en m². Jamais mêlée à l'autre discipline. */
+  areaM2: number;
+  /** Somme des hexagones tenus. */
+  zones: number;
+}
+
+export function myWorldOf(territories: readonly RealTerritory[]): MyWorld {
+  const mine = territories.filter((x) => x.props.status === 'crew');
+  return {
+    mine,
+    areaM2: mine.reduce((sum, x) => sum + x.props.areaM2, 0),
+    zones: mine.reduce((sum, x) => sum + x.zoneCount, 0),
+  };
+}
+
+/** `myWorldOf` appliqué aux deux mondes — mémoïsé, jamais sommé. */
+export function useMyWorlds(
+  worlds: Readonly<Record<Activity, RealTerritory[]>> | null,
+): Readonly<Record<Activity, MyWorld>> | null {
+  return useMemo(() => {
+    if (worlds === null) return null;
+    const out = {} as Record<Activity, MyWorld>;
+    for (const a of ACTIVITIES) out[a] = myWorldOf(worlds[a]);
+    return out;
+  }, [worlds]);
 }

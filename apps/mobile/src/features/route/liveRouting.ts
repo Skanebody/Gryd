@@ -1,13 +1,27 @@
 /**
- * GRYD — ROUTING PIÉTON EN CONTINU (façon Waze live), N'IMPORTE OÙ EN FRANCE.
+ * GRYD — ROUTING EN CONTINU (façon Waze live), N'IMPORTE OÙ EN EUROPE.
  * Route À LA VOLÉE une boucle fermée d'une distance quelconque, RUE PAR RUE, via
- * OSRM foot, autour d'une ORIGINE quelconque (ta position GPS ou un lieu cherché
- * — plus aucun point de départ figé). Waypoints en rosace autour de l'origine →
+ * OSRM, autour d'une ORIGINE quelconque (ta position GPS ou un lieu cherché —
+ * plus aucun point de départ figé). Waypoints en rosace autour de l'origine →
  * route OSRM → géométrie qui SUIT LES RUES, calée en 2 passes sur la distance.
  *
  * Réseau AU RUNTIME (assumé — décision fondateur) : le calcul temps réel se fait
- * via l'internet de l'utilisateur, gratuitement (serveur foot communautaire, sans
+ * via l'internet de l'utilisateur, gratuitement (serveurs communautaires, sans
  * clé). Échec / hors ligne → renvoie null (l'appelant garde le tracé courant).
+ *
+ * ─── LE PROFIL SUIT LA DISCIPLINE (E14, 26/07/2026) ───────────────────────────
+ * Ce module codait `foot` EN DUR, dans son URL et dans son nom. C'était juste
+ * tant que GRYD ne chronométrait que la course. Depuis que le vélo est une
+ * discipline RÉELLE, router un cycliste au profil piéton produit un tracé que
+ * PERSONNE ne peut suivre : escaliers, passages, sens interdits piétonnisés,
+ * et pas une piste cyclable — c'est-à-dire un bouton qui ment. Le profil vient
+ * donc de `activityRouting(activity).profile` (game-rules, `ACTIVITY_ROUTING`) :
+ * `foot` à pied, `bike` à vélo, `car` JAMAIS, dans aucune discipline.
+ *
+ * La discipline est un paramètre OBLIGATOIRE, sans valeur par défaut. C'est
+ * délibéré : un défaut silencieux ici, c'est exactement le tracé piéton rendu à
+ * un cycliste que ce chantier supprime. Le compilateur force chaque appelant à
+ * dire dans quel monde il route.
  *
  * ─── CE MODULE NE DÉCIDE PLUS RIEN DU JEU (25/07/2026) ─────────────────────────
  * Il renvoyait `zones`, `loopZones`, `points`, `streetsToSave`, `expiresInH` et
@@ -21,10 +35,22 @@
  * supprimée, pas déplacée. Ce module ne connaît plus que de la géométrie — une
  * polyligne réellement renvoyée par OSRM et sa longueur mesurée.
  */
+import { type Activity } from '@klaim/shared';
 import { REAL_M_PER_DEG_LAT, type LatLngPoint } from '../map/realAnchors';
+import { plannerRoutingProfile } from './activityPlanning';
 import type { PlannedLoop, PlannerIntention } from './types';
 
-const OSRM_FOOT = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot';
+/**
+ * Serveur OSRM communautaire (sans clé). Il expose une instance PAR PROFIL, à
+ * l'adresse `/routed-<profil>/route/v1/<profil>` — le nom du profil apparaît
+ * donc deux fois, et il vient de game-rules, jamais d'une chaîne écrite ici.
+ */
+const OSRM_HOST = 'https://routing.openstreetmap.de';
+
+function osrmEndpoint(activity: Activity): string {
+  const profile = plannerRoutingProfile(activity);
+  return `${OSRM_HOST}/routed-${profile}/route/v1/${profile}`;
+}
 
 /**
  * Cap (deg, 0 = est) par intention — oriente la boucle autour de l'origine.
@@ -84,9 +110,13 @@ interface OsrmResult {
   coords: [number, number][];
 }
 
-async function routeFoot(wps: readonly LatLngPoint[], signal?: AbortSignal): Promise<OsrmResult | null> {
+async function routeOsrm(
+  activity: Activity,
+  wps: readonly LatLngPoint[],
+  signal?: AbortSignal,
+): Promise<OsrmResult | null> {
   const coords = wps.map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
-  const url = `${OSRM_FOOT}/${coords}?overview=full&geometries=geojson`;
+  const url = `${osrmEndpoint(activity)}/${coords}?overview=full&geometries=geojson`;
   try {
     const res = await fetch(url, signal ? { signal } : undefined);
     const json = await res.json();
@@ -118,9 +148,9 @@ function decimate(coords: readonly [number, number][], lat: number, minGapM: num
 }
 
 /**
- * Route en direct une boucle piétonne autour de `origin` (n'importe où), à la
- * distance cible (km). `zoneLabel` nomme le secteur affiché (lieu de départ).
- * Renvoie null en cas d'échec réseau. 2 passes de calage sur la distance.
+ * Route en direct une boucle autour de `origin` (n'importe où), à la distance
+ * cible (km), AU PROFIL DE `activity`. `zoneLabel` nomme le secteur affiché
+ * (lieu de départ). Renvoie null en cas d'échec réseau. 2 passes de calage.
  */
 export async function routeLoop(
   origin: LatLngPoint,
@@ -128,6 +158,8 @@ export async function routeLoop(
   targetKm: number,
   intention: PlannerIntention,
   seed: number,
+  /** Discipline de la sortie visée — décide le profil de routage. Obligatoire. */
+  activity: Activity,
   signal?: AbortSignal,
 ): Promise<PlannedLoop | null> {
   const n = nWpFor(targetKm);
@@ -139,7 +171,11 @@ export async function routeLoop(
   let radius = (targetKm * 1000) / (2 * Math.PI);
   let result: OsrmResult | null = null;
   for (let pass = 0; pass < 2; pass += 1) {
-    result = await routeFoot(waypoints(origin, INTENTION_BEARING[intention], radius, jitter, n), signal);
+    result = await routeOsrm(
+      activity,
+      waypoints(origin, INTENTION_BEARING[intention], radius, jitter, n),
+      signal,
+    );
     if (!result || result.distanceM <= 0) return null;
     radius *= (targetKm * 1000) / result.distanceM;
   }
@@ -152,10 +188,14 @@ export async function routeLoop(
   // le routeur a réellement mesurée sur les rues (pas la distance demandée).
   const km = Math.round((result.distanceM / 1000) * 10) / 10;
   return {
-    id: `live_${intention}_${Math.round(targetKm * 10)}_${seed}`,
+    // La discipline entre dans l'identité : deux lentilles peuvent proposer la
+    // même distance au même endroit, ce ne sont pas les mêmes boucles (profils
+    // différents), et une clé de rendu commune les confondrait.
+    id: `live_${activity}_${intention}_${Math.round(targetKm * 10)}_${seed}`,
     zone: zoneLabel,
     distanceKm: km,
     intention,
+    activity,
     line,
   };
 }

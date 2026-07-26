@@ -13,8 +13,18 @@
  */
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Platform } from 'react-native';
-import { colors, fontSizes, gameColors, iconSizes, radii, sizes, spacing, withAlpha } from '@klaim/shared';
-import { C } from '../../../i18n/catalog/runGps';
+import {
+  type Activity,
+  colors,
+  fontSizes,
+  gameColors,
+  iconSizes,
+  radii,
+  sizes,
+  spacing,
+  withAlpha,
+} from '@klaim/shared';
+import { ACTIVITY_NAME, C, RUN_GPS_COPY } from '../../../i18n/catalog/runGps';
 import { useT } from '../../../i18n/store';
 import type { Entry } from '../../../i18n/types';
 import { Icon } from '../../../ui/Icon';
@@ -98,17 +108,22 @@ export function PreciseLocationBanner({
 // ─── Rationale background (permission progressive, une phrase) ───────────────
 
 export function BackgroundRationaleCard({
+  activity,
   onAllow,
   onLater,
 }: {
+  /** Discipline de la sortie EN COURS : on ne demande pas à un cycliste
+   *  d'autoriser l'arrière-plan « pour que ta course continue ». */
+  activity: Activity;
   onAllow: () => void;
   onLater: () => void;
 }) {
   const t = useT();
+  const copy = RUN_GPS_COPY[activity];
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>{t(C.bgTitle)}</Text>
-      <Text style={styles.cardText}>{t(C.bgText)}</Text>
+      <Text style={styles.cardTitle}>{t(copy.bgTitle)}</Text>
+      <Text style={styles.cardText}>{t(copy.bgText)}</Text>
       <View style={styles.cardRow}>
         <Pressable
           accessibilityRole="button"
@@ -133,37 +148,86 @@ export function BackgroundRationaleCard({
 
 // ─── Reprise après kill : reprendre ou clôturer, jamais perdre ────────────────
 
+/**
+ * E14 — DEUX MONDES NE FUSIONNENT PAS. Quand la sortie retrouvée n'est pas de
+ * la même discipline que celle qui vient de partir, « Reprendre » n'existe pas
+ * (`onResume === null`) : fusionner écrirait des kilomètres de course dans une
+ * sortie vélo, la somme que la séparation stricte interdit. On RETIRE l'action
+ * — aucun bouton mort — et on DIT pourquoi : un bouton disparu sans explication
+ * se lit comme un bug. La clôture reste offerte, et devient l'action principale
+ * puisqu'elle est la seule : rien n'est perdu, la sortie part dans SON monde.
+ */
 export function RestoreRunCard({
   distanceLabel,
+  activity,
   onResume,
   onDiscard,
 }: {
   /** Ex. « 3,42 km retrouvés ». */
   distanceLabel: string;
-  onResume: () => void;
+  /**
+   * Discipline de la sortie RETROUVÉE — jamais celle qui vient de démarrer.
+   * Elle décide de TOUT ce que cette carte dit de l'effort : le titre (une
+   * course retrouvée est une course, une sortie vélo une sortie), les deux
+   * libellés lus à voix haute, et le nom inséré dans la phrase de refus de
+   * fusion. Le passage `Activity` plutôt qu'un nom déjà traduit évite qu'un
+   * appelant fournisse le mot d'une discipline et le titre d'une autre.
+   */
+  activity: Activity;
+  /**
+   * `null` = fusion impossible. Une SEULE cause existe et elle est verrouillée
+   * par test (`canResumeInterrupted`) : les deux sorties ne sont pas de la même
+   * discipline. C'est ce qui autorise la copie ci-dessous à le NOMMER — un
+   * `null` d'origine inconnue ferait mentir la phrase.
+   */
+  onResume: (() => void) | null;
   onDiscard: () => void;
 }) {
   const t = useT();
+  const copy = RUN_GPS_COPY[activity];
+  const mergeable = onResume !== null;
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>{t(C.restoreTitle)}</Text>
-      <Text style={styles.cardText}>{t(C.restoreQuestion, { distance: distanceLabel })}</Text>
+      {/* Branche FUSIONNABLE : les deux sorties sont de la MÊME discipline, on
+          peut donc la nommer. Branche non fusionnable : le titre reste neutre
+          et c'est le CORPS qui nomme la discipline retrouvée, puisque c'est
+          justement l'écart entre les deux qu'il doit expliquer. */}
+      <Text style={styles.cardTitle}>
+        {t(mergeable ? copy.restoreTitle : C.restoreTitleOtherActivity)}
+      </Text>
+      <Text style={styles.cardText}>
+        {mergeable
+          ? t(C.restoreQuestion, { distance: distanceLabel })
+          : t(C.restoreOtherActivityBody, {
+              distance: distanceLabel,
+              name: t(ACTIVITY_NAME[activity]),
+            })}
+      </Text>
       <View style={styles.cardRow}>
+        {mergeable && onResume !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(copy.a11yResumeInterrupted)}
+            onPress={onResume}
+            style={({ pressed }) => [styles.cardBtnMain, pressed && styles.pressed]}
+          >
+            <Text style={styles.cardBtnMainText}>{t(C.btnResume)}</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t(C.a11yResumeInterrupted)}
-          onPress={onResume}
-          style={({ pressed }) => [styles.cardBtnMain, pressed && styles.pressed]}
-        >
-          <Text style={styles.cardBtnMainText}>{t(C.btnResume)}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.a11ySaveInterrupted)}
+          accessibilityLabel={t(copy.a11ySaveInterrupted)}
           onPress={onDiscard}
-          style={({ pressed }) => [styles.cardBtnGhost, pressed && styles.pressed]}
+          // Seule action restante ⇒ elle prend la place de l'action principale.
+          // §A4 : un seul accent fort par carte, jamais deux.
+          style={({ pressed }) => [
+            mergeable ? styles.cardBtnGhost : styles.cardBtnMain,
+            pressed && styles.pressed,
+          ]}
         >
-          <Text style={styles.cardBtnGhostText}>{t(C.btnSave)}</Text>
+          <Text style={mergeable ? styles.cardBtnGhostText : styles.cardBtnMainText}>
+            {t(C.btnSave)}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -174,10 +238,15 @@ export function RestoreRunCard({
 
 export function BackgroundHelpSheet({
   visible,
+  activity,
   onClose,
   onOpenSettings,
 }: {
   visible: boolean;
+  /** Même titre que la carte de rationale — donc même discipline (« ROULER
+   *  ÉCRAN ÉTEINT » pour une sortie vélo). Les étapes par constructeur, elles,
+   *  parlent de réglages système : elles sont neutres et restent partagées. */
+  activity: Activity;
   onClose: () => void;
   onOpenSettings: () => void;
 }) {
@@ -193,7 +262,7 @@ export function BackgroundHelpSheet({
         <View style={styles.sheet}>
           <View style={styles.sheetHead}>
             <Icon name="gps" size={iconSizes.md} color={colors.chartreuse} />
-            <Text style={styles.sheetTitle}>{t(C.bgTitle)}</Text>
+            <Text style={styles.sheetTitle}>{t(RUN_GPS_COPY[activity].bgTitle)}</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t(C.a11yCloseHelp)}

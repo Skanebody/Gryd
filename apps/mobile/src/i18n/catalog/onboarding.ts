@@ -197,12 +197,21 @@ export const C = defineCatalog({
   // premier GO. Elle vit maintenant en `firstRunGpsNote`, sur l'écran profil —
   // le dernier avant la carte — sans son préfixe « Exemple. », qui désignait un
   // visuel qui n'y est plus.
+  /**
+   * ⚠️ « SORTIE », PLUS « COURSE » (26/07/2026 — le vélo est une discipline
+   * RÉELLE). Cette note est lue AVANT que le joueur ait choisi quoi que ce soit :
+   * l'onboarding ne porte AUCUNE lentille de discipline, donc il n'y a rien à
+   * décliner — pas de twin `…Bike` ici, ce serait un texte sans surface. Le mot
+   * doit simplement valoir pour les deux mondes. Le fait énoncé, lui, ne change
+   * pas d'un monde à l'autre : le GPS s'allume au départ, quelle que soit la
+   * discipline. La clé garde son nom (interne, jamais lu par un joueur).
+   */
   firstRunGpsNote: {
-    fr: 'Tes zones arrivent à ta première course — GPS allumé au départ.',
-    en: 'Your zones come with your first run — GPS on at the start.',
-    es: 'Tus zonas llegan en tu primera carrera: GPS activo al salir.',
-    de: 'Deine Zonen kommen mit dem ersten Lauf — GPS an beim Start.',
-    pt: 'Suas zonas chegam na primeira corrida — GPS ligado na largada.',
+    fr: 'Tes zones arrivent à ta première sortie — GPS allumé au départ.',
+    en: 'Your zones come with your first outing — GPS on at the start.',
+    es: 'Tus zonas llegan en tu primera salida: GPS activo al empezar.',
+    de: 'Deine Zonen kommen mit der ersten Tour — GPS an beim Start.',
+    pt: 'Suas zonas chegam na primeira saída — GPS ligado na largada.',
   },
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -264,19 +273,81 @@ export const C = defineCatalog({
     de: 'SO FUNKTIONIERT’S',
     pt: 'COMO FUNCIONA',
   },
+  /**
+   * LE TOUT PREMIER TEXTE DE L'APP — et il déclarait un jeu de COURSE À PIED
+   * (« COURS. / PRENDS TA VILLE. », 26/07/2026). Depuis que le vélo est une
+   * discipline RÉELLE, c'était le mensonge le plus en AMONT de tout le produit :
+   * il tombait avant les CGU, avant le choix de la ville, avant tout.
+   *
+   * ─── POURQUOI NE NOMMER AUCUNE DISCIPLINE (et pas les nommer toutes) ──────
+   * L'autre voie possible était « COURS. ROULE. / PRENDS TA VILLE. ». Elle est
+   * écartée pour trois raisons, dans cet ordre :
+   *   1. elle ÉNUMÈRE. Le premier mot dit à un inconnu deviendrait une liste de
+   *      modes de transport, là où la promesse est un TERRITOIRE ;
+   *   2. elle oblige à se ranger dans un camp (« je suis coureur ou cycliste ? »)
+   *      avant même de savoir ce qu'est le jeu — or cette carte n'enseigne QUE
+   *      le geste (content.ts : « le geste : ferme une boucle, prends la zone.
+   *      Rien d'autre ») ;
+   *   3. elle ment de nouveau le jour où une 3ᵉ discipline existe. Un titre qui doit être
+   *      réécrit à chaque ajout n'est pas une promesse, c'est un changelog.
+   * Le reste de la carte prouve que la neutralité ne coûte pas la force :
+   * `mechanicKicker` (« COMMENT ÇA MARCHE »), `mechanicTagline` (« Chaque boucle
+   * fermée peut devenir ton territoire. ») et la boucle animée `E01Route`
+   * enseignent la mécanique SANS nommer un corps. Le titre était la seule ligne
+   * hors du rang.
+   *
+   * Le verbe retenu est celui de la baseline de marque elle-même (AMENDEMENT-42,
+   * « Cours pour ton crew. Conquiers ta ville. ») : on garde la moitié qui est
+   * vraie dans les deux mondes, on laisse tomber celle qui nomme un corps.
+   *
+   * ─── LONGUEUR MESURÉE, PAS ESTIMÉE ───────────────────────────────────────
+   * Rendu à 375 pt (E01Hero : 343 px utiles, InterTight_800ExtraBold 40 px,
+   * interligne 44, letterSpacing -0,4), ligne la plus longue :
+   *   fr 225,3 · en 217,5 · es 224,9 · de 257,9 · pt 281,9 — sur 343 px.
+   * (La mesure pt porte sur « A TUA CIDADE. » ; le passage à « SUA CIDADE. »,
+   * deux caractères de moins, n'a pas été REMESURÉ — il ne peut qu'aller dans
+   * le bon sens, et le budget était déjà tenu avant lui.)
+   * L'ANCIEN titre, lui, DÉBORDAIT : « TOMA TU CIUDAD. » 347,1 px,
+   * « NIMM DEINE STADT. » 379,3 px, « TOMA A TUA CIDADE. » 402,6 px — trois
+   * langues sur cinq passaient à 3 lignes, ce que le compte de CARACTÈRES de
+   * copyFit.test.ts ne pouvait pas voir. Le budget du titre héros y est
+   * désormais dérivé de cette mesure (14 caractères par ligne).
+   */
   mechanicTitle: {
-    fr: 'COURS.\nPRENDS TA VILLE.',
-    en: 'RUN.\nTAKE YOUR CITY.',
-    es: 'CORRE.\nTOMA TU CIUDAD.',
-    de: 'LAUF.\nNIMM DEINE STADT.',
-    pt: 'CORRE.\nTOMA A TUA CIDADE.',
+    fr: 'CONQUIERS\nTA VILLE.',
+    en: 'CONQUER\nYOUR CITY.',
+    es: 'CONQUISTA\nTU CIUDAD.',
+    de: 'EROBERE\nDEINE STADT.',
+    pt: 'CONQUISTA\nSUA CIDADE.',
   },
+  /**
+   * ⚠️ REGISTRE : LE CATALOGUE EN PORTAIT DEUX (tranché le 26/07/2026).
+   *
+   * L'en-tête de ce fichier déclare « você » en portugais et le tutoiement en
+   * français. Cette carte — la PREMIÈRE de l'app — désobéissait aux deux, et
+   * dans les deux cas sur DEUX LIGNES VOISINES :
+   *   · pt : « A TUA CIDADE. » / « o TEU território » (tutoiement européen)
+   *     juste au-dessus de `cityTagline` (« Você sai ») et de
+   *     `firstRunGpsNote` (« Suas zonas ») — deux personnes grammaticales dans
+   *     le même parcours, à trois écrans d'intervalle ;
+   *   · fr : « votre territoire » sous un titre qui tutoie (« CONQUIERS TA
+   *     VILLE. »). Le vouvoiement était l'unique occurrence du catalogue.
+   * Un catalogue qui déclare un registre et en emploie un autre laisse le
+   * suivant trancher au hasard : les deux lignes rejoignent leur carte.
+   *
+   * LE SENS DU TITRE N'EST PAS TOUCHÉ (il vient d'être arbitré et il est vrai
+   * dans les deux disciplines) : seule la personne change. « SUA CIDADE. » fait
+   * ONZE caractères contre treize — il perd un « A » et une espace, et échange
+   * un T contre un S : la ligne ne s'allonge pas. Le budget mesuré du titre
+   * héros (14 caractères par ligne, `copyFit.test.ts:38`, dérivé d'un rendu
+   * réel à 343 px utiles) reste donc tenu avec de la marge.
+   */
   mechanicTagline: {
-    fr: 'Chaque boucle fermée peut devenir votre territoire.',
+    fr: 'Chaque boucle fermée peut devenir ton territoire.',
     en: 'Every closed loop can become your territory.',
     es: 'Cada bucle cerrado puede ser tu territorio.',
     de: 'Jede geschlossene Runde kann dein Gebiet werden.',
-    pt: 'Cada circuito fechado pode tornar-se o teu território.',
+    pt: 'Cada circuito fechado pode tornar-se o seu território.',
   },
   // ⚠️ `mechanicStreet` (« VOTRE RUE ») RETIRÉE le 25/07/2026 : le label posé sur
   // la photo de la planche E01 a été remplacé par la BOUCLE ANIMÉE (`E01Route`),
@@ -308,12 +379,21 @@ export const C = defineCatalog({
     de: 'Deine Zone kann\nzurückerobert werden.',
     pt: 'Sua zona pode\nser retomada.',
   },
+  /**
+   * Le CREW entre par cette ligne — et elle disait « COURS seul » (26/07/2026).
+   * Ce que la phrase doit poser, c'est le CHOIX (seul ou à plusieurs), pas la
+   * façon de se déplacer : le verbe d'effort partait donc sans rien emporter.
+   * « Défends-la » reprend le titre juste au-dessus (« Ta zone peut être
+   * reprise. ») — la tagline répond à la question que le titre vient de poser.
+   * Mesuré à 375 pt (327 px utiles, Inter 16) : 1 ligne dans les 5 langues,
+   * max 290,4 px (de).
+   */
   rivalryTagline: {
-    fr: 'Cours seul ou défends-la avec ton crew.',
-    en: 'Run solo, or defend it with your crew.',
-    es: 'Corre solo o defiéndela con tu crew.',
-    de: 'Lauf allein — oder verteidige sie mit deiner Crew.',
-    pt: 'Corra sozinho ou defenda-a com seu crew.',
+    fr: 'Défends-la seul, ou avec ton crew.',
+    en: 'Defend it solo, or with your crew.',
+    es: 'Defiéndela solo o con tu crew.',
+    de: 'Verteidige sie allein — oder mit deiner Crew.',
+    pt: 'Defenda-a sozinho ou com seu crew.',
   },
 
   // ─── CARTE 3 — VILLE (choix MANUEL, sans GPS) ──────────────────────────────
@@ -334,12 +414,21 @@ export const C = defineCatalog({
     de: 'Spiel in deiner Stadt.\nIn deinem Tempo.',
     pt: 'Jogue na sua cidade.\nNo seu ritmo.',
   },
+  /**
+   * « Tu PARTIRAS », plus « tu courras » (26/07/2026). Le sens de la phrase est
+   * le CONTRASTE « maintenant / quand tu voudras » — choisir sa ville n'engage
+   * à aucun effort tout de suite. Ce contraste ne demande aucune discipline :
+   * « partir » (set off / salir / losgehen / sair) le dit pour les deux mondes.
+   * Mesuré à 375 pt (327 px utiles, Inter 16) : jamais plus de lignes qu'avant
+   * (fr/de/pt 2 lignes comme avant, en/es 1 ligne comme avant), budget §A des
+   * sous-titres (72 caractères) respecté dans les 5 langues.
+   */
   cityTagline: {
-    fr: 'Choisis ta ville maintenant. Tu courras quand tu seras prêt.',
-    en: 'Pick your city now. You’ll run when you’re ready.',
-    es: 'Elige tu ciudad ahora. Correrás cuando estés listo.',
-    de: 'Wähl jetzt deine Stadt. Laufen kannst du, wenn du so weit bist.',
-    pt: 'Escolha sua cidade agora. Você corre quando estiver pronto.',
+    fr: 'Choisis ta ville maintenant. Tu partiras quand tu seras prêt.',
+    en: 'Pick your city now. Set off when you’re ready.',
+    es: 'Elige tu ciudad ahora. Saldrás cuando estés listo.',
+    de: 'Wähl jetzt deine Stadt. Los geht’s, wenn du so weit bist.',
+    pt: 'Escolha sua cidade agora. Você sai quando estiver pronto.',
   },
   citySearchPlaceholder: {
     fr: 'Chercher une ville',

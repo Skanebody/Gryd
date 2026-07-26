@@ -55,6 +55,7 @@ import { clearLastRunResult, setLastRunResult } from '../runResult';
 import { clearFinishedTrace, setFinishedTrace } from '../finishedTrace';
 import { recordRun } from '../runJournal';
 import { RunTracker, type TrackerSnapshot } from './tracker';
+import { canResumeInterrupted } from './runActivity';
 import type { RealRunGate } from './gateTypes';
 import type { RunLocationAdapter, RunUnavailableReason, RunWatchHandle } from './locationAdapter';
 
@@ -108,7 +109,15 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
   const [coarseOnly, setCoarseOnly] = useState(false);
   const [snapshot, setSnapshot] = useState<TrackerSnapshot | null>(null);
   const [bgPrompt, setBgPrompt] = useState<'hidden' | 'offer' | 'denied'>('hidden');
-  const [restoreDistanceM, setRestoreDistanceM] = useState<number | null>(null);
+  /**
+   * Course interrompue retrouvée : sa distance ET sa discipline. La discipline
+   * n'est pas un détail d'affichage — c'est elle qui décide si « Reprendre »
+   * existe (fusionner deux mondes est interdit, cf. `canResumeInterrupted`).
+   */
+  const [restoreFound, setRestoreFound] = useState<{
+    distanceM: number;
+    activity: Activity;
+  } | null>(null);
   const [permissionRevoked, setPermissionRevoked] = useState(false);
 
   /**
@@ -266,12 +275,16 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       }
       if (stored !== null && stored.fixes.length > 1) {
         pendingStoredRef.current = stored;
+        const activity = storedActivity(stored);
         const probe = new RunTracker({
           ...stored,
-          activity: storedActivity(stored),
+          activity,
           initialFixes: stored.fixes,
         });
-        setRestoreDistanceM(probe.snapshot(Date.now()).distanceM);
+        // La distance est relue AUX BORNES DE SA PROPRE DISCIPLINE : une sortie
+        // vélo retrouvée ne doit pas être re-mesurée à 25 km/h (elle afficherait
+        // « 0,0 km retrouvés » et le joueur croirait sa sortie perdue).
+        setRestoreFound({ distanceM: probe.snapshot(Date.now()).distanceM, activity });
       }
 
       // E06 PRÉFLIGHT — acquisition RÉUSSIE : on S'ARRÊTE ici, le tracker n'est
@@ -380,6 +393,12 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     const stored = pendingStoredRef.current;
     const current = trackerRef.current;
     if (stored === null || current === null) return;
+    // CEINTURE. L'écran ne peint déjà plus « Reprendre » quand les disciplines
+    // diffèrent (cf. le `restore` rendu plus bas) ; ce garde-fou existe pour que
+    // la fusion soit impossible même si un futur appelant oubliait la règle.
+    // Fusionner une course à pied dans une sortie vélo écrirait des kilomètres
+    // d'un monde dans l'autre — la somme interdite par la séparation stricte E14.
+    if (!canResumeInterrupted(storedActivity(stored), current.activity)) return;
     void (async () => {
       const bg = await drainBackground();
       current.stopPedometer();
@@ -397,7 +416,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       });
       void trackerRef.current.startPedometer();
       pendingStoredRef.current = null;
-      setRestoreDistanceM(null);
+      setRestoreFound(null);
       await clearCurrentRun(); // la sauvegarde CURRENT est fusionnée → obsolète
       setSnapshot(trackerRef.current.snapshot(Date.now()));
       await flush();
@@ -421,7 +440,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       await uploadOrQueue(closer.buildPayload());
       await clearActiveRun();
       pendingStoredRef.current = null;
-      setRestoreDistanceM(null);
+      setRestoreFound(null);
       await clearCurrentRun(); // la course courante repasse sur la clé ACTIVE
       await flush(); // la course courante reprend la main sur le buffer
     })();
@@ -452,6 +471,8 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       distance: Math.round(snap.distanceM),
       duration: Math.round(snap.activeS),
       source: 'gps',
+      // Même raison qu'au départ : deux mondes séparés, deux mesures séparées.
+      activity: t.activity,
     });
     // Le VRAI payload part vers ingest_run (seul juge) si session réelle.
     // Idempotent par clientRunId. Hors-ligne : le payload est mis en FILE
@@ -523,7 +544,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     }
     // run_start = le VRAI départ (fin du décompte, écran toujours monté) : jamais
     // émis pour une course annulée avant ce point (funnel §8 honnête).
-    track(EVENTS.runStart, { source: 'gps', mode, platform: adapter.platform });
+    // `activity` accompagne le départ : sans elle le funnel §8 mélangerait les
+    // deux mondes (un pic de départs vélo se lirait comme un pic de courses).
+    track(EVENTS.runStart, { source: 'gps', mode, platform: adapter.platform, activity });
     setSnapshot(tracker.snapshot(Date.now()));
     setKind('real');
     void flush();
@@ -561,6 +584,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     kind: 'real',
     run: {
       effectiveMode: t.mode,
+      // La discipline RÉELLEMENT enregistrée — celle du tracker, jamais celle
+      // d'un réglage relu à l'instant T. Une reprise garde la sienne, exactement
+      // comme `effectiveMode` garde le mode d'origine.
+      activity: t.activity,
       snapshot,
       platform: adapter.platform,
       approxLocation: snapshot.approxLocationSuspected,
@@ -568,8 +595,18 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       bgPrompt,
       foregroundOnlyPlatform: adapter.background === null,
       restore:
-        restoreDistanceM !== null
-          ? { distanceM: restoreDistanceM, resume: resumeStored, discard: discardStored }
+        restoreFound !== null
+          ? {
+              distanceM: restoreFound.distanceM,
+              activity: restoreFound.activity,
+              // Disciplines différentes ⇒ pas de « Reprendre » : l'action
+              // n'existe pas plutôt que d'exister et d'échouer (aucun bouton
+              // mort). La clôture, elle, reste toujours possible.
+              resume: canResumeInterrupted(restoreFound.activity, t.activity)
+                ? resumeStored
+                : null,
+              discard: discardStored,
+            }
           : null,
       openSettings: adapter.openSettings,
       allowBackground,

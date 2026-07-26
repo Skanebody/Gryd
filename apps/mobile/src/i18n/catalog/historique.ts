@@ -24,8 +24,42 @@
  *     mais fermable ») et `a11yFilter`, remplacé par un libellé de segment qui
  *     porte lui-même son compte.
  * Elles reviendront avec leur écran et leur donnée, pas avant.
+ *
+ * ─── 26/07/2026 : L'ÉCRAN LIT PAR DISCIPLINE, IL DOIT PARLER PAR DISCIPLINE ──
+ * `/historique` lit `runs` bornée par `.eq('activity', …)` (features/history/real)
+ * et AFFICHE lui-même la discipline (commutateur E14 en `headerRight`). Sa copie,
+ * elle, était restée mono-monde : un cycliste qui A des sorties lisait « TES
+ * COURSES » en titre de page, « {n} courses » au-dessus de sa liste, et
+ * s'entendait proposer « Filtrer tes courses ». La branche vélo de l'écran ne
+ * couvrait que l'ÉTAT VIDE — donc le seul cas où le cycliste n'a rien.
+ *
+ * MÊME MÉTHODE QUE `result.ts`, ET POUR LES MÊMES RAISONS :
+ *  · les clés HISTORIQUES ne sont NI renommées NI retouchées : elles sont, et
+ *    restent, la version `run` ;
+ *  · chaque libellé qui NOMME l'effort reçoit un jumeau suffixé `Bike`, placé
+ *    juste en dessous pour qu'ils ne dérivent pas ;
+ *  · le couple est indexé par `Activity` dans `HISTORY_COPY` (bas de fichier).
+ *    C'est LUI que l'écran lit : un `Record<Activity, …>` exhaustif fait échouer
+ *    la compilation le jour d'une 3ᵉ discipline, là où un `bike ? … : …` sortirait
+ *    silencieusement le libellé du coureur ;
+ *  · les libellés DÉJÀ NEUTRES (« Historique », « Conquêtes », « Zones tenues »,
+ *    « Voir sur la carte », les pastilles Verify) n'ont PAS de jumeau : en
+ *    dupliquer un à l'identique ferait deux vérités à maintenir au lieu d'une.
+ *
+ * L'EXCEPTION, ET SA RAISON : `/course/[id]` n'a AUCUNE lentille — il n'existe
+ * aucune lecture d'une course par identifiant (O1), donc l'écran ne sait pas, et
+ * ne peut pas savoir, de quelle discipline on lui parle. Un jumeau y serait un
+ * texte que rien ne saurait choisir : ses quatre libellés sont donc NEUTRALISÉS
+ * (« sortie » / « outing » / « salida » / « Aktivität » / « saída »), pas jumelés.
+ *
+ * VOCABULAIRE VÉLO, aligné sur `result.ts` et sur les états vides déjà écrits ici :
+ * fr « sortie (vélo) » · en « ride » · es « salida (en bici) » · de « Ausfahrt »
+ * · pt « pedal ». Vocabulaire NEUTRE (les deux mondes) : fr « sortie » · en
+ * « outing » · es « salida » · de « Aktivität » · pt « saída ».
  */
+import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import { defineCatalog } from '../types';
+import type { Entry } from '../types';
 
 export const C = defineCatalog({
   // ─── /historique : en-tête ─────────────────────────────────────────────────
@@ -44,6 +78,19 @@ export const C = defineCatalog({
     pt: 'SUAS CORRIDAS',
   },
   /**
+   * Le kicker est rendu HORS de toute branche d'état : c'est le titre de la
+   * page, il s'affiche aussi bien au-dessus d'une liste peuplée que d'un état
+   * vide. En lentille vélo, il annonçait donc « TES COURSES » juste au-dessus
+   * du texte qui explique que les sorties vélo sont comptées à part.
+   */
+  historiqueKickerBike: {
+    fr: 'TES SORTIES VÉLO',
+    en: 'YOUR RIDES',
+    es: 'TUS SALIDAS EN BICI',
+    de: 'DEINE AUSFAHRTEN',
+    pt: 'SEUS PEDAIS',
+  },
+  /**
    * Le sous-titre promettait « le tracé » — aucune vignette de parcours n'est
    * rendue, et `RealRunCard` explique pourquoi (`polyline_masked` n'est pas
    * décodé). Une promesse au-delà du code est la même faute qu'une donnée
@@ -55,6 +102,14 @@ export const C = defineCatalog({
     es: 'Todas tus carreras: el esfuerzo y lo que cambió sobre el terreno.',
     de: 'Alle deine Läufe: der Einsatz und was er am Boden verändert hat.',
     pt: 'Todas as suas corridas: o esforço e o que mudou no terreno.',
+  },
+  /** Même promesse, même retenue sur la vignette — l'autre monde. */
+  historiqueSubtitleBike: {
+    fr: 'Toutes tes sorties vélo : l’effort et ce qu’il a changé sur le terrain.',
+    en: 'All your rides: the effort, and what it changed on the ground.',
+    es: 'Todas tus salidas en bici: el esfuerzo y lo que cambió sobre el terreno.',
+    de: 'Alle deine Ausfahrten: der Einsatz und was er am Boden verändert hat.',
+    pt: 'Todos os seus pedais: o esforço e o que mudou no terreno.',
   },
 
   // ─── /historique : filtres (chips §A — courts dans TOUTES les langues) ─────
@@ -101,6 +156,14 @@ export const C = defineCatalog({
     de: 'Deine Läufe filtern',
     pt: 'Filtrar suas corridas',
   },
+  /** LU À VOIX HAUTE : le groupe de filtres surplombe une liste de sorties vélo. */
+  a11yFilterGroupBike: {
+    fr: 'Filtrer tes sorties vélo',
+    en: 'Filter your rides',
+    es: 'Filtrar tus salidas en bici',
+    de: 'Deine Ausfahrten filtern',
+    pt: 'Filtrar seus pedais',
+  },
 
   // ─── /historique : compteur + états ────────────────────────────────────────
   /**
@@ -125,6 +188,25 @@ export const C = defineCatalog({
     pt: '{n} corridas',
   },
   /**
+   * Le comptage du monde vélo. Il coiffe la liste PEUPLÉE — exactement le cas
+   * que la branche `bike` de l'écran ne couvrait pas, puisqu'elle était imbriquée
+   * dans « lu ET zéro sortie ».
+   */
+  countRunsOneBike: {
+    fr: '{n} sortie',
+    en: '{n} ride',
+    es: '{n} salida',
+    de: '{n} Ausfahrt',
+    pt: '{n} pedal',
+  },
+  countRunsManyBike: {
+    fr: '{n} sorties',
+    en: '{n} rides',
+    es: '{n} salidas',
+    de: '{n} Ausfahrten',
+    pt: '{n} pedais',
+  },
+  /**
    * ÉTAT VIDE — le texte disait « après ta première CAPTURE », alors que la
    * liste montre TOUTES les courses : le filtre « Stats seules » existe
    * précisément pour les sorties sans capture. Un joueur qui court sans rien
@@ -144,6 +226,14 @@ export const C = defineCatalog({
     de: 'Noch keine Läufe in diesem Filter.',
     pt: 'Ainda não há corridas neste filtro.',
   },
+  /** Absence LOCALE dans le monde vélo — le joueur a des sorties, pas ici. */
+  emptyFilterBike: {
+    fr: 'Aucune sortie dans ce filtre pour l’instant.',
+    en: 'No rides in this filter yet.',
+    es: 'Aún no hay salidas en este filtro.',
+    de: 'Noch keine Ausfahrten in diesem Filter.',
+    pt: 'Ainda não há pedais neste filtro.',
+  },
   /**
    * Pas connecté : l'historique vit sur le compte. On n'affiche NI courses
    * fabriquées ni écran blanc — on nomme ce qui manque + 1 CTA (§A).
@@ -155,6 +245,19 @@ export const C = defineCatalog({
     de: 'Deine Läufe hängen an deinem Konto. Melde dich an, um sie hier zu sehen.',
     pt: 'Suas corridas estão ligadas à sua conta. Entre para encontrá-las aqui.',
   },
+  /**
+   * Le commutateur E14 et le kicker sont rendus HORS de l'état de lecture : un
+   * joueur déconnecté peut donc être en lentille vélo, et l'écran le lui dit.
+   * La card d'état doit parler du même monde que le titre qui la surplombe.
+   */
+  emptySignedOutBike: {
+    fr: 'Tes sorties vélo sont liées à ton compte. Connecte-toi pour les retrouver ici.',
+    en: 'Your rides live on your account. Sign in to find them here.',
+    es: 'Tus salidas en bici están vinculadas a tu cuenta. Inicia sesión para verlas aquí.',
+    de: 'Deine Ausfahrten hängen an deinem Konto. Melde dich an, um sie hier zu sehen.',
+    pt: 'Seus pedais estão ligados à sua conta. Entre para encontrá-los aqui.',
+  },
+  /** CTA COURT et neutre dans les 5 langues : rien à décliner (§A). */
   emptySignedOutCta: {
     fr: 'Se connecter',
     en: 'Sign in',
@@ -169,6 +272,14 @@ export const C = defineCatalog({
     de: 'Anmelden, um deine Läufe zu sehen',
     pt: 'Entrar para ver suas corridas',
   },
+  /** LU À VOIX HAUTE : le bouton promet de retrouver le monde REGARDÉ. */
+  a11ySignInBike: {
+    fr: 'Se connecter pour retrouver ses sorties vélo',
+    en: 'Sign in to find your rides',
+    es: 'Iniciar sesión para ver tus salidas en bici',
+    de: 'Anmelden, um deine Ausfahrten zu sehen',
+    pt: 'Entrar para ver seus pedais',
+  },
   /**
    * CE QUI N'EXISTE PAS, DIT À SA PLACE (patron /qr) : en bas, en gris, APRÈS
    * la liste. Aucune card n'est cliquable — le joueur tapait une course et
@@ -180,6 +291,14 @@ export const C = defineCatalog({
     es: 'El detalle de una carrera aún no está disponible: estas líneas no se abren.',
     de: 'Die Detailansicht eines Laufs gibt es noch nicht: Diese Einträge öffnen sich nicht.',
     pt: 'O detalhe de uma corrida ainda não está disponível: estas linhas não abrem.',
+  },
+  /** Même aveu, sous la liste de l'autre monde (rendue, elle aussi, peuplée). */
+  detailPendingNoteBike: {
+    fr: 'Le détail d’une sortie n’est pas encore disponible : ces lignes ne s’ouvrent pas.',
+    en: 'Ride details aren’t available yet: these entries don’t open.',
+    es: 'El detalle de una salida aún no está disponible: estas líneas no se abren.',
+    de: 'Die Detailansicht einer Ausfahrt gibt es noch nicht: Diese Einträge öffnen sich nicht.',
+    pt: 'O detalhe de um pedal ainda não está disponível: estas linhas não abrem.',
   },
 
   // ─── Statuts GRYD Verify (pastilles de RealRunCard) ────────────────────────
@@ -220,29 +339,55 @@ export const C = defineCatalog({
     de: 'Lauf vom {when} — {effort}',
     pt: 'Corrida de {when} — {effort}',
   },
+  /**
+   * Le même énoncé pour une ligne du monde vélo. La liste est filtrée en SQL par
+   * discipline : sous la lentille vélo, CHAQUE ligne est une sortie vélo, et
+   * VoiceOver annonçait « Course du 12 juillet ».
+   * ⚠ PAS ENCORE CÂBLÉ : son unique appelant est `features/history/RealRunCard.tsx`
+   * (ligne 150), qui appartient à un autre périmètre. `RUN_EFFORT_A11Y` (bas de
+   * fichier) lui donne la dérivation toute faite — il ne reste qu'à lui passer la
+   * discipline de la ligne. Inscrit en suspens plutôt que corrigé de force.
+   */
+  a11yRunEffortBike: {
+    fr: 'Sortie vélo du {when} — {effort}',
+    en: 'Ride on {when} — {effort}',
+    es: 'Salida en bici del {when} — {effort}',
+    de: 'Ausfahrt vom {when} — {effort}',
+    pt: 'Pedal de {when} — {effort}',
+  },
 
   // ─── /course/[id] : la page d'état, seule chose que l'écran sait rendre ────
-  runFallbackTitle: { fr: 'Course', en: 'Run', es: 'Carrera', de: 'Lauf', pt: 'Corrida' },
+  /**
+   * NEUTRALISÉS le 26/07/2026, PAS jumelés — et c'est une décision, pas un
+   * raccourci. `/course/[id]` ne porte AUCUNE lentille : il n'existe aucune
+   * lecture d'une course par identifiant (O1), l'écran n'est atteignable que par
+   * deep link, et il ne peut donc RIEN savoir de la discipline dont on lui parle.
+   * Un jumeau vélo y serait un texte que rien ne saurait choisir : on tirerait à
+   * pile ou face (même arbitrage que les états vides de `features/share/copy.ts`).
+   * Le vocabulaire y devient donc NEUTRE aux deux mondes — un cycliste qui ouvre
+   * le lien de sa sortie ne lit plus « Détail de course indisponible ».
+   */
+  runFallbackTitle: { fr: 'Sortie', en: 'Activity', es: 'Salida', de: 'Aktivität', pt: 'Saída' },
   /**
    * ANCIEN TEXTE : « Cette course n'est pas dans ton historique. Tes courses
    * apparaîtront ici après ta première sortie enregistrée. » Servi tel quel à
    * un joueur qui a des dizaines de courses, il NIAIT son historique — alors
    * que la seule chose vraie est que GRYD ne sait pas encore ouvrir le détail
-   * d'une course. On dit ça, et rien d'autre.
+   * d'une sortie. On dit ça, et rien d'autre.
    */
   runDetailPendingTitle: {
-    fr: 'Détail de course indisponible',
-    en: 'Run details unavailable',
-    es: 'Detalle de carrera no disponible',
-    de: 'Laufdetails nicht verfügbar',
-    pt: 'Detalhe da corrida indisponível',
+    fr: 'Détail indisponible',
+    en: 'Details unavailable',
+    es: 'Detalle no disponible',
+    de: 'Details nicht verfügbar',
+    pt: 'Detalhe indisponível',
   },
   runDetailPendingBody: {
-    fr: 'GRYD ne sait pas encore ouvrir une course une par une. Tes courses, elles, sont bien là : retrouve-les dans l’historique.',
-    en: 'GRYD can’t open a single run yet. Your runs are safe: find them in your history.',
-    es: 'GRYD todavía no puede abrir una carrera concreta. Tus carreras siguen ahí: búscalas en el historial.',
-    de: 'GRYD kann einen einzelnen Lauf noch nicht öffnen. Deine Läufe sind da: Du findest sie im Verlauf.',
-    pt: 'A GRYD ainda não abre uma corrida específica. Suas corridas continuam lá: veja no histórico.',
+    fr: 'GRYD ne sait pas encore ouvrir une sortie une par une. Les tiennes sont bien là : retrouve-les dans l’historique.',
+    en: 'GRYD can’t open a single activity yet. Yours are safe: find them in your history.',
+    es: 'GRYD todavía no puede abrir una salida concreta. Las tuyas siguen ahí: búscalas en el historial.',
+    de: 'GRYD kann eine einzelne Aktivität noch nicht öffnen. Deine sind da: Du findest sie im Verlauf.',
+    pt: 'A GRYD ainda não abre uma saída específica. As suas continuam lá: veja no histórico.',
   },
   runDetailPendingCta: {
     fr: 'Voir l’historique',
@@ -349,6 +494,23 @@ export const C = defineCatalog({
     de: 'Dein Gebiet lässt sich noch nicht teilen: Nur ein beendeter Lauf wird zur Teilen-Karte.',
     pt: 'Ainda não dá para compartilhar seu território: só uma corrida concluída vira card de compartilhamento.',
   },
+  /**
+   * LA MÊME NOTE, DANS L'AUTRE MONDE (26/07/2026). `/territoire` monte cette
+   * ligne sous `pageState === 'held'` — l'état où il NOMME la discipline montrée
+   * quatre lignes plus haut (« À vélo ») et peint la carte de ce monde. La note
+   * de bas de page, elle, était restée au singulier du coureur : l'écran se
+   * contredisait sur lui-même, exactement le défaut que le commentaire de son
+   * `ZoneLeaderboard` décrit mot pour mot comme la raison de l'avoir corrigé.
+   * Le FAIT énoncé, lui, est le même dans les deux mondes : aucune carte de
+   * partage territoriale n'existe, seule une sortie terminée en produit une.
+   */
+  territoryShareNoteBike: {
+    fr: 'Partager son territoire n’est pas encore possible : seule une sortie vélo terminée peut devenir une carte de partage.',
+    en: 'Sharing your territory isn’t possible yet: only a finished ride can become a share card.',
+    es: 'Compartir tu territorio aún no es posible: solo una salida en bici terminada puede convertirse en tarjeta.',
+    de: 'Dein Gebiet lässt sich noch nicht teilen: Nur eine beendete Ausfahrt wird zur Teilen-Karte.',
+    pt: 'Ainda não dá para compartilhar seu território: só um pedal concluído vira card de compartilhamento.',
+  },
 
   // ─── Commutateur Run / Bike (planche E14) ──────────────────────────────────
   // Les deux segments n'ont que des PICTOS : l'a11y porte tout le sens, et elle
@@ -368,9 +530,20 @@ export const C = defineCatalog({
     pt: 'Histórico de bike',
   },
   /**
-   * LENTILLE BIKE — l'état vide NOMMÉ. On n'affiche jamais les courses à pied
-   * sous une étiquette vélo (ce serait la donnée fabriquée que la charte
-   * interdit) ; on dit ce qu'il n'y a pas, et pourquoi.
+   * ÉTAT VIDE DU MONDE VÉLO — RÉÉCRIT LE 26/07/2026.
+   *
+   * Le corps disait « GRYD ne chronomètre pas encore le vélo : aucune sortie
+   * n'est enregistrée ». C'était vrai le 25 et c'est FAUX depuis que le vélo
+   * enregistre (décision fondateur ; `runs.activity`, migration 0070 appliquée ;
+   * lecture bornée par `.eq('activity', …)` dans `features/history/real.ts`).
+   * Le garder aurait été le mensonge symétrique de celui qu'on venait de
+   * retirer : affirmer que l'app ne mesure pas ce qu'elle mesure.
+   *
+   * Ce qui est vide maintenant, c'est l'historique DE CE JOUEUR dans cette
+   * discipline — exactement comme celui d'un nouveau venu à pied. La copie dit
+   * donc ce que la page CONTIENDRA et le geste qui la remplit, et le CTA fait
+   * ce qu'il annonce : il lance une sortie DÉCLARÉE `bike`
+   * (`startSortieHref('bike')`), jamais une course à pied déguisée.
    */
   bikeEmptyTitle: {
     fr: 'Ton historique Bike commence ici',
@@ -380,18 +553,120 @@ export const C = defineCatalog({
     pt: 'Seu histórico Bike começa aqui',
   },
   bikeEmptyBody: {
-    fr: 'GRYD ne chronomètre pas encore le vélo : aucune sortie n’est enregistrée.',
-    en: 'GRYD doesn’t track cycling yet: no ride is recorded.',
-    es: 'GRYD aún no cronometra la bici: no hay ninguna salida registrada.',
-    de: 'GRYD misst Radfahren noch nicht: keine Ausfahrt aufgezeichnet.',
-    pt: 'A GRYD ainda não cronometra bike: nenhum pedal registado.',
+    fr: 'Chaque sortie vélo comptée s’ajoutera à cette liste.',
+    en: 'Every counted ride will be added to this list.',
+    es: 'Cada salida en bici contada se añadirá a esta lista.',
+    de: 'Jede gezählte Ausfahrt landet in dieser Liste.',
+    pt: 'Cada pedal contado entra nesta lista.',
   },
-  /** Rassurance FACTUELLE : rien n'est perdu côté course à pied. */
+  /** SÉPARATION STRICTE (E14) : deux mondes, jamais une somme. Un FAIT. */
   bikeEmptyRunSafe: {
-    fr: 'Tes courses à pied restent intactes.',
-    en: 'Your runs stay untouched.',
-    es: 'Tus carreras a pie siguen intactas.',
-    de: 'Deine Läufe bleiben unberührt.',
-    pt: 'Suas corridas a pé ficam intactas.',
+    fr: 'Tes courses à pied gardent leur propre historique.',
+    en: 'Your runs keep their own history.',
+    es: 'Tus carreras a pie mantienen su propio historial.',
+    de: 'Deine Läufe behalten ihren eigenen Verlauf.',
+    pt: 'Suas corridas a pé mantêm o próprio histórico.',
+  },
+  /** CTA de l'état vide vélo — la sortie est DÉCLARÉE vélo, pas devinée. */
+  bikeEmptyCta: {
+    fr: 'Lancer une sortie vélo',
+    en: 'Start a bike ride',
+    es: 'Empezar una salida en bici',
+    de: 'Radausfahrt starten',
+    pt: 'Começar um pedal',
   },
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// LA DÉRIVATION PAR DISCIPLINE — ce que les écrans lisent (26/07/2026).
+//
+// Pourquoi un `Record<Activity, …>` et pas un ternaire à l'écran : le Record est
+// EXHAUSTIF par construction. Le jour d'une 3ᵉ discipline, la compilation
+// échoue ici ; un `bike ? … : …` disséminé dans le JSX servirait, lui, le
+// libellé du coureur sans qu'aucun test ne le remarque. C'est le patron déjà
+// retenu par `RESULT_COPY` (i18n/catalog/result.ts) et par les Records de
+// `profil.ts` (WORLD_SCOPE, SECTION_TERRITORY).
+//
+// Ne figurent ici QUE les libellés qui NOMMENT l'effort. « Historique »,
+// « Conquêtes », « Zones tenues », « Voir sur la carte », les pastilles Verify
+// et les états vides déjà propres à leur monde (`bikeEmpty*`) n'y sont pas :
+// les dupliquer à l'identique créerait deux vérités à maintenir.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Les libellés de `/historique` qui changent avec le monde regardé. */
+export interface HistoryActivityCopy {
+  /** Kicker de page — rendu HORS de tout état, donc toujours visible. */
+  kicker: Entry;
+  subtitle: Entry;
+  /** LU À VOIX HAUTE (groupe de filtres). */
+  a11yFilterGroup: Entry;
+  countOne: Entry;
+  countMany: Entry;
+  emptyFilter: Entry;
+  emptySignedOut: Entry;
+  /** LU À VOIX HAUTE (bouton « Se connecter »). */
+  a11ySignIn: Entry;
+  detailPendingNote: Entry;
+  /**
+   * LU À VOIX HAUTE, une ligne de course. Sa surface (`RealRunCard`) appartient
+   * à un autre périmètre : la dérivation existe, le câblage reste EN SUSPENS.
+   */
+  a11yEffort: Entry;
+}
+
+export const HISTORY_COPY: Readonly<Record<Activity, HistoryActivityCopy>> = {
+  run: {
+    kicker: C.historiqueKicker,
+    subtitle: C.historiqueSubtitle,
+    a11yFilterGroup: C.a11yFilterGroup,
+    countOne: C.countRunsOne,
+    countMany: C.countRunsMany,
+    emptyFilter: C.emptyFilter,
+    emptySignedOut: C.emptySignedOut,
+    a11ySignIn: C.a11ySignIn,
+    detailPendingNote: C.detailPendingNote,
+    a11yEffort: C.a11yRunEffort,
+  },
+  bike: {
+    kicker: C.historiqueKickerBike,
+    subtitle: C.historiqueSubtitleBike,
+    a11yFilterGroup: C.a11yFilterGroupBike,
+    countOne: C.countRunsOneBike,
+    countMany: C.countRunsManyBike,
+    emptyFilter: C.emptyFilterBike,
+    emptySignedOut: C.emptySignedOutBike,
+    a11ySignIn: C.a11ySignInBike,
+    detailPendingNote: C.detailPendingNoteBike,
+    a11yEffort: C.a11yRunEffortBike,
+  },
+};
+
+/**
+ * Le jeu de libellés du monde regardé. Le DÉFAUT est `DEFAULT_ACTIVITY` : un
+ * appelant qui ignore encore la notion de discipline obtient EXACTEMENT les
+ * textes d'avant le vélo — aucun chemin existant ne change de sens.
+ */
+export function historyCopy(activity: Activity = DEFAULT_ACTIVITY): HistoryActivityCopy {
+  return HISTORY_COPY[activity];
+}
+
+/**
+ * `/territoire` — la note de bas de page du monde MONTRÉ. Un Record d'`Entry`
+ * plutôt qu'un objet : c'est la seule ligne de cette page qui nomme l'effort
+ * (le kicker, les métriques et le CTA carte sont déjà neutres).
+ */
+export const TERRITORY_SHARE_NOTE: Readonly<Record<Activity, Entry>> = {
+  run: C.territoryShareNote,
+  bike: C.territoryShareNoteBike,
+};
+
+/**
+ * L'énoncé VoiceOver d'une ligne de sortie, par discipline. Exposé DÈS
+ * MAINTENANT pour que son appelant (`features/history/RealRunCard.tsx`) n'ait
+ * qu'à passer la discipline de la ligne le jour où son périmètre s'ouvre —
+ * plutôt que de réinventer le choix sur place.
+ */
+export const RUN_EFFORT_A11Y: Readonly<Record<Activity, Entry>> = {
+  run: C.a11yRunEffort,
+  bike: C.a11yRunEffortBike,
+};

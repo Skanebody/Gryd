@@ -31,7 +31,7 @@
  */
 import { useMemo, useRef } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, fontSizes } from '@klaim/shared';
+import { colors, fontSizes, type Activity } from '@klaim/shared';
 import { Map3DToggle, RealMap, type RealMapBounds, type RealMapRef } from '../../ui/game';
 import { useMap3d } from '../map/mapPref';
 import { FULL_EMPHASIS, territoryStateLayers } from '../map/mapStyle';
@@ -47,6 +47,23 @@ const OVERVIEW_FIT_PADDING_PX = 56;
 const PREVIEW_FIT_PADDING_PX = 28;
 
 export interface TerritoryFranceMapProps {
+  /**
+   * DISCIPLINE PEINTE — OBLIGATOIRE (E14, vélo réel 26/07/2026).
+   *
+   * Ce composant appelait `useRealTerritories()` sans discipline, donc dans le
+   * monde par défaut : un cycliste ouvrait « Mon territoire » sur une carte
+   * vide. Le paramètre est REQUIS et non optionnel à dessein — un défaut
+   * rétablirait exactement le choix silencieux qu'on vient de retirer, et le
+   * compilateur ne dirait rien.
+   *
+   * Il n'y a PAS de version « les deux mondes » de cette carte, et ce n'est pas
+   * un manque : la couleur y dit le RÔLE (§C — chartreuse = moi), pas la
+   * discipline. Superposer les deux rendrait deux territoires distincts
+   * indiscernables, et un hexagone tenu des deux côtés serait peint deux fois
+   * (clé primaire composite `(h3index, activity)`, 0070). L'écran choisit donc
+   * UN monde, et le NOMME.
+   */
+  activity: Activity;
   /** Aperçu statique (bloc Profil) : aucune interaction, pas d'overlays. */
   preview?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -83,11 +100,23 @@ function realBounds(
   return { sw: [minLng, minLat], ne: [maxLng, maxLat], paddingPx };
 }
 
-export function TerritoryFranceMap({ preview = false, style, testID }: TerritoryFranceMapProps) {
+export function TerritoryFranceMap({
+  activity,
+  preview = false,
+  style,
+  testID,
+}: TerritoryFranceMapProps) {
   const mapRef = useRef<RealMapRef>(null);
   const t = useT();
-  /** Cette carte lit `hex_claims` comme la Battle Map — même source, même vérité. */
-  const { territories, isReal, failed, signedOut, loading } = useRealTerritories();
+  /**
+   * Cette carte lit `hex_claims` comme la Battle Map — même source, même vérité,
+   * ET MÊME LENTILLE : la discipline vient de l'écran (cf. `activity` ci-dessus),
+   * jamais du défaut. Sans elle, les deux mondes se peignaient l'un sur l'autre.
+   */
+  const { territories, isReal, failed, signedOut, loading } = useRealTerritories(
+    undefined,
+    activity,
+  );
   /**
    * AMENDEMENT-26 — vue 3D (pref `gryd.map3d`, défaut 2D) partagée entre toutes
    * les cartes. En 3D : carte pitchée + mes possessions en volume extrudé

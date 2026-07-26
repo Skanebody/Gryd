@@ -106,9 +106,19 @@ export async function resolveLocation(
 // React ni capteur : c'est ce qui la rend testable en Deno et vérifiable sans
 // device), et elle prend les trois axes qui décrivent réellement l'écran :
 //   · ACCÈS   — ce que l'app sait de la position (six états DISTINCTS) ;
-//   · LENTILLE— Run ou Bike (E14) : une lentille où rien n'est enregistré ne
-//               peut pas emprunter les récits de la course à pied ;
 //   · DONNÉES — ce que la lecture du territoire a rendu (quatre états + vide).
+//
+// ⚠️ LA LENTILLE A QUITTÉ CETTE MATRICE LE 26/07/2026. Elle en était le premier
+// axe, et le premier arbitrage était « la lentille prime » : en Bike, aucun
+// récit, aucun GO, une seule action (revenir en Run). C'était juste tant que le
+// vélo n'était enregistré NULLE PART. Il l'est (décision fondateur ; migration
+// 0070 appliquée), et la lentille ne décide plus RIEN ici : elle décide QUELLES
+// LIGNES sont lues (`.eq('activity', …)`), donc elle arrive dans cette fonction
+// déjà digérée, sous la forme de `data`. Un monde vélo sans capture rend
+// `data: 'empty'` — exactement comme un monde course sans capture, et c'est le
+// même récit `first-capture`, seule la COPIE change (côté écran).
+// Ne PAS réintroduire un axe `lens` ici : ce serait redire au niveau du récit ce
+// que la requête a déjà tranché, et rouvrir la porte à « bike = état spécial ».
 //
 // CE QU'ELLE N'A PAS LE DROIT DE FAIRE, et que les tests verrouillent :
 //   1. rendre DEUX récits (le champ `narrative` est unique par construction) ;
@@ -131,9 +141,6 @@ export async function resolveLocation(
  */
 export type MapAccessState = MapLocationState | 'unasked' | 'unknown';
 
-/** Lentille de la carte (planche E14). */
-export type MapLens = 'run' | 'bike';
-
 /**
  * Ce que la lecture du territoire a rendu. Les quatre états distincts de la
  * constitution (`loading` ≠ `signed-out` ≠ `failed` ≠ vide), plus `territory`
@@ -145,7 +152,6 @@ export type MapDataState = 'loading' | 'signed-out' | 'failed' | 'empty' | 'terr
  * LE récit de la sheet. Un seul à la fois — c'est tout l'objet de la matrice.
  *  • `skeleton`        — lecture en cours : la sheet n'affirme RIEN (E02 :
  *                        « skeleton dans la sheet, aucun spinner plein écran ») ;
- *  • `bike`            — lentille vélo (E14) ;
  *  • `grant-location`  — position jamais demandée ;
  *  • `denied-location` — refus explicite (pédagogie + réglages) ;
  *  • `retry-location`  — permission acquise, aucun fix ;
@@ -154,7 +160,6 @@ export type MapDataState = 'loading' | 'signed-out' | 'failed' | 'empty' | 'terr
  */
 export type MapNarrative =
   | 'skeleton'
-  | 'bike'
   | 'grant-location'
   | 'denied-location'
   | 'retry-location'
@@ -170,8 +175,11 @@ export type MapNarrative =
  *                      c'est le MÊME appel, seul le libellé change ;
  *  • `open-settings` → réglages système de l'app (natif uniquement) ;
  *  • `sign-in` / `retry-data` → les deux actions d'état vide déjà câblées ;
- *  • `switch-to-run` → repasse la lentille en Run (préférence `gryd.mapactivity`) ;
  *  • `widget`        → l'action portée par le widget « Mon territoire ».
+ *
+ * `switch-to-run` a été RETIRÉE avec le récit `bike` : « revenir en Run » n'est
+ * plus une action d'écran, c'est une bascule de lentille comme une autre, et le
+ * commutateur E14 la porte déjà en haut à droite.
  */
 export type MapAction =
   | 'none'
@@ -179,12 +187,10 @@ export type MapAction =
   | 'open-settings'
   | 'sign-in'
   | 'retry-data'
-  | 'switch-to-run'
   | 'widget';
 
 export interface MapPlanInput {
   access: MapAccessState;
-  lens: MapLens;
   data: MapDataState;
   /**
    * La plateforme peut-elle ouvrir les réglages système ? Injecté (jamais
@@ -212,45 +218,29 @@ export interface MapPlan {
 /**
  * L'ARBITRAGE, dans l'ordre — chaque marche est une décision de produit :
  *
- * 1. LA LENTILLE PRIME. En Bike, rien de la course à pied ne s'applique : ni
- *    territoire, ni mission, ni classement, ni GO (qui enregistrerait une sortie
- *    vélo comme une course à pied). La seule action vraie est de revenir en Run,
- *    et elle est dite positivement.
- *
- * 2. CE QUI EMPÊCHE DE LIRE PASSE DEVANT LA POSITION. Pas de session, ou lecture
+ * 1. CE QUI EMPÊCHE DE LIRE PASSE DEVANT LA POSITION. Pas de session, ou lecture
  *    en échec : aucune position ne rendra la carte utile tant que ça dure. Ces
  *    récits gardent donc la sheet, et l'état de position descend dans la barre.
  *
- * 3. SINON, LA POSITION EST LE PREMIER BESOIN. « Où suis-je » précède « que
+ * 2. SINON, LA POSITION EST LE PREMIER BESOIN. « Où suis-je » précède « que
  *    faire » : un joueur qui ne se voit pas sur sa carte n'a aucune décision à
  *    prendre. Quand le territoire n'a rien d'urgent à dire (vide, ou widget), la
  *    sheet porte donc l'action de localisation — la place est libre, et une
  *    action dirigée y vaut mieux qu'un constat.
  *
- * 4. LA BARRE NE PARLE QUE SI ELLE AGIT. Elle ne double jamais le récit, et elle
+ * 3. LA BARRE NE PARLE QUE SI ELLE AGIT. Elle ne double jamais le récit, et elle
  *    n'existe pas quand la plateforme n'a aucune action à offrir (refus sur web).
  *
- * NOTE SUR `go` : il reste VRAI même position refusée. GO n'est pas un bouton
- * mort dans ce cas — le préflight de course demande la permission et explique un
- * refus (`features/run/gps`). Le peindre « indisponible » serait un mensonge
- * dans l'autre sens. Il ne tombe que dans la lentille Bike, où aucun moteur ne
- * porte l'effort. (La sheet de ZONE ouverte retire GO à son tour, mais c'est un
- * calque orthogonal — `useZoneSheetOpen` — pas un état de cette matrice.)
+ * NOTE SUR `go` : il est TOUJOURS vrai, y compris position refusée. GO n'est pas
+ * un bouton mort dans ce cas — le préflight de course demande la permission et
+ * explique un refus (`features/run/gps`). Le peindre « indisponible » serait un
+ * mensonge dans l'autre sens. Il tombait aussi dans la lentille Bike, faute de
+ * moteur vélo : ce cas a disparu le 26/07/2026 avec sa cause.
+ * (La sheet de ZONE ouverte retire GO à son tour, mais c'est un calque
+ * orthogonal — `useZoneSheetOpen` — pas un état de cette matrice.)
  */
 export function mapPlan(input: MapPlanInput): MapPlan {
-  const { access, lens, data, canOpenSettings } = input;
-
-  // 1. Lentille Bike : un récit à elle, aucun CTA chartreuse, aucune barre.
-  if (lens === 'bike') {
-    return {
-      narrative: 'bike',
-      action: 'switch-to-run',
-      secondary: 'none',
-      banner: 'none',
-      bannerAction: 'none',
-      go: false,
-    };
-  }
+  const { access, data, canOpenSettings } = input;
 
   // `unknown`, `locating` et `ok` n'APPELLENT AUCUNE ACTION : on ne sait pas
   // encore / on cherche / tout va bien. Les trois autres, si — et chacun la
@@ -271,7 +261,7 @@ export function mapPlan(input: MapPlanInput): MapPlan {
         ? 'open-settings'
         : 'none';
 
-  // 2/3. Le récit de la sheet.
+  // 1/2. Le récit de la sheet.
   const base: { narrative: MapNarrative; action: MapAction } =
     data === 'loading'
       ? { narrative: 'skeleton', action: 'none' }
@@ -286,7 +276,7 @@ export function mapPlan(input: MapPlanInput): MapPlan {
                 { narrative: 'first-capture', action: 'none' }
               : { narrative: 'territory', action: 'widget' };
 
-  // 4. La barre : ni doublon du récit, ni alerte sans issue.
+  // 3. La barre : ni doublon du récit, ni alerte sans issue.
   const showBanner = locNarrative !== null && base.narrative !== locNarrative && locAction !== 'none';
 
   return {

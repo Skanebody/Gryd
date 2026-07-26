@@ -21,46 +21,65 @@
  * ne se ré-arme qu'une fois REPARTI au-delà de la bande de bruit GPS — la
  * bande n'est pas un réglage, c'est GPS_ACCURACY_MAX_M, le budget d'erreur que
  * le moteur s'autorise déjà sur un fix.
+ *
+ * ─── LES SEUILS SONT CEUX DE LA DISCIPLINE (26/07/2026) ─────────────────────
+ * Ce module lisait `LOOP_MIN_PERIMETER_M` et `LOOP_CLOSE_TOLERANCE_M` en dur,
+ * c'est-à-dire les seuils de la COURSE À PIED. Depuis que le vélo s'enregistre
+ * vraiment, c'était devenu un mensonge d'écran : un cycliste voyait « BOUCLE
+ * FERMÉE » à 1 km alors que le serveur exige 5 km à vélo
+ * (`BIKE_LOOP_MIN_PERIMETER_M`), et la séquence E08 lui montrait une capture
+ * que `ingest_run` allait refuser. La discipline est donc OBLIGATOIRE dans
+ * l'entrée — comme dans `RunPipelineState` — et les seuils viennent
+ * exclusivement d'`activityRules`, jamais d'une constante recopiée.
  */
-import {
-  GPS_ACCURACY_MAX_M,
-  LOOP_CLOSE_TOLERANCE_M,
-  LOOP_MIN_PERIMETER_M,
-} from '@klaim/shared';
+import { type Activity, activityRules, GPS_ACCURACY_MAX_M } from '@klaim/shared';
 
 /**
  * Bande d'hystérésis autour de la tolérance serveur : à l'intérieur, l'écart
  * mesuré et la tolérance ne se distinguent pas du bruit GPS. On y refuse à la
  * fois de célébrer (phase `nearMiss`) et de se ré-armer.
+ *
+ * La tolérance vient de la discipline ; le budget d'erreur GPS, lui, est le
+ * MÊME dans les deux mondes (c'est une propriété du capteur, pas de l'effort).
  */
-export const LOOP_NEAR_BAND_M = LOOP_CLOSE_TOLERANCE_M + GPS_ACCURACY_MAX_M;
+export function loopNearBandM(activity: Activity): number {
+  return activityRules(activity).loopCloseToleranceM + GPS_ACCURACY_MAX_M;
+}
 
 export type LoopClosurePhase = 'idle' | 'open' | 'nearMiss' | 'closed';
 
 export interface LoopClosureInput {
   /** Hors conquête, aucune capture n'est possible → aucune fermeture à annoncer. */
   readonly conquest: boolean;
+  /**
+   * DISCIPLINE de la sortie EN COURS — OBLIGATOIRE, sans valeur par défaut :
+   * c'est elle qui fixe le périmètre minimal (1 km à pied, 5 km à vélo) et la
+   * tolérance de fermeture. Un défaut silencieux ici ferait annoncer une
+   * boucle que le serveur refuserait.
+   */
+  readonly activity: Activity;
   readonly distanceM: number;
   /** Écart vol d'oiseau départ ↔ position (m), `null` si la trace a < 2 points. */
   readonly gapM: number | null;
 }
 
 export function loopClosurePhase(i: LoopClosureInput): LoopClosurePhase {
+  const rules = activityRules(i.activity);
   if (!i.conquest || i.gapM === null) return 'idle';
-  if (i.distanceM < LOOP_MIN_PERIMETER_M) return 'idle';
-  if (i.gapM <= LOOP_CLOSE_TOLERANCE_M) return 'closed';
-  if (i.gapM <= LOOP_NEAR_BAND_M) return 'nearMiss';
+  if (i.distanceM < rules.loopMinPerimeterM) return 'idle';
+  if (i.gapM <= rules.loopCloseToleranceM) return 'closed';
+  if (i.gapM <= loopNearBandM(i.activity)) return 'nearMiss';
   return 'open';
 }
 
 /**
  * Mètres qu'il reste à couvrir pour que la boucle COMPTE — l'écart au départ
- * MOINS la tolérance serveur. C'est la formulation honnête de « N m à fermer » :
- * pas la distance au point de départ (le coureur n'a pas à revenir dessus),
- * pas une promesse de capture (le serveur reste juge).
+ * MOINS la tolérance serveur DE LA DISCIPLINE. C'est la formulation honnête de
+ * « N m à fermer » : pas la distance au point de départ (le coureur n'a pas à
+ * revenir dessus), pas une promesse de capture (le serveur reste juge).
  */
-export function loopMissingM(gapM: number): number {
-  return Math.max(0, gapM - LOOP_CLOSE_TOLERANCE_M);
+export function loopMissingM(gapM: number, activity: Activity): number {
+  return Math.max(0, gapM - activityRules(activity).loopCloseToleranceM);
 }
 
 /**
@@ -75,13 +94,16 @@ export function loopMissingM(gapM: number): number {
  * d'oiseau ne font pas une précision au pourcent près.
  */
 export function loopClosureProgress(i: {
+  /** Même exigence que `LoopClosureInput.activity` : les deux axes en dépendent. */
+  readonly activity: Activity;
   readonly distanceM: number;
   readonly gapM: number | null;
   readonly farthestGapM: number | null;
 }): number | null {
   if (i.gapM === null || i.farthestGapM === null) return null;
-  const distanceRatio = clamp01(i.distanceM / LOOP_MIN_PERIMETER_M);
-  const span = i.farthestGapM - LOOP_CLOSE_TOLERANCE_M;
+  const rules = activityRules(i.activity);
+  const distanceRatio = clamp01(i.distanceM / rules.loopMinPerimeterM);
+  const span = i.farthestGapM - rules.loopCloseToleranceM;
   // Jamais sorti de la tolérance : sur l'axe « retour », il n'y a rien à refaire.
   const returnRatio = span <= 0 ? 1 : clamp01((i.farthestGapM - i.gapM) / span);
   return Math.min(distanceRatio, returnRatio);

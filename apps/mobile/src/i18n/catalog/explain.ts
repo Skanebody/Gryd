@@ -17,17 +17,46 @@
  * labels.ts (dérivées de game-rules.ts). §A : libellés courts partout (les
  * variantes de/pt sont volontairement condensées pour les zones étroites des
  * schémas SVG).
+ *
+ * ─── VOCABULAIRE NEUTRE, PAS DE JUMEAU (26/07/2026, E14 : le vélo est RÉEL) ──
+ * Ce corpus énonçait TOUTES ses règles au coureur (« une zone que tu ne recours
+ * pas », « cours ailleurs », « ta course compte en stats ») alors que les règles
+ * énoncées valent à l'IDENTIQUE pour le cycliste : mêmes zones, même
+ * décroissance, même cooldown, mêmes protections, mêmes points. Le cycliste
+ * lisait le règlement de SON jeu en s'y voyant absent.
+ *
+ * POURQUOI NEUTRALISER ET NON DÉCLINER. `/calcul-zones` et `/faq` ne portent
+ * AUCUNE lentille de discipline : ni l'un ni l'autre n'affiche, ni ne connaît,
+ * la discipline du lecteur. Une jumelle `…Bike` y serait un texte sans surface
+ * — personne ne saurait laquelle rendre. La règle est donc « aucune discipline
+ * nommée », comme pour l'onboarding et les CGU.
+ *
+ * VOCABULAIRE FIXÉ POUR LES 5 LANGUES (aligné sur `runGps.ts` / `courseLive.ts`
+ * / `legal.ts`, qui l'ont fixé les premiers) : fr « sortie » · en « outing » ·
+ * es « salida » · de « Tour » · pt « saída ». Verbe : on PASSE / REPASSE, on
+ * PARCOURT, on COUVRE — jamais on ne court. Piège français : « recourir » n'est
+ * PAS « courir à nouveau » (« recourir à » = faire appel à) ; la reformulation
+ * est « repasser », jamais « recourir ».
+ *
+ * CE QU'ON NE NEUTRALISE PAS : une règle qui ne vaut QUE pour la course doit
+ * continuer à le dire. Les BORNES qui diffèrent par discipline (distance
+ * minimale, allure, périmètre de boucle — `ACTIVITY_RULES` dans game-rules.ts)
+ * ne sont donc plus CHIFFRÉES ici : le règlement dit qu'elles dépendent de la
+ * discipline, jamais lesquelles (les figer dans un texte serait un nombre
+ * magique de plus). Les valeurs encore chiffrées ci-dessous sont celles qui sont
+ * IDENTIQUES dans les deux disciplines — c'est vérifié par
+ * `features/explain/copyDiscipline.test.ts`, pas par relecture.
  */
 import { defineCatalog } from '../types';
 
 export const C = defineCatalog({
   // ── AMENDEMENT-41 : LE RELAIS (sorties de groupe) ─────────────────────────
   qRelayQ: {
-    fr: 'On a couru à plusieurs — qui prend la zone ?',
-    en: 'We ran together — who takes the zone?',
-    es: 'Corrimos juntos — ¿quién toma la zona?',
-    de: 'Wir sind zusammen gelaufen — wer bekommt die Zone?',
-    pt: 'Corremos juntos — quem fica com a zona?',
+    fr: 'On était plusieurs sur la boucle — qui prend la zone ?',
+    en: 'Several of us on the same loop — who takes the zone?',
+    es: 'Éramos varios en el mismo bucle — ¿quién toma la zona?',
+    de: 'Wir waren zu mehreren auf demselben Loop — wer bekommt die Zone?',
+    pt: 'Éramos vários no mesmo loop — quem fica com a zona?',
   },
   /** §A : 4 phrases courtes, une règle par phrase. */
   qRelayA: {
@@ -176,18 +205,18 @@ export const C = defineCatalog({
     pt: 'A linha toma as ruas',
   },
   secLigneLine: {
-    fr: 'Une course qui ne se referme pas prend les rues qu’elle traverse — elles sont à toi. Pas de zone pleine : ferme la boucle pour l’intérieur.',
-    en: 'A run that doesn’t close still takes the streets it crosses — they’re yours. No full zone though: close the loop to claim the inside.',
-    es: 'Una carrera que no se cierra toma las calles que recorre: son tuyas. Pero sin zona completa: cierra el bucle para ganar el interior.',
-    de: 'Ein Lauf, der sich nicht schließt, nimmt die Straßen, die du läufst — sie gehören dir. Aber keine volle Zone: Schließ den Loop für das Innere.',
-    pt: 'Uma corrida que não se fecha toma as ruas por onde você passa — elas são suas. Mas sem zona cheia: feche o loop para ganhar o interior.',
+    fr: 'Une sortie qui ne se referme pas prend les rues qu’elle traverse — elles sont à toi. Pas de zone pleine : ferme la boucle pour l’intérieur.',
+    en: 'An outing that doesn’t close still takes the streets it crosses — they’re yours. No full zone though: close the loop to claim the inside.',
+    es: 'Una salida que no se cierra toma las calles que recorre: son tuyas. Pero sin zona completa: cierra el bucle para ganar el interior.',
+    de: 'Eine Tour, die sich nicht schließt, nimmt die Straßen, über die sie führt — sie gehören dir. Aber keine volle Zone: Schließ den Loop für das Innere.',
+    pt: 'Uma saída que não se fecha toma as ruas por onde você passa — elas são suas. Mas sem zona cheia: feche o loop para ganhar o interior.',
   },
   secLigneExample: {
-    fr: 'Exemple : Base → République, 4,2 km : les rues courues sont à toi, mais pas de zone pleine.',
-    en: 'Example: Base → République, 4.2 km: the streets you ran are yours, but no full zone.',
-    es: 'Ejemplo: Base → République, 4,2 km: las calles corridas son tuyas, pero sin zona completa.',
-    de: 'Beispiel: Base → République, 4,2 km: die gelaufenen Straßen gehören dir, aber keine volle Zone.',
-    pt: 'Exemplo: Base → République, 4,2 km: as ruas corridas são suas, mas sem zona cheia.',
+    fr: 'Exemple : Base → République, 4,2 km : les rues parcourues sont à toi, mais pas de zone pleine.',
+    en: 'Example: Base → République, 4.2 km: the streets you covered are yours, but no full zone.',
+    es: 'Ejemplo: Base → République, 4,2 km: las calles recorridas son tuyas, pero sin zona completa.',
+    de: 'Beispiel: Base → République, 4,2 km: die Straßen deiner Spur gehören dir, aber keine volle Zone.',
+    pt: 'Exemplo: Base → République, 4,2 km: as ruas percorridas são suas, mas sem zona cheia.',
   },
   secBoucleTitle: {
     fr: 'La boucle crée une zone',
@@ -229,7 +258,7 @@ export const C = defineCatalog({
   /** {bonus} = bonus pionnier max (dérivé de POINTS_PIONEER_BONUS_BY_DENSITY). */
   secValeurExample: {
     fr: 'Personne n’était jamais passé là ? Tu es pionnier : jusqu’à {bonus} en plus sur la zone.',
-    en: 'Nobody ever ran there? You’re the pioneer: up to {bonus} extra on that zone.',
+    en: 'Nobody ever went through there? You’re the pioneer: up to {bonus} extra on that zone.',
     es: '¿Nadie había pasado nunca por ahí? Eres pionero: hasta {bonus} extra en la zona.',
     de: 'Da war noch nie jemand? Du bist Pionier: bis zu {bonus} extra auf die Zone.',
     pt: 'Ninguém nunca passou por ali? Você é pioneiro: até {bonus} a mais na zona.',
@@ -244,19 +273,19 @@ export const C = defineCatalog({
     pt: 'Vários na mesma zona',
   },
   secRelaisLine: {
-    fr: 'Vous courez la même boucle à plusieurs ? La zone va au premier arrivé. Tous les autres touchent des points : 1 divisé par leur rang.',
-    en: 'Running the same loop together? The zone goes to whoever finishes first. Everyone else earns points: 1 divided by their rank.',
-    es: '¿Corréis el mismo bucle varios? La zona es del primero en llegar. Todos los demás ganan puntos: 1 dividido por su puesto.',
-    de: 'Ihr lauft denselben Loop zu mehreren? Die Zone geht an den Ersten. Alle anderen bekommen Punkte: 1 geteilt durch ihren Rang.',
-    pt: 'Correram o mesmo loop juntos? A zona vai para o primeiro. Todos os outros ganham pontos: 1 dividido pelo lugar deles.',
+    fr: 'Vous êtes plusieurs sur la même boucle ? La zone va au premier arrivé. Tous les autres touchent des points : 1 divisé par leur rang.',
+    en: 'Several of you on the same loop? The zone goes to whoever finishes first. Everyone else earns points: 1 divided by their rank.',
+    es: '¿Sois varios en el mismo bucle? La zona es del primero en llegar. Todos los demás ganan puntos: 1 dividido por su puesto.',
+    de: 'Ihr seid zu mehreren auf demselben Loop? Die Zone geht an den Ersten. Alle anderen bekommen Punkte: 1 geteilt durch ihren Rang.',
+    pt: 'Vários de vocês no mesmo loop? A zona vai para o primeiro. Todos os outros ganham pontos: 1 dividido pelo lugar deles.',
   },
   /** {bonus} = allongement max du verrou en groupe (GROUP_CAPTURE_BONUS_MAX_PCT). */
   secRelaisExample: {
-    fr: 'Personne ne court pour rien. Et à plusieurs, la zone tient jusqu’à {bonus} plus longtemps.',
-    en: 'Nobody runs for nothing. And together, the zone holds up to {bonus} longer.',
-    es: 'Nadie corre en vano. Y juntos, la zona aguanta hasta {bonus} más.',
-    de: 'Niemand läuft umsonst. Und gemeinsam hält die Zone bis zu {bonus} länger.',
-    pt: 'Ninguém corre à toa. E juntos, a zona dura até {bonus} mais.',
+    fr: 'Personne ne sort pour rien. Et à plusieurs, la zone tient jusqu’à {bonus} plus longtemps.',
+    en: 'Nobody heads out for nothing. And together, the zone holds up to {bonus} longer.',
+    es: 'Nadie sale en vano. Y juntos, la zona aguanta hasta {bonus} más.',
+    de: 'Niemand ist umsonst unterwegs. Und gemeinsam hält die Zone bis zu {bonus} länger.',
+    pt: 'Ninguém sai à toa. E juntos, a zona dura até {bonus} mais.',
   },
 
   // ── Scène « Une zone s'use » (decay + statuts) ─────────────────────────────
@@ -267,13 +296,19 @@ export const C = defineCatalog({
     de: 'Eine Zone nutzt sich ab',
     pt: 'Uma zona se desgasta',
   },
-  /** {stable} = « 7 jours », {decay} = « 14 jours » (game-rules). */
+  /**
+   * {stable} = « 7 jours », {decay} = « 14 jours » (game-rules) — deux durées
+   * IDENTIQUES dans les deux disciplines (ZONE_STABLE_MAX_DAYS / ZONE_DECAY_DAYS
+   * n'ont pas de variante vélo) : la phrase peut donc les chiffrer.
+   * Le verbe, lui, est neutre — « repasser », jamais « recourir » (qui en
+   * français veut dire « faire appel à », pas « courir de nouveau »).
+   */
   secVieLine: {
-    fr: 'Une zone que tu ne recours pas s’affaiblit. Elle reste solide {stable}. Ensuite elle devient fragile. Elle redevient libre {decay}.',
-    en: 'A zone you don’t run again gets weaker. It stays solid for {stable}. Then it turns fragile. It goes free again {decay}.',
-    es: 'Una zona que no vuelves a correr se debilita. Aguanta firme {stable}. Después se vuelve frágil. Vuelve a estar libre {decay}.',
-    de: 'Eine Zone, die du nicht erneut läufst, wird schwächer. Sie bleibt {stable} stabil. Dann wird sie fragil. {decay} ist sie wieder frei.',
-    pt: 'Uma zona que você não corre de novo enfraquece. Ela fica firme {stable}. Depois fica frágil. Volta a ficar livre {decay}.',
+    fr: 'Une zone où tu ne repasses pas s’affaiblit. Elle reste solide {stable}. Ensuite elle devient fragile. Elle redevient libre {decay}.',
+    en: 'A zone you don’t cover again gets weaker. It stays solid for {stable}. Then it turns fragile. It goes free again {decay}.',
+    es: 'Una zona por la que no vuelves a pasar se debilita. Aguanta firme {stable}. Después se vuelve frágil. Vuelve a estar libre {decay}.',
+    de: 'Eine Zone, die du nicht erneut abdeckst, wird schwächer. Sie bleibt {stable} stabil. Dann wird sie fragil. {decay} ist sie wieder frei.',
+    pt: 'Uma zona onde você não passa de novo enfraquece. Ela fica firme {stable}. Depois fica frágil. Volta a ficar livre {decay}.',
   },
   /**
    * N'AJOUTE rien au schéma en le répétant : dit ce que le schéma ne dit pas.
@@ -304,17 +339,19 @@ export const C = defineCatalog({
   },
   secDefenseLine: {
     fr: 'Repasser sur ta frontière prolonge ta zone : plus tu la couvres, plus elle tient.',
-    en: 'Running your border again extends your zone: the more you cover, the longer it holds.',
-    es: 'Volver a correr tu frontera prolonga tu zona: cuanto más la cubres, más aguanta.',
-    de: 'Läufst du deine Grenze erneut, hält deine Zone länger: Je mehr du abdeckst, desto länger bleibt sie.',
+    en: 'Going over your border again extends your zone: the more you cover, the longer it holds.',
+    es: 'Volver a pasar por tu frontera prolonga tu zona: cuanto más la cubres, más aguanta.',
+    de: 'Kommst du an deiner Grenze wieder vorbei, hält deine Zone länger: Je mehr du abdeckst, desto länger bleibt sie.',
     pt: 'Repassar sua fronteira prolonga sua zona: quanto mais você cobre, mais ela dura.',
   },
-  /** {traverse}/{longe}/{cover} = « +24 h » etc., dérivés de game-rules. */
+  /** {traverse}/{longe}/{cover} = « +24 h » etc., dérivés de game-rules.
+   *  de : « entlang » (comme le libellé du schéma `schemaFollow`) et non
+   *  « entlanglaufen » — le verbe allemand nommait la course à pied. */
   secDefenseExample: {
     fr: 'Exemple : Traverser {traverse} · longer {longe} · couvrir {cover}.',
     en: 'Example: cross {traverse} · follow {longe} · cover {cover}.',
     es: 'Ejemplo: cruzar {traverse} · bordear {longe} · cubrir {cover}.',
-    de: 'Beispiel: queren {traverse} · entlanglaufen {longe} · abdecken {cover}.',
+    de: 'Beispiel: queren {traverse} · entlang {longe} · abdecken {cover}.',
     pt: 'Exemplo: cruzar {traverse} · margear {longe} · cobrir {cover}.',
   },
   secCrewTitle: {
@@ -368,11 +405,11 @@ export const C = defineCatalog({
     pt: 'O GRYD Verify valida',
   },
   secVerifyLine: {
-    fr: 'GRYD vérifie GPS et mouvement : une course fiable capture, une course douteuse compte en stats.',
-    en: 'GRYD checks GPS and motion: a reliable run captures, a doubtful one counts as stats.',
-    es: 'GRYD revisa GPS y movimiento: una carrera fiable captura, una dudosa cuenta como stats.',
-    de: 'GRYD prüft GPS und Bewegung: Ein sauberer Lauf erobert, ein zweifelhafter zählt nur als Stats.',
-    pt: 'O GRYD verifica GPS e movimento: corrida confiável captura, corrida duvidosa conta como stats.',
+    fr: 'GRYD vérifie GPS et mouvement : une sortie fiable capture, une sortie douteuse compte en stats.',
+    en: 'GRYD checks GPS and motion: a reliable outing captures, a doubtful one counts as stats.',
+    es: 'GRYD revisa GPS y movimiento: una salida fiable captura, una dudosa cuenta como stats.',
+    de: 'GRYD prüft GPS und Bewegung: Eine saubere Tour erobert, eine zweifelhafte zählt nur als Stats.',
+    pt: 'O GRYD verifica GPS e movimento: saída confiável captura, saída duvidosa conta como stats.',
   },
 
   // ─── Écran FAQ « Calculs & règles » ────────────────────────────────────────
@@ -426,13 +463,13 @@ export const C = defineCatalog({
     de: 'Erweiterte Antworten',
     pt: 'Respostas avançadas',
   },
-  /** En-tête de la FAQ courte post-run (§34). */
+  /** En-tête de la FAQ courte post-run (§34). §A : court dans les 5 langues. */
   faqPostRunGroup: {
-    fr: 'Après une course',
-    en: 'After a run',
-    es: 'Después de una carrera',
-    de: 'Nach einem Lauf',
-    pt: 'Depois de uma corrida',
+    fr: 'Après une sortie',
+    en: 'After an outing',
+    es: 'Después de una salida',
+    de: 'Nach einer Tour',
+    pt: 'Depois de uma saída',
   },
   /**
    * NOTE DE PIED — état RÉEL du canal de contact (25/07/2026).
@@ -525,17 +562,17 @@ export const C = defineCatalog({
     pt: 'O GRYD analisa seu traçado GPS. Se o percurso forma um loop válido, o interior vira sua zona.',
   },
   q2Q: {
-    fr: 'Courir tout droit, ça capture quelque chose ?',
-    en: 'Does running in a straight line capture anything?',
-    es: 'Correr en línea recta, ¿captura algo?',
-    de: 'Bringt Geradeauslaufen überhaupt etwas?',
-    pt: 'Correr em linha reta captura alguma coisa?',
+    fr: 'Aller tout droit, ça capture quelque chose ?',
+    en: 'Does going in a straight line capture anything?',
+    es: 'Ir en línea recta, ¿captura algo?',
+    de: 'Bringt eine gerade Strecke überhaupt etwas?',
+    pt: 'Ir em linha reta captura alguma coisa?',
   },
   q2A: {
     fr: 'Oui : les rues que tu traverses deviennent à toi. Ça n’ouvre pas une ZONE pleine (l’intérieur) — pour ça, ferme une boucle.',
     en: 'Yes: the streets you cross become yours. It doesn’t open a full ZONE (the inside) — for that, close a loop.',
     es: 'Sí: las calles que recorres pasan a ser tuyas. No abre una ZONA completa (el interior); para eso, cierra un bucle.',
-    de: 'Ja: Die Straßen, die du läufst, gehören dir. Eine volle ZONE (das Innere) gibt es so nicht — dafür schließt du einen Loop.',
+    de: 'Ja: Die Straßen deiner Spur gehören dir. Eine volle ZONE (das Innere) gibt es so nicht — dafür schließt du einen Loop.',
     pt: 'Sim: as ruas por onde você passa ficam suas. Isso não abre uma ZONA cheia (o interior) — para isso, feche um loop.',
   },
   q3Q: {
@@ -545,13 +582,27 @@ export const C = defineCatalog({
     de: 'Warum hat mein Loop keine Zone erzeugt?',
     pt: 'Por que meu loop não criou uma zona?',
   },
-  /** UNE raison de refus par ligne, chaque seuil étiqueté (zéro-friction). */
+  /**
+   * UNE raison de refus par ligne, chaque seuil étiqueté (zéro-friction).
+   *
+   * ⚠️ LA DERNIÈRE LIGNE NE CHIFFRE PLUS LA DISTANCE (26/07/2026). Elle disait
+   * « moins de {dist} ou {dur} », et `{dist}` valait RUN_MIN_DISTANCE_M — la
+   * borne du COUREUR, servie à tout le monde sur une page qui ignore la
+   * discipline du lecteur. Or c'est l'une des rares bornes qui DIFFÈRENT :
+   * `ACTIVITY_RULES.run.minDistanceM` ≠ `ACTIVITY_RULES.bike.minDistanceM`.
+   * Neutraliser le vocabulaire en gardant le chiffre aurait fabriqué un
+   * mensonge SYMÉTRIQUE du premier (le cycliste aurait lu un plancher qui n'est
+   * pas le sien). La page dit donc que la borne dépend de la discipline, et ne
+   * dit pas laquelle : la figer dans un texte serait un nombre magique de plus.
+   * `{dur}` RESTE chiffré, lui : BIKE_MIN_DURATION_S = RUN_MIN_DURATION_S — la
+   * même valeur dans les deux mondes, et `copyDiscipline.test.ts` le VÉRIFIE.
+   */
   q3A: {
-    fr: '· Boucle non refermée : écart départ-arrivée > {close}.\n· Signal GPS trop faible : indice sous {gps}.\n· Tracé trop étroit : moins de {width} de large.\n· Surface trop petite, ou au-dessus du plafond.\n· Course trop courte : moins de {dist} ou {dur}.',
-    en: '· Loop not closed: start-finish gap > {close}.\n· GPS signal too weak: score under {gps}.\n· Route too narrow: less than {width} wide.\n· Area too small, or above the cap.\n· Run too short: under {dist} or {dur}.',
-    es: '· Bucle sin cerrar: distancia inicio-final > {close}.\n· Señal GPS muy débil: índice bajo {gps}.\n· Trazado muy estrecho: menos de {width} de ancho.\n· Superficie muy pequeña, o por encima del tope.\n· Carrera muy corta: menos de {dist} o {dur}.',
-    de: '· Loop nicht geschlossen: Lücke Start-Ziel > {close}.\n· GPS-Signal zu schwach: Wert unter {gps}.\n· Route zu schmal: weniger als {width} breit.\n· Fläche zu klein oder über dem Limit.\n· Lauf zu kurz: unter {dist} oder {dur}.',
-    pt: '· Loop não fechado: distância início-fim > {close}.\n· Sinal GPS fraco demais: índice abaixo de {gps}.\n· Traçado estreito demais: menos de {width} de largura.\n· Área pequena demais, ou acima do teto.\n· Corrida curta demais: menos de {dist} ou {dur}.',
+    fr: '· Boucle non refermée : écart départ-arrivée > {close}.\n· Signal GPS trop faible : indice sous {gps}.\n· Tracé trop étroit : moins de {width} de large.\n· Surface trop petite, ou au-dessus du plafond.\n· Sortie trop courte : moins de {dur}, ou sous la distance minimale de ta discipline.',
+    en: '· Loop not closed: start-finish gap > {close}.\n· GPS signal too weak: score under {gps}.\n· Route too narrow: less than {width} wide.\n· Area too small, or above the cap.\n· Outing too short: under {dur}, or below your discipline’s minimum distance.',
+    es: '· Bucle sin cerrar: distancia inicio-final > {close}.\n· Señal GPS muy débil: índice bajo {gps}.\n· Trazado muy estrecho: menos de {width} de ancho.\n· Superficie muy pequeña, o por encima del tope.\n· Salida muy corta: menos de {dur}, o por debajo de la distancia mínima de tu disciplina.',
+    de: '· Loop nicht geschlossen: Lücke Start-Ziel > {close}.\n· GPS-Signal zu schwach: Wert unter {gps}.\n· Route zu schmal: weniger als {width} breit.\n· Fläche zu klein oder über dem Limit.\n· Tour zu kurz: unter {dur} oder unter der Mindestdistanz deiner Disziplin.',
+    pt: '· Loop não fechado: distância início-fim > {close}.\n· Sinal GPS fraco demais: índice abaixo de {gps}.\n· Traçado estreito demais: menos de {width} de largura.\n· Área pequena demais, ou acima do teto.\n· Saída curta demais: menos de {dur}, ou abaixo da distância mínima da sua disciplina.',
   },
   q4Q: {
     fr: 'Que veut dire « frontière couverte » ?',
@@ -561,11 +612,11 @@ export const C = defineCatalog({
     pt: 'O que significa “fronteira coberta”?',
   },
   q4A: {
-    fr: 'La portion de ta frontière que tu as vraiment courue. GRYD mesure ce qui passe à moins de {buffer} de ton tracé.',
-    en: 'The share of your border you actually ran. GRYD measures what passes within {buffer} of your trace.',
-    es: 'La parte de tu frontera que corriste de verdad. GRYD mide lo que pasa a menos de {buffer} de tu trazado.',
-    de: 'Der Teil deiner Grenze, den du wirklich gelaufen bist. GRYD misst, was näher als {buffer} an deiner Spur liegt.',
-    pt: 'A parte da sua fronteira que você realmente correu. O GRYD mede o que passa a menos de {buffer} do seu traçado.',
+    fr: 'La portion de ta frontière que tu as vraiment parcourue. GRYD mesure ce qui passe à moins de {buffer} de ton tracé.',
+    en: 'The share of your border you actually covered. GRYD measures what passes within {buffer} of your trace.',
+    es: 'La parte de tu frontera que recorriste de verdad. GRYD mide lo que pasa a menos de {buffer} de tu trazado.',
+    de: 'Der Teil deiner Grenze, den du wirklich zurückgelegt hast. GRYD misst, was näher als {buffer} an deiner Spur liegt.',
+    pt: 'A parte da sua fronteira que você realmente percorreu. O GRYD mede o que passa a menos de {buffer} do seu traçado.',
   },
   q5Q: {
     fr: 'Un membre du crew peut-il finir ma boucle ?',
@@ -589,11 +640,11 @@ export const C = defineCatalog({
     pt: 'Um rival pode terminar meu loop?',
   },
   q6A: {
-    fr: 'Non. Un rival peut contester la zone, jamais fermer ta boucle. En revanche, s’il a couru la même boucle que toi, il touche sa part comme tout le monde.',
-    en: 'No. A rival can contest the zone, never close your loop. But if they ran the same loop as you, they get their share like everyone else.',
-    es: 'No. Un rival puede disputar la zona, nunca cerrar tu bucle. Eso sí, si corrió el mismo bucle que tú, cobra su parte como todos.',
-    de: 'Nein. Ein Rivale kann die Zone umkämpfen, aber nie deinen Loop schließen. Ist er denselben Loop gelaufen, bekommt er aber seinen Anteil wie alle.',
-    pt: 'Não. Um rival pode disputar a zona, nunca fechar seu loop. Mas se ele correu o mesmo loop que você, recebe a parte dele como todo mundo.',
+    fr: 'Non. Un rival peut contester la zone, jamais fermer ta boucle. En revanche, s’il a fait la même boucle que toi, il touche sa part comme tout le monde.',
+    en: 'No. A rival can contest the zone, never close your loop. But if they did the same loop as you, they get their share like everyone else.',
+    es: 'No. Un rival puede disputar la zona, nunca cerrar tu bucle. Eso sí, si hizo el mismo bucle que tú, cobra su parte como todos.',
+    de: 'Nein. Ein Rivale kann die Zone umkämpfen, aber nie deinen Loop schließen. War er auf demselben Loop, bekommt er aber seinen Anteil wie alle.',
+    pt: 'Não. Um rival pode disputar a zona, nunca fechar seu loop. Mas se ele fez o mesmo loop que você, recebe a parte dele como todo mundo.',
   },
   q7Q: {
     fr: 'Comment GRYD calcule les zones reprises à un rival ?',
@@ -605,24 +656,24 @@ export const C = defineCatalog({
   /** {steal} = valeur d'une zone volée (game-rules), {n} = valeur de base. */
   q7A: {
     fr: 'Ta boucle passe sur son territoire, tu le prends. Une zone reprise rapporte plus qu’une zone libre : {steal} au lieu de {base}. Sauf si elle est protégée — voir « Pourquoi je n’ai pas pu prendre cette zone ? ».',
-    en: 'Your loop runs over their territory, you take it. A retaken zone pays more than a free one: {steal} instead of {base}. Unless it’s protected — see “Why couldn’t I take that zone?”.',
+    en: 'Your loop passes over their territory, you take it. A retaken zone pays more than a free one: {steal} instead of {base}. Unless it’s protected — see “Why couldn’t I take that zone?”.',
     es: 'Tu bucle pasa por su territorio y se lo quitas. Una zona recuperada da más que una libre: {steal} en vez de {base}. Salvo que esté protegida — mira «¿Por qué no pude tomar esa zona?».',
-    de: 'Dein Loop läuft über sein Gebiet, du nimmst es. Eine zurückeroberte Zone bringt mehr als eine freie: {steal} statt {base}. Außer sie ist geschützt — siehe „Warum konnte ich diese Zone nicht nehmen?“.',
+    de: 'Dein Loop führt über sein Gebiet, du nimmst es. Eine zurückeroberte Zone bringt mehr als eine freie: {steal} statt {base}. Außer sie ist geschützt — siehe „Warum konnte ich diese Zone nicht nehmen?“.',
     pt: 'Seu loop passa pelo território dele, você toma. Uma zona retomada rende mais que uma livre: {steal} em vez de {base}. A não ser que esteja protegida — veja “Por que não consegui pegar essa zona?”.',
   },
   q8Q: {
-    fr: 'Pourquoi une partie de ma course est « segment exclu » ?',
-    en: 'Why is part of my run an “excluded segment”?',
-    es: '¿Por qué parte de mi carrera es «segmento excluido»?',
-    de: 'Warum ist ein Teil meines Laufs „gestrichen“?',
-    pt: 'Por que parte da minha corrida é “segmento excluído”?',
+    fr: 'Pourquoi une partie de ma sortie est « segment exclu » ?',
+    en: 'Why is part of my outing an “excluded segment”?',
+    es: '¿Por qué parte de mi salida es «segmento excluido»?',
+    de: 'Warum ist ein Teil meiner Tour „gestrichen“?',
+    pt: 'Por que parte da minha saída é “segmento excluído”?',
   },
   q8A: {
-    fr: 'GPS faible, vitesse incohérente, saut GPS ou mouvement suspect. La course reste valide sportivement, mais ce segment ne capture pas.',
-    en: 'Weak GPS, inconsistent speed, a GPS jump or suspicious motion. The run still counts as sport, but that segment doesn’t capture.',
-    es: 'GPS débil, velocidad incoherente, salto de GPS o movimiento sospechoso. La carrera sigue valiendo como deporte, pero ese segmento no captura.',
-    de: 'Schwaches GPS, unplausibles Tempo, GPS-Sprung oder verdächtige Bewegung. Der Lauf zählt sportlich weiter, aber dieses Segment erobert nichts.',
-    pt: 'GPS fraco, velocidade incoerente, salto de GPS ou movimento suspeito. A corrida continua valendo como esporte, mas esse segmento não captura.',
+    fr: 'GPS faible, vitesse incohérente, saut GPS ou mouvement suspect. La sortie reste valide sportivement, mais ce segment ne capture pas.',
+    en: 'Weak GPS, inconsistent speed, a GPS jump or suspicious motion. The outing still counts as sport, but that segment doesn’t capture.',
+    es: 'GPS débil, velocidad incoherente, salto de GPS o movimiento sospechoso. La salida sigue valiendo como deporte, pero ese segmento no captura.',
+    de: 'Schwaches GPS, unplausibles Tempo, GPS-Sprung oder verdächtige Bewegung. Die Tour zählt sportlich weiter, aber dieses Segment erobert nichts.',
+    pt: 'GPS fraco, velocidade incoerente, salto de GPS ou movimento suspeito. A saída continua valendo como esporte, mas esse segmento não captura.',
   },
   q9Q: {
     fr: 'C’est quoi GRYD Verify ?',
@@ -640,11 +691,11 @@ export const C = defineCatalog({
     pt: 'Um controle de confiabilidade (GPS, velocidade, movimento, fonte). {sentence}',
   },
   q10Q: {
-    fr: 'Pourquoi ma course compte seulement en stats ?',
-    en: 'Why does my run only count as stats?',
-    es: '¿Por qué mi carrera solo cuenta como stats?',
-    de: 'Warum zählt mein Lauf nur als Stats?',
-    pt: 'Por que minha corrida conta só como stats?',
+    fr: 'Pourquoi ma sortie compte seulement en stats ?',
+    en: 'Why does my outing only count as stats?',
+    es: '¿Por qué mi salida solo cuenta como stats?',
+    de: 'Warum zählt meine Tour nur als Stats?',
+    pt: 'Por que minha saída conta só como stats?',
   },
   q10A: {
     fr: 'Elle compte pour tes stats mais pas pour la capture : pas de boucle, GPS sous {partial}, source non éligible ou zone interdite.',
@@ -664,7 +715,7 @@ export const C = defineCatalog({
     fr: 'Traverser, longer ou refermer ta frontière. Plus tu la couvres, plus la zone tient : {traverse}, {longe} ou {cover}.',
     en: 'Cross, follow or close your border again. The more you cover, the longer the zone holds: {traverse}, {longe} or {cover}.',
     es: 'Cruza, bordea o vuelve a cerrar tu frontera. Cuanto más la cubres, más aguanta la zona: {traverse}, {longe} o {cover}.',
-    de: 'Grenze queren, entlanglaufen oder wieder schließen. Je mehr du abdeckst, desto länger hält die Zone: {traverse}, {longe} oder {cover}.',
+    de: 'Grenze queren, ihr folgen oder sie wieder schließen. Je mehr du abdeckst, desto länger hält die Zone: {traverse}, {longe} oder {cover}.',
     pt: 'Cruzar, margear ou fechar de novo sua fronteira. Quanto mais você cobre, mais a zona dura: {traverse}, {longe} ou {cover}.',
   },
   q12Q: {
@@ -679,24 +730,32 @@ export const C = defineCatalog({
    *  `secVieExample` — même raison, mêmes preuves. */
   q12A: {
     fr: 'Une zone tient {stable}. Après, elle devient fragile ({fragile}). Les {defend} avant la fin, GRYD te prévient si tu as activé les notifications. Sans y repasser, elle est libre {decay}.',
-    en: 'A zone holds for {stable}. After that it turns fragile ({fragile}). In the {defend} before the end, GRYD warns you if you’ve turned notifications on. Without running it again, it goes free {decay}.',
+    en: 'A zone holds for {stable}. After that it turns fragile ({fragile}). In the {defend} before the end, GRYD warns you if you’ve turned notifications on. Without covering it again, it goes free {decay}.',
     es: 'Una zona aguanta {stable}. Después se vuelve frágil ({fragile}). En las {defend} antes del final, GRYD te avisa si activaste las notificaciones. Sin volver a pasar, queda libre {decay}.',
-    de: 'Eine Zone hält {stable}. Danach wird sie fragil ({fragile}). In den {defend} vor Schluss warnt GRYD dich, wenn du Benachrichtigungen aktiviert hast. Ohne erneuten Lauf ist sie {decay} frei.',
+    de: 'Eine Zone hält {stable}. Danach wird sie fragil ({fragile}). In den {defend} vor Schluss warnt GRYD dich, wenn du Benachrichtigungen aktiviert hast. Kommst du nicht wieder vorbei, ist sie {decay} frei.',
     pt: 'Uma zona dura {stable}. Depois fica frágil ({fragile}). Nas {defend} antes do fim, o GRYD te avisa se você ativou as notificações. Sem passar de novo, ela fica livre {decay}.',
   },
+  /**
+   * de : « Verfallen Zonen ? » et non « Laufen Zonen ab ? ». CE N'ÉTAIT PAS UN
+   * MENSONGE — « ablaufen » veut dire EXPIRER, le « laufen » y est un verbe à
+   * particule, pas la course à pied. Le libellé change pour une seule raison :
+   * le garde-fou de vocabulaire (`copyDiscipline.test.ts`) travaille par
+   * frontières de mots, et une exception écrite dans un test est un trou que le
+   * prochain agent élargira. « verfallen » dit exactement la même chose.
+   */
   q13Q: {
     fr: 'Les zones expirent-elles ?',
     en: 'Do zones expire?',
     es: '¿Las zonas expiran?',
-    de: 'Laufen Zonen ab?',
+    de: 'Verfallen Zonen?',
     pt: 'As zonas expiram?',
   },
   /** {days} = ZONE_DECAY_DAYS. L'ordre compte : fragile AVANT la fin, libre APRÈS. */
   q13A: {
     fr: 'Oui. Une zone s’affaiblit d’abord, puis redevient libre {days} sans que tu y repasses. Un seul passage remet le compte à zéro.',
-    en: 'Yes. A zone weakens first, then goes free {days} without you running it again. A single pass resets the count to zero.',
+    en: 'Yes. A zone weakens first, then goes free {days} without you covering it again. A single pass resets the count to zero.',
     es: 'Sí. Una zona se debilita primero y luego queda libre {days} sin que vuelvas a pasar. Un solo paso pone la cuenta a cero.',
-    de: 'Ja. Eine Zone wird erst schwächer und ist {days} ohne erneuten Lauf wieder frei. Ein einziger Durchlauf setzt die Uhr zurück.',
+    de: 'Ja. Eine Zone wird erst schwächer und ist {days} wieder frei, wenn du nicht erneut vorbeikommst. Ein einziger Durchlauf setzt die Uhr zurück.',
     pt: 'Sim. Uma zona enfraquece primeiro e depois fica livre {days} sem você passar de novo. Uma única passagem zera a contagem.',
   },
   q14Q: {
@@ -734,11 +793,11 @@ export const C = defineCatalog({
    * Reste ce qui est vrai et vérifiable : cosmétique et statut.
    */
   q15A: {
-    fr: 'Non. Le territoire ne s’achète jamais, il se gagne en courant. Les achats ne portent que sur du cosmétique et du statut.',
-    en: 'No. Territory is never bought, it’s earned by running. Purchases cover cosmetics and status only.',
-    es: 'No. El territorio nunca se compra, se gana corriendo. Las compras son solo de cosmética y estatus.',
-    de: 'Nein. Territorium kauft man nie, man erläuft es. Käufe betreffen nur Kosmetik und Status.',
-    pt: 'Não. Território nunca se compra, se ganha correndo. As compras cobrem apenas cosmético e status.',
+    fr: 'Non. Le territoire ne s’achète jamais, il se gagne à l’effort. Les achats ne portent que sur du cosmétique et du statut.',
+    en: 'No. Territory is never bought, it’s earned by real effort. Purchases cover cosmetics and status only.',
+    es: 'No. El territorio nunca se compra, se gana con esfuerzo. Las compras son solo de cosmética y estatus.',
+    de: 'Nein. Territorium kauft man nie, man erarbeitet es sich. Käufe betreffen nur Kosmetik und Status.',
+    pt: 'Não. Território nunca se compra, se ganha com esforço. As compras cobrem apenas cosmético e status.',
   },
   q16Q: {
     fr: 'Les bonus payants font-ils gagner ?',
@@ -792,11 +851,11 @@ export const C = defineCatalog({
     pt: 'Como funciona uma rota aberta?',
   },
   q19A: {
-    fr: 'Une course sans boucle prend déjà les rues courues. Elle ouvre aussi une route : de quoi relier deux secteurs, préparer une conquête, ou proposer un itinéraire à ton crew.',
-    en: 'A run without a loop already takes the streets you ran. It also opens a route: a way to link two sectors, prepare a conquest, or suggest a course to your crew.',
-    es: 'Una carrera sin bucle ya toma las calles corridas. También abre una ruta: sirve para unir dos sectores, preparar una conquista o proponer un itinerario a tu crew.',
-    de: 'Ein Lauf ohne Loop nimmt schon die gelaufenen Straßen. Er öffnet außerdem eine Route: um zwei Sektoren zu verbinden, eine Eroberung vorzubereiten oder deiner Crew eine Strecke vorzuschlagen.',
-    pt: 'Uma corrida sem loop já toma as ruas corridas. Ela também abre uma rota: serve para ligar dois setores, preparar uma conquista ou propor um trajeto ao seu crew.',
+    fr: 'Une sortie sans boucle prend déjà les rues parcourues. Elle ouvre aussi une route : de quoi relier deux secteurs, préparer une conquête, ou proposer un itinéraire à ton crew.',
+    en: 'An outing without a loop already takes the streets you covered. It also opens a route: a way to link two sectors, prepare a conquest, or suggest an itinerary to your crew.',
+    es: 'Una salida sin bucle ya toma las calles recorridas. También abre una ruta: sirve para unir dos sectores, preparar una conquista o proponer un itinerario a tu crew.',
+    de: 'Eine Tour ohne Loop nimmt schon die Straßen, über die sie führt. Sie öffnet außerdem eine Route: um zwei Sektoren zu verbinden, eine Eroberung vorzubereiten oder deiner Crew eine Strecke vorzuschlagen.',
+    pt: 'Uma saída sem loop já toma as ruas percorridas. Ela também abre uma rota: serve para ligar dois setores, preparar uma conquista ou propor um trajeto ao seu crew.',
   },
   q20Q: {
     fr: 'Comment sont calculées les contributions dans une boucle collective ?',
@@ -807,11 +866,11 @@ export const C = defineCatalog({
   },
   /** Vérité moteur : le hex va au FINISHER ; le crew grandit par l'union. */
   q20A: {
-    fr: 'Chacun est crédité de la longueur de frontière qu’il a courue. Exemple : KORO 79 %, LENA 21 %. La zone revient à celui qui a fermé, et le territoire du crew grandit d’autant.',
-    en: 'Each runner is credited for the border length they ran. Example: KORO 79%, LENA 21%. The zone goes to whoever closed it, and the crew’s territory grows by the same amount.',
-    es: 'Cada uno recibe crédito por la longitud de frontera que corrió. Ejemplo: KORO 79 %, LENA 21 %. La zona es de quien la cerró, y el territorio del crew crece otro tanto.',
-    de: 'Jede Person wird für die gelaufene Grenzlänge gutgeschrieben. Beispiel: KORO 79 %, LENA 21 %. Die Zone gehört dem, der geschlossen hat, und das Crew-Gebiet wächst genauso.',
-    pt: 'Cada um recebe crédito pela extensão de fronteira que correu. Exemplo: KORO 79%, LENA 21%. A zona fica com quem fechou, e o território do crew cresce na mesma medida.',
+    fr: 'Chacun est crédité de la longueur de frontière qu’il a parcourue. Exemple : KORO 79 %, LENA 21 %. La zone revient à celui qui a fermé, et le territoire du crew grandit d’autant.',
+    en: 'Each player is credited for the border length they covered. Example: KORO 79%, LENA 21%. The zone goes to whoever closed it, and the crew’s territory grows by the same amount.',
+    es: 'Cada uno recibe crédito por la longitud de frontera que recorrió. Ejemplo: KORO 79 %, LENA 21 %. La zona es de quien la cerró, y el territorio del crew crece otro tanto.',
+    de: 'Jede Person wird für die zurückgelegte Grenzlänge gutgeschrieben. Beispiel: KORO 79 %, LENA 21 %. Die Zone gehört dem, der geschlossen hat, und das Crew-Gebiet wächst genauso.',
+    pt: 'Cada um recebe crédito pela extensão de fronteira que percorreu. Exemplo: KORO 79%, LENA 21%. A zona fica com quem fechou, e o território do crew cresce na mesma medida.',
   },
 
   // ─── Q/R AJOUTÉES : les refus du moteur, le cooldown, la valeur, le groupe ──
@@ -825,27 +884,27 @@ export const C = defineCatalog({
   },
   /** UNE protection par ligne. {fresh}/{lock}/{newbie}/{cap} = game-rules. */
   qBlockedA: {
-    fr: '· Elle vient d’être prise : on laisse {fresh} à son propriétaire.\n· Elle est encore verrouillée : {lock} après une capture.\n· Elle est à un nouveau joueur : ses zones sont intouchables pendant {newbie}.\n· Tu as atteint le maximum du jour : {cap}.\nDans tous les cas, ta course compte quand même en stats.',
-    en: '· It was just taken: the owner gets {fresh}.\n· It’s still locked: {lock} after a capture.\n· It belongs to a new player: their zones are untouchable for {newbie}.\n· You hit today’s maximum: {cap}.\nEither way, your run still counts in your stats.',
-    es: '· Acaba de ser tomada: se le dejan {fresh} a su dueño.\n· Sigue bloqueada: {lock} tras una captura.\n· Es de un jugador nuevo: sus zonas son intocables durante {newbie}.\n· Llegaste al máximo del día: {cap}.\nEn todos los casos, tu carrera cuenta igual en stats.',
-    de: '· Sie wurde gerade erobert: Der Besitzer bekommt {fresh}.\n· Sie ist noch gesperrt: {lock} nach einer Eroberung.\n· Sie gehört einem neuen Spieler: Seine Zonen sind {newbie} lang unantastbar.\n· Du hast das Tagesmaximum erreicht: {cap}.\nIn jedem Fall zählt dein Lauf weiter in den Stats.',
-    pt: '· Ela acabou de ser tomada: deixamos {fresh} para o dono.\n· Ainda está trancada: {lock} depois de uma captura.\n· É de um jogador novo: as zonas dele ficam intocáveis por {newbie}.\n· Você chegou ao máximo do dia: {cap}.\nEm todos os casos, sua corrida conta em stats assim mesmo.',
+    fr: '· Elle vient d’être prise : on laisse {fresh} à son propriétaire.\n· Elle est encore verrouillée : {lock} après une capture.\n· Elle est à un nouveau joueur : ses zones sont intouchables pendant {newbie}.\n· Tu as atteint le maximum du jour : {cap}.\nDans tous les cas, ta sortie compte quand même en stats.',
+    en: '· It was just taken: the owner gets {fresh}.\n· It’s still locked: {lock} after a capture.\n· It belongs to a new player: their zones are untouchable for {newbie}.\n· You hit today’s maximum: {cap}.\nEither way, your outing still counts in your stats.',
+    es: '· Acaba de ser tomada: se le dejan {fresh} a su dueño.\n· Sigue bloqueada: {lock} tras una captura.\n· Es de un jugador nuevo: sus zonas son intocables durante {newbie}.\n· Llegaste al máximo del día: {cap}.\nEn todos los casos, tu salida cuenta igual en stats.',
+    de: '· Sie wurde gerade erobert: Der Besitzer bekommt {fresh}.\n· Sie ist noch gesperrt: {lock} nach einer Eroberung.\n· Sie gehört einem neuen Spieler: Seine Zonen sind {newbie} lang unantastbar.\n· Du hast das Tagesmaximum erreicht: {cap}.\nIn jedem Fall zählt deine Tour weiter in den Stats.',
+    pt: '· Ela acabou de ser tomada: deixamos {fresh} para o dono.\n· Ainda está trancada: {lock} depois de uma captura.\n· É de um jogador novo: as zonas dele ficam intocáveis por {newbie}.\n· Você chegou ao máximo do dia: {cap}.\nEm todos os casos, sua saída conta em stats assim mesmo.',
   },
-  /** already_owned_cooldown / co_captured_cooldown — le piège du double run. */
+  /** already_owned_cooldown / co_captured_cooldown — le piège du double passage. */
   qCooldownQ: {
-    fr: 'J’ai couru deux fois la même boucle aujourd’hui, pourquoi 0 point ?',
-    en: 'I ran the same loop twice today — why 0 points?',
-    es: 'Corrí el mismo bucle dos veces hoy, ¿por qué 0 puntos?',
-    de: 'Ich bin denselben Loop heute zweimal gelaufen — warum 0 Punkte?',
-    pt: 'Corri o mesmo loop duas vezes hoje, por que 0 ponto?',
+    fr: 'J’ai fait deux fois la même boucle aujourd’hui, pourquoi 0 point ?',
+    en: 'I did the same loop twice today — why 0 points?',
+    es: 'Hice el mismo bucle dos veces hoy, ¿por qué 0 puntos?',
+    de: 'Ich war heute zweimal auf demselben Loop — warum 0 Punkte?',
+    pt: 'Fiz o mesmo loop duas vezes hoje, por que 0 ponto?',
   },
-  /** {cooldown} = DEFEND_COOLDOWN_HOURS. */
+  /** {cooldown} = DEFEND_COOLDOWN_HOURS — une seule valeur, les deux disciplines. */
   qCooldownA: {
-    fr: 'Une même zone ne te paie qu’une fois toutes les {cooldown}. Le deuxième passage la garde bien à toi, mais ne rapporte plus de points. Cours ailleurs : le territoire neuf paie toujours.',
-    en: 'The same zone only pays you once every {cooldown}. The second pass still keeps it yours, but earns no more points. Run elsewhere: new territory always pays.',
-    es: 'Una misma zona solo te paga una vez cada {cooldown}. El segundo paso la mantiene tuya, pero ya no da puntos. Corre en otro sitio: el territorio nuevo siempre paga.',
-    de: 'Dieselbe Zone zahlt dir nur einmal alle {cooldown}. Der zweite Durchlauf hält sie weiter bei dir, bringt aber keine Punkte mehr. Lauf woanders: Neues Gebiet zahlt immer.',
-    pt: 'Uma mesma zona só te paga uma vez a cada {cooldown}. A segunda passagem mantém ela sua, mas não rende mais pontos. Corra em outro lugar: território novo sempre rende.',
+    fr: 'Une même zone ne te paie qu’une fois toutes les {cooldown}. Le deuxième passage la garde bien à toi, mais ne rapporte plus de points. Va ailleurs : le territoire neuf paie toujours.',
+    en: 'The same zone only pays you once every {cooldown}. The second pass still keeps it yours, but earns no more points. Go elsewhere: new territory always pays.',
+    es: 'Una misma zona solo te paga una vez cada {cooldown}. El segundo paso la mantiene tuya, pero ya no da puntos. Ve a otro sitio: el territorio nuevo siempre paga.',
+    de: 'Dieselbe Zone zahlt dir nur einmal alle {cooldown}. Der zweite Durchlauf hält sie weiter bei dir, bringt aber keine Punkte mehr. Such dir neues Gebiet: das zahlt immer.',
+    pt: 'Uma mesma zona só te paga uma vez a cada {cooldown}. A segunda passagem mantém ela sua, mas não rende mais pontos. Vá para outro lugar: território novo sempre rende.',
   },
   /** La formule §23 en clair — la question « ce qu'on gagne ». */
   qPointsQ: {
@@ -858,26 +917,26 @@ export const C = defineCatalog({
   /** {base}/{defense}/{steal}/{pioneer} = POINTS_BASE_PER_ZONE × ACTION_COEFF. */
   qPointsA: {
     fr: 'Une zone libre : {base}. Une zone à toi que tu défends : {defense}. Une zone prise à un rival : {steal}. Si personne n’était jamais passé là, tu es pionnier : jusqu’à {pioneer} en plus. Une zone disputée rapporte davantage.',
-    en: 'A free zone: {base}. One of yours that you defend: {defense}. One taken from a rival: {steal}. If nobody had ever run there, you’re the pioneer: up to {pioneer} extra. A contested zone pays more.',
+    en: 'A free zone: {base}. One of yours that you defend: {defense}. One taken from a rival: {steal}. If nobody had ever passed there, you’re the pioneer: up to {pioneer} extra. A contested zone pays more.',
     es: 'Una zona libre: {base}. Una tuya que defiendes: {defense}. Una quitada a un rival: {steal}. Si nadie había pasado nunca, eres pionero: hasta {pioneer} extra. Una zona disputada da más.',
     de: 'Eine freie Zone: {base}. Eine eigene, die du verteidigst: {defense}. Eine einem Rivalen abgenommene: {steal}. War da noch nie jemand, bist du Pionier: bis zu {pioneer} extra. Eine umkämpfte Zone bringt mehr.',
     pt: 'Uma zona livre: {base}. Uma sua que você defende: {defense}. Uma tomada de um rival: {steal}. Se ninguém nunca passou ali, você é pioneiro: até {pioneer} a mais. Uma zona disputada rende mais.',
   },
   /** « Ensemble ça tient » — groupCaptureBonusPct, absent des pages jusqu'ici. */
   qGroupLockQ: {
-    fr: 'Courir à plusieurs, ça sert à quoi ?',
-    en: 'What’s the point of running together?',
-    es: 'Correr en grupo, ¿para qué sirve?',
-    de: 'Was bringt es, zusammen zu laufen?',
-    pt: 'Correr em grupo serve para quê?',
+    fr: 'Sortir à plusieurs, ça sert à quoi ?',
+    en: 'What’s the point of heading out together?',
+    es: 'Salir en grupo, ¿para qué sirve?',
+    de: 'Was bringt es, gemeinsam unterwegs zu sein?',
+    pt: 'Sair em grupo serve para quê?',
   },
   /** {bonus} = GROUP_CAPTURE_BONUS_MAX_PCT. */
   qGroupLockA: {
-    fr: 'La zone tient plus longtemps. Plus vous êtes nombreux à l’avoir courue, plus elle reste verrouillée : jusqu’à {bonus} de durée. Et chacun touche sa part de points.',
-    en: 'The zone holds longer. The more of you ran it, the longer it stays locked: up to {bonus} more time. And everyone gets their share of points.',
-    es: 'La zona aguanta más. Cuantos más la hayáis corrido, más tiempo sigue bloqueada: hasta {bonus} más. Y cada uno cobra su parte de puntos.',
-    de: 'Die Zone hält länger. Je mehr ihr sie gelaufen seid, desto länger bleibt sie gesperrt: bis zu {bonus} mehr Zeit. Und jede Person bekommt ihren Punkteanteil.',
-    pt: 'A zona dura mais. Quanto mais gente correu, mais tempo ela fica trancada: até {bonus} a mais. E cada um recebe sua parte dos pontos.',
+    fr: 'La zone tient plus longtemps. Plus vous êtes nombreux à y être passés, plus elle reste verrouillée : jusqu’à {bonus} de durée. Et chacun touche sa part de points.',
+    en: 'The zone holds longer. The more of you covered it, the longer it stays locked: up to {bonus} more time. And everyone gets their share of points.',
+    es: 'La zona aguanta más. Cuantos más hayáis pasado por ella, más tiempo sigue bloqueada: hasta {bonus} más. Y cada uno cobra su parte de puntos.',
+    de: 'Die Zone hält länger. Je mehr von euch dort unterwegs waren, desto länger bleibt sie gesperrt: bis zu {bonus} mehr Zeit. Und jede Person bekommt ihren Punkteanteil.',
+    pt: 'A zona dura mais. Quanto mais gente passou por ela, mais tempo ela fica trancada: até {bonus} a mais. E cada um recebe sua parte dos pontos.',
   },
 
   // ─── FAQ courte post-run (§34) ─────────────────────────────────────────────
@@ -904,13 +963,13 @@ export const C = defineCatalog({
     pt: 'Por que um segmento excluído?',
   },
   postRunSegmentA: {
-    fr: 'Une partie du GPS était trop faible. La course reste validée, mais ce segment ne capture pas.',
-    en: 'Part of the GPS was too weak. The run is still valid, but that segment doesn’t capture.',
-    es: 'Parte del GPS era demasiado débil. La carrera sigue validada, pero ese segmento no captura.',
-    de: 'Ein Teil des GPS war zu schwach. Der Lauf bleibt gültig, aber dieses Segment erobert nichts.',
-    pt: 'Parte do GPS estava fraca demais. A corrida continua validada, mas esse segmento não captura.',
+    fr: 'Une partie du GPS était trop faible. La sortie reste validée, mais ce segment ne capture pas.',
+    en: 'Part of the GPS was too weak. The outing is still valid, but that segment doesn’t capture.',
+    es: 'Parte del GPS era demasiado débil. La salida sigue validada, pero ese segmento no captura.',
+    de: 'Ein Teil des GPS war zu schwach. Die Tour bleibt gültig, aber dieses Segment erobert nichts.',
+    pt: 'Parte do GPS estava fraca demais. A saída continua validada, mas esse segmento não captura.',
   },
-  /** Aligné sur la pill du Résultat de course (« compte en stats »). */
+  /** Aligné sur la pill du Résultat (« compte en stats »). */
   postRunStatsQ: {
     fr: 'Pourquoi « compte en stats » ?',
     en: 'Why “stats only”?',
@@ -919,11 +978,11 @@ export const C = defineCatalog({
     pt: 'Por que “só stats”?',
   },
   postRunStatsA: {
-    fr: 'Ta course compte sportivement, mais ne remplit pas les conditions de capture.',
-    en: 'Your run counts as sport, but doesn’t meet the capture conditions.',
-    es: 'Tu carrera cuenta como deporte, pero no cumple las condiciones de captura.',
-    de: 'Dein Lauf zählt sportlich, erfüllt aber die Bedingungen für eine Eroberung nicht.',
-    pt: 'Sua corrida conta como esporte, mas não cumpre as condições de captura.',
+    fr: 'Ta sortie compte sportivement, mais ne remplit pas les conditions de capture.',
+    en: 'Your outing counts as sport, but doesn’t meet the capture conditions.',
+    es: 'Tu salida cuenta como deporte, pero no cumple las condiciones de captura.',
+    de: 'Deine Tour zählt sportlich, erfüllt aber die Bedingungen für eine Eroberung nicht.',
+    pt: 'Sua saída conta como esporte, mas não cumpre as condições de captura.',
   },
   postRunFrontiereQ: {
     fr: 'Pourquoi « frontière ouverte » ?',
@@ -957,11 +1016,11 @@ export const C = defineCatalog({
     pt: 'Zona tomada',
   },
   schemaLigneA11y: {
-    fr: 'Une ligne prend les rues courues, une boucle fermée prend toute la zone.',
-    en: 'A line takes the streets you ran; a closed loop takes the whole zone.',
-    es: 'Una línea toma las calles corridas; un bucle cerrado toma toda la zona.',
-    de: 'Eine Linie nimmt die gelaufenen Straßen, ein geschlossener Loop die ganze Zone.',
-    pt: 'Uma linha toma as ruas corridas; um loop fechado toma a zona inteira.',
+    fr: 'Une ligne prend les rues parcourues, une boucle fermée prend toute la zone.',
+    en: 'A line takes the streets you covered; a closed loop takes the whole zone.',
+    es: 'Una línea toma las calles recorridas; un bucle cerrado toma toda la zona.',
+    de: 'Eine Linie nimmt die Straßen der Spur, ein geschlossener Loop die ganze Zone.',
+    pt: 'Uma linha toma as ruas percorridas; um loop fechado toma a zona inteira.',
   },
   schemaTraceAlone: {
     fr: 'Trace seule',
@@ -1074,11 +1133,11 @@ export const C = defineCatalog({
     pt: 'Bônus Finisher',
   },
   schemaBonusA11y: {
-    fr: 'Il reste un segment à courir ; un bonus ciblé t’invite à fermer la boucle.',
-    en: 'One segment left to run; a targeted bonus invites you to close the loop.',
-    es: 'Queda un segmento por correr; un bonus dirigido te invita a cerrar el bucle.',
+    fr: 'Il reste un segment à parcourir ; un bonus ciblé t’invite à fermer la boucle.',
+    en: 'One segment left to cover; a targeted bonus invites you to close the loop.',
+    es: 'Queda un segmento por recorrer; un bonus dirigido te invita a cerrar el bucle.',
     de: 'Ein Segment fehlt noch; ein gezielter Bonus lädt dich ein, den Loop zu schließen.',
-    pt: 'Falta um segmento para correr; um bônus certeiro convida você a fechar o loop.',
+    pt: 'Falta um segmento para percorrer; um bônus certeiro convida você a fechar o loop.',
   },
   schemaCaptureValid: {
     fr: 'Capture validée',
@@ -1166,16 +1225,16 @@ export const C = defineCatalog({
   },
   schemaZoneReset: {
     fr: 'Tu y repasses : le compte repart à zéro',
-    en: 'Run it again: the count restarts',
+    en: 'Go over it again: the count restarts',
     es: 'Vuelves a pasar: la cuenta se reinicia',
-    de: 'Nochmal laufen: Die Uhr startet neu',
+    de: 'Nochmal vorbei: Die Uhr startet neu',
     pt: 'Passa de novo: a contagem reinicia',
   },
   schemaVieZoneA11y: {
     fr: 'Une zone reste solide, devient fragile, puis redevient libre ; y repasser remet le compte à zéro.',
-    en: 'A zone stays solid, turns fragile, then goes free again; running it resets the count.',
+    en: 'A zone stays solid, turns fragile, then goes free again; covering it again resets the count.',
     es: 'Una zona sigue firme, se vuelve frágil y luego queda libre; volver a pasar reinicia la cuenta.',
-    de: 'Eine Zone bleibt stabil, wird fragil und dann wieder frei; erneut laufen setzt die Uhr zurück.',
+    de: 'Eine Zone bleibt stabil, wird fragil und dann wieder frei; erneut vorbeikommen setzt die Uhr zurück.',
     pt: 'Uma zona fica firme, torna-se frágil e depois volta a livre; passar de novo zera a contagem.',
   },
 

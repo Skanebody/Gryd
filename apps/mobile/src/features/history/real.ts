@@ -48,6 +48,7 @@
  * Aucun repli sur `demo.ts` : ce module ne l'importe pas.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import type { IngestRunResponse, RunStatus } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
@@ -187,10 +188,30 @@ export interface MyRunHistory {
   reload: () => void;
 }
 
-export function useMyRunHistory(): MyRunHistory {
+/**
+ * `activity` — LA LENTILLE (E14, 26/07/2026).
+ *
+ * `ACTIVITY_SCOPE.history` vaut `per_activity` (game-rules) et `runs.activity`
+ * existe en base depuis la migration 0070, appliquée le 25/07. Sans ce filtre,
+ * l'Historique d'un joueur hybride mêlait ses sorties vélo et ses courses dans
+ * une seule liste, chacune étiquetée par des libellés (« conquête »,
+ * « défense », allure) qui ne disent pas de quelle discipline il s'agit : le
+ * joueur ne pouvait pas retrouver « toutes ses sorties vélo », ce que l'écran
+ * promet pourtant explicitement.
+ *
+ * DÉFAUT = `DEFAULT_ACTIVITY` : un appelant sans commutateur lit exactement ce
+ * qu'il lisait avant le vélo.
+ */
+export function useMyRunHistory(activity: Activity = DEFAULT_ACTIVITY): MyRunHistory {
   const { session, configured, loading: sessionLoading } = useSession();
   const userId = session?.user?.id ?? null;
-  const [runs, setRuns] = useState<RealRunEntry[] | null>(null);
+  /**
+   * La liste porte SA discipline : à la bascule de lentille, l'écran repasse en
+   * `loading` au lieu d'afficher une frame de courses à pied sous l'étiquette
+   * vélo (l'effet ne rejoue qu'APRÈS la peinture).
+   */
+  const [read, setRead] = useState<{ activity: Activity; entries: RealRunEntry[] } | null>(null);
+  const runs = read !== null && read.activity === activity ? read.entries : null;
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -198,7 +219,7 @@ export function useMyRunHistory(): MyRunHistory {
 
   useEffect(() => {
     if (!configured || !supabase || !userId) {
-      setRuns(null);
+      setRead(null);
       setFailed(false);
       return;
     }
@@ -213,27 +234,29 @@ export function useMyRunHistory(): MyRunHistory {
           'id, started_at, distance_m, duration_s, avg_pace_s_km, status, reject_reason, celebration',
         )
         .eq('user_id', userId)
+        // E14 — UNE discipline (cf. la doc du paramètre `activity`).
+        .eq('activity', activity)
         .order('started_at', { ascending: false })
         .limit(HISTORY_LIMIT);
       if (cancelled) return;
       if (error || !data) {
-        // On NE met PAS `runs` à [] ici : une liste vide se lirait « tu n'as
+        // On NE met PAS la liste à [] ici : une liste vide se lirait « tu n'as
         // rien couru ». On dit qu'on n'a pas su lire.
-        setRuns(null);
+        setRead(null);
         setFailed(true);
         return;
       }
-      setRuns((data as RunRow[]).map(toRealRunEntry));
+      setRead({ activity, entries: (data as RunRow[]).map(toRealRunEntry) });
     })().catch(() => {
       if (cancelled) return;
-      setRuns(null);
+      setRead(null);
       setFailed(true);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [configured, userId, tick]);
+  }, [configured, userId, tick, activity]);
 
   let status: HistoryStatus = 'signed-out';
   if (configured && userId) {

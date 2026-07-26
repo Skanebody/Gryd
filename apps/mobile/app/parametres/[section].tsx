@@ -573,7 +573,10 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
               onPress={() => router.push('/settings-motivation')}
             />
           </Section>
-          <Section label={t(C.secPendantCourse)}>
+          {/* « PENDANT LA SORTIE », plus « PENDANT LA COURSE » : cette section
+              gouverne les haptiques et les unités de n'importe quelle sortie,
+              vélo compris, et l'écran ne lit aucune discipline. */}
+          <Section label={t(C.secPendantSortie)}>
             <SwitchRow
               title={t(C.hapticsTitle)}
               subtitle={t(C.hapticsSubtitle)}

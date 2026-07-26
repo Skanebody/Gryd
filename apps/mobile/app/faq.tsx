@@ -41,6 +41,16 @@
  *    + `fontWeight` cumulés sur les questions, réponses sans famille) → rôles
  *    typo et `elevation` via les primitives.
  *
+ * ── LA DISCIPLINE N'EST PAS DEMANDÉE, ELLE N'EST DONC PAS NOMMÉE ────────────
+ * Cet écran ne sait pas — et n'a aucun moyen de savoir — si son lecteur est
+ * coureur ou cycliste : il n'affiche aucune lentille et ne lit rien du joueur.
+ * Sa copie est donc NEUTRALISÉE (« sortie », « repasser »), jamais dédoublée :
+ * une jumelle par discipline serait un texte que personne ne saurait choisir.
+ * Le vocabulaire des 5 langues et les bornes qui restent chiffrables (celles
+ * qui sont IDENTIQUES dans les deux mondes) sont documentés en tête de
+ * `i18n/catalog/explain.ts`, et verrouillés par
+ * `features/explain/copyDiscipline.test.ts`.
+ *
  * ── ÉCARTS ASSUMÉS ─────────────────────────────────────────────────────────
  *  · PAS DE CHAMP DE RECHERCHE. Le sommaire répond au même besoin sans clavier
  *    (une recherche exigerait de la faire porter sur cinq langues, donc de
@@ -261,7 +271,7 @@ export default function FaqScreen() {
       ],
     };
 
-    // FAQ courte post-run (§34) : questions express après une course.
+    // FAQ courte post-run (§34) : questions express après une sortie.
     const postRun: FaqGroupView = {
       id: POST_RUN_GROUP,
       label: t(C.faqPostRunGroup),

@@ -45,6 +45,7 @@ import { useMapSheetLayout } from './mapUiStore';
 import { useRealTerritories } from './hexClaims';
 import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
+import { competitiveReadAllowed } from '../../ui/activityLens';
 import { selectZoneView } from './zoneSelection';
 import { zoneFocusLat } from './zoneFocus';
 import { sectorPointLayers } from './allTerritories';
@@ -266,15 +267,30 @@ export function MapScreen() {
   const { basemap, toggle } = useBasemapStyle();
 
   /**
-   * LENTILLE Run / Bike (planche E14), persistée. En Bike, cet écran ne peint
-   * AUCUN territoire, AUCUN secteur, AUCUN widget, AUCUN état vide de course à
-   * pied : tout cela dérive de `hex_claims`, une table qui ne sait parler que de
-   * course à pied. Le montrer sous étiquette vélo serait exactement la donnée
-   * fabriquée que la charte interdit. Restent peints le FOND de carte, le point
-   * « moi » et l'attribution — neutres vis-à-vis de l'activité.
+   * LENTILLE Run / Bike (planche E14), persistée.
+   *
+   * ─── LE MODE BIKE EST ROUVERT (fondateur, 26/07/2026) ──────────────────────
+   * Jusqu'au 26/07 cette lentille VIDAIT l'écran : `geojsonLayers` et
+   * `pointLayers` forcés à `[]`, widget muet, tap désarmé, état vide supprimé.
+   * C'était juste tant que `hex_claims` ne savait parler que de course à pied.
+   * Ça ne l'est plus : la colonne `activity` existe en base (0070, appliquée le
+   * 25/07) et la lecture est désormais BORNÉE à la lentille
+   * (`useRealTerritories(crewIds, activity)`). Le vélo a donc SES zones, et les
+   * peindre n'est plus une fabrication : c'est la seule chose vraie à montrer.
+   *
+   * CE QUI RESTE BORNÉ À LA LENTILLE PAR DÉFAUT, ET POURQUOI : les SECTEURS.
+   * `sector_snapshot` a encore une clé primaire `sector_id` SEUL (migration
+   * 0037) et il est alimenté par des vues NON disciplinées (`sector_holdings`
+   * 0061, `sector_activity` 0040) : ses pourcentages de contrôle mélangent
+   * réellement les deux mondes. Les peindre sous une étiquette vélo serait la
+   * somme que la planche E14 interdit. La règle n'est pas écrite à la main ici,
+   * elle est DÉRIVÉE de `competitiveReadAllowed(activity, sourceIsDisciplined)`
+   * — le jour où une migration 0071 discipline la table, un seul `true` les
+   * rouvre dans les deux mondes.
    */
   const { activity } = useMapActivity();
-  const bike = activity === 'bike';
+  /** Les secteurs sont-ils lisibles sous CETTE lentille ? (source mono-pot) */
+  const sectorsReadable = competitiveReadAllowed(activity, false);
 
   /**
    * Labels en langue LOCALE (retour terrain : « la map est en anglais ») : on
@@ -341,15 +357,19 @@ export function MapScreen() {
   const viewerCrewId = myCrew?.id ?? null;
   const sectorViews = useMemo(
     () =>
-      sectorViewsFor(sectorRows ?? [], {
-        userId: viewerUserId,
-        crewId: viewerCrewId,
-        resolved: viewerResolved,
-      }),
-    [sectorRows, viewerUserId, viewerCrewId, viewerResolved],
+      // Source MONO-POT : hors lentille par défaut, on ne rend RIEN plutôt que
+      // des pourcentages qui somment les deux disciplines (cf. `sectorsReadable`).
+      sectorsReadable
+        ? sectorViewsFor(sectorRows ?? [], {
+            userId: viewerUserId,
+            crewId: viewerCrewId,
+            resolved: viewerResolved,
+          })
+        : [],
+    [sectorRows, viewerUserId, viewerCrewId, viewerResolved, sectorsReadable],
   );
   const { territories, isReal, failed, signedOut, loading, reload } =
-    useRealTerritories(crewIds);
+    useRealTerritories(crewIds, activity);
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
@@ -374,8 +394,9 @@ export function MapScreen() {
    * le peek mission démo actuel, étiqueté par la note de source.
    */
   const widget = useMemo(() => {
-    // Lentille Bike : le widget lit MES captures à pied — muet ici (E14).
-    if (bike || !isReal || territories === null) return null;
+    // Le widget lit MES captures DE LA LENTILLE COURANTE : `territories` est
+    // déjà borné à la discipline, donc il dit la vérité dans les deux mondes.
+    if (!isReal || territories === null) return null;
     const lastResult = getLastRunResult();
     const ob = lastResult?.openBoundary;
     return buildRealWidgetView({
@@ -391,7 +412,7 @@ export function MapScreen() {
     // le peek du HUD parlait français à un joueur en de/es/pt/en, alors même que
     // la note d'honnêteté juste en dessous, elle, était traduite.
     locale);
-  }, [bike, isReal, territories, locale]);
+  }, [isReal, territories, locale]);
 
   /** Routage de l'action du widget : partage → /partage ; le reste → la carte. */
   const onWidgetAction = useCallback((view: TerritoryWidgetView) => {
@@ -415,20 +436,19 @@ export function MapScreen() {
   const paintedTerritories = territories ?? [];
   const layers = useMemo(
     () =>
-      // Lentille Bike (E14) : AUCUNE couche de jeu. `[]` — et non « des couches
-      // vides » — pour qu'aucune frontière, aucun secteur, aucun accent de zone
-      // ne puisse apparaître sous une étiquette vélo.
-      bike
-        ? []
-        : battleGameLayers(
-            emph,
-            selectedParcours,
-            basemap,
-            selectedZoneId,
-            paintedTerritories,
-            sectorViews,
-          ),
-    [bike, emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      // ROUVERT LE 26/07/2026 : les couches de jeu existent dans les DEUX
+      // mondes. `paintedTerritories` vient d'une lecture bornée à la lentille,
+      // et `sectorViews` est déjà vide hors lentille par défaut — donc aucune
+      // couche ne peut porter la donnée de l'autre discipline.
+      battleGameLayers(
+        emph,
+        selectedParcours,
+        basemap,
+        selectedZoneId,
+        paintedTerritories,
+        sectorViews,
+      ),
+    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
@@ -436,18 +456,15 @@ export function MapScreen() {
    * aujourd'hui en production (0 capture ⇒ 0 secteur snapshoté).
    */
   const sectorLayers = useMemo(
-    () => (bike ? [] : sectorPointLayers(sectorViews, locale)),
-    [bike, sectorViews, locale],
+    () => sectorPointLayers(sectorViews, locale),
+    [sectorViews, locale],
   );
 
-  /** Tap carte → zone tapée (null sur le vide = désélection). En Bike aucune
-   *  zone n'est peinte, donc rien à sélectionner : le tap ne fait rien. */
-  const onMapPress = useCallback(
-    (e: RealMapPressEvent) => {
-      setSelectedZoneId(bike ? null : (e.zoneId ?? null));
-    },
-    [bike],
-  );
+  /** Tap carte → zone tapée (null sur le vide = désélection). Actif dans les
+   *  DEUX lentilles : chacune peint ses propres zones depuis le 26/07/2026. */
+  const onMapPress = useCallback((e: RealMapPressEvent) => {
+    setSelectedZoneId(e.zoneId ?? null);
+  }, []);
   /** Fermer la sheet de zone → carte nue (retour au peek mission). */
   const closeZone = useCallback(() => setSelectedZoneId(null), []);
 
@@ -490,16 +507,15 @@ export function MapScreen() {
   // vol ⇒ on n'affirme RIEN (un état de chargement n'est pas un état vide).
   // En Bike, aucun de ces trois états ne s'applique : ils décrivent la lecture
   // des zones de COURSE À PIED. Le peek Bike parle à leur place (E14).
-  const emptyState: MapEmptyState | null =
-    bike || loading
-      ? null
-      : failed
-        ? 'failed'
-        : signedOut
-          ? 'signed-out'
-          : territories !== null && territories.length === 0
-            ? 'empty'
-            : null;
+  const emptyState: MapEmptyState | null = loading
+    ? null
+    : failed
+      ? 'failed'
+      : signedOut
+        ? 'signed-out'
+        : territories !== null && territories.length === 0
+          ? 'empty'
+          : null;
 
   /** « Se connecter » / « Réessayer » — la seule action de l'état vide. */
   const onEmptyAction = useCallback(() => {
@@ -519,8 +535,8 @@ export function MapScreen() {
    * la variante web — parité structurelle plutôt que deux copies à surveiller.
    */
   const selectedZone: MapZoneView | null = useMemo(
-    () => (bike ? null : selectZoneView(territories, sectorViews, selectedZoneId)),
-    [bike, selectedZoneId, territories, sectorViews],
+    () => selectZoneView(territories, sectorViews, selectedZoneId),
+    [selectedZoneId, territories, sectorViews],
   );
 
   /**
@@ -561,11 +577,11 @@ export function MapScreen() {
     // Lecture en cours : on ne dit RIEN du territoire (ni « pas connecté », ni
     // « aucune zone ») tant qu'on n'a pas la réponse. En Bike non plus : la note
     // parle des zones de COURSE À PIED, la localisation seule reste pertinente.
-    (bike || loading || hudCarriesEmptyState
+    (loading || hudCarriesEmptyState
       ? null
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
-        dataNote(isReal, failed, territories?.length ?? 0, locale)) ??
+        dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS. Il ne parle que si la localisation et les
     // territoires n'ont rien à dire, mais il parle : « secteurs non chargés »
@@ -573,7 +589,12 @@ export function MapScreen() {
     // tient rien. Les états 'empty' / 'signedOut' / 'loading' des secteurs, eux,
     // sont déjà couverts par la note de territoire — les répéter serait deux
     // phrases pour une seule situation.
-    (sectorStatus === 'error' ? resolve(C.sectorNoteFailed, locale) : null);
+    (sectorsReadable && sectorStatus === 'error'
+      ? // Hors lentille par défaut, AUCUN secteur n'est peint (source mono-pot) :
+        // annoncer « secteurs non chargés » y serait un bruit sur une couche que
+        // l'écran ne montre de toute façon pas — une phrase qui ne mène à rien.
+        resolve(C.sectorNoteFailed, locale)
+      : null);
 
   /**
    * Recentrer — et JAMAIS un bouton mort. On vole d'abord vers la dernière

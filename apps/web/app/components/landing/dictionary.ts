@@ -172,7 +172,7 @@ const fr = {
     // AMENDEMENT-47 : rien n'est encaissable aujourd'hui. Le seul bouton de la
     // section mène à la waitlist (réelle) — jamais à un checkout inexistant.
     notOnSale: 'Aucune de ces offres n’est encore en vente : les prix affichés sont annoncés, jamais débités.',
-    footnote: 'Les Éclats et le Club n’achètent jamais de zones, de points ou de stats. Bouclier, gel de série, scout et alerte d’attaque ne se vendent dans aucune monnaie. Le seul moyen de prendre une rue, c’est de la courir.',
+    footnote: 'Les Éclats et le Club n’achètent jamais de zones, de points ou de stats. Bouclier, gel de série, scout et alerte d’attaque ne se vendent dans aucune monnaie. Le seul moyen de prendre une rue, c’est d’y aller — en courant ou en roulant.',
     toggleAria: 'Période de facturation',
   },
   waitlist: {
@@ -202,13 +202,20 @@ const fr = {
         q: 'La France entière est vraiment capturable ?',
         a: 'Oui. Dès l’ouverture, chaque rue de France métropolitaine peut être capturée par une course réelle. La densité locale définit le niveau de guerre : Paris et Lille ouvrent en zone active (PvP complet), le reste du pays en zones émergentes, pionnières ou sauvages — exploration, routes et avant-postes.',
       },
+      // ⚠️ 26/07/2026 — CETTE QUESTION QUALIFIAIT DE TRICHE UNE DISCIPLINE LIVRÉE.
+      // Elle demandait « et si quelqu'un triche en voiture ou à vélo ? », alors que
+      // le vélo capture réellement son propre territoire (ACTIVITIES = ['run',
+      // 'bike'], migration 0070 en production) et que la CGU du même site vient de
+      // le reconnaître. Le site ne peut pas dire l'inverse du contrat qu'il publie.
+      // L'interdit n'est pas retiré, il est remis là où il est vrai : le motorisé,
+      // et la discipline déclarée pour une autre.
       {
-        q: 'Et si quelqu’un triche en voiture ou à vélo ?',
-        a: 'GRYD Verify croise GPS, vitesse, cadence et cohérence du mouvement. Une allure moyenne hors des bornes d’une course ({min} à {max} min/km) ne capture rien : les segments douteux sont exclus du claim, la course peut être rejetée.',
+        q: 'Et si quelqu’un triche en voiture ?',
+        a: 'GRYD Verify croise GPS, vitesse et cohérence du mouvement avec les bornes de la discipline déclarée. En course à pied, une allure moyenne hors de {min} à {max} min/km ne capture rien : les segments douteux sont exclus du claim, la sortie peut être rejetée. Rouler, en revanche, n’est pas tricher : le vélo est une discipline à part entière, avec ses propres zones et ses propres bornes. Ce qui est interdit, c’est de déclarer une discipline pour une autre, et tout engin motorisé.',
       },
       {
         q: 'C’est pay-to-win ?',
-        a: 'Non. Aucun achat ne donne de zones, de points ou de stats. Le Club et les Éclats achètent du style, du confort et du statut — jamais du territoire. Le seul moyen de prendre une rue, c’est de la courir.',
+        a: 'Non. Aucun achat ne donne de zones, de points ou de stats. Le Club et les Éclats achètent du style, du confort et du statut — jamais du territoire. Le seul moyen de prendre une rue, c’est d’y aller — en courant ou en roulant.',
       },
       {
         q: 'Et en dehors de la France ?',
@@ -366,7 +373,7 @@ const en: Dict = {
     passFeatures: ['Dual reward track', 'Retroactive track purchase', 'Ships with Season 1'],
     cta: 'Join the waitlist',
     notOnSale: 'None of these offers is on sale yet: the prices shown are announced, never charged.',
-    footnote: 'Éclats and the Club never buy zones, points or stats. Shield, streak gel, scout and attack alert are sold in no currency at all. The only way to take a street is to run it.',
+    footnote: 'Éclats and the Club never buy zones, points or stats. Shield, streak gel, scout and attack alert are sold in no currency at all. The only way to take a street is to go out and cover it — running or riding.',
     toggleAria: 'Billing period',
   },
   waitlist: {
@@ -397,12 +404,12 @@ const en: Dict = {
         a: 'Yes. From day one, every street of metropolitan France can be captured by a real run. Local density sets the level of war: Paris and Lille open as active zones (full PvP), the rest of the country as emerging, pioneer or wild zones — exploration, routes and outposts.',
       },
       {
-        q: 'What if someone cheats by car or bike?',
-        a: 'GRYD Verify cross-checks GPS, speed, cadence and motion consistency. An average pace outside running bounds ({min} to {max} min/km) captures nothing: doubtful segments are excluded from the claim, and the run can be rejected.',
+        q: 'What if someone cheats by car?',
+        a: 'GRYD Verify cross-checks GPS, speed and motion consistency against the bounds of the declared discipline. On foot, an average pace outside {min} to {max} min/km captures nothing: doubtful segments are excluded from the claim, and the outing can be rejected. Riding, however, is not cheating: cycling is a discipline of its own, with its own zones and its own bounds. What is banned is declaring one discipline for another, and any motorised vehicle.',
       },
       {
         q: 'Is it pay-to-win?',
-        a: 'No. No purchase grants zones, points or stats. The Club and Éclats buy style, comfort and status — never territory. The only way to take a street is to run it.',
+        a: 'No. No purchase grants zones, points or stats. The Club and Éclats buy style, comfort and status — never territory. The only way to take a street is to go out and cover it — running or riding.',
       },
       {
         q: 'What about outside France?',

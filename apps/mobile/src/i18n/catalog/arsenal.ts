@@ -18,6 +18,8 @@
  * corrections de copie se font ici, à la main, entrée par entrée.
  */
 import { defineCatalog, type Entry } from '../types';
+// Type SEUL : ce catalogue reste pur (aucune constante de jeu importée ici).
+import type { Activity } from '@klaim/shared';
 
 /**
  * ═══ E17 « Boutique & Premium » — COPIE D'ÉCRAN (25/07/2026) ═══════════════
@@ -217,7 +219,18 @@ export const SHOP_C = defineCatalog({
     pt: 'Não está à venda',
   },
 
-  // ── « Aucun achat pendant une course » (planche E17) ───────────────────────
+  /**
+   * ── « Aucun achat pendant une sortie » (planche E17) ──────────────────────
+   *
+   * TROIS JEUX, PARCE QU'IL Y A TROIS ÉTATS — pas deux (26/07/2026).
+   * `useRunInProgress` remonte `activity: Activity | null`, et ce `null` n'est
+   * pas un détail : il vaut pour un buffer écrit AVANT l'arrivée du champ, ou
+   * illisible. Le combler par un défaut « course à pied » serait deviner, et
+   * cette page-ci a précisément été refaite parce qu'elle affirmait. On dit
+   * donc « sortie » quand on ne sait pas — c'est vrai dans les deux mondes —
+   * et le mot exact quand on sait. La sélection est faite par `shopPauseCopy`
+   * (fonction pure, plus bas), jamais par un ternaire dans le JSX.
+   */
   runBlockTitle: {
     fr: 'Course en cours.',
     en: 'Run in progress.',
@@ -231,6 +244,37 @@ export const SHOP_C = defineCatalog({
     es: 'La tienda se reabre al final de tu carrera — no te vendemos nada mientras corres.',
     de: 'Der Shop öffnet wieder, wenn dein Lauf endet — während du läufst, verkaufen wir dir nichts.',
     pt: 'A loja reabre no fim da tua corrida — não te vendemos nada enquanto corres.',
+  },
+  /** Jumeau VÉLO de `runBlockTitle`. */
+  bikeBlockTitle: {
+    fr: 'Sortie vélo en cours.',
+    en: 'Ride in progress.',
+    es: 'Salida en bici en curso.',
+    de: 'Radausfahrt läuft.',
+    pt: 'Pedal em curso.',
+  },
+  /** Jumeau VÉLO de `runBlockBody`. */
+  bikeBlockBody: {
+    fr: 'La boutique se rouvre à la fin de ta sortie vélo — on ne te vend rien pendant que tu roules.',
+    en: 'The shop reopens when your ride ends — we sell you nothing while you’re riding.',
+    es: 'La tienda se reabre al final de tu salida en bici — no te vendemos nada mientras pedaleas.',
+    de: 'Der Shop öffnet wieder, wenn deine Radausfahrt endet — während du fährst, verkaufen wir dir nichts.',
+    pt: 'A loja reabre no fim do teu pedal — não te vendemos nada enquanto pedalas.',
+  },
+  /** DISCIPLINE INCONNUE : on ne devine pas, on dit le mot vrai des deux mondes. */
+  effortBlockTitle: {
+    fr: 'Sortie en cours.',
+    en: 'Activity in progress.',
+    es: 'Actividad en curso.',
+    de: 'Aktivität läuft.',
+    pt: 'Atividade em curso.',
+  },
+  effortBlockBody: {
+    fr: 'La boutique se rouvre à la fin de ta sortie — on ne te vend rien pendant que tu es dehors.',
+    en: 'The shop reopens when your activity ends — we sell you nothing while you’re out.',
+    es: 'La tienda se reabre al final de tu actividad — no te vendemos nada mientras estás fuera.',
+    de: 'Der Shop öffnet wieder, wenn deine Aktivität endet — solange du unterwegs bist, verkaufen wir dir nichts.',
+    pt: 'A loja reabre no fim da tua atividade — não te vendemos nada enquanto estás fora.',
   },
 
   // ── Paywall Premium ────────────────────────────────────────────────────────
@@ -351,6 +395,40 @@ export const SHOP_C = defineCatalog({
   },
 });
 
+/** Le couple titre + corps du panneau « la boutique se met en pause ». */
+export interface ShopPauseCopy {
+  title: Entry;
+  body: Entry;
+}
+
+/**
+ * Les DEUX mondes, indexés par `Activity` — jamais un ternaire. Une troisième
+ * discipline ajoutée à `ACTIVITIES` fait échouer la COMPILATION ici, au lieu de
+ * servir en silence les mots du coureur à qui ne court pas.
+ */
+const SHOP_PAUSE_BY_ACTIVITY: Readonly<Record<Activity, ShopPauseCopy>> = {
+  run: { title: SHOP_C.runBlockTitle, body: SHOP_C.runBlockBody },
+  bike: { title: SHOP_C.bikeBlockTitle, body: SHOP_C.bikeBlockBody },
+};
+
+/**
+ * PURE. La copie de la pause boutique, pour la discipline RÉELLEMENT déclarée
+ * par la sortie en cours (`useRunInProgress().activity`).
+ *
+ * `null` n'est PAS un synonyme de « course à pied » : c'est « on ne sait pas »
+ * (buffer antérieur au champ `StoredRun.activity`, ou valeur illisible). Il a
+ * donc son propre jeu de textes, neutres et vrais dans les deux mondes. Y
+ * substituer `DEFAULT_ACTIVITY` rendrait la fonction totale au prix d'une
+ * affirmation inventée — exactement ce que l'écran refuse ailleurs pour le
+ * solde d'Éclats et pour l'état du Club.
+ */
+export function shopPauseCopy(activity: Activity | null): ShopPauseCopy {
+  if (activity === null) {
+    return { title: SHOP_C.effortBlockTitle, body: SHOP_C.effortBlockBody };
+  }
+  return SHOP_PAUSE_BY_ACTIVITY[activity];
+}
+
 export const ARSENAL_I18N: Record<string, Entry> = {
   'club_monthly.contents.0': { fr: 'Stats avancées + heatmap personnelle', en: 'Advanced stats + personal heatmap', es: 'Estadísticas avanzadas + heatmap personal', de: 'Erweiterte Statistiken + persönliche Heatmap', pt: 'Estatísticas avançadas + heatmap pessoal' },
   'club_monthly.contents.1': { fr: 'Historique complet + export share HD', en: 'Full history + HD share export', es: 'Historial completo + exportación HD para compartir', de: 'Vollständiger Verlauf + HD-Share-Export', pt: 'Histórico completo + exportação HD para compartilhar' },
@@ -395,7 +473,11 @@ export const ARSENAL_I18N: Record<string, Entry> = {
   'crew_recruit_template.name': { fr: 'Template recrutement premium', en: 'Premium Recruitment Template', es: 'Template de reclutamiento premium', de: 'Premium-Rekrutierungs-Template', pt: 'Template de recrutamento premium' },
   'eclats_l.description': { fr: '{n} Éclats pour la personnalisation complète.', en: '{n} Éclats for full customization.', es: '{n} Éclats para la personalización completa.', de: '{n} Éclats für die komplette Personalisierung.', pt: '{n} Éclats para a personalização completa.' },
   'eclats_l.name': { fr: 'Caisse d\'Éclats ({n})', en: 'Crate of Éclats ({n})', es: 'Caja de Éclats ({n})', de: 'Kiste Éclats ({n})', pt: 'Caixa de Éclats ({n})' },
-  'eclats_m.description': { fr: '{n} Éclats. Le territoire, lui, se gagne en courant.', en: '{n} Éclats. Territory, though, is earned by running.', es: '{n} Éclats. El territorio, en cambio, se gana corriendo.', de: '{n} Éclats. Territorium dagegen verdienst du dir beim Laufen.', pt: '{n} Éclats. O território, esse, conquista-se correndo.' },
+  // NEUTRALISÉ 26/07 : la phrase anti-pay-to-win disait « se gagne en courant »
+  // alors qu'une sortie VÉLO capture des hexagones depuis le 26/07/2026. Elle
+  // dit maintenant la règle telle qu'elle est écrite dans le moteur (on prend
+  // ce qu'on TRAVERSE), donc vraie dans les deux mondes sans en nommer aucun.
+  'eclats_m.description': { fr: '{n} Éclats. Le territoire, lui, se gagne en le traversant.', en: '{n} Éclats. Territory, though, is earned by crossing it.', es: '{n} Éclats. El territorio, en cambio, se gana atravesándolo.', de: '{n} Éclats. Territorium dagegen verdienst du dir, indem du es durchquerst.', pt: '{n} Éclats. O território, esse, conquista-se atravessando-o.' },
   'eclats_m.name': { fr: 'Sachet d\'Éclats ({n})', en: 'Pouch of Éclats ({n})', es: 'Bolsa de Éclats ({n})', de: 'Beutel Éclats ({n})', pt: 'Saquinho de Éclats ({n})' },
   'eclats_s.description': { fr: '{n} Éclats pour le style : skins, frames, templates.', en: '{n} Éclats for style: skins, frames, templates.', es: '{n} Éclats para el estilo: skins, frames, templates.', de: '{n} Éclats für den Style: Skins, Frames, Templates.', pt: '{n} Éclats para o estilo: skins, frames, templates.' },
   'eclats_s.name': { fr: 'Poignée d\'Éclats ({n})', en: 'Handful of Éclats ({n})', es: 'Puñado de Éclats ({n})', de: 'Handvoll Éclats ({n})', pt: 'Punhado de Éclats ({n})' },
@@ -415,7 +497,10 @@ export const ARSENAL_I18N: Record<string, Entry> = {
   'founder_pack.description': { fr: '{n} Éclats + panoplie Founder : badge, frame, skin territoire, skin trace, titre, template.', en: '{n} Éclats + the Founder set: badge, frame, territory skin, trace skin, title, template.', es: '{n} Éclats + el set Founder: insignia, frame, skin de territorio, skin de trazado, título, template.', de: '{n} Éclats + das Founder-Set: Abzeichen, Frame, Territorium-Skin, Trace-Skin, Titel, Template.', pt: '{n} Éclats + o conjunto Founder: emblema, frame, skin de território, skin de traçado, título, template.' },
   'founder_pack.limit': { fr: '1 par compte', en: '1 per account', es: '1 por cuenta', de: '1 pro Konto', pt: '1 por conta' },
   'founder_pack.name': { fr: 'Founder Pack', en: 'Founder Pack', es: 'Founder Pack', de: 'Founder Pack', pt: 'Founder Pack' },
-  'frame_carbon.description': { fr: 'Cadre Carbon, la référence des réguliers.', en: 'Carbon frame, the regulars\' benchmark.', es: 'Marco Carbon, la referencia de los habituales.', de: 'Carbon-Rahmen, die Referenz für regelmäßige Läufer.', pt: 'Moldura Carbon, a referência dos regulares.' },
+  // Fuite d'UNE SEULE langue sur cinq (« regelmäßige Läufer ») : fr/en/es/pt
+  // disaient déjà « les réguliers », sans nommer de discipline. On corrige donc
+  // l'allemand SEUL — fabriquer quatre doublons pour la forme serait du bruit.
+  'frame_carbon.description': { fr: 'Cadre Carbon, la référence des réguliers.', en: 'Carbon frame, the regulars\' benchmark.', es: 'Marco Carbon, la referencia de los habituales.', de: 'Carbon-Rahmen, die Referenz für die Regelmäßigen.', pt: 'Moldura Carbon, a referência dos regulares.' },
   'frame_carbon.name': { fr: 'Frame Carbon', en: 'Frame Carbon', es: 'Frame Carbon', de: 'Frame Carbon', pt: 'Frame Carbon' },
   'frame_elite.description': { fr: 'Cadre Elite, réservé au style, jamais au score.', en: 'Elite frame, for style only, never for score.', es: 'Marco Elite, solo para el estilo, nunca para la puntuación.', de: 'Elite-Rahmen, nur für den Stil, nie für die Punktzahl.', pt: 'Moldura Elite, só para o estilo, nunca para a pontuação.' },
   'frame_elite.name': { fr: 'Frame Elite', en: 'Frame Elite', es: 'Frame Elite', de: 'Frame Elite', pt: 'Frame Elite' },
@@ -474,11 +559,18 @@ export const ARSENAL_I18N: Record<string, Entry> = {
   'skin_trace_chartreuse_pulse.name': { fr: 'Chartreuse Pulse', en: 'Chartreuse Pulse', es: 'Chartreuse Pulse', de: 'Chartreuse Pulse', pt: 'Chartreuse Pulse' },
   'skin_trace_electric.description': { fr: 'Ta trace en courant électrique continu.', en: 'Your trail as a continuous electric current.', es: 'Tu trazo como corriente eléctrica continua.', de: 'Deine Spur als kontinuierlicher elektrischer Strom.', pt: 'O teu traço como corrente elétrica contínua.' },
   'skin_trace_electric.name': { fr: 'Electric Route', en: 'Electric Route', es: 'Electric Route', de: 'Electric Route', pt: 'Electric Route' },
-  'skin_trace_founder_line.description': { fr: 'Exclusif Founder Pack. La ligne des premiers coureurs.', en: 'Founder Pack exclusive. The line of the first runners.', es: 'Exclusivo del Founder Pack. La línea de los primeros corredores.', de: 'Founder-Pack-exklusiv. Die Linie der ersten Läufer.', pt: 'Exclusivo do Founder Pack. A linha dos primeiros corredores.' },
+  // NEUTRALISÉ 26/07 : « les premiers coureurs » désigne les premiers JOUEURS,
+  // et un skin de trace s'applique aux deux disciplines. Le mot excluait donc
+  // d'entrée les cyclistes de leur propre Founder Pack.
+  'skin_trace_founder_line.description': { fr: 'Exclusif Founder Pack. La ligne des tout premiers.', en: 'Founder Pack exclusive. The line of the very first.', es: 'Exclusivo del Founder Pack. La línea de los primeros de todos.', de: 'Founder-Pack-exklusiv. Die Linie der Allerersten.', pt: 'Exclusivo do Founder Pack. A linha dos primeiros de todos.' },
   'skin_trace_founder_line.name': { fr: 'Founder Line', en: 'Founder Line', es: 'Founder Line', de: 'Founder Line', pt: 'Founder Line' },
   'skin_trace_ghost_line.description': { fr: 'Trace semi-transparente, style furtif.', en: 'Semi-transparent trail, stealth style.', es: 'Trazo semitransparente, estilo sigiloso.', de: 'Halbtransparente Spur, Stealth-Look.', pt: 'Traço semitransparente, estilo furtivo.' },
   'skin_trace_ghost_line.name': { fr: 'Ghost Line', en: 'Ghost Line', es: 'Ghost Line', de: 'Ghost Line', pt: 'Ghost Line' },
-  'skin_trace_midnight.description': { fr: 'Trace bleu nuit pour les sorties tardives.', en: 'Midnight-blue trail for late runs.', es: 'Trazo azul noche para las salidas nocturnas.', de: 'Mitternachtsblaue Spur für späte Läufe.', pt: 'Traço azul-noite para as saídas tardias.' },
+  // Fuite de DEUX langues sur cinq (en « late runs », de « späte Läufe ») :
+  // fr/es/pt disaient déjà « sorties ». Corrigées là où elles fuyaient. ⚠️ le
+  // mot allemand n'est PAS « Ausfahrten » — c'est le mot du VÉLO, on aurait
+  // remplacé une exclusion par l'exclusion inverse.
+  'skin_trace_midnight.description': { fr: 'Trace bleu nuit pour les sorties tardives.', en: 'Midnight-blue trail for late outings.', es: 'Trazo azul noche para las salidas nocturnas.', de: 'Mitternachtsblaue Spur für späte Touren.', pt: 'Traço azul-noite para as saídas tardias.' },
   'skin_trace_midnight.name': { fr: 'Midnight Runner', en: 'Midnight Runner', es: 'Midnight Runner', de: 'Midnight Runner', pt: 'Midnight Runner' },
   'skin_trace_neon_ivory.description': { fr: 'Trace ivoire lumineuse, sobre et nette.', en: 'Luminous ivory trail, understated and crisp.', es: 'Trazo marfil luminoso, sobrio y nítido.', de: 'Leuchtende elfenbeinfarbene Spur, schlicht und klar.', pt: 'Traço marfim luminoso, sóbrio e nítido.' },
   'skin_trace_neon_ivory.name': { fr: 'Neon Ivory', en: 'Neon Ivory', es: 'Neon Ivory', de: 'Neon Ivory', pt: 'Neon Ivory' },

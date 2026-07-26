@@ -20,6 +20,14 @@
  * Ce qui reste ici ne dépend d'aucune donnée : une phrase de règle, et un
  * constructeur d'URL.
  */
+import { UNDECLARED_START_ACTIVITY } from '../run/gps/runActivity';
+// La DÉCLARATION de discipline sur une cible de départ appartient à la lentille
+// (`withStartActivity`) : on la réutilise plutôt que de recoller « activity= »
+// à la main ici. Deux façons d'écrire le même paramètre finiraient par diverger,
+// et la divergence serait SILENCIEUSE — la sortie repartirait dans la discipline
+// par défaut sans la moindre erreur.
+import { withStartActivity } from '../../ui/activityLens';
+import type { Activity } from '@klaim/shared';
 
 /** La règle du jeu en UNE phrase (AMENDEMENT-14 §1) — répétée partout. */
 export const RULE_PHRASE =
@@ -32,8 +40,29 @@ export const RULE_PHRASE =
  * `conquete` : capturer/défendre = le moteur de zones, l'intention n'est qu'un
  * guide d'expérience. `route` optionnel (Défendre pointe une zone précise) —
  * il n'est renseigné que par une VRAIE sélection, jamais par un plan fabriqué.
+ *
+ * ─── QUATRIÈME CHEMIN DE DÉPART, MIGRÉ (E14, 26/07/2026) ───────────────────
+ * Cette fonction construisait `/course-live?mode=conquete&intention=…` sans
+ * jamais déclarer de discipline : c'était le seul constructeur de départ resté
+ * hors du mécanisme de déclaration (`START_ACTIVITY_PARAM`). Ce n'était pas un
+ * défaut VIVANT — la Carte, qui consomme ces `targetHref` via
+ * `deriveContextualAction`, applique `withStartActivity` au moment du push, et
+ * l'autre appelant (`/aujourdhui`) n'a aujourd'hui aucune porte d'entrée. Mais
+ * un chemin de départ muet renaît le jour où quelqu'un le câble : la discipline
+ * se déclare donc ICI, explicitement.
+ *
+ * `activity` est OPTIONNEL et vaut la discipline des chemins muets
+ * (`UNDECLARED_START_ACTIVITY` = course à pied). Deux conséquences voulues :
+ * les appelants existants produisent une URL IDENTIQUE au caractère près
+ * (`withStartActivity` n'ajoute rien pour la discipline par défaut), donc
+ * aucun chemin ne change de sens du fait de cette migration ; et le paramètre
+ * reste ajouté UNE seule fois même quand la Carte re-déclare par-dessus.
  */
-export function intentionHref(intention: 'conquest' | 'defense', routeId?: string): string {
+export function intentionHref(
+  intention: 'conquest' | 'defense',
+  routeId?: string,
+  activity: Activity = UNDECLARED_START_ACTIVITY,
+): string {
   const base = `/course-live?mode=conquete&intention=${intention}`;
-  return routeId ? `${base}&route=${routeId}` : base;
+  return withStartActivity(routeId ? `${base}&route=${routeId}` : base, activity);
 }

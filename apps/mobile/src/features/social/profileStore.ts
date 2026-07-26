@@ -23,24 +23,30 @@ import type { Entry } from '../../i18n/types';
 import { t } from '../../i18n/store';
 import { C } from '../../i18n/catalog/profil';
 import { useSession } from '../../lib/session';
+import { fallbackIdentity } from './playerHandle';
 
 /**
  * Identité lisible dérivée de la SESSION (vrai user O1) : nom du compte, sinon
- * préfixe e-mail, sinon un neutre « Coureur » (traduit via le catalogue i18n).
+ * préfixe e-mail, sinon un neutre « Joueur » (traduit via le catalogue i18n).
  * Sert à NE PAS présenter le persona démo « KORO »/@koro à un vrai utilisateur
  * qui n'a pas encore édité son profil (le back `user_profiles` n'est pas
  * branché — TODO O1). Dépend de la locale courante (résolue à l'appel).
+ *
+ * ─── 26/07/2026 : « COUREUR » N'EST PAS UN MOT POUR UN JOUEUR ───────────────
+ * Le repli s'appelait « Coureur »/« Läufer » alors que le vélo est une
+ * discipline réelle — et le @handle de repli, littéral français « coureur »,
+ * était codé EN DUR ici. Nom et pseudo se corrigent d'un seul tenant : la
+ * dérivation vit désormais dans `playerHandle.ts` (fonction PURE + tests Deno),
+ * qui documente ce que ce repli est vraiment (un affichage, jamais persisté,
+ * jamais envoyé au serveur) et pourquoi « Läufer » y produisait « lufer ».
  */
 function sessionIdentity(session: Session | null): { displayName: string; handle: string } {
-  const fallbackName = t(C.defaultRunnerName);
   const meta = (session?.user?.user_metadata ?? {}) as { full_name?: string; name?: string };
-  const emailPrefix = session?.user?.email?.split('@')[0];
-  const displayName =
-    (meta.full_name || meta.name || emailPrefix || fallbackName).toString().trim() || fallbackName;
-  // Le @handle est un INVARIANT technique (a-z0-9_) — le repli reste « coureur ».
-  const handle =
-    (emailPrefix || displayName).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20) || 'coureur';
-  return { displayName, handle };
+  return fallbackIdentity({
+    accountName: meta.full_name || meta.name,
+    emailPrefix: session?.user?.email?.split('@')[0],
+    fallbackName: t(C.defaultPlayerName),
+  });
 }
 
 /** Champs du profil que le joueur peut éditer (le reste est dérivé/serveur). */
@@ -352,7 +358,7 @@ export function useMyProfile(): ProfileStore {
   const merged = mergeProfile(current);
   // La base d'identité est VIDE : on ne laisse jamais un nom ou un @handle blanc
   // à l'écran. On dérive de la session quand elle existe (nom du compte / préfixe
-  // e-mail), sinon un neutre traduit (« Coureur »/@coureur) — jamais un persona.
+  // e-mail), sinon un neutre traduit (« Joueur »/@joueur) — jamais un persona.
   const id = sessionIdentity(session);
   const profile = {
     ...merged,

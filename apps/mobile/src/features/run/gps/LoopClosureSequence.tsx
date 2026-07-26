@@ -38,8 +38,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, Polygon, Polyline } from 'react-native-svg';
-import { colors, fonts, fontSizes, radii, spacing, withAlpha } from '@klaim/shared';
-import { C } from '../../../i18n/catalog/runGps';
+import { type Activity, colors, fonts, fontSizes, radii, spacing, withAlpha } from '@klaim/shared';
+import { C, RUN_GPS_COPY } from '../../../i18n/catalog/runGps';
 import { useT } from '../../../i18n/store';
 import { haptics } from '../../../lib/haptics';
 import { formatInt } from '../../../ui/format';
@@ -74,6 +74,13 @@ export interface LoopClosureSequenceProps {
   zonesEstimated: number;
   /** Vitesse mesurée élevée → réduction de SÉCURITÉ (badge seul). */
   reduced: boolean;
+  /**
+   * Discipline de la sortie. Elle ne change RIEN à ce qui est dessiné — la
+   * géométrie est la géométrie — mais elle décide du libellé LU du badge :
+   * « Boucle fermée pendant cette course » était faux à vélo. Le titre visible
+   * (« BOUCLE FERMÉE »), lui, est déjà neutre et n'a pas de twin.
+   */
+  activity: Activity;
   onDone: () => void;
 }
 
@@ -84,6 +91,7 @@ export function LoopClosureSequence({
   box,
   zonesEstimated,
   reduced,
+  activity,
   onDone,
 }: LoopClosureSequenceProps) {
   const t = useT();
@@ -179,7 +187,7 @@ export function LoopClosureSequence({
   if (stage === 'badge') {
     return (
       <View pointerEvents="none" style={styles.badgeWrap}>
-        <View style={styles.badge} accessibilityLabel={t(C.a11yClosureBadge)}>
+        <View style={styles.badge} accessibilityLabel={t(RUN_GPS_COPY[activity].a11yClosureBadge)}>
           <Text style={styles.badgeText} numberOfLines={1}>
             {t(C.loopClosedTitle)}
           </Text>

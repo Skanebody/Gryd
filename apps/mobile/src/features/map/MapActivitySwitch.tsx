@@ -14,20 +14,23 @@
  *     mais ce texte nomme la DISCIPLINE (« RUN » / « BIKE »), pas ce que la
  *     bascule change ici : chaque surface doit le nommer CHEZ ELLE.
  *
- * ─── LE POINT D'HONNÊTETÉ, RENFORCÉ LE 26/07/2026 ───────────────────────────
- * Le commutateur bascule VRAIMENT, et c'est tout ce qu'il prétend faire. En
- * mode Bike, la Carte n'affiche AUCUN territoire, AUCUNE mission, AUCUN
- * classement : le vélo n'existe pas encore sous l'écran (tous les chemins de
- * départ déclarent 'run', cf. `features/run/gps/runActivity.ts`). Montrer les
- * données Run sous une étiquette vélo serait la donnée fabriquée que la charte
- * interdit.
+ * ─── CE QUE LA BASCULE FAIT DEPUIS QUE LE VÉLO EST RÉEL (26/07/2026) ───────
+ * Elle change LE MONDE LU, pas une étiquette : `MapScreen` passe la lentille à
+ * `useRealTerritories(crewIds, activity)` et à `useRealMission(activity)`, dont
+ * les requêtes portent `.eq('activity', …)` (clé primaire composite depuis la
+ * migration 0070, appliquée le 25/07). La Carte peint donc ses couches, sa
+ * mission, sa sheet et son GO dans LES DEUX mondes.
  *
- * Ce que le retour fondateur a ajouté : dire le vide APRÈS le tap ne suffisait
- * pas. « L'UI lui fait croire que la fonctionnalité est disponible ; le contenu
- * lui dit ensuite qu'elle ne l'est pas. » Le segment Bike porte donc maintenant
- * sa marque d'état AVANT le tap (`ui/ActivitySwitch.tsx`), et l'état vide de la
- * sheet a cessé d'énumérer les absences pour désigner l'action réelle qui reste
- * — le segment RUN, juste au-dessus (copie dans `i18n/catalog/map.ts`).
+ * Ce fichier a porté, le matin même, l'affirmation inverse : « en mode Bike, la
+ * Carte n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement », et le
+ * segment Bike portait une marque « PAS ENCORE ». C'était exact tant que rien
+ * ne pouvait être enregistré à vélo. Le fondateur a tranché l'inverse le même
+ * jour — « il faut avoir sa propre data, ses propres classements » — et laisser
+ * cette phrase aurait produit le mensonge symétrique : nier ce que l'app fait.
+ *
+ * CE QUI RESTE BORNÉ À LA LENTILLE PAR DÉFAUT : les secteurs
+ * (`sector_snapshot`, PK `sector_id` seul, alimenté par des vues non
+ * disciplinées). Règle dérivée de `competitiveReadAllowed`, pas peinte ici.
  *
  * VERROUILLAGE PENDANT UNE COURSE (planche E14) : sur la CARTE il est
  * STRUCTUREL, pas peint. La course vit sur `/course-live`, une route poussée

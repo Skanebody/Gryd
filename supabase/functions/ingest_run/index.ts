@@ -43,7 +43,7 @@ import {
   STREAK_HISTORY_WEEKS,
   type ZoneDensity,
 } from '../_shared/game-rules.ts';
-import { effectiveActivity, isActivityShape } from './activity.ts';
+import { bonusWindowOpposable, effectiveActivity, isActivityShape } from './activity.ts';
 // Verdict §3.2 + GRYD Verify : fonction PURE, extraite de ce fichier pour être
 // testable (index.ts n'est pas importable — `Deno.serve` au chargement).
 import { type ValidationOutcome, validateOrStatus } from './validate.ts';
@@ -2207,6 +2207,13 @@ interface ActiveBonusRow {
   id: string;
   scope: 'crew' | 'player';
   bonus_id: BonusId;
+  /**
+   * Monde de la fenêtre (0071). Typé `unknown` À DESSEIN : c'est une valeur
+   * BRUTE de PostgREST, et `bonusWindowOpposable` est seul juge de sa forme.
+   * La typer `Activity | null` ici ferait CROIRE au lecteur qu'elle a été
+   * validée quelque part — elle ne l'a été nulle part.
+   */
+  activity: unknown;
 }
 
 /** Contexte serveur de récompense d'un bonus (signaux du run + base capée). */
@@ -2214,6 +2221,12 @@ interface BonusApplyContext {
   userId: string;
   crewId: string | null;
   now: Date;
+  /**
+   * Discipline de CE run. Oppose le monde de la sortie à celui de la fenêtre :
+   * une « Défense critique » ouverte sur une zone vélo ne se réclame pas à
+   * pied (0071 posait la colonne, personne ne la lisait).
+   */
+  activity: Activity;
   motionTrust: number;
   /** Progression de coffre de base de ce run (déjà boostée) — base du delta bonus. */
   chestBase: number;
@@ -2266,7 +2279,12 @@ async function applyActiveBonus(
   const subjectIds = [ctx.userId, ...(ctx.crewId !== null ? [ctx.crewId] : [])];
   const { data: rows, error } = await supabase
     .from('active_bonuses')
-    .select('id, scope, bonus_id')
+    // `activity` (0071) : SANS elle, la discipline d'une fenêtre n'atteint
+    // jamais le filtre ci-dessous et une récompense vélo reste réclamable à
+    // pied. Le filtre est fait en TS (fonction pure testée) et non en SQL :
+    // `.or('activity.is.null,activity.eq.…')` cacherait la règle dans une
+    // chaîne qu'aucun test ne peut exécuter ici.
+    .select('id, scope, bonus_id, activity')
     .in('subject_id', subjectIds)
     .eq('status', 'active')
     .gt('expires_at', nowIso);
@@ -2274,10 +2292,13 @@ async function applyActiveBonus(
   if (!rows || rows.length === 0) return null;
 
   // 2. Candidats « répondus » par ce run + cohérence de scope (un bonus crew
-  //    exige un crew ; un bonus player vise bien ce joueur).
+  //    exige un crew ; un bonus player vise bien ce joueur) + MÊME MONDE que
+  //    la sortie (une fenêtre sans monde — le Coffre crew — reste ouverte aux
+  //    deux disciplines, cf. bonusWindowOpposable).
   const candidates = (rows as ActiveBonusRow[]).filter((r) => {
     if (!ctx.answered.has(r.bonus_id)) return false;
     if (r.scope === 'crew' && ctx.crewId === null) return false;
+    if (!bonusWindowOpposable(r.activity, ctx.activity)) return false;
     return true;
   });
   if (candidates.length === 0) return null;
@@ -3436,6 +3457,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         userId,
         crewId: crew.crewId,
         now,
+        // Le monde de CETTE sortie : il sera OPPOSÉ à celui de chaque fenêtre.
+        activity,
         motionTrust: validation.motionTrust ?? 0,
         chestBase: crewOutcome.chestDelta ?? 0,
         xpBase: score.xp,

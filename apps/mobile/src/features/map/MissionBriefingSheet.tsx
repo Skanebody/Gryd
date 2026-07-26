@@ -25,6 +25,18 @@
  *    valeur tactique le dit mot pour mot plutôt que de laisser croire à un
  *    guidage sur le tracé.
  *
+ * ─── LA DISCIPLINE (E14, 26/07/2026) ───────────────────────────────────────
+ * Ce briefing est redevenu atteignable en lentille VÉLO le 26/07 (le tap de
+ * zone y a été réarmé). Il partait alors avec DEUX défauts jumeaux :
+ *   · son aperçu routait au profil PIÉTON, sur une distance de coureur — soit
+ *     une boucle sous le périmètre minimal d'une boucle vélo (5 000 m), donc
+ *     INCAPTURABLE : un tracé qu'on ne peut ni suivre ni faire compter ;
+ *   · son CTA poussait `/course-live?mode=conquete` SANS déclaration, donc
+ *     enregistrait une course à pied à quelqu'un qui préparait une sortie vélo.
+ * Les deux se corrigent par la même prop : `activity`. Elle décide le profil de
+ * routage, les distances proposées, ce qui est ÉCRIT dans le kicker, et la
+ * déclaration portée par la cible de départ (`missionStartHref`).
+ *
  * MÉTRIQUES : la planche en montre quatre. Une seule a une source — la distance
  * MESURÉE par OSRM. Durée (allure fixe), gain de surface (le serveur tranche
  * après la course) et difficulté (trois seuils de km non traduits) sont
@@ -33,9 +45,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { colors, fontSizes, gameColors, radii } from '@klaim/shared';
+// `sizes` : le plancher tactile du projet. Il était recopié en 44 dans deux
+// styles de ce fichier — §A demande le TOKEN, jamais le nombre (un plancher
+// recopié ne bouge pas avec la charte, et rien ne le relie au gabarit).
+import { colors, fontSizes, gameColors, radii, sizes, type Activity } from '@klaim/shared';
 import { C as M } from '../../i18n/catalog/mission';
 import { C } from '../../i18n/catalog/map';
+import { ACTIVITY_NAME } from '../../i18n/catalog/runGps';
+import { ACTIVITY_LABELS } from '../../ui/activityLens';
 import { useLocale, useT } from '../../i18n/store';
 import type { Locale } from '../../i18n/types';
 import { screen } from '../../lib/analytics';
@@ -78,8 +95,16 @@ export interface MissionBriefingSheetProps {
   onClose: () => void;
   /** « Ajuster » / repli sans position → planificateur d'itinéraire réel. */
   onOpenPlanner: () => void;
-  /** CTA — démarre la course de conquête. */
+  /** CTA — démarre la sortie de conquête (dans la discipline déclarée ci-dessous). */
   onStart: () => void;
+  /**
+   * Discipline de la LENTILLE d'où vient ce briefing. Elle n'est pas
+   * décorative : elle décide le profil de routage de l'aperçu, l'échelle des
+   * distances proposées, et ce que le CTA va déclarer à `/course-live`.
+   * Obligatoire — un défaut silencieux ici, c'est le tracé piéton rendu à un
+   * cycliste que ce chantier supprime.
+   */
+  activity: Activity;
   /**
    * État du tracé remonté au parent : c'est lui qui dimensionne la sheet, et il
    * ne peut pas le deviner (le routage vit ici). Appelé à chaque transition,
@@ -96,12 +121,17 @@ export function MissionBriefingSheet({
   onOpenPlanner,
   onStart,
   onStateChange,
+  activity,
 }: MissionBriefingSheetProps) {
   const t = useT();
   const locale = useLocale();
   const { width: winW } = useWindowDimensions();
-  /** Distance à proposer + provenance : la MÊME source que le planificateur. */
-  const { suggestion } = useRouteSuggestion();
+  /**
+   * Distance à proposer + provenance : la MÊME source que le planificateur, et
+   * bornée à la MÊME discipline — sans quoi l'aperçu proposerait ici une boucle
+   * que le planificateur refuserait deux écrans plus loin.
+   */
+  const { suggestion } = useRouteSuggestion(activity);
   const [route, setRoute] = useState<{ line: readonly LatLngPoint[]; km: number } | null>(null);
   const [loading, setLoading] = useState(false);
   /** Relance manuelle après un échec réseau (jamais un retry automatique). */
@@ -141,6 +171,7 @@ export function MissionBriefingSheet({
         targetKm,
         'conquerir',
         seed,
+        activity,
         controller.signal,
       ).catch(() => null);
       if (cancelled) return;
@@ -153,7 +184,7 @@ export function MissionBriefingSheet({
       cancelled = true;
       controller.abort();
     };
-  }, [originLat, originLng, targetKm, seed, label, attempt]);
+  }, [originLat, originLng, targetKm, seed, label, attempt, activity]);
 
   const state = briefRouteState({
     hasPosition: egoPos !== null,
@@ -182,8 +213,12 @@ export function MissionBriefingSheet({
       {/* ── Kicker + titre + ✕ (planche E05) ── */}
       <View style={styles.head}>
         <View style={styles.pastille} />
-        <Text style={styles.kicker} numberOfLines={1}>
-          {t(M.briefKicker)}
+        {/* CE QUI VA ÊTRE ENREGISTRÉ, dit dès le sur-titre — le libellé est
+            l'INVARIANT du commutateur de la Carte (RUN / BIKE), donc identique
+            dans les cinq langues. `adjustsFontSizeToFit` garantit §A9 aux
+            tailles système agrandies : deux mots courts, jamais coupés. */}
+        <Text style={styles.kicker} numberOfLines={1} adjustsFontSizeToFit>
+          {`${t(M.briefKicker)} · ${ACTIVITY_LABELS[activity]}`}
         </Text>
         <View style={styles.spacer} />
         <Pressable
@@ -284,7 +319,15 @@ export function MissionBriefingSheet({
       {/* ── CTA unique (GO reste retiré tant que ce sheet est ouvert) ── */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t(M.briefStartA11y)}
+        // L'a11y est COMPOSÉE, jamais prise dans une phrase toute faite : le
+        // geste (`briefStart`) puis LA DISCIPLINE, comme le GO de la Carte —
+        // « Commencer la mission — sortie vélo ». L'ancienne clé figée disait
+        // « démarrer une course de conquête », fausse au mot près sous lentille
+        // vélo ; elle a été SUPPRIMÉE du catalogue le 26/07/2026, pas seulement
+        // délaissée (cf. `i18n/catalog/mission.ts`, qui en garde le motif). Ne
+        // pas la réintroduire : une phrase accessible qui nomme la course est un
+        // mensonge lu à voix haute.
+        accessibilityLabel={`${t(M.briefStart)} — ${t(ACTIVITY_NAME[activity])}`}
         onPress={() => {
           haptics.medium();
           onStart();
@@ -370,10 +413,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   // État d'absence : une PHRASE, pas une carte vide qui se lirait comme un bug.
-  stateBlock: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  stateBlock: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: sizes.touchTarget },
   stateText: { flex: 1, color: colors.gris, fontSize: 12.5, fontWeight: '600' },
 
-  linkHit: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  linkHit: { minHeight: sizes.touchTarget, justifyContent: 'center', alignSelf: 'flex-start' },
   link: { color: colors.gris, fontSize: 13, textDecorationLine: 'underline' },
 
   tactical: { color: colors.blanc, fontSize: 12.5, fontWeight: '600', marginTop: 2 },

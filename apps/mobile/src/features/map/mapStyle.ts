@@ -24,6 +24,7 @@ import {
   TERRITORY_TRACE_MIN_ZOOM,
   territoryGeoByState,
 } from './allTerritories';
+import { BASEMAP_SOURCE_ID, BASEMAP_TILEJSON_URL, grydNightStyleJson } from './grydBasemapStyle';
 import type { RealTerritory } from './hexClaims';
 import { sectorPaintRole, type RealSectorView } from './sectorView';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
@@ -31,14 +32,24 @@ import { type ModeEmphasis, type TerritoryState } from './territory';
 
 /**
  * Fonds de carte VECTORIELS disponibles (demande fondateur : « la carte en
- * couleur comme sur Plan d'iPhone »). Deux styles vectoriels de dev SANS CLÉ,
- * servis par les DEUX forks RealMap selon la préférence utilisateur (mapPref) :
- *   dark  — CARTO dark-matter : l'esthétique GRYD dark-first par DÉFAUT (le
- *           même styleURL qu'historiquement, surchargé aux tokens au chargement).
+ * couleur comme sur Plan d'iPhone »). Deux fonds, servis par les DEUX forks
+ * RealMap selon la préférence utilisateur (mapPref) :
+ *   dark  — GRYD Night : style EMBARQUÉ (grydBasemapStyle.ts), DÉRIVÉ de CARTO
+ *           dark-matter et de son schéma `carto.streets/v1`. Plus téléchargé,
+ *           plus patché, plus remonté — cf. le bloc « LABELS EN LANGUE LOCALE »
+ *           plus bas pour ce que ça remplace.
  *   color — CARTO Voyager : rues/parcs/eau colorés type Apple Plan / Google Maps
  *           (fond clair/beige — sur ce fond les traits de jeu chartreuse
  *           reçoivent un liseré sombre porteur, cf. `colorCasing` plus bas).
- * La prod passera à Protomaps (O6) en ne changeant QUE ces deux URLs.
+ *
+ * ⚠ Ces URLs ne sont plus symétriques :
+ *   · `dark` est la PROVENANCE du style embarqué (le document dont il est dérivé,
+ *     relu le 26/07/2026) — plus AUCUN fetch au démarrage ;
+ *   · `color` est le style RÉELLEMENT servi, et le seul encore téléchargé — à la
+ *     demande, quand l'utilisateur choisit ce fond (jamais sur le chemin critique
+ *     du premier écran).
+ * La prod passera à un provider dédié (O6) en ne changeant QUE l'URL du TileJSON
+ * (grydBasemapStyle) côté sombre, et cette URL côté clair.
  *
  * Le fond `satellite` (AMENDEMENT-28) n'est PAS ici : ce n'est pas un style
  * vectoriel mais une source RASTER (photos aériennes Esri) — il est construit à
@@ -94,14 +105,24 @@ export const SATELLITE_BASEMAP = {
  * éteindre). Retourné en objet (MapLibre accepte URL string OU StyleSpecification)
  * → aucun fichier de style à héberger, keyless de bout en bout.
  */
-// ─── Labels en langue LOCALE (retour terrain 20/07 : « la map est en anglais »)
+// ─── LABELS EN LANGUE LOCALE — et pourquoi le sombre n'a plus rien à télécharger
 //
-// Les styles CARTO GL (dark-matter / voyager) préfèrent `name_en` dans leurs
-// text-fields → villes/pays anglicisés. On télécharge le style UNE fois, on
-// remplace name_en par name (nom local : Paris reste Paris, München reste
-// München) et on sert la spec JSON patchée. Un style ne se REMPLACE PAS à chaud
-// (les couches de jeu seraient perdues — cf. key={basemap} de MapScreen) : les
-// consommateurs écoutent la révision et REMONTENT la carte quand c'est prêt.
+// Retour terrain 20/07 : « la map est en anglais ». Les styles CARTO GL préfèrent
+// `name_en` dans leurs text-fields → villes/pays anglicisés. Le correctif d'alors
+// téléchargeait le style à CHAQUE démarrage à froid, remplaçait `name_en` par
+// `name`, et les écrans REMONTAIENT la carte quand la spec patchée arrivait.
+//
+// 26/07/2026 — le fond SOMBRE (le défaut, donc le premier écran de l'app) ne passe
+// plus par là : son style est ÉCRIT (`grydBasemapStyle.ts`), `{name}` compris. Zéro
+// requête de style, zéro patch, zéro remount sur le chemin critique. Mesure avant
+// correctif en preview : 3 requêtes `style.json` (dark ×2 + voyager ×1) pour un
+// seul fond affiché — les deux styles étaient préchargés quel que soit le fond actif.
+//
+// Il ne reste ici QUE le fond CLAIR (Voyager), qui garde exactement l'ancien
+// mécanisme — mais À LA DEMANDE : rien n'est téléchargé tant que l'utilisateur n'a
+// pas choisi ce fond. Un style ne se REMPLACE PAS à chaud (les couches de jeu
+// seraient perdues — cf. key={basemap} de MapScreen) : les consommateurs écoutent
+// la révision et REMONTENT la carte quand c'est prêt.
 const localizedSpecs = new Map<BasemapKey, string>();
 const inFlight = new Set<BasemapKey>();
 const specListeners = new Set<() => void>();
@@ -112,7 +133,7 @@ function bumpSpecRevision(): void {
   for (const l of specListeners) l();
 }
 
-async function fetchAndLocalize(key: 'dark' | 'color'): Promise<void> {
+async function fetchAndLocalize(key: 'color'): Promise<void> {
   if (localizedSpecs.has(key) || inFlight.has(key)) return;
   inFlight.add(key);
   try {
@@ -135,15 +156,33 @@ async function fetchAndLocalize(key: 'dark' | 'color'): Promise<void> {
   }
 }
 
-/** Précharge les styles localisés (appelé au montage de la carte, jamais à l'import). */
-export function prefetchLocalizedBasemaps(): void {
-  void fetchAndLocalize('dark');
-  void fetchAndLocalize('color');
+/**
+ * Prépare le style d'un fond. Appelée au montage de la carte, jamais à l'import.
+ *
+ * ⚠ Ne précharge PLUS rien sans qu'on lui dise quoi. Sans argument (les deux
+ * MapScreen l'appellent ainsi) elle ne fait RIEN : le sombre est embarqué, et
+ * précharger le clair « au cas où » ferait exactement ce qu'on vient de retirer —
+ * une requête de 107 Ko hors du chemin critique, suivie d'un remount de la carte
+ * sombre pour un fond que l'utilisateur n'a pas demandé. Les forks RealMap
+ * l'appellent, eux, AVEC le fond réellement affiché.
+ */
+export function prefetchLocalizedBasemaps(basemap?: BasemapKey): void {
+  if (basemap === 'color') void fetchAndLocalize('color');
 }
 
-/** Spec localisée si disponible, sinon undefined (l'appelant retombe sur l'URL). */
+/**
+ * Style à servir pour ce fond, sous forme de spec JSON — ou `undefined` si
+ * l'appelant doit retomber sur l'URL brute.
+ *   · `dark`      → le style GRYD EMBARQUÉ, disponible IMMÉDIATEMENT (jamais
+ *                   `undefined` : aucune course, aucun premier rendu en anglais) ;
+ *   · `color`     → la spec Voyager localisée si le téléchargement a abouti ;
+ *   · `satellite` → `undefined` (raster construit par `satelliteStyleSpec`).
+ * Fonction PURE : elle ne déclenche aucun réseau (c'est `prefetchLocalizedBasemaps`
+ * qui le fait, explicitement).
+ */
 export function localizedBasemapSpec(key: BasemapKey): string | undefined {
-  return key === 'dark' || key === 'color' ? localizedSpecs.get(key) : undefined;
+  if (key === 'dark') return grydNightStyleJson();
+  return key === 'color' ? localizedSpecs.get(key) : undefined;
 }
 
 /** Révision des specs localisées — s'abonner pour remonter la carte quand prêt. */
@@ -223,18 +262,25 @@ export const SATELLITE_DIM = {
  * sans fallback ni source alternative. Le DEM (relief) vient d'AWS Terrarium.
  */
 export const MAP_3D = {
-  /** Id de la source vectorielle CARTO (identique dark-matter & Voyager). */
-  vectorSourceId: 'carto',
+  /**
+   * Id de la source vectorielle CARTO. Vient de `grydBasemapStyle` : le style
+   * SOMBRE est désormais écrit par nous, et c'est CETTE constante qui garantit
+   * que le fork web y retrouve bien sa source pour extruder les bâtiments (le
+   * Voyager distant utilise le même id `carto`). Un renommage d'un côté sans
+   * l'autre éteindrait le 3D en silence — le lien de code l'interdit.
+   */
+  vectorSourceId: BASEMAP_SOURCE_ID,
   /** Source-layer OpenMapTiles des empreintes de bâtiments (avec hauteurs). */
   buildingSourceLayer: 'building',
   /**
-   * TileJSON de la source vectorielle CARTO (keyless — HTTP 200 vérifié). Le
-   * fork WEB réutilise la source `carto` DÉJÀ dans le style (setStyle la remonte)
-   * ; le fork NATIF, lui, monte sa PROPRE `VectorSource` pointant cette URL (id
-   * dédié `dem/buildings`) car il ne peut pas référencer la source interne du
-   * style par nom. Même schéma OpenMapTiles → mêmes champs `render_height`.
+   * TileJSON de la source vectorielle CARTO (keyless — HTTP 200 revérifié le
+   * 26/07/2026 : schéma `carto.streets/v1`, maxzoom 14, source-layer `building`
+   * avec `render_height`/`render_min_height`/`hide_3d`). Le fork WEB réutilise la
+   * source `carto` DÉJÀ dans le style ; le fork NATIF, lui, monte sa PROPRE
+   * `VectorSource` pointant cette URL (id dédié) car il ne peut pas référencer la
+   * source interne du style par nom. Même document que le style embarqué.
    */
-  vectorTileJsonUrl: 'https://tiles.basemaps.cartocdn.com/vector/carto.streets/v1/tiles.json',
+  vectorTileJsonUrl: BASEMAP_TILEJSON_URL,
   /** Id de la source vectorielle DÉDIÉE au fork natif (évite le clash avec `carto`). */
   nativeVectorSourceId: 'gryd-3d-vector',
   /**

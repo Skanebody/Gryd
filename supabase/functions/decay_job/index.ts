@@ -9,7 +9,12 @@
  * Toute la logique vit dans logic.ts — ce fichier ne fait que de l'I/O.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
-import { DECAY_WARNING_DAYS_BEFORE } from '../_shared/game-rules.ts';
+import {
+  ACTIVITIES,
+  type Activity,
+  DECAY_WARNING_DAYS_BEFORE,
+  DEFAULT_ACTIVITY,
+} from '../_shared/game-rules.ts';
 import { secretsMatch } from '../_shared/secret.ts';
 import { sendExpoPush } from '../_shared/expo-push.ts';
 import {
@@ -20,7 +25,13 @@ import {
   type PushLocale,
   type NotifChannel,
 } from '../_shared/push.ts';
-import { type DecayHexRow, partitionDecay } from './logic.ts';
+import {
+  buildDecayWarningBody,
+  type DecayHexKey,
+  type DecayHexRow,
+  groupKeysByActivity,
+  partitionDecay,
+} from './logic.ts';
 
 const MS_PER_DAY = 86_400_000;
 const DB_CHUNK = 500; // taille des batches pour les clauses `in(...)`
@@ -48,6 +59,52 @@ function chunk<T>(arr: readonly T[], size: number): T[][] {
 
 const isPushLocale = (v: unknown): v is PushLocale =>
   typeof v === 'string' && (PUSH_LOCALES as readonly string[]).includes(v);
+
+const isActivity = (v: unknown): v is Activity =>
+  typeof v === 'string' && (ACTIVITIES as readonly string[]).includes(v);
+
+/**
+ * Discipline d'une ligne `hex_claims` lue en base.
+ *
+ * · ABSENTE (null/undefined) ⇒ `run`. Ce n'est pas un repli prudent, c'est un
+ *   FAIT : tout ce qui existait avant la migration 0070 est de la course à pied
+ *   (`default 'run'`), et le vélo n'a jamais pu être ingéré avant elle.
+ * · ILLISIBLE (valeur hors ACTIVITIES) ⇒ on LÈVE. La contrainte
+ *   `hex_claims_activity_check` rend le cas impossible en base ; s'il survenait
+ *   quand même, traiter la ligne comme de la course la ferait écrire dans le
+ *   MAUVAIS monde — c'est-à-dire neutraliser ou marquer une zone qui n'est pas
+ *   celle-là. Un job qui s'arrête se voit ; une zone effacée par erreur, non.
+ */
+function readActivity(value: unknown): Activity {
+  if (value === null || value === undefined) return DEFAULT_ACTIVITY;
+  if (isActivity(value)) return value;
+  throw new Error(`hex_claims read: discipline illisible « ${value} »`);
+}
+
+/**
+ * Écrit une mise à jour sur `hex_claims` UNE DISCIPLINE À LA FOIS.
+ *
+ * Depuis 0070 la clé primaire est `(h3index, activity)` : un `.in('h3index', …)`
+ * seul frappe les DEUX lignes d'un hexagone tenu à la fois à pied et à vélo. Ce
+ * helper existe pour qu'aucun appelant n'ait à s'en souvenir — la discipline
+ * fait partie du prédicat, toujours.
+ */
+async function updateClaimsScoped(
+  keys: readonly DecayHexKey[],
+  patch: Record<string, unknown>,
+  label: string,
+): Promise<void> {
+  for (const [activity, ids] of groupKeysByActivity(keys)) {
+    for (const batch of chunk(ids, DB_CHUNK)) {
+      const { error } = await supabase
+        .from('hex_claims')
+        .update(patch)
+        .in('h3index', batch)
+        .eq('activity', activity);
+      if (error) throw new Error(`${label} (${activity}): ${error.message}`);
+    }
+  }
+}
 
 interface DecayDelivery {
   pushedUsers: number;
@@ -175,15 +232,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ── Lecture : seuls les hexes dont la fenêtre J-3 est atteinte (ou échus)
     // nous intéressent — le prédicat exact est redécidé par partitionDecay.
     const horizon = new Date(now.getTime() + DECAY_WARNING_DAYS_BEFORE * MS_PER_DAY);
+    // La lecture reste TOUTES DISCIPLINES CONFONDUES, volontairement : une
+    // échéance échue est échue, quel que soit le monde (l'index
+    // `hex_claims_decay_idx (decay_at)` est resté non discipliné pour ça, 0070).
+    // C'est l'ÉCRITURE qui doit se restreindre, et elle le fait ligne par ligne.
     const { data, error } = await supabase
       .from('hex_claims')
-      .select('h3index, owner_user_id, decay_at, decay_warned_at')
+      .select('h3index, activity, owner_user_id, decay_at, decay_warned_at')
       .not('decay_at', 'is', null)
       .lte('decay_at', horizon.toISOString());
     if (error) throw new Error(`hex_claims read: ${error.message}`);
 
     const rows: DecayHexRow[] = (data ?? []).map((r) => ({
       id: String(r.h3index),
+      activity: readActivity(r.activity),
       ownerUserId: r.owner_user_id,
       decayAt: r.decay_at ? new Date(r.decay_at) : null,
       decayWarnedAt: r.decay_warned_at ? new Date(r.decay_warned_at) : null,
@@ -194,22 +256,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // ── Neutralisation : update, PAS delete — la ligne conservée garde la
     // mémoire « déjà possédé » (pas de re-bonus pionnier après decay).
-    for (const batch of chunk(toNeutralize.map((h) => h.id), DB_CHUNK)) {
-      const { error: neutralizeError } = await supabase
-        .from('hex_claims')
-        .update({
-          owner_user_id: null,
-          crew_color_cache: null,
-          locked_until: null,
-          shielded_until: null,
-          decay_at: null,
-          decay_warned_at: null,
-        })
-        .in('h3index', batch);
-      if (neutralizeError) throw new Error(`hex_claims neutralize: ${neutralizeError.message}`);
-    }
+    // PAR DISCIPLINE : neutraliser la zone échue d'un coureur ne doit pas
+    // effacer la zone encore vivante du cycliste sur le même hexagone.
+    await updateClaimsScoped(
+      toNeutralize.map((h) => ({ id: h.id, activity: h.activity })),
+      {
+        owner_user_id: null,
+        crew_color_cache: null,
+        locked_until: null,
+        shielded_until: null,
+        decay_at: null,
+        decay_warned_at: null,
+      },
+      'hex_claims neutralize',
+    );
 
     // ── Notifications groupées : 1 « ton quartier s'efface » par joueur ──────
+    // Le CONTENU, lui, est discipliné : un compte par monde, jamais leur somme
+    // (0071 — E14, `ACTIVITY_SCOPE.territory = 'per_activity'`). Aucun nombre
+    // « tous mondes confondus » ne sort d'ici : le payload porte le détail, la
+    // copie l'énonce, et rien n'additionne.
     if (warnings.length > 0) {
       const { error: notifError } = await supabase.from('notifications').insert(
         warnings.map((w) => ({
@@ -218,10 +284,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
           priority: DECAY_WARNING_PRIORITY,
           payload: {
             title: 'Ton quartier s’efface',
-            body: w.hexCount === 1
-              ? '1 hex redevient neutre dans 3 jours. Repasse dessus pour le défendre.'
-              : `${w.hexCount} hexes redeviennent neutres bientôt. Repasse dessus pour les défendre.`,
-            hexCount: w.hexCount,
+            body: buildDecayWarningBody(w, now),
+            // Comptes PAR MONDE, exploitables par l'app (ouvrir la carte sur la
+            // bonne discipline). L'ancien `hexCount` mêlé n'existe plus : un
+            // client ne peut donc plus le réafficher par mégarde.
+            byActivity: w.perActivity.map((p) => ({
+              activity: p.activity,
+              hexCount: p.hexCount,
+              earliestDecayAt: p.earliestDecayAt.toISOString(),
+            })),
             earliestDecayAt: w.earliestDecayAt.toISOString(),
             cta: 'defend',
           },
@@ -229,27 +300,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
       if (notifError) throw new Error(`notifications insert: ${notifError.message}`);
 
-      // Marquage anti double-warning (cycle courant, cf. logic.ts).
-      const warnedIds = warnings.flatMap((w) => w.hexIds);
-      for (const batch of chunk(warnedIds, DB_CHUNK)) {
-        const { error: markError } = await supabase
-          .from('hex_claims')
-          .update({ decay_warned_at: now.toISOString() })
-          .in('h3index', batch);
-        if (markError) throw new Error(`hex_claims mark warned: ${markError.message}`);
-      }
+      // Marquage anti double-warning (cycle courant, cf. logic.ts). PAR
+      // DISCIPLINE : sans ça, une passe de course marquerait « déjà prévenue »
+      // la ligne vélo du même hexagone — dont l'échéance est peut-être
+      // lointaine —, et le cycliste perdrait SON avertissement. Le garde-fou
+      // SQL de 0070 ne couvre que le cas « aucune échéance », pas celui-là.
+      await updateClaimsScoped(
+        warnings.flatMap((w) => w.hexKeys),
+        { decay_warned_at: now.toISOString() },
+        'hex_claims mark warned',
+      );
     }
 
     // ── Livraison push : aller chercher le joueur AVANT qu'il perde sa zone ──
     // L'inbox est déjà écrite ci-dessus ; le push n'est qu'un raccourci vers
     // elle. Un échec de livraison ne doit donc JAMAIS faire échouer le job de
     // decay lui-même (les hexes sont déjà neutralisés/marqués).
+    //
+    // TOUS LES JOUEURS AVERTIS SONT POUSSÉS (26/07/2026). Ça n'a pas toujours
+    // été vrai, et le rappeler évite qu'on rétablisse le filtre par prudence
+    // mal placée : tant que `DECAY_COPY` (_shared/push.ts) n'avait qu'UNE
+    // formulation — « {n} zones… Une course dessus les garde. » —, pousser à un
+    // cycliste lui aurait prescrit une action qui NE SAUVE PAS sa zone, et
+    // pousser à un joueur menacé dans les deux mondes aurait exigé la somme
+    // que E14 interdit. Le job ne poussait donc que la menace entièrement à
+    // pied : honnête, mais la moitié du jeu perdait son territoire sans
+    // avertissement. La copie existe désormais par discipline ET pour la
+    // menace mixte ; le filtre n'a plus de raison d'être, et le retirer est le
+    // correctif — pas un relâchement.
     let delivery: DecayDelivery = { pushedUsers: 0, suppressed: 0 };
     try {
       delivery = await deliverDecayPushes(
+        // Le compte reste PAR MONDE de bout en bout : `perActivity` passe tel
+        // quel, aucun total mêlé n'est reconstruit pour l'occasion.
         warnings.map((w) => ({
           userId: w.userId,
-          hexCount: w.hexCount,
+          perActivity: w.perActivity,
           earliestDecayAt: w.earliestDecayAt,
         })),
         now,
@@ -268,8 +354,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({
       neutralized: toNeutralize.length,
       warnedUsers: warnings.length,
-      warnedHexes: warnings.reduce((n, w) => n + w.hexCount, 0),
+      // PAR MONDE, y compris dans l'observabilité : un total mêlé ferait mentir
+      // les métriques du job comme il faisait mentir la notification (0071).
+      warnedHexesByActivity: Object.fromEntries(
+        ACTIVITIES.map((a) => [
+          a,
+          warnings.reduce(
+            (n, w) => n + (w.perActivity.find((p) => p.activity === a)?.hexCount ?? 0),
+            0,
+          ),
+        ]),
+      ),
       // Observabilité honnête : « averti en inbox » ≠ « poussé sur le téléphone ».
+      // Tout écart entre `warnedUsers` et `pushedUsers` s'explique désormais par
+      // les seules préférences du joueur (canal, quiet hours, cap) — comptées
+      // dans `pushSuppressed` —, plus jamais par un trou de copie.
       pushedUsers: delivery.pushedUsers,
       pushSuppressed: delivery.suppressed,
       pushTransportError: delivery.transportError,

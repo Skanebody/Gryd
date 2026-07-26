@@ -3,8 +3,8 @@
  * « Ajuster »). Une seule décision : quelle boucle je cours, et je pars.
  *
  * ─── ORDRE DE COMPOSITION ──────────────────────────────────────────────────────
- *  1. EN-TÊTE — retour · kicker « OBJECTIF · LIEU » · KPI kilomètres (le seul
- *     grand chiffre de l'écran) · UNE ligne de contexte grise.
+ *  1. EN-TÊTE — retour · kicker « OBJECTIF · DISCIPLINE · LIEU » · KPI kilomètres
+ *     (le seul grand chiffre de l'écran) · UNE ligne de contexte grise.
  *  2. CARTE — le tracé RÉEL, ou l'état qui dit pourquoi il n'y en a pas.
  *  3. DÉPART — champ d'état (position / recherche / échec) tappable pour relancer.
  *  4. MÉTRIQUES — UN bloc à séparateurs (`SheetMetrics`), zéro contenant.
@@ -64,10 +64,43 @@
  * · La planche décrit une SHEET à 58 % posée sur la carte ; ici l'écran est plein.
  *   E05 renvoie explicitement « Ajuster » vers le planificateur en sheet 90 %, et
  *   la sheet de briefing existe déjà, recalée (`map/MissionBriefingSheet.tsx`).
- * · « Bike absent (feature flag) » — respecté : aucun commutateur ici.
+ * · « Bike absent (feature flag) » — CADUC depuis le 26/07/2026 (cf. § DISCIPLINE
+ *   plus bas) : le vélo existe, et il n'y a toujours aucun commutateur ici — la
+ *   discipline vient de l'écran appelant, pas d'un réglage local.
  * · Le KPI et la ligne de contexte disparaissent tant qu'aucun tracé n'existe :
  *   la planche montre un écran déjà peuplé, et un « — » en gros chiffre serait la
  *   valeur nulle que la loi 15 interdit.
+ *
+ * ─── LA DISCIPLINE (E14, 26/07/2026) ──────────────────────────────────────────
+ * L'écart « Bike absent (feature flag) » ci-dessus est CLOS : le vélo est une
+ * discipline réelle, et cet écran en est un chemin de départ à part entière.
+ * Trois conséquences, toutes structurelles :
+ *
+ *  1. IL NE POSSÈDE PAS DE COMMUTATEUR. Le planificateur n'est pas un onglet :
+ *     il n'a pas de lentille à lui. Sa discipline lui est TRANSMISE par l'écran
+ *     qui l'ouvre, via le paramètre d'URL contractuel `START_ACTIVITY_PARAM`
+ *     (`?activity=bike`), relu ici par `parseStartActivity`. Un chemin muet vaut
+ *     course à pied — exactement le comportement d'avant le vélo.
+ *  2. TOUTES LES DISTANCES SONT CELLES DE LA DISCIPLINE
+ *     (`features/route/activityPlanning.ts`, qui lit `activityRouting()` dans
+ *     game-rules). Avant ce chantier, une lentille vélo se voyait proposer une
+ *     boucle de 3 km routée au profil PIÉTON : sous le périmètre minimal d'une
+ *     boucle vélo (5 000 m), donc structurellement incapturable. L'écran
+ *     promettait un effort que le moteur ne pouvait pas récompenser.
+ *  3. LE DÉPART DÉCLARE. Le CTA pousse `plannerStartHref(intention, activity)` —
+ *     la même déclaration que le GO de la Carte, et le préflight l'AFFICHE
+ *     trois secondes avant le premier mètre, corrigeable d'un tap.
+ *  4. L'ÉCRAN NE SE CONTREDIT PLUS (correctif du 26/07 au soir). Il affichait
+ *     déjà « BIKE » dans son kicker (`ACTIVITY_LABELS[activity]`) et rendait
+ *     pourtant, SANS CONDITION, « Pourquoi cette course », « Ajuster la course »
+ *     (texte visible ET libellé lu à voix haute) et « Objectif de la course ».
+ *     Ces trois-là passent par `features/route/plannerCopy.ts` — une dérivation
+ *     PURE et testée, qui les fait basculer ENSEMBLE. Les deux phrases restantes
+ *     qui nomment des « courses » (`whyLearned`, `whyDefaultLearning`) ne sont
+ *     PAS twinées, et c'est un refus argumenté : sous lentille vélo elles sont
+ *     structurellement inatteignables (`useRouteSuggestion` refuse la source
+ *     d'habitudes, qui mélange les disciplines) — cf. `catalog/route.ts` et le
+ *     test d'atteignabilité de `plannerCopy.test.ts`.
  *
  * ─── LES QUATRE ÉTATS, JAMAIS FONDUS ──────────────────────────────────────────
  * Cet écran ne lit ni compte ni territoire : son 1ᵉʳ état (« pas connecté ») ne
@@ -105,8 +138,15 @@ import {
   sizes,
   spacing,
   typography,
+  type Activity,
   type IconName,
 } from '@klaim/shared';
+import { ACTIVITY_LABELS } from '../src/ui/activityLens';
+import {
+  parseStartActivity,
+  START_ACTIVITY_PARAM,
+} from '../src/features/run/gps/runActivity';
+import { ACTIVITY_NAME } from '../src/i18n/catalog/runGps';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
@@ -117,13 +157,17 @@ import { formatKm } from '../src/ui/format';
 import { SheetMetrics, type SheetMetric } from '../src/features/map/SheetMetrics';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 import { RoutePlannerMap } from '../src/features/route/RoutePlannerMap';
+import { PLANNER_INTENTION_LABELS, generatedReasons } from '../src/features/route/generator';
 import {
-  GEN_MAX_KM,
-  GEN_MIN_KM,
-  GEN_STEP_KM,
-  PLANNER_INTENTION_LABELS,
-  generatedReasons,
-} from '../src/features/route/generator';
+  clampPlannerKm,
+  plannerBounds,
+  plannerFormatsKm,
+} from '../src/features/route/activityPlanning';
+import { plannerStartHref } from '../src/features/route/startTargets';
+// LES TROIS TEXTES QUI NOMMENT L'EFFORT, choisis par la discipline (pur, testé).
+// Ils étaient rendus SANS CONDITION : l'écran affichait « BIKE » dans son kicker
+// et « cette course » quatre lignes plus bas.
+import { plannerDisciplineCopy } from '../src/features/route/plannerCopy';
 import { useRouteSuggestion } from '../src/features/route/useRouteSuggestion';
 import { runsBeforeLearning, type RouteSuggestion } from '../src/features/route/suggestion';
 import { estimatedMinutes, plannerMetricKeys } from '../src/features/route/estimation';
@@ -149,15 +193,6 @@ const MAP_HEIGHT = 250;
  * unique, et une évolution de la charte se propage ici sans intervention.
  */
 const STAT = { ...typography.stat, fontVariant: [...typography.stat.fontVariant] };
-
-/**
- * Les deux FORMATS fixes proposés à côté de la distance recommandée (km).
- * MESURES DE COMPOSITION : ce sont des alternatives de longueur, elles ne
- * rapportent rien et n'entrent dans aucun calcul de jeu. C'est précisément
- * pourquoi le troisième ne s'appelle plus « Max points ».
- */
-const PLAN_SHORT_KM = 2;
-const PLAN_LONG_KM = 5;
 
 /**
  * Écart (km) en deçà duquel un format est considéré comme « celui en cours ».
@@ -199,13 +234,16 @@ let positionProvenThisSession = false;
  * distance issue de `useRouteSuggestion` (réglage manuel, sinon habitudes
  * apprises, sinon défaut assumé, et la phrase affichée dit toujours laquelle).
  * Les deux autres restent des FORMATS fixes — des alternatives explicites, pas
- * des recommandations, donc rien à personnaliser.
+ * des recommandations, donc rien à personnaliser. Ils viennent de la table
+ * SOURCÉE de la discipline (`plannerFormatsKm`) et non plus de deux nombres
+ * écrits ici : à vélo, « Courte · 2 km » proposait une boucle incapturable.
  */
-function planPresets(recommendedKm: number) {
+function planPresets(recommendedKm: number, activity: Activity) {
+  const { shortKm, longKm } = plannerFormatsKm(activity);
   return [
     { key: 'recommandee', label: C.planRecommended, km: recommendedKm },
-    { key: 'courte', label: C.planShort, km: PLAN_SHORT_KM },
-    { key: 'longue', label: C.planLong, km: PLAN_LONG_KM },
+    { key: 'courte', label: C.planShort, km: shortKm },
+    { key: 'longue', label: C.planLong, km: longKm },
   ] as const;
 }
 
@@ -253,13 +291,31 @@ function SectionHead({
   );
 }
 
-const clampKm = (km: number) => Math.min(GEN_MAX_KM, Math.max(GEN_MIN_KM, km));
-
 export default function RoutePlannerScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const t = useT();
-  const params = useLocalSearchParams<{ type?: string }>();
+  const params = useLocalSearchParams<{ type?: string; activity?: string }>();
+
+  /**
+   * DISCIPLINE DE CET ÉCRAN, déclarée par le chemin qui l'a ouvert. Lecture
+   * DÉFENSIVE (`parseStartActivity`) : une valeur inconnue ou absente vaut
+   * course à pied, donc tout lien existant garde son sens exact. Cet écran ne
+   * lit AUCUNE préférence de carte — l'interdit du 25/07 (une préférence
+   * d'affichage ne décide jamais en silence de la nature d'un effort) vaut ici
+   * autant qu'au départ.
+   */
+  const activity: Activity = parseStartActivity(params[START_ACTIVITY_PARAM]);
+  /**
+   * LES TEXTES QUI NOMMENT L'EFFORT, dans la discipline de CET écran. Ils
+   * partent ensemble : les dériver séparément permettrait qu'un seul reste en
+   * arrière, et l'écran se contredirait à nouveau — c'est exactement ce qui
+   * s'est produit (le kicker disait déjà la discipline, ces trois-là non).
+   */
+  const disciplineCopy = plannerDisciplineCopy(activity);
+  /** Bornes de LA DISCIPLINE (game-rules) — plus aucun nombre écrit à la main. */
+  const bounds = plannerBounds(activity);
+  const clampKm = (km: number) => clampPlannerKm(activity, km);
 
   // Origine : `null` tant que rien n'est confirmé — aucun tracé fantôme Paris.
   const [origin, setOrigin] = useState<OriginPoint | null>(null);
@@ -268,7 +324,7 @@ export default function RoutePlannerScreen() {
   const [intention, setIntention] = useState<PlannerIntention>(
     params.type === 'defense' ? 'defendre' : 'conquerir',
   );
-  const [targetKm, setTargetKm] = useState(GEN_MIN_KM);
+  const [targetKm, setTargetKm] = useState(bounds.minKm);
   const [distanceDraft, setDistanceDraft] = useState('');
   const [seed, setSeed] = useState(1);
   const [route, setRoute] = useState<PlannedLoop | null>(null);
@@ -281,10 +337,10 @@ export default function RoutePlannerScreen() {
 
   // Distance PROPOSÉE + son allure + leur raison (features/route/suggestion.ts).
   // Une seule source : la phrase affichée ne peut pas contredire le chiffre.
-  const { suggestion, loading: suggestionLoading } = useRouteSuggestion();
+  const { suggestion, loading: suggestionLoading } = useRouteSuggestion(activity);
 
   // Formats : la « Recommandée » porte la distance PERSONNALISÉE.
-  const presets = planPresets(suggestion.km);
+  const presets = planPresets(suggestion.km, activity);
 
   const reqIdRef = useRef(0);
   const liveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -299,7 +355,9 @@ export default function RoutePlannerScreen() {
     setSeed(sd);
     const id = ++reqIdRef.current;
     setRouting(true);
-    void routeLoop(o.point, o.label, c, intent, sd)
+    // La discipline décide le PROFIL de routage : un cycliste routé au profil
+    // piéton reçoit un tracé que personne ne peut suivre (escaliers, passages).
+    void routeLoop(o.point, o.label, c, intent, sd, activity)
       .then((r) => {
         if (id !== reqIdRef.current) return;
         setRouting(false);
@@ -408,7 +466,14 @@ export default function RoutePlannerScreen() {
     setNearbyLoading(true);
     void Promise.all(
       spreads.map((s, i) =>
-        routeLoop(origin.point, origin.label, clampKm(targetKm * s), intention, seed * 10 + i + 2),
+        routeLoop(
+          origin.point,
+          origin.label,
+          clampKm(targetKm * s),
+          intention,
+          seed * 10 + i + 2,
+          activity,
+        ),
       ),
     )
       .then((list) => {
@@ -426,7 +491,7 @@ export default function RoutePlannerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [adjustOpen, origin, targetKm, intention, seed]);
+  }, [adjustOpen, origin, targetKm, intention, seed, activity]);
 
   const recentrer = () => {
     haptics.light();
@@ -493,12 +558,19 @@ export default function RoutePlannerScreen() {
     // Le tracé n'est PAS transmis à la course : `ingest_run` décide la capture
     // sur la boucle réellement fermée, jamais sur le respect d'un itinéraire
     // conseillé (E07). Passer un « parcours armé » l'aurait laissé croire.
-    const intent = intention === 'defendre' ? 'defense' : 'conquest';
-    router.push(`/course-live?mode=conquete&intention=${intent}`);
+    //
+    // La DISCIPLINE, elle, voyage — c'est tout le correctif du 26/07. Ce bouton
+    // poussait `/course-live?mode=conquete&intention=…` sans déclaration : une
+    // sortie préparée en vélo, sur des distances vélo, partait enregistrée
+    // comme une course à pied. `plannerStartHref` porte la même déclaration que
+    // le GO de la Carte, et le préflight l'affiche avant le premier mètre.
+    router.push(plannerStartHref(intention, activity));
   };
 
   const intentionLabel = t(PLANNER_INTENTION_LABELS[intention]);
-  const reasons = route ? generatedReasons(route.distanceKm) : [];
+  /** Nom de la discipline en toutes lettres (5 langues) — pour les lecteurs d'écran. */
+  const activityName = t(ACTIVITY_NAME[activity]);
+  const reasons = route ? generatedReasons(route.distanceKm, activity) : [];
 
   // Format effectivement en cours = le plus proche du tracé, et lui seul —
   // à condition de rester dans la tolérance (sinon aucun format n'est « choisi »).
@@ -555,7 +627,15 @@ export default function RoutePlannerScreen() {
   // INTROUVABLE » répétait en sur-titre ce que la ligne de contexte, le champ
   // DÉPART, sa note et le toast disaient déjà : quatre fois la même phrase.
   const placeLabel = route?.zone ?? origin?.label ?? null;
-  const kickerText = [intentionLabel, placeLabel].filter((s): s is string => !!s).join(' · ');
+  // La DISCIPLINE est dite ici, TOUJOURS et dans les deux mondes : c'est
+  // l'endroit où le joueur lit déjà ce qu'il prépare, et l'écran entier (ses
+  // distances, son tracé) en dépend. Le libellé est l'INVARIANT du commutateur
+  // de la Carte (RUN / BIKE) — le même mot au même endroit du cerveau, et il ne
+  // respire pas différemment selon la langue (§A9). Le nom en toutes lettres,
+  // lui, est porté par le libellé d'accessibilité du CTA.
+  const kickerText = [intentionLabel, ACTIVITY_LABELS[activity], placeLabel]
+    .filter((s): s is string => !!s)
+    .join(' · ');
   const originLabel =
     gps === 'locating'
       ? t(C.locating)
@@ -721,7 +801,7 @@ export default function RoutePlannerScreen() {
              proposition, pas du routage. */}
         {reasons.length > 0 ? (
           <>
-            <SectionHead icon="info" label={t(C.secWhy)} />
+            <SectionHead icon="info" label={t(disciplineCopy.why)} />
             <View style={styles.reasonRow}>
               {reasons.map((reason) => (
                 <View key={reason.fr} style={styles.reason}>
@@ -749,7 +829,7 @@ export default function RoutePlannerScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: adjustOpen }}
-            accessibilityLabel={t(C.adjustRun)}
+            accessibilityLabel={t(disciplineCopy.adjust)}
             onPress={() => {
               haptics.light();
               setAdjustOpen((o) => !o);
@@ -757,7 +837,7 @@ export default function RoutePlannerScreen() {
             style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}
           >
             <Icon name="reglages" size={iconSizes.sm} color={colors.gris} />
-            <Text style={styles.adjustLabel}>{t(C.adjustRun)}</Text>
+            <Text style={styles.adjustLabel}>{t(disciplineCopy.adjust)}</Text>
             <View style={adjustOpen ? styles.chevUp : styles.chevDown}>
               <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
             </View>
@@ -772,7 +852,7 @@ export default function RoutePlannerScreen() {
               value={intention}
               onChange={selectIntention}
               tone="surface"
-              accessibilityLabel={t(C.a11yObjectiveGroup)}
+              accessibilityLabel={t(disciplineCopy.objectiveA11y)}
             />
 
             <SectionHead icon="reglages" label={t(C.secExactDistance)} />
@@ -780,7 +860,7 @@ export default function RoutePlannerScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t(C.a11yDecreaseDistance)}
-                onPress={() => stepDistance(-GEN_STEP_KM)}
+                onPress={() => stepDistance(-bounds.stepKm)}
                 style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}
               >
                 <Text style={styles.stepSign}>−</Text>
@@ -801,14 +881,19 @@ export default function RoutePlannerScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t(C.a11yIncreaseDistance)}
-                onPress={() => stepDistance(GEN_STEP_KM)}
+                onPress={() => stepDistance(bounds.stepKm)}
                 style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}
               >
                 <Text style={styles.stepSign}>+</Text>
               </Pressable>
             </View>
+            {/* Les DEUX bornes sont formatées : le plafond vélo (210,975 km)
+                s'écrirait sinon avec ses trois décimales de dérivation. */}
             <Text style={styles.hint}>
-              {t(C.distanceRangeHint, { min: formatKm(GEN_MIN_KM) ?? '', max: GEN_MAX_KM })}
+              {t(C.distanceRangeHint, {
+                min: formatKm(bounds.minKm) ?? '',
+                max: formatKm(bounds.maxKm) ?? '',
+              })}
             </Text>
 
             {/* En-tête de section + LIEN TEXTE à droite (loi 7) — jamais un
@@ -855,7 +940,14 @@ export default function RoutePlannerScreen() {
           label={ctaLabel}
           onPress={onCtaPress}
           variant="primary"
-          accessibilityLabel={cta === 'start' ? t(C.a11yStart, { verb: intentionLabel }) : ctaLabel}
+          // Le lecteur d'écran entend CE QUI VA ÊTRE ENREGISTRÉ, comme sur le GO
+          // de la Carte : « Conquérir · sortie vélo — démarrer ». Un verbe nu
+          // laisserait le seul indice de discipline à un kicker visuel.
+          accessibilityLabel={
+            cta === 'start'
+              ? t(C.a11yStart, { verb: `${intentionLabel} · ${activityName}` })
+              : ctaLabel
+          }
           loading={cta === 'routing' || gps === 'locating'}
           analyticsId={ctaAnalyticsId}
         />

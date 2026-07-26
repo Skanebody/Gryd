@@ -36,9 +36,7 @@ import {
   VERIFY_PARTIAL_MIN,
   LOOP_MIN_GPS_TRUST,
   LOOP_MIN_WIDTH_M,
-  LOOP_MAX_AREA_CAP_KM2,
   LOOP_CLOSE_TOLERANCE_M,
-  RUN_MIN_DISTANCE_M,
   RUN_MIN_DURATION_S,
   FRONTIER_COVERAGE_BUFFER_M,
   FINISHER_MIN_SEGMENT_M,
@@ -186,23 +184,32 @@ export function widthMinLabel(): string {
   return metersLabel(LOOP_MIN_WIDTH_M);
 }
 
-/** Plafond dur d'aire capturable : « 3 km² ». */
-export function loopMaxAreaCapLabel(): string {
-  return `${frNum(LOOP_MAX_AREA_CAP_KM2)} km²`;
-}
-
-/** Tolérance de fermeture départ/arrivée : « 80 m ». */
+/**
+ * Tolérance de fermeture départ/arrivée : « 80 m ».
+ * IDENTIQUE dans les deux disciplines (BIKE_LOOP_CLOSE_TOLERANCE_M référence
+ * LOOP_CLOSE_TOLERANCE_M) : cette valeur peut donc s'afficher sur une page qui
+ * ignore la discipline du lecteur. Vérifié par `copyDiscipline.test.ts`.
+ */
 export function closeToleranceLabel(): string {
   return metersLabel(LOOP_CLOSE_TOLERANCE_M);
 }
 
-/** Distance minimale d'une course pour compter : « 1 km ». */
-export function runMinDistanceLabel(): string {
-  return metersLabel(RUN_MIN_DISTANCE_M);
-}
-
-/** Durée minimale d'une course : « 6 min ». */
-export function runMinDurationLabel(): string {
+/**
+ * Durée minimale d'une sortie pour compter : « 6 min ».
+ * IDENTIQUE dans les deux disciplines (BIKE_MIN_DURATION_S référence
+ * RUN_MIN_DURATION_S — « six minutes de vélo restent six minutes d'effort »).
+ * C'est CE fait qui autorise la page à la chiffrer ; `copyDiscipline.test.ts`
+ * le vérifie, pour que la copie tombe le jour où la borne divergerait.
+ *
+ * ⚠️ SA JUMELLE EN DISTANCE A ÉTÉ RETIRÉE (26/07/2026). `runMinDistanceLabel()`
+ * rendait RUN_MIN_DISTANCE_M — une borne qui DIFFÈRE par discipline (1 km à
+ * pied, 2 km à vélo) — dans la réponse « Pourquoi ma boucle n'a pas créé de
+ * zone ? », lue par tout le monde sur une page sans lentille. Le règlement dit
+ * désormais que ce plancher dépend de la discipline, sans le chiffrer.
+ * `loopMaxAreaCapLabel()` part avec elle : même défaut (3 km² à pied, 75 km² à
+ * vélo) et plus aucun appelant depuis longtemps.
+ */
+export function minDurationLabel(): string {
   return `${RUN_MIN_DURATION_S / 60} min`;
 }
 

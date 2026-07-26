@@ -12,8 +12,42 @@
  * §A CONTRAIGNANT : chips/CTA/labels COURTS dans les 5 langues — l'allemand
  * est reformulé concis (Abwehr, Schleife zu, Als Story teilen…), jamais un
  * composé à rallonge qui risquerait la troncature à 375 px.
+ *
+ * ─── 26/07/2026 : DEUX DISCIPLINES, DONC DEUX JEUX DE LIBELLÉS ──────────────
+ * Le vélo est une discipline RÉELLE (décision fondateur du 26/07/2026). Cet
+ * écran affichait « RÉSULTAT DE COURSE », « COURSE TERMINÉE », « Personne
+ * n'avait couru ici avant toi » — vrais pour un coureur, littéralement FAUX
+ * au-dessus d'une sortie à vélo. Un écran qui nomme mal ce qu'il vient
+ * d'enregistrer est la forme la plus discrète du mensonge que la charte
+ * interdit (même constat que `runGps.ts`, qui a dû créer `statusRidingBike`).
+ *
+ * COMMENT C'EST RÉSOLU, ET POURQUOI PAS AUTREMENT :
+ *  · les clés HISTORIQUES sont INCHANGÉES — elles sont, et restent, la version
+ *    `run`. Aucune n'est renommée : le fichier est lu par des écrans qu'un
+ *    autre chantier câble en parallèle, et un renommage les casserait ;
+ *  · chaque libellé qui NOMME l'effort reçoit un jumeau suffixé `Bike`, placé
+ *    juste en dessous (convention `runGps.ts`) pour qu'ils ne dérivent pas ;
+ *  · le couple est ensuite indexé par `Activity` dans `RESULT_COPY`
+ *    (bas de fichier). C'est LUI que l'écran doit lire : un `Record<Activity,…>`
+ *    exhaustif fait échouer la compilation le jour d'une 3ᵉ discipline, là où un
+ *    ternaire `activity === 'bike' ? … : …` sortirait silencieusement le libellé
+ *    du coureur. Les libellés déjà NEUTRES (« ZONE DÉFENDUE », « TERRITOIRE
+ *    ÉTENDU », « CAPTURE REFUSÉE », « Boucle fermée ») n'ont PAS de jumeau :
+ *    en dupliquer un à l'identique serait deux vérités à maintenir au lieu d'une.
+ *
+ * SECONDE PASSE, MÊME JOUR — CE QUI SORT DE L'APP : les titres IMPRIMÉS dans
+ * la carte de partage (`cardHeroLogged`, `cardHeroForCrewNamed`,
+ * `cardHeroForCrewNoName`) et la note de tracé manquant. Un libellé faux sur un
+ * écran se corrige à l'écran suivant ; imprimé dans un PNG publié, il ne se
+ * corrige plus, et sa victime n'est pas le joueur mais son crew.
+ *
+ * VOCABULAIRE VÉLO, FIXÉ ICI POUR LES 5 LANGUES (aligné sur `runGps.ts`) :
+ * fr « sortie (à vélo) » · en « ride » · es « salida (en bici) » · de « Fahrt »
+ * · pt « pedalada ». Le portugais préfère `pedalada` à `percurso` (employé par
+ * la pill live) parce qu'ici le mot doit lever l'ambiguïté À LUI SEUL : sur le
+ * Résultat, aucune pill de discipline ne l'accompagne.
  */
-import type { RejectReason } from '@klaim/shared';
+import { DEFAULT_ACTIVITY, type Activity, type RejectReason } from '@klaim/shared';
 import { defineCatalog } from '../types';
 import type { Entry } from '../types';
 
@@ -25,6 +59,14 @@ export const C = defineCatalog({
     es: '{n} zonas corridas en grupo — pagadas según tu puesto',
     de: '{n} Zonen gemeinsam gelaufen — bezahlt nach deinem Rang',
     pt: '{n} zonas corridas em grupo — pagas pelo seu lugar',
+  },
+  /** LE RELAIS à vélo : même règle (1/rang), autre verbe — on ne « court » pas. */
+  coCapturedNoteBike: {
+    fr: '{n} zones roulées à plusieurs — payées selon ton rang d’arrivée',
+    en: '{n} zones ridden together — paid by your finishing rank',
+    es: '{n} zonas rodadas en grupo — pagadas según tu puesto',
+    de: '{n} Zonen gemeinsam gefahren — bezahlt nach deinem Rang',
+    pt: '{n} zonas pedaladas em grupo — pagas pelo seu lugar',
   },
   // Crew réel 3/3 : la conséquence COLLECTIVE d'une capture — vraie depuis
   // l'union carte (2/3) : les zones du coureur sont chartreuse chez ses
@@ -51,6 +93,19 @@ export const C = defineCatalog({
     de: 'LAUF-ERGEBNIS',
     pt: 'RESULTADO DA CORRIDA',
   },
+  /**
+   * Le kicker est le SEUL endroit de l'écran qui nomme la discipline (aucune
+   * pill « BIKE » ne l'accompagne) : chaque langue doit donc lever l'ambiguïté à
+   * elle seule — « RÉSULTAT DE SORTIE » ou « RESULTADO DE SALIDA » pourraient
+   * encore décrire une course, d'où « VÉLO » / « EN BICI » explicites.
+   */
+  barKickerBike: {
+    fr: 'RÉSULTAT DE SORTIE VÉLO',
+    en: 'RIDE RESULT',
+    es: 'RESULTADO EN BICI',
+    de: 'FAHRT-ERGEBNIS',
+    pt: 'RESULTADO DA PEDALADA',
+  },
   heroPrivate: {
     fr: 'COURSE ENREGISTRÉE',
     en: 'RUN SAVED',
@@ -58,12 +113,27 @@ export const C = defineCatalog({
     de: 'LAUF GESPEICHERT',
     pt: 'CORRIDA SALVA',
   },
+  heroPrivateBike: {
+    fr: 'SORTIE ENREGISTRÉE',
+    en: 'RIDE SAVED',
+    es: 'SALIDA GUARDADA',
+    de: 'FAHRT GESPEICHERT',
+    pt: 'PEDALADA SALVA',
+  },
   heroDone: {
     fr: 'COURSE TERMINÉE',
     en: 'RUN COMPLETE',
     es: 'CARRERA TERMINADA',
     de: 'LAUF BEENDET',
     pt: 'CORRIDA CONCLUÍDA',
+  },
+  /** Mêmes mots que la pill de fin du live vélo (`runGps.statusFinishedBike`). */
+  heroDoneBike: {
+    fr: 'SORTIE TERMINÉE',
+    en: 'RIDE COMPLETE',
+    es: 'SALIDA TERMINADA',
+    de: 'FAHRT BEENDET',
+    pt: 'PEDALADA CONCLUÍDA',
   },
   heroDefended: {
     fr: 'ZONE DÉFENDUE',
@@ -87,6 +157,13 @@ export const C = defineCatalog({
     de: 'Die Strecke deines Laufs',
     pt: 'O trajeto da tua corrida',
   },
+  a11yResultTraceBike: {
+    fr: 'Le tracé de ta sortie à vélo',
+    en: 'Your ride’s route',
+    es: 'El recorrido de tu salida en bici',
+    de: 'Die Strecke deiner Fahrt',
+    pt: 'O trajeto da tua pedalada',
+  },
   // PIONNIER — titre du hero quand cette course a OUVERT une commune vierge
   // (verdict serveur, nom réel geo.api.gouv.fr). {commune} = le nom réel.
   heroPioneer: {
@@ -104,6 +181,19 @@ export const C = defineCatalog({
     de: 'Vor dir ist hier niemand gelaufen',
     pt: 'Ninguém tinha corrido aqui antes de ti',
   },
+  /**
+   * L'ouverture d'une commune n'est PAS disciplinée côté serveur
+   * (`autoOpenCommuneAt`, ingest_run) : quand elle tombe, la commune était
+   * vierge de TOUT effort compté. « Personne n'avait roulé ici » est donc plus
+   * FAIBLE que le fait vérifié — jamais plus fort, ce qui serait le mensonge.
+   */
+  heroPioneerSubBike: {
+    fr: 'Personne n’avait roulé ici avant toi',
+    en: 'No one had ridden here before you',
+    es: 'Nadie había rodado aquí antes que tú',
+    de: 'Vor dir ist hier niemand gefahren',
+    pt: 'Ninguém tinha pedalado aqui antes de ti',
+  },
   // RENDEZ-VOUS local (rétention) — invitation à poser son propre rappel.
   rendezvousOffer: {
     fr: 'Me rappeler ma prochaine sortie',
@@ -111,6 +201,13 @@ export const C = defineCatalog({
     es: 'Recordarme mi próxima salida',
     de: 'An meinen nächsten Lauf erinnern',
     pt: 'Lembrar-me da próxima corrida',
+  },
+  rendezvousOfferBike: {
+    fr: 'Me rappeler ma prochaine sortie vélo',
+    en: 'Remind me to ride',
+    es: 'Recordarme mi próxima salida en bici',
+    de: 'An meine nächste Fahrt erinnern',
+    pt: 'Lembrar-me da próxima pedalada',
   },
   // {time} = heure au format 24 h (« 18:00 »), locale-neutre.
   rendezvousSet: {
@@ -150,6 +247,18 @@ export const C = defineCatalog({
     de: 'Dein nächster Lauf wartet',
     pt: 'A tua próxima corrida está à espera',
   },
+  /**
+   * Le rappel est posé DEPUIS le résultat : il hérite de la discipline qu'on
+   * vient de terminer. Une notification qui dit « ta prochaine course » après une
+   * sortie vélo promet un autre sport que celui que le joueur a choisi.
+   */
+  rendezvousNotifBodyBike: {
+    fr: 'Ta prochaine sortie vélo t’attend',
+    en: 'Your next ride is waiting',
+    es: 'Tu próxima salida en bici te espera',
+    de: 'Deine nächste Fahrt wartet',
+    pt: 'A tua próxima pedalada está à espera',
+  },
   // §11 honnêteté : le SERVEUR a jugé la capture invalide (status 'rejected').
   // Le titre le DIT — jamais « TERRITOIRE ÉTENDU » + « +0 zones » (qui laissait
   // croire à une prise). La raison précise vit dans REJECT_REASON_COPY (bas).
@@ -169,12 +278,32 @@ export const C = defineCatalog({
     de: 'LAUF ZU PRÜFEN',
     pt: 'CORRIDA A VERIFICAR',
   },
+  heroFlaggedBike: {
+    fr: 'SORTIE À VÉRIFIER',
+    en: 'RIDE UNDER REVIEW',
+    es: 'SALIDA POR VERIFICAR',
+    de: 'FAHRT ZU PRÜFEN',
+    pt: 'PEDALADA A VERIFICAR',
+  },
   flaggedWhy: {
     fr: 'GRYD Verify examine cette course — capture non créditée.',
     en: 'GRYD Verify is reviewing this run — capture not credited.',
     es: 'GRYD Verify está revisando esta carrera — captura no acreditada.',
     de: 'GRYD Verify prüft diesen Lauf — Eroberung nicht gutgeschrieben.',
     pt: 'O GRYD Verify está revisando esta corrida — captura não creditada.',
+  },
+  /**
+   * DIRE « course » sur une sortie vélo signalée serait deux fautes d'un coup :
+   * nommer faux l'effort, ET laisser croire que le doute porte sur autre chose
+   * que ce qui a été enregistré. Les CGU (catalog/legal.ts, 26/07/2026) posent la
+   * règle correspondante : déclarer une discipline pour une autre est la triche.
+   */
+  flaggedWhyBike: {
+    fr: 'GRYD Verify examine cette sortie — capture non créditée.',
+    en: 'GRYD Verify is reviewing this ride — capture not credited.',
+    es: 'GRYD Verify está revisando esta salida — captura no acreditada.',
+    de: 'GRYD Verify prüft diese Fahrt — Eroberung nicht gutgeschrieben.',
+    pt: 'O GRYD Verify está revisando esta pedalada — captura não creditada.',
   },
 
   // ── Pills d'état (hors « GRYD VERIFIED », invariant) ──
@@ -228,6 +357,13 @@ export const C = defineCatalog({
     es: 'Carrera privada · solo la ves tú',
     de: 'Privater Lauf · nur du siehst ihn',
     pt: 'Corrida privada · só você vê',
+  },
+  privateLineBike: {
+    fr: 'Sortie privée · visible par toi seul',
+    en: 'Private ride · visible only to you',
+    es: 'Salida privada · solo la ves tú',
+    de: 'Private Fahrt · nur du siehst sie',
+    pt: 'Pedalada privada · só você vê',
   },
   socialRunLine: {
     fr: 'Social Run · {km} km',
@@ -363,6 +499,30 @@ export const C = defineCatalog({
     de: 'PACE',
     pt: 'PACE',
   },
+  /**
+   * LA 3ᵉ STATISTIQUE CHANGE DE GRANDEUR À VÉLO (26/07/2026).
+   *
+   * L'allure (min/km) n'est pas FAUSSE sur un vélo — c'est bien l'allure — mais
+   * personne ne lit son effort ainsi en roulant : un cycliste lit une VITESSE.
+   * Servir min/km sous une sortie vélo n'est donc pas un mensonge de fait, c'est
+   * un écran illisible pour celui qui le regarde, et la charte demande de
+   * comprendre l'écran en moins de 3 s. Le chiffre reste une CONVERSION PURE de
+   * la même mesure (`effortRate`, 3600 / allure) : rien n'est fabriqué, et une
+   * allure absente ou nulle fait DISPARAÎTRE la statistique au lieu de produire
+   * un « 0 » nu.
+   *
+   * Mots COURTS dans les cinq langues (§A.9, un tiers de la largeur d'écran) :
+   * l'allemand prend « TEMPO » (le mot courant pour la vitesse ; « PACE » y
+   * reste l'allure, les deux ne se confondent pas) plutôt que
+   * « GESCHWINDIGKEIT », qui déborderait.
+   */
+  speedLabel: {
+    fr: 'VITESSE',
+    en: 'SPEED',
+    es: 'VELOCIDAD',
+    de: 'TEMPO',
+    pt: 'VELOCIDADE',
+  },
   // E09 (planche) — résumé sportif en UN bloc à séparateurs (distance · temps ·
   // allure), jamais 4 cards. La distance n'était visible NULLE PART après une
   // conquête (le KPI héros montre les zones) : ce bloc la ramène honnêtement.
@@ -388,6 +548,13 @@ export const C = defineCatalog({
     es: 'Carrera privada: nada aparece en el mapa ni en el feed.',
     de: 'Privater Lauf — nichts erscheint auf der Karte oder im Feed.',
     pt: 'Corrida privada — nada aparece no mapa nem no feed.',
+  },
+  privateNoteBike: {
+    fr: "Sortie privée — rien n'apparaît sur la carte ni dans le feed.",
+    en: 'Private ride — nothing shows on the map or in the feed.',
+    es: 'Salida privada: nada aparece en el mapa ni en el feed.',
+    de: 'Private Fahrt — nichts erscheint auf der Karte oder im Feed.',
+    pt: 'Pedalada privada — nada aparece no mapa nem no feed.',
   },
   socialNote: {
     fr: 'Social Run — stats et badges comptent, aucune capture.',
@@ -870,6 +1037,13 @@ export const C = defineCatalog({
     de: 'Teile deinen Lauf',
     pt: 'Compartilhe sua corrida',
   },
+  shareRunTitleBike: {
+    fr: 'Partager ta sortie',
+    en: 'Share your ride',
+    es: 'Comparte tu salida',
+    de: 'Teile deine Fahrt',
+    pt: 'Compartilhe sua pedalada',
+  },
   shareSquareCta: {
     fr: 'Partager en carré',
     en: 'Share as square',
@@ -1001,6 +1175,20 @@ export const C = defineCatalog({
     es: '{km} km en GRYD. Cada carrera cambia el mapa.',
     de: '{km} km auf GRYD. Jeder Lauf verändert die Karte.',
     pt: '{km} km no GRYD. Cada corrida muda o mapa.',
+  },
+  /**
+   * CE TEXTE SORT DE L'APP — c'est le message collé à côté de la card exportée.
+   * « Chaque run change la carte » (et ses cinq traductions, qui disent toutes
+   * « course ») publierait donc, sous la signature du joueur, une sortie vélo
+   * annoncée comme une course à pied. Le mensonge ne resterait pas à l'écran :
+   * il partirait dans le fil de son crew.
+   */
+  headlineStatsBike: {
+    fr: '{km} km sur GRYD. Chaque sortie change la carte.',
+    en: '{km} km on GRYD. Every ride changes the map.',
+    es: '{km} km en GRYD. Cada salida cambia el mapa.',
+    de: '{km} km auf GRYD. Jede Fahrt verändert die Karte.',
+    pt: '{km} km no GRYD. Cada pedalada muda o mapa.',
   },
   headlineDefense: {
     fr: '{zone} tient encore. {n} zones défendues. #GRYD',
@@ -1184,6 +1372,25 @@ export const C = defineCatalog({
     de: 'Gebiet vor diesem Lauf',
     pt: 'Território antes desta corrida',
   },
+  /**
+   * Le territoire montré ici est celui de LA DISCIPLINE de la sortie (deux
+   * mondes, `hex_claims` clé `(h3index, activity)`) : le lecteur d'écran doit
+   * donc nommer la bonne, sinon il annonce un territoire qui n'est pas celui-là.
+   */
+  a11yHeroMapAfterBike: {
+    fr: 'Territoire vélo après cette sortie',
+    en: 'Bike territory after this ride',
+    es: 'Territorio en bici después de esta salida',
+    de: 'Rad-Gebiet nach dieser Fahrt',
+    pt: 'Território Bike depois desta pedalada',
+  },
+  a11yHeroMapBeforeBike: {
+    fr: 'Territoire vélo avant cette sortie',
+    en: 'Bike territory before this ride',
+    es: 'Territorio en bici antes de esta salida',
+    de: 'Rad-Gebiet vor dieser Fahrt',
+    pt: 'Território Bike antes desta pedalada',
+  },
   beforeAfterA11y: {
     fr: 'Maintenir pour voir l’avant',
     en: 'Hold to see the before',
@@ -1224,11 +1431,26 @@ export const C = defineCatalog({
     de: 'ABWEHR',
     pt: 'DEFESA',
   },
+  /**
+   * INVARIANT RESTAURÉ EN ALLEMAND (26/07/2026).
+   *
+   * « RUN » est ici un INVARIANT MAISON — le nom du 3ᵉ mode d'intention, à côté
+   * de CONQUÊTE et DÉFENSE — et non le nom d'une discipline : c'est pourquoi
+   * fr/es le gardent tel quel (« RUN LIBRE ») et pt aussi (« RUN LIVRE »).
+   * L'allemand, lui, l'avait TRADUIT en « FREIER LAUF », ce qui faisait deux
+   * fautes d'un coup : il cassait l'invariant, et il nommait LA COURSE À PIED
+   * juste sous une ligne héros qui imprime « BIKE » quand la sortie est un vélo
+   * sans intention déclarée (rendu par app/course-result.tsx:807 via
+   * features/run/intention.ts:170 — l'écran de fin de TOUTE sortie libre).
+   *
+   * On restaure donc l'invariant plutôt que d'inventer un 5ᵉ mot : les cinq
+   * langues portent le même jeton « RUN », et `result.test.ts` le verrouille.
+   */
   kickerFreeRun: {
     fr: 'RUN LIBRE',
     en: 'FREE RUN',
     es: 'RUN LIBRE',
-    de: 'FREIER LAUF',
+    de: 'FREIER RUN',
     pt: 'RUN LIVRE',
   },
 
@@ -1287,12 +1509,32 @@ export const C = defineCatalog({
     de: 'Dein Lauf hat deiner Crew gebracht.',
     pt: 'Sua corrida rendeu para o seu crew.',
   },
+  reasonCrewBike: {
+    fr: 'Ta sortie a fait gagner ton crew.',
+    en: 'Your ride earned points for your crew.',
+    es: 'Tu salida hizo ganar a tu crew.',
+    de: 'Deine Fahrt hat deiner Crew gebracht.',
+    pt: 'Sua pedalada rendeu para o seu crew.',
+  },
   reasonRanking: {
     fr: 'Ta course te fait bouger au classement.',
     en: 'Your run moves you in the ranking.',
     es: 'Tu carrera te mueve en la clasificación.',
     de: 'Dein Lauf bewegt dich im Ranking.',
     pt: 'Sua corrida te move no ranking.',
+  },
+  /**
+   * « au classement » = celui de SA discipline (`season_scores` clé
+   * `(season_id, user_id, activity)`, `ACTIVITY_SCOPE.seasonRank`) : une sortie
+   * vélo ne bouge JAMAIS le classement des coureurs. La phrase reste au singulier
+   * — c'est le classement du joueur dans son monde, pas les deux à la fois.
+   */
+  reasonRankingBike: {
+    fr: 'Ta sortie te fait bouger au classement vélo.',
+    en: 'Your ride moves you in the Bike ranking.',
+    es: 'Tu salida te mueve en la clasificación Bike.',
+    de: 'Deine Fahrt bewegt dich im Bike-Ranking.',
+    pt: 'Sua pedalada te move no ranking Bike.',
   },
   /**
    * Récit « record » : le moteur sait le produire, aucune source ne l'arme
@@ -1312,6 +1554,13 @@ export const C = defineCatalog({
     es: 'No se capturó nada: compartimos la carrera, no un territorio.',
     de: 'Nichts erobert: Wir teilen den Lauf, kein Gebiet.',
     pt: 'Nada capturado: a gente compartilha a corrida, não um território.',
+  },
+  reasonEffortBike: {
+    fr: 'Rien n’a été capturé : on partage la sortie, pas un territoire.',
+    en: 'Nothing was captured: we share the ride, not a territory.',
+    es: 'No se capturó nada: compartimos la salida, no un territorio.',
+    de: 'Nichts erobert: Wir teilen die Fahrt, kein Gebiet.',
+    pt: 'Nada capturado: a gente compartilha a pedalada, não um território.',
   },
 
   // ── E10 · format 4:5 imposé par la planche (9:16 · 4:5 · 1:1) ──
@@ -1425,12 +1674,32 @@ export const C = defineCatalog({
     de: 'GELAUFEN FÜR\n{crew}',
     pt: 'CORRI POR\n{crew}',
   },
+  /**
+   * Le verbe de la SORTIE À VÉLO. « Rouler » / « rodar » / « fahren » /
+   * « pedalar » lèvent l'ambiguïté à eux seuls — contrairement au nom « sortie »,
+   * qu'un coureur emploie aussi — donc aucun de ces cinq titres n'a besoin
+   * d'ajouter « VÉLO » comme le fait `heroRunLoggedBike`.
+   */
+  heroForCrewNamedBike: {
+    fr: 'ROULÉ POUR\n{crew}',
+    en: 'RODE FOR\n{crew}',
+    es: 'RODÉ POR\n{crew}',
+    de: 'GEFAHREN FÜR\n{crew}',
+    pt: 'PEDALEI POR\n{crew}',
+  },
   heroForCrewNoName: {
     fr: 'COURU POUR\nLE CREW',
     en: 'RUN FOR\nTHE CREW',
     es: 'CORRÍ POR\nEL CREW',
     de: 'GELAUFEN FÜR\nDIE CREW',
     pt: 'CORRI PELO\nCREW',
+  },
+  heroForCrewNoNameBike: {
+    fr: 'ROULÉ POUR\nLE CREW',
+    en: 'RODE FOR\nTHE CREW',
+    es: 'RODÉ POR\nEL CREW',
+    de: 'GEFAHREN FÜR\nDIE CREW',
+    pt: 'PEDALEI PELO\nCREW',
   },
   /** Rang : « {rank} » arrive déjà formaté (« #8 ») — jamais fabriqué ici. */
   heroRankLine: {
@@ -1446,6 +1715,56 @@ export const C = defineCatalog({
     es: 'CARRERA\nREGISTRADA',
     de: 'LAUF\nGESPEICHERT',
     pt: 'CORRIDA\nREGISTRADA',
+  },
+  /**
+   * LE TITRE LE PLUS ATTEIGNABLE DE TOUTE LA CARTE, DONC LE PLUS EXPOSÉ.
+   * C'est le repli du style « Carte » : celui que le moteur sert dès qu'aucune
+   * zone n'a changé de main, et le seul proposé en `social_run`. Il imprimait
+   * « COURSE ENREGISTRÉE » sous le tracé d'un cycliste, dans une image qui SORT
+   * de l'app : la victime n'est pas le joueur mais son crew, qui lit le mensonge
+   * là où plus personne ne peut le corriger.
+   *
+   * POURQUOI « VÉLO » / « EN BICI » EXPLICITES EN FR ET EN ES, ET PAS AILLEURS :
+   * même arbitrage que `barKickerBike`, pour la même raison poussée à l'extrême.
+   * La carte exportée n'a NI kicker NI pill de discipline (le bandeau de lieu de
+   * la planche n'est pas rendu — voir l'en-tête de features/share/templates.tsx)
+   * et son visuel est un tracé GPS, identique à pied ou à vélo : le titre est le
+   * SEUL indice, et il quitte l'app. « SORTIE ENREGISTRÉE » ou « SALIDA
+   * REGISTRADA » décriraient encore une sortie à pied ; « RIDE », « FAHRT » et
+   * « PEDALADA » nomment déjà le vélo à eux seuls.
+   * Longueur : 14 caractères au pire (« SALIDA EN BICI »), sous le seuil où
+   * `HeroTitleLines` (ui/game/ShareCard.tsx) buterait sur son plancher de corps
+   * — aucun texte coupé (§A.9).
+   */
+  heroRunLoggedBike: {
+    fr: 'SORTIE VÉLO\nENREGISTRÉE',
+    en: 'RIDE\nLOGGED',
+    es: 'SALIDA EN BICI\nREGISTRADA',
+    de: 'FAHRT\nGESPEICHERT',
+    pt: 'PEDALADA\nREGISTRADA',
+  },
+
+  // ── E10 · la ligne qui explique le tracé manquant (écran, hors image) ──────
+  // Ces deux entrées vivaient dans `features/share/copy.ts`, où un commentaire
+  // annonçait leur remontée ici « au prochain passage mono-agent ». C'est ce
+  // passage : les laisser là-bas aurait obligé à monter un SECOND aiguillage par
+  // discipline à côté de `RESULT_COPY`, donc deux vérités à maintenir pour le
+  // même écran. `traceUnavailable` (le placeholder DANS la carte, « Tracé
+  // indisponible ») reste dans copy.ts : il est déjà neutre, il ne nomme pas
+  // l'effort, et rien ne justifie de le déplacer.
+  traceUnavailableNote: {
+    fr: 'Le tracé de cette course n’est pas encore disponible. Les chiffres, eux, sont bien les tiens.',
+    en: 'This run’s route isn’t available yet. The numbers, though, are really yours.',
+    es: 'El recorrido de esta carrera aún no está disponible. Las cifras sí son tuyas.',
+    de: 'Die Route dieses Laufs ist noch nicht verfügbar. Die Zahlen sind aber wirklich deine.',
+    pt: 'O trajeto desta corrida ainda não está disponível. Os números, esses são seus mesmo.',
+  },
+  traceUnavailableNoteBike: {
+    fr: 'Le tracé de cette sortie à vélo n’est pas encore disponible. Les chiffres, eux, sont bien les tiens.',
+    en: 'This ride’s route isn’t available yet. The numbers, though, are really yours.',
+    es: 'El recorrido de esta salida en bici aún no está disponible. Las cifras sí son tuyas.',
+    de: 'Die Route dieser Fahrt ist noch nicht verfügbar. Die Zahlen sind aber wirklich deine.',
+    pt: 'O trajeto desta pedalada ainda não está disponível. Os números, esses são seus mesmo.',
   },
 
   /**
@@ -1687,6 +2006,26 @@ export const C = defineCatalog({
     de: 'Dieser Bildschirm zeigt das Ergebnis eines aufgezeichneten Laufs. Hier ist keiner angekommen — und wir erfinden dir keinen.',
     pt: 'Esta tela mostra o resultado de uma corrida registrada. Nenhuma chegou aqui — e não vamos inventar uma para você.',
   },
+  /**
+   * ÉTAT VIDE VÉLO — utilisable seulement si la discipline attendue est CONNUE
+   * (navigation depuis le monde Bike). Quand elle ne l'est pas — écran ouvert
+   * par lien direct, sans sortie —, l'honnêteté est de RESTER sur la version
+   * `run`, historique et par défaut (`DEFAULT_ACTIVITY`), et non de deviner.
+   */
+  noResultTitleBike: {
+    fr: 'Aucune sortie à afficher',
+    en: 'No ride to show',
+    es: 'Ninguna salida que mostrar',
+    de: 'Keine Fahrt zum Anzeigen',
+    pt: 'Nenhuma pedalada para exibir',
+  },
+  noResultBodyBike: {
+    fr: 'Cet écran montre le résultat d’une sortie enregistrée. Aucune n’est arrivée jusqu’ici — on ne va pas t’en inventer une.',
+    en: 'This screen shows the result of a recorded ride. None made it here — and we won’t invent one for you.',
+    es: 'Esta pantalla muestra el resultado de una salida registrada. Ninguna llegó hasta aquí, y no vamos a inventarte una.',
+    de: 'Dieser Bildschirm zeigt das Ergebnis einer aufgezeichneten Fahrt. Hier ist keine angekommen — und wir erfinden dir keine.',
+    pt: 'Esta tela mostra o resultado de uma pedalada registrada. Nenhuma chegou aqui — e não vamos inventar uma para você.',
+  },
   noResultCta: {
     fr: 'Retour à la carte',
     en: 'Back to map',
@@ -1748,3 +2087,206 @@ export const REJECT_REASON_COPY: Record<RejectReason, Entry> = {
     pt: 'Poucos pontos de GPS válidos.',
   },
 };
+
+/**
+ * MÊME VERDICT, AUTRE DISCIPLINE — le serveur renvoie `pace_too_fast` /
+ * `pace_too_slow` en comparant l'allure aux bornes de LA DISCIPLINE DÉCLARÉE
+ * (`activityRules(activity)`, game-rules.ts). Servir « Allure trop rapide pour
+ * une course à pied » sous une sortie vélo refusée dirait donc DEUX faussetés :
+ * la discipline, et la règle qui a tranché.
+ *
+ * DÉRIVÉ, JAMAIS RECOPIÉ : on part de `REJECT_REASON_COPY` et on ne redéfinit
+ * que les deux raisons qui NOMMENT la discipline. Les autres (distance, durée,
+ * points GPS) sont neutres et le resteront — une nouvelle `RejectReason` héritera
+ * automatiquement de sa version course, et le type l'exigera de toute façon.
+ */
+export const REJECT_REASON_COPY_BIKE: Record<RejectReason, Entry> = {
+  ...REJECT_REASON_COPY,
+  pace_too_fast: {
+    fr: 'Allure trop rapide pour une sortie à vélo.',
+    en: 'Pace too fast for a ride.',
+    es: 'Ritmo demasiado rápido para una salida en bici.',
+    de: 'Tempo zu schnell für eine Fahrt.',
+    pt: 'Ritmo rápido demais para uma pedalada.',
+  },
+  pace_too_slow: {
+    fr: 'Allure trop lente pour valider une sortie à vélo.',
+    en: 'Pace too slow to validate a ride.',
+    es: 'Ritmo demasiado lento para validar una salida en bici.',
+    de: 'Tempo zu langsam, um eine Fahrt zu bestätigen.',
+    pt: 'Ritmo lento demais para validar uma pedalada.',
+  },
+};
+
+/** Raisons de refus de la discipline demandée — `run` reste le défaut. */
+export const REJECT_REASON_COPY_BY_ACTIVITY: Readonly<
+  Record<Activity, Record<RejectReason, Entry>>
+> = {
+  run: REJECT_REASON_COPY,
+  bike: REJECT_REASON_COPY_BIKE,
+};
+
+/**
+ * LES LIBELLÉS DU RÉSULTAT QUI NOMMENT L'EFFORT, INDEXÉS PAR DISCIPLINE.
+ *
+ * C'est la SEULE porte d'entrée que l'écran doit utiliser : `RESULT_COPY[activity].heroDone`
+ * plutôt qu'un `activity === 'bike' ? … : …` répété quinze fois. Deux raisons, et
+ * aucune n'est cosmétique :
+ *  · le `Record<Activity, …>` est EXHAUSTIF — le jour où `ACTIVITIES` accueille
+ *    une troisième discipline, ce fichier ne compile plus tant qu'elle n'a pas
+ *    ses phrases. Un ternaire, lui, aurait servi les mots du coureur en silence ;
+ *  · la forme est IDENTIQUE dans les deux mondes (mêmes champs), donc un libellé
+ *    ajouté d'un côté et oublié de l'autre est une erreur de type, pas un bug
+ *    qu'on découvre sur un écran.
+ *
+ * PÉRIMÈTRE : uniquement les textes qui NOMMENT l'effort (« course », « run »,
+ * « Lauf »…). « ZONE DÉFENDUE », « TERRITOIRE ÉTENDU », « CAPTURE REFUSÉE »,
+ * « Boucle fermée », les KPI et les CTA n'y sont pas : ils sont déjà vrais dans
+ * les deux disciplines, et les dupliquer créerait deux vérités à maintenir.
+ */
+export interface ResultActivityCopy {
+  /** Kicker de la barre — le seul endroit qui nomme la discipline. */
+  readonly barKicker: Entry;
+  /** Hero : sortie privée (non partagée). */
+  readonly heroPrivate: Entry;
+  /** Hero : jugée et créditée, mais rien de capturé (variante EFFORT). */
+  readonly heroDone: Entry;
+  /** Hero : signalée par GRYD Verify (trust bas) — non créditée. */
+  readonly heroFlagged: Entry;
+  /** Le pourquoi du signalement, sous le hero. */
+  readonly flaggedWhy: Entry;
+  /** Sous-titre du PIONNIER (commune ouverte). */
+  readonly heroPioneerSub: Entry;
+  /** a11y du tracé réel dessiné sur le résultat. */
+  readonly a11yResultTrace: Entry;
+  /** a11y de la carte héros, état APRÈS. */
+  readonly a11yHeroMapAfter: Entry;
+  /** a11y de la carte héros, état AVANT. */
+  readonly a11yHeroMapBefore: Entry;
+  /** Ligne d'état d'une sortie privée. */
+  readonly privateLine: Entry;
+  /** Note de confidentialité, écran Partage. */
+  readonly privateNote: Entry;
+  /** LE RELAIS — zones capturées à plusieurs. */
+  readonly coCapturedNote: Entry;
+  /** Rappel de rendez-vous : l'offre au résultat. */
+  readonly rendezvousOffer: Entry;
+  /** Rappel de rendez-vous : le corps de la notification. */
+  readonly rendezvousNotifBody: Entry;
+  /**
+   * Libellé de la 3ᵉ statistique du Résultat. Ce n'est pas un synonyme : les
+   * deux mondes n'affichent pas la même GRANDEUR (allure min/km vs vitesse
+   * km/h — cf. `speedLabel` et `features/run/effortRate.ts`). Le champ vit ici
+   * pour que le libellé et la grandeur ne puissent pas se désaccorder.
+   */
+  readonly rateLabel: Entry;
+  /** Titre de l'écran Partage. */
+  readonly shareRunTitle: Entry;
+  /**
+   * ─── LES TROIS TITRES QUI PARTENT DANS L'IMAGE (26/07/2026) ───────────────
+   * Ceux-là ne s'affichent pas : ils sont IMPRIMÉS dans le PNG exporté. Un
+   * libellé faux ici ne se corrige plus — il vit dans le fil du crew.
+   *
+   * Le repli honnête de la carte (« COURSE ENREGISTRÉE ») — style « Carte »,
+   * servi dès qu'aucune zone n'a changé de main, et seul style d'un social_run.
+   */
+  readonly cardHeroLogged: Entry;
+  /** Carte « Crew », crew NOMMÉ (« COURU POUR {crew} »). */
+  readonly cardHeroForCrewNamed: Entry;
+  /** Carte « Crew », crew inconnu (« COURU POUR LE CREW »). */
+  readonly cardHeroForCrewNoName: Entry;
+  /**
+   * Sous l'aperçu (pas dans l'image) : pourquoi le tracé manque. Nomme l'effort
+   * (« le tracé de cette course ») — donc discipliné comme le reste.
+   */
+  readonly traceUnavailableNote: Entry;
+  /** Message SORTANT quand il n'y a rien à annoncer que la distance. */
+  readonly headlineStats: Entry;
+  /** Récit de partage : l'apport au crew. */
+  readonly reasonCrew: Entry;
+  /** Récit de partage : le mouvement au classement (de SA discipline). */
+  readonly reasonRanking: Entry;
+  /** Récit de partage : rien de capturé, on partage l'effort. */
+  readonly reasonEffort: Entry;
+  /** État vide : aucun résultat à montrer — titre. */
+  readonly noResultTitle: Entry;
+  /** État vide : aucun résultat à montrer — corps. */
+  readonly noResultBody: Entry;
+  /** Raisons de refus serveur, déjà indexées par `RejectReason`. */
+  readonly rejectReason: Record<RejectReason, Entry>;
+}
+
+export const RESULT_COPY: Readonly<Record<Activity, ResultActivityCopy>> = {
+  run: {
+    barKicker: C.barKicker,
+    heroPrivate: C.heroPrivate,
+    heroDone: C.heroDone,
+    heroFlagged: C.heroFlagged,
+    flaggedWhy: C.flaggedWhy,
+    heroPioneerSub: C.heroPioneerSub,
+    a11yResultTrace: C.a11yResultTrace,
+    a11yHeroMapAfter: C.a11yHeroMapAfter,
+    a11yHeroMapBefore: C.a11yHeroMapBefore,
+    privateLine: C.privateLine,
+    privateNote: C.privateNote,
+    coCapturedNote: C.coCapturedNote,
+    rendezvousOffer: C.rendezvousOffer,
+    rendezvousNotifBody: C.rendezvousNotifBody,
+    rateLabel: C.paceLabel,
+    shareRunTitle: C.shareRunTitle,
+    cardHeroLogged: C.heroRunLogged,
+    cardHeroForCrewNamed: C.heroForCrewNamed,
+    cardHeroForCrewNoName: C.heroForCrewNoName,
+    traceUnavailableNote: C.traceUnavailableNote,
+    headlineStats: C.headlineStats,
+    reasonCrew: C.reasonCrew,
+    reasonRanking: C.reasonRanking,
+    reasonEffort: C.reasonEffort,
+    noResultTitle: C.noResultTitle,
+    noResultBody: C.noResultBody,
+    rejectReason: REJECT_REASON_COPY,
+  },
+  bike: {
+    barKicker: C.barKickerBike,
+    heroPrivate: C.heroPrivateBike,
+    heroDone: C.heroDoneBike,
+    heroFlagged: C.heroFlaggedBike,
+    flaggedWhy: C.flaggedWhyBike,
+    heroPioneerSub: C.heroPioneerSubBike,
+    a11yResultTrace: C.a11yResultTraceBike,
+    a11yHeroMapAfter: C.a11yHeroMapAfterBike,
+    a11yHeroMapBefore: C.a11yHeroMapBeforeBike,
+    privateLine: C.privateLineBike,
+    privateNote: C.privateNoteBike,
+    coCapturedNote: C.coCapturedNoteBike,
+    rendezvousOffer: C.rendezvousOfferBike,
+    rendezvousNotifBody: C.rendezvousNotifBodyBike,
+    rateLabel: C.speedLabel,
+    shareRunTitle: C.shareRunTitleBike,
+    cardHeroLogged: C.heroRunLoggedBike,
+    cardHeroForCrewNamed: C.heroForCrewNamedBike,
+    cardHeroForCrewNoName: C.heroForCrewNoNameBike,
+    traceUnavailableNote: C.traceUnavailableNoteBike,
+    headlineStats: C.headlineStatsBike,
+    reasonCrew: C.reasonCrewBike,
+    reasonRanking: C.reasonRankingBike,
+    reasonEffort: C.reasonEffortBike,
+    noResultTitle: C.noResultTitleBike,
+    noResultBody: C.noResultBodyBike,
+    rejectReason: REJECT_REASON_COPY_BIKE,
+  },
+};
+
+/**
+ * Libellés de la discipline demandée. Argument absent ⇒ `DEFAULT_ACTIVITY`
+ * ('run', game-rules) : un appelant qui ignore encore la discipline obtient
+ * EXACTEMENT les textes d'avant le vélo, sans un seul `if` chez lui — même
+ * contrat que `activityRules()` côté moteur.
+ *
+ * PAS DE REPLI INVENTÉ : une valeur inconnue retombe sur `run`, qui est le
+ * défaut DÉCLARÉ du jeu (toute sortie sans discipline EST une course à pied),
+ * pas un choix par défaut de commodité.
+ */
+export function resultCopy(activity: Activity = DEFAULT_ACTIVITY): ResultActivityCopy {
+  return RESULT_COPY[activity] ?? RESULT_COPY[DEFAULT_ACTIVITY];
+}

@@ -18,8 +18,36 @@
  *
  * Invariants jamais traduits : GRYD, GO, GRYD Verify, km, GPS, les chiffres et
  * leurs unités (« 5:32 /km », « 1h42 »).
+ *
+ * ─── 26/07/2026 : L'ÉCRAN LIT PAR DISCIPLINE, IL DOIT PARLER PAR DISCIPLINE ──
+ * `useStats(activity)` borne sa lecture par `.eq('activity', …)` et la page
+ * AFFICHE elle-même la discipline (commutateur E14 en `headerRight`). Sa branche
+ * `bike` ne couvrait pourtant que la page SANS DONNÉES : un cycliste qui a des
+ * sorties lisait tout le corps en vocabulaire coureur — « courses / sem. »,
+ * « {n} de tes {total} courses », « Semaine sans course » (LU À VOIX HAUTE), et
+ * surtout « COURS {n} fois pour tes premières tendances » : un impératif qui
+ * ordonne de courir à quelqu'un qui roule.
+ *
+ * MÊME MÉTHODE QUE `result.ts` / `historique.ts` : clés historiques INCHANGÉES
+ * (elles sont la version `run`), un jumeau suffixé `Bike` juste en dessous pour
+ * chaque libellé qui NOMME l'effort, et un `Record<Activity, …>` exhaustif —
+ * `STATS_COPY`, bas de fichier — que les écrans lisent. Un libellé DÉJÀ NEUTRE
+ * (« Volume d'activité », « Progression territoriale », « Meilleure allure »,
+ * « Rien n'est perdu… ») n'a PAS de jumeau : le dupliquer ferait deux vérités.
+ *
+ * UNE NEUTRALISATION, PAS UN JUMEAU : `regularityStreak` était déjà neutre dans
+ * quatre langues sur cinq (« au moins une sortie », « one outing », « una
+ * salida », « uma saída ») et ne fuyait qu'en allemand (« mit mindestens einem
+ * Lauf »). Le jumeler aurait figé QUATRE doublons identiques pour corriger UNE
+ * chaîne : l'allemand est neutralisé sur place (« einer Aktivität »).
+ *
+ * VOCABULAIRE VÉLO (aligné sur `result.ts` et sur les états vides déjà écrits
+ * ici) : fr « sortie (vélo) » · en « ride » · es « salida (en bici) » · de
+ * « Ausfahrt / Fahrt » · pt « pedal ».
  */
+import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import { defineCatalog } from '../types';
+import type { Entry } from '../types';
 
 export const C = defineCatalog({
   // ─── Les trois états vides ─────────────────────────────────────────────────
@@ -29,6 +57,17 @@ export const C = defineCatalog({
     es: 'Inicia sesión para ver tus carreras.',
     de: 'Melde dich an, um deine Läufe zu sehen.',
     pt: 'Entre para ver suas corridas.',
+  },
+  /**
+   * Le commutateur E14 vit dans la barre, hors de l'état de lecture : un joueur
+   * déconnecté peut donc regarder le monde vélo, et l'écran le lui affiche.
+   */
+  signedOutTitleBike: {
+    fr: 'Connecte-toi pour voir tes sorties vélo.',
+    en: 'Sign in to see your rides.',
+    es: 'Inicia sesión para ver tus salidas en bici.',
+    de: 'Melde dich an, um deine Ausfahrten zu sehen.',
+    pt: 'Entre para ver seus pedais.',
   },
   signedOutBody: {
     fr: 'Distance, allure et records sont rattachés à ton compte.',
@@ -51,6 +90,14 @@ export const C = defineCatalog({
     es: 'Tus carreras llegan con tu cuenta.',
     de: 'Deine Läufe kommen mit deinem Konto.',
     pt: 'Suas corridas vêm com sua conta.',
+  },
+  /** Même absence de serveur, dans le monde regardé (rendu aussi par /historique). */
+  noBackendTitleBike: {
+    fr: 'Tes sorties vélo arrivent avec ton compte.',
+    en: 'Your rides come with your account.',
+    es: 'Tus salidas en bici llegan con tu cuenta.',
+    de: 'Deine Ausfahrten kommen mit deinem Konto.',
+    pt: 'Seus pedais vêm com sua conta.',
   },
   noBackendBody: {
     fr: 'Cet aperçu n’est relié à aucun serveur : il n’y a rien à afficher ici.',
@@ -87,6 +134,18 @@ export const C = defineCatalog({
     de: 'Wir konnten deine Läufe nicht laden.',
     pt: 'Não conseguimos carregar suas corridas.',
   },
+  /**
+   * ÉCHEC DE LECTURE dans le monde regardé. C'est l'état où le mot compte le
+   * plus : ses sorties EXISTENT, on n'a pas su les lire — les appeler « courses »
+   * ajouterait un second faux au premier.
+   */
+  failedTitleBike: {
+    fr: 'On n’a pas pu charger tes sorties vélo.',
+    en: 'We couldn’t load your rides.',
+    es: 'No pudimos cargar tus salidas en bici.',
+    de: 'Wir konnten deine Ausfahrten nicht laden.',
+    pt: 'Não conseguimos carregar seus pedais.',
+  },
   failedBody: {
     fr: 'Rien n’est perdu. Vérifie ta connexion, puis réessaie.',
     en: 'Nothing is lost. Check your connection, then try again.',
@@ -108,6 +167,14 @@ export const C = defineCatalog({
     de: 'Deine Läufe werden geladen …',
     pt: 'Carregando suas corridas…',
   },
+  /** Une lecture EN COURS n'affirme rien — mais elle dit quel monde elle lit. */
+  loadingBike: {
+    fr: 'Chargement de tes sorties vélo…',
+    en: 'Loading your rides…',
+    es: 'Cargando tus salidas en bici…',
+    de: 'Deine Ausfahrten werden geladen …',
+    pt: 'Carregando seus pedais…',
+  },
 
   // ─── Cette semaine ─────────────────────────────────────────────────────────
   weekTitle: {
@@ -127,6 +194,14 @@ export const C = defineCatalog({
     es: 'Aún no hay carreras esta semana.',
     de: 'Diese Woche noch kein Lauf.',
     pt: 'Ainda nenhuma corrida esta semana.',
+  },
+  /** Fenêtre vide du monde vélo — ton NEUTRE, jamais un reproche. */
+  weekNoRunBike: {
+    fr: 'Pas encore de sortie cette semaine.',
+    en: 'No ride this week yet.',
+    es: 'Aún no hay salidas esta semana.',
+    de: 'Diese Woche noch keine Ausfahrt.',
+    pt: 'Ainda nenhum pedal esta semana.',
   },
 
   // ─── Progression ───────────────────────────────────────────────────────────
@@ -181,6 +256,20 @@ export const C = defineCatalog({
     es: 'Carrera más larga',
     de: 'Längster Lauf',
     pt: 'Corrida mais longa',
+  },
+  /**
+   * Le palmarès suit la MÊME lecture que les trois blocs (`records.ts` dérive
+   * des mêmes lignes, filtrées par discipline) : sous la lentille vélo, cette
+   * ligne consacre une sortie vélo. Les trois autres libellés du palmarès
+   * (« Plus longtemps », « Meilleure allure », « Plus longue série ») sont déjà
+   * neutres et n'ont donc pas de jumeau.
+   */
+  recordLongestBike: {
+    fr: 'Plus longue sortie',
+    en: 'Longest ride',
+    es: 'Salida más larga',
+    de: 'Längste Ausfahrt',
+    pt: 'Pedal mais longo',
   },
   recordDuration: {
     fr: 'Plus longtemps',
@@ -347,6 +436,14 @@ export const C = defineCatalog({
     de: '{day} ist dein bester Tag – {n} deiner {total} Läufe fielen darauf.',
     pt: '{day} é o seu melhor dia — {n} das suas {total} corridas foram nele.',
   },
+  /** Le MÊME repli, compté en sorties vélo (la conclusion du bloc 1 en Bike). */
+  volumeBestDayRunsBike: {
+    fr: '{day} est ton meilleur jour — {n} de tes {total} sorties y ont eu lieu.',
+    en: '{day} is your best day — {n} of your {total} rides happened then.',
+    es: '{day} es tu mejor día: {n} de tus {total} salidas ocurrieron ahí.',
+    de: '{day} ist dein bester Tag – {n} deiner {total} Ausfahrten fielen darauf.',
+    pt: '{day} é o seu melhor dia — {n} dos seus {total} pedais foram nele.',
+  },
   /** Fenêtre sans course : ton NEUTRE, jamais un reproche (cf. `weekNoRun`). */
   volumeNoRunMonth: {
     fr: 'Pas encore de course ce mois-ci.',
@@ -361,6 +458,20 @@ export const C = defineCatalog({
     es: 'Aún no hay carreras esta temporada.',
     de: 'Diese Saison noch kein Lauf.',
     pt: 'Ainda nenhuma corrida nesta temporada.',
+  },
+  volumeNoRunMonthBike: {
+    fr: 'Pas encore de sortie ce mois-ci.',
+    en: 'No ride this month yet.',
+    es: 'Aún no hay salidas este mes.',
+    de: 'Diesen Monat noch keine Ausfahrt.',
+    pt: 'Ainda nenhum pedal este mês.',
+  },
+  volumeNoRunSeasonBike: {
+    fr: 'Pas encore de sortie cette saison.',
+    en: 'No ride this season yet.',
+    es: 'Aún no hay salidas esta temporada.',
+    de: 'Diese Saison noch keine Ausfahrt.',
+    pt: 'Ainda nenhum pedal nesta temporada.',
   },
 
   // ─── BLOC 2 — Progression territoriale ────────────────────────────────────
@@ -439,6 +550,14 @@ export const C = defineCatalog({
     de: 'Bei einigen Läufen fehlt die Wirkung: kein Eroberungstrend.',
     pt: 'Algumas corridas não têm impacto registrado: sem tendência de captura.',
   },
+  /** Le même TROU, dans le monde vélo : ce sont ses sorties qui sont muettes. */
+  territoryImpactUnknownBike: {
+    fr: 'L’impact de certaines sorties n’a pas été enregistré : pas de tendance de capture.',
+    en: 'Some rides have no recorded impact: no capture trend.',
+    es: 'Algunas salidas no tienen impacto registrado: sin tendencia de captura.',
+    de: 'Bei einigen Ausfahrten fehlt die Wirkung: kein Eroberungstrend.',
+    pt: 'Alguns pedais não têm impacto registrado: sem tendência de captura.',
+  },
   territoryLoading: {
     fr: 'Lecture de tes zones…',
     en: 'Reading your zones…',
@@ -469,6 +588,19 @@ export const C = defineCatalog({
     de: 'Läufe / Wo.',
     pt: 'corridas / sem.',
   },
+  /**
+   * L'unité du chiffre héros du bloc 3, dans le monde vélo. COURTE dans les cinq
+   * langues, comme sa jumelle : elle s'inscrit à côté d'un nombre en corps 40
+   * (de « Fahrten » plutôt que « Ausfahrten » — même sens ici, deux caractères
+   * de moins sous le chiffre).
+   */
+  regularityUnitBike: {
+    fr: 'sorties / sem.',
+    en: 'rides / wk',
+    es: 'salidas / sem.',
+    de: 'Fahrten / Wo.',
+    pt: 'pedais / sem.',
+  },
   regularityAverageOver: {
     fr: 'en moyenne sur les {n} dernières semaines',
     en: 'on average over the last {n} weeks',
@@ -476,11 +608,19 @@ export const C = defineCatalog({
     de: 'im Schnitt über die letzten {n} Wochen',
     pt: 'em média nas últimas {n} semanas',
   },
+  /**
+   * NEUTRALISÉE (26/07/2026), PAS JUMELÉE. Quatre langues sur cinq disaient déjà
+   * la chose sans nommer de sport (« une sortie », « one outing », « una
+   * salida », « uma saída ») ; seul l'allemand fuyait (« mit mindestens einem
+   * Lauf »), servi tel quel sous un en-tête vélo. Créer un jumeau aurait figé
+   * QUATRE doublons identiques pour corriger UNE chaîne — deux vérités à
+   * maintenir là où une seule suffit (règle du catalogue).
+   */
   regularityStreak: {
     fr: '{n} semaines consécutives avec au moins une sortie.',
     en: '{n} weeks in a row with at least one outing.',
     es: '{n} semanas seguidas con al menos una salida.',
-    de: '{n} Wochen in Folge mit mindestens einem Lauf.',
+    de: '{n} Wochen in Folge mit mindestens einer Aktivität.',
     pt: '{n} semanas seguidas com pelo menos uma saída.',
   },
   regularityBuilding: {
@@ -526,6 +666,18 @@ export const C = defineCatalog({
     es: 'Semana sin carreras, {when}',
     de: 'Woche ohne Lauf, {when}',
     pt: 'Semana sem corrida, {when}',
+  },
+  /**
+   * LU À VOIX HAUTE, un carré éteint de la grille de régularité. Sa jumelle
+   * active (`weekActiveA11y`, « Semaine active ») est déjà neutre et n'en a donc
+   * pas : seule celle-ci nommait le sport.
+   */
+  weekIdleA11yBike: {
+    fr: 'Semaine sans sortie, {when}',
+    en: 'Week without a ride, {when}',
+    es: 'Semana sin salidas, {when}',
+    de: 'Woche ohne Ausfahrt, {when}',
+    pt: 'Semana sem pedal, {when}',
   },
 
   // ─── Libellés de graphiques (VoiceOver) et bulles au tap ──────────────────
@@ -574,6 +726,19 @@ export const C = defineCatalog({
     es: 'Corre {n} veces para ver tus primeras tendencias.',
     de: 'Lauf {n} Mal für deine ersten Trends.',
     pt: 'Corra {n} vezes para ver suas primeiras tendências.',
+  },
+  /**
+   * LE MÊME SEUIL, À L'IMPÉRATIF DU BON SPORT. C'est la pire des fuites de cet
+   * écran : les trois blocs la servent (volume, territoire, régularité), et elle
+   * ORDONNE — « Cours 2 fois », « Lauf 2 Mal » — à quelqu'un qui roule. Le verbe
+   * reprend celui de l'état vide vélo déjà écrit ici (« Roule deux fois… »).
+   */
+  notEnoughDataBike: {
+    fr: 'Roule {n} fois pour tes premières tendances.',
+    en: 'Ride {n} times for your first trends.',
+    es: 'Rueda {n} veces para ver tus primeras tendencias.',
+    de: 'Fahr {n} Mal für deine ersten Trends.',
+    pt: 'Pedale {n} vezes para ver suas primeiras tendências.',
   },
 
   // ─── Pied Premium (rendu SEULEMENT si la surface Arsenal existe) ──────────
@@ -636,6 +801,17 @@ export const C = defineCatalog({
     de: 'Noch kein Rekord. Dein nächster Lauf kann einen aufstellen.',
     pt: 'Ainda nenhum recorde. Sua próxima corrida pode marcar um.',
   },
+  /**
+   * Cas RÉEL et non marginal : un cycliste qui a des sorties mais dont aucune
+   * n'a encore établi de record voit cette phrase SOUS ses trois blocs vélo.
+   */
+  recordsNoneYetBike: {
+    fr: 'Pas encore de record. Ta prochaine sortie peut en poser un.',
+    en: 'No record yet. Your next ride can set one.',
+    es: 'Aún no hay récords. Tu próxima salida puede marcar uno.',
+    de: 'Noch kein Rekord. Deine nächste Ausfahrt kann einen aufstellen.',
+    pt: 'Ainda nenhum recorde. Seu próximo pedal pode marcar um.',
+  },
 
   // ─── ORPHELINES depuis le 21/07/2026 (fin du mode vitrine) ────────────────
   // Ces clés alimentaient ScoreFormeHero / GrydImpactCard, supprimés avec la
@@ -689,10 +865,18 @@ export const C = defineCatalog({
     pt: 'Estatísticas de bike',
   },
   /**
-   * LENTILLE BIKE — l'état vide NOMMÉ. Les trois blocs (volume · territoire ·
-   * régularité) sont RETIRÉS, pas remplis de zéros : un « 0,0 km » sous une
-   * étiquette vélo affirmerait que le joueur n'a pas roulé, alors que GRYD ne
-   * sait tout simplement pas mesurer le vélo.
+   * ÉTAT VIDE DU MONDE VÉLO — RÉÉCRIT LE 26/07/2026.
+   *
+   * Le corps disait « GRYD ne chronomètre pas encore le vélo : aucune sortie,
+   * aucun territoire, aucune régularité à analyser ». Faux depuis que le vélo
+   * enregistre (`runs.activity`, 0070 appliquée ; `useStats(activity)` borne sa
+   * lecture). Ce qui manque, ce sont les sorties DE CE JOUEUR — et la planche
+   * E18 a déjà la bonne phrase pour ça : « données insuffisantes → Courez 2 fois
+   * pour vos premières tendances », jamais un graphique vide.
+   *
+   * Le seuil cité n'est pas inventé : c'est `MIN_RUNS_FOR_TRENDS`
+   * (`performance/stats/derive.ts`), le même que celui de l'état vide à pied.
+   * Deux blocs sur trois seraient une droite avec un seul point.
    */
   bikeEmptyTitle: {
     fr: 'Tes stats Bike commencent ici',
@@ -702,18 +886,111 @@ export const C = defineCatalog({
     pt: 'Suas estatísticas Bike começam aqui',
   },
   bikeEmptyBody: {
-    fr: 'GRYD ne chronomètre pas encore le vélo : aucune sortie, aucun territoire, aucune régularité à analyser.',
-    en: 'GRYD doesn’t track cycling yet: no ride, no turf, no consistency to analyse.',
-    es: 'GRYD aún no cronometra la bici: sin salidas, sin territorio, sin regularidad que analizar.',
-    de: 'GRYD misst Radfahren noch nicht: keine Ausfahrt, kein Gebiet, keine Regelmäßigkeit.',
-    pt: 'A GRYD ainda não cronometra bike: sem pedal, sem território, sem regularidade a analisar.',
+    fr: 'Roule deux fois : volume, territoire et régularité vélo s’affichent ici.',
+    en: 'Ride twice: your Bike volume, turf and consistency show up here.',
+    es: 'Rueda dos veces: volumen, territorio y regularidad en bici aparecen aquí.',
+    de: 'Fahr zweimal: Volumen, Gebiet und Regelmäßigkeit erscheinen hier.',
+    pt: 'Pedale duas vezes: volume, território e regularidade aparecem aqui.',
   },
-  /** Rassurance FACTUELLE : rien n'est perdu côté course à pied. */
+  /** SÉPARATION STRICTE (E14) : deux mondes, jamais une somme. Un FAIT. */
   bikeEmptyRunSafe: {
-    fr: 'Tes statistiques à pied restent intactes.',
-    en: 'Your running stats stay untouched.',
-    es: 'Tus estadísticas a pie siguen intactas.',
-    de: 'Deine Lauf-Statistiken bleiben unberührt.',
-    pt: 'Suas estatísticas a pé ficam intactas.',
+    fr: 'Tes statistiques à pied sont comptées à part.',
+    en: 'Your running stats are counted separately.',
+    es: 'Tus estadísticas a pie se cuentan aparte.',
+    de: 'Deine Lauf-Statistiken zählen getrennt.',
+    pt: 'Suas estatísticas a pé contam à parte.',
+  },
+  /** CTA de l'état vide vélo — la sortie est DÉCLARÉE vélo, pas devinée. */
+  bikeEmptyCta: {
+    fr: 'Lancer une sortie vélo',
+    en: 'Start a bike ride',
+    es: 'Empezar una salida en bici',
+    de: 'Radausfahrt starten',
+    pt: 'Começar um pedal',
   },
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// LA DÉRIVATION PAR DISCIPLINE — ce que /performance et /historique lisent.
+//
+// Un `Record<Activity, …>` EXHAUSTIF plutôt qu'un ternaire dans le JSX : au jour
+// d'une 3ᵉ discipline, la compilation échoue ICI, une fois, au lieu de laisser
+// douze `bike ? … : …` servir le libellé du coureur en silence. C'est le patron
+// de `RESULT_COPY` (catalog/result.ts) et de `HISTORY_COPY` (catalog/historique.ts).
+//
+// N'y figurent QUE les libellés qui NOMMENT l'effort. Les neutres restent uniques :
+// « Volume d'activité », « Progression territoriale », « Régularité »,
+// « Rien n'est perdu… », « Semaine active », « {n} zones tenues », les jours de
+// la semaine, les légendes de graphique, « Meilleure allure », « sur {km} km ».
+// Les états vides propres à chaque monde (`emptyTitle`/`bikeEmpty*`) restent
+// eux aussi hors du Record : ils portent DÉJÀ leur discipline, et leur CTA n'a
+// pas la même cible (la carte pour la course, un départ DÉCLARÉ vélo sinon).
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Les libellés de `/performance` qui changent avec le monde lu. */
+export interface StatsActivityCopy {
+  // ── États de lecture (partagés avec /historique, qui a le même commutateur) ──
+  signedOutTitle: Entry;
+  noBackendTitle: Entry;
+  failedTitle: Entry;
+  loading: Entry;
+  // ── BLOC 1 — volume ──
+  weekNoRun: Entry;
+  volumeNoRunMonth: Entry;
+  volumeNoRunSeason: Entry;
+  volumeBestDayRuns: Entry;
+  // ── BLOC 2 — territoire ──
+  territoryImpactUnknown: Entry;
+  // ── BLOC 3 — régularité ──
+  regularityUnit: Entry;
+  /** LU À VOIX HAUTE (carré éteint de la grille). */
+  weekIdleA11y: Entry;
+  /** Servie par les TROIS blocs — la fuite la plus large de l'écran. */
+  notEnoughData: Entry;
+  // ── Palmarès ──
+  recordLongest: Entry;
+  recordsNoneYet: Entry;
+}
+
+export const STATS_COPY: Readonly<Record<Activity, StatsActivityCopy>> = {
+  run: {
+    signedOutTitle: C.signedOutTitle,
+    noBackendTitle: C.noBackendTitle,
+    failedTitle: C.failedTitle,
+    loading: C.loading,
+    weekNoRun: C.weekNoRun,
+    volumeNoRunMonth: C.volumeNoRunMonth,
+    volumeNoRunSeason: C.volumeNoRunSeason,
+    volumeBestDayRuns: C.volumeBestDayRuns,
+    territoryImpactUnknown: C.territoryImpactUnknown,
+    regularityUnit: C.regularityUnit,
+    weekIdleA11y: C.weekIdleA11y,
+    notEnoughData: C.notEnoughData,
+    recordLongest: C.recordLongest,
+    recordsNoneYet: C.recordsNoneYet,
+  },
+  bike: {
+    signedOutTitle: C.signedOutTitleBike,
+    noBackendTitle: C.noBackendTitleBike,
+    failedTitle: C.failedTitleBike,
+    loading: C.loadingBike,
+    weekNoRun: C.weekNoRunBike,
+    volumeNoRunMonth: C.volumeNoRunMonthBike,
+    volumeNoRunSeason: C.volumeNoRunSeasonBike,
+    volumeBestDayRuns: C.volumeBestDayRunsBike,
+    territoryImpactUnknown: C.territoryImpactUnknownBike,
+    regularityUnit: C.regularityUnitBike,
+    weekIdleA11y: C.weekIdleA11yBike,
+    notEnoughData: C.notEnoughDataBike,
+    recordLongest: C.recordLongestBike,
+    recordsNoneYet: C.recordsNoneYetBike,
+  },
+};
+
+/**
+ * Le jeu de libellés du monde lu. DÉFAUT = `DEFAULT_ACTIVITY` : un appelant qui
+ * ignore la notion de discipline obtient EXACTEMENT les textes d'avant le vélo.
+ */
+export function statsCopy(activity: Activity = DEFAULT_ACTIVITY): StatsActivityCopy {
+  return STATS_COPY[activity];
+}

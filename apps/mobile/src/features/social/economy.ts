@@ -133,6 +133,19 @@ async function fetchRemoteEconomy(userId: string, activity: Activity): Promise<R
   if (!supabase) return null;
 
   const [userResult, scoreResult] = await Promise.all([
+    // ─── LECTURE GLOBALE, ET C'EST VOLONTAIRE (E12 × E14, 26/07/2026) ────────
+    // AUCUN `.eq('activity', …)` ici, et il ne faut PAS en ajouter un.
+    // `ACTIVITY_SCOPE` (game-rules) classe `xp`, `level`, `foulees` et `streak`
+    // comme `global` : override fondateur du 26/07/2026 — « LE NIVEAU DOIT ÊTRE
+    // GLOBAL […] un kilomètre à vélo fait progresser le même joueur qu'un
+    // kilomètre à pied ». La table `users` n'a d'ailleurs PAS de colonne
+    // `activity`, et le crédit d'XP serveur (`claim_hexes`, 0070) est
+    // `where id = p_user_id`, sans discipline.
+    // C'est un OVERRIDE de la planche E12 (« Run et Bike ont des rangs
+    // SÉPARÉS »), tracé dans game-rules et dans PLANCHES.md §E12 : un agent qui
+    // « corrigerait la conformité » en scindant l'XP casserait l'intention
+    // produit, et `engine/activityScope.ts` lèverait.
+    // Ce qui EST séparé, c'est la ligne juste en dessous : les points de saison.
     supabase
       .from('users')
       .select('xp, foulees, eclats, streak_weeks, is_club')

@@ -76,7 +76,20 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, gameColors, iconSizes, radii, withAlpha } from '@klaim/shared';
+import {
+  colors,
+  fontSizes,
+  gameColors,
+  iconSizes,
+  radii,
+  // Plancher tactile du projet (`sizes.touchTarget`) : il était RECOPIÉ en 44 en
+  // quatre points de ce fichier — §A exige le token, pas le nombre. Un plancher
+  // recopié ne suit pas la charte quand elle bouge, et rien ne le relie au
+  // gabarit qu'il est censé garantir.
+  sizes,
+  withAlpha,
+  DEFAULT_ACTIVITY,
+} from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { C as N } from '../../i18n/catalog/nav';
 import { useLocale, useT } from '../../i18n/store';
@@ -89,7 +102,7 @@ import { Map3DToggle } from '../../ui/game';
 import { NAV_BAR_HEIGHT } from '../nav/metrics';
 import { MapAnchoredSheet } from './MapAnchoredSheet';
 import { mapSheetStops, type MapSheetStop } from './sheetSnap';
-import { useMapActivity, type MapActivity } from './mapPref';
+import { type MapActivity } from './mapPref';
 // Provider de position RÉSOLU PAR PLATEFORME (Metro sert `locate.web.ts` sur
 // web). On l'emprunte à l'onboarding plutôt que d'importer `run/gps/provider`
 // ici : ce module tire `expo-task-manager`, sans support web, et cet écran-ci est
@@ -107,6 +120,10 @@ import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
 import { SheetMetrics, type SheetMetric } from './SheetMetrics';
 import { MissionBriefingSheet } from './MissionBriefingSheet';
+// LES DEUX CIBLES DE DÉPART DE CET ÉCRAN, en PUR et testées (features/route/
+// startTargets.ts) : elles portent la déclaration de discipline, exactement
+// comme `withStartActivity` la porte pour le GO.
+import { missionStartHref, plannerHref } from '../route/startTargets';
 import { resolveSectorName } from './sectorNaming';
 import type { LatLngPoint } from './realAnchors';
 import {
@@ -184,9 +201,11 @@ const MISSION_PEEK_COMPACT_HEIGHT = 138;
 /** Espace du HUD haut à préserver (secteur + ligne mission) — le menu Calques ne
  *  descend jamais son bord haut au-dessus de cette limite (anti-chevauchement). */
 const TOP_HUD_CLEARANCE = 112;
-/** Hauteur de la pile de FABs PERMANENTS (2 FABs de 44 + 1 gap de 10 + marge)
- *  — réserve l'espace sous le menu Calques pour qu'il ne recouvre pas la pile. */
-const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
+/** Hauteur de la pile de FABs PERMANENTS (2 cellules au plancher tactile + 1 gap
+ *  de 10 + marge) — réserve l'espace sous le menu Calques pour qu'il ne recouvre
+ *  pas la pile. La hauteur d'une cellule vient du TOKEN, pas d'un 44 recopié :
+ *  sinon la réserve mentirait à la première évolution du gabarit. */
+const FAB_STACK_HEIGHT = 2 * sizes.touchTarget + 10 + 6;
 /*
  * Les deux hauteurs DEVINÉES de la sheet de zone (132 / 132+62) ont disparu :
  * E04 ajoute des lignes qui APPARAISSENT ou DISPARAISSENT selon la disponibilité
@@ -202,14 +221,13 @@ const FAB_STACK_HEIGHT = 2 * 44 + 10 + 6;
  */
 const EMPTY_PEEK_HEIGHT = 104;
 const EMPTY_PEEK_WITH_CTA_HEIGHT = 140;
-/**
- * Hauteur du peek BIKE (planche E14) : titre + la phrase « à quoi ça sert / ce
- * que GRYD ne fait pas encore » (2 lignes) + la rassurance + l'unique action
- * VRAIE de la lentille (revenir en Run). Panneau FIXE : il épouse ce chiffre,
- * qui doit donc couvrir ce qui est rendu — sinon le bouton passe sous la ligne
- * de flottaison (§A9).
- */
-const BIKE_PEEK_HEIGHT = 190;
+// Le peek BIKE et sa hauteur dédiée (BIKE_PEEK_HEIGHT = 190) ont été RETIRÉS le
+// 26/07/2026 : il n'existait que pour dire « GRYD ne chronomètre pas encore le
+// vélo » et pour offrir la seule action alors vraie (revenir en Run). Le vélo
+// enregistre désormais, donc la lentille Bike montre exactement la même sheet
+// que la lentille Run — territoire quand il y en a, état vide sinon. Un panneau
+// spécial pour un monde devenu ordinaire aurait continué à le désigner comme
+// une exception.
 /**
  * Hauteurs du peek de POSITION. Trois formes, parce que trois contenus :
  * sans action (refus sur web : on explique, on ne peint pas de bouton mort),
@@ -491,11 +509,21 @@ export interface BattleMapOverlaysProps {
    */
   egoPos?: LatLngPoint | null;
   /**
-   * LENTILLE de la carte (planche E14) — 'run' par défaut. En 'bike', l'écran
-   * n'affiche AUCUN territoire, AUCUNE mission, AUCUN classement : le vélo
-   * n'existe pas encore sous l'écran, et rejouer les données Run sous une
-   * étiquette vélo serait la donnée fabriquée que la charte interdit. La sheet
-   * porte alors le peek Bike, qui le DIT.
+   * LENTILLE de la carte (planche E14) — 'run' par défaut.
+   *
+   * ─── ROUVERTE LE 26/07/2026 ────────────────────────────────────────────────
+   * Jusque-là, 'bike' VIDAIT ce HUD : sheet remplacée par un peek « pas encore
+   * chronométré », menu Calques amputé de ses calques de lecture, sheet non
+   * tirable, tap de zone désarmé, GO retiré. C'était juste tant que le vélo
+   * n'existait pas sous l'écran. Il existe (décision fondateur : « il faut avoir
+   * sa propre data, ses propres classements »), et l'écran lit maintenant les
+   * captures de SA discipline.
+   *
+   * CE QUE CETTE PROP CHANGE ENCORE : uniquement la COPIE de l'état vide (le
+   * monde vélo d'un joueur qui n'a jamais roulé se dit comme un DÉBUT, pas comme
+   * l'absence d'une fonctionnalité). Tout le reste du HUD est identique dans les
+   * deux mondes — c'est précisément ce que « les deux segments sont des pairs »
+   * veut dire.
    */
   activity?: MapActivity;
 }
@@ -525,8 +553,6 @@ export function BattleMapOverlays({
   const locale = useLocale();
   /** « Carte nue » : l'utilisateur a masqué tout le HUD (rangée du menu Calques). */
   const hudHidden = useMapHudHidden();
-  /** Lentille courante — la sheet Bike sait comment revenir en Run (action VRAIE). */
-  const { setActivity } = useMapActivity();
   /** Ce que l'écran sait de la position (store partagé avec la barre haute). */
   const { access, pending: locating } = useMapAccess();
 
@@ -554,11 +580,10 @@ export function BattleMapOverlays({
     if (egoPos) publishAccess({ access: 'ok', pending: false });
   }, [egoPos]);
   /**
-   * LENTILLE BIKE (planche E14) : aucun territoire, aucune mission, aucun
-   * classement de course à pied n'est affiché — on ne rejoue pas les données Run
-   * sous une étiquette vélo. Le peek Bike prend toute la place et DIT le vide.
+   * LENTILLE courante. Elle ne pilote plus qu'UNE chose ici : la COPIE de l'état
+   * vide (cf. la doc de la prop `activity`). Les couches, la sheet, le tap et GO
+   * sont les mêmes dans les deux mondes depuis le 26/07/2026.
    */
-  const bike = activity === 'bike';
   // Peek MISSION persistant (§8) : `sheet.initial` distingue le PEEK (compact)
   // de l'état OUVERT (les options), remonté par « Voir les options » (remount
   // key + initialState — snap, façon reduce motion).
@@ -590,7 +615,7 @@ export function BattleMapOverlays({
    * Une zone tapée sans donnée (`zone` null) n'ouvre RIEN : on ne remplit pas le
    * vide avec un scénario.
    */
-  const zoneOpen = !bike && selectedZoneId != null && zone != null;
+  const zoneOpen = selectedZoneId != null && zone != null;
   /**
    * Nom du quartier de la zone tapée — résolu ici (et non par MapScreen) pour
    * que les deux surfaces qui l'affichent (E04 et son briefing E05) parlent du
@@ -695,11 +720,10 @@ export function BattleMapOverlays({
     () =>
       mapPlan({
         access,
-        lens: bike ? 'bike' : 'run',
         data,
         canOpenSettings: CAN_OPEN_SETTINGS,
       }),
-    [access, bike, data],
+    [access, data],
   );
   /** Les trois récits qui parlent de POSITION (rendu commun, copie distincte). */
   const locationNarrative =
@@ -758,26 +782,25 @@ export function BattleMapOverlays({
     ? briefingOpen
       ? briefingHeight
       : zoneHeight
-    : plan.narrative === 'bike'
-      ? BIKE_PEEK_HEIGHT
-      : plan.narrative === 'skeleton'
-        ? SKELETON_PEEK_HEIGHT
-        : locationNarrative
-          ? locationPeekHeight
-          : plan.narrative === 'sign-in' || plan.narrative === 'retry-data'
-            ? EMPTY_PEEK_WITH_CTA_HEIGHT
-            : widget !== null
-              ? MISSION_PEEK_COMPACT_HEIGHT
-              : EMPTY_PEEK_HEIGHT;
+    : plan.narrative === 'skeleton'
+      ? SKELETON_PEEK_HEIGHT
+      : locationNarrative
+        ? locationPeekHeight
+        : plan.narrative === 'sign-in' || plan.narrative === 'retry-data'
+          ? EMPTY_PEEK_WITH_CTA_HEIGHT
+          : widget !== null
+            ? MISSION_PEEK_COMPACT_HEIGHT
+            : EMPTY_PEEK_HEIGHT;
 
   const { height: winH } = useWindowDimensions();
   /**
-   * La sheet de ZONE et le peek BIKE n'ont pas de contenu déployé : ce sont des
-   * panneaux FIXES (`['compact']`) — une poignée qui n'ouvrirait sur rien serait
-   * un contrôle mort. Le peek mission, lui, porte le bloc « Détails » : il est
-   * TIRABLE aux trois paliers de la planche (29 % / 52 % / 90 % de l'écran).
+   * La sheet de ZONE n'a pas de contenu déployé : c'est un panneau FIXE
+   * (`['compact']`) — une poignée qui n'ouvrirait sur rien serait un contrôle
+   * mort. Le peek mission, lui, porte le bloc « Détails » : il est TIRABLE aux
+   * trois paliers de la planche (29 % / 52 % / 90 % de l'écran) — dans les DEUX
+   * lentilles depuis le 26/07/2026 (le peek Bike figé a disparu avec sa cause).
    */
-  const sheetDraggable = !bike && !zoneOpen;
+  const sheetDraggable = !zoneOpen;
   const sheetGeometry = useMemo(
     () =>
       mapSheetStops({
@@ -873,12 +896,6 @@ export function BattleMapOverlays({
     void Linking.openSettings();
   };
 
-  /** Lentille Bike → Run : la seule action VRAIE de cette lentille (E14). */
-  const backToRunLens = () => {
-    haptics.light();
-    setActivity('run');
-  };
-
   /**
    * Bascule « carte nue » (rangée du menu Calques) : masque/affiche TOUT le HUD
    * (ligne mission du haut + sheet du bas) → carte plein écran. Referme le menu
@@ -920,22 +937,35 @@ export function BattleMapOverlays({
     setBriefingOpen(true);
   };
 
-  /** « Planifier pour plus tard » / « Ajuster » → le planificateur RÉEL. */
+  /**
+   * « Planifier pour plus tard » / « Ajuster » → le planificateur RÉEL.
+   *
+   * La LENTILLE voyage avec (`plannerHref`). Le planificateur n'a pas de
+   * commutateur à lui : sans cette transmission, un cycliste qui ouvre
+   * « Ajuster » depuis sa carte vélo se voit proposer des distances de coureur,
+   * routées au profil piéton — et repart à pied.
+   */
   const openPlanner = () => {
     haptics.light();
     onCloseZone?.();
-    router.push('/route-planner');
+    router.push(plannerHref(activity));
   };
 
   /**
-   * CTA du briefing. La course qui démarre est une course de CONQUÊTE réelle —
+   * CTA du briefing. La sortie qui démarre est une sortie de CONQUÊTE réelle —
    * exactement celle du bouton GO. Le tracé affiché reste indicatif et le
    * briefing le DIT : `/course-live` ignore volontairement tout paramètre
    * d'objectif, et le serveur classe la capture APRÈS coup.
+   *
+   * ⚠️ CE BOUTON NE DÉCLARAIT RIEN jusqu'au 26/07/2026 : il poussait
+   * `/course-live?mode=conquete` en dur, donc TOUJOURS une course à pied — y
+   * compris atteint depuis la lentille vélo, où le tap de zone est réarmé. Le
+   * GO d'à côté déclarait déjà correctement ; il n'y avait aucune raison que
+   * deux départs du même écran n'enregistrent pas la même chose.
    */
   const startMission = () => {
     onCloseZone?.();
-    router.push('/course-live?mode=conquete');
+    router.push(missionStartHref(activity));
   };
 
   /**
@@ -960,9 +990,11 @@ export function BattleMapOverlays({
     ) : widget ? (
       <TerritoryWidgetPeek view={widget} onAction={() => onWidgetAction?.(widget)} />
     ) : (
-      // `first-capture` sans widget : le joueur n'a rien capturé et la lecture
-      // n'a rien produit d'autre à dire. Courir EST l'action — GO la porte (§A4).
-      <EmptyPeek state="empty" onAction={onEmptyAction} />
+      // `first-capture` sans widget : le joueur n'a rien capturé DANS CETTE
+      // DISCIPLINE et la lecture n'a rien produit d'autre à dire. Sortir EST
+      // l'action — GO la porte (§A4). La lentille choisit seulement les mots :
+      // un monde vélo neuf est un DÉBUT, pas l'absence d'une fonctionnalité.
+      <EmptyPeek state="empty" activity={activity} onAction={onEmptyAction} />
     );
 
   return (
@@ -1007,7 +1039,9 @@ export function BattleMapOverlays({
             onSetMap3d={onSetMap3d}
             hudHidden={hudHidden}
             onToggleHud={toggleHud}
-            showReadingLayers={!bike}
+            /* ROUVERT : les calques de lecture existent dans les deux mondes —
+               ils décrivent la carte, pas la discipline. */
+            showReadingLayers
           />
         ) : null}
         {/* CAPSULE (planche E02/E03) : les 2 FABs permanents groupés dans une
@@ -1054,6 +1088,7 @@ export function BattleMapOverlays({
                   zoneId={selectedZoneId ?? ''}
                   zoneName={zoneName}
                   egoPos={egoPos}
+                  activity={activity}
                   onStateChange={setBriefState}
                   onClose={() => setBriefingOpen(false)}
                   onOpenPlanner={openPlanner}
@@ -1072,18 +1107,7 @@ export function BattleMapOverlays({
             }
             testID="map-zone-sheet"
           />
-        ) : hudHidden ? null : plan.narrative === 'bike' ? (
-          /* MODE BIKE (planche E14) : la carte vierge ASSUME — et depuis le
-             retour du 25/07 elle cesse d'être DÉFENSIVE : au lieu d'énumérer ce
-             qui n'existe pas, elle répond aux quatre questions d'un bon état vide
-             et propose la seule action VRAIE de cette lentille. Panneau fixe. */
-          <MapAnchoredSheet
-            key="bike-start"
-            geometry={sheetGeometry}
-            peek={<BikeStartPeek onBackToRun={backToRunLens} />}
-            testID="map-bike-sheet"
-          />
-        ) : (
+        ) : hudHidden ? null : (
           <MapAnchoredSheet
             key={`mission-${sheet.key}`}
             geometry={sheetGeometry}
@@ -1109,6 +1133,15 @@ export function BattleMapOverlays({
                     n'était masquée que par le flag warRoom, donc un `FULL_SURFACE=1`
                     suffisait à afficher une mission fabriquée. Ne reste que ce qui
                     est vrai — l'historique local du joueur. */}
+                {/* LE LIEN HISTORIQUE NE PORTE PAS DE DISCIPLINE, ET C'EST
+                    DÉLIBÉRÉ (26/07/2026). Il disait « Tes courses passées » sous
+                    lentille vélo — corrigé, mais PAS par un jumeau : ce lien
+                    décrit l'écran où il MÈNE, et `/historique` a sa PROPRE
+                    lentille mémorisée (`useActivityLens('historique')`), que ce
+                    `router.push` ne transmet pas. Écrire « tes sorties vélo »
+                    promettrait un filtrage que la destination n'applique pas
+                    forcément. Les deux textes sont donc NEUTRES — vrais dans les
+                    deux mondes (cf. `i18n/catalog/map.ts` + `map.test.ts`). */}
                 <Text style={styles.sectionTitle}>{t(C.sectionDetails)}</Text>
                 <Pressable
                   accessibilityRole="button"
@@ -1210,9 +1243,17 @@ function TerritoryWidgetPeek({
  */
 function EmptyPeek({
   state,
+  activity = DEFAULT_ACTIVITY,
   onAction,
 }: {
   state: MapEmptyState;
+  /**
+   * Lentille courante — elle ne change QUE la copie du vide légitime
+   * (`state === 'empty'`). Les deux autres états parlent du COMPTE et du RÉSEAU,
+   * qui n'ont pas de discipline : les décliner par lentille inventerait une
+   * différence entre « pas connecté à vélo » et « pas connecté à pied ».
+   */
+  activity?: MapActivity;
   onAction?: () => void;
 }) {
   const t = useT();
@@ -1221,7 +1262,14 @@ function EmptyPeek({
       ? { title: C.emptySignedOutTitle, line: C.emptySignedOutLine, cta: C.emptySignedOutCta }
       : state === 'failed'
         ? { title: C.emptyFailedTitle, line: C.emptyFailedLine, cta: C.emptyFailedCta }
-        : { title: C.emptyNoneTitle, line: C.emptyNoneLine, cta: null };
+        : activity === 'bike'
+          ? // Monde vélo neuf. La phrase dit un COMMENCEMENT, pas une absence :
+            // le joueur n'a rien à vélo parce qu'il n'a pas encore roulé, comme
+            // un nouveau venu n'a rien à pied. L'action est le bouton GO, déjà
+            // présent dans cette lentille depuis le 26/07 — on ne peint donc pas
+            // un second CTA ici (§A4).
+            { title: C.emptyBikeTitle, line: C.emptyBikeLine, cta: null }
+          : { title: C.emptyNoneTitle, line: C.emptyNoneLine, cta: null };
   return (
     <View style={styles.info}>
       <View style={styles.peekHead}>
@@ -1380,68 +1428,6 @@ function LocationPeek({
           </Text>
         </Pressable>
       ) : null}
-    </View>
-  );
-}
-
-/**
- * PEEK BIKE (planche E14) — « la carte vierge assume "Votre carte Bike commence
- * ici", jamais un écran vide. »
- *
- * ─── IL CESSE D'ÊTRE DÉFENSIF (retour fondateur 25/07/2026) ─────────────────
- * Il ÉNUMÉRAIT ce qui n'existe pas (« aucune sortie, aucun territoire, aucun
- * classement ») : une triple négation qui laissait le joueur sans rien à faire.
- * Il répond désormais aux quatre questions d'un bon état vide :
- *   · où suis-je      → le titre ;
- *   · à quoi ça sert  → « carte nue pour rouler » — c'est ce que cette lentille
- *                       offre RÉELLEMENT aujourd'hui : la carte sans la guerre
- *                       de territoire peinte dessus ;
- *   · quoi maintenant → revenir à la carte Run, dit POSITIVEMENT ;
- *   · ce que j'y gagne→ tes zones à pied restent intactes.
- * La même phrase porte la limite (« GRYD n'enregistre pas encore les sorties
- * vélo ») : l'honnêteté reste, elle n'est simplement plus le sujet principal.
- *
- * DEUX INTERDITS TENUS ICI, et ils sont le cœur du chantier :
- *  (a) AUCUN CTA « commencer ma première sortie vélo » — aucun moteur vélo
- *      n'existe (`runs` n'a pas de colonne d'activité, tous les départs
- *      déclarent 'run') : la sortie serait enregistrée comme une course À PIED.
- *      Bouton mort d'un côté, mensonge de l'autre ;
- *  (b) AUCUNE mission vélo dessinée — ni distance, ni durée, ni zone n'ont de
- *      source. Ce serait de la donnée fabriquée.
- * Le seul bouton présent fait EXACTEMENT ce qu'il dit : il rebascule la lentille
- * (préférence `gryd.mapactivity`). CONTOUR et non chartreuse : GRYD ne pousse
- * pas le joueur hors d'un mode qu'il vient de choisir.
- */
-function BikeStartPeek({ onBackToRun }: { onBackToRun: () => void }) {
-  const t = useT();
-  return (
-    <View style={styles.info}>
-      <View style={styles.peekHead}>
-        {/* Barre GRISE : rien n'est à moi ici — la chartreuse dit « à moi » (§C). */}
-        <View style={styles.emptyBar} />
-        <View style={styles.rowBody}>
-          <Text style={styles.peekTitle} numberOfLines={1} adjustsFontSizeToFit>
-            {t(C.bikeStartTitle)}
-          </Text>
-        </View>
-      </View>
-      {/* À quoi sert cette lentille + la limite, dans UNE phrase (§A : 1 idée). */}
-      <Text style={styles.peekMeta} numberOfLines={2}>
-        {t(N.bikeLensLine)}
-      </Text>
-      {/* Ce que le joueur y gagne : un fait vérifiable, pas une consolation. */}
-      <Text style={styles.peekMeta} numberOfLines={1} adjustsFontSizeToFit>
-        {t(C.bikeStartRunSafe)}
-      </Text>
-      <View style={styles.peekActionWrap}>
-        <Button
-          label={t(N.bikeBackToRun)}
-          onPress={onBackToRun}
-          variant="ghost"
-          size="md"
-          analyticsId="map_bike_back_to_run"
-        />
-      </View>
     </View>
   );
 }
@@ -1745,14 +1731,15 @@ const styles = StyleSheet.create({
   fabColumn: { position: 'absolute', right: 14, gap: 10, alignItems: 'flex-end' },
   // Capsule des 2 FABs (planche) : un seul contenant arrondi, 2 cellules + séparateur.
   fabCapsule: {
-    width: 44,
+    // Largeur = plancher tactile : la capsule EST la cible, dans les deux axes.
+    width: sizes.touchTarget,
     borderRadius: 22,
     backgroundColor: colors.carbone,
     borderWidth: 1,
     borderColor: colors.grisLigne,
     overflow: 'hidden',
   },
-  fabCell: { height: 44, alignItems: 'center', justifyContent: 'center' },
+  fabCell: { height: sizes.touchTarget, alignItems: 'center', justifyContent: 'center' },
   fabDivider: { height: 1, backgroundColor: colors.grisLigne },
 
   // ── Menu Calques (fond + vue + calques de lecture) — ScrollView plafonné ──
@@ -1781,7 +1768,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    minHeight: 44, // cible tactile >= 44 px (a11y)
+    minHeight: sizes.touchTarget, // plancher tactile du projet (jamais recopié)
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: radii.pill,
@@ -1904,7 +1891,7 @@ const styles = StyleSheet.create({
   },
   // 1 CTA chartreuse (texte noir sur chartreuse — jamais chartreuse sur clair).
   zoneCta: {
-    minHeight: 44,
+    minHeight: sizes.touchTarget,
     borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,
     alignItems: 'center',
@@ -1927,7 +1914,12 @@ const styles = StyleSheet.create({
   // flotte au-dessus du coin bas-DROIT du peek compact ; un lien pleine largeur
   // lui aurait glissé sa zone de tap sous le pouce — invisible à l'œil, mais un
   // tap volé. Le lien s'aligne d'ailleurs désormais sur le reste du peek.
-  optionsHit: { minHeight: 44, justifyContent: 'center', marginTop: 2, alignSelf: 'flex-start' },
+  optionsHit: {
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
+    marginTop: 2,
+    alignSelf: 'flex-start',
+  },
   optionsLink: {
     color: colors.gris,
     fontSize: 13,
