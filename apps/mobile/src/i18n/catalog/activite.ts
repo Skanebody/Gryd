@@ -164,4 +164,22 @@ export const C = defineCatalog({
     de: 'Diese Vorschau ist mit keinem Server verbunden: Noch kann dich keine Meldung erreichen.',
     pt: 'Esta prévia não está ligada a nenhum servidor: nenhum alerta pode te alcançar ainda.',
   },
+
+  // ─── Réglages par catégorie (planche E23 « PUSH & RÉGLAGES ») ───────────────
+  // Lien DIRECT en bas de liste vers l'écran de canaux RÉEL (/parametres/
+  // notifications) — un vrai réglage, jamais un bouton mort.
+  notifSettingsLink: {
+    fr: 'Régler mes notifications',
+    en: 'Manage notifications',
+    es: 'Ajustar notificaciones',
+    de: 'Benachrichtigungen einstellen',
+    pt: 'Ajustar notificações',
+  },
+  a11yNotifSettings: {
+    fr: 'Régler mes notifications par catégorie',
+    en: 'Manage notifications by category',
+    es: 'Ajustar las notificaciones por categoría',
+    de: 'Benachrichtigungen nach Kategorie einstellen',
+    pt: 'Ajustar as notificações por categoria',
+  },
 });

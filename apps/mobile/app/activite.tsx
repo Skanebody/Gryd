@@ -20,7 +20,10 @@
  *      un `SectionLabel` puis ses lignes (`ListRow` : icône 38 pt + fait +
  *      chevron/action) ;
  *   4. l'état CALME quand le flux est vide (« Tout est calme… ») ;
- *   5. en gris, en bas : ce qui n'existe pas encore (les 3 groupes tactiques).
+ *   5. en gris, en bas : ce qui n'existe pas encore (les 3 groupes tactiques) ;
+ *   6. le LIEN de réglages (planche « PUSH & RÉGLAGES ») : lien DIRECT vers le
+ *      réglage par catégorie réel (`/parametres/notifications`) — discret, pas un
+ *      second CTA, et jamais un bouton mort (l'écran de canaux existe).
  *
  * ─── LA DONNÉE EST RÉELLE OU ABSENTE (AMENDEMENT-47) ────────────────────────
  * Les valeurs de la planche (« Saint-Rémy contesté par Nina M. », « K.Runner a
@@ -46,7 +49,7 @@
  * d'une ligne — noms exacts, jamais inventés hors `events.ts`.
  */
 import { useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   EVENTS,
@@ -247,7 +250,24 @@ export default function ActiviteScreen() {
       {/* Ce qui n'existe pas encore, dit à sa place : les 3 groupes tactiques
           dépendent du cross-joueur (O1). Rendu dès que la lecture a abouti
           (calme OU peuplé) — jamais pendant un état d'erreur/chargement. */}
-      {status === 'ready' ? <Text style={styles.footnote}>{t(C.tacticalPendingNote)}</Text> : null}
+      {status === 'ready' ? (
+        <>
+          <Text style={styles.footnote}>{t(C.tacticalPendingNote)}</Text>
+          {/* PUSH & RÉGLAGES (planche E23) : lien DIRECT en bas de liste vers le
+              réglage par catégorie RÉEL (/parametres/notifications). Un lien gris
+              discret, pas un second CTA chartreuse (§A) — et jamais un bouton mort :
+              l'écran de canaux existe. */}
+          <Pressable
+            onPress={() => router.push('/parametres/notifications')}
+            accessibilityRole="link"
+            accessibilityLabel={t(C.a11yNotifSettings)}
+            style={styles.settingsLink}
+            hitSlop={8}
+          >
+            <Text style={styles.settingsLinkText}>{t(C.notifSettingsLink)}</Text>
+          </Pressable>
+        </>
+      ) : null}
     </StackScreen>
   );
 }
@@ -291,5 +311,13 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
     marginTop: spacing.xl,
+  },
+
+  // Lien réglages : discret, gris souligné — un LIEN, jamais un CTA chartreuse.
+  settingsLink: { alignSelf: 'flex-start', marginTop: spacing.md, paddingVertical: spacing.xxs },
+  settingsLinkText: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    textDecorationLine: 'underline',
   },
 });
