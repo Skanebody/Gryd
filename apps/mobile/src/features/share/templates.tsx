@@ -64,6 +64,7 @@ import { C, resultCopy } from '../../i18n/catalog/result';
 import { t, useT } from '../../i18n/store';
 import { type LatLngPoint } from '../map/realAnchors';
 import { ShareMap } from './ShareMap';
+import { SHARE_COPY } from './copy';
 import {
   contextParts,
   heroMetricFor,
@@ -446,7 +447,10 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
           ? t(C.heroRetookPlace, { zone: place.toUpperCase() })
           : t(C.heroRetookNoPlace),
         hero: 'zones',
-        challenge: t(C.challengeTakeIt),
+        // Défi PROPRE à la reprise (planche E10, CTA par événement) : « REPRENDS-LA »,
+        // le pendant du titre « J'AI REPRIS » — et non le « PRENDS-LA-MOI » d'une
+        // conquête neutre, qui reste sur `conquete`/`carte3d`.
+        challenge: t(SHARE_COPY.challengeRetake),
         visual: <BeforeAfter view={view} beforeState={d.beforeState} />,
       });
     },

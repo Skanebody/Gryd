@@ -39,6 +39,25 @@ export const SHARE_COPY = defineCatalog({
   // encore disponible… ») vit désormais dans `i18n/catalog/result.ts`, avec son
   // jumeau vélo — voir l'en-tête de ce fichier.
 
+  /**
+   * DÉFI de la carte REPRISE (récit `reprise` → style `avantApres`). La planche
+   * E10 sépare le CTA par événement : une conquête neutre invite « PRENDS-LA-MOI »
+   * (`challengeTakeIt`, catalogue partagé), mais une zone REPRISE à un rival se
+   * nargue autrement — « REPRENDS-LA », le pendant exact du titre « J'AI REPRIS ».
+   * L'EN/ES sont ceux validés par le fondateur (planche : « TAKE IT BACK /
+   * QUÍTAMELO »). Il vit ICI, avec les autres copies propres au partage, et pas
+   * dans `result.ts` : ce défi ne s'imprime que sur une card de partage, jamais
+   * sur l'écran Résultat, et l'ajouter au catalogue partagé (multi-écrans) sortait
+   * du périmètre de cet écran.
+   */
+  challengeRetake: {
+    fr: 'REPRENDS-LA',
+    en: 'TAKE IT BACK',
+    es: 'QUÍTAMELO',
+    de: 'HOL SIE DIR ZURÜCK',
+    pt: 'VEM RETOMAR',
+  },
+
   // ─── /partage SANS COURSE ARMÉE (21/07/2026) ──────────────────────────────
   // L'écran fabriquait une carte de partage COMPLÈTE (`shareRun?.card ??
   // demoCard`) : distance, allure, zones, tracé, rang — les chiffres d'un

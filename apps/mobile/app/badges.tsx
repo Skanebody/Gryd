@@ -2,7 +2,7 @@
  * GRYD — écran « Collection de badges » V2 → GRAND format (AMENDEMENT-08 §8,
  * doc §23 ; conserve AMENDEMENT-06 §1.6). Header compte RÉEL « x / N débloqués
  * · Tier max : X », filtres familles + Secrets, « Proches du déblocage » — puis
- * les items passent en BadgeCard GRANDES (2 colonnes, désirables) : les ~200
+ * les items passent en BadgeCard GRANDES (3 colonnes, désirables) : les ~200
  * badges du catalogue réel restent TOUS visibles. Tap → bottom sheet maison :
  * condition + jauge de progression + RÉCOMPENSE (titre à afficher, dérivé du
  * catalogue).
@@ -71,6 +71,8 @@ import { formatInt } from '../src/ui/format';
 import { BadgeUnlockMoment } from '../src/features/badges/BadgeUnlockMoment';
 import { useBadgeMemory } from '../src/features/badges/seenBadges';
 import { selectUnlockMoments } from '../src/features/badges/unlockMoment';
+import { openShareSheet } from '../src/features/share/shareActions';
+import { haptics } from '../src/lib/haptics';
 import { screen } from '../src/lib/analytics';
 import { useSession } from '../src/lib/session';
 import { BadgeCard, useReduceMotion } from '../src/ui/game';
@@ -87,7 +89,7 @@ function badgeState(def: BadgeDef, unlockedIds: MyBadges['unlockedIds']): BadgeH
 
 /**
  * Cellule de grille : BadgeCard GRAND format (AMENDEMENT-08 §8 — désirable),
- * demi-largeur (2 colonnes). Jauge pour les badges progressifs, récompense
+ * tiers de largeur (3 colonnes, cf. planche E19). Jauge pour les badges progressifs, récompense
  * dérivée du catalogue, secrets masqués gérés par la carte (state secretLocked).
  */
 function BadgeCardCell({ def, onSelect, unlockedIds, stat, personal }: {
@@ -216,6 +218,13 @@ const SHEET_REDUCED_FADE_MS = 120;
  * Bottom sheet maison : fond assombri + panneau qui glisse (fade discret §G).
  * Reduce motion (useReduceMotion, même règle que useSlideIn/useReveal) :
  * fondu court SANS translation — le mouvement disparaît, jamais la lisibilité.
+ *
+ * PARTAGE (planche E19 « tap → détail … partage ») : un badge DÉBLOQUÉ propose
+ * « Partager ». Action tertiaire (jamais chartreuse), mêmes rails honnêtes que
+ * le moment rare (`openShareSheet` + `unlockShareText`) : on ne partage que des
+ * faits du catalogue (nom + condition), jamais une stat inventée ; un appareil
+ * sans partage le DIT, ce n'est pas un bouton mort. Le « template story » vers
+ * E10 de la planche reste un chantier partage/E10 à part — non promis ici.
  */
 function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal }: {
   def: BadgeDef;
@@ -229,6 +238,9 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
+  // Retour honnête du partage : ce qui s'est réellement passé, ou rien (un
+  // « annulé » n'est pas une erreur et reste muet).
+  const [shareNote, setShareNote] = useState<'none' | 'copied' | 'unavailable'>('none');
 
   useEffect(() => {
     Animated.timing(progress, {
@@ -249,6 +261,17 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
       if (finished) onDismiss();
     });
   }, [onDismiss, progress, reduce]);
+
+  // Partage d'un badge possédé — mêmes rails que le moment rare : que des faits
+  // du catalogue (nom + condition), jamais une stat inventée.
+  const share = useCallback(() => {
+    haptics.light();
+    const message = t(C.unlockShareText, { name: def.name, requirement: def.requirement });
+    void openShareSheet(message).then((res) => {
+      if (res.ok) setShareNote(res.via === 'clipboard' ? 'copied' : 'none');
+      else if (res.reason === 'unavailable') setShareNote('unavailable');
+    });
+  }, [t, def.name, def.requirement]);
 
   const state = badgeState(def, unlockedIds);
   const unlocked = state === 'unlocked';
@@ -350,6 +373,23 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
         {stateLine ? (
           <Text style={[styles.sheetState, unlocked ? { color: accent } : null]}>
             {stateLine}
+          </Text>
+        ) : null}
+        {/* Partage — badge possédé seulement (on ne partage pas ce qu'on n'a
+            pas). Action tertiaire, jamais chartreuse ; l'indisponibilité se DIT. */}
+        {unlocked && !hidden ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.unlockShare)}
+            onPress={share}
+            style={({ pressed }) => [styles.sheetShare, pressed && styles.cellPressed]}
+          >
+            <Text style={styles.sheetShareLabel}>{t(C.unlockShare)}</Text>
+          </Pressable>
+        ) : null}
+        {shareNote !== 'none' ? (
+          <Text style={styles.sheetShareNote}>
+            {t(shareNote === 'copied' ? C.unlockShareCopied : C.unlockShareUnavailable)}
           </Text>
         ) : null}
       </Animated.View>
@@ -846,7 +886,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.6,
   },
-  // Grille 2 colonnes de BadgeCards grand format (AMENDEMENT-08 §8)
+  // Grille 3 colonnes de BadgeCards grand format (planche E19 ; AMENDEMENT-08 §8)
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -964,5 +1004,26 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginTop: 14,
     textAlign: 'center',
+  },
+
+  // ── Partage (badge possédé) — tertiaire, jamais chartreuse ──
+  sheetShare: {
+    alignSelf: 'stretch',
+    minHeight: sizes.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  sheetShareLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  sheetShareNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });
