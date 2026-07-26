@@ -14,6 +14,8 @@ import {
   metersPerPixel,
   projectOnScreen,
   recentSpeedMps,
+  uncertainLinks,
+  type LatLng,
 } from './liveView.ts';
 
 const PARIS = { lat: 48.8674, lng: 2.3636 };
@@ -95,6 +97,35 @@ Deno.test('recentSpeedMps : un TROU de signal ne devient jamais de la vitesse', 
   ];
   const v = recentSpeedMps(pts, t0 + 4_000, 10_000);
   assert(v !== null && v < 10, `le trou a fabriqué ${v} m/s`);
+});
+
+Deno.test('liens incertains : UN par trou de signal (max(0, n−1)), rien d’inventé', () => {
+  const p = (n: number): LatLng[] => [
+    { lat: PARIS.lat + n * 0.001, lng: PARIS.lng },
+    { lat: PARIS.lat + n * 0.001, lng: PARIS.lng + 0.0005 },
+  ];
+  // Trois tronçons mesurés → deux trous → deux liens.
+  const three = uncertainLinks([p(0), p(1), p(2)]);
+  assertEquals(three.length, 2);
+  // Chaque lien relie la FIN du tronçon précédent au DÉBUT du suivant : il
+  // matérialise le trou, il n'invente aucun point.
+  assertEquals(three[0], [p(0)[1], p(1)[0]]);
+  assertEquals(three[1], [p(1)[1], p(2)[0]]);
+  // Un seul tronçon (ou aucun) : rien à relier — jamais un connecteur fantôme.
+  assertEquals(uncertainLinks([p(0)]).length, 0);
+  assertEquals(uncertainLinks([]).length, 0);
+});
+
+Deno.test('liens incertains : un tronçon VIDE n’ouvre pas de lien fantôme', () => {
+  const seg: LatLng[] = [
+    { lat: PARIS.lat, lng: PARIS.lng },
+    { lat: PARIS.lat, lng: PARIS.lng + 0.0005 },
+  ];
+  // Le tronçon du milieu est vide (aucun point d'accroche) : aucun des deux
+  // trous adjacents ne peut être relié honnêtement → zéro lien.
+  assertEquals(uncertainLinks([seg, [], seg]).length, 0);
+  // Un tronçon vide en tête : le premier lien exploitable disparaît aussi.
+  assertEquals(uncertainLinks([[], seg]).length, 0);
 });
 
 Deno.test('vitesse élevée : seuil = allure de référence VÉLO (constante de jeu)', () => {

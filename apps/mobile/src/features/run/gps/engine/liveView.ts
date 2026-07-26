@@ -101,6 +101,35 @@ export function liveCameraCenter(
   return { lat: worldYToLat(centerY, world), lng: pos.lng };
 }
 
+/**
+ * Les SEGMENTS DE LIAISON entre deux tronçons RÉELLEMENT mesurés (E07, §6.4
+ * « GPS faible → tracé incertain pointillé »). Le tracker coupe la trace à
+ * chaque trou de signal ; ce qui relie la fin d'un tronçon au début du suivant
+ * n'a JAMAIS été parcouru sous mesure. On le matérialise — sinon la trace
+ * paraîtrait interrompue — mais SÉPARÉMENT, pour que l'écran le peigne en
+ * pointillé et non en trait plein : affirmer un tracé mesuré là où il y a eu un
+ * trou serait un mensonge d'écran (rule 1).
+ *
+ * INVARIANT D'HONNÊTETÉ, verrouillé par test : exactement UN lien par trou, soit
+ * `max(0, n−1)` liens pour `n` tronçons. Zéro ou un seul tronçon ⇒ aucun lien
+ * (rien à relier — on n'invente pas de connecteur). Un tronçon vide n'ouvre pas
+ * de lien fantôme (pas de point d'accroche). Fonction PURE (géométrie seule),
+ * testable en Deno comme le reste de la vue live.
+ */
+export function uncertainLinks(
+  segments: readonly (readonly LatLng[])[],
+): (readonly LatLng[])[] {
+  const links: (readonly LatLng[])[] = [];
+  for (let i = 1; i < segments.length; i += 1) {
+    const prev = segments[i - 1];
+    const next = segments[i];
+    const a = prev?.[prev.length - 1];
+    const b = next?.[0];
+    if (a && b) links.push([a, b]);
+  }
+  return links;
+}
+
 /** Projette un point géo en pixels ÉCRAN pour cette caméra (origine haut-gauche). */
 export function projectOnScreen(
   point: LatLng,

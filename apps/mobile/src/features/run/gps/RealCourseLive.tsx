@@ -71,7 +71,7 @@ import { SignalBars } from '../../../ui/SignalBars';
 import { signalLevel } from '../../../ui/signalLevel';
 import { decimalSeparator, formatInt } from '../../../ui/format';
 import { RealMap, type RealMapGeoJSONLayer, type RealMapMarker } from '../../../ui/game/RealMap';
-import { TRACE_DASH, runTraceLayers, traceStyle } from '../../map/mapStyle';
+import { TRACE_DASH, TRACE_WIDTH_STOPS, runTraceLayers, traceStyle } from '../../map/mapStyle';
 import { RUN_MODE_LABEL, formatClock, formatKm, type LiveRunMode } from '../simulation';
 // La 3ᵉ métrique du bandeau est DÉRIVÉE (grandeur de la discipline + absence de
 // mesure), donc pure et testée — jamais un `formatPace` appliqué à un zéro.
@@ -96,6 +96,7 @@ import {
 import {
   isHighSpeed,
   liveCameraCenter,
+  uncertainLinks,
   type LatLng,
   type LiveCamera,
   type ScreenBox,
@@ -158,25 +159,6 @@ function lineCollection(lines: readonly (readonly LatLng[])[]): GeoJSON.FeatureC
         },
       })),
   };
-}
-
-/**
- * Les segments qui RELIENT deux tronçons mesurés : personne ne les a parcourus
- * sous mesure (trou de signal). Ils existent visuellement — sinon la trace
- * paraîtrait interrompue — mais en pointillé, jamais en trait plein.
- */
-function uncertainLinks(
-  segments: readonly (readonly LatLng[])[],
-): (readonly LatLng[])[] {
-  const links: (readonly LatLng[])[] = [];
-  for (let i = 1; i < segments.length; i += 1) {
-    const prev = segments[i - 1];
-    const next = segments[i];
-    const a = prev?.[prev.length - 1];
-    const b = next?.[0];
-    if (a && b) links.push([a, b]);
-  }
-  return links;
 }
 
 /** Ce que la séquence E08 a besoin de savoir, figé au moment de la fermeture. */
@@ -355,18 +337,30 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         // Toujours MA trace (rôle chartreuse), mais diluée et pointillée : elle
         // n'a pas été mesurée, elle ne peut pas se donner l'air de l'avoir été.
         lineColor: withAlpha(traceStyle.core, 0.45),
-        lineWidth: 3,
+        // §B — même LARGEUR PAR ZOOM que le reste de la trace (gabarit « exclu »,
+        // le plus fin). Sans ces paliers, le lien restait figé à 3 px : à
+        // l'échelle rue de la course (z16.4) il devenait un fil sous un core
+        // héros de ~22 px, et un « 3 » en dur est justement le nombre magique de
+        // style que la charte interdit. Le scalaire reste un repli (fork SVG).
+        lineWidthStops: TRACE_WIDTH_STOPS.excludedCore,
+        lineWidth: 11,
         lineDash: TRACE_DASH.excluded,
       });
     }
-    // La FERMETURE, dessinée : ce qui sépare encore la position du départ.
+    // La FERMETURE, dessinée : ce qui sépare encore la position du départ. La
+    // planche E07 la veut EXPLICITE — donc au gabarit « segment manquant » (§B,
+    // même largeur que la route restante), pas un filet : à l'échelle rue elle
+    // doit se lire d'un coup d'œil à côté du core héros, jamais s'y perdre.
     if (phase !== 'idle' && start !== null && here !== null) {
       out.push({
         id: 'live-closure',
         data: lineCollection([[here, start]]),
-        lineColor:
-          phase === 'nearMiss' ? gameColors.warn : withAlpha(colors.chartreuse, 0.85),
-        lineWidth: 3,
+        // Ambre FACTUEL quand on est revenu à portée sans fermer (nearMiss) ;
+        // sinon la teinte dédiée du segment manquant (chartreuse pleine « appelle
+        // à fermer », token traceStyle.missing — plus explicite que l'ex-0,85).
+        lineColor: phase === 'nearMiss' ? gameColors.warn : traceStyle.missing,
+        lineWidthStops: TRACE_WIDTH_STOPS.missingCore,
+        lineWidth: 16,
         lineDash: TRACE_DASH.missing,
       });
     }
