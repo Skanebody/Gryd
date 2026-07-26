@@ -1643,6 +1643,9 @@ function ZoneDecisionPeek({
       <Text style={styles.zoneControl} numberOfLines={1} adjustsFontSizeToFit>
         {t(isRival ? C.zoneOwnerRival : C.zoneOwnerMine)}
       </Text>
+      {/* Filet horizontal fin (planche -selection10) — rythme de section, pas un
+          contenant : sépare le bloc propriétaire des métriques. */}
+      <View style={styles.zoneHairline} />
       {/* 3 MÉTRIQUES MAX à séparateurs — et moins dès qu'une source manque. */}
       <SheetMetrics metrics={cells} testID="zone-metrics" />
       {isRival ? (
@@ -1987,6 +1990,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
+  // Filet horizontal fin (planche -selection10) sous le bloc propriétaire, avant
+  // les métriques — un FILET, pas un contenant (§A : jamais de card-in-card).
+  zoneHairline: { height: 1, backgroundColor: colors.grisLigne, marginTop: 12 },
   // E04 — CTA REPRENDRE : chartreuse (unique CTA tant que le sheet est ouvert,
   // GO retiré via useZoneSheetOpen). Libellé NOIR (jamais chartreuse sur clair).
   // CTA REPRENDRE — hauteur 54 mesurée sur la planche (-selection10), pill,
@@ -2000,7 +2006,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  zoneReprendreLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
+  // CAPITALES (planche -selection10 « REPRENDRE ») — cohérent avec les autres CTA
+  // GRYD. Le lecteur d'écran garde la casse mixte via accessibilityLabel(t(zoneReprendre)).
+  zoneReprendreLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.md,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
   // « Planifier pour plus tard » — CENTRÉ sous le CTA (planche), semibold gris,
   // sans soulignement : c'est l'écho tertiaire de la décision, pas un lien perdu.
   zoneTertiaryHit: {

@@ -178,6 +178,12 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const [locked, setLocked] = useState(false);
   const [box, setBox] = useState<ScreenBox | null>(null);
   const [closure, setClosure] = useState<ClosureShow | null>(null);
+  // E08 — le chrome live ne s'efface que pendant l'ANIMATION de capture, PAS
+  // pendant le badge persistant 6 s qui suit : là, la course a repris et « le
+  // live revient ». `capturing` est donc plus court que `closure !== null` — il
+  // retombe dès que la séquence se réduit en badge (onCollapse), et n'est jamais
+  // levé à vitesse élevée (badge seul, aucune surface plein écran à regarder).
+  const [capturing, setCapturing] = useState(false);
   const finishedRef = useRef(false);
   const s = run.snapshot;
   const mode = run.effectiveMode;
@@ -310,14 +316,18 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     // Rien à dessiner (carte pas encore mesurée) : on ne joue pas une séquence
     // sur du vide — la pill d'en-tête dit déjà que la boucle est fermée.
     if (ctx.camera === null || ctx.box === null || ctx.start === null) return;
+    const reduced = isHighSpeed(ctx.speed);
     setClosure({
       loop: ctx.loop,
       closurePoint: ctx.start,
       camera: ctx.camera,
       box: ctx.box,
       zonesEstimated: ctx.zones,
-      reduced: isHighSpeed(ctx.speed),
+      reduced,
     });
+    // Vitesse élevée = badge seul (aucune animation plein écran) : on n'efface
+    // alors JAMAIS le chrome. Sinon on le masque le temps de la séquence.
+    setCapturing(!reduced);
   }, [phase]);
 
   // ── Couches de carte ──────────────────────────────────────────────────────
@@ -445,6 +455,15 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         </View>
       ) : null}
 
+      {/* Pendant l'ANIMATION de capture E08 (`capturing`), le chrome live
+          s'EFFACE : la planche -selection13 est un écran NET — polygone d'encre +
+          nom + gain, aucune métrique, aucun contrôle, aucune pill. La carte reste
+          faiblement visible dessous (scrim léger de la séquence, jamais monté à
+          ~0,85 : ça effacerait aussi la carte, contre l'intention E08). On masque
+          l'en-tête ET les contrôles le temps de la séquence — puis le chrome
+          revient dès que tout se réduit en badge (la course continue). */}
+      {!capturing ? (
+      <>
       {/* ── 2/3/4. En-tête : état · 3 métriques tabulaires · fermeture ─────── */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.statusRow}>
@@ -662,6 +681,8 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           </>
         )}
       </View>
+      </>
+      ) : null}
 
       {/* ── E08 : fermeture & capture, par-dessus la carte réelle ──────────── */}
       {closure !== null ? (
@@ -676,7 +697,13 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           // pas (« pendant cette course »). La discipline est figée au départ :
           // pas besoin de la geler avec la caméra.
           activity={activity}
-          onDone={() => setClosure(null)}
+          // La séquence s'est réduite en badge : la course a repris, le chrome
+          // live revient (le badge, lui, tient encore quelques secondes par-dessus).
+          onCollapse={() => setCapturing(false)}
+          onDone={() => {
+            setClosure(null);
+            setCapturing(false);
+          }}
         />
       ) : null}
 

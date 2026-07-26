@@ -91,6 +91,13 @@ export interface LoopClosureSequenceProps {
    * (« BOUCLE FERMÉE »), lui, est déjà neutre et n'a pas de twin.
    */
   activity: Activity;
+  /**
+   * Appelé quand la séquence se RÉDUIT en badge (fin de l'animation plein écran).
+   * Le parent s'en sert pour faire REVENIR le chrome live pendant que le badge
+   * persiste : à cet instant la course a repris, l'écran n'est plus « en capture ».
+   * Distinct de `onDone`, qui ne survient qu'après les ~6 s de badge.
+   */
+  onCollapse?: () => void;
   onDone: () => void;
 }
 
@@ -102,6 +109,7 @@ export function LoopClosureSequence({
   zonesEstimated,
   reduced,
   activity,
+  onCollapse,
   onDone,
 }: LoopClosureSequenceProps) {
   const t = useT();
@@ -138,11 +146,20 @@ export function LoopClosureSequence({
 
   const finish = useRef(onDone);
   finish.current = onDone;
+  const collapse = useRef(onCollapse);
+  collapse.current = onCollapse;
+  const collapsedRef = useRef(false);
 
   // Enchaînement des paliers. Un seul timer vivant à la fois ; `doneRef` garantit
   // qu'on ne rend la main qu'une fois (Strict Mode double-invoque les effets).
   useEffect(() => {
     if (stage === 'badge') {
+      // La séquence plein écran est finie : le chrome live peut revenir pendant
+      // que le badge persiste (une seule fois — Strict Mode double-invoque).
+      if (!collapsedRef.current) {
+        collapsedRef.current = true;
+        collapse.current?.();
+      }
       const id = setTimeout(() => {
         if (doneRef.current) return;
         doneRef.current = true;
@@ -229,8 +246,10 @@ export function LoopClosureSequence({
             </ClipPath>
             {/* Trame de hachures horizontales (planche E08). Un trait par tuile,
                 répété verticalement tous les HATCH_STEP_PX → lignes horizontales
-                continues. Teinte = le liseré de MON territoire (token), jamais
-                une couleur inventée. */}
+                continues. Teinte SOMBRE (token `scrim`) : sur -selection13 les
+                traits sont des SILLONS soustractifs, plus FONCÉS que l'aplat
+                olive — pas des fils chartreuse brillants. Jamais une couleur
+                inventée (token existant). */}
             <Pattern
               id="gryd-loop-hatch"
               patternUnits="userSpaceOnUse"
@@ -244,14 +263,24 @@ export function LoopClosureSequence({
                 y1={HATCH_STEP_PX / 2}
                 x2={HATCH_STEP_PX}
                 y2={HATCH_STEP_PX / 2}
-                stroke={colors.chartreuse40}
+                stroke={colors.scrim}
                 strokeWidth={HATCH_STROKE_PX}
               />
             </Pattern>
           </Defs>
-          {/* Encre cartographique : l'aplat de MON territoire (token), jamais
-              une teinte inventée, jamais un aplat lourd. */}
-          <Polygon points={polygon} fill={colors.chartreuse14} clipPath="url(#gryd-loop-ink)" />
+          {/* Encre cartographique du MOMENT DE CAPTURE : aplat plein écran, plus
+              DENSE que le fill 16 % du territoire persistant de la Battle Map
+              (planche -selection13 : olive assez opaque). La règle « jamais un
+              aplat lourd » (§B/§C) protège la lisibilité de la TRACE sur la carte
+              PERMANENTE — ici la caméra est gelée et aucune trace concurrente ne
+              doit rester lisible dessous. Teinte = MON accent (token chartreuse),
+              densité LOCALE à ce composant : le `mineFill` 16 % de la carte reste
+              intact. */}
+          <Polygon
+            points={polygon}
+            fill={withAlpha(colors.chartreuse, 0.3)}
+            clipPath="url(#gryd-loop-ink)"
+          />
           {/* Hachures horizontales PAR-DESSUS l'aplat (planche E08) : le
               remplissage n'est pas un aplat plat, c'est une trame d'encre. Bornée
               au polygone (le fill ne déborde pas la forme) et révélée par le même
@@ -273,6 +302,20 @@ export function LoopClosureSequence({
             r={10 + inkRatio * 14}
             fill={withAlpha(colors.chartreuse, 0.22 * (1 - inkRatio))}
           />
+          {/* Anneau STATIQUE discret au moment nom+gain (planche -selection13) :
+              l'impulsion s'éteint quand inkRatio→1, mais la planche garde un halo
+              net autour du point de fermeture. Token existant, jamais un halo
+              lourd. */}
+          {showText ? (
+            <Circle
+              cx={anchor.x}
+              cy={anchor.y}
+              r={11}
+              fill="none"
+              stroke={colors.chartreuse40}
+              strokeWidth={1.5}
+            />
+          ) : null}
           <Circle cx={anchor.x} cy={anchor.y} r={5} fill={colors.chartreuse} />
         </Svg>
       ) : null}

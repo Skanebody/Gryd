@@ -149,6 +149,21 @@ export const C = defineCatalog({
     de: 'GEBIET ERWEITERT',
     pt: 'TERRITÓRIO EXPANDIDO',
   },
+  /**
+   * VARIANTE SANS CAPTURE (planche selection15). Titre FACTUEL et honnête quand
+   * la boucle est réellement restée ouverte (`serverResult.openBoundary`) :
+   * `loopClosed=false` est un FAIT du run, pas un placeholder — donc reproductible,
+   * et plus informatif que le générique « COURSE TERMINÉE ». Neutre (le concept de
+   * boucle est le même à pied et à vélo) : pas de jumeau `Bike`, comme les autres
+   * libellés de boucle (`loopClosedRow`).
+   */
+  loopNotClosed: {
+    fr: 'Boucle non fermée',
+    en: 'Loop not closed',
+    es: 'Bucle no cerrado',
+    de: 'Schleife nicht zu',
+    pt: 'Loop não fechado',
+  },
   // Libellé accessible du tracé RÉEL qui se dessine sur le résultat (§25).
   a11yResultTrace: {
     fr: 'Le tracé de ta course',
@@ -1406,6 +1421,20 @@ export const C = defineCatalog({
     es: 'Terminar',
     de: 'Fertig',
     pt: 'Concluir',
+  },
+  /**
+   * VARIANTE SANS CAPTURE (planche selection15) — le CTA chartreuse UNIQUE (§A4)
+   * pointe alors la SORTIE carte (l'action forte), pas le partage d'un
+   * non-événement. Uppercasé par le style du bouton (comme PARTAGER). Court dans
+   * les 5 langues (§A.9). « Réessayer la boucle » de la planche N'est PAS repris :
+   * aucune surface ne relance une boucle aujourd'hui → ce serait un bouton mort.
+   */
+  backToMap: {
+    fr: 'Retour à la carte',
+    en: 'Back to map',
+    es: 'Volver al mapa',
+    de: 'Zurück zur Karte',
+    pt: 'Voltar ao mapa',
   },
   /** Cible de SKIP de la séquence narrative (< 1,8 s, planche E09). */
   skipRevealA11y: {

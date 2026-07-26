@@ -798,7 +798,11 @@ function ConquestResultScreen({
   // « RUN LIBRE · 4,30 km », puis « 4,30 km DISTANCE » — trois fois le même
   // chiffre sur un écran qui tient en un coup d'œil.
   const kpiShowsZones = conquest && zones !== null && !notCredited && !effortHero;
-  const heroLine = notCredited
+  // Variante SANS CAPTURE (planche selection15) : recap SOBRE, sans kicker
+  // d'intention (« CONQUÊTE ») — le récit y est porté par la phrase d'effort
+  // (« l'effort compte, même sans capture »), pas par une bannière de conquête
+  // au-dessus d'un run qui n'a rien pris.
+  const heroLine = notCredited || effortHero
     ? ''
     : conquest
       ? kpiShowsZones
@@ -837,7 +841,13 @@ function ConquestResultScreen({
             // « TERRITOIRE ÉTENDU » y était un contresens — le hero parle d'EFFORT,
             // et « COURSE TERMINÉE » est vrai, sobre, et déjà traduit 5 langues.
             !conquest || !zones || effortHero
-            ? t(A.heroDone)
+            ? // VARIANTE SANS CAPTURE : quand la boucle est RÉELLEMENT restée
+              // ouverte (verdict serveur `openBoundary`), le titre le DIT — un
+              // fait du run (planche selection15), plus honnête que le générique.
+              // Sinon (zéro-zone sans frontière ouverte) « COURSE TERMINÉE ».
+              effortHero && serverResult?.openBoundary
+              ? t(C.loopNotClosed)
+              : t(A.heroDone)
             : intention === 'defense'
               ? t(C.heroDefended)
               : t(C.heroExtended);
@@ -935,7 +945,12 @@ function ConquestResultScreen({
               <ZoneCountUp value={zones.total} />
               <Text style={styles.heroKpiLabel}>{t(C.zonesCaptured)}</Text>
             </View>
-          ) : (
+          ) : effortHero ? null : (
+            // VARIANTE SANS CAPTURE (planche selection15) : pas de KM en KPI géant
+            // — un « 4,1 » en grand survend la distance d'un run qui n'a rien pris.
+            // La distance reste lisible dans la rangée stats ci-dessous (§A r.1 :
+            // écrite une seule fois). Le KPI KM reste, lui, sur les cas hors-ligne
+            // et non-conquête, où il n'y a rien d'autre à mettre en tête.
             <View style={styles.heroKpi}>
               <Text style={styles.zonesHero}>{formatKm(stats.distanceM)}</Text>
               <Text style={styles.heroKpiLabel}>{t(C.kmLabel)}</Text>
@@ -1174,7 +1189,21 @@ function ConquestResultScreen({
               partage affirment une conquête (« J'AI PRIS ZONE ») — proposer de
               partager un refus produirait exactement le mensonge que cet écran
               retire. Rien à célébrer ⇒ pas de bouton (jamais un CTA menteur, §A). */}
-          {!isPrivate && !notCredited ? (
+          {/* PRIMAIRE chartreuse — UNIQUE (§A4). Variante SANS CAPTURE
+              (effortHero, planche selection15) : le chartreuse pointe la SORTIE
+              carte, l'action forte — pas le partage d'un non-événement. Partager
+              redescend alors en tertiaire (plus bas). Sinon : PARTAGER. */}
+          {effortHero ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.backToMap)}
+              onPress={goMap}
+              style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
+            >
+              <Icon name="carte" size={iconSizes.md} color={colors.noir} />
+              <Text style={styles.shareLabel}>{t(C.backToMap)}</Text>
+            </Pressable>
+          ) : !isPrivate && !notCredited ? (
             <Pressable
               accessibilityRole="button"
               onPress={share}
@@ -1232,17 +1261,32 @@ function ConquestResultScreen({
             </Text>
             <Icon name="chevron" size={16} color={colors.gris} />
           </Pressable>
-          {/* TERTIAIRE — « Terminer » : la sortie, en lien texte. Elle ferme
-              l'écran ; elle ne rivalise pas visuellement avec PARTAGER. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(C.finishRun)}
-            onPress={goMap}
-            hitSlop={8}
-            style={({ pressed }) => [styles.tertiary, pressed && styles.pressed]}
-          >
-            <Text style={styles.tertiaryLabel}>{t(C.finishRun)}</Text>
-          </Pressable>
+          {/* TERTIAIRE — lien texte, ne rivalise jamais avec le chartreuse.
+              Variante SANS CAPTURE (planche selection15) : c'est PARTAGER qui
+              descend ici (le chartreuse est déjà la sortie carte) — Partager
+              reste HONNÊTE (course créditée, card d'effort réelle), simplement
+              dégradé. Sinon « Terminer » ferme l'écran. */}
+          {effortHero ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.share)}
+              onPress={share}
+              hitSlop={8}
+              style={({ pressed }) => [styles.tertiary, pressed && styles.pressed]}
+            >
+              <Text style={styles.tertiaryLabel}>{t(C.share)}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.finishRun)}
+              onPress={goMap}
+              hitSlop={8}
+              style={({ pressed }) => [styles.tertiary, pressed && styles.pressed]}
+            >
+              <Text style={styles.tertiaryLabel}>{t(C.finishRun)}</Text>
+            </Pressable>
+          )}
         </ResultReveal>
 
         {/* ─── « COMMENT J'AI GAGNÉ CES ZONES » — technique, au tap ────────────
@@ -1909,7 +1953,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   // Libellé NOIR sur chartreuse (charte — jamais de chartreuse sur fond clair).
-  shareLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
+  // CAPITALES : le CTA primaire de la planche (« PARTAGER » / « RETOUR À LA
+  // CARTE ») et la convention des CTA GRYD (« COMMENCER LA MISSION »…).
+  shareLabel: {
+    color: colors.noir,
+    fontSize: fontSizes.md,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
 
   // SECONDAIRE — contour discret, jamais de fond chartreuse (§A4 : un seul CTA
   // chartreuse par écran, et c'est PARTAGER).

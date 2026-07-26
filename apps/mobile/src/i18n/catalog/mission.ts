@@ -69,13 +69,19 @@ export const C = defineCatalog({
   // Ouvert par le CTA « Reprendre » de E04. Il transforme une intention en
   // objectif SANS formulaire — et ne promet RIEN que l'écran suivant ne tienne.
 
-  /** Kicker de la sheet (couleur de rôle §C portée par le composant). */
+  /**
+   * Kicker de la sheet, chemin CONQUÊTE (couleur de rôle §C portée par le
+   * composant). « REPRISE » (planche E05 -selection11) plutôt que « MISSION »
+   * générique : l'unique porte d'entrée de ce chemin est le CTA « Reprendre »
+   * de E04, et le titre juste dessous dit déjà « Reprendre {zone} ». La variante
+   * DÉFENSE (E22) porte son propre kicker (`map.defenseBriefKicker`).
+   */
   briefKicker: {
-    fr: 'MISSION',
-    en: 'MISSION',
-    es: 'MISIÓN',
-    de: 'MISSION',
-    pt: 'MISSÃO',
+    fr: 'REPRISE',
+    en: 'RETAKE',
+    es: 'RECUPERACIÓN',
+    de: 'RÜCKHOLUNG',
+    pt: 'RETOMADA',
   },
   /** Titre quand la zone porte un VRAI nom de quartier (géocodage inverse). */
   briefTitleNamed: {

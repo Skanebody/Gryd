@@ -458,7 +458,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   // Libellé NOIR sur chartreuse — jamais de chartreuse sur fond clair (charte).
-  ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
+  // CAPITALES (planche -selection11 « COMMENCER LA MISSION », et convention des
+  // CTA GRYD — cf. `ui/Button.tsx` primaryLabel). La chaîne source reste en
+  // casse mixte : `textTransform` n'agit qu'au rendu, le lecteur d'écran lit
+  // « Commencer la mission » composé avec la discipline (L348).
+  ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800', textTransform: 'uppercase' },
   // Microtexte CENTRÉ sous le CTA (planche) : « Le GPS démarre après le compte
   // à rebours. » — factuel, discret, jamais tronqué.
   micro: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 6, textAlign: 'center' },
