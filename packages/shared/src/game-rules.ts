@@ -10,8 +10,26 @@ export const H3_RESOLUTION = 10;
 export const TRACE_BUFFER_M = 15; // buffer autour de la polyline (tolérance GPS)
 
 // ─── §3.2 Validité d'une course ──────────────────────────────────────────────
-export const RUN_MIN_DISTANCE_M = 1_000;
-export const RUN_MIN_DURATION_S = 6 * 60;
+/**
+ * Distance minimale d'une course qui compte. ALIGNÉE spec unifiée §8.2
+ * (`MIN_ACTIVITY_DISTANCE_RUN = 800 m`, 27/07/2026 — audit GRYD_SPEC_PRODUIT_
+ * UI_UX_COMPLET.md décision D-19). Le dépôt exigeait 1 000 m : PLUS STRICT que
+ * la spec — alignement quand même (elle est la source de vérité), et ce
+ * durcissement non écrit est NOTÉ ici pour qu'il ne se reproduise pas en
+ * silence. Conséquence en cascade DOCUMENTÉE : `ACTIVITY_REFERENCE_SPEED_KMH`
+ * et la dérivation vélo plus bas RÉFÉRENCENT explicitement ce changement plutôt
+ * que de prétendre une exactitude qu'ils n'ont plus.
+ */
+export const RUN_MIN_DISTANCE_M = 800;
+/**
+ * Durée minimale d'une course qui compte. ALIGNÉE spec unifiée §8.2
+ * (`MIN_ACTIVE_DURATION_RUN = 5 min`, 27/07/2026). Le dépôt exigeait 6 min :
+ * PLUS STRICT que la spec — alignement quand même (source de vérité), durcissement
+ * non écrit NOTÉ. ⚠ N'est PLUS partagée telle quelle avec le vélo : voir
+ * `BIKE_MIN_DURATION_S`, désormais DÉCOUPLÉE (la spec fixe 6 min pour le vélo,
+ * 5 min pour la course — un alias aurait fait tomber le vélo en silence).
+ */
+export const RUN_MIN_DURATION_S = 5 * 60;
 /** Allure moyenne admise, en secondes par km : [2:50 ; 10:00] (borne basse anti-vélo). */
 export const RUN_AVG_PACE_MIN_S_KM = 2 * 60 + 50;
 export const RUN_AVG_PACE_MAX_S_KM = 10 * 60;
@@ -1617,6 +1635,50 @@ export const BALANCED_WEEK_MAX_RUNS = 6;
  */
 export const LOOP_CLOSE_TOLERANCE_M = 80;
 /**
+ * ─── §8.2 spec unifiée — MAX_CLOSURE_DISTANCE, tolérance ADAPTATIVE bornée ──
+ *
+ * La spec (27/07/2026, audit GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md décision D-19)
+ * demande `MAX_CLOSURE_DISTANCE = max(35 m, 2,5 × précision GPS médiane)` : une
+ * tolérance qui s'ASSOUPLIT quand le signal GPS de la course est mauvais
+ * (canyon urbain, forêt) au lieu de rejeter injustement une boucle honnête
+ * fermée avec un GPS dégradé.
+ *
+ * MAIS `LOOP_CLOSE_TOLERANCE_M` (80 m, ci-dessus) a été DURCI
+ * VOLONTAIREMENT de 100 → 80 m par AMENDEMENT-16 §2 pour FERMER un vecteur
+ * d'abus : sans plafond, une tolérance purement adaptative REROUVRIRAIT
+ * exactement ce vecteur — il suffirait d'invoquer une précision GPS dégradée
+ * (vraie ou falsifiée côté client) pour obtenir une tolérance de fermeture
+ * arbitrairement large, et donc « fermer » une boucle à 200 ou 300 m de son
+ * point de départ.
+ *
+ * RÉSOLUTION — les deux règles cohabitent, aucune n'est sacrifiée :
+ * `maxClosureDistanceM` borne l'adaptatif de la spec PAR le plafond durci
+ * d'AMENDEMENT-16 §2 : `max(35, min(LOOP_CLOSE_TOLERANCE_M, 2,5 × accuracyMedianM))`.
+ *  - GPS EXCELLENT (accuracyMedianM petit) → la tolérance retombe vers le
+ *    PLANCHER 35 m (jamais en dessous : même un GPS parfait garde une marge
+ *    physique de fermeture) ;
+ *  - GPS MÉDIOCRE (accuracyMedianM grand) → la tolérance MONTE avec le signal
+ *    réellement mesuré sur CETTE course, mais ne dépasse JAMAIS les 80 m
+ *    durcis par AMENDEMENT-16 §2 — le plafond anti-abus reste absolu.
+ * PURE (aucune horloge, aucun I/O, aucun état) — testée dans
+ * `game-rules.test.ts` (bornes basse/haute + cas nominal).
+ */
+export const MAX_CLOSURE_DISTANCE_FLOOR_M = 35;
+/** Facteur de la spec §8.2 : tolérance adaptative = ce facteur × précision GPS médiane (m). */
+export const MAX_CLOSURE_DISTANCE_ACCURACY_FACTOR = 2.5;
+/**
+ * Tolérance de fermeture EFFECTIVE d'une boucle pour une course donnée, à
+ * partir de la précision GPS MÉDIANE (m) de ses points. Voir le commentaire
+ * ci-dessus pour le raisonnement complet (spec adaptative × plafond durci
+ * AMENDEMENT-16 §2). `accuracyMedianM` doit être ≥ 0 ; une valeur négative ou
+ * non finie n'est pas de la responsabilité de cette fonction PURE — le moteur
+ * GPS (packages/engine) est seul responsable de fournir une médiane valide.
+ */
+export function maxClosureDistanceM(accuracyMedianM: number): number {
+  const adaptive = MAX_CLOSURE_DISTANCE_ACCURACY_FACTOR * accuracyMedianM;
+  return Math.max(MAX_CLOSURE_DISTANCE_FLOOR_M, Math.min(LOOP_CLOSE_TOLERANCE_M, adaptive));
+}
+/**
  * Périmètre minimal d'une boucle : en deçà, couloir seulement (pas de
  * micro-boucle farmée sur place — filtre AUSSI les micro-croisements du bruit
  * GPS en mode auto-intersection). L'auto-limite isopérimétrique (aire ≤ P²/4π)
@@ -1626,6 +1688,24 @@ export const LOOP_CLOSE_TOLERANCE_M = 80;
  * intérieur tronqué par distance croissante au tracé) reste la borne dure.
  */
 export const LOOP_MIN_PERIMETER_M = 1_000;
+/**
+ * §8.2 spec unifiée — `MIN_POLYGON_AREA` : aire minimale (m²) d'un polygone de
+ * capture pour être RETENU comme zone (27/07/2026, décision D-19). En dessous,
+ * le polygone existe géométriquement mais ne capture rien — même traitement
+ * que `loopRejectedReason` (course VALIDE, intérieur refusé).
+ *
+ * ⚠ CE PLANCHER EST PLUS PERMISSIF que le plancher IMPLICITE actuel du dépôt :
+ * tant que la propriété reste hexagonale (H3_RESOLUTION = 10), la plus petite
+ * unité capturable est UNE cellule, dont l'aire de référence
+ * (`OFFENSIVE_HEX_AREA_KM2` = 0,015 047 5 km² = 15 047,5 m², cf. §38.2b
+ * ci-dessous) dépasse déjà ce seuil de 5 000 m². `MIN_POLYGON_AREA_M2` ne
+ * remplace donc PAS ce plancher hexagonal tant que le stockage reste H3 — il
+ * devient l'autorité le jour où le polygone GeoJSON devient la donnée de
+ * capture (arbitrage A1/A1-bis, ARBITRAGES_SPEC_2026.md) : c'est la constante
+ * que ce futur moteur polygonal devra lire, posée ICI pour que la migration ne
+ * l'invente pas au dernier moment.
+ */
+export const MIN_POLYGON_AREA_M2 = 5_000;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AMENDEMENT-16 §2 — Durcissement boucle→zone (delta AMENDEMENT-12, doc §4-§6,
@@ -1695,6 +1775,73 @@ export const LOOP_MIN_WIDTH_M = 80;
  */
 export const LOOP_HINT_DISTANCE_M = 600;
 export const LOOP_PREVIEW_DISTANCE_M = 300;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §9 spec unifiée — Contestation & défense POLYGONALE (27/07/2026, audit
+// GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md décision D-19, architecture A1/A1-bis
+// ARBITRAGES_SPEC_2026.md). CE MÉCANISME N'EXISTAIT PAS AVANT : une boucle
+// RIVALE VALIDE qui recouvre suffisamment un polygone déjà possédé rend ce
+// polygone CONTESTÉ, ouvrant une fenêtre de temps pendant laquelle le
+// propriétaire peut le DÉFENDRE (§9.3) avant transfert automatique (§9.4).
+//
+// ⚠ À NE PAS CONFONDRE avec deux mécanismes EXISTANTS qui portent des noms
+// voisins mais gouvernent autre chose :
+//  · DEFENSE_HOURS_TRAVERSE/LONGE/COVER (plus haut, §3.3) REPOUSSENT
+//    l'échéance de DECAY d'une zone déjà possédée quand son propriétaire la
+//    re-parcourt — aucun rival n'est impliqué, ce n'est pas une contestation.
+//  · SECTOR_CONTESTED_RULE / SECTOR_PRESSURE_* (plus bas, RÈGLES §C) évaluent
+//    la pression à l'échelle d'un SECTEUR entier (agrégat, `pressure_score`
+//    0-100) — pas la contestation d'UN polygone précis par UNE boucle rivale.
+// Les trois cohabitent : un secteur peut être « sous pression » (agrégat)
+// pendant qu'un seul de ses polygones est « contesté » (ce mécanisme) suite à
+// une boucle rivale précise.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * §9.1 — Seuil d'INTERSECTION déclenchant la contestation : une boucle rivale
+ * valide dont le polygone recouvre CETTE fraction (0-1) — ou davantage — du
+ * polygone possédé le fait passer CONTESTÉ. En dessous, le recouvrement est
+ * un simple frôlement de frontière (déjà géré par le §8.6 « recouvrement » à
+ * la capture), pas une remise en jeu de la zone entière.
+ * Valeur de départ RECOMMANDÉE par la spec (§9.1, 27/07/2026) : 60 %.
+ * TUNABLE (équilibrage), comme les autres seuils d'intersection du dépôt
+ * (cf. SECTOR_CONTESTED_RULE).
+ */
+export const CONTEST_INTERSECTION_THRESHOLD = 0.6;
+
+/**
+ * §9.1 — Fenêtre de DÉFENSE de base (heures) une fois un polygone déclaré
+ * contesté : délai avant transfert automatique (§9.4) si aucune défense
+ * valide (§9.3) n'est enregistrée entre-temps. Valeur de départ RECOMMANDÉE
+ * par la spec : 18 h. C'est le NIVEAU 0 de fortification (§9.2) — voir
+ * `FORTIFICATION_WINDOW_HOURS_BY_LEVEL` ci-dessous, qui LE RÉFÉRENCE plutôt
+ * que de dupliquer 18 en dur, pour qu'un changement de cette base ne puisse
+ * pas désynchroniser le niveau 0 de la table de fortification par oubli.
+ */
+export const BASE_DEFENSE_WINDOW_HOURS = 18;
+
+/**
+ * §9.2 — Fortification : niveaux DISCRETS 0→3, chacun portant sa propre
+ * fenêtre de défense (heures) avant transfert, visibles par un bouclier
+ * simple à l'écran. « Le niveau dépend des défenses récentes et décroît avec
+ * le temps » (spec §9.2) : la DÉRIVATION du niveau courant d'un polygone
+ * (nombre de défenses réussies récentes, décroissance temporelle) est une
+ * responsabilité du MOTEUR (packages/engine, à construire — hors périmètre de
+ * ce fichier de constantes), jamais de cette table, qui ne fait que MAPPER un
+ * niveau déjà déterminé vers sa fenêtre en heures.
+ * Index = niveau de fortification (0-3). Niveau 0 = `BASE_DEFENSE_WINDOW_HOURS`
+ * (référencé, jamais dupliqué). Valeurs de départ RECOMMANDÉES par la spec :
+ * 18 / 24 / 30 / 36 h. « Il n'est jamais achetable » (spec §9.2) : AUCUN palier
+ * de cette table n'est modulé par un statut payant — anti pay-to-win, comme
+ * FRESH_CAPTURE_PROTECT_HOURS et le reste de la protection temporelle §3.3.
+ */
+export const FORTIFICATION_WINDOW_HOURS_BY_LEVEL = [
+  BASE_DEFENSE_WINDOW_HOURS,
+  24,
+  30,
+  36,
+] as const;
+export type FortificationLevel = 0 | 1 | 2 | 3;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AMENDEMENT-15 §1 — Moteur GPS pur (pipeline IDENTIQUE client/serveur).
@@ -2620,9 +2767,16 @@ export const DEFAULT_ACTIVITY: Activity = 'run';
 /**
  * VITESSE DE RÉFÉRENCE d'une discipline (km/h) — le pivot de TOUTES les
  * dérivations `bike` ci-dessous. Aucune des deux valeurs n'est choisie :
- *  · `run` est LUE dans les règles existantes — le « coin » de validité §3.2
- *    (RUN_MIN_DISTANCE_M 1 000 m atteint en RUN_MIN_DURATION_S 360 s) vaut
- *    exactement 10 km/h, la vitesse d'un coureur honnête ;
+ *  · `run` était LUE dans les règles existantes — le « coin » de validité
+ *    §3.2 (RUN_MIN_DISTANCE_M 1 000 m atteint en RUN_MIN_DURATION_S 360 s)
+ *    valait exactement 10 km/h, la vitesse d'un coureur honnête.
+ *    ⚠ Depuis l'alignement spec unifiée §8.2 (27/07/2026, décision D-19),
+ *    RUN_MIN_DISTANCE_M = 800 m et RUN_MIN_DURATION_S = 300 s : ce coin vaut
+ *    désormais 9,6 km/h. `run: 10` reste un ARRONDI délibéré au palier
+ *    lisible le plus proche (0,4 km/h d'écart, sans effet sur les bornes
+ *    anti-triche RÉELLES — RUN_AVG_PACE_MIN/MAX_S_KM restent la seule
+ *    autorité de vitesse de course, indépendante de ce pivot) plutôt qu'une
+ *    lecture exacte des deux constantes ;
  *  · `bike` = 2 × `run`, et ce facteur 2 est LU sur la planche E14 elle-même :
  *    mission course 900 m ≈ 6 min → 9 km/h ; mission vélo 4 800 m ≈ 15 min
  *    → 19,2 km/h ; rapport 2,13, arrondi PRUDEMMENT à 2.
@@ -2709,23 +2863,35 @@ const RUN_RULES: ActivityRuleSet = {
 // ─── VÉLO : chaque borne, et son pourquoi ────────────────────────────────────
 
 /**
- * Distance minimale d'une sortie vélo. DÉRIVÉE : le couple course
- * (1 000 m ; 360 s) place son « coin » de validité à 10 km/h, soit la vitesse
- * de croisière HONNÊTE d'un coureur. On reproduit exactement ce coin à la
- * vitesse de croisière honnête d'un cycliste (2 × la course, ≈ 20 km/h) :
- * 20 km/h × 360 s = 2 000 m. Ce n'est donc pas une exigence PLUS dure, c'est
- * la MÊME exigence lue à la bonne vitesse.
+ * Distance minimale d'une sortie vélo — ALIGNÉE spec unifiée §8.2
+ * (`MIN_ACTIVITY_DISTANCE_BIKE = 2 000 m`, 27/07/2026, décision D-19) : la
+ * valeur du dépôt COÏNCIDAIT DÉJÀ exactement avec la spec, confirmée telle
+ * quelle (aucun changement numérique).
+ * COHÉRENCE avec la dérivation historique (toujours vraie) : à la vitesse de
+ * référence vélo (`ACTIVITY_REFERENCE_SPEED_KMH.bike` = 20 km/h) et à la durée
+ * propre du vélo (`BIKE_MIN_DURATION_S` = 360 s, ci-dessous — DÉCOUPLÉE de la
+ * course depuis cet alignement), 20 km/h × 360 s = 2 000 m. L'ancienne
+ * dérivation « 2 × la course » ne tient plus littéralement (la course est
+ * passée à 800 m / 300 s, cf. RUN_MIN_DISTANCE_M) : c'est attendu, la spec
+ * fixe les deux disciplines INDÉPENDAMMENT désormais, elles cessent d'être un
+ * simple facteur l'une de l'autre sur cet axe précis.
  */
 export const BIKE_MIN_DISTANCE_M = 2_000;
 
 /**
- * Durée minimale d'une sortie vélo : IDENTIQUE à la course. Le plancher de
- * durée ne dit rien de la vitesse, il dit « c'était une vraie sortie, pas un
- * aller au coin de la rue ». Six minutes de vélo restent six minutes d'effort :
- * inventer un plancher plus long pour les cyclistes serait durcir la règle sans
- * raison physiologique.
+ * Durée minimale d'une sortie vélo — ALIGNÉE spec unifiée §8.2
+ * (`MIN_ACTIVE_DURATION_BIKE = 6 min`, 27/07/2026, décision D-19).
+ * ⚠ N'EST PLUS « IDENTIQUE à la course » (l'était avant cet alignement, via
+ * `= RUN_MIN_DURATION_S`) : la même spec §8.2 fixe la course à 5 min
+ * (`RUN_MIN_DURATION_S = 300 s`, voir plus haut) — les deux disciplines
+ * DIVERGENT désormais d'une minute, c'est un choix EXPLICITE de la spec, pas
+ * un oubli. DÉCOUPLÉE de `RUN_MIN_DURATION_S` en conséquence : garder l'alias
+ * aurait fait tomber le plancher vélo à 5 min EN SILENCE le jour où la course
+ * a été réalignée, exactement le genre de couplage accidentel qu'une
+ * constante partagée est censée éviter d'introduire. La valeur numérique
+ * elle-même NE CHANGE PAS : le dépôt affichait déjà 360 s via l'alias.
  */
-export const BIKE_MIN_DURATION_S = RUN_MIN_DURATION_S;
+export const BIKE_MIN_DURATION_S = 6 * 60;
 
 /**
  * Allure MOYENNE minimale d'une sortie vélo : 60 s/km = 60 km/h de MOYENNE.

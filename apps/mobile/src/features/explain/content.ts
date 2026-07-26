@@ -48,7 +48,6 @@ import {
   lockHoursLabel,
   newPlayerDaysEntry,
   pioneerBonusMaxEntry,
-  minDurationLabel,
   verifyTiersLabel,
   verifyTiersSentenceEntry,
   widthMinLabel,
@@ -241,15 +240,17 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     icon: 'boucle_ouverte',
     q: C.q3Q,
     // UNE raison de refus par ligne, chaque seuil étiqueté (zéro-friction).
-    // Les quatre valeurs injectées sont celles qui valent à l'IDENTIQUE dans
-    // les deux disciplines (tolérance de fermeture, gate GPS, largeur, durée) —
-    // la distance minimale, elle, DIFFÈRE et n'est donc plus chiffrée ici
-    // (voir `q3A` dans le catalogue, et `copyDiscipline.test.ts`).
+    // Les TROIS valeurs injectées sont celles qui valent à l'IDENTIQUE dans les
+    // deux disciplines (tolérance de fermeture, gate GPS, largeur). La distance
+    // ET LA DURÉE minimales DIFFÈRENT par discipline (spec §8.2 : 800 m / 5 min
+    // à pied, 2 000 m / 6 min à vélo) : les chiffrer ici mentirait à la moitié
+    // des lecteurs, donc la ligne renvoie à la discipline.
+    // ⚠️ La durée a QUITTÉ cette liste le 27/07 quand la spec a séparé les deux
+    // mondes — `copyDiscipline.test.ts` l'avait prédit et l'a attrapé.
     a: fillEntry(C.q3A, {
       close: closeToleranceLabel(),
       gps: gpsGateLabel(),
       width: widthMinLabel(),
-      dur: minDurationLabel(),
     }),
   },
   {

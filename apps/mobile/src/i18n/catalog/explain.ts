@@ -598,11 +598,11 @@ export const C = defineCatalog({
    * même valeur dans les deux mondes, et `copyDiscipline.test.ts` le VÉRIFIE.
    */
   q3A: {
-    fr: '· Boucle non refermée : écart départ-arrivée > {close}.\n· Signal GPS trop faible : indice sous {gps}.\n· Tracé trop étroit : moins de {width} de large.\n· Surface trop petite, ou au-dessus du plafond.\n· Sortie trop courte : moins de {dur}, ou sous la distance minimale de ta discipline.',
-    en: '· Loop not closed: start-finish gap > {close}.\n· GPS signal too weak: score under {gps}.\n· Route too narrow: less than {width} wide.\n· Area too small, or above the cap.\n· Outing too short: under {dur}, or below your discipline’s minimum distance.',
-    es: '· Bucle sin cerrar: distancia inicio-final > {close}.\n· Señal GPS muy débil: índice bajo {gps}.\n· Trazado muy estrecho: menos de {width} de ancho.\n· Superficie muy pequeña, o por encima del tope.\n· Salida muy corta: menos de {dur}, o por debajo de la distancia mínima de tu disciplina.',
-    de: '· Loop nicht geschlossen: Lücke Start-Ziel > {close}.\n· GPS-Signal zu schwach: Wert unter {gps}.\n· Route zu schmal: weniger als {width} breit.\n· Fläche zu klein oder über dem Limit.\n· Tour zu kurz: unter {dur} oder unter der Mindestdistanz deiner Disziplin.',
-    pt: '· Loop não fechado: distância início-fim > {close}.\n· Sinal GPS fraco demais: índice abaixo de {gps}.\n· Traçado estreito demais: menos de {width} de largura.\n· Área pequena demais, ou acima do teto.\n· Saída curta demais: menos de {dur}, ou abaixo da distância mínima da sua disciplina.',
+    fr: '· Boucle non refermée : écart départ-arrivée > {close}.\n· Signal GPS trop faible : indice sous {gps}.\n· Tracé trop étroit : moins de {width} de large.\n· Surface trop petite, ou au-dessus du plafond.\n· Sortie trop courte : sous la durée ou la distance minimales de ta discipline.',
+    en: '· Loop not closed: start-finish gap > {close}.\n· GPS signal too weak: score under {gps}.\n· Route too narrow: less than {width} wide.\n· Area too small, or above the cap.\n· Outing too short: under your discipline’s minimum duration or distance.',
+    es: '· Bucle sin cerrar: distancia inicio-final > {close}.\n· Señal GPS muy débil: índice bajo {gps}.\n· Trazado muy estrecho: menos de {width} de ancho.\n· Superficie muy pequeña, o por encima del tope.\n· Salida muy corta: por debajo de la duración o la distancia mínimas de tu disciplina.',
+    de: '· Loop nicht geschlossen: Lücke Start-Ziel > {close}.\n· GPS-Signal zu schwach: Wert unter {gps}.\n· Route zu schmal: weniger als {width} breit.\n· Fläche zu klein oder über dem Limit.\n· Tour zu kurz: unter Mindestdauer oder Mindestdistanz deiner Disziplin.',
+    pt: '· Loop não fechado: distância início-fim > {close}.\n· Sinal GPS fraco demais: índice abaixo de {gps}.\n· Traçado estreito demais: menos de {width} de largura.\n· Área pequena demais, ou acima do teto.\n· Saída curta demais: abaixo da duração ou da distância mínimas da sua disciplina.',
   },
   q4Q: {
     fr: 'Que veut dire « frontière couverte » ?',

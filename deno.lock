@@ -172,6 +172,11 @@
     "https://deno.land/x/postgres@v0.19.3/utils/utils.ts": "ca47193ea03ff5b585e487a06f106d367e509263a960b787197ce0c03113a738"
   },
   "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@playwright/test@^1.62.0"
+      ]
+    },
     "members": {
       "apps/mobile": {
         "packageJson": {

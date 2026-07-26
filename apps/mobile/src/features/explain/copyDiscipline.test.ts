@@ -177,8 +177,10 @@ Deno.test('les bornes que la copie chiffre ENCORE sont identiques dans les deux 
   // (`q3A`, `q4A`, schémas). Le jour où l'une d'elles gagne une variante vélo,
   // ce test tombe — et la copie devra cesser de la chiffrer, exactement comme
   // l'a fait la distance minimale.
+  // `minDurationS` a QUITTÉ cette liste le 27/07/2026 : la spec §8.2 sépare les
+  // deux mondes (5 min à pied, 6 min à vélo). Ce test est tombé exactement comme
+  // son commentaire l'annonçait, et la copie a cessé de chiffrer la durée.
   const shared = [
-    'minDurationS',
     'loopCloseToleranceM',
     'loopMinWidthM',
     'loopMinGpsTrust',
@@ -206,7 +208,12 @@ Deno.test('q3A garde ses seuils chiffrables ET renvoie à la discipline pour la 
     const text = q3.a[locale];
     assert(!text.includes('{'), `q3A.${locale} garde un placeholder non résolu — « ${text} »`);
     assert(text.includes('80 m'), `q3A.${locale} n'annonce plus la tolérance de fermeture`);
-    assert(text.includes('6 min'), `q3A.${locale} n'annonce plus la durée minimale`);
+    // La durée n'est PLUS chiffrée (elle diffère par discipline) : la ligne doit
+    // renvoyer à la discipline, comme le fait déjà la distance.
+    assert(
+      !/\b\d+\s*min\b/.test(text),
+      `q3A.${locale} CHIFFRE une durée alors qu'elle diffère par discipline — « ${text} »`,
+    );
     assertEquals(
       text.split('\n').length,
       5,

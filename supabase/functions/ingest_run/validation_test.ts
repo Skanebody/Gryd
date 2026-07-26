@@ -51,15 +51,18 @@ Deno.test('haversineM : ~1 km pour 0,009° de latitude', () => {
 // ─── validateRun (§3.2) ──────────────────────────────────────────────────────
 
 Deno.test('course trop courte → rejected too_short', () => {
-  // 500 m en 6 min : durée OK, distance < RUN_MIN_DISTANCE_M.
+  // 500 m en 6 min : durée OK, distance < RUN_MIN_DISTANCE_M (800 m depuis §8.2).
   const { segments } = filterPoints(line({ distanceM: 500, durationS: 360, n: 60 }));
   const v = validateRun(computeStats(segments));
   assertEquals(v, { status: 'rejected', reason: 'too_short' });
 });
 
 Deno.test('course trop brève → rejected too_brief', () => {
-  // 1,2 km en 5 min : distance OK, durée < RUN_MIN_DURATION_S (allure 250 s/km OK).
-  const { segments } = filterPoints(line({ distanceM: 1200, durationS: 300, n: 60 }));
+  // 1,2 km en 4 min : distance OK, durée < RUN_MIN_DURATION_S (allure 200 s/km OK).
+  // ⚠ La fixture disait 5 min jusqu'au 27/07/2026 — elle est devenue FAUSSE quand
+  // la spec §8.2 a abaissé RUN_MIN_DURATION_S de 6 à 5 min : 300 s n'est plus
+  // « sous le plancher », il EST le plancher, et le test ne prouvait plus rien.
+  const { segments } = filterPoints(line({ distanceM: 1200, durationS: 240, n: 60 }));
   const v = validateRun(computeStats(segments));
   assertEquals(v, { status: 'rejected', reason: 'too_brief' });
 });

@@ -133,9 +133,12 @@ Deno.test('invariant : les bornes `run` SONT les constantes §3.2 historiques', 
   assertEquals(r.pointMaxAccuracyM, POINT_MAX_ACCURACY_M);
   assertEquals(r.segmentPaceMinSKm, SEGMENT_PACE_MIN_S_KM);
   assertEquals(r.segmentPaceMaxSKm, SEGMENT_PACE_MAX_S_KM);
-  // Valeurs LITTÉRALES de la Saison 0 : si l'une bouge, c'est une décision de
-  // jeu, pas un effet de bord de l'arrivée du vélo.
-  assertEquals(r.minDistanceM, 1_000);
+  // Valeurs LITTÉRALES : si l'une bouge, c'est une DÉCISION DE JEU, pas un effet
+  // de bord. Ce verrou a joué le 27/07/2026 : la spec produit §8.2 (source de
+  // vérité, décision D-19) fixe le plancher run à 800 m — le dépôt était plus
+  // strict à 1 000 m. Le chiffre est donc recalé DÉLIBÉRÉMENT, et le verrou
+  // reprend son rôle sur la nouvelle valeur.
+  assertEquals(r.minDistanceM, 800);
   assertEquals(r.avgPaceMinSKm, 170);
   assertEquals(r.pointMaxSpeedKmh, 25);
 });
