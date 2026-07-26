@@ -37,7 +37,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, ClipPath, Defs, Polygon, Polyline } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, Line, Pattern, Polygon, Polyline } from 'react-native-svg';
 import { type Activity, colors, fonts, fontSizes, radii, spacing, withAlpha } from '@klaim/shared';
 import { C, RUN_GPS_COPY } from '../../../i18n/catalog/runGps';
 import { useT } from '../../../i18n/store';
@@ -59,6 +59,16 @@ const BADGE_HOLD_MS = 6_000;
 const REDUCED_FADE_MS = 400;
 /** Cadence de rafraîchissement du rayon d'encre (~30 i/s : fluide, pas coûteux). */
 const INK_TICK_MS = 33;
+/**
+ * Hachures HORIZONTALES du territoire capturé (planche E08, -selection13 : le
+ * remplissage n'est pas un aplat mais des traits horizontaux, signature « encre
+ * cartographique »). Présentation PURE, au même titre que les minutages : ces
+ * pixels ne décident d'aucune règle de jeu et restent donc des constantes
+ * locales. `HATCH_STEP_PX` = écart vertical entre deux traits (MESURÉ ~8-10 px
+ * sur la planche) ; `HATCH_STROKE_PX` = épaisseur d'un trait d'encre.
+ */
+const HATCH_STEP_PX = 9;
+const HATCH_STROKE_PX = 1.5;
 
 type Stage = 'contour' | 'fill' | 'label' | 'fact' | 'collapse' | 'badge';
 
@@ -217,10 +227,36 @@ export function LoopClosureSequence({
             <ClipPath id="gryd-loop-ink">
               <Circle cx={anchor.x} cy={anchor.y} r={Math.max(0.01, inkRatio * maxRadius)} />
             </ClipPath>
+            {/* Trame de hachures horizontales (planche E08). Un trait par tuile,
+                répété verticalement tous les HATCH_STEP_PX → lignes horizontales
+                continues. Teinte = le liseré de MON territoire (token), jamais
+                une couleur inventée. */}
+            <Pattern
+              id="gryd-loop-hatch"
+              patternUnits="userSpaceOnUse"
+              x={0}
+              y={0}
+              width={HATCH_STEP_PX}
+              height={HATCH_STEP_PX}
+            >
+              <Line
+                x1={0}
+                y1={HATCH_STEP_PX / 2}
+                x2={HATCH_STEP_PX}
+                y2={HATCH_STEP_PX / 2}
+                stroke={colors.chartreuse40}
+                strokeWidth={HATCH_STROKE_PX}
+              />
+            </Pattern>
           </Defs>
           {/* Encre cartographique : l'aplat de MON territoire (token), jamais
               une teinte inventée, jamais un aplat lourd. */}
           <Polygon points={polygon} fill={colors.chartreuse14} clipPath="url(#gryd-loop-ink)" />
+          {/* Hachures horizontales PAR-DESSUS l'aplat (planche E08) : le
+              remplissage n'est pas un aplat plat, c'est une trame d'encre. Bornée
+              au polygone (le fill ne déborde pas la forme) et révélée par le même
+              masque d'encre que l'aplat — les traits « poussent » avec elle. */}
+          <Polygon points={polygon} fill="url(#gryd-loop-hatch)" clipPath="url(#gryd-loop-ink)" />
           {/* Le contour fermé : la boucle telle qu'elle a été COURUE. */}
           <Polyline
             points={`${polygon} ${polygon.split(' ')[0] ?? ''}`}

@@ -1122,13 +1122,17 @@ function ConquestResultScreen({
           {stats.durationS > 0 ? (
             <View style={styles.statTriBlock}>
               <View style={styles.statTriItem}>
+                {/* Planche E09 : la valeur en gras, l'unité en petit exposant gris
+                    à côté (« 4,3 » + « km »), jamais deux textes de même taille. */}
                 <Text style={styles.statTriValue} numberOfLines={1}>
-                  {formatKm(stats.distanceM)} km
+                  {formatKm(stats.distanceM)}
+                  <Text style={styles.statTriUnit}> km</Text>
                 </Text>
                 <Text style={styles.statTriLabel}>{t(C.distanceLabel)}</Text>
               </View>
               <View style={styles.statTriSep} />
               <View style={styles.statTriItem}>
+                {/* Le temps n'a pas d'unité à exposer (27:12 se lit seul). */}
                 <Text style={styles.statTriValue} numberOfLines={1}>
                   {formatClock(stats.durationS)}
                 </Text>
@@ -1139,9 +1143,17 @@ function ConquestResultScreen({
                   <View style={styles.statTriSep} />
                   <View style={styles.statTriItem}>
                     <Text style={styles.statTriValue} numberOfLines={1}>
-                      {rate.kind === 'speed'
-                        ? `${formatSpeedKmh(rate.kmh, decimalSeparator())} km/h`
-                        : `${formatPace(rate.sPerKm)}/km`}
+                      {rate.kind === 'speed' ? (
+                        <>
+                          {formatSpeedKmh(rate.kmh, decimalSeparator())}
+                          <Text style={styles.statTriUnit}> km/h</Text>
+                        </>
+                      ) : (
+                        <>
+                          {formatPace(rate.sPerKm)}
+                          <Text style={styles.statTriUnit}>/km</Text>
+                        </>
+                      )}
                     </Text>
                     <Text style={styles.statTriLabel}>{t(A.rateLabel)}</Text>
                   </View>
@@ -1826,6 +1838,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.textSemi,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
+  },
+  // Unité en petit exposant gris à côté de la valeur (planche E09 : « 4,3 » puis
+  // « km » plus petit). fontSizes.xs = un tiers de la valeur, teinte discrète.
+  statTriUnit: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
+    fontWeight: '600',
   },
   statTriLabel: {
     color: colors.gris,

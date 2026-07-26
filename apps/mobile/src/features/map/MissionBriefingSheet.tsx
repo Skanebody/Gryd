@@ -48,7 +48,8 @@ import Svg, { Path } from 'react-native-svg';
 // `sizes` : le plancher tactile du projet. Il était recopié en 44 dans deux
 // styles de ce fichier — §A demande le TOKEN, jamais le nombre (un plancher
 // recopié ne bouge pas avec la charte, et rien ne le relie au gabarit).
-import { colors, fontSizes, gameColors, radii, sizes, type Activity } from '@klaim/shared';
+import { colors, fontSizes, gameColors, iconSizes, radii, sizes, typography, type Activity } from '@klaim/shared';
+import { Icon } from '../../ui/Icon';
 import { C as M } from '../../i18n/catalog/mission';
 import { C } from '../../i18n/catalog/map';
 import { ACTIVITY_NAME } from '../../i18n/catalog/runGps';
@@ -66,6 +67,7 @@ import {
   BRIEF_PREVIEW_H,
   briefMetricKeys,
   briefRouteState,
+  distanceStatParts,
   type BriefRouteState,
 } from './zoneDecision';
 
@@ -200,11 +202,12 @@ export function MissionBriefingSheet({
     onStateChangeRef.current?.(state);
   }, [state]);
 
-  const metrics: readonly SheetMetric[] = briefMetricKeys(state).map((key) => ({
-    key,
-    value: formatKm(route?.km ?? 0, locale),
-    label: t(M.briefMetricDistance),
-  }));
+  const metrics: readonly SheetMetric[] = briefMetricKeys(state).map((key) => {
+    // « 4,2 » (gros) + « km » (petit) : la composition « grand nombre + petite
+    // unité » de la planche, via le même formateur PUR que la sheet de zone.
+    const { value, unit } = distanceStatParts(route?.km ?? 0, locale);
+    return { key, value, unit, label: t(M.briefMetricDistance) };
+  });
 
   const previewW = Math.max(120, winW - SHEET_H_PADDING * 2);
 
@@ -221,6 +224,7 @@ export function MissionBriefingSheet({
           {`${t(M.briefKicker)} · ${ACTIVITY_LABELS[activity]}`}
         </Text>
         <View style={styles.spacer} />
+        {/* ✕ DANS UN DISQUE (planche E05, comme E04) — icône plutôt que texte. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(M.briefCloseA11y)}
@@ -229,10 +233,10 @@ export function MissionBriefingSheet({
             haptics.light();
             onClose();
           }}
-          style={({ pressed }) => [styles.closeHit, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.closeCircle, pressed && styles.pressed]}
           testID="brief-close"
         >
-          <Text style={styles.closeText}>{t(C.closeLabel)}</Text>
+          <Icon name="fermer" size={iconSizes.sm} color={colors.gris} />
         </Pressable>
       </View>
       <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
@@ -393,16 +397,25 @@ const styles = StyleSheet.create({
     color: gameColors.crew,
     fontSize: fontSizes.xs,
     fontWeight: '800',
-    letterSpacing: 1.5,
+    letterSpacing: 2, // interlettrage de la planche (rôle `typography.kicker`)
   },
   spacer: { flex: 1 },
-  closeHit: { minHeight: 32, paddingHorizontal: 6, justifyContent: 'center' },
-  closeText: { color: colors.gris, fontSize: 13, fontWeight: '600' },
+  // ✕ dans un DISQUE (planches E04/E05) — même traitement que la sheet de zone.
+  closeCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: gameColors.carbon,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+  },
+  // Titre HÉROS de la planche (`typography.title`, 28 px, Inter Tight 700) — et
+  // non plus un titre de 16 px : « Reprenez Saint-Rémy » domine comme en E05.
   title: {
+    ...typography.title,
     color: colors.blanc,
-    fontSize: fontSizes.md,
-    fontWeight: '800',
-    letterSpacing: 0.1,
     marginTop: 4,
   },
 
@@ -423,7 +436,7 @@ const styles = StyleSheet.create({
 
   cta: {
     marginTop: 12,
-    height: 48,
+    height: 54, // hauteur mesurée sur la planche (-selection11), pill
     borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,
     alignItems: 'center',
@@ -432,5 +445,7 @@ const styles = StyleSheet.create({
   },
   // Libellé NOIR sur chartreuse — jamais de chartreuse sur fond clair (charte).
   ctaLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
-  micro: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 2 },
+  // Microtexte CENTRÉ sous le CTA (planche) : « Le GPS démarre après le compte
+  // à rebours. » — factuel, discret, jamais tronqué.
+  micro: { color: colors.gris, fontSize: fontSizes.xs, marginTop: 6, textAlign: 'center' },
 });

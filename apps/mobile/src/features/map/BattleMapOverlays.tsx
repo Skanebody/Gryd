@@ -87,13 +87,16 @@ import {
   // recopié ne suit pas la charte quand elle bouge, et rien ne le relie au
   // gabarit qu'il est censé garantir.
   sizes,
+  // Rôle typographique des TITRES d'écran des planches (Inter Tight 700, 28 px) :
+  // le nom de zone E04 le consomme désormais, au lieu d'un titre de 16 px.
+  typography,
   withAlpha,
   DEFAULT_ACTIVITY,
 } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { C as N } from '../../i18n/catalog/nav';
 import { useLocale, useT } from '../../i18n/store';
-import type { Entry, Locale } from '../../i18n/types';
+import type { Entry } from '../../i18n/types';
 import { EVENTS, screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { Button } from '../../ui/Button';
@@ -127,6 +130,7 @@ import { missionStartHref, plannerHref } from '../route/startTargets';
 import { resolveSectorName } from './sectorNaming';
 import type { LatLngPoint } from './realAnchors';
 import {
+  areaStatParts,
   briefMetricKeys,
   briefSheetHeight,
   daysSinceCapture,
@@ -377,11 +381,11 @@ import type { MapZoneView } from './zoneSelection';
  * catalogue — d'autres surfaces les utilisent.
  */
 
-/** « 0,8 km² » — même règle décimale, zéros de fin retirés (jamais tronqué). */
-function formatArea(km2: number, locale: Locale): string {
-  const s = km2.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-  return `${locale === 'en' ? s : s.replace('.', ',')} km²`;
-}
+/*
+ * `formatArea` a migré vers `zoneDecision.areaStatParts` (PURE + testée Deno) :
+ * la planche compose « 0,42 » (gros) + « km² » (petit), le rendu a donc besoin
+ * des deux morceaux SÉPARÉS, pas d'une chaîne « 0,42 km² » déjà collée.
+ */
 
 /**
  * NOM RÉEL du quartier d'une zone (planche E04 : « Quartier Saint-Rémy »).
@@ -1502,9 +1506,12 @@ function ZoneDecisionPeek({
   const days = daysSinceCapture(zone.capturedAt, new Date());
   const cells: readonly SheetMetric[] = metrics.map((key) => {
     if (key === 'area') {
-      return { key, value: formatArea(zone.areaKm2, locale), label: t(C.zoneMetricArea) };
+      // « 0,42 » (gros) + « km² » (petit) : la composition de la planche.
+      const { value, unit } = areaStatParts(zone.areaKm2, locale);
+      return { key, value, unit, label: t(C.zoneMetricArea) };
     }
     if (key === 'zones') {
+      // Pas d'unité : le libellé « Zones » porte déjà le sens (planche E04).
       return { key, value: String(zone.zones), label: t(C.zoneMetricZones) };
     }
     return {
@@ -1522,14 +1529,17 @@ function ZoneDecisionPeek({
           {t(kicker)}
         </Text>
         <View style={styles.zoneHeadSpacer} />
+        {/* ✕ DANS UN DISQUE (planches E04/E05) : « des icônes plutôt que du
+            texte » (décision fondateur 03/07) — remplace l'ancien lien « Fermer ».
+            Le tap reste au plancher a11y grâce au hitSlop. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(C.closeZoneA11y)}
           hitSlop={8}
           onPress={onClose}
-          style={({ pressed }) => [styles.zoneCloseHit, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.closeCircle, pressed && styles.pressed]}
         >
-          <Text style={styles.zoneCloseText}>{t(C.closeLabel)}</Text>
+          <Icon name="fermer" size={iconSizes.sm} color={colors.gris} />
         </Pressable>
       </View>
       {/* Nom RÉEL du quartier quand le géocodage inverse en a rendu un ; sinon le
@@ -1556,17 +1566,19 @@ function ZoneDecisionPeek({
               {t(C.zoneReprendre)}
             </Text>
           </Pressable>
-          {/* Action TERTIAIRE : un LIEN, jamais un 2ᵉ bouton plein (§A.4) — et
-              elle mène quelque part de RÉEL (le planificateur d'itinéraire). */}
+          {/* Action TERTIAIRE : jamais un 2ᵉ bouton plein (§A.4). CENTRÉE sous le
+              CTA pleine largeur, semibold gris — la forme exacte de la planche
+              (-selection10). Sûre ici car GO se retire tant que la sheet de zone
+              est ouverte (useZoneSheetOpen) : aucun tap volé au coin bas-droit. */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t(C.zonePlanLaterA11y)}
             hitSlop={8}
             onPress={onPlanLater}
-            style={({ pressed }) => [styles.optionsHit, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.zoneTertiaryHit, pressed && styles.pressed]}
             testID="zone-plan-later"
           >
-            <Text style={styles.optionsLink} numberOfLines={1}>
+            <Text style={styles.zoneTertiaryLabel} numberOfLines={1}>
               {t(C.zonePlanLater)}
             </Text>
           </Pressable>
@@ -1853,18 +1865,30 @@ const styles = StyleSheet.create({
   // ── PEEK ZONE (§3/§10) ──
   zoneHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   zonePastille: { width: 10, height: 10, borderRadius: 5 },
-  // Kicker de rôle (couleur inline §C) en tête de sheet (E04).
-  zoneKicker: { fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 1.5 },
+  // Kicker de rôle (couleur inline §C) en tête de sheet (E04). Interlettrage 2
+  // (rôle `typography.kicker`) — mesuré sur la planche, plus large que l'ancien 1,5.
+  zoneKicker: { fontSize: fontSizes.xs, fontWeight: '800', letterSpacing: 2 },
   zoneHeadSpacer: { flex: 1 },
+  // Nom de quartier = TITRE HÉROS de la planche (`typography.title`, 28 px,
+  // Inter Tight 700) — et non plus un titre de 16 px : c'est le premier repère
+  // de l'écran, il domine comme sur -selection10.
   zoneName: {
+    ...typography.title,
     color: colors.blanc,
-    fontSize: fontSizes.md, // 16 px
-    fontWeight: '800',
-    letterSpacing: 0.1,
     marginTop: 4,
   },
-  zoneCloseHit: { minHeight: 32, paddingHorizontal: 6, justifyContent: 'center' },
-  zoneCloseText: { color: colors.gris, fontSize: 13, fontWeight: '600' },
+  // ✕ dans un DISQUE (planches E04/E05) : cible ronde au plancher tactile via
+  // hitSlop, fond carbone discret pour se détacher sans crier (§C : pas de rôle).
+  closeCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: gameColors.carbon,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+  },
   zoneControl: {
     color: colors.gris,
     fontSize: fontSizes.xs,
@@ -1873,15 +1897,27 @@ const styles = StyleSheet.create({
   },
   // E04 — CTA REPRENDRE : chartreuse (unique CTA tant que le sheet est ouvert,
   // GO retiré via useZoneSheetOpen). Libellé NOIR (jamais chartreuse sur clair).
+  // CTA REPRENDRE — hauteur 54 mesurée sur la planche (-selection10), pill,
+  // libellé NOIR sur chartreuse (jamais chartreuse sur clair). Marges latérales
+  // de la sheet (paddingHorizontal 16 de `info`) — la planche donne ~20.
   zoneReprendreBtn: {
     marginTop: 12,
-    height: 48,
+    height: 54,
     borderRadius: radii.pill,
     backgroundColor: colors.chartreuse,
     alignItems: 'center',
     justifyContent: 'center',
   },
   zoneReprendreLabel: { color: colors.noir, fontSize: fontSizes.md, fontWeight: '800' },
+  // « Planifier pour plus tard » — CENTRÉ sous le CTA (planche), semibold gris,
+  // sans soulignement : c'est l'écho tertiaire de la décision, pas un lien perdu.
+  zoneTertiaryHit: {
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  zoneTertiaryLabel: { color: colors.gris, fontSize: fontSizes.sm, fontWeight: '700' },
   zoneActionLine: {
     color: colors.blanc,
     fontSize: 12.5,

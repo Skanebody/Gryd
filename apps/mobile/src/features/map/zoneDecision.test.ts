@@ -8,10 +8,12 @@
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import {
   ZONE_METRIC_ORDER,
+  areaStatParts,
   briefMetricKeys,
   briefRouteState,
   briefSheetHeight,
   daysSinceCapture,
+  distanceStatParts,
   zoneMetricKeys,
   zoneSheetHeight,
 } from './zoneDecision.ts';
@@ -52,6 +54,29 @@ Deno.test('daysSinceCapture : jours pleins, absence = null, jamais une valeur de
 
 Deno.test('daysSinceCapture : une date FUTURE (dérive d’horloge) ne rend jamais un négatif', () => {
   assertEquals(daysSinceCapture('2026-07-27T12:00:00Z', NOW), 0);
+});
+
+// ─── E04/E05 — « grand nombre + petite unité » (composition des planches) ────
+
+Deno.test('areaStatParts : valeur et unité SÉPARÉES, virgule décimale sauf en anglais', () => {
+  // La planche compose « 0,42 » (gros) + « km² » (petit) : le rendu a besoin des
+  // deux morceaux, jamais d'une chaîne déjà collée.
+  assertEquals(areaStatParts(0.42, 'fr'), { value: '0,42', unit: 'km²' });
+  assertEquals(areaStatParts(0.42, 'en'), { value: '0.42', unit: 'km²' });
+  assertEquals(areaStatParts(0.42, 'de'), { value: '0,42', unit: 'km²' });
+});
+
+Deno.test('areaStatParts : zéros de fin retirés (jamais « 0,80 » ni « 1,00 »)', () => {
+  assertEquals(areaStatParts(0.8, 'fr').value, '0,8');
+  assertEquals(areaStatParts(1, 'fr').value, '1');
+  assertEquals(areaStatParts(1.5, 'en').value, '1.5');
+});
+
+Deno.test('distanceStatParts : une décimale, unité km à part', () => {
+  assertEquals(distanceStatParts(4.2, 'fr'), { value: '4,2', unit: 'km' });
+  assertEquals(distanceStatParts(4.2, 'en'), { value: '4.2', unit: 'km' });
+  // Arrondi à la décimale (comme le briefing) — jamais une traînée de chiffres.
+  assertEquals(distanceStatParts(3.14159, 'fr').value, '3,1');
 });
 
 // ─── E04 — hauteur de la sheet ──────────────────────────────────────────────

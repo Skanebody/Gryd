@@ -60,6 +60,35 @@ export function zoneMetricKeys(input: ZoneMetricsInput): readonly ZoneMetricKey[
   return out;
 }
 
+// ─── FORMATAGE « GRAND NOMBRE + PETITE UNITÉ » (planches E04/E05) ────────────
+//
+// Les planches composent chaque métrique en DEUX niveaux typographiques : la
+// valeur en gros (rôle `typography.stat` — Inter Tight 800, tabular), l'unité
+// PETITE à côté (« 0,42 » grand, « km² » petit). Le rendu a donc besoin des deux
+// morceaux SÉPARÉS, pas d'une chaîne « 0,42 km² » déjà collée. La règle décimale
+// est la même que partout dans l'app : virgule sauf en anglais. Fonctions PURES
+// (aucun import i18n : on compare la locale à `'en'`) pour rester chargeables tel
+// quel par Deno et testables sans rendu.
+
+export interface StatParts {
+  /** Valeur formatée dans la langue du joueur, SANS unité (« 0,42 », « 4,2 »). */
+  value: string;
+  /** Unité affichée petite à côté (« km² », « km ») — jamais collée à la valeur. */
+  unit: string;
+}
+
+/** « 0,42 km² » → { value: '0,42', unit: 'km²' } — zéros de fin retirés (jamais tronqué). */
+export function areaStatParts(km2: number, locale: string): StatParts {
+  const s = km2.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return { value: locale === 'en' ? s : s.replace('.', ','), unit: 'km²' };
+}
+
+/** « 4,2 km » → { value: '4,2', unit: 'km' } — une décimale, même règle de virgule. */
+export function distanceStatParts(km: number, locale: string): StatParts {
+  const s = km.toFixed(1);
+  return { value: locale === 'en' ? s : s.replace('.', ','), unit: 'km' };
+}
+
 const MS_PER_DAY = 86_400_000;
 
 /**
@@ -90,14 +119,23 @@ export function daysSinceCapture(capturedAt: string | null, now: Date): number |
 const SHEET_CHROME = 14 + 12;
 /** Rangée d'en-tête : pastille + kicker + bouton Fermer (cible tactile 32). */
 const HEAD_ROW = 32;
-/** Nom de zone (16 px, marginTop 4). */
-const NAME_ROW = 26;
+/**
+ * Nom de zone — TITRE HÉROS de la planche (`typography.title`, 28 px, lineHeight
+ * 31 + marginTop 4). Était calibré à 26 pour un titre de 16 px : le recalage
+ * fidèle aux planches E04/E05 (« Quartier Saint-Rémy » mesure ~30 px à l'écran)
+ * l'élève à 36, sinon le CTA repasserait sous la ligne de flottaison (§A9).
+ */
+const NAME_ROW = 36;
 /** Ligne de propriétaire / phrase courte (12 px). */
 const LINE_ROW = 16;
-/** Bloc de métriques à séparateurs (valeur + libellé + paddings + liseré). */
-const METRICS_BLOCK = 56;
-/** CTA plein (48) + son dégagement haut (12). */
-const CTA_ROW = 60;
+/**
+ * Bloc de métriques à séparateurs. La valeur est désormais le GROS NOMBRE de la
+ * planche (`typography.stat`, 28 px) + son unité petite, puis le libellé (12 px)
+ * dessous — d'où 64 (contre 56 quand la valeur était à 15 px).
+ */
+const METRICS_BLOCK = 64;
+/** CTA plein (54, mesuré sur la planche) + son dégagement haut (12). */
+const CTA_ROW = 66;
 /** Lien tertiaire — cible tactile a11y de 44. */
 const LINK_ROW = 44;
 /** Espacement vertical entre deux blocs de `styles.info`. */
