@@ -3,7 +3,8 @@
  * formulaire inutile. Un refus/échec n'est jamais un mur (§4.1) : message + retry.
  *
  * ═══ ORDRE DE COMPOSITION ═══════════════════════════════════════════════════
- *  1. le champ d'hexagones, en plan de fond (`features/onboarding/PromiseHexField`) ;
+ *  1. la PHOTO de crew (nuit) + voile en paliers, en plan de fond
+ *     (`features/onboarding/SignInPhotoBackdrop`) ;
  *  2. la flèche de retour vers l'onboarding ;
  *  3. le hero : kicker gris → titre display → sous-titre ;
  *  4. le bloc d'actions, en pied — UNE branche à la fois :
@@ -73,9 +74,10 @@
  *   L'event est SUPPRIMÉ, pas renuméroté — inventer un n pour un écran hors flow
  *   aurait produit un entonnoir aussi faux, mais plus dur à démonter.
  * · ~85 LIGNES DE CHAMP D'HEXAGONES dupliquées VERBATIM avec `sign-in.web.tsx` :
- *   le fork n'existe que pour tenir `expo-apple-authentication` hors du bundle
- *   web, et ce visuel ne dépend d'aucun module natif. Il vit désormais dans
- *   `features/onboarding/PromiseHexField`.
+ *   factorisées d'abord dans `PromiseHexField`, puis REMPLACÉES le 26/07/2026 par
+ *   la photo de crew (`SignInPhotoBackdrop`, elle aussi partagée par les deux
+ *   forks). Le fork n'existe que pour tenir `expo-apple-authentication` hors du
+ *   bundle web ; un fond photo n'en dépend pas.
  * · LE KICKER CHARTREUSE. La grammaire impose un kicker GRIS (`ui/SectionLabel`) :
  *   c'est le marqueur n°1 du recalage, et l'accent chartreuse ne se dépense pas
  *   sur un sur-titre.
@@ -96,7 +98,7 @@
  * · LE FICHIER EST DUPLIQUÉ (`.web.tsx`) — raison : Metro résout `.web.tsx` avant
  *   `.tsx`, et c'est le seul moyen de tenir `expo-apple-authentication` hors du
  *   bundle web. Tout ce qui pouvait être partagé l'est (catalogue, gate,
- *   `PromiseHexField`, `Button`) ; ce qui reste dupliqué, ce sont les styles.
+ *   `SignInPhotoBackdrop`, `Button`) ; ce qui reste dupliqué, ce sont les styles.
  */
 import { useState } from 'react';
 import {
@@ -120,7 +122,7 @@ import { Icon } from '../../src/ui/Icon';
 import { SectionLabel } from '../../src/ui/SectionLabel';
 import type { Entry } from '../../src/i18n/types';
 import { AGE } from '../../src/features/onboarding/content';
-import { PromiseHexField } from '../../src/features/onboarding/PromiseHexField';
+import { SignInPhotoBackdrop } from '../../src/features/onboarding/SignInPhotoBackdrop';
 import {
   STORAGE_UNAVAILABLE_NOTICE,
   useOnboardingState,
@@ -220,12 +222,13 @@ export default function SignInScreen() {
     // et le CTA (bas de l'écran, layout space-between) sont masqués sur petit écran
     // → connexion impossible. KeyboardAvoidingView + ScrollView les remontent ;
     // keyboardShouldPersistTaps garde le CTA tappable clavier ouvert.
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      {/* Visuel promesse : un champ d'hexagones égocentré, derrière le hero. */}
-      <PromiseHexField />
+    // Fond photo (crew de nuit) + voile en paliers, EN WRAPPER : le contenu est
+    // son enfant (ordre de peinture garanti — cf. SignInPhotoBackdrop).
+    <SignInPhotoBackdrop>
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -452,7 +455,8 @@ export default function SignInScreen() {
           ) : null}
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SignInPhotoBackdrop>
   );
 }
 
@@ -462,11 +466,15 @@ const HERO_LINE_RATIO = 1.02;
 const SUBTITLE_MAX_WIDTH = 320;
 
 const styles = StyleSheet.create({
+  // Fallback de chargement (fond noir muet) : jamais d'écran blanc.
   root: {
     flex: 1,
     backgroundColor: colors.noir,
     paddingHorizontal: spacing.xl,
   },
+  // Le KeyboardAvoidingView, DANS le wrapper photo : transparent (la photo + le
+  // voile se voient) et il porte la marge horizontale de l'écran.
+  kav: { flex: 1, paddingHorizontal: spacing.xl },
   // Le contenu garde le layout space-between historique (hero en haut, actions en
   // bas), mais devient défilable quand le clavier réduit la hauteur utile.
   scrollContent: { flexGrow: 1, justifyContent: 'space-between' },

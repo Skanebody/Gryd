@@ -4,7 +4,8 @@
  * (early-return `step === 'mechanic'` dans app/onboarding/index.tsx).
  *
  * ─── ORDRE DE COMPOSITION (planche E01) ─────────────────────────────────────
- *  1. le fond plein cadre (photo « coureur solo, lever du jour » — cf. ÉCARTS) ;
+ *  1. la PHOTO plein cadre (`assets/onboarding/e01-crew.jpg` : crew + un cycliste,
+ *     rue de jour), cadrée « cover » ;
  *  2. la BOUCLE chartreuse animée (`E01Route`), qui remplace le label « VOTRE
  *     RUE » de la planche : elle enseigne la mécanique au lieu de la nommer ;
  *  3. la chip « Exemple », posée sur le visuel (coin haut-GAUCHE) ;
@@ -14,12 +15,20 @@
  *     progression → porte « J'ai déjà un compte ».
  *
  * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
- * · `ImageBackground` et le `require` de `assets/onboarding/e01-crew.png` : le
- *   fichier était un PNG de 2 × 3 PIXELS (74 octets) étiré en `resizeMode="cover"`
- *   sur tout l'écran. Le premier écran de l'app, décrit dans son propre docblock
- *   comme une « photo plein cadre », rendait un aplat flou. Un placeholder qui
- *   PRÉTEND être une photo est un mensonge de plus qu'un fond assumé : le fichier
- *   a été supprimé et le fond est désormais `colors.carbonImmersive`, plein.
+ * · LE FOND PHOTO — RÉTABLI le 26/07/2026 avec le vrai visuel
+ *   `assets/onboarding/e01-crew.jpg` (1024×1536, cadré `cover`). Il avait été
+ *   retiré tant que l'asset n'était qu'un PNG de 2 × 3 pixels étiré plein écran —
+ *   un placeholder qui PRÉTEND être une photo ment plus qu'un fond assumé. Le
+ *   carbone du `root` reste DERRIÈRE l'image : photo absente ou lente → écran
+ *   sombre, jamais blanc (jamais d'écran vide).
+ * · `Image` À DIMENSIONS EXPLICITES, PAS `ImageBackground` — sur react-native-web
+ *   (le bundle mobile-web sert de preview), `ImageBackground` ne contraint pas son
+ *   image à la taille du conteneur : elle rend à sa taille native, déborde et —
+ *   peinte en `zIndex:-1` qui s'échappe — passe AU-DESSUS du voile bas, la photo
+ *   bavant derrière le titre et le CTA. Un `<Image>` frère à `width`/`height`
+ *   forcés (les dimensions de l'écran) + `cover` recadre proprement, et l'ordre du
+ *   DOM garantit la peinture : photo → boucle → voile → contenu. (Idem
+ *   `SignInPhotoBackdrop` ; sur natif les deux formes sont équivalentes.)
  * · Le CTA recodé à la main (56 px, `radii.btn`) : deux boutons chartreuse de
  *   MÊME rôle portaient DEUX rayons différents sur deux écrans consécutifs. Le
  *   composant `Button` tranche — et apporte au passage l'anneau de focus clavier
@@ -30,10 +39,12 @@
  *   nommées, rôles typo et `withAlpha()` sur un token.
  *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE ────────────────────────────────────────────
- * · PAS DE PHOTO — raison technique : l'asset n'existe pas. Déposer le vrai
- *   visuel dans `assets/onboarding/`, puis rétablir ici l'`ImageBackground`
- *   autour du contenu (le voile bas est déjà en place, il n'attend qu'elle).
- *   Dépendance FONDATEUR, inscrite au plan Vague 1 §5.
+ * · LA PLANCHE E01 (-selection2/-selection5) MONTRE UNE GRILLE, PAS UNE PHOTO —
+ *   écart ASSUMÉ vers le « voire mieux » : le fondateur a livré le vrai visuel
+ *   crew (26/07/2026) et veut la photo plein cadre que décrivent CE docblock et
+ *   `app/onboarding/index.tsx`. La composition de la planche (titre display, CTA
+ *   pleine largeur, frise sous le CTA, « Passer ») est, elle, suivie fidèlement ;
+ *   la boucle chartreuse (`E01Route`) et la chip « Exemple » restent au-dessus.
  * · TITRE À 40 px SANS ROLE TYPO — raison technique : l'échelle `typography` ne
  *   monte pas au-delà de `title` (28) sauf par `stat`, réservé aux CHIFFRES
  *   (tabular-nums). La taille vient donc de `fontSizes.xxl` et la famille de
@@ -44,7 +55,7 @@
  * · « Passer » n'est PAS un bouton système : c'est un lien gris. §A4 n'autorise
  *   qu'UN CTA chartreuse par écran, et c'est « Continuer ».
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { colors, fontSizes, fonts, sizes, spacing, withAlpha } from '@klaim/shared';
 import { Button } from '../../ui/Button';
@@ -52,6 +63,13 @@ import { SectionLabel } from '../../ui/SectionLabel';
 import { E01Route } from './E01Route';
 import { ExampleTag } from './ExampleTag';
 import { StepDots } from './StepDots';
+
+/**
+ * PHOTO plein cadre de l'écran promesse (DA, PAS une donnée de jeu) : coureurs +
+ * un cycliste, rue de jour. Le titre « CONQUIERS TA VILLE. » vaut pour les deux
+ * disciplines — le vélo est dans l'image. Cadrée `cover` par l'`ImageBackground`.
+ */
+const E01_PHOTO = require('../../../assets/onboarding/e01-crew.jpg');
 
 /**
  * Mesures de COMPOSITION de la planche (pas des règles de jeu) : le titre display
@@ -102,8 +120,17 @@ export function E01Hero({
   stepCount,
   stepA11yLabel,
 }: E01HeroProps) {
+  // Dimensions EXPLICITES pour la photo (cf. docblock : react-native-web ne
+  // contraint pas l'image sinon). Elles suivent la rotation / le redimensionnement.
+  const { width, height } = useWindowDimensions();
   return (
+    // PHOTO plein cadre (DA) : le voile bas en paliers, la boucle chartreuse et la
+    // chip « Exemple » se peignent PAR-DESSUS. `styles.root` garde son carbone —
+    // fond honnête et sombre si la photo manque ou charge lentement (jamais blanc).
     <View style={styles.root}>
+      {/* Photo EN DESSOUS (1er frère), taille FORCÉE à l'écran, `cover` recadre
+          (cf. ÉCARTS : react-native-web ne contraint pas l'image d'ImageBackground). */}
+      <Image source={E01_PHOTO} resizeMode="cover" style={[styles.photo, { width, height }]} />
       {/* Parcours chartreuse ANIMÉ : il illustre « ferme une boucle, prends la
           zone ». Il se ferme PUIS SE REMPLIT — d'où la chip juste en dessous. */}
       <E01Route />
@@ -167,6 +194,8 @@ export function E01Hero({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.carbonImmersive },
+  // Photo plein cadre, DERRIÈRE tout le reste (width/height forcés au rendu).
+  photo: { position: 'absolute', top: 0, left: 0 },
 
   // Voile bas : à partir de ~38 % (donc hauteur 62 %), de plus en plus dense.
   // Les teintes DÉRIVENT du token immersif — jamais un rgba recodé à la main.

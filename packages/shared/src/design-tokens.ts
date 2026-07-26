@@ -35,9 +35,17 @@ export const colors = {
   scrimStrong: 'rgba(5,5,5,0.72)', // voile plein d'une modale/sheet
 } as const;
 
-/** Rendu carte égocentré (addendum §D — AMENDEMENT-01). */
+/**
+ * Rendu carte égocentré (addendum §D — AMENDEMENT-01).
+ * `mineFill`/`mineStroke` = la teinte de MON territoire (chartreuse). Les VARIANTES
+ * PAR RÔLE (rival / contesté / protégé — fill + contour) et le LISERÉ INTERNE
+ * (signature « à moi » des planches) vivent dans `territoryPaint()` en bas de ce
+ * fichier : elles doivent DÉRIVER de `roleColor()` (défini plus bas), qu'on ne peut
+ * pas référencer ici sans dépendance circulaire. `mapTokens` reste la teinte de base ;
+ * `territoryPaint()` en est la déclinaison par rôle consommée par la carte.
+ */
 export const mapTokens = {
-  mineFill: colors.chartreuse14,
+  mineFill: colors.chartreuse14, // MESURÉ planche -selection8 (PORT OUEST) : #C9FF38 @ ~0,15
   mineStroke: colors.chartreuse40,
   foeFill: 'rgba(250,250,247,0.06)', // + motif par crew (8 motifs), jamais par teinte
   foeStroke: 'rgba(250,250,247,0.22)',
@@ -54,8 +62,21 @@ export const mapTokens = {
  * React Native une telle famille IGNORE `fontWeight` : c'est la FAMILLE qui porte
  * la graisse. On expose donc une famille par graisse utile ; un style choisit la
  * bonne et n'ajoute JAMAIS de fontWeight par-dessus.
+ *
+ * ── ÉCART DE FONTE ASSUMÉ (planches Vague 1) ─────────────────────────────────
+ * Les planches titrent en « HIGH CRUISER » (repli Syncopate) — grotesque large,
+ * capitales condensées. CE FICHIER DE FONTE EST ABSENT DU DÉPÔT : le code titre
+ * DÉLIBÉRÉMENT en Inter Tight (`display`/`displayBold`/`displaySemi` ci-dessous),
+ * son stand-in. On ne fabrique pas la fonte manquante (ce serait mentir sur le
+ * rendu). POINT D'ACCROCHE UNIQUE : le jour où High Cruiser (ou Syncopate) arrive
+ * dans `apps/mobile/assets/fonts` + `lib/fonts.ts`, il suffit de repointer les
+ * TROIS familles d'affichage ci-dessous — aucun écran ne nomme une fonte en dur,
+ * ils passent tous par `fonts.display*` / `typography.*`. C'est le seul endroit à
+ * changer. (Écart CONSTATÉ, pas résolu : cf. mandat « la doc ne promet jamais
+ * au-delà du code ».)
  */
 export const fonts = {
+  // ⤷ HIGH CRUISER (planches) → aujourd'hui Inter Tight (fonte de titre absente du dépôt).
   display: 'InterTight_800ExtraBold', // hero / display / victoire
   displayBold: 'InterTight_700Bold', // H1 / H2 / titres forts (720/700)
   displaySemi: 'InterTight_600SemiBold', // titres de sheet / card (650)
@@ -69,7 +90,13 @@ export const fonts = {
   textFallback: 'Poppins-Regular',
 } as const;
 
-/** Échelle typo mobile (addendum §E). Les stats héros dominent chaque écran de résultat. */
+/**
+ * Échelle typo mobile (addendum §E). Les stats héros dominent chaque écran de résultat.
+ * `hero`/`heroMax` = le TITRE-NOMBRE géant des planches (« +0,42 km² » de
+ * -selection14 : hauteur de capitale MESURÉE ~44 pt sur l'export 2× → corps ~64 pt
+ * = `hero` ; `heroMax` 88 est la marche au-dessus pour un nombre qui remplit
+ * l'écran). Rôle porté par `typography.stat` (chiffres tabulaires, Inter Tight 800).
+ */
 export const fontSizes = { xs: 12, sm: 14, md: 16, lg: 20, xl: 28, xxl: 40, hero: 64, heroMax: 88 } as const;
 
 /**
@@ -141,7 +168,14 @@ export const typography = {
   meta: { fontFamily: fonts.textSemi, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0, lineHeight: 17 },
   /** R5 — label de CTA — IDENTIQUE partout (Inter 600). */
   button: { fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 0.5, lineHeight: 20 },
-  /** R6 — valeur / stat (Inter Tight 800, tabular). fontSize à l'usage : lg|xl|xxl|hero|heroMax. */
+  /**
+   * R6 — valeur / stat / TITRE-NOMBRE HÉROS (Inter Tight 800, tabular). fontSize à
+   * l'usage : lg|xl|xxl|hero|heroMax. C'est le rôle du « +0,42 km² » géant des
+   * planches (-selection13/-selection14) : `tabular-nums` (les chiffres ne dansent
+   * pas quand le nombre change), graisse 800, tracking serré (-1) pour un bloc
+   * dense. L'unité (« km² ») reste PETITE À CÔTÉ (taille `lg`/`md` à l'usage) — la
+   * composition « grand nombre + petite unité » est un choix d'écran, pas un token.
+   */
   stat: { fontFamily: fonts.display, fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
 } as const;
 
@@ -333,3 +367,141 @@ export const foePatterns = [
   'hatch45', 'hatch-45', 'dots', 'crosshatch', 'vlines', 'hlines', 'dashes', 'rings',
 ] as const;
 export type FoePattern = (typeof foePatterns)[number];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIGNATURE VISUELLE DU TERRITOIRE (planches Vague 1) — RÔLE → STYLE
+//
+// MESURÉ AU PIXEL sur les planches (exports 2× : 1 px image = 0,5 pt écran) :
+//  · -selection8 (E03) PORT OUEST = MOI, K.RUNNER = rival, zone bleue = protégé ;
+//  · -selection10 (E04) SAINT-RÉMY = rival ; -selection13 (E08) zone reprise = MOI.
+//
+// Ce qui compose une zone sur la planche :
+//  ① CONTOUR ÉPAIS à la couleur du RÔLE — MESURÉ #C9FF38 EXACT (moi), #FF7043 EXACT
+//     (rival) : ce sont `colors.chartreuse` et `gameColors.rival` au pixel près.
+//  ② LISERÉ INTERNE : un 2ᵉ trait PLUS FIN, en RETRAIT vers l'intérieur du contour.
+//     MESURÉ chartreuse @ ~0,45 (≈ `chartreuse40`), largeur ~1 pt, retrait ~7 pt.
+//     C'EST LA SIGNATURE DE LA POSSESSION : présent sur MA zone, ABSENT du rival
+//     (fill uni (35,23,18), aucun 2ᵉ trait) et du protégé. Le liseré dit « CE
+//     territoire est À MOI », pas seulement « il y a une zone ici ».
+//  ③ REMPLISSAGE faible de la MÊME teinte — MESURÉ moi @ ~0,15 (= `chartreuse14`),
+//     rival @ ~0,10.
+//  ④ NOM DE LA ZONE écrit DEDANS, capitales espacées, couleur du rôle, centré —
+//     MESURÉ « PORT OUEST » ~10 pt de corps, +0,15 em, #C9FF38 plein.
+//
+// Ces VALEURS DE STYLE sont des tokens (jamais en dur dans un écran, CLAUDE.md) ;
+// `territoryPaint()` en est la fonction pure de dérivation (rôle → teintes), testée
+// en Deno. La GÉOMÉTRIE du liseré (anneau normalisé + line-offset) et son
+// application vivent côté carte (apps/mobile map) ; ici, la spec chiffrée.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * LISERÉ INTERNE (signature possession) — spec chiffrée MESURÉE. `insetPt` = retrait
+ * du 2ᵉ trait vers l'intérieur (line-offset écran, CONSTANT par zoom : c'est pour ça
+ * qu'il ne peut pas être une distance métrique gelée dans la géométrie) ; `widthPt` =
+ * largeur du filet (jamais un 2ᵉ contour épais) ; la TEINTE est `chartreuse40`
+ * (retournée par `territoryPaint('mine').lisere`).
+ */
+export const territoryLisere = {
+  /** Retrait vers l'intérieur (pt écran) — MESURÉ ~7 pt sur PORT OUEST. */
+  insetPt: 6,
+  /** Largeur du filet (pt) — MESURÉ ~1 pt : un liseré, pas un contour. */
+  widthPt: 1.4,
+} as const;
+
+/**
+ * NOM DE ZONE écrit À L'INTÉRIEUR (planches). Spec consommée par le rendu de label
+ * (screen ou symbol layer). `sizePt` = corps ; `letterSpacingEm` = l'espacement des
+ * capitales (MESURÉ large) ; couleur = `territoryPaint(role).label` (teinte de rôle
+ * pleine). Toujours en capitales (le rendu applique `uppercase`).
+ */
+export const territoryLabelStyle = {
+  sizePt: 10, // MESURÉ ~7 pt de hauteur de capitale → ~10 pt de corps
+  letterSpacingEm: 0.15,
+  uppercase: true,
+} as const;
+
+/**
+ * Style de peinture d'une zone de territoire pour un RÔLE donné.
+ *  - `stroke` : contour épais (teinte de rôle, quasi-plein) ;
+ *  - `fill`   : remplissage faible de la même teinte ;
+ *  - `label`  : couleur du NOM écrit dedans (teinte de rôle pleine) ;
+ *  - `lisere` : le 2ᵉ trait interne (SIGNATURE possession) — `null` quand le rôle
+ *               n'en porte pas (rival, contesté, protégé… : la planche n'y montre
+ *               qu'un contour simple + fill).
+ */
+export interface TerritoryPaint {
+  stroke: string;
+  fill: string;
+  label: string;
+  lisere: string | null;
+}
+
+/**
+ * RÔLE → style de zone (§C) — FONCTION PURE, source unique du rendu de territoire.
+ * Chaque teinte DÉRIVE d'un token via `roleColor`/`colors`/`gameColors` + `withAlpha`
+ * (aucune couleur nouvelle : charte). Alphas de fill/contour MESURÉS sur les planches.
+ * Le LISERÉ n'est rendu que pour la POSSESSION (`mine`) : c'est le trait « à moi » de
+ * -selection8, absent du rival/protégé — reproduire fidèlement la planche, c'est aussi
+ * reproduire cette ABSENCE. (`ally` = mon bord atténué : pas de liseré pour ne pas
+ * rivaliser avec ma propre zone, §C « un allié ne domine jamais ma couleur ».)
+ */
+export function territoryPaint(role: SectorRoleColorKey): TerritoryPaint {
+  switch (role) {
+    case 'mine':
+      return {
+        stroke: withAlpha(colors.chartreuse, 0.9), // contour ~plein (MESURÉ #C9FF38 solide)
+        fill: colors.chartreuse14, // MESURÉ @ ~0,15
+        label: colors.chartreuse, // nom en chartreuse plein (MESURÉ)
+        lisere: colors.chartreuse40, // 2ᵉ trait @ 0,40 (MESURÉ ~0,45) — SIGNATURE
+      };
+    case 'ally':
+      return {
+        stroke: colors.chartreuse40,
+        fill: withAlpha(colors.chartreuse, 0.1),
+        label: colors.chartreuse40,
+        lisere: null, // allié = atténué, pas de signature possession
+      };
+    case 'rival':
+      return {
+        stroke: withAlpha(gameColors.rival, 0.85), // MESURÉ #FF7043 contour ~plein
+        fill: withAlpha(gameColors.rival, 0.1), // MESURÉ K.RUNNER @ ~0,10
+        label: gameColors.rival,
+        lisere: null, // rival = contour simple (aucun 2ᵉ trait sur la planche)
+      };
+    case 'contested':
+      return {
+        stroke: withAlpha(gameColors.contested, 0.8),
+        fill: withAlpha(gameColors.contested, 0.18),
+        label: gameColors.contested,
+        lisere: null, // le contesté a son PROPRE double contour bicolore (mapStyle), pas ce liseré
+      };
+    case 'protected':
+      return {
+        stroke: withAlpha(gameColors.electricBlue, 0.85),
+        fill: withAlpha(gameColors.electricBlue, 0.08),
+        label: gameColors.electricBlue,
+        lisere: null,
+      };
+    case 'decay':
+      return {
+        stroke: withAlpha(gameColors.danger, 0.85),
+        fill: withAlpha(gameColors.danger, 0.08),
+        label: gameColors.danger,
+        lisere: null,
+      };
+    case 'bonus':
+      return {
+        stroke: withAlpha(gameColors.gold, 0.8),
+        fill: withAlpha(gameColors.gold, 0.08),
+        label: gameColors.gold,
+        lisere: null,
+      };
+    case 'neutral':
+      return {
+        stroke: withAlpha(colors.gris, 0.5),
+        fill: withAlpha(colors.gris, 0.05),
+        label: colors.gris,
+        lisere: null,
+      };
+  }
+}

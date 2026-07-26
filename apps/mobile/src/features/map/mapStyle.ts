@@ -15,6 +15,8 @@ import {
   roleColor,
   type SectorStatusKey,
   SECTOR_STATUS_LEVELS,
+  territoryLisere,
+  territoryPaint,
 } from '@klaim/shared';
 import type { RealMapGeoJSONLayer } from '../../ui/game';
 import {
@@ -23,6 +25,7 @@ import {
   SECTOR_PCT_MAX_ZOOM,
   TERRITORY_TRACE_MIN_ZOOM,
   territoryGeoByState,
+  territoryLisereLines,
 } from './allTerritories';
 import { BASEMAP_SOURCE_ID, BASEMAP_TILEJSON_URL, grydNightStyleJson } from './grydBasemapStyle';
 import type { RealTerritory } from './hexClaims';
@@ -1290,6 +1293,16 @@ const ROUTE_WIDTH = 8;
 /** Segments de l'anneau de la zone bonus (cercle géodésique approché). */
 const BONUS_CIRCLE_STEPS = 48;
 
+/**
+ * LISERÉ INTERNE de MA zone (signature planche -selection8 PORT OUEST) : teinte issue
+ * du token `territoryPaint('mine').lisere` (= chartreuse @ 0,40 — MESURÉ ~0,45). Non
+ * nul pour `mine` (repli défensif sur `mineStroke` pour satisfaire le typage). Le
+ * RETRAIT vers l'intérieur et l'ÉPAISSEUR du filet viennent des tokens `territoryLisere`
+ * (pt). Rendu par une couche LIGNE à `line-offset` NÉGATIF sur des anneaux normalisés
+ * CCW (territoryLisereLines) — le 2ᵉ trait pointe toujours DEDANS, jamais dehors (§0).
+ */
+const CREW_LISERE_COLOR: string = territoryPaint('mine').lisere ?? mapTokens.mineStroke;
+
 /** Emphase pleine (« Mon territoire » — pas de modes de calques là-bas). */
 export const FULL_EMPHASIS: ModeEmphasis = {
   crew: 1,
@@ -1562,6 +1575,27 @@ export function territoryStateLayers(
       alpha: emph.crew,
       minZoom: gz,
     }),
+    // LISERÉ INTERNE (signature planche -selection8 PORT OUEST) : un 2ᵉ trait FIN
+    // chartreuse EN RETRAIT vers l'intérieur du contour — la marque « ce territoire
+    // est À MOI » (absente du rival/protégé : territoryPaint ne le rend que pour
+    // `mine`). Peint JUSTE APRÈS la trace crew (donc au-dessus, à l'intérieur).
+    // Teinte/retrait/épaisseur = tokens (CREW_LISERE_COLOR / territoryLisere). Recule
+    // avec l'emphase du mode (emph.crew) comme la trace ; gelé sous z13 (LOD quartier).
+    // SENS : anneaux normalisés antihoraire (territoryLisereLines) + line-offset NÉGATIF
+    // = retrait vers l'INTÉRIEUR (convention MapLibre : offset négatif = gauche du sens
+    // de parcours = intérieur d'un anneau CCW). Le winding est rendu DÉTERMINISTE (testé)
+    // pour que ce soit reproductible ; le SIGNE lui-même est la SEULE chose qu'une
+    // capture GPU confirme (le WebGL rend NOIR en headless). S'il fallait un jour
+    // l'inverser, c'est l'unique bouton : le signe de `lineOffset` ci-dessous. Filet
+    // FIN et net (jamais un blur/halo, §0) quel que soit le côté.
+    {
+      id: 'terr-crew-lisere',
+      data: territoryLisereLines(stateData('crew')),
+      lineColor: scaleAlpha(CREW_LISERE_COLOR, emph.crew),
+      lineWidth: territoryLisere.widthPt,
+      lineWidthStops: gatedConstantWidth(territoryLisere.widthPt, gz),
+      lineOffset: -territoryLisere.insetPt,
+    },
     // Avant-poste : petite boucle nette tenue (place de la Bastille), sans aplat.
     {
       id: 'terr-outpost',

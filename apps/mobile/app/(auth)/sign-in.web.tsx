@@ -4,7 +4,8 @@
  * importés dans le bundle web.
  *
  * ═══ ORDRE DE COMPOSITION (parité stricte avec sign-in.tsx) ═════════════════
- *  1. le champ d'hexagones, en plan de fond (`features/onboarding/PromiseHexField`) ;
+ *  1. la PHOTO de crew (nuit) + voile en paliers, en plan de fond
+ *     (`features/onboarding/SignInPhotoBackdrop`) ;
  *  2. la flèche de retour vers l'onboarding ;
  *  3. le hero : kicker gris → titre display → sous-titre ;
  *  4. le bloc d'actions, en pied — UNE branche à la fois :
@@ -65,9 +66,10 @@
  *   réattribuer. Cet écran recollait deux populations sans rapport dans le même
  *   pas d'entonnoir. Supprimé, pas renuméroté : /sign-in n'est pas une étape de
  *   l'onboarding, et son entrée est déjà mesurée par le `screen()` du routeur.
- * · ~85 LIGNES DE CHAMP D'HEXAGONES dupliquées verbatim avec le natif → elles
- *   vivent dans `features/onboarding/PromiseHexField`. Le fork entre les deux
- *   fichiers n'existe que pour un module natif ; ce visuel n'en dépend pas.
+ * · ~85 LIGNES DE CHAMP D'HEXAGONES dupliquées verbatim avec le natif → d'abord
+ *   factorisées dans `PromiseHexField`, puis REMPLACÉES le 26/07/2026 par la photo
+ *   de crew (`SignInPhotoBackdrop`, partagée aussi). Le fork entre les deux
+ *   fichiers n'existe que pour un module natif ; un fond photo n'en dépend pas.
  * · LE KICKER CHARTREUSE → `ui/SectionLabel` (gris, rôle R1).
  * · LES BOUTONS RECODÉS (52 px, et leur `ghostDisabled` maison) → `ui/Button`.
  *
@@ -79,7 +81,7 @@
  * · ⚠️ PARITÉ TENUE À LA MAIN avec sign-in.tsx : hero, copie (même catalogue),
  *   gate d'âge et styles. Raison technique : le fork n'existe QUE pour tenir
  *   `expo-apple-authentication` hors du bundle web. Tout ce qui pouvait être
- *   partagé l'est désormais (catalogue, gate, `PromiseHexField`, `Button`,
+ *   partagé l'est désormais (catalogue, gate, `SignInPhotoBackdrop`, `Button`,
  *   `SectionLabel`) ; ce qui reste dupliqué, ce sont les styles. Toute évolution
  *   de l'un se reporte sur l'autre.
  */
@@ -103,7 +105,7 @@ import { Icon } from '../../src/ui/Icon';
 import { SectionLabel } from '../../src/ui/SectionLabel';
 import type { Entry } from '../../src/i18n/types';
 import { AGE } from '../../src/features/onboarding/content';
-import { PromiseHexField } from '../../src/features/onboarding/PromiseHexField';
+import { SignInPhotoBackdrop } from '../../src/features/onboarding/SignInPhotoBackdrop';
 import {
   STORAGE_UNAVAILABLE_NOTICE,
   useOnboardingState,
@@ -173,9 +175,10 @@ export default function SignInScreenWeb() {
     // le CTA (bas de l'écran) sont masqués sur petit écran → connexion
     // impossible. Sur web `behavior` est undefined (pas de clavier logiciel qui
     // recouvre le viewport), mais le ScrollView reste nécessaire en fenêtre basse.
-    <KeyboardAvoidingView style={styles.root}>
-      {/* Visuel promesse : un champ d'hexagones égocentré, derrière le hero. */}
-      <PromiseHexField />
+    // Fond photo (crew de nuit) + voile en paliers, EN WRAPPER : le contenu est
+    // son enfant (ordre de peinture garanti — cf. SignInPhotoBackdrop).
+    <SignInPhotoBackdrop>
+      <KeyboardAvoidingView style={styles.kav}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -343,7 +346,8 @@ export default function SignInScreenWeb() {
           ) : null}
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SignInPhotoBackdrop>
   );
 }
 
@@ -353,11 +357,14 @@ const HERO_LINE_RATIO = 1.02;
 const SUBTITLE_MAX_WIDTH = 320;
 
 const styles = StyleSheet.create({
+  // Fallback de chargement (fond noir muet) : jamais d'écran blanc.
   root: {
     flex: 1,
     backgroundColor: colors.noir,
     paddingHorizontal: spacing.xl,
   },
+  // Le KeyboardAvoidingView, DANS le wrapper photo : transparent + marge de l'écran.
+  kav: { flex: 1, paddingHorizontal: spacing.xl },
   scrollContent: { flexGrow: 1, justifyContent: 'space-between' },
   // Flèche de retour vers l'onboarding : cible ≥ 44×44 (+hitSlop), gris discret,
   // jamais un 2e CTA (§A). `marginLeft` négatif : le glyphe est centré dans sa

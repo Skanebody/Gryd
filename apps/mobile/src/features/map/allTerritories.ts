@@ -285,6 +285,12 @@ function collection(features: GameFeature[]): GameCollection {
   return { type: 'FeatureCollection', features };
 }
 
+// ─── LISERÉ INTERNE (signature planche -selection8 PORT OUEST) ───────────────
+// La géométrie (winding + anneaux → LineStrings) vit dans `./ringWinding` (module
+// PUR, zéro import RN) pour rester testable en Deno sans traîner le barrel `ui/game`.
+// On la RÉ-EXPORTE ici : la carte (mapStyle) continue d'importer depuis allTerritories.
+export { ringSignedArea, territoryLisereLines, toCcwRing } from './ringWinding';
+
 // ─── Possessions par état (une seule source pour les deux cartes) ───────────
 
 /**

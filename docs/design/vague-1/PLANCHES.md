@@ -172,6 +172,17 @@ départ. Les récompenses sont **cosmétiques — jamais un avantage de capture*
 « ARGENT I » + « Débloqué : cadre de profil chrome » + CONTINUER + « Voir la saison ».
 Run et Bike ont des rangs SÉPARÉS. Thème de saison discret (pas de recoloration de l'interface).
 
+> **OVERRIDE FONDATEUR — 26/07/2026.** La phrase ci-dessus reste vraie pour le **RANG DE SAISON**
+> (« Argent II · Rang local · Run ») : les classements, les points de saison et les territoires
+> restent **SÉPARÉS** par discipline. Elle ne vaut **PLUS** pour le **NIVEAU ET L'XP** (« Niveau 12 ·
+> 2 340 / 3 000 XP »), que le fondateur tranche **GLOBAUX** : « un kilomètre à vélo fait progresser
+> le même joueur qu'un kilomètre à pied. » Raison : un **classement** compare des joueurs entre eux
+> (les mêler fabriquerait une hiérarchie fausse) ; un **niveau** ne compare personne, il mesure le
+> chemin d'UNE personne — le scinder punirait le joueur complet avec deux demi-progressions.
+> La règle vit dans `packages/shared/src/game-rules.ts` (`ACTIVITY_SCOPE`) et elle est **VERROUILLÉE
+> PAR DES TESTS** (`supabase/functions/_shared/activity_scope_test.ts`) : scinder l'XP ou sommer les
+> territoires fait échouer la suite. Ne pas « recorriger » cette planche vers des niveaux séparés.
+
 ## E13 — Crew Home (P0/P1)
 **Un quartier général visuel, pas un chat avec une bannière.**
 Hero photo 240 pt + emblème 72 + « NIGHT OWLS » + « @nightowls » + « ville · #2 local · 6,2 km² ·
