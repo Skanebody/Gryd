@@ -250,6 +250,14 @@ interface CardGrammar {
   hero: HeroMetricId;
   /** #6 — défi, seulement là où un territoire a réellement changé de main/tenu. */
   challenge?: string;
+  /**
+   * Teinte du chiffre héros. Défaut (absent) = celle de ShareCard, inchangée
+   * pour les huit cartes historiques. Les éditions Club s'en servent pour
+   * l'encre blanche du tirage « Affiche » — un TOKEN de la charte, jamais une
+   * couleur libre, et jamais de chartreuse sur fond clair (le fond de la card
+   * est noir).
+   */
+  accent?: string;
 }
 
 /**
@@ -278,6 +286,7 @@ function shareCard(
     title: context === '' ? undefined : context,
     challenge: g.challenge,
     verified: d.verified,
+    ...(g.accent === undefined ? {} : { accent: g.accent }),
   };
   return g.fullBleed ? { ...base, mapBackground: g.visual } : { ...base, children: g.visual };
 }
@@ -503,6 +512,111 @@ export const SHARE_TEMPLATES_BY_ID: Record<ShareTemplateId, ShareTemplate> = {
   classement: SHARE_TEMPLATES[5]!,
   avantApres: SHARE_TEMPLATES[6]!,
   carte3d: SHARE_TEMPLATES[7]!,
+};
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * ÉDITIONS CLUB — la deuxième promesse Arsenal (« templates mensuels »)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ─── ANTI PAY-TO-WIN (§1.6), ÉCRIT ICI PARCE QUE C'EST ICI QUE ÇA SE JOUE ───
+ * Ces éditions sont des COSMÉTIQUES. Elles ne donnent ni territoire, ni points,
+ * ni vitesse, ni protection, ni priorité de classement, ni immunité — et elles
+ * ne le peuvent pas : elles passent par la MÊME `shareCard()` que les huit
+ * cartes gratuites, donc par le même `cardModel` qui ne lit que des faits déjà
+ * jugés par le serveur. Un membre Club et un joueur gratuit qui publient la
+ * même course publient les mêmes CHIFFRES ; seule la mise en page change.
+ *
+ * ─── HONNÊTETÉ : AUCUNE N'AFFICHE UNE DONNÉE QUE LE RUN NE PORTE PAS ────────
+ * C'est la contrainte qui a écarté l'idée la plus tentante — une carte « ALLURE »
+ * dont le chiffre héros serait `paceLabel`. Ce champ EXISTE dans `ShareDemoData`
+ * et n'est rendu par AUCUNE carte aujourd'hui, ce qui l'a sauvé : le Résultat
+ * l'arme avec `formatPace(stats.paceSPerKm)`, c'est-à-dire des MINUTES PAR
+ * KILOMÈTRE, y compris pour une sortie à VÉLO — où la grandeur honnête est une
+ * vitesse (`liveRateDisplay`, features/run/gps/liveRate.ts). La première carte
+ * qui l'afficherait imprimerait « 5'12 /KM » sous le tracé d'un cycliste, dans
+ * un PNG qui sort de l'app. Tant que la card ne porte pas l'allure BRUTE (un
+ * nombre) en plus de son libellé, cette édition n'existera pas. C'est un écart
+ * déclaré, pas un oubli.
+ *
+ * ─── POURQUOI CES DEUX-LÀ, ET PAS DIX ──────────────────────────────────────
+ * Chacune comble un manque RÉEL de la grille actuelle :
+ *   · AFFICHE — le plein cadre n'existe aujourd'hui que sur `carte3d`, qui
+ *     AFFIRME une conquête (« J'AI PRIS … » + « PRENDS-LA-MOI ») et n'est donc
+ *     proposé qu'après une prise jugée. Une sortie sans capture n'a aucun moyen
+ *     de sortir un tirage plein cadre. Celui-ci n'affirme rien : le tracé, la
+ *     distance mesurée, aucun défi.
+ *   · CHRONO — aucune des huit cartes ne met le TEMPS en chiffre héros ; la
+ *     durée n'apparaît qu'en repli ou dans la ligne de contexte. Pour une
+ *     sortie longue, c'est pourtant le fait principal.
+ *
+ * ─── ELLES NE SONT PAS DANS `ShareTemplateId`, ET C'EST VOULU ───────────────
+ * `app/partage.tsx` tient un `Record<ShareTemplateId, Entry>` exhaustif et un
+ * garde de compilation qui exige l'égalité stricte avec `NarrativeStyleId`.
+ * Élargir `ShareTemplateId` casserait donc un écran hors du périmètre de ce
+ * lot. Ces éditions vivent dans un jeu SÉPARÉ (`ClubTemplateId`) : rien de ce
+ * qui existe ne change, et le câblage de l'écran reste un ajout explicite —
+ * jamais un élargissement silencieux du moteur narratif. Ce sont des FORMES
+ * choisies par le joueur, pas des RÉCITS choisis par le moteur (planche E10 :
+ * « le moteur choisit le récit, l'utilisateur change le style »).
+ */
+
+/** Éditions réservées au Club. Jeu disjoint de `ShareTemplateId` (voir ci-dessus). */
+export type ClubTemplateId = 'affiche' | 'chrono';
+
+/** Un template Club — même contrat de construction que les cartes gratuites. */
+export interface ClubShareTemplate {
+  id: ClubTemplateId;
+  build: (d: ShareDemoData, view?: ShareView) => Omit<ShareCardProps, 'ratio' | 'width' | 'style'>;
+}
+
+export const CLUB_SHARE_TEMPLATES: readonly ClubShareTemplate[] = [
+  // A. AFFICHE — le tirage. Carte en plein cadre, encre BLANCHE (token charte),
+  //    aucun défi : rien n'a changé de main, la carte ne prétend rien. Son
+  //    chiffre héros est la DISTANCE mesurée, donc disponible dès qu'une sortie
+  //    existe. Son titre ne nomme aucun effort (« SUR LE TERRAIN ») : pas de
+  //    jumeau vélo à maintenir, et un cycliste ne lit rien de faux.
+  //    ⚠️ CÂBLAGE : à ne proposer que si le tracé est CONNU (même garde que
+  //    `carte3d` dans /partage) — un plein cadre sans tracé n'affiche que le
+  //    placeholder « Tracé indisponible » en grand.
+  {
+    id: 'affiche',
+    build: (d, view) =>
+      shareCard(d, {
+        event: t(SHARE_COPY.heroPoster),
+        hero: 'distance',
+        fullBleed: true,
+        accent: colors.blanc,
+        visual: (
+          <ShareMap
+            fill
+            style={styles.mapFullBleed}
+            animated={view?.animated}
+            replayKey={view?.replayKey}
+            trace={view?.trace ?? d.trace ?? []}
+            captured={view?.captured}
+            fullReplay={view?.fullReplay}
+          />
+        ),
+      }),
+  },
+  // B. CHRONO — le temps en chiffre héros, la carte en preuve. Sans durée
+  //    mesurée, `heroMetricFor` retombe sur la distance (jamais un « 00:00 »
+  //    exporté). Aucun défi : une durée n'a rien pris à personne.
+  {
+    id: 'chrono',
+    build: (d, view) =>
+      shareCard(d, {
+        event: t(SHARE_COPY.heroChrono),
+        hero: 'duration',
+        visual: proofMap(d, view),
+      }),
+  },
+];
+
+/** Accès direct par id (même garantie de non-undefined que les cartes gratuites). */
+export const CLUB_TEMPLATES_BY_ID: Record<ClubTemplateId, ClubShareTemplate> = {
+  affiche: CLUB_SHARE_TEMPLATES[0]!,
+  chrono: CLUB_SHARE_TEMPLATES[1]!,
 };
 
 const styles = StyleSheet.create({

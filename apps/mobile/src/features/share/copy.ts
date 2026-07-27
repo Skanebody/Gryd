@@ -147,4 +147,87 @@ export const SHARE_COPY = defineCatalog({
     de: 'Zurückgehen',
     pt: 'Voltar atrás',
   },
+
+  // ─── ÉDITIONS CLUB + EXPORT HD (promesses Arsenal rendues vraies) ─────────
+  // POURQUOI ICI ET PAS DANS `i18n/catalog/result.ts` : aucune de ces phrases
+  // ne s'imprime sur l'écran Résultat — elles n'existent que dans le
+  // compositeur et dans l'image qu'il produit. Et AUCUNE ne nomme l'effort :
+  // c'est délibéré, pas un raccourci. Un titre de carte qui dirait « course »
+  // exigerait un jumeau vélo (voir `resultCopy`), et ces deux-là sortent dans un
+  // PNG que le crew du joueur lit sans pouvoir le corriger. « Sur le terrain »
+  // et « le chrono » sont vrais à pied comme à vélo.
+
+  /** Titre de l'édition AFFICHE — deux lignes display (le \n est la grammaire). */
+  heroPoster: {
+    fr: 'SUR LE\nTERRAIN',
+    en: 'ON THE\nGROUND',
+    es: 'SOBRE EL\nTERRENO',
+    de: 'AUF DEM\nGELÄNDE',
+    pt: 'NO\nTERRENO',
+  },
+  /** Titre de l'édition CHRONO — le temps est le fait principal. */
+  heroChrono: {
+    fr: 'LE\nCHRONO',
+    en: 'THE\nCLOCK',
+    es: 'EL\nCRONO',
+    de: 'DIE\nUHR',
+    pt: 'O\nCRONO',
+  },
+
+  /** Libellé du style AFFICHE dans la rangée de modes. */
+  styleAffiche: { fr: 'Affiche', en: 'Poster', es: 'Póster', de: 'Poster', pt: 'Pôster' },
+  /** Libellé du style CHRONO dans la rangée de modes. */
+  styleChrono: { fr: 'Chrono', en: 'Clock', es: 'Crono', de: 'Uhr', pt: 'Crono' },
+
+  /**
+   * Qualités d'export. « HD » n'est PAS une promesse creuse : l'étage de rendu
+   * produit réellement plus de pixels (voir clubExport.ts) — et l'app ne dit
+   * « HD » que quand l'image l'est vraiment.
+   */
+  qualityStandard: { fr: 'Standard', en: 'Standard', es: 'Estándar', de: 'Standard', pt: 'Padrão' },
+  qualityHd: { fr: 'HD', en: 'HD', es: 'HD', de: 'HD', pt: 'HD' },
+
+  /**
+   * Étiquette d'une fonction réservée au Club, posée sur le contrôle. Elle ne
+   * dit pas « indisponible » : le contrôle MÈNE quelque part (voir le CTA).
+   */
+  clubOnly: { fr: 'Club', en: 'Club', es: 'Club', de: 'Club', pt: 'Club' },
+  /** CTA d'invitation — un non-abonné part vers /premium, il ne rate rien. */
+  clubInviteCta: {
+    fr: 'Découvrir le Club',
+    en: 'Discover Club',
+    es: 'Descubrir el Club',
+    de: 'Club entdecken',
+    pt: 'Conhecer o Club',
+  },
+  /**
+   * Statut Club en cours de LECTURE. On n'affirme rien sur l'abonnement du
+   * joueur tant que la lecture n'a pas résolu (un chargement n'est pas un état).
+   */
+  clubChecking: {
+    fr: 'Vérification de ton abonnement…',
+    en: 'Checking your subscription…',
+    es: 'Comprobando tu suscripción…',
+    de: 'Abo wird geprüft…',
+    pt: 'Verificando sua assinatura…',
+  },
+  /**
+   * La lecture du statut a ÉCHOUÉ. On le DIT : proposer « Découvrir le Club » à
+   * un membre serait un mensonge, exporter en HD sans savoir en serait un autre.
+   */
+  clubUnreadable: {
+    fr: 'Statut d’abonnement non lu. Le partage standard reste disponible.',
+    en: 'Subscription status unavailable. Standard sharing still works.',
+    es: 'No se pudo leer tu suscripción. Compartir en estándar sigue disponible.',
+    de: 'Abo-Status nicht lesbar. Standard-Teilen funktioniert weiterhin.',
+    pt: 'Status da assinatura não lido. Compartilhar em padrão continua disponível.',
+  },
+  /** Toast : une image HD a RÉELLEMENT été produite (jamais dit autrement). */
+  hdExported: {
+    fr: 'Image HD exportée',
+    en: 'HD image exported',
+    es: 'Imagen HD exportada',
+    de: 'HD-Bild exportiert',
+    pt: 'Imagem HD exportada',
+  },
 });

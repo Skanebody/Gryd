@@ -730,11 +730,51 @@ export const C = defineCatalog({
     pt: 'Nada entre {start} h e {end} h, no máximo {max} notificações por dia, e nunca uma por atividade.',
   },
   notifsNote: {
-    fr: 'Frontières ouvertes, défenses, rivaux : seulement ce qui compte pour toi. Jamais de rappel culpabilisant.',
-    en: 'Open borders, defenses, rivals: only what matters to you. Never a guilt-trip reminder.',
-    es: 'Fronteras abiertas, defensas, rivales: solo lo que te importa. Nunca recordatorios que te hagan sentir culpable.',
-    de: 'Offene Grenzen, Abwehr, Rivalen: nur, was dir wichtig ist. Nie Erinnerungen mit schlechtem Gewissen.',
-    pt: 'Fronteiras abertas, defesas, rivais: só o que importa para você. Nunca lembretes que fazem você se sentir culpado.',
+    fr: 'Territoire qui s’efface, zones prises par un rival : seulement ce qui compte pour toi. Jamais de rappel culpabilisant.',
+    en: 'Fading territory, zones a rival took: only what matters to you. Never a guilt-trip reminder.',
+    es: 'Territorio que se desvanece, zonas que te quitó un rival: solo lo que te importa. Nunca recordatorios que te hagan sentir culpable.',
+    de: 'Verblassendes Territorium, von einem Rivalen übernommene Zonen: nur, was dir wichtig ist. Nie Erinnerungen mit schlechtem Gewissen.',
+    pt: 'Território que se apaga, zonas tomadas por um rival: só o que importa para você. Nunca lembretes que fazem você se sentir culpado.',
+  },
+  // ── E71 : les CINQ catégories de la spec, et ce qui a un vrai push derrière
+  // (audit 25-27/07/2026). Défense et rivalité gouvernent un canal RÉEL
+  // (`notifPrefsToChannels`) ; les trois autres n'ont encore AUCUN push câblé
+  // — `notifOtherCategoriesNote` le nomme, plutôt que de peindre un
+  // interrupteur qui ne gouvernerait rien.
+  notifDefenseTitle: {
+    fr: 'Défense',
+    en: 'Defense',
+    es: 'Defensa',
+    de: 'Verteidigung',
+    pt: 'Defesa',
+  },
+  notifDefenseSubtitle: {
+    fr: 'Ton territoire qui va s’effacer bientôt.',
+    en: 'Your territory that’s about to fade.',
+    es: 'Tu territorio a punto de desvanecerse.',
+    de: 'Dein Gebiet, das bald verblasst.',
+    pt: 'Seu território prestes a sumir.',
+  },
+  notifRivaliteTitle: {
+    fr: 'Rivalité',
+    en: 'Rivalry',
+    es: 'Rivalidad',
+    de: 'Rivalität',
+    pt: 'Rivalidade',
+  },
+  notifRivaliteSubtitle: {
+    fr: 'Zones prises par un rival — groupées en une alerte.',
+    en: 'Zones a rival took — bundled into one alert.',
+    es: 'Zonas que te quitó un rival — agrupadas en un aviso.',
+    de: 'Von einem Rivalen übernommene Zonen — in einem Hinweis gebündelt.',
+    pt: 'Zonas tomadas por um rival — agrupadas em um aviso.',
+  },
+  notifOtherCategoriesNote: {
+    fr: 'Crew, progression et infos produit : aucune notification n’existe encore pour elles — rien à activer ici.',
+    en: 'Crew, progression and product news: no notification exists yet for them — nothing to turn on here.',
+    es: 'Crew, progresión y novedades del producto: aún no existe ninguna notificación para ellas — nada que activar aquí.',
+    de: 'Crew, Fortschritt und Produktneuigkeiten: Dafür gibt es noch keine Mitteilung — hier gibt es nichts zu aktivieren.',
+    pt: 'Crew, progressão e novidades do produto: ainda não existe notificação para elas — nada para ativar aqui.',
   },
 
   // ── Sous-page Carte ──

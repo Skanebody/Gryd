@@ -19,10 +19,22 @@ import { Platform, Share } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import type { ShareDemoData } from './templates';
+import type { ExportPlan, ExportQualityId } from './clubExport';
 
-/** Résultat d'une action (feedback UI, jamais une exception propagée). */
+/**
+ * Résultat d'une action (feedback UI, jamais une exception propagée).
+ *
+ * `quality` n'est renseignée que sur un `via: 'image'`, et vaut ce qui a
+ * RÉELLEMENT été produit — jamais ce qui a été demandé. Un HD refusé (pas
+ * membre, étage absent, aucun gain de pixels) redescend en `'standard'` et
+ * l'écran doit annoncer standard : « HD » ne se dit que quand l'image l'est.
+ */
 export type ShareActionResult =
-  | { ok: true; via: 'clipboard' | 'share' | 'webshare' | 'image' }
+  | {
+      ok: true;
+      via: 'clipboard' | 'share' | 'webshare' | 'image';
+      quality?: ExportQualityId;
+    }
   | { ok: false; reason: 'dismissed' | 'unavailable' };
 
 interface ClipboardModule {
@@ -98,6 +110,58 @@ export async function shareAsImage(
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' });
       return { ok: true, via: 'image' };
+    }
+  } catch (e) {
+    console.warn('[share] export image échoué, filet texte :', e);
+  }
+  return openShareSheet(fallbackMessage);
+}
+
+/**
+ * EXPORT DE LA CARTE, EN STANDARD OU EN HD (promesse Arsenal « export HD »).
+ *
+ * L'appelant fournit les DEUX cibles possibles — l'aperçu à l'écran et l'étage
+ * hors écran (`ShareExportStage`) — et le plan calculé par `buildExportPlan`.
+ * Cette fonction ne DÉCIDE rien : elle exécute le plan et rapporte ce qui a
+ * vraiment été produit.
+ *
+ * ─── AUCUNE OPTION DE REDIMENSIONNEMENT, JAMAIS ─────────────────────────────
+ * On expédie `plan.captureOptions` tel quel (`SafeCaptureOptions` : format,
+ * quality, result — et rien d'autre). Passer `width`/`height` à `captureRef`
+ * serait le réflexe évident et ce serait un mensonge : Android rééchantillonne
+ * le bitmap déjà rendu et iOS étire l'instantané de la vue. La définition vient
+ * de la TAILLE À LAQUELLE LA CARTE EST MONTÉE, pas d'une option de sortie.
+ *
+ * ─── ON N'ANNONCE JAMAIS UN HD QU'ON N'A PAS PRODUIT ────────────────────────
+ * Si le plan dit `hd` mais que la ref de l'étage manque à l'appel (démontage,
+ * course de rendu), on capture l'aperçu et on rapporte `quality: 'standard'`.
+ * Web : `captureRef` n'existe pas → filet TEXTE, et le résultat ne porte alors
+ * aucune qualité (il n'y a pas d'image).
+ *
+ * ANTI PAY-TO-WIN (§1.6) : une définition d'image. Aucune capacité de jeu — ni
+ * territoire, ni points, ni protection, ni priorité de classement.
+ * CONFIDENTIALITÉ : les deux cibles rendent la MÊME carte, donc la même trace
+ * déjà masquée (`applySharePrivacy`) ; le HD ne révèle rien de plus.
+ */
+export async function shareCardImage(
+  targets: { preview: unknown; hd: unknown },
+  plan: Pick<ExportPlan, 'quality' | 'captureOptions'>,
+  fallbackMessage: string,
+): Promise<ShareActionResult> {
+  const wantsHd = plan.quality === 'hd' && targets.hd != null;
+  const target = wantsHd ? targets.hd : targets.preview;
+  const quality: ExportQualityId = wantsHd ? 'hd' : 'standard';
+  if (Platform.OS === 'web' || target == null) return openShareSheet(fallbackMessage);
+  try {
+    const uri = await captureRef(
+      target as Parameters<typeof captureRef>[0],
+      // Le plan, tel quel. Le type `SafeCaptureOptions` interdit structurellement
+      // width/height : on ne peut pas rééchantillonner par distraction.
+      plan.captureOptions,
+    );
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' });
+      return { ok: true, via: 'image', quality };
     }
   } catch (e) {
     console.warn('[share] export image échoué, filet texte :', e);

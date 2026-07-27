@@ -2,8 +2,9 @@
  * GRYD — sous-page Paramètres (AMENDEMENT-17 §CHANTIER 3). Une route dynamique
  * = une sous-page COURTE et actionnable. Un écran = un sujet, action/essentiel
  * sans scroll. Les sous-pages MVP branchées : Compte, Profil, Crew, Course,
- * Notifications, Carte, À propos, Avancé. Course & Notifications pilotent le
- * store motivation (filtrage d'affichage/notifs, JAMAIS le gameplay §1). Les
+ * Notifications, Carte, À propos, Avancé. Course pilote le store motivation
+ * (filtrage d'affichage, JAMAIS le gameplay §1) ; Notifications pilote son
+ * propre magasin (E71, `features/notifications/notifPrefs.ts`), distinct.  Les
  * réglages purement techniques (tolérance boucle…) vivent sous « Avancé » et
  * restent en lecture (moteur serveur, jamais un curseur client). Style dark GRYD,
  * texte court, honnête sur ce qui est « bientôt ».
@@ -60,9 +61,16 @@
  * · Sous-page Compte : aucune action de sécurité (mot de passe, appareils liés)
  *   — raison technique : il n'existe aucune RPC ni aucun écran pour ça, et
  *   `supabase.auth` n'est pas exposé au client pour la gestion d'identités.
- * · Sous-page Notifications : les canaux restent choisissables hors session
- *   (ils sont locaux) mais l'écran DIT que rien ne partira — l'enregistrement de
- *   l'appareil exige une session (`features/notifications/push.ts` renvoie
+ * · Sous-page Notifications (E71, `docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md`
+ *   §13) : la spec liste CINQ catégories (défense/crew/rivalité/progression/
+ *   produit). L'audit de ce chantier n'a trouvé que DEUX push RÉELS derrière
+ *   elles — décay (défense, canal `solo`) et vol de territoire (rivalité,
+ *   canal `competition`), cf. `features/notifications/notifPrefs.ts`. Les
+ *   trois autres n'ont AUCUN job serveur : elles restent NOMMÉES (absence
+ *   assumée) plutôt que peintes en interrupteur qui ne gouvernerait rien.
+ *   Les catégories restent choisissables hors session (elles sont locales)
+ *   mais l'écran DIT que rien ne partira — l'enregistrement de l'appareil
+ *   exige une session (`features/notifications/push.ts` renvoie
  *   `not_configured` sans session).
  * · Sous-page Carte : aucun réglage. Raison technique : le choix de couche est
  *   dérivé du contexte par la carte elle-même (`features/map`), il n'existe
@@ -86,17 +94,12 @@ import {
   spacing,
   typography,
 } from '@klaim/shared';
-import {
-  NOTIF_CHANNEL_LABELS,
-  PLAY_STYLE_LABELS,
-} from '../../src/features/motivation/labels';
-import {
-  toggleNotifChannel,
-  useMotivationPrefs,
-  type NotifChannel,
-} from '../../src/features/motivation/store';
-import { SwitchRow, TogglePill } from '../../src/features/motivation/ui';
+import { PLAY_STYLE_LABELS } from '../../src/features/motivation/labels';
+import { useMotivationPrefs } from '../../src/features/motivation/store';
+import { SwitchRow } from '../../src/features/motivation/ui';
 import { useDeviceNotifications } from '../../src/features/notifications/useDeviceNotifications';
+import { notifPrefsToChannels } from '../../src/features/notifications/notifPrefs';
+import { useNotificationPrefs } from '../../src/features/notifications/notifPrefsStore';
 import type { PushStatus } from '../../src/features/notifications/push';
 import { SectionLabel } from '../../src/ui/SectionLabel';
 import { useRealCrew } from '../../src/features/crew/real';
@@ -130,7 +133,6 @@ const SECTION_IDS: readonly SettingsSectionId[] = [
 
 // Version LUE depuis app.json (source unique), jamais un doublon en dur.
 const APP_VERSION: string = Constants.expoConfig?.version ?? '0.0.0';
-const NOTIF_ORDER: NotifChannel[] = ['solo', 'crew', 'competition', 'off'];
 
 /**
  * Un texte par diagnostic (features/notifications/push.ts). L'écran ne dit
@@ -264,7 +266,7 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
   const meta = settingsRowBySection(id);
   const t = useT();
 
-  const { prefs, update } = useMotivationPrefs();
+  const { prefs } = useMotivationPrefs();
   // Identité ÉDITABLE persistée (même source que Profil / profil-edit) : une
   // édition du nom/titre se reflète ici immédiatement — une seule vérité.
   // `profile` est le rendu FINAL (replis compris) ; `editable` est ce que le
@@ -331,14 +333,19 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
     reload: reloadCrew,
   } = useRealCrew();
   const [hapticsOn, setHapticsOn] = useState(true);
+  // Réglages de notifications E71 (5 catégories) — cf. `notifPrefs.ts` pour ce
+  // qui est réellement câblé derrière chacune.
+  const { prefs: notifPrefs, update: updateNotifPrefs } = useNotificationPrefs();
   // État RÉEL du push sur ce téléphone + propagation des canaux au serveur
   // (un job serveur ne peut respecter que les préférences qu'il connaît).
+  // Seules défense/rivalité produisent un canal RÉEL (`notifPrefsToChannels`) :
+  // crew/progression/produit n'ont encore aucun push serveur à propager.
   const {
     status: pushStatus,
     busy: pushBusy,
     enable: pushEnable,
     disable: pushDisable,
-  } = useDeviceNotifications(prefs.notifChannels);
+  } = useDeviceNotifications(notifPrefsToChannels(notifPrefs));
 
   useEffect(() => {
     screen('parametres_section', { section: id });
@@ -597,35 +604,41 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
 
       {id === 'notifications' ? (
         <Section label={t(C.secCeQueTuRecois)}>
-          <View style={styles.pills}>
-            {NOTIF_ORDER.map((ch) => (
-              <TogglePill
-                key={ch}
-                label={t(NOTIF_CHANNEL_LABELS[ch].title)}
-                on={prefs.notifChannels.includes(ch)}
-                onPress={() =>
-                  void update({ notifChannels: toggleNotifChannel(prefs.notifChannels, ch) })
-                }
-              />
-            ))}
-          </View>
-          <Text style={styles.note}>
-            {prefs.notifChannels.includes('off')
-              ? t(NOTIF_CHANNEL_LABELS.off.subtitle)
-              : t(C.notifsNote)}
-          </Text>
-          {/* Choisir SES canaux ne sert à rien si l'appareil n'est enregistré
-              nulle part : cette ligne dit l'état RÉEL du téléphone, et son
-              détail change avec le diagnostic (jamais un « Activer » muet).
+          {/* E71 : cinq catégories dans la spec (défense/crew/rivalité/
+              progression/produit). DEUX seulement gouvernent un envoi RÉEL
+              aujourd'hui — `notifPrefs.ts` documente l'audit qui l'établit.
+              AUCUN BOUTON MORT : les trois autres restent NOMMÉES plus bas
+              (`notifOtherCategoriesNote`), jamais peintes en interrupteur. */}
+          <SwitchRow
+            icon="bouclier"
+            title={t(C.notifDefenseTitle)}
+            subtitle={t(C.notifDefenseSubtitle)}
+            value={notifPrefs.defense}
+            onValueChange={(v) => void updateNotifPrefs({ defense: v })}
+          />
+          <SwitchRow
+            icon="raid"
+            title={t(C.notifRivaliteTitle)}
+            subtitle={t(C.notifRivaliteSubtitle)}
+            value={notifPrefs.rivalite}
+            onValueChange={(v) => void updateNotifPrefs({ rivalite: v })}
+          />
+          <Text style={styles.note}>{t(C.notifsNote)}</Text>
+          <Absence>{t(C.notifOtherCategoriesNote)}</Absence>
+          {/* Choisir SES catégories ne sert à rien si l'appareil n'est
+              enregistré nulle part : cette ligne dit l'état RÉEL du téléphone,
+              et son détail change avec le diagnostic (jamais un « Activer »
+              muet).
 
               ── L'ÉTAT « PAS CONNECTÉ » MANQUAIT ─────────────────────────────
               La condition ne testait que `pushStatus`. Hors session,
               `registerPushDevice` renvoie `not_configured` (push.ts : « aucune
-              session ») : le joueur cochait ses canaux, tapait « Activer »,
-              accordait une permission système — et n'apprenait qu'APRÈS que
-              rien ne serait envoyé. Le coût était payé avant le message. On le
-              dit AVANT, et on ne peint pas le contrôle qui échouera. */}
-          {prefs.notifChannels.includes('off') ? null : identityUnknown ? (
+              session ») : le joueur cochait ses catégories, tapait
+              « Activer », accordait une permission système — et n'apprenait
+              qu'APRÈS que rien ne serait envoyé. Le coût était payé avant le
+              message. On le dit AVANT, et on ne peint pas le contrôle qui
+              échouera. */}
+          {notifPrefsToChannels(notifPrefs).includes('off') ? null : identityUnknown ? (
             <Text style={styles.note}>{t(C.crewLoading)}</Text>
           ) : !signedIn ? (
             <EmptyState
@@ -817,7 +830,6 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.xs * 1.5,
     marginTop: spacing.xs,
   },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.xxs },
   // ── État vide : MÊME surface que `ListRow` (carbone, radii.card, sans contour,
   // séparée par l'espace — règle 80/20). Un vide n'est pas un écran à part, c'est
   // la ligne qui manque : elle garde exactement la place et la géométrie d'une

@@ -144,6 +144,10 @@ import { decimalSeparator } from '../src/ui/format';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
 import { C, statsCopy } from '../src/i18n/catalog/performance';
+// E66 : les libellés de la ligne « Analyse territoriale » vivent dans le
+// catalogue de CETTE fonctionnalité, pas ici — un seul fichier bouge si elle
+// change de nom.
+import { C as CA } from '../src/i18n/catalog/premiumAnalytics';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FORMATAGE — séparateur décimal de la langue, SANS Intl (Hermes n'embarque pas
@@ -352,6 +356,12 @@ function StatsBody({
     router.push('/arsenal');
   };
 
+  /** E66 — l'écran d'analyse territoriale (Club). Voir la ligne en bas de page. */
+  const openTerritoryAnalytics = () => {
+    haptics.light();
+    router.push('/premium-analytics');
+  };
+
   return (
     <View style={styles.stack}>
       <StatBlock
@@ -453,15 +463,34 @@ function StatsBody({
           maximum hebdomadaire déguisé en record. */}
       <RecordsSection records={records} activity={activity} />
 
-      {/* Entrée Premium : une LIGNE légère en bas du gratuit, sans pression et
-          sans jamais laisser croire que la heatmap existe déjà. La planche pose
-          ce renvoi ; on le garde TOUJOURS présent, mais son état suit la RÉALITÉ.
+      {/* E66 « Analyse territoriale » (27/07/2026) — la heatmap et les stats
+          avancées que le catalogue Arsenal vend au Club EXISTENT désormais
+          (`app/premium-analytics.tsx`, calcul pur dans
+          `features/premium/analytics/`). La ligne est donc TOUJOURS tappable, et
+          ce n'est pas un bouton mort : l'écran d'arrivée sait dire lui-même son
+          état — pas connecté / pas encore Club (aperçu honnête + renvoi vers
+          /premium) / échec / lu. Rien n'y est floué ni fabriqué. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(CA.entryA11y)}
+        onPress={openTerritoryAnalytics}
+        style={({ pressed }) => [styles.premiumRow, pressed && styles.pressed]}
+      >
+        <Text style={styles.premiumText}>{t(CA.entryRow)}</Text>
+        <Text style={styles.premiumCta}>{t(CA.entryCta)}</Text>
+        <Icon name="chevron" size={16} color={colors.gris} />
+      </Pressable>
+
+      {/* Entrée Premium : une LIGNE légère en bas du gratuit, sans pression.
+          La planche pose ce renvoi ; on le garde TOUJOURS présent, mais son état
+          suit la RÉALITÉ.
           · surface premium ouverte (`flags.arsenal`) → ligne tappable vers
             l'Arsenal, « Premium › » ;
-          · sinon → la heatmap n'est pas construite ET l'achat (RevenueCat, O3)
-            n'est pas branché : le seul renvoi honnête est « Bientôt », une ligne
-            NON cliquable (pas de chevron, pas de `Pressable`) — jamais un contrôle
-            mort ni un faux paywall. */}
+          · sinon → l'achat (RevenueCat, O3) n'est pas branché : le seul renvoi
+            honnête est « Bientôt », une ligne NON cliquable (pas de chevron, pas
+            de `Pressable`) — jamais un contrôle mort ni un faux paywall.
+          (La mention « la heatmap n'existe pas encore » a sauté le 27/07/2026 :
+          elle est construite — voir la ligne E66 juste au-dessus.) */}
       {flags.arsenal ? (
         <Pressable
           accessibilityRole="button"

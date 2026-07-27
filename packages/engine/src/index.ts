@@ -23,6 +23,15 @@ export * from './sectorSnapshot.ts';
 // défendre, le transfert n'a lieu qu'à l'échéance. Remplace (et n'empile pas)
 // le vol instantané de claim_hexes — cf. le tableau de réexpression du docblock.
 export * from './contest.ts';
+// Classement §10.1/§10.2 (lot 8) : la métrique est une SURFACE (m² dérivés de
+// la géométrie serveur), pas un point. Coexiste avec `scoring.ts` — points et
+// XP restent la PROGRESSION (§10.5), la surface est le CLASSEMENT.
+export * from './leaderboard.ts';
+// Anti-triche §11 (lot 9) : SCORING PUR multi-signal → PASS /
+// PASS_WITH_EXCLUSIONS / MANUAL_REVIEW / REJECT. N'est encore appelé par aucune
+// Edge Function (le câblage d'ingest_run est un lot suivant) — le docblock du
+// module le dit, pour qu'aucune copie ne prétende qu'une revue « a lieu ».
+export * from './anticheat.ts';
 export * from './claims.ts';
 export * from './crewJoin.ts';
 export * from './scoring.ts';

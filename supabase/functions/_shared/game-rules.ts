@@ -444,6 +444,17 @@ export const REFERRAL_MAX_ACTIVE_PER_SEASON = 5;
 export const PUSH_QUIET_HOURS_START = 21; // 21h
 export const PUSH_QUIET_HOURS_END = 8; // 8h
 export const PUSH_MAX_PER_DAY = 2;
+/**
+ * E71 (spec produit §13) : au-delà de ce nombre d'événements NON URGENTS le même
+ * jour, les suivants sont REGROUPÉS plutôt que remis un par un. Une urgence
+ * (territoire contesté, défense expirant, activité interrompue, sécurité du
+ * compte — §13.1) ignore TOUJOURS ce seuil : le confort ne doit jamais éteindre
+ * ni retarder une urgence, c'est la règle qui protège le joueur.
+ * Politique de CADENCE de notification (comme PUSH_MAX_PER_DAY ci-dessus), pas
+ * une règle de score — elle vit ici par cohérence avec le reste de cette
+ * section, pas parce qu'elle influence un claim.
+ */
+export const NOTIF_NON_URGENT_DAILY_THRESHOLD = 3;
 export const RUN_AUTOSAVE_INTERVAL_S = 15;
 /** Récompense variable : 1 drop gratuit toutes les 3-5 courses. */
 export const FREE_DROP_MIN_RUNS = 3;
