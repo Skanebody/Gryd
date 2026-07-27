@@ -52,7 +52,7 @@
  * chartreuse fort d'un écran reste son unique CTA.
  */
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, gameColors, radii, type Activity } from '@klaim/shared';
 import { flags } from '../lib/flags';
@@ -278,17 +278,13 @@ export function ActivitySwitch({
             ) : (
               <Icon name="basket" size={G.iconSize} color={tint} />
             )}
-            {/* §A9 : jamais tronqué. La largeur est budgétée et prouvée par test ;
-                `adjustsFontSizeToFit` ne sert qu'aux tailles système agrandies —
-                un texte qui rétrécit vaut mieux qu'un texte coupé. */}
-            <Text
-              style={[styles.label, { color: tint }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-            >
-              {seg.label}
-            </Text>
+            {/* ⚠️ PLUS DE LIBELLÉ VISIBLE (27/07/2026, demande fondateur : « que des
+                icônes »). Le sens ne disparaît pas pour autant : `accessibilityLabel`
+                (posé sur ce Pressable) le porte pour VoiceOver/TalkBack, et
+                `accessibilityState.selected` dit lequel est actif. Retirer le texte
+                SANS cette étiquette aurait rendu le commutateur muet aux lecteurs
+                d'écran — c'est la faute à ne pas commettre en passant aux icônes.
+                Le glyphe monte à 22 pt (§3.5) puisqu'il porte seul. */}
           </Pressable>
         );
       })}
@@ -343,12 +339,5 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: FILL_RADIUS,
     borderTopLeftRadius: radii.sm,
     borderBottomLeftRadius: radii.sm,
-  },
-  label: {
-    marginTop: 2,
-    fontSize: G.labelSize,
-    lineHeight: 14,
-    fontWeight: '800',
-    letterSpacing: G.labelTracking,
   },
 });

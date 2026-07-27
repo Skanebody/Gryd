@@ -37,13 +37,11 @@ import { C as PERF } from '../i18n/catalog/performance.ts';
 import { C as SAISON } from '../i18n/catalog/saison.ts';
 import {
   ACTIVITY_LABELS,
-  ACTIVITY_LABEL_TEXT_BUDGET,
   ACTIVITY_SEGMENT_HEIGHT,
   ACTIVITY_SURFACES,
   ACTIVITY_SWITCH_GEOMETRY,
   ACTIVITY_SWITCH_HEIGHT,
   ACTIVITY_SWITCH_WIDTH,
-  activityLabelFits,
   activitySegments,
   activityStorageKey,
   activitySwitchVisible,
@@ -531,18 +529,37 @@ Deno.test('les deux segments ont EXACTEMENT la même largeur (aucune hiérarchie
   );
 });
 
-Deno.test('§A9 — les libellés visibles tiennent dans leur segment', () => {
+// ⚠️ Le test « §A9 — les libellés visibles tiennent dans leur segment » a été
+// RETIRÉ le 27/07/2026 : le commutateur ne rend plus de texte (icônes seules,
+// demande fondateur). Un test de non-troncature sans texte à tronquer passerait
+// au vert quoi qu'il arrive — une preuve vide est pire que pas de preuve.
+// Les DEUX garanties qui le remplacent sont ci-dessous : le sens survit sans
+// texte (a11y), et la cible tactile survit à la capsule rétrécie.
+
+Deno.test('icônes SEULES : les libellés existent encore pour les lecteurs d’écran', () => {
+  // Retirer le texte VISIBLE est un choix de design ; le retirer des lecteurs
+  // d'écran serait un défaut d'accessibilité. `ActivitySwitch` pose
+  // `accessibilityLabel` sur chaque segment — ces libellés doivent donc rester
+  // définis et non vides dans TOUTES les langues.
   for (const [activity, label] of Object.entries(ACTIVITY_LABELS)) {
-    const largeur = estimateUppercaseWidth(
-      label,
-      ACTIVITY_SWITCH_GEOMETRY.labelSize,
-      ACTIVITY_SWITCH_GEOMETRY.labelTracking,
-    );
-    assert(
-      activityLabelFits(label),
-      `« ${label} » (${activity}) : ${largeur.toFixed(1)} pt pour ${ACTIVITY_LABEL_TEXT_BUDGET} pt disponibles`,
-    );
+    assert(label.trim().length > 0, `${activity} : libellé a11y vide`);
   }
+  const src = Deno.readTextFileSync(new URL('./ActivitySwitch.tsx', import.meta.url));
+  assert(
+    src.includes('accessibilityLabel='),
+    'le commutateur ne porte plus d’étiquette d’accessibilité : muet aux lecteurs d’écran',
+  );
+  assert(
+    !/<Text[\s>]/.test(src),
+    'un <Text> est réapparu dans le commutateur : il doit rester en icônes seules',
+  );
+});
+
+Deno.test('§4.2 — la capsule tient dans la fourchette de largeur de la spec (80-96)', () => {
+  assert(
+    ACTIVITY_SWITCH_WIDTH >= 80 && ACTIVITY_SWITCH_WIDTH <= 96,
+    `capsule de ${ACTIVITY_SWITCH_WIDTH} pt : hors de la fourchette 80-96 de §4.2`,
+  );
 });
 
 Deno.test('le commutateur tient dans un en-tête de 375 pt à côté du retour et du titre', () => {
@@ -567,8 +584,11 @@ Deno.test('la cible tactile est ATTEINTE, pas simulée par un hitSlop', () => {
 
 Deno.test('le contenu d’un segment tient dans sa hauteur (icône + libellé, jamais rogné)', () => {
   const g = ACTIVITY_SWITCH_GEOMETRY;
-  // Contenu réel rendu par ActivitySwitch : picto, marge 2, ligne de 14.
-  const contenu = g.iconSize + 2 + 14;
+  // Contenu réel rendu par ActivitySwitch : le PICTO SEUL depuis le 27/07/2026
+  // (icônes seules, plus de libellé — la marge 2 et la ligne de 14 du texte ont
+  // disparu avec lui). Le segment garde sa hauteur : l'espace libéré devient de
+  // l'air autour du glyphe, il ne sert pas à rétrécir la cible tactile.
+  const contenu = g.iconSize;
   assert(
     contenu <= ACTIVITY_SEGMENT_HEIGHT,
     `contenu de ${contenu} pt dans un segment de ${ACTIVITY_SEGMENT_HEIGHT} pt`,
@@ -576,5 +596,5 @@ Deno.test('le contenu d’un segment tient dans sa hauteur (icône + libellé, j
 });
 
 Deno.test('le plancher de lisibilité tient (libellé à 12 px, jamais moins)', () => {
-  assertEquals(ACTIVITY_SWITCH_GEOMETRY.labelSize, 12, 'plancher a11y du projet');
+  // (le verrou `labelSize >= 12` a disparu avec le texte — cf. le bloc ci-dessus)
 });

@@ -257,7 +257,19 @@ export function activitySegments(selected: Activity): readonly ActivitySegment[]
  * pour sa ligne mission, qui calcule sa marge depuis `ACTIVITY_SWITCH_WIDTH`.
  */
 export const ACTIVITY_SWITCH_GEOMETRY = {
-  /** Filet + marge + segment de 44 : la cible tactile est ATTEINTE, pas simulée. */
+  /**
+   * Filet + marge + segment de 44 : la cible tactile est ATTEINTE, pas simulée.
+   *
+   * ⚠️ ÉCART ASSUMÉ À §4.2 (qui demande 40), et il est mesuré : 40 − filet − marge
+   * = 34, or §3.4 du MÊME document impose une cible de 44×44. Les deux règles se
+   * contredisent ; on ne peut satisfaire 40 qu'en simulant la cible par un
+   * `hitSlop`, c'est-à-dire en rendant la zone d'appui plus grande que le bouton
+   * visible. Le dépôt a tranché AVANT ce lot pour la cible RÉELLE — un test le
+   * verrouille nommément (« pas simulée par un hitSlop »), et il a raison : un
+   * appui qui « prend » hors du bouton visible est une promesse floue, et il
+   * mord sur ce qui l'entoure. On garde donc 50, et c'est §4.2 qui plie.
+   * (Tenté en icônes seules le 27/07/2026 : rejeté par ce test, à juste titre.)
+   */
   height: 50,
   /** Filet de la capsule (compté dans la largeur : `borderBox` n'existe pas ici). */
   borderWidth: 1,
@@ -270,11 +282,12 @@ export const ACTIVITY_SWITCH_GEOMETRY = {
    * constante, et pas deux égales : deux valeurs finiraient par diverger, et la
    * divergence se lirait comme une hiérarchie.
    */
-  segmentWidth: 56,
-  iconSize: 16,
-  /** Plancher a11y du projet : aucun texte porteur de sens sous 12 px. */
-  labelSize: 12,
-  labelTracking: 0.6,
+  segmentWidth: 44,
+  /**
+   * 22 pt — la fourchette d'icône de §3.5 (22-24). Elle valait 16 quand un
+   * libellé la secondait ; SEULE, elle doit porter le sens à elle toute seule.
+   */
+  iconSize: 22,
 } as const;
 
 export const ACTIVITY_SWITCH_HEIGHT = ACTIVITY_SWITCH_GEOMETRY.height;
@@ -318,17 +331,16 @@ export function estimateUppercaseWidth(text: string, fontSize: number, tracking:
   return em * fontSize + Math.max(0, chars.length - 1) * tracking;
 }
 
-/** Largeur de texte disponible dans un segment (identique pour les deux). */
-export const ACTIVITY_LABEL_TEXT_BUDGET =
-  ACTIVITY_SWITCH_GEOMETRY.segmentWidth - 2 * ACTIVITY_SWITCH_GEOMETRY.segmentPadH;
-
-/** Un libellé de segment tient-il sans être coupé (§A9) ? */
-export function activityLabelFits(label: string): boolean {
-  return (
-    estimateUppercaseWidth(
-      label,
-      ACTIVITY_SWITCH_GEOMETRY.labelSize,
-      ACTIVITY_SWITCH_GEOMETRY.labelTracking,
-    ) <= ACTIVITY_LABEL_TEXT_BUDGET
-  );
-}
+/**
+ * ⚠️ `ACTIVITY_LABEL_TEXT_BUDGET` et `activityLabelFits` ONT ÉTÉ RETIRÉS le
+ * 27/07/2026 : le commutateur ne rend plus de libellé (demande fondateur « que
+ * des icônes »), donc plus aucun texte n'a à tenir dans un segment. Un garde-fou
+ * anti-troncature qui ne garde plus rien est un piège pour le prochain lecteur —
+ * il passerait au vert quoi qu'il arrive et donnerait l'illusion d'une preuve.
+ *
+ * `estimateUppercaseWidth` (ci-dessus) RESTE : c'est un outil général, encore
+ * consommé ailleurs pour d'autres budgets de largeur.
+ *
+ * Si un libellé revient un jour dans la capsule, rétablir le couple budget +
+ * vérification EN MÊME TEMPS que le texte, jamais après.
+ */
