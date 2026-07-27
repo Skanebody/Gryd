@@ -29,8 +29,10 @@
  * jamais la nouvelle course.
  *
  * Fin de course hors-ligne (AMENDEMENT-15 §2) : l'envoi ingest_run raté met le
- * payload en file (pendingUpload, idempotent par clientRunId) — renvoyé
- * silencieusement au prochain lancement et à la prochaine fin de course.
+ * payload en FILE FIFO (pendingUpload, idempotent par clientRunId) — renvoyé
+ * silencieusement au prochain lancement, au retour au premier plan et à la
+ * prochaine fin de course. Plusieurs sorties hors ligne s'y empilent SANS
+ * s'écraser (le slot unique en perdait — AUDIT R4, corrigé le 27/07/2026).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -149,9 +151,14 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
    *  - 'rejected' : le serveur a JUGÉ et refusé (4xx hors 429) — pas de file
    *                 (l'idempotence rendrait le même verdict), pas de message
    *                 « envoi dès que possible » (ce serait faux) ;
-   *  - 'queued' : hors-ligne/5xx/429 → payload en file (pendingUpload, slot
-   *               unique MVP — DISCOVERY), renvoyé silencieusement plus tard ;
-   *  - 'lost'   : stockage indisponible (l'appelant garde son dernier filet) ;
+   *  - 'queued' : hors-ligne/5xx/429 → payload en FILE FIFO (pendingUpload —
+   *               plusieurs sorties en attente, ordre préservé), renvoyé
+   *               silencieusement plus tard ;
+   *  - 'lost'   : la course n'a PAS pu entrer en file (stockage indisponible,
+   *               ou file au plafond : elle refuse au lieu d'écraser une
+   *               entrée). L'appelant garde alors son dernier filet — les clés
+   *               de la course ne sont PAS purgées, elle est re-proposée au
+   *               prochain GO. Rien n'est détruit ;
    *  - 'none'   : pas de backend/session (aucun envoi attendu).
    */
   const uploadOrQueue = useCallback(

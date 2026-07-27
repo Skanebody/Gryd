@@ -1,0 +1,88 @@
+-- 0075_territories_source_run_unique.sql
+-- GRYD — LA COURSE EST LA CLÉ DU TERRITOIRE (LOT 1, ÉTAPE 2 sur 4).
+--
+-- ═══ CE QUE CETTE MIGRATION FAIT, ET CE QU'ELLE NE FAIT PAS ═════════════════
+-- FAIT   : pose l'unicité `territories.source_run_id`. Une course produit AU
+--          PLUS UN territoire, et c'est désormais la BASE qui le garantit.
+-- NE FAIT PAS : aucune écriture, aucun backfill, aucune lecture branchée. Elle
+--          ne change rien à ce que voit un joueur. `hex_claims` reste intacte et
+--          reste la propriété effective (la bascule des lectures est l'étape 4).
+--
+-- ═══ POURQUOI UNE CONTRAINTE, ET PAS UN `select` AVANT L'INSERT ═════════════
+-- `ingest_run` est déjà idempotent par `(user_id, client_run_id)` : un renvoi de
+-- la même course est rejoué et sort AVANT toute écriture. Cette contrainte n'est
+-- donc pas la première ligne de défense — c'est la DERNIÈRE, celle qui tient
+-- quand la première est contournée :
+--   · deux requêtes CONCURRENTES sur le même `clientRunId` (retry réseau du
+--     mobile, double tap) : la garde applicative est un `select` puis un
+--     `insert`, donc un TOCTOU. Deux territoires identiques seraient créés, et
+--     l'un des deux serait un territoire FANTÔME que rien ne pourrait ensuite
+--     distinguer du vrai — le §9 (contestation) compterait deux fois la même
+--     surface ;
+--   · un futur ré-appel de l'écriture (rejeu d'un backfill, reprise après
+--     incident) : sans unicité, chaque passage dupliquerait.
+-- « Toute mutation critique est IDEMPOTENTE » : une idempotence portée
+-- uniquement par du code applicatif est une intention, pas un mécanisme.
+--
+-- ═══ POURQUOI UN INDEX NON PARTIEL, ALORS QUE LA COLONNE EST NULLABLE ═══════
+-- `source_run_id` est `on delete set null` (0074) : quand une course est purgée
+-- (rétention §7), le TERRITOIRE SURVIT et sa colonne passe à NULL. En Postgres,
+-- deux NULL ne sont PAS égaux pour un index unique (comportement par défaut,
+-- `nulls distinct`) : autant de territoires orphelins que nécessaire peuvent
+-- donc coexister. L'unicité ne contraint QUE les lignes qui nomment une course.
+-- Un index PARTIEL (`where source_run_id is not null`) aurait le même effet sur
+-- les données, mais Postgres ne peut PAS l'inférer comme arbitre d'un
+-- `on conflict (source_run_id)` sans répéter son prédicat — l'écrivain perdrait
+-- justement la garantie qu'on vient poser.
+--
+-- ═══ CE QUE CETTE CLÉ N'EST PAS ═════════════════════════════════════════════
+-- Ce n'est PAS « un joueur a un seul territoire », ni « une zone appartient à un
+-- seul polygone ». Deux territoires peuvent toujours se superposer (0074, point
+-- 5 des suspens) : l'arbitrage du recouvrement appartient au modèle de
+-- contestation (§9, lot 3), pas au schéma.
+
+create unique index territories_source_run_unique
+  on public.territories (source_run_id);
+
+comment on index public.territories_source_run_unique is
+  'Une course produit AU PLUS UN territoire (clé naturelle d''idempotence de l''écriture d''ingest_run). NON partiel à dessein : les NULL restent distincts (territoires dont la course a été purgée, source_run_id on delete set null), et un index non partiel est inférable par `on conflict (source_run_id)` — un index partiel ne l''aurait pas été.';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- LA PREUVE DE CETTE MIGRATION
+-- ════════════════════════════════════════════════════════════════════════════
+-- `supabase/tests/territories_source_run_unique.pglite.test.mjs` exécute le VRAI
+-- SQL de ce fichier sur un Postgres réel (PGlite, WASM) : deux territoires sur
+-- la MÊME course sont refusés ; deux territoires sur deux courses DIFFÉRENTES
+-- passent ; deux territoires ORPHELINS (`source_run_id` null) coexistent ; la
+-- purge d'une course libère la clé sans détruire le territoire ; et un
+-- `insert … on conflict (source_run_id) do nothing` — la forme exacte utilisée
+-- par l'écrivain — est bien ARBITRÉ par cet index.
+--
+-- POUR LE REJOUER :
+--   mkdir -p /tmp/pglite && cd /tmp/pglite
+--   echo '{"name":"pglite-scratch","private":true}' > package.json
+--   npm i --ignore-scripts @electric-sql/pglite
+--   cd <repo> && GRYD_PGLITE=/tmp/pglite/node_modules/@electric-sql/pglite/dist/index.js \
+--     node supabase/tests/territories_source_run_unique.pglite.test.mjs
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CE QUI RESTE EN SUSPENS — état DATÉ du 27/07/2026
+-- ════════════════════════════════════════════════════════════════════════════
+-- 1. UNE COURSE SANS BOUCLE FERMÉE N'ÉCRIT AUCUN TERRITOIRE, même quand elle
+--    capture des cellules en couloir (« trait »). La table ne couvre donc pas
+--    encore toute la propriété : elle couvre les SURFACES. Tant que les lectures
+--    n'ont pas basculé (étape 4), cet écart n'est visible de personne — mais il
+--    devra être tranché avant, pas pendant.
+-- 2. `owner_type` VAUT TOUJOURS `'user'`. Un crew ne peut pas posséder
+--    aujourd'hui (`hex_claims.owner_user_id` est `not null`) ; écrire `'crew'`
+--    ferait diverger les deux représentations dès la première capture. La
+--    propriété crew est le lot 7.
+-- 3. AUCUNE MISE À JOUR : un territoire est écrit une fois et ne bouge plus. Ni
+--    défense (`defended`), ni expiration (`expired`), ni fortification ne se
+--    reflètent dans `territories` — ces transitions vivent encore uniquement
+--    dans `hex_claims`. C'est le lot 3 (§5.3/§9).
+-- 4. LE TROU D'INTÉGRITÉ DE `owner_id` RESTE OUVERT (0074, suspens 2) : le
+--    propriétaire est polymorphe, donc sans clé étrangère. Il est désormais
+--    TOUJOURS un `users.id` écrit par le service-role — la parade (déclencheur
+--    de validation, ou purge à la suppression d'un crew) reste à poser avec le
+--    premier écrivain CREW, pas avec celui-ci.

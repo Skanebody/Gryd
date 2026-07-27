@@ -63,6 +63,7 @@ import type {
 } from '../_shared/types.ts';
 import { computeStats, filterPoints, haversineM } from '../_shared/engine/validation.ts';
 import {
+  detectLoop,
   enclosedCells,
   type GeoJsonPolygonal,
   hexesForSegments,
@@ -70,6 +71,9 @@ import {
   loopTracePoints,
   pointInGeoJson,
 } from '../_shared/engine/hexing.ts';
+// LOT 1 ÉTAPE 2 — la ligne `territories` (polygone autoritaire) d'une course.
+// Décision PURE et testable, hors de ce fichier (index.ts n'est pas importable).
+import { buildTerritoryRow } from './territory.ts';
 import {
   canComplete,
   contributionSplit,
@@ -3224,6 +3228,79 @@ Deno.serve(async (req: Request): Promise<Response> => {
       } catch (e) {
         console.error('[ingest_run] steal_push_queue fail-safe (course créditée):', e);
       }
+    }
+
+    // ── LOT 1 ÉTAPE 2 : DOUBLE ÉCRITURE DU TERRITOIRE (polygone) ─────────────
+    // Spec §1.4 : « un territoire est un POLYGONE issu de la trace réelle ». La
+    // table `territories` (0074) existait mais PERSONNE n'écrivait dedans. Ici
+    // on l'alimente — EN PLUS de `hex_claims`, jamais à sa place.
+    //
+    // CE QUI NE CHANGE PAS, ET C'EST LE POINT DE CETTE ÉTAPE : la propriété
+    // effective reste HEXAGONALE, aucune lecture ne bascule, aucun écran ne
+    // bouge, aucun point ne change. Les deux représentations COEXISTENT. Un
+    // joueur ne verra pas la différence — et prétendre l'inverse serait une doc
+    // qui promet au-delà du code (la bascule des lectures est l'étape 4).
+    //
+    // POURQUOI `detectLoop` EST RAPPELÉ ICI. Le polygone existe déjà : le moteur
+    // le calcule dans `runTerritoryEngine` (engine.ts) puis le JETTE après en
+    // avoir tiré les cellules intérieures — `RunTerritoryResult` n'expose pas la
+    // boucle. On le RECALCULE donc, avec les MÊMES entrées (`loopTrace`,
+    // `activity`) et la MÊME fonction PURE et déterministe : le résultat ne peut
+    // pas diverger, seul le coût est payé deux fois (un scan de la trace, sur un
+    // chemin qui fait déjà des dizaines d'allers-retours DB). Ce n'est pas la
+    // bonne forme définitive — exposer `loop` dans `RunTerritoryResult` est le
+    // correctif, et il appartient au moteur, hors périmètre de cette étape.
+    //
+    // BEST-EFFORT STRICT, comme `hex_co_captures` et `steal_push_queue` juste
+    // au-dessus : la course est DÉJÀ créditée et la propriété hexagonale déjà
+    // appliquée. Un échec ici loggue et ne change NI la réponse, NI le verdict,
+    // NI un seul point. Écrire dans une table que personne ne lit encore n'a pas
+    // le droit de faire échouer une course qui, elle, compte.
+    //
+    // IDEMPOTENCE À DEUX ÉTAGES : (1) un renvoi du même `clientRunId` sort AVANT
+    // ce point (`insertRun` → `replayed`), donc on ne repasse pas ici ; (2) si
+    // deux requêtes concurrentes franchissent quand même cette garde, l'index
+    // unique `territories_source_run_unique` (0075) refuse le second insert avec
+    // un 23505 — qu'on traite comme un SUCCÈS, parce que c'en est un : le
+    // territoire de cette course existe.
+    try {
+      const capturedCellCount = decision.results.filter(
+        (r) => r.outcome === 'claimed_neutral' || r.outcome === 'stolen',
+      ).length;
+      // Le calcul géométrique n'est fait QUE si une capture a réellement eu lieu
+      // ET qu'une boucle a été fermée — sinon il n'y a rien à décrire.
+      if (capturedCellCount > 0 && loopClosed && loopTrace !== null) {
+        const territoryRow = buildTerritoryRow({
+          polygon: detectLoop(loopTrace, activity)?.polygon ?? null,
+          // Forme trop étroite ou GPS sous le seuil : le moteur a REFUSÉ
+          // l'intérieur. La surface n'a pas été gagnée, on n'en écrit pas.
+          interiorRejected: loopRejectedReason !== undefined,
+          capturedCellCount,
+          activity,
+          ownerUserId: userId,
+          // MÊME ville que celle passée à `claim_hexes` (arbitrée serveur par
+          // `resolveRunCity`) : deux rattachements divergents pour une même
+          // course rendraient les deux représentations incomparables.
+          cityId: request.cityId ?? null,
+          runId,
+          now,
+        });
+        if (territoryRow !== null) {
+          const { error: territoryErr } = await supabase
+            .from('territories')
+            .insert(territoryRow);
+          // 23505 = `territories_source_run_unique` → un retry concurrent a
+          // gagné. Le territoire existe : ce n'est pas une erreur.
+          if (territoryErr && territoryErr.code !== '23505') {
+            console.error(
+              '[ingest_run] territories insert (best-effort, propriété hexagonale intacte):',
+              territoryErr.message,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[ingest_run] territories fail-safe (course créditée):', e);
     }
 
     // ── Mécaniques nourrissant les badges (décision fondateur 03/07/2026 :

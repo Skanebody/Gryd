@@ -25,7 +25,7 @@ installFatalErrorGuard();
 // un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js.
 import '../src/lib/textDecoderUtf16';
 import { useEffect, useRef } from 'react';
-import { Linking, View } from 'react-native';
+import { AppState, Linking, View } from 'react-native';
 import { router, Stack, usePathname } from 'expo-router';
 import { useAppFonts } from '../src/lib/fonts';
 import { StatusBar } from 'expo-status-bar';
@@ -34,12 +34,31 @@ import { colors } from '@klaim/shared';
 import { EVENTS, registerScreen, screen, track } from '../src/lib/analytics';
 import { normalizeScreenPath } from '../src/lib/screenName';
 import { retryPendingUpload } from '../src/lib/pendingUpload';
+import { loadActiveRun, loadCurrentRun } from '../src/lib/runStore';
 import { SessionProvider } from '../src/lib/session';
+import {
+  decideCrashRecoveryNavigation,
+  type InterruptedRunSnapshot,
+} from '../src/features/run/gps/crashRecovery';
 import {
   parseInviteUrl,
   rememberPendingInvite,
   startPendingInviteWatcher,
 } from '../src/features/crew/pendingInvite';
+
+/**
+ * Réduit un buffer `runStore.StoredRun` à ce que la décision PURE de
+ * `crashRecovery.ts` a besoin de connaître (voir ce fichier : `runStore.ts`
+ * n'est délibérément PAS importé par ce module, pour ne pas faire échouer son
+ * gate Deno). `null` passe tel quel (buffer absent).
+ */
+function toRecoverySnapshot(
+  run: { runId: string; startedAt: number; fixes: readonly { ts: number }[] } | null,
+): InterruptedRunSnapshot | null {
+  if (run === null) return null;
+  return { runId: run.runId, startedAt: run.startedAt, fixTimestamps: run.fixes.map((f) => f.ts) };
+}
+
 /**
  * FRONTIÈRE D'ERREUR DE L'APP — mécanisme d'expo-router, rendu GRYD.
  *
@@ -88,6 +107,46 @@ export default function RootLayout() {
     // AMENDEMENT-15 §2 : une fin de course restée hors-ligne est renvoyée
     // silencieusement à chaque lancement (idempotent par clientRunId, D14).
     void retryPendingUpload();
+    // PROPOSER LA REPRISE APRÈS CRASH (LOT 2.3, 27/07/2026 — voir
+    // `features/run/gps/crashRecovery.ts`). La donnée SURVIT déjà (buffer
+    // `runStore`, flush périodique `run_autosave`) et `course-live` sait déjà
+    // la reproposer (`RestoreRunCard`) — mais RIEN n'y menait au lancement :
+    // seul un nouveau GO y navigue. Un joueur qui rouvre l'app après un crash
+    // croyait donc sa course perdue alors qu'elle était sur le disque (spec
+    // §25.3, E00 : « activité active retrouvée : aller directement à la
+    // récupération »).
+    //
+    // UNE SEULE fois, au lancement FROID de cet effet (tableau de dépendances
+    // vide) — jamais sur le retour au premier plan (l'AppState listener
+    // ci-dessous ne fait QUE `retryPendingUpload`) : une course RÉELLEMENT en
+    // cours reste sur son écran `course-live`, qui continue de flusher son
+    // propre buffer pendant que l'app est en arrière-plan ; la reproposer à
+    // chaque retour arracherait le joueur de SA PROPRE course en train de se
+    // dérouler pour la lui « redécouvrir » par-dessus elle-même.
+    //
+    // `course-live` refait ensuite sa PROPRE réconciliation complète des deux
+    // clés (ACTIVE/CURRENT) — ce déclencheur ne fait QUE décider s'il faut
+    // l'atteindre, jamais reprendre ou clôturer une course lui-même.
+    void (async () => {
+      const [active, current] = await Promise.all([loadActiveRun(), loadCurrentRun()]);
+      const decision = decideCrashRecoveryNavigation(
+        [toRecoverySnapshot(active), toRecoverySnapshot(current)],
+        Date.now(),
+      );
+      if (decision.shouldNavigate) router.push('/course-live');
+    })();
+    // DÉCLENCHEUR DE REPRISE (27/07/2026, file FIFO) : le lancement ne suffit
+    // pas — une app qui reste ouverte plusieurs jours ne relancerait jamais.
+    // Le retour au PREMIER PLAN est le seul signal de reconnexion disponible
+    // sans nouvelle dépendance (`@react-native-community/netinfo` n'est PAS
+    // dans le projet, et on n'en ajoute pas une pour ça) : c'est exactement le
+    // moment où l'utilisateur rentre chez lui et retrouve du réseau. Le rejeu
+    // est verrouillé (retryInFlight) et no-op hors-ligne : le déclencher trop
+    // souvent ne coûte rien.
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void retryPendingUpload();
+    });
+    return () => sub.remove();
   }, []);
 
   // ── RÉCEPTION DES LIENS D'INVITE CREW (demande fondateur 21/07/2026) ────────
