@@ -80,6 +80,7 @@ import {
   type MapZoneView,
 } from './BattleMapOverlays';
 import { useMapSheetLayout } from './mapUiStore';
+import { usePlaceFocus } from './placeFocus';
 import { useRealTerritories } from './hexClaims';
 import { useSectorSnapshots } from './useSectorSnapshots';
 import { sectorViewsFor } from './sectorView';
@@ -697,6 +698,26 @@ export function MapScreen() {
       zoom,
     });
   }, [selectedZoneId, selectedZone, zoneBand]);
+
+  /**
+   * E13 — CADRAGE SUR UN LIEU CHERCHÉ (`/map/search`), en PARITÉ STRICTE avec la
+   * variante native. Sans ce bloc, l'entrée « Chercher un lieu » du header
+   * serait un bouton mort dans la preview web : l'écran se fermerait et la carte
+   * n'aurait pas bougé. Le `ticket` garantit un vol par demande, et un seul —
+   * on ne reprend jamais la caméra au joueur qui déplace ensuite la carte.
+   */
+  const placeFocus = usePlaceFocus();
+  const placeFocusedRef = useRef(0);
+  useEffect(() => {
+    if (placeFocus.ticket === 0 || placeFocusedRef.current === placeFocus.ticket) return;
+    placeFocusedRef.current = placeFocus.ticket;
+    mapRef.current?.flyTo({
+      lat: placeFocus.point.lat,
+      lng: placeFocus.point.lng,
+      zoom: placeFocus.zoom,
+    });
+  }, [placeFocus]);
+
   const noteAnchor = sheetLayout.visible
     ? sheetLayout.peekTopPx
     : insets.bottom + NAV_BAR_HEIGHT;

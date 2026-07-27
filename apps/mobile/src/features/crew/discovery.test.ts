@@ -26,6 +26,7 @@ import {
   parseDiscoveryPage,
   rankCrews,
   refusalOf,
+  refusalView,
   seatsLeft,
   type DiscoveryCrew,
   type RelevanceContext,
@@ -242,4 +243,35 @@ Deno.test('quand je suis DÉJÀ dans un crew, le filtre « ouverts » ne ment pa
   const dansUnCrew = { viewerInCrew: true };
   const all = [crew({ id: 'a', recruitmentStatus: 'open' }), crew({ id: 'b' })];
   assertEquals(applyFilter(all, 'open', dansUnCrew).length, 0);
+});
+
+// ─── Refus → ce que l'écran a le droit de peindre ────────────────────────────
+//
+// POURQUOI CE VERROU (27/07/2026). E39 ne rendait que `no_city`, E40 que
+// `not_found` : `signed_out` (0083:267 et :385) tombait dans un TROU. E40 y
+// laissait un spinner tourner pour toujours, E39 rendait une liste muette qui
+// se lit « aucun crew ici ». La règle n'est pas « traiter signed_out » — c'est
+// qu'AUCUN motif, présent ou futur, ne peut échapper à un rendu.
+
+Deno.test('REFUS : chaque motif du contrat a un écran, aucun n’est muet', () => {
+  assertEquals(refusalView(null), null); // succès : pas d'écran de refus
+  assertEquals(refusalView('no_city'), 'no_city');
+  assertEquals(refusalView('not_found'), 'not_found');
+  // Le refus qui manquait : le SERVEUR dit « pas connecté » alors que l'app
+  // tient une session. Jeton expiré — distinct d'un « jamais connecté ».
+  assertEquals(refusalView('signed_out'), 'session_expired');
+  // Vocabulaire d'ADHÉSION reçu sur une LECTURE : on ne devine pas, on dit
+  // qu'on n'a pas pu lire.
+  for (const r of ['already_in_crew', 'cooldown', 'closed', 'full'] as const) {
+    assertEquals(refusalView(r), 'unreadable', `${r} n’a pas d’écran`);
+  }
+});
+
+Deno.test('REFUS : un motif serveur INCONNU est peint, jamais avalé', () => {
+  // `refusalOf` caste la chaîne serveur telle quelle dans le type : un motif
+  // ajouté demain en base ne doit pas rendre un écran vide chez un joueur qui
+  // n'a pas mis l'app à jour.
+  const futur = refusalOf({ ok: false, reason: 'region_locked' });
+  assertEquals(futur, 'region_locked' as never);
+  assertEquals(refusalView(futur), 'unreadable');
 });

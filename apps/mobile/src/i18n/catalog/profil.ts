@@ -1410,12 +1410,21 @@ export const C = defineCatalog({
    * Il nomme désormais le geste qui existe réellement (O1 : l'annuaire de crews
    * est un chantier serveur — recherche, recrutement, modération).
    */
+  /**
+   * ⚠ 27/07/2026 — LE LIBELLÉ AVAIT DÉRIVÉ AVEC SA DESTINATION. La clé s'appelle
+   * `linkFindCrew` (« trouver un crew ») et disait « Rejoindre avec un code »,
+   * parce que le lien avait été rabattu sur le HQ Crew à l'époque où aucun
+   * annuaire n'existait. L'annuaire EXISTE (E39, `app/crew-discovery.tsx`, servi
+   * par la migration 0083) : le lien y retourne, et le texte redit ce que la clé
+   * a toujours promis. Entrer un code reste possible — depuis l'onglet Crew,
+   * qui est l'écran de cette action-là.
+   */
   linkFindCrew: {
-    fr: 'Rejoindre avec un code',
-    en: 'Join with a code',
-    es: 'Unirse con un código',
-    de: 'Mit Code beitreten',
-    pt: 'Entrar com um código',
+    fr: 'Trouver un crew',
+    en: 'Find a crew',
+    es: 'Encontrar un crew',
+    de: 'Ein Crew finden',
+    pt: 'Encontrar um crew',
   },
 
   // ── Rangée de 4 métriques (un seul bloc à séparateurs, jamais 4 cards) ──────

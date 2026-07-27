@@ -1033,6 +1033,38 @@ export function RealCrewScreen() {
                 ) : (
                   <Text style={styles.territoryEmpty}>{t(C.rlNoTerritory)}</Text>
                 )}
+                {/* E50 — porte d'entrée des STATISTIQUES DU CREW. Hors du
+                    ternaire ci-dessus, et c'est délibéré : les statistiques se
+                    lisent AUSSI quand le crew ne tient rien (défenses, distance
+                    collective, courbe existent indépendamment de l'emprise).
+                    Lien discret, pas un CTA : le seul accent chartreuse fort de
+                    cet écran reste « Inviter » (§A.4). */}
+                <Pressable
+                  onPress={() => router.push('/crew-stats')}
+                  accessibilityRole="link"
+                  accessibilityLabel={t(C.sTitle)}
+                  hitSlop={8}
+                  style={styles.inlineLink}
+                >
+                  <Text style={styles.priorityAction}>{t(C.sTitle)}</Text>
+                  <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
+                </Pressable>
+                {/* E49 — porte d'entrée des SORTIES CREW (route `/crew-sortie`).
+                    Visible pour TOUT membre, pas seulement pour qui a le droit
+                    de créer : l'écran y liste aussi ce qui est déjà prévu, et
+                    dériver ici le droit `createOuting` recopierait côté client
+                    une matrice dont le serveur est seul juge (crew_outing_context).
+                    Lien discret, jamais un second accent chartreuse fort (§A.4). */}
+                <Pressable
+                  onPress={() => router.push('/crew-sortie')}
+                  accessibilityRole="link"
+                  accessibilityLabel={t(C.oTitle)}
+                  hitSlop={8}
+                  style={styles.inlineLink}
+                >
+                  <Text style={styles.priorityAction}>{t(C.oTitle)}</Text>
+                  <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
+                </Pressable>
               </View>
             ) : (
               /*

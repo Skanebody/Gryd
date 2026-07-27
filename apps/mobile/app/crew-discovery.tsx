@@ -34,7 +34,7 @@
  * PURE et testée : `features/crew/discovery.ts` + `discovery.test.ts`. Cet
  * écran appelle `rankCrews`, il ne trie rien lui-même.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -50,6 +50,7 @@ import {
 import { C } from '../src/i18n/catalog/crew';
 import { C as CityC } from '../src/i18n/catalog/city';
 import { useT } from '../src/i18n/store';
+import { EVENTS, track } from '../src/lib/analytics';
 import { useSession } from '../src/lib/session';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
@@ -60,6 +61,7 @@ import {
   applyFilter,
   isJoinable,
   rankCrews,
+  refusalView,
   seatsLeft,
   type DiscoveryCrew,
   type DiscoveryFilter,
@@ -82,6 +84,8 @@ export default function CrewDiscoveryRoute() {
   const [cityId, setCityId] = useState<string | null>(null);
 
   const { loading, failed, refusal, page, reload } = useCrewDiscovery({ cityId, query });
+  /** Vocabulaire de refus FERMÉ (discovery.ts) : plus aucun motif ne traverse. */
+  const refused = refusalView(refusal);
 
   const crews = useMemo(() => {
     if (!page) return [] as readonly DiscoveryCrew[];
@@ -99,6 +103,46 @@ export default function CrewDiscoveryRoute() {
     return applyFilter(ranked, filter, { viewerInCrew: page.viewerInCrew });
   }, [page, filter]);
 
+  /**
+   * ══ L'EVENT §8, ÉMIS SUR L'ÉTAT RÉELLEMENT ATTEINT ═══════════════════════
+   * `crew_discovery_viewed { state, filter }` était DÉCLARÉ (events.ts) et
+   * n'était émis nulle part : un contrat analytics écrit mais pas tenu est la
+   * même faute qu'une doc qui promet au-delà du code.
+   *
+   * `state` reprend EXACTEMENT les états que l'écran distingue à l'affichage —
+   * y compris la distinction entre « aucun crew ici » et « aucun crew ne
+   * correspond à ma recherche », qui sont deux faits différents. Les
+   * confondre dans la mesure reproduirait à l'analyse le mensonge que l'écran
+   * s'interdit à l'affichage.
+   *
+   * `loading` n'est jamais émis : une lecture en cours n'affirme rien sur la
+   * ville, il n'y a donc rien à mesurer tant qu'elle n'a pas abouti.
+   */
+  const state: string | null = !session
+    ? 'signed_out'
+    : failed
+      ? 'failed'
+      : refusal !== null
+        ? refusal
+        : !page
+          ? null // lecture en cours : rien à dire encore.
+          : crews.length > 0
+            ? 'list'
+            : query.trim().length > 0 || filter !== 'all'
+              ? 'empty_search'
+              : 'empty';
+
+  // Un seul event par état atteint : sans cette garde, chaque frappe au clavier
+  // rejouerait `list` et gonflerait la mesure d'un signal qui n'a pas changé.
+  const lastLogged = useRef<string | null>(null);
+  useEffect(() => {
+    if (state === null) return;
+    const key = `${state}:${filter}`;
+    if (lastLogged.current === key) return;
+    lastLogged.current = key;
+    track(EVENTS.crewDiscoveryViewed, { state, filter });
+  }, [state, filter]);
+
   // ── Pas connecté ──────────────────────────────────────────────────────────
   if (!session) {
     return (
@@ -110,8 +154,8 @@ export default function CrewDiscoveryRoute() {
     );
   }
 
-  // ── Ville inconnue : on DEMANDE (jamais « près de chez vous ») ────────────
-  if (refusal === 'no_city') {
+  // ── Ville inconnue : on DEMANDE (jamais « près de chez toi ») ────────────
+  if (refused === 'no_city') {
     return (
       <StackScreen title={t(C.dTitle)}>
         <View style={styles.block}>
@@ -122,6 +166,50 @@ export default function CrewDiscoveryRoute() {
             onSelect={(c: CityEntry) => setCityId(c.cityId)}
             note={t(CityC.crewNeedsOpenCity)}
           />
+        </View>
+      </StackScreen>
+    );
+  }
+
+  /**
+   * ─── 27/07/2026 — LES REFUS QUI RENDAIENT UN ÉCRAN MUET ───────────────────
+   * Seul `no_city` était peint. `crew_discovery` (0083:267) refuse AUSSI avec
+   * `signed_out` (jeton expiré alors que la session locale tient), et
+   * `refusalOf` rabat en outre tout motif inconnu sur `not_found`. Dans ces cas
+   * `loading=false`, `failed=false`, `page=null` : les trois blocs
+   * conditionnels plus bas étaient TOUS faux, et l'écran rendait un champ de
+   * recherche + trois filtres au-dessus de RIEN. Une zone de liste muette se
+   * lit « il n'y a aucun crew ici » — l'affirmation exacte que cet écran
+   * s'interdit. L'event §8 juste au-dessus, lui, savait déjà distinguer ces
+   * états : l'analytics était plus honnête que l'affichage.
+   *
+   * Ces états sortent AVANT la recherche : un champ de saisie n'a pas de sens
+   * quand aucune lecture ne peut aboutir (§A « 1 écran = 1 décision »).
+   */
+  if (refused === 'session_expired') {
+    return (
+      <StackScreen title={t(C.dTitle)}>
+        <View style={styles.block}>
+          <Text style={styles.body}>{t(C.dSessionExpired)}</Text>
+          <View style={styles.cta}>
+            <Button label={t(C.rlSignIn)} onPress={() => router.push('/sign-in')} />
+          </View>
+        </View>
+      </StackScreen>
+    );
+  }
+
+  // `not_found` et les motifs incohérents en lecture : un ÉCHEC, dit comme tel,
+  // avec la seule action qui ait du sens. Jamais un vide, jamais un silence.
+  if (refused !== null) {
+    return (
+      <StackScreen title={t(C.dTitle)}>
+        <View style={styles.block}>
+          <Text style={styles.title}>{t(C.dFailedTitle)}</Text>
+          <Text style={styles.body}>{t(C.dRefusedUnreadable)}</Text>
+          <View style={styles.cta}>
+            <Button label={t(C.rlRetry)} onPress={reload} loading={loading} />
+          </View>
         </View>
       </StackScreen>
     );

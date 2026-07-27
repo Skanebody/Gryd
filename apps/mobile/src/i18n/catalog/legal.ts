@@ -591,9 +591,26 @@ export const C = defineCatalog({
    * vérifiable dans le code : la position du panneau de sécurité est arrondie au
    * dixième de degré (~11 km) avant l'envoi (`COUNTRY_LOOKUP_DECIMALS`), et
    * aucune de ces requêtes ne porte d'identifiant de compte.
+   *
+   * ⚠ 27/07/2026 (2ᵉ passe) — LE SECOND SOUS-TRAITANT QUI MANQUAIT : LE ROUTEUR.
+   * `features/route/liveRouting.ts` interroge OSRM (`routing.openstreetmap.de`,
+   * FOSSGIS e.V.) pour tracer une boucle qui suit les rues. Ce destinataire
+   * n'était PAS dans la liste — alors que la phrase d'introduction la présente
+   * comme limitative — et la ligne Nominatim affirmait par-dessus le marché que
+   * « rien n'est envoyé si tu n'ouvres pas ces écrans » et que la position est
+   * « arrondie au dixième de degré », deux phrases fausses appliquées au
+   * routage : rien n'y était arrondi (six décimales, ≈ 0,11 m, dans le CHEMIN de
+   * l'URL) et l'envoi partait TOUT SEUL au montage de E16/E17.
+   *
+   * Les deux bouts ont bougé, dans le bon ordre : le CODE arrondit désormais
+   * l'origine (`ROUTING_ORIGIN_DECIMALS = 3`, ≈ 110 m, appliqué à la première
+   * ligne de `routeLoop`), et la ligne ci-dessous déclare le destinataire ET
+   * dit que l'envoi est automatique à l'ouverture. Une politique qui promet
+   * au-delà du code est la même faute qu'une donnée fabriquée — celle-ci ne
+   * promet plus rien que `liveRouting.test.ts` ne vérifie.
    */
   privacyPartageBody2: fr5(
-    '· Hébergement & base de données : {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).\n· Authentification : Apple (Sign in with Apple) et, si tu l’utilises, Google (Sign in with Google).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Noms de lieux : OpenStreetMap / Nominatim (fondation OSMF), pour nommer une ville, un secteur, ou identifier le pays où tu te trouves quand tu ouvres le panneau de sécurité pendant une sortie. Une position est alors envoyée à ce service, sans aucun identifiant de compte ; pour le panneau de sécurité elle est d’abord arrondie au dixième de degré, soit environ 11 km. Rien n’est envoyé si tu n’ouvres pas ces écrans.\n· Paiement : aucun. Aucune offre payante n’est commercialisée à ce jour, aucun paiement n’est encaissé. Le jour où des achats intégrés ouvriront, ils seront traités par Apple (App Store) ou Google (Google Play) : la plateforme gérerait la transaction, et nous ne verrions jamais ta carte bancaire.',
+    '· Hébergement & base de données : {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).\n· Authentification : Apple (Sign in with Apple) et, si tu l’utilises, Google (Sign in with Google).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Noms de lieux : OpenStreetMap / Nominatim (fondation OSMF), pour nommer une ville, un secteur, ou identifier le pays où tu te trouves quand tu ouvres le panneau de sécurité pendant une sortie. Une position est alors envoyée à ce service, sans aucun identifiant de compte ; pour le panneau de sécurité elle est d’abord arrondie au dixième de degré, soit environ 11 km. Rien n’est envoyé si tu n’ouvres pas ces écrans.\n· Calcul d’itinéraires : OSRM, servi par FOSSGIS e.V., pour tracer une boucle qui suit les rues quand un écran te propose un parcours (mission, préparation de sortie, planificateur). Un point de départ APPROXIMATIF est alors envoyé — arrondi au millième de degré, soit environ 110 m, jamais ta position exacte — sans aucun identifiant de compte. Ce point part dès l’ouverture d’un écran qui propose un parcours, pas seulement quand tu appuies sur un bouton.\n· Paiement : aucun. Aucune offre payante n’est commercialisée à ce jour, aucun paiement n’est encaissé. Le jour où des achats intégrés ouvriront, ils seront traités par Apple (App Store) ou Google (Google Play) : la plateforme gérerait la transaction, et nous ne verrions jamais ta carte bancaire.',
   ),
   privacyPartageBody3: fr5(
     'Nous pouvons divulguer des données si la loi l’exige (réquisition judiciaire), ou pour protéger nos droits et la sécurité des joueurs.',
@@ -610,7 +627,7 @@ export const C = defineCatalog({
    * faire — elle n'avait simplement jamais été appliquée.
    */
   privacyTransfertBody: fr5(
-    'Tes données de compte et de jeu sont hébergées et traitées dans l’Union européenne. UNE seule exception, et la voici : les requêtes de noms de lieux adressées à OpenStreetMap / Nominatim (voir « Partage des données ») peuvent être servies par une infrastructure située hors de l’Union. Elles ne contiennent aucun identifiant de compte, et la position transmise depuis le panneau de sécurité est arrondie à environ 11 km. Aucun autre transfert hors UE n’a lieu dans le fonctionnement normal du jeu. Si un sous-traitant venait à en impliquer un, il serait encadré par les garanties prévues par le RGPD (clauses contractuelles types de la Commission européenne) et signalé dans la présente politique.',
+    'Tes données de compte et de jeu sont hébergées et traitées dans l’Union européenne. DEUX exceptions, et les voici : les requêtes de noms de lieux adressées à OpenStreetMap / Nominatim, et les calculs d’itinéraires adressés à OSRM / FOSSGIS e.V. (voir « Partage des données »). Ces deux services peuvent être servis par une infrastructure située hors de l’Union. Aucune de ces requêtes ne contient d’identifiant de compte ; la position transmise depuis le panneau de sécurité est arrondie à environ 11 km, celle transmise au calcul d’itinéraire à environ 110 m. Aucun autre transfert hors UE n’a lieu dans le fonctionnement normal du jeu. Si un sous-traitant venait à en impliquer un, il serait encadré par les garanties prévues par le RGPD (clauses contractuelles types de la Commission européenne) et signalé dans la présente politique.',
   ),
   privacyConservationHeading: fr5('DURÉES DE CONSERVATION'),
   privacyConservationBody: fr5(

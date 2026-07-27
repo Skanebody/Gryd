@@ -1466,4 +1466,150 @@ export const C = defineCatalog({
     de: 'Guthaben und Inventar nicht geladen — wir raten kein Konto.',
     pt: 'Saldo e inventário não carregados — não adivinhamos uma conta.',
   },
+
+  // ══ E54 — CLASSEMENT CREWS (spec l.1831), ajouté le 27/07/2026 ════════════
+  // L'onglet « Crews » EXISTE déjà (`app/(tabs)/classement.tsx:204`) et affiche
+  // aujourd'hui `boardNoSourceCrews` : aucune source ne l'alimente. Ce bloc ne
+  // remplace PAS cette phrase — il pose ce qui manque le jour où la source
+  // existera, et RIEN qui ferait croire qu'elle existe déjà.
+  //
+  // ⚠ DEUX VIDES QU'IL NE FAUT JAMAIS FONDRE, et c'est tout l'écran :
+  //   · `boardNoSourceCrews` = GRYD ne lit pas encore cette table. Un fait sur
+  //     GRYD ;
+  //   · `crewBoardEmpty` (ci-dessous) = la lecture a abouti, aucun crew n'a de
+  //     points. Un fait sur le MONDE.
+  // Les confondre transformerait une limite technique en jugement sur les
+  // joueurs (ou l'inverse). L'event `leaderboard_viewed` porte la même
+  // distinction en analytics (`state: 'no_source' | 'empty'`).
+
+  /** En-têtes de colonnes (spec E54 : crews ; membres ; surface ; progression). */
+  crewColName: { fr: 'Crew', en: 'Crew', es: 'Crew', de: 'Crew', pt: 'Crew' },
+  crewColMembers: {
+    fr: 'Membres',
+    en: 'Members',
+    es: 'Miembros',
+    de: 'Mitglieder',
+    pt: 'Membros',
+  },
+  /** « Zones », jamais « hexagones » : le territoire est polygonal (§6). */
+  crewColSurface: {
+    fr: 'Zones',
+    en: 'Zones',
+    es: 'Zonas',
+    de: 'Zonen',
+    pt: 'Zonas',
+  },
+  crewColProgress: {
+    fr: 'Progression',
+    en: 'Progress',
+    es: 'Progreso',
+    de: 'Entwicklung',
+    pt: 'Progresso',
+  },
+  /** Ligne d'un crew — lue à voix haute d'un coup (a11y), jamais colonne par colonne. */
+  crewRowA11y: {
+    fr: '{rank}ᵉ · {name} · {members} membres · {zones} zones',
+    en: '#{rank} · {name} · {members} members · {zones} zones',
+    es: '{rank}º · {name} · {members} miembros · {zones} zonas',
+    de: 'Platz {rank} · {name} · {members} Mitglieder · {zones} Zonen',
+    pt: '{rank}º · {name} · {members} membros · {zones} zonas',
+  },
+  /** Progression connue depuis le dernier instantané. Jamais une flèche nue. */
+  crewProgressUp: {
+    fr: '+{n} depuis le dernier relevé',
+    en: '+{n} since the last snapshot',
+    es: '+{n} desde la última medición',
+    de: '+{n} seit der letzten Messung',
+    pt: '+{n} desde a última medição',
+  },
+  crewProgressDown: {
+    fr: '−{n} depuis le dernier relevé',
+    en: '−{n} since the last snapshot',
+    es: '−{n} desde la última medición',
+    de: '−{n} seit der letzten Messung',
+    pt: '−{n} desde a última medição',
+  },
+  /** Aucun relevé précédent : « stable » serait une comparaison inventée. */
+  crewProgressUnknown: {
+    fr: 'Pas de relevé précédent',
+    en: 'No earlier snapshot',
+    es: 'Sin medición anterior',
+    de: 'Keine frühere Messung',
+    pt: 'Sem medição anterior',
+  },
+  /** Ligne STICKY du crew du joueur (spec E54 : « crew utilisateur sticky »). */
+  crewStickyLabel: {
+    fr: 'TON CREW',
+    en: 'YOUR CREW',
+    es: 'TU CREW',
+    de: 'DEIN CREW',
+    pt: 'SEU CREW',
+  },
+  /** Le joueur n'est dans aucun crew : la ligne sticky n'a rien à épingler. */
+  crewStickyNoCrew: {
+    fr: 'Tu n’es dans aucun crew.',
+    en: 'You’re not in a crew.',
+    es: 'No estás en ningún crew.',
+    de: 'Du bist in keinem Crew.',
+    pt: 'Você não está em nenhum crew.',
+  },
+  /** Le crew existe mais ne figure pas dans les premières lignes lues. */
+  crewStickyUnranked: {
+    fr: 'Ton crew n’est pas encore classé — il ne tient aucune zone.',
+    en: 'Your crew isn’t ranked yet — it holds no zone.',
+    es: 'Tu crew aún no está clasificado — no retiene ninguna zona.',
+    de: 'Dein Crew ist noch nicht platziert — es hält keine Zone.',
+    pt: 'Seu crew ainda não está classificado — não mantém nenhuma zona.',
+  },
+  /**
+   * VIDE HONNÊTE, distinct de `boardNoSourceCrews` (voir l'avertissement).
+   *
+   * ⚠ RÉÉCRITE LE 27/07/2026, avec la source. Elle disait « aucun crew n'a
+   * encore de POINTS cette saison » — écrite avant que le board existe, elle
+   * pariait sur la métrique. Le classement livré mesure le TERRAIN tenu
+   * (`crew_leaderboard.controlled_area_m2`, dérivé des polygones réels), pas les
+   * points de saison : garder « points » aurait fait dire à l'écran vide une
+   * cause qui n'est pas la sienne — un crew peut avoir des points et ne tenir
+   * aucune zone. La phrase nomme donc ce que le board mesure vraiment.
+   */
+  crewBoardEmpty: {
+    fr: 'Aucun crew ne tient encore de terrain ici.',
+    en: 'No crew holds ground here yet.',
+    es: 'Ningún crew retiene todavía terreno aquí.',
+    de: 'Noch hält kein Crew hier Gebiet.',
+    pt: 'Nenhum crew mantém território aqui ainda.',
+  },
+  /**
+   * L'HEURE DU DERNIER CALCUL. Un classement de crews n'est pas instantané : il
+   * est lu dans une vue matérialisée rafraîchie par un job (0086). Le dire est
+   * ce qui rend son vide interprétable — « rien, mesuré à 14 h 05 » est un
+   * constat, « rien » tout court est une énigme. C'est aussi la seule chose qui
+   * distingue, à l'œil, un classement à jour d'un job tombé.
+   */
+  crewBoardAsOf: {
+    fr: 'Classement arrêté à {time}.',
+    en: 'Leaderboard as of {time}.',
+    es: 'Clasificación al corte de las {time}.',
+    de: 'Rangliste, Stand {time}.',
+    pt: 'Ranking apurado às {time}.',
+  },
+  /**
+   * Portée : la ville, pas le monde. Spec §10 — « pas de podium mondial au
+   * premier écran », « comparé à des joueurs atteignables ».
+   */
+  crewBoardScope: {
+    fr: 'Crews de {city}',
+    en: 'Crews in {city}',
+    es: 'Crews de {city}',
+    de: 'Crews in {city}',
+    pt: 'Crews de {city}',
+  },
+  /** Nombre de lignes lues — la borne vient de `LEADERBOARD_ROWS_LIMIT`. */
+  crewBoardTruncated: {
+    fr: 'Les {n} premiers crews.',
+    en: 'The top {n} crews.',
+    es: 'Los {n} primeros crews.',
+    de: 'Die ersten {n} Crews.',
+    pt: 'Os {n} primeiros crews.',
+  },
 });

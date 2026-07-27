@@ -1,92 +1,48 @@
 /**
- * GRYD — onglet MISSIONS (ex-War Room).
+ * GRYD — onglet MISSIONS (ex-War Room) : une PORTE, plus un placeholder.
  *
  * ─── FIN DU MODE VITRINE (décision fondateur, 21/07/2026) ────────────────────
  * Ce fichier contenait ~1 600 lignes de War Room démo : mission « défends
  * Canal », raid weekend, revanche, rapports scout, historique de guerre, rang du
  * crew, coffre, bonus — TOUT venait de `features/warroom/demo`. Ce n'étaient pas
- * des données en attente de chargement : elles étaient inventées. La branche
- * n'était atteignable que sous `isShowcasePlatform` ; hors vitrine l'écran
- * affichait déjà `WarRoomEmpty`.
+ * des données en attente de chargement : elles étaient inventées. La vitrine
+ * abandonnée, il n'est resté qu'un état vide honnête.
  *
- * La vitrine est abandonnée → il ne reste que l'état honnête, et le fichier se
- * réduit à lui. Une mission n'a de sens que si elle décrit un terrain
+ * ─── CE QUE CET ÉTAT VIDE DISAIT, ET POURQUOI IL PART (27/07/2026) ───────────
+ * Il expliquait : « Une mission n'a de sens que si elle décrit un terrain
  * RÉELLEMENT couru ; tant que ce calcul n'est pas servi, cet écran dit d'où
- * viendront les missions et renvoie à la carte, la seule chose réelle.
+ * viendront les missions et renvoie à la carte. » C'était vrai le 21 juillet au
+ * matin. Ça ne l'est plus : le calcul EST servi depuis ce jour-là
+ * (`features/mission/deriveMission.ts`, pur et testé, alimenté par mes vraies
+ * `hex_claims` et mon fix GPS), la Carte en affiche déjà la ligne, et E16
+ * (`/map/missions/:missionId`, spec produit l.1009) en est l'écran entier.
+ *
+ * Une doc — ou un écran — qui NIE ce que le code tient est la même faute qu'une
+ * doc qui promet au-delà de lui. Cet onglet mène donc à E16, qui dit la vérité
+ * dans les quatre états (pas connecté · lecture en cours · échec · vide) au lieu
+ * d'un texte figé qui n'en connaît qu'un.
+ *
+ * `current` est un SENTINEL assumé : E16 identifie une mission par un digest
+ * opaque (`missionKey`) et `parseMissionKey` refuse tout le reste — ouvrir
+ * l'écran avec `current` revient donc à dire « montre la mission recommandée
+ * MAINTENANT », sans prétendre suivre une mission ouverte plus tôt. Ce chemin
+ * est couvert par le test « ouvert SANS id ⇒ on montre la mission courante »
+ * (`features/mission/recommendedMission.test.ts`).
  *
  * D8 : la surface reste hors MVP (`flags.warRoom`, défaut OFF) — l'onglet et la
- * route sont masqués, les moteurs serveur ne sont pas touchés.
+ * route restent masqués, les moteurs serveur ne sont pas touchés. RIEN n'est
+ * ré-ouvert ici : seule la DESTINATION change, pour le jour où le drapeau
+ * tombera. Les clés `warNoData*` / `missions*` de `i18n/catalog/flagged.ts`
+ * deviennent orphelines — le catalogue documente déjà qu'il en compte 125, leur
+ * sort se joue à son nettoyage, pas ici.
  *
- * Aucun hook n'est appelé avant un `return` : `WarRoomRoute` ne fait que router,
- * `WarRoomEmpty` est monté seulement quand il a le droit d'exister et exécute
- * alors toujours les mêmes hooks.
+ * Aucun hook n'est appelé : ce fichier ne fait que router.
  */
-import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Redirect, router } from 'expo-router';
-import { colors, fontSizes, iconSizes, radii, spacing } from '@klaim/shared';
+import { Redirect } from 'expo-router';
 import { flags } from '../../src/lib/flags';
-import { C } from '../../src/i18n/catalog/flagged';
-import { useT } from '../../src/i18n/store';
-import { screen } from '../../src/lib/analytics';
-import { Icon } from '../../src/ui/Icon';
-import { TabScreen } from '../../src/ui/TabScreen';
-import { InlineRunCTA } from '../../src/ui/game';
 
 export default function WarRoomRoute() {
   // D8 — surface hors MVP : route masquée (les moteurs restent intacts).
   if (!flags.warRoom) return <Redirect href="/" />;
-  return <WarRoomEmpty />;
+  return <Redirect href="/map/missions/current" />;
 }
-
-/**
- * ÉTAT VIDE de l'onglet Missions. Il ne s'excuse pas et ne fait pas patienter :
- * il explique D'OÙ viendront les missions (du terrain réellement couru) et
- * propose la seule chose qui existe déjà — la carte. 1 CTA, §A.
- *
- * Ce n'est PAS un état de chargement déguisé : il n'y a rien à charger, aucune
- * requête n'est en vol. C'est le troisième cas assumé — « la fonction n'est pas
- * encore servie » — et il le dit au lieu de faire tourner un spinner.
- */
-function WarRoomEmpty() {
-  const t = useT();
-
-  useEffect(() => {
-    screen('war_room');
-  }, []);
-
-  return (
-    <TabScreen title={t(C.missionsTitle)} icon="guerre" subtitle={t(C.missionsSubtitle)}>
-      <View style={styles.emptyCard}>
-        <Text style={styles.emptyCardTitle}>{t(C.warNoDataTitle)}</Text>
-        <Text style={styles.emptyCardBody}>{t(C.warNoDataBody)}</Text>
-        <View style={styles.emptyCardCta}>
-          <InlineRunCTA
-            label={t(C.warNoDataCta)}
-            leading={<Icon name="carte" size={iconSizes.md} color={colors.noir} />}
-            onPress={() => router.push('/(tabs)')}
-          />
-        </View>
-      </View>
-    </TabScreen>
-  );
-}
-
-const styles = StyleSheet.create({
-  // ── État vide : UNE card, UN CTA (§A) ──
-  emptyCard: {
-    backgroundColor: colors.carbone,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    padding: spacing.cardPadding,
-  },
-  emptyCardTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '700' },
-  emptyCardBody: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.6,
-    marginTop: spacing.xs,
-  },
-  emptyCardCta: { marginTop: spacing.md },
-});

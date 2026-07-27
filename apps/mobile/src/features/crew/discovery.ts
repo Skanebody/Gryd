@@ -176,6 +176,68 @@ export function refusalOf(raw: unknown): DiscoveryRefusal | null {
   return (r ?? 'not_found') as DiscoveryRefusal;
 }
 
+/**
+ * ─── CE QU'UN ÉCRAN DE LECTURE A LE DROIT DE PEINDRE FACE À UN REFUS ────────
+ * (27/07/2026)
+ *
+ * LE BUG. E39 ne rendait QUE `no_city` ; E40 ne rendait QUE `not_found`. Or les
+ * deux RPC de 0083 refusent AUSSI avec `signed_out` (l.267, l.385) — jeton
+ * expiré côté serveur alors que la session locale existe encore — et `refusalOf`
+ * rabat en outre tout motif inconnu sur `not_found`. Dans ces cas, `loading` et
+ * `failed` valent `false` et la page vaut `null` : E40 tournait un
+ * `ActivityIndicator` POUR TOUJOURS (« jamais de spinner infini »), et E39
+ * rendait un champ de recherche au-dessus de RIEN — une liste muette qui se lit
+ * « il n'y a aucun crew ». Ironie mesurée par l'audit : l'event §8 de E39
+ * distinguait déjà ces états, l'analytics était plus honnête que l'écran.
+ *
+ * D'où cette fonction : le vocabulaire de refus est FERMÉ ici, une fois, et le
+ * compilateur force chaque écran à traiter les quatre sorties. Il n'existe plus
+ * de branche « aucune des conditions n'est vraie ».
+ */
+export type RefusalView =
+  /** Ville inconnue : on la DEMANDE (jamais « près de chez toi »). */
+  | 'no_city'
+  /**
+   * Le SERVEUR dit « pas connecté » alors que l'app tient une session : le
+   * jeton a expiré. Distinct de `!session` (jamais connecté) — dans un cas
+   * l'écran invite à se connecter, dans l'autre il explique que la session est
+   * tombée. Le geste est le même, la phrase ne l'est pas.
+   */
+  | 'session_expired'
+  /** Le crew (ou la ressource) n'existe pas / n'est plus visible. */
+  | 'not_found'
+  /**
+   * Le serveur a refusé avec un motif qui n'a AUCUN sens en lecture
+   * (`already_in_crew`, `cooldown`, `closed`, `full` appartiennent à
+   * l'adhésion). On ne traduit pas au hasard : on dit qu'on n'a pas pu lire.
+   * C'est le seul état de cette liste qui mérite « Réessayer ».
+   */
+  | 'unreadable';
+
+/** Motif serveur → ce que l'écran peint. `null` (succès) reste `null`. */
+export function refusalView(refusal: DiscoveryRefusal | null): RefusalView | null {
+  switch (refusal) {
+    case null:
+      return null;
+    case 'no_city':
+      return 'no_city';
+    case 'signed_out':
+      return 'session_expired';
+    case 'not_found':
+      return 'not_found';
+    // Vocabulaire d'ADHÉSION reçu sur une LECTURE : incohérent côté serveur.
+    case 'already_in_crew':
+    case 'cooldown':
+    case 'closed':
+    case 'full':
+      return 'unreadable';
+    default:
+      // `refusalOf` caste une chaîne serveur inconnue dans le type : un motif
+      // futur ne doit pas tomber dans un trou d'affichage.
+      return 'unreadable';
+  }
+}
+
 // ─── Dérivations pures ───────────────────────────────────────────────────────
 
 /**

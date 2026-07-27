@@ -63,3 +63,34 @@ export function formatKmFor(km: number, locale: Locale): string | null {
   if (!Number.isFinite(km) || km < 0) return null;
   return km.toFixed(1).replace('.', DECIMAL_SEP[locale]);
 }
+
+/**
+ * Seuil au-dessus duquel une SURFACE passe de 2 à 1 décimale. Règle
+ * d'AFFICHAGE (pas de jeu) : « 12,3 km² » se lit, « 12,35 km² » donne une
+ * fausse précision. Reprise TELLE QUELLE de `features/widget/territoryWidget.
+ * formatKm2`, qui l'appliquait déjà — c'est cette fonction-ci qui devient la
+ * source, et le widget qui la consomme.
+ */
+const KM2_ONE_DECIMAL_ABOVE = 10;
+
+/**
+ * SURFACE en km² — 2 décimales, ou 1 au-delà de 10 km².
+ *
+ * POURQUOI PAS UNE SEULE PARTOUT (comme `formatKmFor`) : un territoire de
+ * capture fait `OFFENSIVE_HEX_AREA_KM2` = 0,015 km². À une décimale, une emprise
+ * réelle de plusieurs zones s'écrirait « 0,0 » — un ZÉRO qui affirme faussement
+ * que le joueur ne tient rien, exactement le « 0 nu » que la charte interdit.
+ *
+ * ⚠️ `toFixed` arrondit sur la valeur BINAIRE (0,015 → « 0,01 ») : l'arrondi
+ * penche donc vers le BAS. C'est le sens SÛR — on n'attribue jamais à quelqu'un
+ * plus de surface qu'il n'en tient.
+ *
+ * Même contrat que `formatKmFor` : `null` si ce n'est pas une surface (non
+ * finie, ou négative). Zéro est une valeur VRAIE et se formate normalement.
+ * L'unité (« km² ») n'est pas incluse — elle est invariante et vient de l'i18n.
+ */
+export function formatKm2For(km2: number, locale: Locale): string | null {
+  if (!Number.isFinite(km2) || km2 < 0) return null;
+  const digits = km2 >= KM2_ONE_DECIMAL_ABOVE ? 1 : 2;
+  return km2.toFixed(digits).replace('.', DECIMAL_SEP[locale]);
+}

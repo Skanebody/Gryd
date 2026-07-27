@@ -38,7 +38,7 @@
  */
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, fontSizes, spacing } from '@klaim/shared';
 import { C } from '../src/i18n/catalog/crew';
 import { useT } from '../src/i18n/store';
@@ -46,7 +46,7 @@ import type { Entry } from '../src/i18n/types';
 import { useSession } from '../src/lib/session';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
-import { joinAffordance, seatsLeft } from '../src/features/crew/discovery';
+import { joinAffordance, refusalView, seatsLeft } from '../src/features/crew/discovery';
 import {
   requestCrewJoin,
   useCrewPublicProfile,
@@ -64,6 +64,18 @@ export default function CrewPublicRoute() {
     : null;
 
   const { loading, failed, refusal, crew, reload } = useCrewPublicProfile(crewId);
+  /**
+   * ─── 27/07/2026 — LE SPINNER ÉTERNEL ─────────────────────────────────────
+   * L'écran ne traitait QUE `refusal === 'not_found'`. `crew_public_profile`
+   * (0083:385) refuse aussi avec `signed_out` — jeton expiré côté serveur alors
+   * que la session locale existe encore — et `refusalOf` rabat tout motif
+   * inconnu. Dans ces cas `loading=false`, `failed=false`, `crew=null` : le
+   * garde `if (!crew)` rendait un ActivityIndicator chartreuse qui tournait
+   * POUR TOUJOURS, sans texte et sans issue, alors que la lecture avait abouti
+   * et REFUSÉ. `refusalView` ferme le vocabulaire : plus aucun motif ne peut
+   * traverser l'écran sans être peint.
+   */
+  const refused = refusalView(refusal);
   const [busy, setBusy] = useState(false);
   /** Résultat de MA dernière action — un fait, jamais une promesse. */
   const [outcome, setOutcome] = useState<Entry | null>(null);
@@ -105,11 +117,44 @@ export default function CrewPublicRoute() {
 
   // Deep link sans identité, ou crew introuvable : les deux se disent, aucun
   // ne rend un écran blanc ni une fiche vide qui ressemblerait à un crew réel.
-  if (!crewId || refusal === 'not_found') {
+  if (!crewId || refused === 'not_found') {
     return (
       <StackScreen title={t(C.dPublicTitle)}>
         <View style={styles.block}>
           <Text style={styles.body}>{t(C.dNotFound)}</Text>
+        </View>
+      </StackScreen>
+    );
+  }
+
+  // La session est tombée CÔTÉ SERVEUR : on le dit, avec le seul geste utile.
+  if (refused === 'session_expired') {
+    return (
+      <StackScreen title={t(C.dPublicTitle)}>
+        <View style={styles.block}>
+          <Text style={styles.body}>{t(C.dSessionExpired)}</Text>
+          <View style={styles.cta}>
+            <Button label={t(C.rlSignIn)} onPress={() => router.push('/sign-in')} />
+          </View>
+        </View>
+      </StackScreen>
+    );
+  }
+
+  // Refus SERVEUR incohérent en lecture, ou motif inconnu : traité comme un
+  // échec de lecture (c'en est un), donc avec « Réessayer » — jamais comme un
+  // vide, et surtout jamais comme un chargement.
+  // `no_city` n'a pas de sens sur une FICHE (la RPC ne l'émet pas) : il tombe
+  // ici plutôt que dans un trou.
+  if (refused !== null) {
+    return (
+      <StackScreen title={t(C.dPublicTitle)}>
+        <View style={styles.block}>
+          <Text style={styles.title}>{t(C.dFailedTitle)}</Text>
+          <Text style={styles.body}>{t(C.dRefusedUnreadable)}</Text>
+          <View style={styles.cta}>
+            <Button label={t(C.rlRetry)} onPress={reload} loading={loading} />
+          </View>
         </View>
       </StackScreen>
     );
@@ -130,11 +175,15 @@ export default function CrewPublicRoute() {
   }
 
   if (!crew) {
-    // Lecture EN COURS : n'affirme rien sur ce crew.
+    // Lecture EN COURS : n'affirme rien sur ce crew. Ce spinner ne peut PLUS
+    // être atteint sans que `loading` soit vrai — tous les refus sont peints
+    // au-dessus, et l'échec aussi. Le texte accompagne le rond : un spinner nu
+    // n'apprend rien à qui attend.
     return (
       <StackScreen title={t(C.dPublicTitle)}>
         <View style={styles.center}>
           <ActivityIndicator color={colors.chartreuse} />
+          <Text style={styles.body}>{t(C.dPublicLoading)}</Text>
         </View>
       </StackScreen>
     );
@@ -271,7 +320,7 @@ const styles = StyleSheet.create({
   title: { color: colors.blanc, fontSize: fontSizes.lg, fontWeight: '600' },
   body: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
   cta: { marginTop: spacing.sm },
-  center: { marginTop: spacing.xl, alignItems: 'center' },
+  center: { marginTop: spacing.xl, alignItems: 'center', gap: spacing.sm },
 
   hero: { marginTop: spacing.lg, gap: spacing.xxs },
   heroName: {

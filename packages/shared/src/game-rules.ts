@@ -3817,3 +3817,270 @@ export type ActivityScopeKind = (typeof ACTIVITY_SCOPE)[ActivityScopedDimension]
 //    (les bornes d'allure de la course ne se déclenchent jamais à vélo, donc
 //    rien n'est attribué à tort) ; pour `specialty_leaderboard`, non : c'est un
 //    rang comparatif, et il mélangerait les deux mondes.
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VAGUE E13 · E15 · E16 · E17 · E39 · E40 · E49 · E50 · E54 — 27/07/2026
+// (spec produit UI/UX : l.926 · 991 · 1009 · 1028 · 1498 · 1527 · 1722 · 1738
+//  · 1831). Bloc de FONDATION posé AVANT les sept écrans qui le consommeront.
+//
+// TROIS RÈGLES APPLIQUÉES, dans cet ordre :
+//  1. RIEN QUI EXISTE DÉJÀ. Chaque constante ci-dessous a été cherchée par grep
+//     dans ce fichier avant d'être écrite ; celles qui existaient sont CITÉES et
+//     réutilisées, jamais recopiées sous un autre nom. Ce qui a été
+//     DÉLIBÉRÉMENT NON AJOUTÉ est dit à la fin du bloc, avec le motif.
+//  2. AUCUNE CONSTANTE POUR UNE DONNÉE QUI N'EXISTE PAS. La base est VIDE et
+//     plusieurs de ces écrans n'ont pas encore de source serveur. Une borne
+//     posée pour un chiffre que rien ne produit ferait croire à une mécanique.
+//  3. AUCUN BARÈME INVENTÉ. La spec décrit des ORDRES (« ville > amis >
+//     activité »), pas des poids ; on n'en fabrique pas (cf. la note E39).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── E13 · Recherche de lieu (`/map/search`, spec l.926) ─────────────────────
+/**
+ * Nombre de RECHERCHES RÉCENTES conservées et rendues (spec E13 : « recherches
+ * récentes »).
+ *
+ * POURQUOI UN PLAFOND, ET POURQUOI SI BAS. Cette liste est un raccourci, pas un
+ * journal : §A demande de comprendre l'écran en moins de 3 s, et un historique
+ * qui s'allonge indéfiniment devient une carte des habitudes de son propriétaire
+ * — exactement ce que §12 (confidentialité géospatiale) cherche à ne pas
+ * constituer. Cinq entrées couvrent l'usage réel (chez soi, le travail, le parc,
+ * deux essais du moment) et se rendent sans scroll.
+ *
+ * ⚠️ RÈGLE DE VIE PRIVÉE ATTACHÉE À CETTE LISTE, et qui n'a PAS de constante
+ * propre : spec E13 — « Les adresses de domicile ne sont pas ajoutées à
+ * l'historique si elles se trouvent dans une zone floutée. » Le test se fait
+ * avec les zones privées EXISTANTES (`PRIVACY_ZONE_*` ci-dessus + le module pur
+ * `apps/mobile/src/features/privacy/zones.ts`) : aucun nouveau rayon n'est
+ * défini ici, il n'y en a qu'un et il est déjà réglable par le joueur. TUNABLE.
+ */
+export const PLACE_SEARCH_RECENT_MAX = 5;
+
+/**
+ * Nombre de suggestions PROCHES rendues quand la requête est encore vide (spec
+ * E13 : « résultats proches »).
+ *
+ * DISTINCT de `CITY_SEARCH_RESULT_LIMIT` (25), et ce n'est pas un doublon : ce
+ * dernier borne une recherche TAPÉE dans un référentiel de 34 969 communes, où
+ * l'on accepte de faire défiler ; celui-ci borne une liste SPONTANÉE, affichée
+ * avant toute frappe, qui doit tenir dans un coup d'œil. Deux gestes, deux
+ * plafonds.
+ *
+ * CE QUI N'A PAS DE CONSTANTE ICI, VOLONTAIREMENT : aucun « rayon de proximité ».
+ * Les suggestions se trient par distance à la position que la carte possède
+ * DÉJÀ, puis se coupent à ce nombre — un rayon en mètres aurait été un chiffre
+ * inventé, et il aurait rendu la liste VIDE à la campagne, là où la commune la
+ * plus proche est justement la bonne réponse. TUNABLE.
+ */
+export const PLACE_SEARCH_NEARBY_LIMIT = 5;
+
+// ─── E49 · Créer une sortie crew (spec l.1722) — MIROIR des CHECK de 0019 ────
+// La table `crew_events` (migration 0019) existe et porte déjà ses contraintes.
+// Ses longueurs vivaient UNIQUEMENT dans le SQL : un formulaire client qui
+// compte ses caractères aurait dû recopier 80 / 60 / 80 / 80 en dur, et le jour
+// où l'un des deux bouge, l'écran refuse ou promet à tort. Même patron que
+// `OFFENSIVE_ZONE_LABEL_MIN/MAX` (miroir du CHECK 0010).
+/** `crew_events.title` — longueur min/max (CHECK 0019). */
+export const CREW_OUTING_TITLE_MIN = 1;
+export const CREW_OUTING_TITLE_MAX = 80;
+/** `crew_events.when_label` — longueur min/max (CHECK 0019). */
+export const CREW_OUTING_WHEN_LABEL_MIN = 1;
+export const CREW_OUTING_WHEN_LABEL_MAX = 60;
+/** `crew_events.place_label` — longueur min/max (CHECK 0019). */
+export const CREW_OUTING_PLACE_LABEL_MIN = 1;
+export const CREW_OUTING_PLACE_LABEL_MAX = 80;
+/** `crew_events.zone_label` — longueur min/max (CHECK 0019). */
+export const CREW_OUTING_ZONE_LABEL_MIN = 1;
+export const CREW_OUTING_ZONE_LABEL_MAX = 80;
+
+/**
+ * Objectif d'une sortie crew — vocabulaire FERMÉ, miroir exact du CHECK
+ * `objective in ('defense', 'conquete')` de 0019. Les clés restent en français
+ * parce qu'elles sont PERSISTÉES telles quelles ; leur affichage est traduit
+ * ailleurs (catalogue i18n), jamais ici.
+ */
+export const CREW_OUTING_OBJECTIVES = ['defense', 'conquete'] as const;
+export type CrewOutingObjective = (typeof CREW_OUTING_OBJECTIVES)[number];
+
+/**
+ * Réponse à une sortie — miroir du CHECK `choice in ('coming','maybe','no')`
+ * de `crew_event_rsvps` (0019).
+ */
+export const CREW_OUTING_RSVP_CHOICES = ['coming', 'maybe', 'no'] as const;
+export type CrewOutingRsvp = (typeof CREW_OUTING_RSVP_CHOICES)[number];
+
+/**
+ * ⚠️ CE QUE `crew_events` NE PORTAIT PAS, ET QUE LA SPEC E49 DEMANDE — le
+ * constat du 27/07/2026 matin, conservé ici parce qu'il explique les colonnes
+ * ajoutées le même jour par la migration 0085 :
+ *   · « activité Run/Bike » : aucune colonne. Une sortie crew était SANS
+ *     discipline — peindre un commutateur Run/Bike aurait enregistré un choix
+ *     que rien ne stockait. ⇒ colonne `activity` (0085), CHECK sur ACTIVITIES.
+ *   · « nombre de places facultatif » : aucune colonne. ⇒ colonne `capacity`
+ *     (0085), NULLABLE, bornée par CREW_OUTING_CAPACITY_MIN/MAX ci-dessous.
+ *   · « date et heure » : la colonne était `when_label`, du TEXTE LIBRE — rien
+ *     ne pouvait trier ni faire expirer une sortie. ⇒ colonne `starts_at`
+ *     (`timestamptz`, 0085) ; `when_label` devient NULLABLE et n'est PLUS
+ *     écrite par le chemin serveur (deux vérités sur l'heure = une de trop).
+ *
+ * ⚠️ CE QUI RESTE EN SUSPENS, ET QU'AUCUN ÉCRAN NE DOIT LAISSER CROIRE :
+ *   · « L'adresse exacte n'est visible qu'aux participants ACCEPTÉS » (spec
+ *     E49 §Confidentialité). Il n'existe AUCUN chemin d'écriture pour
+ *     `crew_event_rsvps` : personne ne peut donc devenir participant, et une
+ *     visibilité « participants seulement » cacherait le lieu à TOUT LE MONDE.
+ *     0085 ne pose donc PAS de commutateur de visibilité. Ce qui est livré à la
+ *     place : le lieu est lisible par les MEMBRES ACTIFS du crew (policy RLS de
+ *     0019) et par personne d'autre, l'écran le dit mot pour mot, et le serveur
+ *     REFUSE un libellé qui ressemble à une adresse postale numérotée
+ *     (`crew_outing_place_refusal`, 0085 — miroir du module pur
+ *     `features/crew/crewOuting.ts`). Aucune coordonnée n'est stockée : la
+ *     donnée qu'on ne collecte pas est la seule qui ne fuit jamais.
+ *   · Le DÉCOMPTE des places : `capacity` est un nombre annoncé, pas un quota
+ *     appliqué — sans RSVP, rien ne peut le décrémenter. L'écran affiche donc
+ *     « N places », jamais « k/N ».
+ *
+ * TYPÉ `boolean` ET NON `true` VOLONTAIREMENT : sans annotation, TypeScript
+ * infère le type littéral et narrowerait la branche opposée en `never` chez les
+ * consommateurs. Ce drapeau décrit une CAPACITÉ, comme le veut la constitution
+ * §2 (« l'affichage se dérive de la capacité réelle »).
+ *
+ * PASSÉ À `true` LE 27/07/2026 par la migration 0085 : `crew_outing_create()`
+ * (SECURITY DEFINER, appartenance + rôle CREW_PERMISSIONS.createOuting
+ * revérifiés serveur) est le chemin d'écriture. `insert` direct sur
+ * `crew_events` reste RÉVOQUÉ pour `authenticated` — le client n'apporte que
+ * des intentions. Ce que ce drapeau dit : « le dépôt sait publier une sortie ».
+ * Ce qu'il ne dit PAS : que la base d'un environnement donné a bien reçu 0085 —
+ * ça, seule la réponse du serveur le dit, et l'écran distingue ce cas
+ * (`unsupported`) d'un simple échec réseau.
+ */
+export const CREW_OUTING_WRITE_PATH_EXISTS: boolean = true;
+
+/**
+ * Places d'une sortie crew — bornes de la colonne `capacity` (CHECK 0085).
+ *
+ * MIN = 2 et non 1 : une sortie à une place n'est pas un rendez-vous, c'est une
+ * course solo. MAX = CREW_MAX_MEMBERS — RÉFÉRENCÉ, jamais recopié : le jour où
+ * la taille d'un crew bouge, la capacité suit sans qu'on y pense. Annoncer plus
+ * de places qu'il n'existe de membres serait un nombre sans objet.
+ *
+ * ⚠️ `capacity` est ANNONCÉE, pas APPLIQUÉE : aucun RSVP n'existe encore (voir
+ * le bloc ci-dessus), donc rien ne la décompte. Elle informe des humains.
+ */
+export const CREW_OUTING_CAPACITY_MIN = 2;
+export const CREW_OUTING_CAPACITY_MAX = CREW_MAX_MEMBERS;
+
+/**
+ * Horizon maximal d'une sortie, en jours : au-delà, `crew_outing_create` refuse.
+ *
+ * POURQUOI UNE BORNE HAUTE existe alors que « dans 3 ans » ne gêne personne :
+ * sans elle, une faute de frappe d'année (2027 au lieu de 2026) publie une
+ * sortie fantôme qui restera en tête de « à venir » pour toujours, en poussant
+ * les vraies vers le bas. 90 jours = un trimestre : au-delà, un rendez-vous de
+ * course se replanifie de toute façon. TUNABLE.
+ */
+export const CREW_OUTING_HORIZON_DAYS = 90;
+
+/**
+ * Plafond de sorties À VENIR par crew (anti-inondation, miroir SERVEUR).
+ *
+ * MÊME RAISON QUE `CREW_PING_MAX_ACTIVE_PER_MEMBER` : une surface sociale dont
+ * la justification est « pas besoin de modération lourde » devient un vecteur
+ * de harcèlement dès qu'elle est inondable. La borne est appliquée AU SERVEUR
+ * (0085 la relit d'une fonction SQL, elle n'est pas un paramètre du client).
+ *
+ * Par CREW et non par membre : c'est le mur du crew qu'on protège, et un
+ * capitaine unique peut l'inonder à lui seul. TUNABLE.
+ */
+export const CREW_OUTING_MAX_UPCOMING_PER_CREW = 20;
+
+// ─── E50 · Statistiques du crew (spec l.1738) ────────────────────────────────
+/**
+ * Profondeur de la courbe d'activité du crew, en semaines (spec E50 : « courbe
+ * quatre semaines »). Quatre semaines = le mois glissant : assez long pour voir
+ * une tendance, assez court pour qu'un crew neuf ne regarde pas un désert.
+ *
+ * PAS UN DOUBLON de `STREAK_HISTORY_WEEKS` (52, l'historique de série PERSONNEL)
+ * ni de `SEASON_DURATION_WEEKS` (8, la durée d'une saison). Trois horizons, trois
+ * usages. TUNABLE.
+ *
+ * ⚠️ AUCUNE SOURCE AUJOURD'HUI : `crew_overview()` (RPC 0044) rend le total
+ * d'hexes tenus, la dernière capture, le rang de ville et la contribution par
+ * membre — mais AUCUNE série temporelle. La courbe ne peut donc pas être tracée
+ * le 27/07/2026 ; cette constante dit sa PROFONDEUR, pas qu'elle existe.
+ */
+export const CREW_STATS_TREND_WEEKS = 4;
+
+/**
+ * Nombre de TOP CONTRIBUTEURS rendus sur E50 (spec : « top contributeurs »).
+ *
+ * ⚠️ NE PAS CONFONDRE AVEC `CREW_SCORE_TOP_ACTIVE` (30) : celui-là est une RÈGLE
+ * DE JEU — seuls les 30 membres les plus actifs entrent dans le score de saison
+ * du crew, ce qui empêche un gros crew d'écraser par le nombre. Celui-ci est un
+ * plafond d'AFFICHAGE : combien de noms tiennent dans une liste lisible d'un
+ * coup d'œil (§A). Les confondre changerait le score du jeu en changeant une
+ * mise en page. 5 = le format « podium étendu », déjà celui des autres listes
+ * courtes du produit. TUNABLE.
+ */
+export const CREW_STATS_TOP_CONTRIBUTORS = 5;
+
+// ─── E54 · Classement crews (spec l.1831) ────────────────────────────────────
+/**
+ * Nombre maximal de lignes lues et rendues par un classement (joueurs, crews,
+ * villes, spécialités).
+ *
+ * POURQUOI ICI. Le nombre existait déjà, mais en DOUBLE-CLANDESTIN : un
+ * `const LEADERBOARD_LIMIT = 50` local dans
+ * `apps/mobile/src/features/social/leagueBoard.ts:79`, consommé par deux
+ * requêtes. E54 ajoute un troisième board ; sans source unique, le classement
+ * des crews et celui des joueurs auraient pu diverger sans que personne le voie.
+ *
+ * POURQUOI 50. C'est la valeur DÉJÀ en vigueur — on la déménage, on ne la change
+ * pas. Elle borne aussi ce qu'un rang veut dire : au-delà, « 87ᵉ » n'apprend
+ * plus rien à personne, et §10 de la spec demande explicitement de comparer le
+ * joueur à des rivaux ATTEIGNABLES plutôt qu'à un podium mondial.
+ *
+ * ⚠️ SUSPENS ASSUMÉ (27/07/2026) : `leagueBoard.ts` porte encore sa copie
+ * locale. Le remplacement est d'une ligne mais ce fichier est tenu par le
+ * chantier E54 en cours — il est inscrit ici plutôt que fait à l'aveugle.
+ * TUNABLE.
+ */
+export const LEADERBOARD_ROWS_LIMIT = 50;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CE QUI N'A PAS ÉTÉ AJOUTÉ DANS CETTE VAGUE, ET POURQUOI
+// (un manque documenté vaut mieux qu'un doublon, CLAUDE.md)
+//
+// · E39 — POIDS DE PERTINENCE. La consigne de vague demandait « les poids du
+//   classement ville > amis > activité > capacité > compatibilité ». Il n'y en a
+//   PAS, et c'est un choix déjà pris et testé :
+//   `apps/mobile/src/features/crew/discovery.ts` ordonne LEXICOGRAPHIQUEMENT —
+//   d'abord la ville, puis les amis, puis l'activité… — ce qui exprime
+//   exactement ce que la spec écrit, sans introduire cinq nombres que personne
+//   ne saurait justifier. Ajouter `CREW_DISCOVERY_WEIGHT_*` aujourd'hui
+//   fabriquerait un barème concurrent d'un moteur qui marche : c'est le doublon
+//   que CLAUDE.md interdit.
+//
+// · E16 — DIFFICULTÉ D'UNE MISSION. La spec la liste (l.1009). Aucun seuil n'est
+//   posé : `features/map/zoneDecision.ts` (`briefMetricKeys`) a SUPPRIMÉ la
+//   difficulté (et la durée,
+//   et le gain de surface) parce qu'aucune n'a de source — la durée supposait
+//   une allure fixe, le gain est tranché par le serveur APRÈS la course. Poser
+//   des seuils de kilomètres ferait revenir une étiquette qu'on a retirée
+//   précisément pour ne pas mentir.
+//
+// · E17 — ÉTAT « BATTERIE ». La spec liste trois états techniques (GPS,
+//   batterie, synchronisation). GPS se lit (`GPS_READY_ACCURACY_M` /
+//   `GPS_USABLE_ACCURACY_M`), la synchronisation se lit (file d'envoi locale) ;
+//   la BATTERIE ne se lit PAS : `expo-battery` n'est pas une dépendance de
+//   `apps/mobile/package.json` au 27/07/2026. Aucun seuil de batterie n'est donc
+//   défini — un seuil sans capteur peindrait une pastille qui n'affirme rien.
+//
+// · E15 — GÉNÉRALISATION DES CONTOURS RIVAUX. Rien à ajouter : la géométrie
+//   publique est produite SERVEUR (`territories.geometry_generalized`, 0074) et
+//   servie par la vue `public_territories` (0077), qui applique déjà
+//   `TERRITORY_PUBLISH_DELAY_MINUTES` et `PUBLIC_TIMESTAMP_TRUNC`. Une tolérance
+//   de simplification CLIENT serait une seconde source de vérité sur la vie
+//   privée d'autrui — le pire endroit pour en avoir deux.
+//
+// · E49 — CAPACITÉ / DISCIPLINE D'UNE SORTIE : voir CREW_OUTING_WRITE_PATH_EXISTS.
+// ═══════════════════════════════════════════════════════════════════════════

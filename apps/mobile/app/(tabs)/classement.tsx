@@ -92,12 +92,20 @@
  * ─── UN CLASSEMENT EST RÉEL, OU IL N'EST PAS (21/07/2026, toujours en vigueur) ─
  *  · Ma ville — affiché UNIQUEMENT si `source === 'server'`. Sinon l'un des états
  *    honnêtes (lecture en cours · pas connecté · ville non rattachée · échec · vide).
- *  · Villes et Crew — AUCUNE source serveur (la matview `crew_leaderboard` n'est
- *    jamais rafraîchie ; aucun agrégat inter-villes n'existe) : on dit « pas encore
- *    ouvert », on ne fait pas patienter devant un faux podium. Nommer une dimension
- *    du jeu et DIRE qu'elle n'est pas ouverte est un constat vrai — c'est fabriquer
- *    des villes, des rangs ou des rivaux qui serait le mensonge (CLAUDE.md, zéro
- *    donnée européenne factice).
+ *  · Villes — AUCUNE source serveur : aucun agrégat inter-villes n'existe. On dit
+ *    « pas encore ouvert », on ne fait pas patienter devant un faux podium. Nommer
+ *    une dimension du jeu et DIRE qu'elle n'est pas ouverte est un constat vrai —
+ *    c'est fabriquer des villes, des rangs ou des rivaux qui serait le mensonge
+ *    (CLAUDE.md, zéro donnée européenne factice).
+ *  · Crew — A UNE SOURCE DEPUIS LE 27/07/2026 (migration 0086). La matview
+ *    `crew_leaderboard` était jusque-là rafraîchie par AUCUN job du dépôt (l'appel
+ *    n'existait que dans un commentaire de 0002, constat 0044) ; elle l'est
+ *    désormais, et chaque passage est horodaté. L'onglet est donc branché
+ *    (`CrewBoardSection`) — MAIS la base est vide, donc il rendra une liste vide.
+ *    Deux vides que rien ne doit refondre : « GRYD n'a pas encore calculé »
+ *    (`never_refreshed`) et « calculé, personne ne tient de terrain ici »
+ *    (`empty`). Aucun crew, aucun rang, aucune ville n'est fabriqué dans un cas
+ *    comme dans l'autre.
  */
 import { flags } from '../../src/lib/flags';
 import { useEffect, useMemo, useState } from 'react';
@@ -115,7 +123,9 @@ import {
   iconSizes,
   radii,
   seasonProgress,
+  sizes,
   spacing,
+  type Activity,
 } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/flagged';
 import { C as S } from '../../src/i18n/catalog/saison';
@@ -153,6 +163,11 @@ import {
   seasonStanding,
   type SeasonRewardTier,
 } from '../../src/features/season/seasonRewards';
+// E54 — le classement des CREWS a enfin une source (migration 0086 :
+// `crew_leaderboard` est rafraîchie pour de vrai, et `crew_board()` sait REFUSER
+// une vue jamais calculée). La lecture est pure et testée en Deno
+// (`features/crew/stats.ts`), le câblage n'a rien à décider.
+import { useCrewBoard } from '../../src/features/crew/statsData';
 import { useMyBadges } from '../../src/features/badges/myBadges';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import type { LeagueBoard } from '../../src/features/social/league';
@@ -449,6 +464,164 @@ function BoardEmpty({
       ) : null}
     </View>
   );
+}
+
+/**
+ * E54 — CLASSEMENT DES CREWS. Le seul board de cet écran qui ne passe PAS par
+ * `BoardBody` : il ne classe pas des joueurs mais des équipes, et la planche lui
+ * demande d'autres colonnes (crews ; membres ; surface). Un podium à trois
+ * marches n'aurait rien à mettre dessus — un crew n'a ni avatar ni médaille.
+ *
+ * ═══ CE QUI A CHANGÉ LE 27/07/2026, ET CE QUI N'A PAS CHANGÉ ═══════════════
+ * Jusqu'ici cet onglet affichait `boardNoSourceCrews` (« pas encore ouvert »),
+ * et c'était VRAI : la matview `crew_leaderboard` n'était rafraîchie par aucun
+ * job du dépôt — l'appel n'existait que dans un commentaire de 0002, constat
+ * posé par 0044. La migration 0086 la rafraîchit pour de bon (via
+ * `recompute_sectors`, déjà planifié) et horodate chaque passage.
+ *
+ * CE QUI N'A PAS CHANGÉ : la base est VIDE. Aucun crew réel n'existe, donc ce
+ * board rendra une liste vide. C'est le bon comportement, et il est DIT avec ses
+ * propres mots (`crewBoardEmpty`) — jamais avec ceux de « pas encore ouvert ».
+ * Les deux vides ne racontent pas la même chose :
+ *   · `never_refreshed` → GRYD n'a pas encore calculé. Un fait sur GRYD ;
+ *   · `empty`           → calculé, personne ne tient de terrain ici. Un fait sur
+ *                         le MONDE.
+ * Les fondre transformerait un job absent en jugement sur les joueurs.
+ *
+ * ═══ CE QUE CE BOARD NE MONTRE PAS ════════════════════════════════════════
+ * LA « PROGRESSION » de la planche. Elle exige de comparer au relevé précédent,
+ * donc les snapshots de 0082 — dont personne ne prend encore. Une flèche
+ * fabriquée serait pire qu'une flèche absente ; les clés i18n
+ * `crewProgressUp/Down/Unknown` attendent leur source sans être rendues.
+ */
+function CrewBoardSection({
+  activity,
+  configured,
+}: {
+  activity: Activity;
+  /** Un backend est-il configuré ? Sans lui, « se connecter » est un bouton mort. */
+  configured: boolean;
+}) {
+  const t = useT();
+  const board = useCrewBoard(activity);
+
+  // Un état = une phrase. Aucune ne se substitue à une autre.
+  switch (board.status) {
+    case 'loading':
+      // Un chargement n'affirme RIEN sur les crews.
+      return <Text style={styles.stateNote}>{t(C.boardLoading)}</Text>;
+    case 'signed_out':
+      return (
+        <BoardEmpty
+          title={t(C.boardSignedOutTitle)}
+          body={t(C.boardSignedOutBody)}
+          {...(configured
+            ? { cta: { label: t(C.boardSignIn), onPress: () => router.push('/sign-in') } }
+            : {})}
+        />
+      );
+    case 'city_unknown':
+      // Connecté, mais aucune ville rattachée : il n'y a pas de « crews d'ici ».
+      return (
+        <BoardEmpty
+          title={t(C.boardCityUnknownTitle)}
+          body={t(C.boardCityUnknownBody)}
+          cta={{ label: t(C.boardEmptyCta), onPress: () => router.push('/route-planner') }}
+        />
+      );
+    case 'never_refreshed':
+      // GRYD n'a jamais calculé ce classement — la phrase historique, et elle
+      // reste EXACTE dans ce cas précis (job non déployé, par exemple).
+      return <BoardEmpty title={t(C.boardNoSourceTitle)} body={t(C.boardNoSourceCrews)} />;
+    case 'unavailable':
+      // La lecture a ÉCHOUÉ : une panne ne prouve pas que la ville est déserte.
+      return <BoardEmpty title={t(C.boardUnavailableTitle)} body={t(C.boardUnavailableBody)} />;
+    case 'empty':
+      return (
+        <BoardEmpty
+          title={t(C.boardNoSourceTitle)}
+          body={t(C.crewBoardEmpty)}
+          // La DATE survit au vide : « rien, mesuré à telle heure » est plus
+          // honnête que « rien ».
+          {...(board.refreshedAt !== null
+            ? { note: t(C.crewBoardAsOf, { time: asOfLabel(board.refreshedAt) }) }
+            : {})}
+        />
+      );
+    case 'ready':
+      break;
+  }
+
+  const truncated = board.rankedTotal > board.rows.length;
+  return (
+    <View>
+      {/* Portée : la ville, jamais le monde (§10). Sans nom en base, pas de
+          légende — un « Paris » par défaut serait une ville inventée. */}
+      {board.cityName !== null ? (
+        <Text style={styles.boardCaption}>
+          {t(C.crewBoardScope, { city: board.cityName })}
+        </Text>
+      ) : null}
+
+      {board.rows.map((row) => (
+        <View
+          key={row.crewId}
+          style={[styles.crewRow, row.crewId === board.myCrewId && styles.crewRowMine]}
+          accessibilityLabel={t(C.crewRowA11y, {
+            rank: formatInt(row.rank),
+            name: row.name,
+            members: formatInt(row.membersActive),
+            zones: formatInt(row.zonesHeld),
+          })}
+        >
+          <Text style={styles.crewRank}>{formatInt(row.rank)}</Text>
+          <View style={styles.crewIdentity}>
+            {/* Une seule ligne, jamais tronquée par « … » (§A.9). */}
+            <Text style={styles.crewName} numberOfLines={1}>
+              {row.name}
+            </Text>
+            <Text style={styles.crewMeta}>
+              {`${t(C.crewColMembers)} ${formatInt(row.membersActive)}`}
+            </Text>
+          </View>
+          {/* « Zones », jamais « hexagones » (constitution §6). */}
+          <Text style={styles.crewZones}>{formatInt(row.zonesHeld)}</Text>
+        </View>
+      ))}
+
+      {truncated ? (
+        <Text style={styles.stateNote}>
+          {t(C.crewBoardTruncated, { n: formatInt(board.rows.length) })}
+        </Text>
+      ) : null}
+
+      {/* MON CREW, épinglé — planche E54 « crew utilisateur sticky ». Trois cas,
+          trois phrases : pas de crew · crew non classé · crew classé (déjà
+          surligné dans la liste, donc rien à répéter). */}
+      {board.myCrewId === null ? (
+        <Text style={styles.stateNote}>{t(C.crewStickyNoCrew)}</Text>
+      ) : board.myRank === null ? (
+        <Text style={styles.stateNote}>{t(C.crewStickyUnranked)}</Text>
+      ) : null}
+
+      {board.refreshedAt !== null ? (
+        <Text style={styles.stateNote}>
+          {t(C.crewBoardAsOf, { time: asOfLabel(board.refreshedAt) })}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Heure du dernier calcul, format court local. Si l'horodatage n'est pas
+ * parsable on rend la chaîne BRUTE : un classement daté « à l'instant » par
+ * défaut serait exactement le mensonge que 0086 vient de rendre impossible.
+ */
+function asOfLabel(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return iso;
+  return new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -1050,16 +1223,20 @@ function LeagueScreen() {
                 mod={mod}
               />
             </>
+          ) : activeTab === 'crews' ? (
+            /* CREWS — la source EXISTE depuis 0086 (la matview est enfin
+               rafraîchie, et `crew_board()` refuse de servir une vue jamais
+               calculée). Le composant porte les six états ; aucun n'emprunte la
+               phrase d'un autre, et le vide d'aujourd'hui — la base ne contient
+               aucun crew — se dit avec ses propres mots. */
+            <CrewBoardSection activity={activity} configured={configured} />
           ) : !onJoueurs ? (
-            /* Villes et Crew : aucune source serveur. La matview `crew_leaderboard`
-               n'est JAMAIS rafraîchie, et aucun agrégat inter-villes n'existe. Ce
-               n'est pas « vide en attendant », c'est « pas ouvert » — et on dit
-               laquelle des deux dimensions attend quoi, sans nommer une seule
-               ville ni avancer un seul chiffre. */
-            <BoardEmpty
-              title={t(C.boardNoSourceTitle)}
-              body={t(activeTab === 'ville' ? C.boardNoSourceVille : C.boardNoSourceCrews)}
-            />
+            /* VILLES : aucune source serveur — aucun agrégat inter-villes
+               n'existe. Ce n'est pas « vide en attendant », c'est « pas
+               ouvert », sans nommer une seule ville ni avancer un chiffre.
+               (Le cas CREW est traité juste au-dessus depuis le 27/07/2026 :
+               les deux dimensions ne partagent plus le même état.) */
+            <BoardEmpty title={t(C.boardNoSourceTitle)} body={t(C.boardNoSourceVille)} />
           ) : boardLoading ? (
             <Text style={styles.stateNote}>{t(C.boardLoading)}</Text>
           ) : !signedIn ? (
@@ -1391,6 +1568,37 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.xs * 1.5,
     marginTop: spacing.sm,
   },
+
+  // ── E54 · une ligne de crew : rang · identité (nom + effectif) · zones ──
+  // Pas de card : des lignes à plat, comme les lignes de joueurs. Une card par
+  // crew à l'intérieur de la card d'écran serait exactement la card-dans-card
+  // que §A interdit.
+  crewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    // 44 pt RÉELS : la ligne est lue à voix haute d'un bloc (a11y) et reste
+    // atteignable si elle devient tapable un jour.
+    minHeight: sizes.touchTarget,
+    paddingVertical: spacing.sm,
+  },
+  /** MON crew, surligné dans la liste (planche E54 : « crew utilisateur sticky »). */
+  crewRowMine: {
+    backgroundColor: elevation.raised,
+    borderRadius: radii.control,
+    paddingHorizontal: spacing.sm,
+  },
+  crewRank: {
+    color: colors.gris,
+    fontFamily: fonts.mono,
+    fontSize: fontSizes.md,
+    minWidth: 28,
+    textAlign: 'right',
+  },
+  crewIdentity: { flex: 1, minWidth: 0 },
+  crewName: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: fontSizes.md },
+  crewMeta: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.xs },
+  crewZones: { color: colors.blanc, fontFamily: fonts.mono, fontSize: fontSizes.md },
 
   /** Légende NOMMANT la ville du classement — une ligne, jamais tronquée (§A). */
   boardCaption: {

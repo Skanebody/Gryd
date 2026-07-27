@@ -15,6 +15,20 @@ const DYNAMIC_ROUTES: ReadonlyArray<{ readonly prefix: string; readonly pattern:
   { prefix: '/parametres/', pattern: '/parametres/[section]' },
   { prefix: '/course/', pattern: '/course/[id]' }, // détail d'une course (id)
   { prefix: '/challenges/', pattern: '/challenges/[id]' }, // détail défi (l'index reste /challenges)
+  // E16 — le segment est un digest de mission (`missionKey`). Il ne porte AUCUNE
+  // coordonnée par construction (§12), mais il reste un identifiant STABLE lié à
+  // une zone précise : laissé en clair dans `$screen`, il permettrait de suivre
+  // un même joueur d'une session à l'autre par sa mission. On le rédige.
+  { prefix: '/map/missions/', pattern: '/map/missions/[missionId]' },
+  // ─── LES DEUX ROUTES « RIVAL » (ajoutées le 27/07/2026) ────────────────────
+  // Elles portent le HANDLE PUBLIC D'UN TIERS. C'est le pire segment possible
+  // dans `$screen` : attaché au `distinct_id` de l'OBSERVATEUR, il dit « qui
+  // regarde qui » — une donnée relationnelle que GRYD ne mesure nulle part
+  // ailleurs et qui n'a aucun usage produit. La règle avait été ÉNONCÉE pour
+  // E16 (commentaire ci-dessus) et pas appliquée à E15 / au profil rival : le
+  // trou était de patron, pas d'accident, donc les deux entrent ensemble.
+  { prefix: '/zones-rival/', pattern: '/zones-rival/[handle]' }, // E15
+  { prefix: '/profil-rival/', pattern: '/profil-rival/[handle]' },
 ];
 
 /**

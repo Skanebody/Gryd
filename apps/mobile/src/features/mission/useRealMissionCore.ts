@@ -55,6 +55,7 @@ import {
   type MissionTerritoryInput,
   type RealMission,
 } from './deriveMission';
+import type { MissionReadStatus } from './recommendedMission';
 
 /** Ce que la ligne mission de la Carte lit (le kind `first_capture` est rendu
  *  « rien » par l'appelant : le widget « Prends ta première zone » le porte déjà). */
@@ -66,7 +67,40 @@ export interface UseRealMissionResult {
   mission: RealMission | null;
   /** true tant que la 1re résolution réelle n'a pas abouti (rien à afficher). */
   loading: boolean;
+  /**
+   * ─── AJOUTÉ LE 27/07/2026 POUR E16, ET STRICTEMENT ADDITIF ────────────────
+   * `mission` et `loading` gardent EXACTEMENT leur sémantique : la ligne de la
+   * Carte et la ligne du Profil ne changent pas d'un pixel.
+   *
+   * Pourquoi il a fallu élargir. Ce cœur REPLIE quatre situations très
+   * différentes sur `mission: null` — pas de backend, pas de session, échec de
+   * lecture, lecture aboutie mais vide. C'est le bon choix pour une LIGNE qui
+   * n'a que le droit de se taire ; c'en est un mauvais pour un ÉCRAN entier,
+   * que la constitution oblige à distinguer les quatre états. `nextMissionRow`
+   * (Profil) avait déjà dû reconstruire ce manque à coups de témoins externes
+   * (`readStarted`) : deux reconstructions du même fait auraient fini par
+   * diverger, donc le fait est publié à la source.
+   */
+  status: MissionReadStatus;
+  /**
+   * MES zones telles qu'elles viennent d'être LUES (jamais reconstruites) : E16
+   * en dérive l'extinction d'une mission (`missionDropReason`) et sa raison
+   * (« la plus proche » suppose plusieurs zones). Vide tant que rien n'a été lu.
+   */
+  mine: readonly MissionTerritoryInput[];
+  /** Le fix RÉEL utilisé par la dernière dérivation (`null` = aucun). */
+  ego: MissionPoint | null;
+  /** Relance une lecture (bouton « Réessayer » d'un écran, jamais automatique). */
+  reload: () => void;
 }
+
+/**
+ * Où en est la lecture. `unconfigured` (pas de backend, point ouvert O1) est
+ * DISTINCT de `signed-out` : dans un cas se connecter est impossible, dans
+ * l'autre c'est exactement le geste qui débloque. Les confondre peindrait une
+ * invitation à se connecter qui n'aboutirait jamais (constitution §2).
+ */
+export type { MissionReadStatus };
 
 /** Un fix ponctuel, ou `null`. Jamais une position par défaut : les deux
  *  implémentations (natif / navigateur) refusent d'en inventer une. */
@@ -86,6 +120,17 @@ export function useRealMissionCore(
   const [mission, setMission] = useState<RealMission | null>(null);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
+  /**
+   * Ce que la DERNIÈRE lecture a établi. Un seul état pour les trois faits
+   * (statut, zones, position) : ils sont produits ensemble et lus ensemble, et
+   * trois `useState` séparés autoriseraient un rendu intermédiaire où le statut
+   * dirait « abouti » sur les zones du tour précédent.
+   */
+  const [read, setRead] = useState<{
+    status: MissionReadStatus;
+    mine: readonly MissionTerritoryInput[];
+    ego: MissionPoint | null;
+  }>({ status: 'idle', mine: [], ego: null });
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
@@ -101,11 +146,15 @@ export function useRealMissionCore(
     if (!supabase || !session) {
       setMission(null);
       setLoading(false);
+      // Les deux causes ne se soignent PAS par le même geste : sans backend il
+      // n'y a rien à tenter, sans session il y a une connexion à faire.
+      setRead({ status: supabase ? 'signed-out' : 'unconfigured', mine: [], ego: null });
       return;
     }
     const client = supabase;
     let cancelled = false;
     setLoading(true);
+    setRead((r) => ({ ...r, status: 'loading' }));
     void (async () => {
       try {
         // MES captures + ma position, en parallèle. Le fix GPS est OPTIONNEL
@@ -126,6 +175,9 @@ export function useRealMissionCore(
           // prétend rien — la mission disparaît, la carte dit déjà la vérité.
           setMission(null);
           setLoading(false);
+          // Un échec ne se déguise JAMAIS en « aucune mission » : `mine` reste
+          // vide, mais le statut dit qu'aucune lecture n'a abouti.
+          setRead({ status: 'failed', mine: [], ego: null });
           return;
         }
         const rows = (claims.data ?? []) as MineClaimRow[];
@@ -142,11 +194,13 @@ export function useRealMissionCore(
         const ego: MissionPoint | null = fix ? { lat: fix.lat, lng: fix.lng } : null;
         setMission(deriveRealMission({ now: new Date(), ego, mine }));
         setLoading(false);
+        setRead({ status: 'ready', mine, ego });
       } catch {
         // Rejet réseau / natif inattendu : même filet silencieux.
         if (cancelled) return;
         setMission(null);
         setLoading(false);
+        setRead({ status: 'failed', mine: [], ego: null });
       }
     })();
     return () => {
@@ -168,5 +222,5 @@ export function useRealMissionCore(
     }, [reload]),
   );
 
-  return { mission, loading };
+  return { mission, loading, status: read.status, mine: read.mine, ego: read.ego, reload };
 }

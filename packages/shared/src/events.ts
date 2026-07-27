@@ -367,5 +367,202 @@ export const EVENTS = {
    * inexistante décrirait un écran qui n'existe pas.
    */
   shareLinkCopied: 'share_link_copied',
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // VAGUE E13 · E15 · E16 · E17 · E39 · E40 · E49 · E50 · E54
+  // (spec produit UI/UX, l.926 · 991 · 1009 · 1028 · 1498 · 1527 · 1722 · 1738
+  //  · 1831), ajoutée le 27/07/2026.
+  //
+  // LES MÊMES TROIS RÈGLES QUE LES BLOCS PRÉCÉDENTS, plus une quatrième que le
+  // contexte impose :
+  //  1. AUCUN event sans point d'émission NOMMABLE ET ATTEIGNABLE. Deux écrans
+  //     de cette vague n'ont AUCUN event pour cette raison : voir la note E49 et
+  //     la note E50 en fin de bloc — ce n'est pas un oubli, c'est le constat ;
+  //  2. AUCUNE PII, AUCUNE POSITION. Pas de nom de crew, pas de @handle, pas
+  //     d'`id` de joueur/zone/ville, pas de terme de recherche : une requête de
+  //     recherche de lieu EST une intention de déplacement, et un nom de crew
+  //     identifie un groupe de personnes réelles. Seules des clés FERMÉES,
+  //     énumérées ligne par ligne, et des ENTIERS d'agrégat partent ;
+  //  3. AUCUN NOMBRE DE JEU — les seuils vivent dans game-rules.ts ;
+  //  4. LA BASE EST VIDE, DONC L'ÉTAT VIDE SE MESURE. Sur ces neuf écrans, le
+  //     cas le plus fréquent en 2026 sera « aucune donnée ». Un `screen()` nu ne
+  //     dit pas si l'écran a montré des faits, un vide honnête ou une panne ;
+  //     les trois events `*_viewed` ci-dessous portent donc un `state` FERMÉ qui
+  //     distingue exactement les quatre états de la constitution. C'est la seule
+  //     façon de savoir, plus tard, si le produit était vide ou cassé.
+
+  // ── E13 — Recherche de lieu (`/map/search`) ───────────────────────────────
+  /**
+   * Un résultat a été CHOISI et la carte s'est déplacée. C'est le seul instant
+   * de cet écran qui décide quelque chose.
+   *
+   * `source` FERMÉ : 'nearby' (une suggestion de proximité, avant toute frappe)
+   * | 'recent' (une recherche récente rejouée) | 'query' (un résultat de la
+   * requête tapée). Le KPI : les trois entrées ne coûtent pas le même effort —
+   * si 'recent' domine, l'écran est un carnet d'adresses et pas un moteur.
+   *
+   * ⚠ NE TRANSPORTE NI LE TERME CHERCHÉ, NI LE LIEU CHOISI, NI SES
+   * COORDONNÉES. §12 : la recherche sert à déplacer la carte, jamais à publier
+   * une position — l'analytics ne doit pas faire ce que l'écran s'interdit.
+   */
+  placeSearchResultPicked: 'place_search_result_picked', // props: { source }
+
+  // ── E15 — Carte des zones d'un rival (`/player/:playerId/zones`) ──────────
+  /**
+   * La carte des territoires publics d'un rival s'est composée, avec l'état
+   * qu'elle a RÉELLEMENT rendu. `state` FERMÉ : 'ready' (des contours publiés
+   * ont été rendus) | 'empty' (lecture aboutie, ce joueur ne tient rien de
+   * public) | 'unavailable' (la lecture a échoué — on n'affirme rien).
+   *
+   * POURQUOI CET EVENT EXISTE ALORS QUE `screen()` EXISTE : 'empty' et
+   * 'unavailable' sont deux écrans très différents que le fondateur doit
+   * pouvoir distinguer sans ouvrir l'app. Le `$screen` PostHog les confond.
+   *
+   * ⚠ AUCUN identifiant de joueur, aucun nombre de zones : un compte de zones
+   * croisé avec l'heure de consultation situe un rival. On mesure l'ÉTAT, pas
+   * le rival.
+   */
+  rivalZonesViewed: 'rival_zones_viewed', // props: { state }
+
+  // ── E16 — Mission recommandée (`/map/missions/:missionId`) ────────────────
+  /**
+   * Une mission recommandée a DISPARU parce qu'elle était devenue impossible —
+   * le comportement que la spec exige mot pour mot (l.1009 : « Une mission
+   * devenue impossible disparaît proprement avec explication »).
+   *
+   * `reason` FERMÉ : 'taken' (la zone a changé de mains) | 'expired' (la fenêtre
+   * de défense est passée — `MISSION_DEFEND_WINDOW_H`) | 'out_of_range' (la
+   * carte s'est déplacée trop loin de la cible) | 'no_position' (la position
+   * qui fondait la recommandation a été perdue).
+   *
+   * LE KPI EST INCONFORTABLE, ET C'EST LE BUT : combien de fois GRYD propose
+   * une mission qu'il retire ensuite. Un produit qui recommande puis se dédit
+   * use la confiance plus vite qu'un produit qui ne recommande rien.
+   *
+   * NE DOUBLE RIEN : `opportunity_shown` mesure l'APPARITION d'une opportunité,
+   * `mission_completed` sa réussite, `cta_tapped` le tap de « PRÉPARER LA
+   * SORTIE ». Aucun des trois ne dit qu'une mission s'est éteinte.
+   */
+  missionDropped: 'mission_dropped', // props: { reason }
+
+  // ── E17 — Préparation d'activité (`/map/prepare`) ─────────────────────────
+  /**
+   * L'écran de préparation s'est composé avec l'objectif qu'il RECOMMANDE.
+   * `objective` FERMÉ : 'conquer' | 'defend' (les deux branches du mini-segment
+   * de la spec). Aucun nom de zone ne part — « Défendre Saint-Rémy » se réduit
+   * ici à 'defend'.
+   */
+  activityPrepareViewed: 'activity_prepare_viewed', // props: { objective }
+  /**
+   * L'utilisateur a CHANGÉ l'objectif recommandé (le lien « Changer »).
+   * `objective` = celui qu'il a choisi, même vocabulaire fermé.
+   *
+   * C'est la mesure de qualité de la recommandation : un taux de changement
+   * élevé dit que la ligne d'objectif proposée est mauvaise. Sans cet event,
+   * personne ne saurait jamais si la recommandation sert ou gêne.
+   *
+   * NE DOUBLE PAS `run_preflight_viewed` (E06/E19) : celui-là mesure
+   * l'ACQUISITION GPS juste avant le départ, celui-ci la DÉCISION d'objectif,
+   * un écran plus tôt. Ni `setup_activity_chosen` (E09), qui est le choix de
+   * discipline Run/Bike à l'inscription — un autre choix, une autre fois.
+   */
+  activityObjectiveChanged: 'activity_objective_changed', // props: { objective }
+
+  // ── E39 — Découverte des crews (`/crew/discover`) ─────────────────────────
+  /**
+   * La liste de découverte s'est composée, avec l'état RÉELLEMENT rendu et le
+   * filtre actif.
+   *
+   * `state` FERMÉ, miroir des états que l'écran distingue déjà en copie
+   * (catalogue `crew.ts`, bloc LOT 7) : 'ready' | 'empty' (lecture aboutie,
+   * aucun crew dans cette ville) | 'no_city' (aucune ville connue — on demande,
+   * on ne devine pas) | 'unavailable' (échec de lecture) | 'signed_out'.
+   * `filter` FERMÉ : 'all' | 'near' | 'friends' | 'open'.
+   *
+   * CE QUE CET EVENT SERT À PROUVER : au 27/07/2026 la base est vide, donc
+   * 'empty' sera la valeur dominante. C'est une information PRODUIT (personne
+   * ne fonde de crew dans cette ville), pas une panne — et le jour où
+   * 'unavailable' monte, on le verra sans le confondre avec le vide.
+   *
+   * ⚠ AUCUN nom de crew, aucun identifiant de ville, aucun nombre de résultats.
+   */
+  crewDiscoveryViewed: 'crew_discovery_viewed', // props: { state, filter }
+
+  // ── E40 — Profil public d'un crew (`/crew/:crewId/public`) ────────────────
+  /**
+   * Une DEMANDE d'adhésion a été enregistrée par le serveur (RPC 0083), pas le
+   * tap du CTA. `from` FERMÉ : 'discovery' (la liste E39) | 'public' (la fiche
+   * E40) | 'code' (un code d'invitation).
+   *
+   * NE DOUBLE PAS `crew_joined` : celui-là dit qu'on EST ENTRÉ ; une demande
+   * peut rester sans réponse pour toujours (0083 n'envoie aucune notification,
+   * la copie de l'écran le dit). L'écart entre les deux — combien de demandes
+   * n'aboutissent jamais — est précisément ce qu'on ne sait pas mesurer
+   * aujourd'hui.
+   */
+  crewJoinRequested: 'crew_join_requested', // props: { from }
+  /**
+   * Une demande reçue a été TRANCHÉE par le crew (réponse serveur).
+   * `decision` FERMÉ : 'accept' | 'decline'. Aucun identifiant de candidat.
+   * Complète l'event ci-dessus : sans lui, une demande sans réponse et une
+   * demande refusée se ressemblent dans les chiffres.
+   */
+  crewJoinRequestDecided: 'crew_join_request_decided', // props: { decision }
+
+  // ── E54 — Classement crews (et les autres onglets de `/classement`) ───────
+  /**
+   * Un classement s'est composé, avec l'onglet et l'état RÉELLEMENT rendus.
+   * `board` FERMÉ : 'players' | 'specialties' | 'city' | 'crews'.
+   * `state` FERMÉ : 'ready' | 'empty' (lecture aboutie, aucune ligne) |
+   * 'no_source' (aucune source serveur ne l'alimente encore — l'écran le DIT,
+   * cf. `boardNoSourceCrews`) | 'unavailable' (échec de lecture) | 'signed_out'.
+   *
+   * 'empty' ET 'no_source' SONT DEUX CHOSES DIFFÉRENTES, et les fondre serait
+   * le mensonge de cet écran : « personne n'a encore de points » est un fait sur
+   * le monde ; « GRYD ne lit pas encore cette table » est un fait sur GRYD. Le
+   * classement des crews est aujourd'hui dans le second cas.
+   *
+   * UN SEUL event pour quatre onglets, parce que le KPI est la RÉPARTITION —
+   * quatre noms auraient rendu la comparaison illisible (même raison que
+   * `result_viewed` pour les six résultats).
+   */
+  leaderboardViewed: 'leaderboard_viewed', // props: { board, state }
+
+  // ── E49 — Créer une sortie crew (`/crew-sortie`) ──────────────────────────
+  /**
+   * Une sortie crew a été ENREGISTRÉE PAR LE SERVEUR (`crew_outing_create`,
+   * migration 0085) — pas le tap du CTA, pas un brouillon local.
+   *
+   * ⚠ CET EVENT N'EXISTAIT PAS AVANT LE 27/07/2026, ET C'ÉTAIT JUSTE : tant que
+   * `insert` était révoqué sur `crew_events` sans aucun RPC pour l'écrire,
+   * aucune sortie ne pouvait naître et un event défini-jamais-émis aurait décrit
+   * une fonctionnalité inexistante. 0085 a créé le chemin d'écriture ; l'event
+   * arrive AVEC lui, jamais avant.
+   *
+   * `activity` FERMÉ : 'run' | 'bike'. `objective` FERMÉ : 'defense' |
+   * 'conquete'. `hasZone` / `hasCapacity` : des BOOLÉENS, parce que la question
+   * produit est « ces champs facultatifs servent-ils ? », pas « quelle zone ».
+   * `leadH` : heures ENTIÈRES entre la création et le rendez-vous — combien de
+   * temps à l'avance un crew s'organise. Arrondi à l'heure : à la minute près,
+   * ce serait un quasi-identifiant de la sortie.
+   *
+   * ⚠ AUCUN titre, AUCUN lieu, AUCUN nom de zone, AUCUN identifiant de crew ni
+   * de sortie. Le libellé du point de rendez-vous est écrit par un humain et
+   * peut nommer un lieu privé : il ne quitte JAMAIS le couple app↔serveur.
+   */
+  crewOutingCreated: 'crew_outing_created', // props: { activity, objective, hasZone, hasCapacity, leadH }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // L'ÉCRAN DE CETTE VAGUE QUI N'A AUCUN EVENT, ET POURQUOI
+  //
+  // · E50 — STATISTIQUES DU CREW. Rien à ajouter : `crew_overview()` (RPC 0044)
+  //   rend le total d'hexes, la dernière capture, le rang de ville et la
+  //   contribution par membre — la consultation de ces chiffres est un
+  //   `$screen`, et aucun autre instant de cet écran ne décide quoi que ce
+  //   soit. Les trois métriques que la spec ajoute (défenses, distance
+  //   collective, courbe quatre semaines) n'ont AUCUNE source : mesurer combien
+  //   de fois on affiche « indisponible » n'apprendrait rien qu'on ne sache
+  //   déjà.
+  // ══════════════════════════════════════════════════════════════════════════
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

@@ -399,6 +399,10 @@ export default function RootLayout() {
             {/* Historique (AMENDEMENT-17 §CH3) : liste + détail d'une course. */}
             <Stack.Screen name="historique" />
             <Stack.Screen name="course/[id]" />
+            {/* E13 « Recherche de lieu » (spec l.926) : poussée par-dessus
+                l'onglet Carte, qui reste monté derrière — c'est ce qui permet au
+                choix d'un lieu de CADRER la carte (placeFocus) sans la remonter. */}
+            <Stack.Screen name="map/search" />
           </Stack>
         </BootGate>
       </SessionProvider>

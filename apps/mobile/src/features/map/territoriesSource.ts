@@ -211,7 +211,7 @@ export function pickRenderGeometry(row: TerritoryRow, meId: string | null): Pick
  *   • `expired` / `invalidated` — de l'HISTORIQUE conservé (§9.4). Les peindre
  *     affirmerait qu'ils sont tenus ; ils ne le sont plus.
  */
-const PAINTABLE_STATES: ReadonlySet<TerritoryDbState> = new Set<TerritoryDbState>([
+export const PAINTABLE_STATES: ReadonlySet<TerritoryDbState> = new Set<TerritoryDbState>([
   'owned_personal',
   'owned_crew',
   'contested',

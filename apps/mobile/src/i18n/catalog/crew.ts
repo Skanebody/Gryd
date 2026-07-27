@@ -11,12 +11,14 @@
 import type {
   CrewActivityStatus,
   CrewChestTier,
+  CrewOutingObjective,
   CrewRecruitmentStatus,
   CrewRole,
   CrewTag,
 } from '@klaim/shared';
 import { defineCatalog, type Entry } from '../types';
 import type { CrewSignalKey } from '../../features/crew/engine/crewSignals';
+import type { CrewActivityProfile } from '../../features/crew/discovery';
 
 export const C = defineCatalog({
   // ── EmptyState (pas de crew) ────────────────────────────────────────────────
@@ -417,7 +419,7 @@ export const C = defineCatalog({
    * jamais quantifier ce qui est réellement atteignable.
    */
   cmCaptureGap: {
-    fr: 'Du terrain reste à prendre là où votre crew passe déjà.',
+    fr: 'Du terrain reste à prendre là où ton crew passe déjà.',
     en: 'There is still ground to take where your crew already goes.',
     es: 'Queda terreno por tomar por donde tu crew ya pasa.',
     de: 'Dort, wo euer Crew schon unterwegs ist, ist noch Gelände zu holen.',
@@ -694,7 +696,7 @@ export const C = defineCatalog({
   },
   /** Crew sans aucun hex : on le DIT, on ne décore pas un zéro. */
   rlNoTerritory: {
-    fr: 'Votre crew n’a pas encore de territoire — sortez pour en prendre.',
+    fr: 'Ton crew n’a pas encore de territoire — sors pour en prendre.',
     en: 'Your crew holds no territory yet — head out and take some.',
     es: 'Tu crew aún no tiene territorio — sal a conquistarlo.',
     de: 'Euer Crew hält noch kein Revier — geht raus und erobert welches.',
@@ -887,7 +889,7 @@ export const C = defineCatalog({
    * part de la mission en cours — qui n'est mesurée nulle part.
    */
   myTerritoryShare: {
-    fr: 'Votre part du territoire : {pct} %',
+    fr: 'Ta part du territoire : {pct} %',
     en: 'Your share of the territory: {pct}%',
     es: 'Tu parte del territorio: {pct} %',
     de: 'Dein Anteil am Revier: {pct} %',
@@ -953,7 +955,7 @@ export const C = defineCatalog({
 
   // ── ÉTAT « crew sans territoire » : un PLAN, jamais un tableau de bord vide ─
   firstTerritoryTitle: {
-    fr: 'Votre premier territoire crew',
+    fr: 'Ton premier territoire crew',
     en: 'Your first crew territory',
     es: 'Vuestro primer territorio de crew',
     de: 'Euer erstes Crew-Revier',
@@ -994,7 +996,7 @@ export const C = defineCatalog({
     pt: 'PARA COMEÇAR BEM',
   },
   stepInvite: {
-    fr: 'Invitez des joueurs de votre quartier',
+    fr: 'Invite des joueurs de ton quartier',
     en: 'Invite players from your neighborhood',
     es: 'Invita a jugadores de tu barrio',
     de: 'Lade Spieler aus eurem Viertel ein',
@@ -3291,7 +3293,7 @@ export const C = defineCatalog({
   // le sous-titre du champ ne doit pas décider à sa place (garde-fou
   // `disciplineVocabulary` — la première rédaction disait « Eure Läufe »).
   editDescPh: {
-    fr: 'Vos habitudes, vos règles, ce qu’il faut savoir avant de venir.',
+    fr: 'Vos habitudes de crew, vos règles, ce qu’il faut savoir avant de venir.',
     en: 'Your habits, your rules, what to know before joining.',
     es: 'Vuestros hábitos, vuestras reglas, lo que hay que saber antes de venir.',
     de: 'Eure Gewohnheiten, eure Regeln, was man vorher wissen sollte.',
@@ -3707,7 +3709,7 @@ export const C = defineCatalog({
 
   // ── E38 : l'état sans crew devient DÉCOUVERTE-FIRST ──────────────────────
   dHeroTitle: {
-    fr: 'Trouvez votre crew',
+    fr: 'Trouve ton crew',
     en: 'Find your crew',
     es: 'Encuentra tu crew',
     de: 'Finde dein Crew',
@@ -3722,7 +3724,7 @@ export const C = defineCatalog({
    * est vrai dans les deux mondes.
    */
   dHeroBody: {
-    fr: 'Un crew tient un quartier à plusieurs. Regardez qui tient déjà du terrain près de chez vous, puis rejoignez — ou fondez le vôtre.',
+    fr: 'Un crew tient un quartier à plusieurs. Regarde qui tient déjà du terrain près de chez toi, puis rejoins — ou fonde le tien.',
     en: 'A crew holds a neighbourhood together. See who already holds ground near you, then join — or found your own.',
     es: 'Un crew defiende un barrio en grupo. Mira quién ya tiene terreno cerca de ti y únete — o funda el tuyo.',
     de: 'Ein Crew hält ein Viertel gemeinsam. Sieh, wer in deiner Nähe schon Gebiet hält, und tritt bei — oder gründe dein eigenes.',
@@ -3779,7 +3781,7 @@ export const C = defineCatalog({
   },
   /** Neutre en discipline (E14) : la liste mélange les deux mondes. */
   dNoCityBody: {
-    fr: 'GRYD ne connaît pas encore votre ville. Choisissez-la pour voir les crews qui y jouent.',
+    fr: 'GRYD ne connaît pas encore ta ville. Choisis-la pour voir les crews qui y jouent.',
     en: 'GRYD doesn’t know your city yet. Pick it to see the crews playing there.',
     es: 'GRYD aún no conoce tu ciudad. Elígela para ver los crews que juegan allí.',
     de: 'GRYD kennt deine Stadt noch nicht. Wähle sie, um die Crews dort zu sehen.',
@@ -3823,11 +3825,38 @@ export const C = defineCatalog({
     pt: 'Não foi possível ler os crews. Nada é afirmado sobre esta cidade até a leitura funcionar.',
   },
   dSignedOut: {
-    fr: 'Connectez-vous pour voir les crews de votre ville.',
+    fr: 'Connecte-toi pour voir les crews de ta ville.',
     en: 'Sign in to see the crews in your city.',
     es: 'Inicia sesión para ver los crews de tu ciudad.',
     de: 'Melde dich an, um die Crews deiner Stadt zu sehen.',
     pt: 'Entre para ver os crews da sua cidade.',
+  },
+  /**
+   * ─── 27/07/2026 — LE REFUS SERVEUR QUI N'AVAIT AUCUN ÉCRAN ────────────────
+   * `crew_discovery` et `crew_public_profile` (0083) refusent avec
+   * `reason:'signed_out'` quand le JETON a expiré, alors que l'app tient encore
+   * une session locale. Ni E39 ni E40 ne traitaient ce cas : l'un rendait un
+   * spinner éternel, l'autre une liste muette. C'est un fait DIFFÉRENT de
+   * `dSignedOut` (jamais connecté) — le geste se ressemble, la cause non, et
+   * confondre les deux ferait croire à une déconnexion volontaire.
+   */
+  dSessionExpired: {
+    fr: 'Ta session a expiré. Reconnecte-toi pour continuer.',
+    en: 'Your session has expired. Sign in again to continue.',
+    es: 'Tu sesión ha caducado. Vuelve a iniciar sesión para continuar.',
+    de: 'Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.',
+    pt: 'Sua sessão expirou. Entre novamente para continuar.',
+  },
+  /**
+   * Le serveur a répondu, avec un motif qui n'a pas de sens en LECTURE. On ne
+   * traduit pas au hasard : on dit qu'on n'a pas pu lire, et on n'affirme rien.
+   */
+  dRefusedUnreadable: {
+    fr: 'Le serveur a refusé cette lecture. Rien n’est affirmé ici tant qu’elle n’a pas abouti.',
+    en: 'The server refused this read. Nothing is claimed here until it succeeds.',
+    es: 'El servidor rechazó esta lectura. No se afirma nada aquí hasta que funcione.',
+    de: 'Der Server hat diese Abfrage abgelehnt. Hier wird nichts behauptet, bis sie gelingt.',
+    pt: 'O servidor recusou esta leitura. Nada é afirmado aqui até ela funcionar.',
   },
 
   // ── Une ligne de crew : des FAITS, jamais un décor ───────────────────────
@@ -3854,7 +3883,7 @@ export const C = defineCatalog({
     pt: 'Nenhuma zona mantida',
   },
   dFriendsInside: {
-    fr: '{n} de vos amis',
+    fr: '{n} de tes amis',
     en: '{n} of your friends',
     es: '{n} de tus amigos',
     de: '{n} deiner Freunde',
@@ -3917,14 +3946,14 @@ export const C = defineCatalog({
    * Écrire « vous serez prévenu » serait une garantie que le code ne tient pas.
    */
   dRequestNoNotice: {
-    fr: 'Aucune notification n’est envoyée : revenez ici pour voir la réponse.',
+    fr: 'Aucune notification n’est envoyée : reviens ici pour voir la réponse.',
     en: 'No notification is sent: come back here to see the answer.',
     es: 'No se envía ninguna notificación: vuelve aquí para ver la respuesta.',
     de: 'Es wird keine Benachrichtigung gesendet: Komm für die Antwort hierher zurück.',
     pt: 'Nenhuma notificação é enviada: volte aqui para ver a resposta.',
   },
   dJoined: {
-    fr: 'Vous êtes dans le crew.',
+    fr: 'Tu es dans le crew.',
     en: 'You’re in the crew.',
     es: 'Ya estás en el crew.',
     de: 'Du bist im Crew.',
@@ -3938,14 +3967,14 @@ export const C = defineCatalog({
     pt: 'Este crew não recruta aqui — é preciso um código de convite.',
   },
   dAlreadyMember: {
-    fr: 'C’est votre crew.',
+    fr: 'C’est ton crew.',
     en: 'This is your crew.',
     es: 'Este es tu crew.',
     de: 'Das ist dein Crew.',
     pt: 'Este é o seu crew.',
   },
   dInOtherCrew: {
-    fr: 'Vous êtes déjà dans un crew. Quittez-le depuis l’onglet Crew pour en rejoindre un autre.',
+    fr: 'Tu es déjà dans un crew. Quitte-le depuis l’onglet Crew pour en rejoindre un autre.',
     en: 'You’re already in a crew. Leave it from the Crew tab to join another.',
     es: 'Ya estás en un crew. Sal desde la pestaña Crew para unirte a otro.',
     de: 'Du bist schon in einem Crew. Verlasse es im Crew-Tab, um einem anderen beizutreten.',
@@ -4001,6 +4030,784 @@ export const C = defineCatalog({
   },
   dAcceptCta: { fr: 'Accepter', en: 'Accept', es: 'Aceptar', de: 'Annehmen', pt: 'Aceitar' },
   dRejectCta: { fr: 'Refuser', en: 'Decline', es: 'Rechazar', de: 'Ablehnen', pt: 'Recusar' },
+
+  // ══ VAGUE 27/07/2026 — CE QUI MANQUAIT À E39/E40, PUIS E49 ET E50 ═════════
+  // Le bloc LOT 7 ci-dessus couvre DÉJÀ l'essentiel d'E39 et d'E40 : la portée,
+  // le vide, l'échec, le hors-session, l'adhésion, la fiche publique. Ce qui
+  // suit ne le refait pas — il ferme trois trous précis, puis ouvre les deux
+  // écrans que la spec ajoute (E49, E50).
+  //
+  // ⚠ REGISTRE : le bloc LOT 7 VOUVOIE (« Trouvez votre crew »), alors que le
+  // reste de ce catalogue TUTOIE (39 lignes contre 15, comptées le 27/07/2026)
+  // et que le produit déclare le tutoiement. Les clés ci-dessous sont écrites
+  // SANS pronom partout où c'est possible, précisément pour ne pas trancher au
+  // milieu d'un écran tenu par un autre chantier ; là où un pronom est
+  // inévitable (E49/E50, écrans neufs), c'est le TUTOIEMENT, registre du
+  // produit. L'harmonisation du bloc LOT 7 reste un point ouvert, pas un
+  // arbitrage qu'on prend en passant.
+
+  // ── E39 · trou 1 : le filtre « proches » (spec l.1498 : proches/amis/ouverts)
+  /**
+   * `dFilterAll` / `dFilterFriends` / `dFilterOpen` existaient ; « proches »
+   * manquait, alors que la spec le cite EN PREMIER. Sans lui, l'écran ne peut
+   * pas offrir le filtre le plus utile quand une ville commence à se peupler.
+   */
+  dFilterNear: { fr: 'Proches', en: 'Nearby', es: 'Cercanos', de: 'In der Nähe', pt: 'Próximos' },
+  /** Le filtre « proches » sans position : il ne peut pas trier, on le dit. */
+  dFilterNearNoPosition: {
+    fr: 'Position inconnue : impossible de trier par proximité.',
+    en: 'Location unknown: can’t sort by distance.',
+    es: 'Ubicación desconocida: no se puede ordenar por cercanía.',
+    de: 'Standort unbekannt: Sortieren nach Nähe nicht möglich.',
+    pt: 'Localização desconhecida: não dá para ordenar por proximidade.',
+  },
+
+  // ── E39/E40 · trou 2 : LA LECTURE EN COURS (4ᵉ état, il manquait) ─────────
+  // Le LOT 7 distingue déjà vide / échec / hors-session / sans ville. Il lui
+  // manquait l'état que la constitution nomme en dernier : « lecture EN COURS ».
+  // Sans lui, l'écran affiche son vide AVANT d'avoir lu — c'est-à-dire qu'il
+  // affirme « aucun crew ici » alors qu'il n'en sait encore rien.
+  dLoading: {
+    fr: 'Lecture des crews…',
+    en: 'Loading crews…',
+    es: 'Cargando los crews…',
+    de: 'Crews werden geladen…',
+    pt: 'Carregando os crews…',
+  },
+  dPublicLoading: {
+    fr: 'Lecture de la fiche…',
+    en: 'Loading the profile…',
+    es: 'Cargando la ficha…',
+    de: 'Profil wird geladen…',
+    pt: 'Carregando a ficha…',
+  },
+  dJoinPending: {
+    fr: 'Envoi de la demande…',
+    en: 'Sending the request…',
+    es: 'Enviando la solicitud…',
+    de: 'Anfrage wird gesendet…',
+    pt: 'Enviando o pedido…',
+  },
+
+  // ── E39 · trou 3 : la COMPATIBILITÉ Run/Bike (5ᵉ critère de pertinence) ───
+  // `CrewActivityProfile` existe côté moteur (`features/crew/discovery.ts`) et
+  // sert déjà l'ordre de la liste ; il n'avait AUCUN libellé. Un critère qui
+  // décide de l'ordre sans jamais s'afficher est un tri que personne ne
+  // comprend. Le profil est DÉRIVÉ de l'emprise réelle du crew — jamais une
+  // déclaration d'intention, jamais un « ce crew aime le vélo ».
+  dProfileRun: { fr: 'Surtout à pied', en: 'Mostly on foot', es: 'Sobre todo a pie', de: 'Meist zu Fuß', pt: 'Sobretudo a pé' },
+  dProfileBike: { fr: 'Surtout à vélo', en: 'Mostly on bike', es: 'Sobre todo en bici', de: 'Meist mit dem Rad', pt: 'Sobretudo de bike' },
+  dProfileMixed: { fr: 'Les deux', en: 'Both', es: 'Ambos', de: 'Beides', pt: 'Os dois' },
+  /** Aucune capture : on ne DÉDUIT pas une discipline d'un crew sans emprise. */
+  dProfileUnknown: {
+    fr: 'Discipline inconnue',
+    en: 'Discipline unknown',
+    es: 'Disciplina desconocida',
+    de: 'Disziplin unbekannt',
+    pt: 'Modalidade desconhecida',
+  },
+
+  // ── E40 · la carte publique simplifiée (spec l.1527) ─────────────────────
+  dPublicMapKicker: {
+    fr: 'EMPRISE PUBLIQUE',
+    en: 'PUBLIC GROUND',
+    es: 'TERRENO PÚBLICO',
+    de: 'ÖFFENTLICHES GEBIET',
+    pt: 'TERRENO PÚBLICO',
+  },
+  /** Emprise nulle : la carte reste VIDE, jamais un contour d'illustration. */
+  dPublicMapEmpty: {
+    fr: 'Ce crew ne tient encore aucun terrain.',
+    en: 'This crew holds no ground yet.',
+    es: 'Este crew aún no tiene terreno.',
+    de: 'Dieses Crew hält noch kein Gebiet.',
+    pt: 'Este crew ainda não tem terreno.',
+  },
+  dPublicMapFailed: {
+    fr: 'La carte du crew n’a pas pu être lue.',
+    en: 'The crew map couldn’t be read.',
+    es: 'No se pudo leer el mapa del crew.',
+    de: 'Die Crew-Karte konnte nicht gelesen werden.',
+    pt: 'Não foi possível ler o mapa do crew.',
+  },
+  /** Contours généralisés : la même garantie que pour un joueur (§12). */
+  dPublicMapPrivacy: {
+    fr: 'Contours approchés — aucun tracé, aucun départ, aucun horaire.',
+    en: 'Approximate outlines — no route, no start point, no timing.',
+    es: 'Contornos aproximados — ni recorrido, ni salida, ni horario.',
+    de: 'Ungefähre Umrisse — keine Strecke, kein Start, keine Uhrzeit.',
+    pt: 'Contornos aproximados — sem percurso, sem partida, sem horário.',
+  },
+
+  // ══ E49 — CRÉER UNE SORTIE CREW (spec l.1722) ════════════════════════════
+  // ⚠ LIRE `CREW_OUTING_WRITE_PATH_EXISTS` (game-rules.ts) AVANT DE PEINDRE.
+  // La table `crew_events` existe (0019) mais 0019 RÉVOQUE `insert` pour
+  // `authenticated`, et aucune Edge Function ni RPC ne l'écrit (grep du
+  // 27/07/2026). PUBLIER EST DONC IMPOSSIBLE AUJOURD'HUI. D'où `oUnavailable*` :
+  // l'écran dit la vérité au lieu d'offrir un bouton qui échouerait toujours
+  // (constitution §2). Les libellés de champs sont posés pour le jour où le RPC
+  // existera — ils ne rendent pas l'écran capable de publier.
+  //
+  // ⚠ NE PAS RÉUTILISER les clés `outing*` / `field*` plus haut : elles servent
+  // l'ancienne sortie de démonstration et l'une d'elles porte encore « (démo) »
+  // en toutes lettres (`outingCreated`).
+  oTitle: {
+    fr: 'Créer une sortie',
+    en: 'Create an outing',
+    es: 'Crear una salida',
+    de: 'Ausflug erstellen',
+    pt: 'Criar uma saída',
+  },
+  oLead: {
+    fr: 'Une sortie crew, c’est un rendez-vous. Elle ne donne ni points, ni zones.',
+    en: 'A crew outing is a meet-up. It gives no points and no zones.',
+    es: 'Una salida de crew es una cita. No da puntos ni zonas.',
+    de: 'Ein Crew-Ausflug ist ein Treffen. Er gibt keine Punkte und keine Zonen.',
+    pt: 'Uma saída de crew é um encontro. Ela não dá pontos nem zonas.',
+  },
+  oFieldTitle: { fr: 'Titre', en: 'Title', es: 'Título', de: 'Titel', pt: 'Título' },
+  oFieldWhen: {
+    fr: 'Date et heure',
+    en: 'Date and time',
+    es: 'Fecha y hora',
+    de: 'Datum und Uhrzeit',
+    pt: 'Data e hora',
+  },
+  oFieldPlace: {
+    fr: 'Point de rendez-vous',
+    en: 'Meeting point',
+    es: 'Punto de encuentro',
+    de: 'Treffpunkt',
+    pt: 'Ponto de encontro',
+  },
+  oFieldZone: {
+    fr: 'Zone visée',
+    en: 'Target zone',
+    es: 'Zona objetivo',
+    de: 'Zielzone',
+    pt: 'Zona-alvo',
+  },
+  oFieldObjective: { fr: 'Objectif', en: 'Objective', es: 'Objetivo', de: 'Ziel', pt: 'Objetivo' },
+  oObjectiveDefense: {
+    fr: 'Défendre',
+    en: 'Defend',
+    es: 'Defender',
+    de: 'Verteidigen',
+    pt: 'Defender',
+  },
+  oObjectiveConquete: {
+    fr: 'Conquérir',
+    en: 'Conquer',
+    es: 'Conquistar',
+    de: 'Erobern',
+    pt: 'Conquistar',
+  },
+  /**
+   * §12 + spec E49 : « L'adresse exacte n'est visible qu'aux participants
+   * acceptés et peut être remplacée par un lieu public. » On le dit SOUS le
+   * champ, à l'instant où la personne écrit une adresse.
+   */
+  oPlacePrivacyNote: {
+    fr: 'Préfère un lieu public. L’adresse exacte n’est lisible que par les participants acceptés.',
+    en: 'Prefer a public spot. The exact address is only readable by accepted participants.',
+    es: 'Prefiere un sitio público. La dirección exacta solo la ven los participantes aceptados.',
+    de: 'Nimm lieber einen öffentlichen Ort. Die genaue Adresse sehen nur bestätigte Teilnehmer.',
+    pt: 'Prefira um lugar público. O endereço exato só é visível para os participantes aceitos.',
+  },
+  /** Compteur de caractères — la borne vient de `CREW_OUTING_*_MAX`. */
+  oCharsLeft: {
+    fr: '{n} caractères restants',
+    en: '{n} characters left',
+    es: '{n} caracteres restantes',
+    de: 'Noch {n} Zeichen',
+    pt: '{n} caracteres restantes',
+  },
+  oFieldRequired: {
+    fr: 'Ce champ est obligatoire.',
+    en: 'This field is required.',
+    es: 'Este campo es obligatorio.',
+    de: 'Dieses Feld ist erforderlich.',
+    pt: 'Este campo é obrigatório.',
+  },
+  oPublishCta: {
+    fr: 'PUBLIER LA SORTIE',
+    en: 'PUBLISH THE OUTING',
+    es: 'PUBLICAR LA SALIDA',
+    de: 'AUSFLUG POSTEN',
+    pt: 'PUBLICAR A SAÍDA',
+  },
+  /**
+   * ⚠ SENS CHANGÉ LE 27/07/2026 (migration 0085). Ce bloc ne dit plus « le
+   * dépôt ne sait pas publier » — il le sait maintenant
+   * (`CREW_OUTING_WRITE_PATH_EXISTS` vaut `true`). Il dit désormais : « CE
+   * serveur-ci ne connaît pas la fonction », c'est-à-dire une base qui n'a pas
+   * reçu 0085. Ce cas est RÉEL (environnement en retard), et il est DISTINCT
+   * d'un échec réseau : le confondre ferait réessayer indéfiniment quelque
+   * chose qui ne peut pas aboutir.
+   */
+  oUnavailableTitle: {
+    fr: 'Publication indisponible',
+    en: 'Publishing unavailable',
+    es: 'Publicación no disponible',
+    de: 'Veröffentlichen nicht möglich',
+    pt: 'Publicação indisponível',
+  },
+  oUnavailableBody: {
+    fr: 'Ce serveur ne connaît pas encore l’enregistrement d’une sortie crew. Ce n’est pas un problème de réseau : réessayer ne changera rien tant qu’il n’est pas à jour.',
+    en: 'This server doesn’t know how to record a crew outing yet. It isn’t a network problem: retrying won’t help until it’s updated.',
+    es: 'Este servidor todavía no sabe guardar una salida de crew. No es un problema de red: reintentar no servirá hasta que se actualice.',
+    de: 'Dieser Server kann einen Crew-Ausflug noch nicht speichern. Es ist kein Netzproblem: Erneut versuchen hilft erst nach dem Update.',
+    pt: 'Este servidor ainda não sabe guardar uma saída de crew. Não é um problema de rede: repetir não vai adiantar até ser atualizado.',
+  },
+  /** Le repli HONNÊTE et disponible : le canal du crew existe, lui. */
+  oUnavailableFallback: {
+    fr: 'En attendant, donne le rendez-vous dans le canal du crew.',
+    en: 'In the meantime, set the meet-up in the crew channel.',
+    es: 'Mientras tanto, da la cita en el canal del crew.',
+    de: 'Nutze bis dahin den Crew-Kanal für die Verabredung.',
+    pt: 'Enquanto isso, marque o encontro no canal do crew.',
+  },
+  /** Droit de créer (CREW_PERMISSIONS.createOuting) : captain et au-dessus. */
+  oNotAllowed: {
+    fr: 'Seuls les capitaines et au-dessus créent une sortie.',
+    en: 'Only captains and above create an outing.',
+    es: 'Solo los capitanes y superiores crean una salida.',
+    de: 'Nur Kapitäne und höher erstellen einen Ausflug.',
+    pt: 'Só capitães e acima criam uma saída.',
+  },
+
+  // ── E49, suite : le chemin d'écriture EXISTE depuis la migration 0085 ──────
+  // `crew_outing_create()` (SECURITY DEFINER, rôle-gaté) écrit la sortie, et
+  // `CREW_OUTING_WRITE_PATH_EXISTS` vaut désormais `true`. Les clés ci-dessous
+  // sont celles que le formulaire ACTIF consomme.
+  //
+  // ⚠ `oUnavailable*` (plus haut) N'EST PAS MORTE POUR AUTANT — elle a changé
+  // de sens : elle ne décrit plus « le dépôt ne sait pas publier » mais « CE
+  // serveur-ci ne connaît pas la fonction » (base sans la migration 0085). Ce
+  // cas est RÉEL et distinct d'un échec réseau ; son corps a été réécrit.
+  oKicker: {
+    fr: 'RENDEZ-VOUS DE CREW',
+    en: 'CREW MEET-UP',
+    es: 'CITA DEL CREW',
+    de: 'CREW-TREFFEN',
+    pt: 'ENCONTRO DO CREW',
+  },
+  /**
+   * LA PHRASE DE VIE PRIVÉE (constitution §7, spec §12). Elle dit QUI voit QUOI,
+   * sans promettre plus que ce que le serveur tient : la policy RLS
+   * `crew_events_select_member` (0019) limite la lecture aux membres ACTIFS, et
+   * AUCUNE coordonnée n'est enregistrée (0085 n'a pas de colonne pour ça).
+   */
+  oPrivacyTitle: {
+    fr: 'Qui verra ce rendez-vous',
+    en: 'Who will see this meet-up',
+    es: 'Quién verá esta cita',
+    de: 'Wer dieses Treffen sieht',
+    pt: 'Quem verá este encontro',
+  },
+  oPrivacyBody: {
+    fr: 'Les membres actifs de ton crew, et personne d’autre. Aucune position n’est enregistrée : seul le lieu que tu écris est publié. Choisis un point public — pas une adresse, pas un digicode.',
+    en: 'Your crew’s active members, and nobody else. No location is recorded: only the spot you type is published. Pick a public landmark — not an address, not a door code.',
+    es: 'Los miembros activos de tu crew, y nadie más. No se guarda ninguna posición: solo se publica el sitio que escribes. Elige un punto público — ni una dirección, ni un código de portal.',
+    de: 'Die aktiven Mitglieder deines Crews, sonst niemand. Es wird keine Position gespeichert: veröffentlicht wird nur der Ort, den du schreibst. Wähle einen öffentlichen Treffpunkt — keine Adresse, keinen Türcode.',
+    pt: 'Os membros ativos do teu crew, e mais ninguém. Nenhuma posição é guardada: só o local que escreves é publicado. Escolhe um ponto público — não um endereço, não um código de porta.',
+  },
+  /** Sous-titre neutre du champ « lieu » : le geste attendu, en trois mots. */
+  oPlaceHint: {
+    fr: 'Un lieu public : station, parc, fontaine…',
+    en: 'A public spot: station, park, fountain…',
+    es: 'Un sitio público: estación, parque, fuente…',
+    de: 'Ein öffentlicher Ort: Station, Park, Brunnen…',
+    pt: 'Um local público: estação, parque, fonte…',
+  },
+  oPlacePh: {
+    fr: 'Métro République, sortie Magenta',
+    en: 'République metro, Magenta exit',
+    es: 'Metro République, salida Magenta',
+    de: 'Metro République, Ausgang Magenta',
+    pt: 'Metrô République, saída Magenta',
+  },
+  oTitlePh: {
+    fr: 'Le rendez-vous du mardi',
+    en: 'Tuesday meet-up',
+    es: 'La cita del martes',
+    de: 'Das Dienstagstreffen',
+    pt: 'O encontro de terça',
+  },
+  oZonePh: {
+    fr: 'République, côté canal',
+    en: 'République, canal side',
+    es: 'République, lado del canal',
+    de: 'République, Kanalseite',
+    pt: 'République, lado do canal',
+  },
+  /** Suffixe des champs qui ne bloquent jamais la publication. */
+  oOptional: {
+    fr: 'facultatif',
+    en: 'optional',
+    es: 'opcional',
+    de: 'optional',
+    pt: 'opcional',
+  },
+  oFieldActivity: {
+    fr: 'Discipline',
+    en: 'Discipline',
+    es: 'Disciplina',
+    de: 'Disziplin',
+    pt: 'Disciplina',
+  },
+  /**
+   * ⚠ CES DEUX CLÉS NOMMENT UNE DISCIPLINE, ET C'EST LEUR RÔLE : E49 la
+   * DÉCLARE (colonne `crew_events.activity`, 0085). Elles sont donc inscrites
+   * dans la liste revue de `crew.test.ts`, comme `dProfileRun`/`dProfileBike`.
+   */
+  oActivityRun: {
+    fr: 'Course à pied',
+    en: 'Running',
+    es: 'Carrera',
+    de: 'Laufen',
+    pt: 'Corrida',
+  },
+  oActivityBike: { fr: 'Vélo', en: 'Bike', es: 'Bici', de: 'Rad', pt: 'Bicicleta' },
+  oFieldCapacity: {
+    fr: 'Nombre de places',
+    en: 'Number of spots',
+    es: 'Número de plazas',
+    de: 'Anzahl Plätze',
+    pt: 'Número de vagas',
+  },
+  /**
+   * DIT CE QUE LE NOMBRE FAIT, ET CE QU'IL NE FAIT PAS. Aucun RSVP n'existe
+   * (0019 révoque l'écriture sur `crew_event_rsvps`, rien ne l'écrit) : la
+   * capacité est ANNONCÉE, jamais décomptée. Laisser croire à un quota ferait
+   * attendre un « complet » qui n'arrivera pas.
+   */
+  oCapacityHint: {
+    fr: 'Une indication pour ton crew. GRYD ne compte pas encore les réponses.',
+    en: 'An indication for your crew. GRYD doesn’t count replies yet.',
+    es: 'Una indicación para tu crew. GRYD todavía no cuenta las respuestas.',
+    de: 'Ein Hinweis für dein Crew. GRYD zählt Antworten noch nicht.',
+    pt: 'Uma indicação para o teu crew. O GRYD ainda não conta as respostas.',
+  },
+  oCapacityPlaces: {
+    fr: '{n} places',
+    en: '{n} spots',
+    es: '{n} plazas',
+    de: '{n} Plätze',
+    pt: '{n} vagas',
+  },
+  oToday: { fr: 'Aujourd’hui', en: 'Today', es: 'Hoy', de: 'Heute', pt: 'Hoje' },
+  oTomorrow: { fr: 'Demain', en: 'Tomorrow', es: 'Mañana', de: 'Morgen', pt: 'Amanhã' },
+  oA11yDay: {
+    fr: 'Jour du rendez-vous',
+    en: 'Meet-up day',
+    es: 'Día de la cita',
+    de: 'Tag des Treffens',
+    pt: 'Dia do encontro',
+  },
+  oA11yHour: {
+    fr: 'Heure du rendez-vous',
+    en: 'Meet-up hour',
+    es: 'Hora de la cita',
+    de: 'Stunde des Treffens',
+    pt: 'Hora do encontro',
+  },
+  oA11yMinute: {
+    fr: 'Minutes du rendez-vous',
+    en: 'Meet-up minutes',
+    es: 'Minutos de la cita',
+    de: 'Minuten des Treffens',
+    pt: 'Minutos do encontro',
+  },
+
+  // ── Ce qui EMPÊCHE de publier — dit sous le champ concerné (§A4) ──────────
+  oBlockTitleEmpty: {
+    fr: 'Donne un titre : c’est ce que ton crew lira en premier.',
+    en: 'Give it a title: that’s what your crew reads first.',
+    es: 'Ponle un título: es lo primero que lee tu crew.',
+    de: 'Gib einen Titel an: Das liest dein Crew zuerst.',
+    pt: 'Dá um título: é o que o teu crew lê primeiro.',
+  },
+  oBlockTooLong: {
+    fr: '{n} caractères maximum.',
+    en: '{n} characters max.',
+    es: '{n} caracteres como máximo.',
+    de: 'Höchstens {n} Zeichen.',
+    pt: '{n} caracteres no máximo.',
+  },
+  /**
+   * Aucune discipline choisie. Formulée comme un CHOIX RESTANT, pas comme une
+   * faute : le segment s'ouvre volontairement éteint (aucune présélection), donc
+   * l'écran ne peut pas reprocher un oubli qu'il a lui-même organisé.
+   */
+  oBlockActivityUnset: {
+    fr: 'Choisis la discipline de cette sortie.',
+    en: 'Pick the discipline for this outing.',
+    es: 'Elige la disciplina de esta salida.',
+    de: 'Wähle die Disziplin dieses Ausflugs.',
+    pt: 'Escolhe a disciplina desta saída.',
+  },
+  oBlockWhenPast: {
+    fr: 'Ce moment est déjà passé. Choisis une heure à venir.',
+    en: 'That moment has passed. Pick a time ahead.',
+    es: 'Ese momento ya pasó. Elige una hora futura.',
+    de: 'Dieser Zeitpunkt ist vorbei. Wähle eine spätere Uhrzeit.',
+    pt: 'Esse momento já passou. Escolhe uma hora futura.',
+  },
+  oBlockWhenTooFar: {
+    fr: 'Au plus {n} jours à l’avance.',
+    en: 'At most {n} days ahead.',
+    es: 'Como máximo {n} días de antelación.',
+    de: 'Höchstens {n} Tage im Voraus.',
+    pt: 'No máximo {n} dias de antecedência.',
+  },
+  oBlockPlaceEmpty: {
+    fr: 'Indique où vous vous retrouvez.',
+    en: 'Say where you all meet.',
+    es: 'Indica dónde os encontráis.',
+    de: 'Sag, wo ihr euch trefft.',
+    pt: 'Indica onde vocês se encontram.',
+  },
+  /** Le motif de vie privée est EXPLIQUÉ (contrairement à la modération). */
+  oBlockPlaceAddress: {
+    fr: 'On dirait une adresse. Écris plutôt un repère public : ce texte sera lu par tout le crew.',
+    en: 'That looks like an address. Write a public landmark instead: the whole crew will read it.',
+    es: 'Parece una dirección. Escribe mejor un punto público: lo leerá todo el crew.',
+    de: 'Das sieht nach einer Adresse aus. Schreib lieber einen öffentlichen Treffpunkt: Das ganze Crew liest es.',
+    pt: 'Isto parece um endereço. Escreve antes um ponto público: todo o crew vai ler.',
+  },
+  oBlockPlaceDoor: {
+    fr: 'Ne publie pas un digicode, un interphone ni un étage. Donne un repère dehors.',
+    en: 'Don’t publish a door code, an intercom or a floor. Give a landmark outside.',
+    es: 'No publiques un código de portal, un portero ni un piso. Da un punto en la calle.',
+    de: 'Veröffentliche keinen Türcode, keine Klingel und kein Stockwerk. Nenn einen Treffpunkt draußen.',
+    pt: 'Não publiques um código de porta, um intercomunicador nem um andar. Dá um ponto na rua.',
+  },
+  oBlockCapacity: {
+    fr: 'Entre {min} et {max} places, en chiffres.',
+    en: 'Between {min} and {max} spots, in digits.',
+    es: 'Entre {min} y {max} plazas, en cifras.',
+    de: 'Zwischen {min} und {max} Plätzen, in Ziffern.',
+    pt: 'Entre {min} e {max} vagas, em algarismos.',
+  },
+
+  // ── Ce que le serveur a répondu ───────────────────────────────────────────
+  oPublished: {
+    fr: 'Publié. Ton crew le voit dans la liste ci-dessous.',
+    en: 'Published. Your crew sees it in the list below.',
+    es: 'Publicado. Tu crew lo ve en la lista de abajo.',
+    de: 'Veröffentlicht. Dein Crew sieht es in der Liste unten.',
+    pt: 'Publicado. O teu crew vê na lista abaixo.',
+  },
+  /** Le rejeu n'est PAS un échec : on dit qu'aucun doublon n'a été créé. */
+  oPublishedDuplicate: {
+    fr: 'Ce rendez-vous existait déjà — rien n’a été publié en double.',
+    en: 'That meet-up already existed — nothing was published twice.',
+    es: 'Esa cita ya existía — no se publicó nada dos veces.',
+    de: 'Dieses Treffen gab es schon — nichts wurde doppelt veröffentlicht.',
+    pt: 'Esse encontro já existia — nada foi publicado em duplicado.',
+  },
+  /** « Je ne sais pas si l'écriture a eu lieu » — jamais « ça n'a pas marché ». */
+  oPublishFailed: {
+    fr: 'L’envoi n’a pas abouti. Rouvre cet écran pour voir si le rendez-vous existe avant de recommencer.',
+    en: 'The request didn’t go through. Reopen this screen to see whether the meet-up exists before retrying.',
+    es: 'El envío no se completó. Vuelve a abrir esta pantalla para ver si la cita existe antes de repetir.',
+    de: 'Das Senden hat nicht geklappt. Öffne diesen Bildschirm neu, um zu sehen, ob das Treffen existiert, bevor du es erneut versuchst.',
+    pt: 'O envio não foi concluído. Reabre este ecrã para ver se o encontro existe antes de repetir.',
+  },
+  /** Modération : motif VOLONTAIREMENT vague (doctrine 0050). */
+  oRefusedUnavailable: {
+    fr: 'Un des textes n’est pas accepté. Reformule-le.',
+    en: 'One of the texts isn’t accepted. Reword it.',
+    es: 'Uno de los textos no se acepta. Reformúlalo.',
+    de: 'Einer der Texte wird nicht akzeptiert. Formuliere ihn um.',
+    pt: 'Um dos textos não é aceite. Reformula-o.',
+  },
+  oRefusedTooMany: {
+    fr: 'Ton crew a déjà {n} rendez-vous à venir. Attends qu’un passe avant d’en ajouter.',
+    en: 'Your crew already has {n} meet-ups ahead. Wait for one to pass before adding another.',
+    es: 'Tu crew ya tiene {n} citas próximas. Espera a que pase una antes de añadir otra.',
+    de: 'Dein Crew hat schon {n} kommende Treffen. Warte, bis eines vorbei ist.',
+    pt: 'O teu crew já tem {n} encontros marcados. Espera que um passe antes de juntar outro.',
+  },
+  oRefusedGeneric: {
+    fr: 'Le serveur a refusé cette publication.',
+    en: 'The server refused this publication.',
+    es: 'El servidor rechazó esta publicación.',
+    de: 'Der Server hat diese Veröffentlichung abgelehnt.',
+    pt: 'O servidor recusou esta publicação.',
+  },
+
+  // ── Les états de lecture, jamais confondus ────────────────────────────────
+  oSignedOut: {
+    fr: 'Connecte-toi pour organiser un rendez-vous avec ton crew.',
+    en: 'Sign in to set up a meet-up with your crew.',
+    es: 'Inicia sesión para organizar una cita con tu crew.',
+    de: 'Melde dich an, um ein Treffen mit deinem Crew zu planen.',
+    pt: 'Inicia sessão para marcar um encontro com o teu crew.',
+  },
+  oFailedTitle: {
+    fr: 'Lecture impossible',
+    en: 'Couldn’t load',
+    es: 'No se pudo leer',
+    de: 'Laden fehlgeschlagen',
+    pt: 'Não foi possível ler',
+  },
+  oFailedBody: {
+    fr: 'GRYD n’a pas pu lire ton crew. Rien n’est affirmé tant que la lecture n’a pas abouti.',
+    en: 'GRYD couldn’t read your crew. Nothing is claimed until the read succeeds.',
+    es: 'GRYD no pudo leer tu crew. No se afirma nada hasta que la lectura funcione.',
+    de: 'GRYD konnte dein Crew nicht lesen. Bis dahin wird nichts behauptet.',
+    pt: 'O GRYD não conseguiu ler o teu crew. Nada é afirmado até a leitura funcionar.',
+  },
+  oRetry: { fr: 'Réessayer', en: 'Try again', es: 'Reintentar', de: 'Erneut versuchen', pt: 'Tentar de novo' },
+  oNoCrewTitle: {
+    fr: 'Tu n’es dans aucun crew',
+    en: 'You’re not in a crew',
+    es: 'No estás en ningún crew',
+    de: 'Du bist in keinem Crew',
+    pt: 'Não estás em nenhum crew',
+  },
+  oNoCrewBody: {
+    fr: 'Un rendez-vous se donne à un crew. Rejoins-en un, ou fonde le tien.',
+    en: 'A meet-up is set for a crew. Join one, or found your own.',
+    es: 'Una cita se da a un crew. Únete a uno, o funda el tuyo.',
+    de: 'Ein Treffen gilt einem Crew. Tritt einem bei oder gründe deins.',
+    pt: 'Um encontro é dado a um crew. Junta-te a um, ou funda o teu.',
+  },
+
+  // ── La liste de ce qui est DÉJÀ prévu ─────────────────────────────────────
+  oUpcomingKicker: {
+    fr: 'DÉJÀ PRÉVU',
+    en: 'ALREADY PLANNED',
+    es: 'YA PREVISTO',
+    de: 'SCHON GEPLANT',
+    pt: 'JÁ PREVISTO',
+  },
+  /** Le VIDE est un état de première classe : ni un échec, ni un « 0 » nu. */
+  oUpcomingEmpty: {
+    fr: 'Aucun rendez-vous prévu pour l’instant.',
+    en: 'No meet-up planned right now.',
+    es: 'Ninguna cita prevista por ahora.',
+    de: 'Zurzeit kein Treffen geplant.',
+    pt: 'Nenhum encontro previsto por agora.',
+  },
+  /** On DIT que la liste est en lecture seule, faute de RSVP côté serveur. */
+  oUpcomingNote: {
+    fr: 'Personne ne peut encore répondre présent : GRYD ne sait pas enregistrer les réponses.',
+    en: 'Nobody can RSVP yet: GRYD can’t record replies.',
+    es: 'Nadie puede confirmar aún: GRYD no sabe guardar las respuestas.',
+    de: 'Zusagen sind noch nicht möglich: GRYD kann Antworten nicht speichern.',
+    pt: 'Ainda ninguém pode confirmar: o GRYD não sabe guardar as respostas.',
+  },
+  oHostBy: { fr: 'Par {host}', en: 'By {host}', es: 'De {host}', de: 'Von {host}', pt: 'Por {host}' },
+
+  // ══ E50 — STATISTIQUES DU CREW (spec l.1738) ═════════════════════════════
+  // Source RÉELLE : `crew_overview()` (RPC 0044) — total d'hexes tenus, dernière
+  // capture, rang dans la ville, contribution par membre. TROIS des métriques de
+  // la spec n'ont AUCUNE source : défenses, distance collective, courbe quatre
+  // semaines. Elles ont donc chacune leur clé « pas de source », et JAMAIS un
+  // « 0 » nu — un zéro affirmerait que le crew n'a rien défendu.
+  sTitle: {
+    fr: 'Statistiques du crew',
+    en: 'Crew stats',
+    es: 'Estadísticas del crew',
+    de: 'Crew-Statistiken',
+    pt: 'Estatísticas do crew',
+  },
+  sLoading: {
+    fr: 'Lecture des statistiques…',
+    en: 'Loading the stats…',
+    es: 'Cargando las estadísticas…',
+    de: 'Statistiken werden geladen…',
+    pt: 'Carregando as estatísticas…',
+  },
+  sFailedTitle: {
+    fr: 'Lecture impossible',
+    en: 'Couldn’t load',
+    es: 'No se pudo leer',
+    de: 'Laden fehlgeschlagen',
+    pt: 'Não foi possível ler',
+  },
+  sFailedBody: {
+    fr: 'Les statistiques n’ont pas pu être lues. Rien n’est affirmé sur le crew tant que la lecture n’a pas abouti.',
+    en: 'The stats couldn’t be read. Nothing is claimed about the crew until the read succeeds.',
+    es: 'No se pudieron leer las estadísticas. No se afirma nada sobre el crew hasta que la lectura funcione.',
+    de: 'Die Statistiken konnten nicht gelesen werden. Über das Crew wird nichts behauptet, bis das Lesen klappt.',
+    pt: 'Não foi possível ler as estatísticas. Nada é afirmado sobre o crew até a leitura funcionar.',
+  },
+  /** Emprise réelle. « zones », jamais « hexagones » (constitution §6). */
+  sSurface: {
+    fr: 'Zones tenues',
+    en: 'Zones held',
+    es: 'Zonas retenidas',
+    de: 'Gehaltene Zonen',
+    pt: 'Zonas mantidas',
+  },
+  sSurfaceNone: {
+    fr: 'Aucune zone tenue',
+    en: 'No zone held',
+    es: 'Ninguna zona retenida',
+    de: 'Keine Zone gehalten',
+    pt: 'Nenhuma zona mantida',
+  },
+  sCityRank: {
+    fr: 'Rang dans la ville',
+    en: 'City rank',
+    es: 'Puesto en la ciudad',
+    de: 'Platz in der Stadt',
+    pt: 'Posição na cidade',
+  },
+  /** Pas de rang : un crew sans emprise n'est pas « dernier », il n'est pas classé. */
+  sCityRankNone: {
+    fr: 'Pas encore classé',
+    en: 'Not ranked yet',
+    es: 'Aún sin clasificar',
+    de: 'Noch nicht platziert',
+    pt: 'Ainda sem classificação',
+  },
+  sLastCapture: {
+    fr: 'Dernière capture',
+    en: 'Last capture',
+    es: 'Última captura',
+    de: 'Letzte Eroberung',
+    pt: 'Última captura',
+  },
+  sLastCaptureNever: {
+    fr: 'Aucune capture à ce jour',
+    en: 'No capture so far',
+    es: 'Ninguna captura hasta ahora',
+    de: 'Bislang keine Eroberung',
+    pt: 'Nenhuma captura até agora',
+  },
+  sDefenses: {
+    fr: 'Défenses',
+    en: 'Defences',
+    es: 'Defensas',
+    de: 'Verteidigungen',
+    pt: 'Defesas',
+  },
+  sDistance: {
+    fr: 'Distance collective',
+    en: 'Collective distance',
+    es: 'Distancia colectiva',
+    de: 'Gemeinsame Distanz',
+    pt: 'Distância coletiva',
+  },
+  sTrend: {
+    fr: 'Quatre dernières semaines',
+    en: 'Last four weeks',
+    es: 'Últimas cuatro semanas',
+    de: 'Letzte vier Wochen',
+    pt: 'Últimas quatro semanas',
+  },
+  /**
+   * ⚠ LA CLÉ CENTRALE DE CET ÉCRAN. Trois métriques de la spec n'ont aucune
+   * source serveur : on l'ÉCRIT, une fois, plutôt que d'afficher trois zéros
+   * qui affirmeraient que le crew n'a rien fait.
+   */
+  sNoSource: {
+    fr: 'Pas encore mesuré',
+    en: 'Not measured yet',
+    es: 'Aún no medido',
+    de: 'Noch nicht gemessen',
+    pt: 'Ainda não medido',
+  },
+  sNoSourceBody: {
+    fr: 'GRYD ne compte pas encore cette valeur pour un crew. Elle restera vide plutôt que fausse.',
+    en: 'GRYD doesn’t count this for a crew yet. It stays empty rather than wrong.',
+    es: 'GRYD todavía no cuenta esto para un crew. Queda vacío en vez de falso.',
+    de: 'GRYD zählt das für ein Crew noch nicht. Es bleibt leer statt falsch.',
+    pt: 'O GRYD ainda não conta isso para um crew. Fica vazio em vez de falso.',
+  },
+  sTopKicker: {
+    fr: 'TOP CONTRIBUTEURS',
+    en: 'TOP CONTRIBUTORS',
+    es: 'MEJORES CONTRIBUCIONES',
+    de: 'TOP-BEITRÄGE',
+    pt: 'MAIORES CONTRIBUIÇÕES',
+  },
+  /** Part entière, arrondie VERS LE BAS côté serveur (0044) : jamais gonflée. */
+  sContribution: {
+    fr: '{pct} % de l’emprise',
+    en: '{pct} % of the ground',
+    es: '{pct} % del terreno',
+    de: '{pct} % des Gebiets',
+    pt: '{pct} % do terreno',
+  },
+  /**
+   * ⚠ AFFIRMATION SUR DES HUMAINS. Elle ne peut être écrite qu'après une lecture
+   * ABOUTIE de `crew_overview()`. Avant le 27/07/2026, elle s'affichait aussi
+   * quand la RPC avait ÉCHOUÉ (`overview: null` repliait les deux faits) : un
+   * timeout effaçait le travail de tout le crew. Voir `sTopUnread`.
+   */
+  sTopEmpty: {
+    fr: 'Personne n’a encore capturé pour ce crew.',
+    en: 'Nobody has captured for this crew yet.',
+    es: 'Nadie ha capturado todavía para este crew.',
+    de: 'Für dieses Crew hat noch niemand erobert.',
+    pt: 'Ninguém capturou ainda para este crew.',
+  },
+  /**
+   * L'ÉCHEC de lecture des contributions, dit comme un échec. Il n'affirme rien
+   * sur le crew — c'est exactement ce qui le sépare de `sTopEmpty`. Pas de CTA
+   * « Réessayer » ici : l'écran entier se relit en revenant dessus, et un second
+   * bouton chartreuse violerait §A4.
+   */
+  sTopUnread: {
+    fr: 'Les contributions n’ont pas pu être lues. Ça ne dit rien de ce que le crew a pris.',
+    en: 'Contributions couldn’t be read. That says nothing about what the crew has taken.',
+    es: 'No se han podido leer las contribuciones. Eso no dice nada de lo que el crew ha tomado.',
+    de: 'Die Beiträge konnten nicht gelesen werden. Das sagt nichts darüber, was das Crew erobert hat.',
+    pt: 'Não foi possível ler as contribuições. Isso não diz nada sobre o que o crew conquistou.',
+  },
+  /**
+   * Spec E50, mot pour mot : « Une contribution n'est jamais présentée comme une
+   * obligation morale. » Cette ligne est la garde-fou de l'écran — elle
+   * transforme un classement interne en constat.
+   */
+  sNoPressureNote: {
+    fr: 'Ces chiffres décrivent, ils ne réclament rien.',
+    en: 'These numbers describe; they ask for nothing.',
+    es: 'Estas cifras describen; no exigen nada.',
+    de: 'Diese Zahlen beschreiben — sie fordern nichts.',
+    pt: 'Estes números descrevem; não cobram nada.',
+  },
+  /** Run et Bike restent SÉPARÉS (spec E50) — jamais une somme des deux. */
+  sActivitySeparated: {
+    fr: 'Course et vélo comptent séparément.',
+    en: 'Running and cycling count separately.',
+    es: 'Correr y bici cuentan por separado.',
+    de: 'Laufen und Rad zählen getrennt.',
+    pt: 'Corrida e bike contam separadamente.',
+  },
+  sMembersLink: {
+    fr: 'Voir les membres',
+    en: 'See members',
+    es: 'Ver los miembros',
+    de: 'Mitglieder ansehen',
+    pt: 'Ver os membros',
+  },
+  // ── Commutateur Run / Bike de E50 (planche E14) ───────────────────────────
+  // Segments à picto seul : l'a11y porte tout le sens, et elle nomme ce que la
+  // bascule change ICI — les statistiques d'un CREW, pas une carte ni les
+  // statistiques personnelles (`performance.ts` porte déjà ces dernières). Deux
+  // clés propres plutôt qu'un import croisé : le jour où l'une des deux surfaces
+  // reformule, l'autre ne bouge pas par accident.
+  sActivityRunA11y: {
+    fr: 'Statistiques du crew à pied',
+    en: 'Crew running stats',
+    es: 'Estadísticas del crew a pie',
+    de: 'Crew-Statistiken Laufen',
+    pt: 'Estatísticas do crew a pé',
+  },
+  sActivityBikeA11y: {
+    fr: 'Statistiques du crew à vélo',
+    en: 'Crew cycling stats',
+    es: 'Estadísticas del crew en bici',
+    de: 'Crew-Statistiken Rad',
+    pt: 'Estatísticas do crew de bike',
+  },
 });
 
 // ─── Lookups par clé de jeu (Entries dérivées du catalogue — parité garantie) ──
@@ -4114,4 +4921,29 @@ export const REPORT_REASON_E: Readonly<
   haine: { label: C.reasonHate, hint: C.reasonHateHint },
   harcelement: { label: C.reasonHarassment, hint: C.reasonHarassmentHint },
   autre: { label: C.reasonOther, hint: C.reasonOtherHint },
+};
+
+/**
+ * Profil de discipline d'un crew (E39, 5ᵉ critère de pertinence) → Entry.
+ *
+ * `CrewActivityProfile` est DÉRIVÉ de l'emprise réelle du crew
+ * (`features/crew/discovery.ts`) : jamais une déclaration, jamais une intention.
+ * Le `Record<CrewActivityProfile, …>` est le verrou — ajouter un profil au
+ * moteur sans ses 5 traductions ne compile plus.
+ */
+export const CREW_PROFILE_E: Readonly<Record<CrewActivityProfile, Entry>> = {
+  run: C.dProfileRun,
+  bike: C.dProfileBike,
+  mixed: C.dProfileMixed,
+  unknown: C.dProfileUnknown,
+};
+
+/**
+ * Objectif d'une sortie crew (E49) → Entry. Les CLÉS restent celles du CHECK
+ * `crew_events.objective` (0019), en français parce qu'elles sont persistées
+ * telles quelles ; seul l'affichage est traduit.
+ */
+export const CREW_OUTING_OBJECTIVE_E: Readonly<Record<CrewOutingObjective, Entry>> = {
+  defense: C.oObjectiveDefense,
+  conquete: C.oObjectiveConquete,
 };

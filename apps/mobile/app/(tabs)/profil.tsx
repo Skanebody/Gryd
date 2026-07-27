@@ -686,15 +686,22 @@ export default function ProfilScreen() {
             levelBadge={gameReady ? t(C.levelBadgeShort, { n: formatInt(runnerLevel) }) : null}
             equippedTitle={displayedTitle.length > 0 ? displayedTitle : undefined}
             contextSegments={identitySegments}
-            /* Le lien pointait sur `/crew-discovery`, qui n'est plus qu'une
-               REDIRECTION vers `/crew` (aucun annuaire de crews n'existe : ni
-               recherche, ni recrutement, ni modération serveur — O1). On route
-               donc directement, sans payer une frame de redirection. Le libellé
-               a suivi le même mouvement : il dit le chemin qui existe VRAIMENT
-               (cf. `linkFindCrew`). */
+            /* ─── 27/07/2026 : CE COMMENTAIRE MENTAIT, ET LE CODE AVEC ──────
+               Il affirmait que `/crew-discovery` « n'est plus qu'une REDIRECTION
+               vers /crew » et qu'« aucun annuaire de crews n'existe : ni
+               recherche, ni recrutement, ni modération serveur ». Les trois
+               affirmations sont FAUSSES depuis la migration 0083 :
+               `app/crew-discovery.tsx` est un écran complet (recherche, filtres,
+               états distincts) servi par six RPC SECURITY DEFINER dont la
+               recherche et le recrutement.
+               Conséquence concrète du lien : le joueur SANS crew — exactement la
+               cible d'E39 — était envoyé au HQ Crew au lieu de la Découverte.
+               Une doc (ou un écran) qui NIE ce que le code tient est la même
+               faute qu'une doc qui promet au-delà de lui : `warroom.tsx` le dit
+               lui-même en toutes lettres. */
             findCrew={
               noCrewConfirmed
-                ? { label: t(C.linkFindCrew), onPress: () => router.push('/crew') }
+                ? { label: t(C.linkFindCrew), onPress: () => router.push('/crew-discovery') }
                 : undefined
             }
             /* Visibilité : absente tant que le store privacy n'a pas répondu. */

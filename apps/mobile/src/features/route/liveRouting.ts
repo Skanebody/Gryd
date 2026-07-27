@@ -53,6 +53,53 @@ function osrmEndpoint(activity: Activity): string {
 }
 
 /**
+ * ═══ §12 — CE QUI SORT DE L'APPAREIL VERS LE ROUTEUR (27/07/2026) ═══════════
+ *
+ * LE PROBLÈME, MESURÉ. `routeOsrm` écrit les coordonnées à SIX décimales
+ * (≈ 0,11 m) dans le CHEMIN de l'URL — donc journalisable en clair par le
+ * serveur — vers `routing.openstreetmap.de`, une infrastructure TIERCE (FOSSGIS
+ * e.V.). Et le premier waypoint de la rosace EST l'origine exacte : `routeLoop`
+ * force `jitter[0] = 0`. Autrement dit, chaque planification envoyait le fix GPS
+ * du joueur, au décimètre, à un tiers. Depuis que E16/E17 montent un aperçu de
+ * boucle AU MONTAGE (`MissionLoopPreview`), ça partait même sans geste.
+ *
+ * La constitution §7 interdit qu'une position EXACTE quitte l'appareil vers un
+ * tiers. Elle n'interdit pas de router : elle interdit la précision inutile.
+ *
+ * CE QUI EST FAIT. L'origine est arrondie AVANT de construire les waypoints —
+ * une seule fois, dans `routeLoop`, donc pour TOUS les appelants (E16, E17, le
+ * planificateur, le briefing). Toute la géométrie en dérive : la finesse
+ * maximale présente dans l'URL redevient celle de l'origine arrondie, et les six
+ * décimales ne portent plus que des décalages géométriques déterministes
+ * (`jitter` est semé, pas aléatoire).
+ *
+ * POURQUOI 3 DÉCIMALES (≈ 110 m), et pas plus ni moins. Plus fin (4 déc. ≈ 11 m)
+ * désigne un immeuble — c'est-à-dire un domicile. Plus grossier (2 déc. ≈ 1,1 km)
+ * déplacerait le départ d'un kilomètre et rendrait la boucle proposée fausse :
+ * un tracé qui commence à 1 km de toi est un bouton qui ment. À 110 m, OSRM
+ * raccroche de toute façon au réseau routier le plus proche, et la boucle reste
+ * jouable — tandis que le carreau contient un pâté de maisons entier.
+ *
+ * CE QUE ÇA NE FAIT PAS. Ça n'anonymise pas la VILLE, et ça ne prétend pas le
+ * faire : le routeur sait dans quel quartier on court. C'est la raison pour
+ * laquelle ce destinataire est désormais DÉCLARÉ dans la politique de
+ * confidentialité (`i18n/catalog/legal.ts`, section « Partage & sous-traitants »),
+ * où il manquait — une liste de sous-traitants qui se présente comme limitative
+ * et omet un destinataire est un faux, au même titre qu'une donnée fabriquée.
+ *
+ * Ce n'est PAS une constante de jeu (aucun territoire, aucun point, aucun claim) :
+ * même statut que `COUNTRY_LOOKUP_DECIMALS` dans `run/safety/country.ts`.
+ */
+export const ROUTING_ORIGIN_DECIMALS = 3;
+
+/** Arrondi PUR appliqué à l'origine avant TOUT appel réseau. Exporté pour être
+ *  testé sans réseau : c'est la seule garantie §12 que ce module offre. */
+export function coarseRoutingOrigin(origin: LatLngPoint): LatLngPoint {
+  const f = 10 ** ROUTING_ORIGIN_DECIMALS;
+  return { lat: Math.round(origin.lat * f) / f, lng: Math.round(origin.lng * f) / f };
+}
+
+/**
  * Cap (deg, 0 = est) par intention — oriente la boucle autour de l'origine.
  * MESURE DE COMPOSITION GÉOMÉTRIQUE, pas une règle de jeu : deux objectifs
  * doivent proposer deux boucles distinctes plutôt que la même, et ces caps ne
@@ -153,7 +200,11 @@ function decimate(coords: readonly [number, number][], lat: number, minGapM: num
  * (lieu de départ). Renvoie null en cas d'échec réseau. 2 passes de calage.
  */
 export async function routeLoop(
-  origin: LatLngPoint,
+  /**
+   * ⚠ Ce point est ARRONDI (`coarseRoutingOrigin`) avant de toucher le réseau :
+   * aucune position exacte ne quitte l'appareil vers le routeur tiers (§12).
+   */
+  rawOrigin: LatLngPoint,
   zoneLabel: string,
   targetKm: number,
   intention: PlannerIntention,
@@ -162,6 +213,10 @@ export async function routeLoop(
   activity: Activity,
   signal?: AbortSignal,
 ): Promise<PlannedLoop | null> {
+  // §12 — L'ARRONDI EST LA PREMIÈRE LIGNE DE CETTE FONCTION, avant tout calcul
+  // géométrique : ainsi AUCUN chemin ne peut rejoindre le réseau avec le fix
+  // exact, pas même une passe de calage ajoutée plus tard.
+  const origin = coarseRoutingOrigin(rawOrigin);
   const n = nWpFor(targetKm);
   const rand = rng(seed * 131 + Math.round(targetKm * 10));
   const jitter: number[] = [];

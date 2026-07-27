@@ -44,12 +44,64 @@ const KNOWN_ORPHANS = new Map([
     "atteint par lien profond / QR uniquement ; aucune surface n'y mène tant " +
       "qu'O1 n'expose pas de rival consenti (docblock de l'écran)",
   ],
+  [
+    '/zones-rival/[handle]',
+    'E15 — MÊME raison que /profil-rival/[handle], dont c’est la carte : atteint ' +
+      'par lien profond seulement tant qu’O1 n’expose pas de rival consenti. Le ' +
+      'profil rival lui-même ne peint PAS son CTA « voir ses zones » (bouton ' +
+      'mort sinon) — les deux écrans restent donc silencieux ensemble, et le ' +
+      'docblock de l’écran porte la raison en toutes lettres.',
+  ],
   ['/aujourdhui', "sans porte stable dans l'app — trou PRÉEXISTANT, inscrit dans son docblock"],
+  // ─── RÉVÉLÉES LE 27/07/2026 PAR L'EXCLUSION DES TESTS (voir isTestFile) ────
+  // Elles n'étaient pas atteignables hier non plus : leur SEUL référent était
+  // un fichier `.test.ts`. Le script comptait donc un test comme une porte, et
+  // affichait vert deux écrans morts. Les deux docblocks disaient déjà la
+  // vérité — c'est l'audit qui ne la lisait pas.
+  [
+    '/course/[id]',
+    'aucune lecture d’une course PAR IDENTIFIANT n’existe (O1) : ni requête ni ' +
+      'RPC. L’écran le DIT et renvoie à l’historique ; aucune ligne d’historique ' +
+      'n’est tapable tant que la lecture n’est pas écrite (docblock de l’écran).',
+  ],
+  [
+    '/challenges/[id]',
+    'à DEUX portes d’un écran qui n’en a aucune (/aujourdhui, orpheline ' +
+      'ci-dessus) : la liste /challenges n’est elle-même atteinte de nulle part ' +
+      '(docblock de l’écran).',
+  ],
   ['/crew-edit', 'redirect stub vers /crew tant que la RPC d’édition n’existe pas (docblock)'],
 ]);
 
 /** Ces chaînes ressemblent à des chemins mais n'en sont pas (préfixes, fixtures). */
-const NOT_A_LINK = new Set(['/c/', '/course/', '/crew/quelquechose']);
+const NOT_A_LINK = new Set([
+  '/c/',
+  '/course/',
+  '/crew/quelquechose',
+  // Préfixes de rédaction analytique (`lib/screenName.ts`) : ils servent à
+  // NORMALISER un pathname, ils ne naviguent nulle part.
+  '/parametres/',
+  '/challenges/',
+  '/map/missions/',
+]);
+
+/**
+ * FICHIERS QUI NE SONT PAS DES PORTES (27/07/2026).
+ *
+ * `lib/screenName.ts` est la table de RÉDACTION analytique : elle contient, par
+ * construction, le patron littéral de CHAQUE route dynamique (`/c/[code]`,
+ * `/zones-rival/[handle]`…). Ces chaînes ne naviguent nulle part — elles servent
+ * à EFFACER un segment avant PostHog. Comptées comme des liens, elles donnaient
+ * une porte imaginaire à toute route dynamique : `/zones-rival/[handle]` a été
+ * déclaré « a trouvé une porte » à la seconde même où on le rédigeait, alors
+ * qu'aucun `router.push` du dépôt n'y mène. Un audit d'atteignabilité qui
+ * s'auto-satisfait de sa propre table de rédaction ne mesure plus rien.
+ */
+const NOT_A_DOOR = new Set(['apps/mobile/src/lib/screenName.ts']);
+
+/** Un TEST n'est pas une porte : personne n'y tape. Un écran dont le seul
+ *  « lien » vient d'un fichier `.test.ts` est un écran mort, et doit le dire. */
+const isTestFile = (rel) => /\.test\.tsx?$/.test(rel);
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -89,6 +141,8 @@ const LINK_RE = /['"`](\/[A-Za-z0-9_\-[\]/.]*)['"`]/g;
 const refs = new Map();
 for (const file of SCAN_DIRS.flatMap((d) => walk(d))) {
   if (!/\.(ts|tsx)$/.test(file)) continue;
+  const relFile = relative(ROOT, file).replace(/\\/g, '/');
+  if (NOT_A_DOOR.has(relFile) || isTestFile(relFile)) continue;
   const text = stripComments(readFileSync(file, 'utf8'));
   LINK_RE.lastIndex = 0;
   let m;

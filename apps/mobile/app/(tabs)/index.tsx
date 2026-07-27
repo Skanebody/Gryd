@@ -38,6 +38,9 @@ import { deriveContextualAction, goButtonA11yLabel } from '../../src/features/na
 import { GO_BUTTON_GAP, NAV_BAR_HEIGHT } from '../../src/features/nav/metrics';
 import { C } from '../../src/i18n/catalog/nav';
 import { C as M } from '../../src/i18n/catalog/mission';
+// E13 : la pill de lieu du header ouvre `/map/search` — son libellé de repli et
+// son nom accessible vivent dans le catalogue de CET écran-là.
+import { C as P } from '../../src/i18n/catalog/placeSearch';
 import { useRealMission } from '../../src/features/mission/useRealMission';
 import { useActivityBell } from '../../src/features/notifications/useActivityBell';
 import { useLocale, useT } from '../../src/i18n/store';
@@ -225,21 +228,42 @@ function HomeHeader() {
         {/* Avatar CERCLE à liseré chartreuse + initiales réelles (planche E02). */}
         <Text style={styles.headerAvatarInitials}>{initials}</Text>
       </Pressable>
-      {city ? (
-        <View style={styles.headerPill} pointerEvents="none">
-          {/* Pastille « lieu » chartreuse (façon pin de la planche). */}
-          <View style={styles.headerPillPin} />
-          {/* Nom de ville jamais tronqué par « … » (§A) : il rétrécit au besoin. */}
-          <Text
-            style={styles.headerPillText}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={MISSION_TEXT_MIN_SCALE}
-          >
-            {city}
-          </Text>
-        </View>
-      ) : null}
+      {/* ─── E13 : LA PILL DE LIEU EST L'ENTRÉE DE LA RECHERCHE ──────────────
+          Elle était un LIBELLÉ PASSIF (`pointerEvents="none"`). Elle devient le
+          poussoir qui ouvre `/map/search` — et c'est le seul endroit possible
+          sans casser deux règles déjà tenues : la carte plafonne à 2 FABs
+          (AMENDEMENT-37 §8, Recentrer + Calques) et son unique CTA chartreuse
+          est GO (§A4). Une pill qui nomme le lieu affiché et ouvre « où va la
+          carte » est le même objet, pas un contrôle de plus.
+
+          ELLE NE DISPARAÎT PLUS quand aucune ville n'est connue. Avant, le
+          joueur sans ville — celui qui a le plus besoin de chercher — n'avait
+          aucune entrée. Le libellé de repli est une ACTION (« Chercher un
+          lieu »), jamais un lieu inventé : rien n'est affirmé sur où il se
+          trouve. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(P.entryA11y)}
+        onPress={() => {
+          haptics.light();
+          router.push('/map/search');
+        }}
+        hitSlop={8}
+        style={({ pressed }) => [styles.headerPill, pressed && styles.pressed]}
+        testID="home-header-place"
+      >
+        {/* Pastille « lieu » chartreuse (façon pin de la planche). */}
+        <View style={styles.headerPillPin} />
+        {/* Nom de ville jamais tronqué par « … » (§A) : il rétrécit au besoin. */}
+        <Text
+          style={styles.headerPillText}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={MISSION_TEXT_MIN_SCALE}
+        >
+          {city ?? t(P.entryLabel)}
+        </Text>
+      </Pressable>
       {/* La cloche vit à l'OPPOSÉ de l'avatar : un poussoir vide s'intercale
           plutôt qu'une largeur codée en dur (le nom de ville varie). */}
       <View style={styles.headerSpacer} pointerEvents="none" />
@@ -536,11 +560,25 @@ function MissionLine() {
       return next;
     });
   };
-  const openRealPlanner = () => {
+  /**
+   * ─── E16 A ENFIN UNE PORTE (27/07/2026) ───────────────────────────────────
+   * Cette action ouvrait `/route-planner`. E16 (`/map/missions/:missionId`) et
+   * E17 (`/map/prepare`) — livrés, typés, testés — n'étaient atteignables QUE
+   * par `(tabs)/warroom.tsx`, dont la première ligne est
+   * `if (!flags.warRoom) return <Redirect href="/" />` : `warRoom` vaut
+   * `FULL_SURFACE`, donc FAUX dans le build livré. Deux écrans entiers que
+   * personne ne pouvait ouvrir. `audit-routes.mjs` ne le voit pas — il lit les
+   * liens, jamais les drapeaux.
+   *
+   * `current` est le SENTINEL assumé d'E16 (« montre la mission recommandée
+   * MAINTENANT ») : `parseMissionKey` le refuse comme identifiant, donc l'écran
+   * ne prétend pas suivre une mission ouverte plus tôt. E16 re-dérive la mission
+   * et mène ensuite à E17, qui mène au départ. Le planificateur reste atteint
+   * par ses cinq autres portes (`(tabs)/classement.tsx`).
+   */
+  const openRealMission = () => {
     haptics.light();
-    // Le planner lit `type` (defense → défendre, sinon conquérir) et prend son
-    // origine du GPS LIVE — il ne consomme pas l'anchor de la mission (cf. risks).
-    router.push(defend ? '/route-planner?type=defense' : '/route-planner');
+    router.push('/map/missions/current');
   };
 
   return (
@@ -581,7 +619,7 @@ function MissionLine() {
 
       {detailOpen ? (
         <View style={styles.missionDetail}>
-          {/* Détail au tap (jamais imposé) : rappel court + entrée Route Planner. */}
+          {/* Détail au tap (jamais imposé) : rappel court + entrée vers E16. */}
           <Text
             style={styles.detailTitle}
             numberOfLines={1}
@@ -591,17 +629,17 @@ function MissionLine() {
             {nearText}
           </Text>
           <View style={styles.detailDivider} />
-          {/* Entrée VISIBLE vers le Route Planner — action inline, jamais un
-              2ᵉ CTA chartreuse plein (§A.4 : le seul CTA reste GO). */}
+          {/* Entrée VISIBLE vers E16 — action inline, jamais un 2ᵉ CTA
+              chartreuse plein (§A.4 : le seul CTA reste GO). */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t(M.missionPlanA11y)}
-            onPress={openRealPlanner}
+            accessibilityLabel={t(M.missionOpenA11y)}
+            onPress={openRealMission}
             style={({ pressed }) => [styles.detailAction, pressed && styles.pressed]}
-            testID="battle-map-plan-route-real"
+            testID="battle-map-open-mission-real"
           >
             <Text style={styles.detailActionLabel} numberOfLines={1}>
-              {t(M.missionPlan)}
+              {t(M.missionOpen)}
             </Text>
             <Icon name="chevron" size={iconSizes.sm} color={colors.blanc} />
           </Pressable>

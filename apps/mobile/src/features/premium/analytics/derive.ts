@@ -437,7 +437,14 @@ export function metersPerDegreeLng(lat: number, mPerDegLat: number): number {
  * ci-dessus — le cadrage lui-même reste `share/mapFrame.frameFor`, déjà écrit,
  * déjà testé : on ne réécrit pas une projection qui existe.
  */
-export function centerLatitudeOf(rings: readonly PolygonRing[]): number | null {
+export function centerLatitudeOf(
+  // Signature ÉLARGIE (27/07/2026, E15) au ring profondément readonly : un
+  // `PolygonRing` (`[number, number][]`) y reste assignable, donc aucun appelant
+  // existant ne change, et les anneaux publics d'un rival (`RivalRing`, eux
+  // readonly de bout en bout) peuvent réutiliser cette fonction au lieu d'en
+  // recopier une septième variante.
+  rings: readonly (readonly (readonly [number, number])[])[],
+): number | null {
   let min = Infinity;
   let max = -Infinity;
   for (const ring of rings) {

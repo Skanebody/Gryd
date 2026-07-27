@@ -141,6 +141,54 @@ const NOMMENT_UN_MONDE_LEGITIMEMENT: readonly string[] = [
   'cmDefendGapSoonN', // idem
   // ── Invariant de rang (échelle du crew, valeur `runner` de CrewRole) ──────
   'roleRunner',
+  // ── E39 : la discipline est ici un FAIT MESURÉ, pas une supposition ───────
+  // Ajouté le 27/07/2026 avec les libellés de `CrewActivityProfile`.
+  //
+  // CE N'EST PAS UNE ENTORSE À LA RÈGLE DU HAUT DE FICHIER, C'EST SON ENVERS.
+  // La neutralisation protège les écrans dont la SOURCE n'est pas disciplinée
+  // (`crew_overview` 0044/0046 somme toutes disciplines) : y nommer la course
+  // ferait croire à un territoire de coureurs là où le moteur n'en calcule
+  // qu'un. La découverte, elle, EST disciplinée : la RPC `crew_discovery`
+  // (migration 0083:192-193, `hexes_run` / `hexes_bike`) rend les deux emprises
+  // SÉPARÉES, et `crewActivityProfile()` (features/crew/discovery.ts:196) en
+  // DÉRIVE run / bike / mixed / unknown — un profil qui décide déjà de l'ordre
+  // de la liste (5ᵉ critère de pertinence de §E39).
+  //
+  // Dire « Surtout à vélo » d'un crew dont 90 % de l'emprise est cycliste n'est
+  // pas parler à un coureur : c'est décrire ce crew-là. L'inverse — taire le
+  // profil — laisserait un tri que personne ne comprend, et rendrait les crews
+  // cyclistes indiscernables dans une liste qui les classe pourtant.
+  //
+  // ⚠ `dProfileMixed` (« Les deux ») et `dProfileUnknown` ne sont PAS dans
+  // cette liste : ils ne nomment aucun monde, et c'est voulu — un crew sans
+  // capture n'a pas de discipline, on ne lui en invente pas.
+  'dProfileBike',
+  'dProfileRun',
+  // ── E49 : la discipline est DÉCLARÉE par l'auteur de la sortie ────────────
+  // Ajouté le 27/07/2026 avec le formulaire actif (migration 0085).
+  //
+  // MÊME ENVERS DE LA RÈGLE QUE `dProfile*`, et pour une raison encore plus
+  // directe : ici on ne DÉCRIT pas une discipline mesurée, on la CHOISIT. La
+  // colonne `crew_events.activity` existe (0085) et le segment écrit dedans ;
+  // un libellé neutre rendrait le choix illisible (« l'autre », « celle-là »).
+  // Nommer les deux mondes CÔTE À CÔTE n'exclut personne — c'est l'inverse :
+  // c'est ce qui permet à un crew de cyclistes de dire ce qu'il fait.
+  'oActivityBike',
+  'oActivityRun',
+  // ── E50 : le commutateur de discipline de « Statistiques du crew » ────────
+  // Ajouté le 27/07/2026 avec l'écran (`app/crew-stats.tsx`) et sa source
+  // (migration 0086 : `crew_stats(p_activity, p_weeks)`).
+  //
+  // Ces deux clés sont les LIBELLÉS A11Y des segments d'`ActivitySwitch`, qui y
+  // sont des pictos seuls : sans elles, un lecteur d'écran annonce deux boutons
+  // muets. Elles nomment un monde parce que la bascule CHANGE de monde — la RPC
+  // est bornée à une discipline, et spec E50 l'exige noir sur blanc (« Run et
+  // Bike restent séparés »). Un libellé neutre (« l'autre discipline ») rendrait
+  // le contrôle inutilisable précisément pour ceux qui en dépendent le plus.
+  // Même envers de règle que `oActivity*` : on ne DÉCRIT pas une discipline
+  // mesurée, on choisit la lentille qui la lit.
+  'sActivityBikeA11y',
+  'sActivityRunA11y',
   // ── Clés SANS CONSOMMATEUR — copie morte du Crew de démonstration ─────────
   // Toute la mécanique « sortie de crew » (créer/publier/inviter/RSVP), la
   // « glue » d'encouragement et les stats de vitrine ne sont branchées nulle

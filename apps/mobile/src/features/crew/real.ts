@@ -62,9 +62,21 @@ export interface RealCrewMember {
  * réelle n'existe en base — cf. choix n°1 de 0044). Ne jamais en fabriquer une
  * côté client à partir de `hexesHeld` : ce serait un chiffre inventé à l'écran.
  *
- * ⚠ NE JAMAIS lire `crew_leaderboard` pour ça : vue matérialisée rafraîchie par
- * aucun job du repo, donc figée à zéro (constat 0044). Elle afficherait
- * « 0 zone » à vie.
+ * ⚠ CETTE RPC RESTE LA SOURCE DU HQ CREW — et la consigne a changé de RAISON le
+ * 27/07/2026, il faut donc la relire au lieu de la recopier.
+ *
+ * AVANT (constat 0044) : « ne jamais lire `crew_leaderboard` », parce que cette
+ * vue matérialisée n'était rafraîchie par AUCUN job du dépôt — figée à zéro,
+ * elle aurait affiché « 0 zone » à vie. Ce motif est MORT : la migration 0086 la
+ * rafraîchit pour de vrai (`refresh_crew_leaderboard()`, appelée par
+ * `recompute_sectors`) et horodate chaque passage.
+ *
+ * MAINTENANT : on continue de lire `crew_overview()` ici, pour une raison
+ * différente et plus solide — la matview est un INSTANTANÉ (jusqu'à 15 min de
+ * retard) tandis que le HQ crew montre MON crew, tout de suite après MA course.
+ * Un joueur qui vient de capturer doit voir sa zone, pas l'état d'avant. La
+ * matview sert le CLASSEMENT (`crew_board()`, E54), où un instantané daté est le
+ * bon objet ; elle n'est d'ailleurs plus lisible par les clients (0086).
  */
 export interface CrewTerritory {
   /** Hexes tenus par les membres ACTIFS, non expirés. 0 = le crew ne tient rien. */
@@ -334,6 +346,20 @@ export interface UseRealCrewResult {
   /** true pendant la 1re lecture du territoire (le roster, lui, est déjà là). */
   overviewLoading: boolean;
   /**
+   * ─── AJOUTÉ LE 27/07/2026 : `overview === null` NE SUFFISAIT PAS ───────────
+   * Ce hook repliait DEUX faits opposés sur `overview: null` — « la RPC a
+   * répondu, il n'y a rien » et « la RPC a échoué ». Les blocs CHIFFRÉS d'E50
+   * s'en sortaient (`zones === null` ⇒ « source indisponible »), mais le bloc
+   * TOP CONTRIBUTEURS, lui, lisait `(overview?.contributions ?? []).length === 0`
+   * et écrivait « Personne n'a encore capturé pour ce crew » — une affirmation
+   * sur les HUMAINS du crew, produite par un timeout. Un échec de lecture
+   * effaçait le travail de tout le monde.
+   *
+   * `false` ne veut PAS dire « lu » : il veut dire « aucune lecture n'a
+   * échoué ». C'est `overviewLoading` qui porte l'attente.
+   */
+  overviewFailed: boolean;
+  /**
    * LA mission prioritaire du crew (A-43 §0 maillon 3), dérivée par le moteur
    * PUR `chooseCrewMission` à partir des faits de `crew_mission_inputs` (0049).
    *
@@ -409,6 +435,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
   const [members, setMembers] = useState<RealCrewMember[]>([]);
   const [overview, setOverview] = useState<CrewOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewFailed, setOverviewFailed] = useState(false);
   const [mission, setMission] = useState<CrewMission | null>(null);
   const [missionSectors, setMissionSectors] = useState<CrewSectorState[]>([]);
   const [loading, setLoading] = useState(false);
@@ -427,6 +454,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setMission(null);
       setMissionSectors([]);
       setOverviewLoading(false);
+      setOverviewFailed(false);
       setLoading(false);
       setLoadFailed(false);
       return;
@@ -436,6 +464,9 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
     let cancelled = false;
     setLoading(true);
     setOverviewLoading(true);
+    // Une nouvelle tentative efface le verdict d'échec de la précédente : sans
+    // ça, un « Réessayer » réussi laisserait l'écran dire « je n'ai pas pu lire ».
+    setOverviewFailed(false);
     // `loadFailed` n'est VOLONTAIREMENT pas remis à false ici. Toutes les
     // sorties ci-dessous le fixent explicitement, donc l'état reste exact ; le
     // garder pendant le vol évite qu'un « Réessayer » fasse clignoter l'écran
@@ -455,6 +486,8 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
       setMission(null);
       setMissionSectors([]);
       setOverviewLoading(false);
+      // Un échec GLOBAL (roster illisible) emporte l'agrégat : on n'a rien lu.
+      setOverviewFailed(failed);
       setLoading(false);
       setLoadFailed(failed);
     };
@@ -542,10 +575,16 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
         try {
           const { data, error } = await client.rpc('crew_overview');
           if (cancelled) return;
-          setOverview(error ? null : parseCrewOverview(data));
+          // `parseCrewOverview` rend `null` sur un contrat inattendu : c'est un
+          // échec de lecture au même titre qu'une erreur réseau — on n'a rien
+          // établi, donc on n'affirmera rien (surtout pas « personne n'a couru »).
+          const parsed = error ? null : parseCrewOverview(data);
+          setOverview(parsed);
+          setOverviewFailed(parsed === null);
         } catch {
           if (cancelled) return;
           setOverview(null);
+          setOverviewFailed(true);
         }
 
         // ── LA mission prioritaire (0049 + moteur pur) ───────────────────────
@@ -681,6 +720,7 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
     members,
     overview,
     overviewLoading,
+    overviewFailed,
     mission,
     missionSectors,
     memberCount: members.length,

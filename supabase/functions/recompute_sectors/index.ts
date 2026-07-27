@@ -34,6 +34,16 @@
  * plus le recompute : il est signalé dans la réponse (`sectorControlRefreshed`)
  * plutôt que de faire échouer un snapshot qui, lui, n'en dépend pas.
  *
+ * ─── CE JOB RAFRAÎCHIT AUSSI `crew_leaderboard` (27/07/2026, E54) ───────────
+ * Depuis 0086, l'étape 1b appelle `refresh_crew_leaderboard()`. Cette matview
+ * existait depuis 0002 et n'avait JAMAIS été rafraîchie — l'appel n'a longtemps
+ * existé que dans un COMMENTAIRE (0002:296), constat posé par 0044 qui
+ * interdisait de la lire tant qu'aucun job ne la recalculait. Ce job EST ce job :
+ * il est déjà planifié toutes les 15 min (cron 0038) et agrège les mêmes faits.
+ * Aucun ordonnanceur n'a été ajouté pour ça. L'échec est rapporté
+ * (`crewLeaderboardRefreshed`) et jamais fatal — la RPC est idempotente, la
+ * passe suivante rattrape, et l'écran lit la DATE du dernier rafraîchissement.
+ *
  * Signaux d'activité : CÂBLÉS (état vérifié le 23/07/2026). L'étape 3 ci-dessous
  * lit la vue `sector_activity` (migration 0040) et en tire, par secteur,
  * zones_lost_recent / rival_reclaimed_24h / last_attack_at / decay_fraction, qui
@@ -115,6 +125,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.error('recompute_sectors refresh_sector_control:', refErr.message);
     }
 
+    // 1b. Tenir à jour le CLASSEMENT DES CREWS (E54). Même geste, même raison,
+    //     même cadence — et surtout, PAS un second ordonnanceur : cette fonction
+    //     est déjà planifiée toutes les 15 min par 0038, et `crew_leaderboard`
+    //     agrège exactement les mêmes faits (`hex_claims`, `territories`,
+    //     `crew_members`) que ceux qui viennent d'être recalculés ici.
+    //
+    //     ⚠ POURQUOI CETTE LIGNE COMPTE. `crew_leaderboard` existe depuis 0002
+    //     et n'avait JAMAIS été rafraîchie : l'appel n'existait que dans un
+    //     COMMENTAIRE (0002:296), constat établi par 0044. Elle était donc figée
+    //     sur une base vide, et 0044 interdisait de la lire pour cette raison.
+    //     C'est CET appel qui la remet en service ; sans lui, `crew_board()`
+    //     répond `never_refreshed` et l'écran dit honnêtement « pas encore
+    //     ouvert ».
+    //
+    //     Échec RAPPORTÉ, jamais fatal — comme au-dessus : un classement pas
+    //     rafraîchi ne doit pas empêcher les snapshots de secteur d'être écrits.
+    //     L'écran, lui, ne montrera rien de faux : il lit la DATE du dernier
+    //     rafraîchissement (`matview_refresh_state`) et sait donc de quand il
+    //     parle. La RPC est idempotente : la relance suivante rattrape.
+    let crewLeaderboardRefreshed = true;
+    const { error: crewErr } = await supabase.rpc('refresh_crew_leaderboard');
+    if (crewErr) {
+      crewLeaderboardRefreshed = false;
+      console.error('recompute_sectors refresh_crew_leaderboard:', crewErr.message);
+    }
+
     // 2. Lire le contrôle par DÉTENTEUR (crews + joueurs sans crew) + grouper.
     //    Aucun filtrage ici : le plancher de domination est au moteur.
     const holdings = await readAllPaged<HoldingRow>(
@@ -178,6 +214,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ownerless: neutral,
       neutralized: stale.length,
       sectorControlRefreshed,
+      crewLeaderboardRefreshed,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
