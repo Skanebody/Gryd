@@ -12,10 +12,15 @@
  * qu'un FAIT lui est rapporté.
  *
  * D'où la forme : une machine qui ne bouge QUE sur `SyncFact`, et un écran qui
- * ne fabrique jamais de fait. Les faits viennent de `observeSync.ts`, qui les
- * lit sur des modules réels (la file d'envoi différé, le verdict serveur
- * capturé, la trace mesurée, la présence d'un backend). Si rien ne se passe,
- * l'écran ne bouge pas — et c'est exactement ce qu'il doit faire.
+ * ne fabrique jamais de fait. Les faits viennent de deux endroits, et de nulle
+ * part ailleurs :
+ *   · `observeSync.ts`, qui LIT le monde (la file d'envoi différé, le verdict
+ *     serveur capturé, la trace mesurée, la présence d'un backend) ;
+ *   · `syncFactBus.ts`, où les deux chemins d'envoi RÉELS publient ce qu'ils
+ *     font à l'instant où ils le font — `useRealRunCore.uploadOrQueue` juste
+ *     avant son invoke `ingest_run`, `pendingUpload` juste avant chaque envoi du
+ *     drain et sur un échec d'écriture avéré.
+ * Si rien ne se passe, l'écran ne bouge pas — et c'est ce qu'il doit faire.
  *
  * ═══ CE QU'IL N'Y A PAS ICI, ET C'EST VOLONTAIRE ════════════════════════════
  *  · AUCUNE BARRE DE PROGRESSION, aucun `progress: number`. Un pourcentage
@@ -41,12 +46,16 @@
  * ⚠ LIMITE ASSUMÉE, ÉCRITE PLUTÔT QUE MASQUÉE : avec un unique aller-retour
  * HTTP, le client n'a aucun accusé de réception intermédiaire. `upload` et
  * `analyse` basculent donc à `done` au MÊME instant (la réponse prouve à la
- * fois la réception et le jugement), et l'étape 3 n'est jamais vue « active »
- * sur le chemin direct. Le fait `server_ack` existe pour le jour où le rail
- * d'ingestion émettra une vraie réception (job asynchrone, websocket) ; AUCUN
- * observateur ne l'émet aujourd'hui, et personne n'a le droit de l'émettre
- * « pour faire joli ». C'est la seule façon honnête de tenir la promesse
- * « trois étapes visibles » sans fabriquer la troisième.
+ * fois la réception et le jugement), et l'étape 3 n'est jamais vue « active ».
+ * Le fait `server_ack` existe pour le jour où le rail d'ingestion émettra une
+ * vraie réception (job asynchrone, websocket) ; il reste SANS ÉMETTEUR au
+ * 27/07/2026, DÉLIBÉRÉMENT — le branchement de ce jour-là a câblé les trois
+ * autres faits orphelins (`upload_started`, `retry_started`, `local_save_failed`)
+ * aux endroits où ils ont lieu, et s'est arrêté à celui-ci parce qu'AUCUN
+ * endroit du dépôt ne l'observe : une réponse `invoke` qui se résout porte à la
+ * fois la réception ET le verdict. L'émettre à cet instant n'ajouterait aucune
+ * information et ne servirait qu'à peindre une troisième étape. Personne n'a le
+ * droit de l'émettre « pour faire joli ».
  *
  * ═══ L'ÉCHEC EST UN ÉTAT, PAS UNE ABSENCE ═══════════════════════════════════
  * Réseau coupé, serveur en erreur et course refusée sont TROIS phases
@@ -158,6 +167,29 @@ export type SyncFact =
   /** Le joueur a demandé une reprise, et une tentative RÉELLE vient de partir. */
   | { readonly kind: 'retry_started' };
 
+/**
+ * UN FAIT ET LA SORTIE QU'IL CONCERNE.
+ *
+ * ═══ 27/07/2026 — POURQUOI UN FAIT NU NE SUFFIT PAS ═════════════════════════
+ * Un `SyncFact` seul ne dit RIEN de la course dont il parle. Or l'appareil
+ * envoie des sorties qui ne sont PAS celle qu'on regarde : le drain de la file
+ * d'envoi différé (`pendingUpload`) rejoue des sorties d'hier à chaque retour au
+ * premier plan, et la clôture d'une course interrompue (`discardStored`) part
+ * PENDANT une autre course. Sans identité, ces faits atterrissaient dans le
+ * journal de la sortie EN COURS, et `server_accepted` y peignait « analyse
+ * terminée » sur une course encore en file — exactement la progression sans
+ * travail derrière que la constitution interdit.
+ *
+ * L'identité est le `clientRunId` (UUID local, clé d'idempotence côté serveur —
+ * D14) : le SEUL identifiant qu'un envoi et une course partagent, et qu'un
+ * payload en file porte encore des jours plus tard.
+ */
+export interface RunSyncFact {
+  /** `clientRunId` de la sortie que ce fait concerne. */
+  readonly runId: string;
+  readonly fact: SyncFact;
+}
+
 /** `queueDepth` inconnu — jamais 0, qui affirmerait « file vide ». */
 export const QUEUE_DEPTH_UNKNOWN = -1;
 
@@ -170,7 +202,20 @@ export interface AnalysisState {
   readonly httpStatus: number;
   /** Sorties en attente d'envoi, tel que la file l'a rendu, ou `QUEUE_DEPTH_UNKNOWN`. */
   readonly queueDepth: number;
-  /** Tentatives d'envoi RÉELLEMENT parties depuis l'ouverture de l'écran. */
+  /**
+   * Tentatives d'envoi RÉELLEMENT parties pour cette sortie : une par invoke
+   * `ingest_run` qui a quitté l'appareil, comptée par `upload_started` /
+   * `retry_started`. Inclut celles survenues AVANT l'ouverture de l'écran (le
+   * journal de `syncFactBus` est rejoué au montage) — c'est bien le nombre de
+   * départs constatés, jamais un compteur d'affichage.
+   *
+   * « POUR CETTE SORTIE » EST TENU PAR LE TRANSPORT, PAS PAR CE COMPTEUR : le
+   * journal de `syncFactBus` appartient à UN `clientRunId` (`beginSyncFactRun`),
+   * et un fait publié pour une autre sortie n'y entre jamais (syncFactBus.ts).
+   * Avant ce garde-fou (27/07/2026), le drain de la file et la clôture d'une
+   * course écartée y versaient leurs propres départs : la phrase ci-dessus était
+   * fausse, et c'est la faute que ce docblock ne doit plus jamais commettre.
+   */
   readonly attempts: number;
 }
 
@@ -359,34 +404,18 @@ export function visibleSteps(phase: AnalysisPhase): readonly AnalysisStepId[] | 
 }
 
 /**
- * Traduit le verdict d'envoi utilisé partout ailleurs dans le dépôt
- * (`useRealRunCore.uploadOrQueue` : 'sent' | 'rejected' | 'queued' | 'lost' |
- * 'none') en fait de synchronisation. Une seule table de correspondance, pour
- * que le jour où E26 passera son verdict à E27, personne n'ait à le
- * ré-interpréter à la main.
+ * ═══ SUPPRIMÉ LE 27/07/2026 — `factFromFinishVerdict` ═══════════════════════
+ * Il traduisait le verdict agrégé de `useRealRunCore.uploadOrQueue`
+ * ('sent' | 'rejected' | 'queued' | 'lost' | 'none') en `SyncFact`, en prévision
+ * du jour où E26 passerait ce verdict à E27. Ce jour n'est jamais venu, et il ne
+ * viendra pas : le branchement réel publie les faits AU MOMENT où ils ont lieu
+ * (`syncFactBus`), depuis l'intérieur même de `uploadOrQueue` et du drain — donc
+ * avec le statut HTTP EXACT et la cause EXACTE du non-stockage, là où cette
+ * fonction devait les représenter par des valeurs neutres (un 400 pour toute la
+ * classe 4xx, un 'storage' pour tout refus de file).
  *
- * ⚠ `queueDepth` n'est pas connu de ce verdict : il arrive en paramètre, et
- * vaut `QUEUE_DEPTH_UNKNOWN` tant que la file n'a pas été relue.
+ * Il n'avait aucun appelant, et ses tests verdissaient un chemin qu'aucune
+ * exécution n'empruntait : un faux vert. Supprimé AVEC ses tests plutôt que
+ * gardé « au cas où » — le dépôt préfère un trou visible à une couverture qui
+ * ment.
  */
-export type FinishUploadVerdict = 'sent' | 'rejected' | 'queued' | 'lost' | 'none';
-
-export function factFromFinishVerdict(
-  verdict: FinishUploadVerdict,
-  queueDepth: number = QUEUE_DEPTH_UNKNOWN,
-): SyncFact {
-  switch (verdict) {
-    case 'sent':
-      return { kind: 'server_accepted' };
-    case 'rejected':
-      // Le statut exact n'est pas propagé par `finish()` — on ne l'invente pas.
-      // 400 est le représentant NEUTRE de la classe « 4xx hors 429 », la seule
-      // information réellement portée par le verdict 'rejected'.
-      return { kind: 'server_replied_error', httpStatus: 400 };
-    case 'queued':
-      return { kind: 'offline_queued', queueDepth };
-    case 'lost':
-      return { kind: 'not_stored', reason: 'storage' };
-    case 'none':
-      return { kind: 'no_backend' };
-  }
-}

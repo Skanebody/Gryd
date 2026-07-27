@@ -18,7 +18,8 @@ import { supabase } from '../../../lib/supabase';
 import { getFinishedTrace } from '../finishedTrace';
 import { getLastRunResult } from '../runResult';
 import { QUEUE_DEPTH_UNKNOWN, type SyncFact } from './analysisMachine';
-import { type SyncSnapshot, factsFromDrain, factsFromSnapshot } from './syncFacts';
+import { syncFactRunId } from './syncFactBus';
+import { type SyncSnapshot, factsForRun, factsFromDrain, factsFromSnapshot } from './syncFacts';
 
 /**
  * CE QUE E26 A PASSÉ EN RELAIS. `courseResultParams` (gps/resultHandoff.ts) le
@@ -61,10 +62,17 @@ export async function observeSync(hints: FinishHandoffHints): Promise<readonly S
 }
 
 /**
- * REPRISE RÉELLE : draine la file, puis rend les faits que le rapport PROUVE.
- * Si le rejeu n'a pas eu lieu (`null`), on relit le monde plutôt que d'inventer.
+ * REPRISE RÉELLE : draine la file, puis rend les faits que le rapport PROUVE
+ * POUR LA SORTIE REGARDÉE — jamais pour une autre.
+ *
+ * Un drain vide la file ENTIÈRE : il touche des sorties d'hier autant que celle
+ * du joueur. Adopter son verdict agrégé revenait à afficher « analyse terminée »
+ * parce qu'une AUTRE course était partie. On ne retient donc que les faits qui
+ * citent la sortie propriétaire du journal (`syncFactRunId()`, posée au départ
+ * de la course). Aucune sortie identifiée, ou aucun fait la concernant : on
+ * relit le monde plutôt que d'inventer.
  */
 export async function runRealRetry(hints: FinishHandoffHints): Promise<readonly SyncFact[]> {
-  const facts = factsFromDrain(await retryPendingUpload());
+  const facts = factsForRun(factsFromDrain(await retryPendingUpload()), syncFactRunId());
   return facts.length > 0 ? facts : await observeSync(hints);
 }

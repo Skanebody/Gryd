@@ -20,12 +20,37 @@
  * (ordre, plafond, migration, rejeu, verdicts) vit dans `pendingUploadQueue.ts`
  * — module PUR, testé sous Deno (`pendingUpload.test.ts`), là où AsyncStorage
  * n'existe pas.
+ *
+ * ═══ 27/07/2026 — CE MODULE PUBLIE SES FAITS À E27 (syncFactBus) ════════════
+ * C'est l'un des DEUX points d'envoi réels d'une course (l'autre est le chemin
+ * direct, `useRealRunCore.uploadOrQueue`). Les faits que E27 attendait — et que
+ * personne n'émettait — naissent donc ici, à l'endroit exact où ils ont lieu :
+ *  · `retry_started` juste AVANT chaque invoke du drain (une entrée = une
+ *    tentative réellement partie) ;
+ *  · `local_save_failed` quand l'écriture de la file a RÉELLEMENT échoué ;
+ *  · `not_stored` quand le plafond a REFUSÉ l'entrée (cause connue, pas devinée) ;
+ *  · l'issue du drain, traduite par la table pure `factsFromDrain`.
+ * La publication est synchrone, sans I/O et ne jette jamais (`syncFactBus.ts`) :
+ * un observateur ne peut pas faire échouer un envoi. Aucun de ces faits n'est
+ * persisté — un fait de synchro périmé relu au démarrage ferait mentir un écran
+ * neuf.
+ *
+ * ⚠ CHAQUE FAIT PORTE LE `clientRunId` DE SA SORTIE (27/07/2026). Ce module
+ * envoie des courses D'HIER, tout seul, à chaque retour au premier plan de
+ * l'app : ses faits ne parlent JAMAIS de la sortie que l'écran regarde, sauf
+ * quand c'est justement son entrée qui part. Sans cette identité, un drain
+ * d'arrière-plan faisait afficher « analyse terminée » à E27 pour une course
+ * qui dormait encore dans la file — la progression sans travail derrière que la
+ * constitution interdit. Le bus écarte ce qui n'appartient pas à la sortie
+ * regardée ; ici, on se contente de dire la vérité sur QUI part.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { emitRunResultAnalytics } from './activation';
 import { EVENTS, track } from './analytics';
+import { factsFromDrain } from '../features/run/analysis/syncFacts';
+import { publishRunSyncFacts, publishSyncFact } from '../features/run/analysis/syncFactBus';
 import {
   LEGACY_PENDING_UPLOAD_KEY,
   PENDING_QUEUE_KEY,
@@ -110,9 +135,27 @@ export async function queuePendingUpload(payload: IngestRunRequest): Promise<boo
     console.warn(
       `[pendingUpload] course NON mise en file (${res.outcome}) — ${queue.length}/${PENDING_QUEUE_MAX_ENTRIES} en attente ; elle reste dans le buffer de course.`,
     );
+    // E27 : le REFUS est un fait, avec sa cause EXACTE — la seule fois du dépôt
+    // où elle est connue. `factsFromSnapshot` doit sinon la deviner depuis une
+    // file vide et retombe toujours sur 'storage' (syncFacts.ts:151).
+    // Un payload `invalid` n'est ni un plafond ni une panne de stockage : rien
+    // n'a été écrit, et `local_save_failed` dit exactement ça, sans cause inventée.
+    publishSyncFact(
+      res.outcome === 'invalid'
+        ? { kind: 'local_save_failed' }
+        : { kind: 'not_stored', reason: 'queue_full' },
+      payload.clientRunId,
+    );
     return false;
   }
-  return await writeQueue(res.queue, hadLegacy);
+  const written = await writeQueue(res.queue, hadLegacy);
+  // ÉCHEC D'ÉCRITURE RÉEL (AsyncStorage a jeté), pas une supposition : la sortie
+  // n'est nulle part de sûr. C'est le seul émetteur légitime de ce fait.
+  // Le succès, lui, ne publie RIEN : la preuve de persistance que E27 accepte est
+  // la RELECTURE de la file (`pendingUploadCount`), pas notre propre affirmation
+  // d'avoir écrit — c'est le correctif du 27/07 sur `factsFromSnapshot`.
+  if (!written) publishSyncFact({ kind: 'local_save_failed' }, payload.clientRunId);
+  return written;
 }
 
 /**
@@ -172,7 +215,24 @@ export async function retryPendingUpload(): Promise<DrainReport | null> {
   if (supabase === null || retryInFlight) return null;
   retryInFlight = true;
   try {
-    return await retryPendingUploadOnce();
+    const report = await retryPendingUploadOnce();
+    // ── CE QUE LE RENVOI A APPRIS, PUBLIÉ POUR E27, SORTIE PAR SORTIE ─────────
+    // Même table de traduction que l'écran (`factsFromDrain`, pure et testée) :
+    // un seul énoncé de la règle, pas deux. C'est ce qui CLÔT la boucle des
+    // `retry_started` publiés entrée par entrée ci-dessous — sans ça, un drain
+    // d'ARRIÈRE-PLAN (retour au premier plan, fin de course) laisserait un E27
+    // ouvert bloqué sur « envoi en cours » alors que plus rien n'est en vol.
+    // Un rapport sans issue ne publie AUCUN fait (l'écran ne conclut rien).
+    //
+    // ⚠ CHAQUE VERDICT EST NOMMÉ (27/07/2026). Ce drain vide des sorties D'HIER,
+    // et il part TOUT SEUL à chaque retour au premier plan (app/_layout.tsx) —
+    // donc en pleine course, au moindre déverrouillage d'écran. Publier un
+    // succès AGRÉGÉ (« au moins une est partie ») faisait peindre « analyse
+    // terminée » à un E27 ouvert sur une course encore en file. Chaque fait part
+    // désormais avec le `clientRunId` de SA sortie, et le bus n'en retient que
+    // ceux de la sortie regardée.
+    publishRunSyncFacts(factsFromDrain(report));
+    return report;
   } finally {
     retryInFlight = false;
   }
@@ -203,6 +263,16 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
   const send = async (payload: IngestRunRequest): Promise<SendVerdict> => {
     if (supabase === null) return 'retry_later';
     try {
+      // ── UNE REPRISE RÉELLEMENT PARTIE, ENTRÉE PAR ENTRÉE ──────────────────
+      // Publié juste AVANT l'appel réseau, jamais avant de savoir qu'on appelle :
+      // sans backend, sans session (garde plus haut) ou file vide, `send` n'est
+      // même pas atteint et rien n'est annoncé. `attempts` compte donc des
+      // tentatives qui ont VRAIMENT quitté l'appareil, une par entrée drainée.
+      // Et une par SORTIE NOMMÉE : sans le `clientRunId`, un E27 ouvert sur une
+      // course en file passait son étape 2 en « en cours » parce que le drain
+      // traitait l'entrée de QUELQU'UN D'AUTRE — un travail affiché qui n'avait
+      // pas lieu pour cette sortie-là.
+      publishSyncFact({ kind: 'retry_started' }, payload.clientRunId);
       const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
       if (error) {
         if (!isPermanentRejection(error)) return 'retry_later'; // hors-ligne/5xx/429

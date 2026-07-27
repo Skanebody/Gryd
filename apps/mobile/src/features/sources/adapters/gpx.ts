@@ -96,6 +96,16 @@ function loadNativeModules(): { picker: DocumentPickerModule; fs: FileSystemModu
  * Aucun `gpsTrust` client n'est envoyé : un GPX ne porte pas d'accuracy
  * horizontale, donc le client n'a rien de fiable à avancer. Le serveur calcule
  * le sien (le champ est optionnel, son absence est neutre).
+ *
+ * ⚠ CE TROISIÈME INVOKE NE PUBLIE PAS DE `SyncFact` (décision du 27/07/2026).
+ * Les deux autres chemins d'envoi le font (`useRealRunCore`, `pendingUpload`)
+ * parce qu'ils alimentent E27 « Analyse et synchronisation ». Cet import-ci n'y
+ * mène pas : le SEUL chemin vers `/course/analyse` est la fin d'une sortie
+ * mesurée (RealCourseLive.tsx:566), et un import de fichier rend son état
+ * DIRECTEMENT dans l'écran Sources, qui a déjà ses issues honnêtes
+ * (`gpxSent` / `gpxDuplicate` / `gpxRejected` / `gpxSendFailed`). Publier ici
+ * n'informerait personne et déposerait, dans le journal d'une sortie, l'envoi
+ * d'un fichier qui n'en est pas une.
  */
 async function sendToServer(points: RunPoint[]): Promise<SourceAdapterSnapshot> {
   if (supabase === null) return ready(C.gpxNeedsAccount);

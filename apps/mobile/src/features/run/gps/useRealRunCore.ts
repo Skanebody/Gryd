@@ -55,6 +55,8 @@ import {
 import type { LiveRunMode } from '../simulation';
 import { clearLastRunResult, setLastRunResult } from '../runResult';
 import { clearFinishedTrace, setFinishedTrace } from '../finishedTrace';
+import { HTTP_STATUS_NONE } from '../analysis/analysisMachine';
+import { beginSyncFactRun, publishSyncFact } from '../analysis/syncFactBus';
 import { recordRun } from '../runJournal';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import { canResumeInterrupted } from './runActivity';
@@ -171,12 +173,24 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         return (await queuePendingUpload(payload)) ? 'queued' : 'lost';
       }
       try {
+        // ── LE FAIT « L'ENVOI PART » NAÎT ICI, ET NULLE PART AILLEURS ────────
+        // Juste AVANT l'appel réseau, jamais avant d'avoir décidé qu'on appelle :
+        // les deux gardes ci-dessus (pas de backend, pas de session) sortent sans
+        // qu'aucune requête ne parte, et n'ont donc rien à annoncer. E27 lit ce
+        // fait par `syncFactBus` — sans lui, sa phase `uploading` restait
+        // structurellement inatteignable (cf. syncFactBus.ts).
+        publishSyncFact({ kind: 'upload_started' }, payload.clientRunId);
         const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
         if (!error) {
           // O1 Pass 3 : la réponse du serveur (seul juge) n'est plus jetée — elle
           // est armée pour que course-result affiche les VRAIS points/zones/badges.
           const result = (data ?? null) as IngestRunResponse | null;
           setLastRunResult(result);
+          // Le serveur a RÉPONDU sans erreur : le verdict est rendu. Ce fait est
+          // émis même quand `data` est creux — `getLastRunResult()` vaudrait alors
+          // `null` et E27, qui ne lit que lui, se serait déclaré « issue illisible »
+          // sur une réponse pourtant reçue et lue.
+          publishSyncFact({ kind: 'server_accepted' }, payload.clientRunId);
           // §8/§26 — le funnel du verdict (claim_result, loop_*, ttfc, city_opened
           // pionnier) part d'une SOURCE UNIQUE partagée avec le renvoi hors-ligne
           // (pendingUpload), pour qu'une capture faite sans réseau ne soit jamais
@@ -190,6 +204,17 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
           // que possible » (ce serait faux) ; l'issue part à la mesure.
           const status = (error.context as { status?: number } | undefined)?.status;
           console.warn('[useRealRun] course rejetée définitivement :', status);
+          // Le serveur a JUGÉ, et on connaît son statut EXACT ici — c'est le seul
+          // endroit du dépôt qui l'ait en main. E27 le déduisait jusqu'ici d'une
+          // file vide sans indice, et se déclarait « issue illisible » sur un refus
+          // pourtant parfaitement lu.
+          publishSyncFact(
+            {
+              kind: 'server_replied_error',
+              httpStatus: status ?? HTTP_STATUS_NONE,
+            },
+            payload.clientRunId,
+          );
           track(EVENTS.claimResult, {
             outcome: 'rejected_permanent',
             http: status ?? 0,
@@ -224,6 +249,12 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // Idem pour le TRACÉ : la course N+1 ne doit jamais dessiner le parcours de
     // la course N sur son écran de résultat (même mensonge, version géométrie).
     clearFinishedTrace();
+    // ⚠ LES FAITS DE SYNCHRO NE SE PURGENT PLUS ICI (27/07/2026). Leur journal
+    // n'est plus anonyme : il APPARTIENT à un `clientRunId`, et il s'ouvre là
+    // où cette identité naît — `confirmStart`, qui construit le tracker (et
+    // `resumeStored`, qui la change). `startSensors` est rappelé EN COURSE
+    // (allowBackground, après l'accord « Toujours ») : y purger effacerait le
+    // journal d'une course déjà commencée.
     const onFixes = (fixes: Parameters<RunTracker['addFixes']>[0]) =>
       trackerRef.current?.addFixes(fixes);
     const bg = adapter.background;
@@ -421,6 +452,12 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         userPausedMs: stored.userPausedMs,
         initialSteps: current.stepCount, // cumul conservé à la fusion
       });
+      // L'IDENTITÉ DE LA SORTIE VIENT DE CHANGER : la course reprise garde le
+      // `runId` de la course interrompue (idempotence serveur, ci-dessus), donc
+      // le payload qui partira à l'arrivée ne portera PLUS le `clientRunId`
+      // stampé au départ. Sans ce rebranchement, le journal appartiendrait à un
+      // identifiant que plus aucun envoi ne cite : E27 ne verrait rien du tout.
+      beginSyncFactRun(trackerRef.current.runId);
       void trackerRef.current.startPedometer();
       pendingStoredRef.current = null;
       setRestoreFound(null);
@@ -444,6 +481,14 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       closer.finish(Date.now());
       // Hors-ligne : payload en file (idempotent) — la course clôturée
       // n'écrase jamais la course EN COURS et n'est jamais perdue en silence.
+      //
+      // ⚠ CE BOUTON EST ATTEIGNABLE PENDANT UNE COURSE (carte de reprise,
+      // « Ignorer »). L'envoi qui part ici concerne la course ÉCARTÉE, pas celle
+      // qu'on est en train de courir : ses faits de synchro portent le `runId`
+      // de `stored`, que le journal de la course en cours n'accepte pas
+      // (syncFactBus). Sans cette identité, un « Ignorer » suivi d'un envoi
+      // réussi faisait afficher à E27, à l'arrivée, les trois étapes
+      // « terminé » — pour une sortie qui, elle, venait de partir en file.
       await uploadOrQueue(closer.buildPayload());
       await clearActiveRun();
       pendingStoredRef.current = null;
@@ -531,6 +576,13 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       startedAt: Date.now(),
     });
     trackerRef.current = tracker;
+    // LE JOURNAL DE SYNCHRO S'OUVRE ICI, AU NOM DE CETTE SORTIE. C'est le point
+    // exact où son identité (`runId` = `clientRunId` du payload) naît. Sans
+    // propriétaire nommé, le journal recevait tout ce que l'appareil publiait —
+    // y compris l'envoi d'une course d'hier drainée en arrière-plan, ou la
+    // clôture d'une course interrompue écartée d'un tap — et E27 peignait
+    // « analyse terminée » sur une sortie qui n'était jamais partie.
+    beginSyncFactRun(tracker.runId);
     // Podomètre (AMENDEMENT-15 §2) : stepCount → motionTrust §3.2 côté serveur.
     void tracker.startPedometer();
     bgGrantedRef.current = (await adapter.background?.checkGranted()) ?? false;

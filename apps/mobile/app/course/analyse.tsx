@@ -17,9 +17,12 @@
  *    pas une `Animated` de progression, pas un pourcentage. Cherchez-en un : il
  *    n'y en a pas, et il n'a pas le droit d'en apparaître un.
  *  · IL NE DÉCIDE RIEN. Tout l'état vient de `analysisMachine.ts` (pur, testé
- *    Deno), qui ne bouge que sur un `SyncFact`. Les faits viennent de
- *    `observeSync.ts`, qui les LIT sur des sources réelles (file d'envoi
- *    différé, verdict serveur capturé, trace mesurée, présence d'un backend).
+ *    Deno), qui ne bouge que sur un `SyncFact`. Les faits viennent de DEUX
+ *    sources, toutes deux réelles : `observeSync.ts`, qui LIT le monde (file
+ *    d'envoi différé, verdict serveur capturé, trace mesurée, présence d'un
+ *    backend) ; et `syncFactBus.ts`, où les DEUX chemins d'envoi du produit
+ *    publient ce qu'ils font au moment où ils le font (`useRealRunCore` sur le
+ *    chemin direct, `pendingUpload` sur le drain de la file).
  *  · SI RIEN NE SE PASSE, RIEN NE BOUGE. C'est la propriété recherchée.
  *
  * ═══ LES QUATRE ÉTATS DE LA CONSTITUTION, TOUS DISTINCTS ════════════════════
@@ -58,16 +61,21 @@
  * ═══ ÉCARTS ASSUMÉS, ÉCRITS PLUTÔT QUE MASQUÉS ══════════════════════════════
  *  · SUR LE CHEMIN NOMINAL, L'ENVOI EST DÉJÀ FINI QUAND CET ÉCRAN S'OUVRE.
  *    `useRealRunCore.finish()` attend `uploadOrQueue` avant de rendre la main
- *    (useRealRunCore.ts:487) : E27 lit donc une issue DÉJÀ tranchée et ne verra
- *    pas la requête en vol. C'est un état honnête — l'écran montre le résultat
- *    réel au lieu de mimer une attente — mais les phases `uploading` /
- *    `analysing` ne s'observeront vraiment que le jour où la fin de course
- *    naviguera AVANT d'attendre le serveur. Rien ici ne simule cette attente.
- *  · L'ÉTAPE 3 N'EST JAMAIS VUE « ACTIVE » sur ce chemin : avec un seul
- *    aller-retour HTTP, le client n'a aucun accusé de réception intermédiaire,
- *    donc `upload` et `analyse` basculent ensemble à la réponse. Le fait
- *    `server_ack` existe pour un vrai accusé futur ; personne n'a le droit de
- *    l'émettre « pour faire joli » (cf. analysisMachine.ts).
+ *    (useRealRunCore.ts) : E27 ne voit donc PAS la requête directe partir en
+ *    direct. Elle la lit APRÈS COUP, dans le journal du bus, et se pose d'un
+ *    seul `reduce` sur l'issue réelle DE CETTE SORTIE — le journal appartient à
+ *    un `clientRunId` et n'accepte aucun fait d'une autre course
+ *    (`syncFactBus.beginSyncFactRun`). Aucune attente n'est mimée, aucune étape
+ *    ne défile. Ce qui S'OBSERVE VRAIMENT EN VOL aujourd'hui, c'est le drain de
+ *    la file : « Réessayer » (et un drain d'arrière-plan) publient
+ *    `retry_started` avant chaque envoi, et l'étape 2 ne passe en « en cours »
+ *    que quand c'est L'ENTRÉE DE CETTE SORTIE qui part.
+ *  · L'ÉTAPE 3 N'EST JAMAIS VUE « ACTIVE » : avec un seul aller-retour HTTP, le
+ *    client n'a aucun accusé de réception intermédiaire, donc `upload` et
+ *    `analyse` basculent ensemble à la réponse. Le fait `server_ack` reste donc
+ *    SANS ÉMETTEUR, délibérément — il attend un vrai accusé (job asynchrone,
+ *    websocket), et personne n'a le droit de l'émettre « pour faire joli »
+ *    (cf. analysisMachine.ts).
  *  · AUCUNE NOTIFICATION NE PART ENCORE quand le joueur quitte : le rail push
  *    attend ses credentials (features/notifications/push.ts, statut
  *    `unavailable`). C'est précisément pourquoi la phrase de sortie est
@@ -107,10 +115,12 @@ import {
   canRetry,
   doneStepCount,
   isWorking,
+  reduceAnalysis,
   reduceAnalysisAll,
   stepStatuses,
   visibleSteps,
 } from '../../src/features/run/analysis/analysisMachine';
+import { subscribeSyncFacts } from '../../src/features/run/analysis/syncFactBus';
 import {
   type FinishHandoffHints,
   observeSync,
@@ -216,16 +226,49 @@ export default function AnalyseScreen() {
     };
   }, []);
 
-  // ── PREMIÈRE OBSERVATION. Tant qu'elle n'a pas rendu, l'écran n'affirme
-  //    RIEN : ni « sécurisation en cours », ni « aucune sortie ». Un chargement
-  //    ne dit rien du joueur (constitution).
+  // ── LES FAITS DE LA SORTIE : CEUX DÉJÀ SURVENUS, PUIS CEUX QUI ARRIVENT.
+  //
+  //    Sur le chemin nominal, l'envoi est DÉJÀ tranché quand cet écran s'ouvre
+  //    (`finish()` attend `uploadOrQueue`, useRealRunCore.ts:488) : un bus
+  //    purement « live » ne livrerait donc jamais rien. Le journal du bus est
+  //    rejoué en UN `reduce` synchrone — l'écran atterrit d'un coup sur l'état
+  //    terminal réel, sans qu'aucune étape ne défile. C'est aussi ce qui rend un
+  //    écran rouvert (lien profond, retour arrière) honnête : il n'y a rien à
+  //    « rejouer » visuellement, seulement un état à recalculer.
+  //
+  //    L'abonnement rend le journal ET la désinscription EN UN PAS : lire puis
+  //    s'abonner en deux temps laisserait une fenêtre où un fait serait perdu ou
+  //    compté deux fois (et `attempts` mentirait sur les tentatives parties).
+  //    Le fold repart de l'ÉTAT INITIAL à chaque (ré)abonnement : rejouer est
+  //    donc idempotent, et un effet ré-exécuté ne double aucun compteur.
+  //
+  //    ⚠ DEUX CEINTURES, PAS UNE. (1) Le journal du bus APPARTIENT à un
+  //    `clientRunId` : un drain d'arrière-plan qui vide une course d'hier, ou la
+  //    clôture d'une course écartée, publient sous LEUR identité et n'y entrent
+  //    pas (syncFactBus.ts). (2) On ne s'abonne QU'AVEC un relais de E26 : sans
+  //    lui (lien profond nu), cet écran n'a aucun contexte de sortie, et même un
+  //    journal légitime ne serait pas le sien. Dans ce cas on s'en tient à la
+  //    lecture du monde (`observeSync`), qui ne parle que de ce qu'elle a lu.
+  //
+  //    Tant que cette observation n'a pas rendu, l'écran n'affirme RIEN : ni
+  //    « sécurisation en cours », ni « aucune sortie ». Un chargement ne dit
+  //    rien du joueur (constitution).
   useEffect(() => {
+    const sub = hints.fromFinish
+      ? subscribeSyncFacts((fact) => {
+          if (alive.current) setState((prev) => reduceAnalysis(prev, fact));
+        })
+      : null;
+    setState(
+      sub === null ? INITIAL_ANALYSIS_STATE : reduceAnalysisAll(INITIAL_ANALYSIS_STATE, sub.recorded),
+    );
     void (async () => {
       const facts = await observeSync(hints);
       if (!alive.current) return;
       setState((prev) => reduceAnalysisAll(prev, facts));
       setRead('read');
     })();
+    return sub?.unsubscribe;
   }, [hints]);
 
   // ── Capacité RÉELLE de notification (lecture locale, aucun réseau, aucune

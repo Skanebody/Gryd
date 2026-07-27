@@ -41,7 +41,7 @@
  * un refus.
  */
 import type { DrainReport } from '../../../lib/pendingUploadQueue';
-import { QUEUE_DEPTH_UNKNOWN, type SyncFact } from './analysisMachine';
+import { QUEUE_DEPTH_UNKNOWN, type RunSyncFact, type SyncFact } from './analysisMachine';
 
 /** Ce que l'écran a RÉELLEMENT pu lire du monde, à un instant donné. */
 export interface SyncSnapshot {
@@ -157,28 +157,53 @@ export function factsFromSnapshot(snap: SyncSnapshot): readonly SyncFact[] {
 }
 
 /**
- * RAPPORT DE RENVOI → FAITS. `null` (aucun rejeu : pas de backend, ou un rejeu
- * déjà en vol) ne produit AUCUN fait : l'écran reste où il est plutôt que de
- * prétendre avoir appris quelque chose.
- *
- * Ordre de lecture : un envoi RÉUSSI prime — c'est le verdict que le joueur
- * attend. Un refus définitif ensuite. Puis la file restante.
+ * Le statut que porte un refus venu de la FILE. Elle ne conserve pas le code
+ * exact (seulement le fait « jugé et refusé ») : 400 est le représentant NEUTRE
+ * de la classe « 4xx hors 429 » — la seule information réellement portée. Ce
+ * n'est pas une règle de jeu, c'est un code de transport HTTP.
  */
-export function factsFromDrain(report: DrainReport | null): readonly SyncFact[] {
+const DRAIN_REJECTED_STATUS = 400;
+
+/**
+ * RAPPORT DE RENVOI → FAITS, CHACUN RATTACHÉ À SA SORTIE. `null` (aucun rejeu :
+ * pas de backend, ou un rejeu déjà en vol) ne produit AUCUN fait : l'écran reste
+ * où il est plutôt que de prétendre avoir appris quelque chose.
+ *
+ * ═══ 27/07/2026 — LE VERDICT AGRÉGÉ ÉTAIT UN MENSONGE ═══════════════════════
+ * Cette fonction rendait UN fait pour TOUT le drain : `sent.length > 0` ⇒
+ * `server_accepted`, sans dire QUELLE sortie était partie. Un drain
+ * d'arrière-plan qui vidait une course d'hier faisait donc peindre « analyse
+ * terminée » à E27 — ouvert, lui, sur une course encore en file. C'était la
+ * clause exacte « une étape faite alors que la course est partie en file
+ * d'attente hors-ligne ».
+ *
+ * Le `DrainReport` porte pourtant l'identité de chaque sortie : `sent` et
+ * `rejected` sont des `clientRunId`, et `remaining` des entrées complètes
+ * (pendingUploadQueue.ts). Chaque verdict est donc rendu NOMMÉ, et le transport
+ * (`syncFactBus`) n'en gardera que celui de la sortie regardée. Plus rien à
+ * arbitrer ici : une sortie n'apparaît que dans UN des trois seaux.
+ */
+export function factsFromDrain(report: DrainReport | null): readonly RunSyncFact[] {
   if (report === null) return [];
-  if (report.sent.length > 0) return [{ kind: 'server_accepted' }];
-  if (report.rejected.length > 0) {
-    // Le statut exact n'est pas propagé par la file (elle ne conserve que le
-    // fait « jugé et refusé »). 400 est le représentant NEUTRE de la classe
-    // « 4xx hors 429 » — la seule information réellement portée.
-    return [{ kind: 'server_replied_error', httpStatus: 400 }];
+  const out: RunSyncFact[] = [];
+  for (const runId of report.sent) out.push({ runId, fact: { kind: 'server_accepted' } });
+  for (const runId of report.rejected) {
+    out.push({
+      runId,
+      fact: { kind: 'server_replied_error', httpStatus: DRAIN_REJECTED_STATUS },
+    });
   }
-  if (report.remaining.length > 0) {
+  for (const entry of report.remaining) {
     // `retry_later` (réseau / 5xx / 429) et `no_session` laissent TOUS DEUX la
     // file intacte, et l'écran ne peut pas les distinguer d'ici. Ce qui est
     // vrai dans les deux cas — et tout ce qu'on affirme — c'est que la sortie
     // est gardée et repartira. La copie ne nomme donc AUCUNE cause.
-    return [{ kind: 'offline_queued', queueDepth: report.remaining.length }];
+    // `queueDepth` est la profondeur RÉELLE de la file au sortir du drain : ce
+    // nombre-là parle bien de la file entière, et c'est ce que l'écran affiche.
+    out.push({
+      runId: entry.payload.clientRunId,
+      fact: { kind: 'offline_queued', queueDepth: report.remaining.length },
+    });
   }
   // Rapport VIDE : ni envoi, ni refus, ni reste. Cela veut dire une seule
   // chose — il n'y avait RIEN à envoyer dans la file. Ce n'est pas une issue,
@@ -187,5 +212,18 @@ export function factsFromDrain(report: DrainReport | null): readonly SyncFact[] 
   // « prouvé » que l'issue est illisible alors qu'il n'avait rien regardé —
   // et, sur un écran déjà en `unstored`, il aurait dégradé un diagnostic juste
   // en un diagnostic vague. L'appelant relit le monde à la place.)
-  return [];
+  return out;
+}
+
+/**
+ * LES FAITS D'UNE SORTIE, ET D'ELLE SEULE. `runId === null` (aucune course
+ * ouverte dans cette session) rend un tableau vide : un écran sans identité de
+ * sortie n'a rien à apprendre d'un drain qui parle d'autres courses.
+ */
+export function factsForRun(
+  items: readonly RunSyncFact[],
+  runId: string | null,
+): readonly SyncFact[] {
+  if (runId === null) return [];
+  return items.filter((item) => item.runId === runId).map((item) => item.fact);
 }

@@ -27,7 +27,6 @@ import {
   type SyncFact,
   canRetry,
   doneStepCount,
-  factFromFinishVerdict,
   isSettled,
   isWorking,
   reduceAnalysis,
@@ -339,30 +338,12 @@ Deno.test('une reprise depuis une phase en vol ne gonfle pas le compteur de tent
   assertStrictEquals(reduceAnalysis(s, { kind: 'retry_started' }), s);
 });
 
-// ═══ 7. PONT AVEC LE VERDICT D'ENVOI DÉJÀ EN PLACE DANS LE DÉPÔT ════════════
-
-Deno.test('le verdict de useRealRunCore se traduit sans réinterprétation', () => {
-  assertEquals(factFromFinishVerdict('sent'), { kind: 'server_accepted' });
-  assertEquals(factFromFinishVerdict('rejected'), {
-    kind: 'server_replied_error',
-    httpStatus: 400,
-  });
-  assertEquals(factFromFinishVerdict('queued', 2), { kind: 'offline_queued', queueDepth: 2 });
-  assertEquals(factFromFinishVerdict('lost'), { kind: 'not_stored', reason: 'storage' });
-  assertEquals(factFromFinishVerdict('none'), { kind: 'no_backend' });
-});
-
-Deno.test('sans profondeur connue, la file est INCONNUE — jamais « 0 en attente »', () => {
-  assertEquals(factFromFinishVerdict('queued'), {
-    kind: 'offline_queued',
-    queueDepth: QUEUE_DEPTH_UNKNOWN,
-  });
-});
-
-Deno.test('les cinq verdicts d’envoi mènent chacun à une phase DIFFÉRENTE', () => {
-  const phases = (['sent', 'rejected', 'queued', 'lost', 'none'] as const).map(
-    (v) => reduceAnalysis(at('uploading'), factFromFinishVerdict(v)).phase,
-  );
-  assertEquals(phases, ['complete', 'rejected', 'deferred', 'unstored', 'no_backend']);
-  assertEquals(new Set(phases).size, 5);
-});
+// ═══ 7. LE PONT SUPPRIMÉ (27/07/2026) ═══════════════════════════════════════
+// `factFromFinishVerdict` traduisait le verdict agrégé de `uploadOrQueue` en
+// fait de synchronisation, et trois tests le couvraient. Personne ne l'appelait :
+// ils verdissaient un chemin qu'aucune exécution n'empruntait — un faux vert.
+// Le branchement réel publie les faits au moment où ils ont lieu (`syncFactBus`),
+// depuis l'intérieur de `uploadOrQueue` et du drain, avec le statut HTTP EXACT
+// que cette table devait remplacer par un 400 neutre. Fonction ET tests
+// supprimés ensemble ; le branchement, lui, est verrouillé par
+// `syncFactWiring.test.ts`.

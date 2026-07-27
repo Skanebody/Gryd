@@ -18,6 +18,7 @@ import {
   MIN_TRACE_POINTS,
   type SyncSnapshot,
   UNREAD_SNAPSHOT,
+  factsForRun,
   factsFromDrain,
   factsFromSnapshot,
 } from './syncFacts.ts';
@@ -169,38 +170,72 @@ Deno.test('relais SANS « queued » ⇒ jamais « non stockée » (E26 n’a rie
   assertEquals(phaseOf(snapshot({ fromFinish: true, queuedHint: false })), 'unreadable');
 });
 
-// ═══ RAPPORT DE RENVOI → FAITS ══════════════════════════════════════════════
+// ═══ RAPPORT DE RENVOI → FAITS, CHACUN NOMMÉ ═══════════════════════════════
+//
+// ⚠ CE BLOC A CHANGÉ LE 27/07/2026, ET IL LE DEVAIT. Il verrouillait un verdict
+// AGRÉGÉ : « au moins une sortie est partie » ⇒ `server_accepted`, sans dire
+// laquelle. Or le drain part TOUT SEUL à chaque retour au premier plan
+// (app/_layout.tsx) et vide des sorties d'hier : E27, ouvert sur une course
+// encore en file, peignait ses trois étapes « terminé ». Les tests verdissaient
+// parce qu'ils exerçaient la table isolément, sans jamais demander DE QUELLE
+// sortie parlait le fait. Ils demandent maintenant.
 
 Deno.test('aucun rejeu (null) ⇒ AUCUN fait : l’écran n’a rien appris', () => {
   assertEquals(factsFromDrain(null), []);
 });
 
-Deno.test('renvoi réussi ⇒ verdict serveur', () => {
-  assertEquals(factsFromDrain(report({ sent: ['r1'] })), [{ kind: 'server_accepted' }]);
+Deno.test('renvoi réussi ⇒ verdict serveur, RATTACHÉ à la sortie partie', () => {
+  assertEquals(factsFromDrain(report({ sent: ['r1'] })), [
+    { runId: 'r1', fact: { kind: 'server_accepted' } },
+  ]);
 });
 
 Deno.test('renvoi refusé définitivement ⇒ course refusée, pas une panne réseau', () => {
   assertEquals(factsFromDrain(report({ rejected: ['r1'] })), [
-    { kind: 'server_replied_error', httpStatus: 400 },
+    { runId: 'r1', fact: { kind: 'server_replied_error', httpStatus: 400 } },
   ]);
 });
 
-Deno.test('un envoi réussi PRIME sur un refus dans le même drain', () => {
-  assertEquals(factsFromDrain(report({ sent: ['r1'], rejected: ['r2'] })), [
-    { kind: 'server_accepted' },
+Deno.test('DEUX SORTIES, DEUX VERDICTS : aucune n’hérite de l’issue de l’autre', () => {
+  // Le cas exact du défaut : une course d'hier part, celle du joueur reste en
+  // file. Chaque fait cite SA sortie — et le transport ne gardera que la bonne.
+  const facts = factsFromDrain(
+    report({ sent: ['hier'], remaining: [entry('la-mienne')], stoppedBy: 'retry_later' }),
+  );
+  assertEquals(facts, [
+    { runId: 'hier', fact: { kind: 'server_accepted' } },
+    { runId: 'la-mienne', fact: { kind: 'offline_queued', queueDepth: 1 } },
   ]);
+  // Ce que la sortie du joueur apprend, et RIEN d'autre.
+  assertEquals(factsForRun(facts, 'la-mienne'), [{ kind: 'offline_queued', queueDepth: 1 }]);
+  assertEquals(
+    reduceAnalysisAll(INITIAL_ANALYSIS_STATE, factsForRun(facts, 'la-mienne')).phase,
+    'deferred',
+  );
+});
+
+Deno.test('un envoi réussi ne PRIME plus sur un refus : ils parlent de sorties différentes', () => {
+  // Ancienne règle : « sent prime sur rejected ». Elle n'avait de sens que parce
+  // que le fait était anonyme — il fallait bien en choisir un. Avec l'identité,
+  // arbitrer serait perdre une information vraie.
+  const facts = factsFromDrain(report({ sent: ['r1'], rejected: ['r2'] }));
+  assertEquals(factsForRun(facts, 'r1'), [{ kind: 'server_accepted' }]);
+  assertEquals(factsForRun(facts, 'r2'), [{ kind: 'server_replied_error', httpStatus: 400 }]);
 });
 
 Deno.test('file toujours pleine (réseau) ⇒ envoi différé avec le RESTE réel', () => {
   assertEquals(
     factsFromDrain(report({ remaining: [entry('a'), entry('b')], stoppedBy: 'retry_later' })),
-    [{ kind: 'offline_queued', queueDepth: 2 }],
+    [
+      { runId: 'a', fact: { kind: 'offline_queued', queueDepth: 2 } },
+      { runId: 'b', fact: { kind: 'offline_queued', queueDepth: 2 } },
+    ],
   );
 });
 
 Deno.test('pas de session ⇒ la sortie reste gardée : même fait, aucune cause affirmée', () => {
   assertEquals(factsFromDrain(report({ remaining: [entry('a')], stoppedBy: 'no_session' })), [
-    { kind: 'offline_queued', queueDepth: 1 },
+    { runId: 'a', fact: { kind: 'offline_queued', queueDepth: 1 } },
   ]);
 });
 
@@ -214,7 +249,10 @@ Deno.test('un rapport vide ne DÉGRADE pas un diagnostic déjà juste', () => {
   const before = reduceAnalysisAll(INITIAL_ANALYSIS_STATE, [
     { kind: 'not_stored', reason: 'storage' },
   ]);
-  assertEquals(reduceAnalysisAll(before, factsFromDrain(report())).phase, 'unstored');
+  assertEquals(
+    reduceAnalysisAll(before, factsForRun(factsFromDrain(report()), 'a')).phase,
+    'unstored',
+  );
 });
 
 Deno.test('les issues de renvoi mènent à des phases DISTINCTES', () => {
@@ -222,9 +260,22 @@ Deno.test('les issues de renvoi mènent à des phases DISTINCTES', () => {
     report({ sent: ['a'] }),
     report({ rejected: ['a'] }),
     report({ remaining: [entry('a')], stoppedBy: 'retry_later' }),
-  ].map((r) => reduceAnalysisAll(INITIAL_ANALYSIS_STATE, factsFromDrain(r)).phase);
+  ].map(
+    (r) =>
+      reduceAnalysisAll(INITIAL_ANALYSIS_STATE, factsForRun(factsFromDrain(r), 'a')).phase,
+  );
   assertEquals(phases, ['complete', 'rejected', 'deferred']);
   assertEquals(new Set(phases).size, 3);
+});
+
+// ═══ FILTRER PAR SORTIE : L'OPÉRATION QUI REND LE DRAIN HONNÊTE ═════════════
+
+Deno.test('`factsForRun` sans identité de sortie n’adopte RIEN', () => {
+  // Écran ouvert par lien profond, app relancée à froid : aucune course n'a été
+  // ouverte dans cette session. Le drain d'un autre jour ne lui apprend rien.
+  const facts = factsFromDrain(report({ sent: ['hier'] }));
+  assertEquals(factsForRun(facts, null), []);
+  assertEquals(factsForRun(facts, 'jamais-vue'), []);
 });
 
 // ═══ L'INVARIANT QUI MANQUAIT : AUCUN FAIT N'EST FABRIQUÉ ═══════════════════
