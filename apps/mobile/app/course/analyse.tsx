@@ -23,6 +23,12 @@
  *    backend) ; et `syncFactBus.ts`, où les DEUX chemins d'envoi du produit
  *    publient ce qu'ils font au moment où ils le font (`useRealRunCore` sur le
  *    chemin direct, `pendingUpload` sur le drain de la file).
+ *  · ET CES DEUX SOURCES PARLENT DE **SA** SORTIE. Le journal du bus appartient
+ *    à un `clientRunId` ; la lecture du monde interroge la file SUR CE MÊME
+ *    identifiant (`pendingUploadStatus`, 27/07/2026). Elle demandait avant
+ *    « combien de sorties attendent ? » et répondait « la tienne repartira au
+ *    premier réseau » — y compris quand la file venait de la REFUSER parce
+ *    qu'elle était pleine, ce qui la laisse forcément non vide.
  *  · SI RIEN NE SE PASSE, RIEN NE BOUGE. C'est la propriété recherchée.
  *
  * ═══ LES QUATRE ÉTATS DE LA CONSTITUTION, TOUS DISTINCTS ════════════════════
@@ -263,6 +269,15 @@ export default function AnalyseScreen() {
       sub === null ? INITIAL_ANALYSIS_STATE : reduceAnalysisAll(INITIAL_ANALYSIS_STATE, sub.recorded),
     );
     void (async () => {
+      // ⚠ LA LECTURE DU MONDE S'APPLIQUE PAR-DESSUS LE JOURNAL, ET C'EST SÛR
+      //   DEPUIS LE 27/07/2026 SEULEMENT. Elle relit APRÈS COUP et en sait
+      //   parfois MOINS que le producteur : file illisible ⇒ elle rend
+      //   `outcome_unreadable`, qui écrasait un `unstored` publié avec sa cause
+      //   exacte par `queuePendingUpload` — et rallumait au passage le bouton
+      //   « Réessayer » que `canRetry` refuse à cette phase (il ne draine que la
+      //   file, où cette sortie n'est justement pas). La machine tient
+      //   maintenant la règle elle-même (`isDiagnosed`), pour TOUS les chemins :
+      //   aucun ordre d'application ne peut plus dégrader un diagnostic observé.
       const facts = await observeSync(hints);
       if (!alive.current) return;
       setState((prev) => reduceAnalysisAll(prev, facts));
@@ -469,7 +484,13 @@ function SituationBlock({ phase, queueDepth }: { phase: AnalysisPhase; queueDept
         <Text style={[styles.situationTitle, { color: copy.tone }]}>{t(copy.title)}</Text>
       </View>
       <Text style={styles.situationBody}>{t(copy.body)}</Text>
-      {/* La profondeur de file n'est affichée que si elle a été LUE. */}
+      {/* La profondeur de file n'est affichée que si elle a été LUE. C'est le
+          TOTAL de la file, et la copie le dit (« ta sortie comprise ») : depuis
+          le 27/07/2026 la phase `deferred` n'est atteinte que si la sortie
+          regardée est RÉELLEMENT dans la file (`runInQueue === 'queued'`,
+          syncFacts.ts). Avant, ce nombre s'affichait aussi quand la file avait
+          REFUSÉ la sortie parce qu'elle était pleine — le joueur lisait
+          « 12 en attente » en croyant y être. */}
       {phase === 'deferred' && queueDepth > 0 && queueDepth !== QUEUE_DEPTH_UNKNOWN ? (
         <Text style={styles.situationMeta}>{t(C.queuedDepth, { n: queueDepth })}</Text>
       ) : null}

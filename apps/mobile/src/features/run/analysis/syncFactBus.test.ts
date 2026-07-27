@@ -132,6 +132,10 @@ Deno.test('LE SCÉNARIO COMPLET DE E27 — trois étapes « terminé » sur une 
     tracePoints: 120,
     hasServerVerdict: false,
     queueDepth: 1,
+    // La file a été relue et SA sortie y est — la seule lecture qui autorise
+    // « envoi différé » depuis le 27/07/2026 (`observeSync` la demande à
+    // `pendingUploadStatus(syncFactRunId())`).
+    runInQueue: 'queued',
     fromFinish: true,
     queuedHint: true,
   });

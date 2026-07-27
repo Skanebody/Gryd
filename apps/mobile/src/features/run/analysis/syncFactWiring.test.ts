@@ -42,6 +42,15 @@ function invokeIndex(src: string): number {
  * sortie concernée en second argument. Un appel sans identité ne compile plus —
  * ce test vérifie en plus qu'on ne l'a pas contourné par une variante.
  */
+/**
+ * La source PRIVÉE DE SES COMMENTAIRES. Ce dépôt explique ses défauts dans les
+ * docblocks, en les CITANT : chercher un appel interdit dans le texte brut
+ * reviendrait à interdire d'écrire la règle. On ne cherche donc que dans le code.
+ */
+function codeOf(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 function publishIndex(src: string, kind: string): number {
   const i = src.indexOf(`publishSyncFact({ kind: '${kind}' },`);
   assert(i >= 0, `\`${kind}\` n'est plus publié AVEC son \`clientRunId\` dans cette source`);
@@ -172,9 +181,44 @@ Deno.test('BRANCHEMENT — un échec d’écriture RÉEL publie `local_save_fail
 });
 
 Deno.test('BRANCHEMENT — un refus de file publie sa cause RÉELLE, sans la deviner', () => {
+  // ⚠ MIS À JOUR LE 27/07/2026 (2). Ce test exigeait le littéral
+  // `{ kind: 'not_stored', reason: 'queue_full' }`, écrit quand le plafond était
+  // le SEUL refus possible. Il en existe un second depuis que le stockage refuse
+  // d'écrire une file qu'il n'a pas pu relire (`planEnqueue` rend 'unreadable') —
+  // et les confondre serait précisément deviner : une file ILLISIBLE n'est pas
+  // une file PLEINE. La règle que ce test protège est inchangée : chaque refus
+  // part avec SA cause.
   assert(
-    PENDING_SRC.includes("{ kind: 'not_stored', reason: 'queue_full' }"),
-    'le refus au plafond ne publie plus `queue_full` : la cause redeviendrait devinée',
+    /reason: plan\.outcome === 'unreadable' \? 'storage' : 'queue_full'/.test(PENDING_SRC),
+    'les deux refus de file (plafond / stockage illisible) ne publient plus des causes DISTINCTES : ' +
+      'E27 afficherait « file pleine » sur une panne de stockage, ou l’inverse',
+  );
+  assert(
+    PENDING_SRC.includes("{ kind: 'local_save_failed' }"),
+    'un payload inenvoyable ne publie plus `local_save_failed` : il hériterait d’une cause de file',
+  );
+});
+
+Deno.test('BRANCHEMENT — le stockage ne peut plus ÉCRASER une file qu’il n’a pas pu relire', () => {
+  // ⚠ LE DÉFAUT QUE CE TEST FERME (27/07/2026). `readQueue` rend `readable:false`
+  // + `queue: []` quand AsyncStorage jette. Ce `[]` était traité comme une file
+  // vide par le chemin d'ÉCRITURE : la sortie du jour y était ajoutée et la clé
+  // réécrite avec UNE entrée — jusqu'à 12 sorties utilisateur détruites en
+  // silence. Le docblock de `readQueue` GARANTISSAIT pourtant l'inverse
+  // (« rien n'est détruit »). La règle est maintenant PURE et testée
+  // (`planEnqueue` / `planRemoval`, pendingUpload.test.ts) ; ici on vérifie que
+  // le module qui touche le disque y passe VRAIMENT — c'est exactement ce qui
+  // manquait, puisque le drapeau existait déjà et n'était pas lu.
+  const code = codeOf(PENDING_SRC);
+  assert(
+    /planEnqueue\(read, payload, Date\.now\(\)\)/.test(code) &&
+      /planRemoval\(await readQueue\(\), entry\.payload\.clientRunId\)/.test(code),
+    'le stockage n’écrit plus via un plan de lisibilité : une lecture disque ratée pourrait de ' +
+      'nouveau écraser la file entière (mise en file) ou la vider (retrait après verdict)',
+  );
+  assert(
+    !/enqueuePending\(/.test(code) && !/removePending\(/.test(code),
+    'le stockage appelle de nouveau la file NUE, sans la règle de lisibilité : le trou est rouvert',
   );
 });
 
@@ -207,6 +251,76 @@ Deno.test('BRANCHEMENT — la REPRISE de E27 ne retient que les faits de SA sort
     OBSERVE_SRC.includes('factsForRun(factsFromDrain(await retryPendingUpload()), syncFactRunId())'),
     'le bouton « Réessayer » adopte de nouveau le verdict AGRÉGÉ du drain : il annoncerait ' +
       '« analyse terminée » parce qu’une AUTRE course de la file est partie',
+  );
+});
+
+// ═══ 3 bis. LA LECTURE DU MONDE PARLE DE LA BONNE SORTIE ════════════════════
+//
+// ⚠ CE BLOC VERROUILLE LE CORRECTIF DU 27/07/2026 (2). `observeSync` n'appelait
+// que `pendingUploadCount()` — un COMPTE, qui ne regarde pas si l'une des
+// entrées est la sortie regardée — et `factsFromSnapshot` en concluait
+// « envoi différé ». Dans le cas EXACT où la file a REFUSÉ la sortie parce
+// qu'elle était au plafond, elle reste forcément NON VIDE : E27 affichait donc
+// « ta sortie repartira au premier réseau » et « n en attente » pour une course
+// absente de la file. Un test de comportement sur la fonction pure ne peut pas
+// attraper le retour du compte global côté LECTURE : celui-ci relit la source.
+
+Deno.test('BRANCHEMENT — la file est interrogée SUR LA SORTIE REGARDÉE, pas comptée', () => {
+  const OBSERVE_SRC = Deno.readTextFileSync(new URL('./observeSync.ts', import.meta.url));
+  assert(
+    OBSERVE_SRC.includes('await pendingUploadStatus(runId)') &&
+      OBSERVE_SRC.includes('const runId = syncFactRunId();'),
+    'la lecture du monde ne demande plus à la file si ELLE contient la sortie regardée : ' +
+      'un compte global reviendrait, et « envoi différé » se rallumerait sur les courses des autres',
+  );
+  // Sur le CODE seul : les docblocks citent `pendingUploadCount()` pour raconter
+  // le défaut, et un test qui confondrait les deux interdirait d'écrire la règle
+  // qu'il protège (même précaution que le test « aucune horloge » plus bas).
+  assert(
+    !/pendingUploadCount\(/.test(codeOf(OBSERVE_SRC)),
+    '`pendingUploadCount()` est revenu dans la lecture de E27 : il compte la file ENTIÈRE et ne ' +
+      'peut pas répondre « ma sortie est-elle dedans ? »',
+  );
+  assert(
+    OBSERVE_SRC.includes('runInQueue: membershipOf(status, runId)'),
+    'le snapshot ne porte plus l’appartenance de la sortie à la file',
+  );
+});
+
+Deno.test('BRANCHEMENT — la DÉCISION ne conclut plus sur la profondeur de file', () => {
+  const FACTS_SRC = Deno.readTextFileSync(new URL('./syncFacts.ts', import.meta.url));
+  // On isole le corps de la table de décision : les docblocks CITENT le défaut
+  // (« `queueDepth > 0` ») pour l'expliquer, et un test qui confondrait le
+  // commentaire et le code interdirait d'écrire la règle qu'il protège.
+  const body = codeOf(FACTS_SRC);
+  const decision = body.slice(body.indexOf('export function factsFromSnapshot'));
+  const code = decision.slice(0, decision.indexOf('\n}'));
+  assert(
+    !/snap\.queueDepth\s*>\s*0/.test(code),
+    'une branche décide de nouveau sur `queueDepth > 0` : la file entière ne prouve RIEN sur la ' +
+      'sortie regardée (cas du refus au plafond, qui laisse une file non vide derrière lui)',
+  );
+  assert(
+    /snap\.runInQueue === 'queued'/.test(code) && /snap\.runInQueue === 'absent'/.test(code),
+    'la table de décision ne s’appuie plus sur l’appartenance nommée de la sortie à la file',
+  );
+  // `queueDepth` garde UN seul usage légitime : l'AFFICHAGE du total, une fois
+  // établi que la sortie du joueur en fait partie.
+  assert(
+    /offline_queued', queueDepth: snap\.queueDepth/.test(code),
+    'la profondeur affichée n’est plus la profondeur RÉELLE lue',
+  );
+});
+
+Deno.test('BRANCHEMENT — la file distingue « vide » de « illisible » pour ses lecteurs', () => {
+  assert(
+    /readable: false/.test(PENDING_SRC) && /readable: true/.test(PENDING_SRC),
+    'la lecture de la file ne dit plus si elle a RÉUSSI : un stockage en échec redeviendrait ' +
+      'indiscernable d’une file vide, et E27 perdrait le 4ᵉ état de la constitution',
+  );
+  assert(
+    PENDING_SRC.includes('hasRun: clientRunId !== null && hasPendingRun(queue, clientRunId)'),
+    'l’appartenance n’est plus RELUE dans la file (ou elle est affirmée sans identité de sortie)',
   );
 });
 

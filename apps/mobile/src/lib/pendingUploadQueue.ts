@@ -190,6 +190,82 @@ export function enqueuePending(
   return { accepted: true, outcome: 'queued', queue: next };
 }
 
+/**
+ * ═══ ON N'ÉCRIT JAMAIS UNE FILE QU'ON N'A PAS PU RELIRE (27/07/2026) ════════
+ *
+ * Le stockage (`pendingUpload.ts`) rend `readable: false` quand AsyncStorage a
+ * JETÉ, avec une `queue: []` de repli. Ce `[]` ne veut PAS dire « la file est
+ * vide » — et c'est pourtant comme ça qu'il était lu : la sortie du jour était
+ * ajoutée à cette file fantôme, puis la clé RÉÉCRITE avec une seule entrée.
+ * Jusqu'à 12 sorties utilisateur effacées en silence, par une lecture disque
+ * ratée suivie d'une écriture réussie — exactement le « slot unique où une
+ * nouvelle fin écrase la précédente » que cette FIFO existe pour supprimer
+ * (invariant 2 de l'en-tête), revenu sous un déclencheur plus rare. Le chemin de
+ * retrait après verdict avait le même trou, en pire : il aurait écrit une file
+ * VIDE.
+ *
+ * La décision vit ICI, dans le module PUR, et pas en garde inline dans le
+ * stockage : c'est une règle, elle se teste, et l'invariant « aucun plan
+ * d'écriture ne naît d'une lecture illisible » est vérifié sur TOUTES les
+ * entrées (`pendingUpload.test.ts`).
+ *
+ * Ce que coûte le refus, écrit plutôt que masqué :
+ *  · mise en file refusée ⇒ l'appelant garde la course dans son buffer (chemin
+ *    'lost' de `useRealRun`, qui ne purge pas les clés) : rien n'est détruit ;
+ *  · retrait après verdict refusé ⇒ l'entrée déjà partie RESTE en file et sera
+ *    renvoyée une fois de plus — neutre côté serveur par idempotence
+ *    `clientRunId` (D14). Un renvoi de trop vaut mieux qu'une file effacée.
+ */
+export type QueueWriteOutcome = EnqueueOutcome | 'unreadable' | 'removed';
+
+export type QueueWritePlan =
+  /** RIEN n'est écrit. La file sur le disque reste exactement ce qu'elle est. */
+  | { readonly write: false; readonly outcome: QueueWriteOutcome }
+  /** La file à écrire, telle quelle. */
+  | { readonly write: true; readonly outcome: QueueWriteOutcome; readonly queue: readonly PendingEntry[] };
+
+/** Lecture de la file telle que le stockage la rend (illisible = `readable: false`). */
+export interface QueueRead {
+  readonly readable: boolean;
+  readonly queue: readonly PendingEntry[];
+}
+
+/** Mettre CETTE sortie en file : que faut-il écrire, et faut-il écrire ? */
+export function planEnqueue(
+  read: QueueRead,
+  payload: IngestRunRequest,
+  now: number,
+): QueueWritePlan {
+  if (!read.readable) return { write: false, outcome: 'unreadable' };
+  const res = enqueuePending(read.queue, payload, now);
+  if (!res.accepted) return { write: false, outcome: res.outcome };
+  return { write: true, outcome: res.outcome, queue: res.queue };
+}
+
+/** Retirer une sortie jugée par le serveur : même règle, même refus. */
+export function planRemoval(read: QueueRead, clientRunId: string): QueueWritePlan {
+  if (!read.readable) return { write: false, outcome: 'unreadable' };
+  return { write: true, outcome: 'removed', queue: removePending(read.queue, clientRunId) };
+}
+
+/**
+ * CETTE SORTIE-LÀ EST-ELLE DANS LA FILE ? (27/07/2026)
+ *
+ * La file entière ne dit RIEN d'une sortie en particulier : elle contient les
+ * courses d'hier, celles du vol de la semaine dernière, et parfois celle qu'on
+ * regarde. E27 concluait pourtant « ta sortie repartira au premier réseau » sur
+ * un simple `length > 0` — y compris dans le cas EXACT où la file venait de la
+ * REFUSER parce qu'elle était au plafond (`full_entries` ci-dessus, qui laisse
+ * forcément une file NON VIDE derrière lui). Un compte global ne peut pas
+ * répondre à une question nominative ; celle-ci le peut.
+ *
+ * L'identité est le `clientRunId` — la même clé que l'idempotence serveur (D14)
+ * et que `enqueuePending` / `removePending` utilisent déjà pour se repérer.
+ */
+export function hasPendingRun(queue: readonly PendingEntry[], clientRunId: string): boolean {
+  return queue.some((e) => e.payload.clientRunId === clientRunId);
+}
+
 /** Retire une entrée par `clientRunId` (verdict serveur). Ordre préservé. */
 export function removePending(
   queue: readonly PendingEntry[],

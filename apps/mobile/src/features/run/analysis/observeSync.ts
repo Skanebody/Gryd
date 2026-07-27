@@ -13,13 +13,23 @@
  * produits en découlent LITTÉRALEMENT — aucun n'est inféré d'un compteur, et
  * aucun n'est produit si le rejeu n'a pas eu lieu.
  */
-import { pendingUploadCount, retryPendingUpload } from '../../../lib/pendingUpload';
+import {
+  type PendingUploadStatus,
+  pendingUploadStatus,
+  retryPendingUpload,
+} from '../../../lib/pendingUpload';
 import { supabase } from '../../../lib/supabase';
 import { getFinishedTrace } from '../finishedTrace';
 import { getLastRunResult } from '../runResult';
 import { QUEUE_DEPTH_UNKNOWN, type SyncFact } from './analysisMachine';
 import { syncFactRunId } from './syncFactBus';
-import { type SyncSnapshot, factsForRun, factsFromDrain, factsFromSnapshot } from './syncFacts';
+import {
+  type RunQueueMembership,
+  type SyncSnapshot,
+  factsForRun,
+  factsFromDrain,
+  factsFromSnapshot,
+} from './syncFacts';
 
 /**
  * CE QUE E26 A PASSÉ EN RELAIS. `courseResultParams` (gps/resultHandoff.ts) le
@@ -37,23 +47,57 @@ export interface FinishHandoffHints {
 /** Aucun relais : lien profond nu, ou écran rouvert sans contexte. */
 export const NO_HANDOFF: FinishHandoffHints = { fromFinish: false, queuedHint: false };
 
-/** Lecture RÉELLE du monde. Ne décide rien : la décision est pure, au-dessus. */
+/**
+ * Lecture RÉELLE du monde. Ne décide rien : la décision est pure, au-dessus.
+ *
+ * ═══ 27/07/2026 — LA FILE EST INTERROGÉE SUR LA BONNE SORTIE ════════════════
+ * Ce module n'appelait que `pendingUploadCount()` : un COMPTE, qui ne regarde
+ * pas si l'une des entrées est la sortie regardée. `factsFromSnapshot` en
+ * concluait pourtant « ta sortie est en file » — y compris dans le cas où la
+ * file venait de la REFUSER parce qu'elle était pleine (et laissait donc
+ * derrière elle une file forcément non vide). On demande maintenant à la file ce
+ * qu'on veut vraiment savoir : `pendingUploadStatus(clientRunId)`.
+ *
+ * L'identité vient de `syncFactRunId()` — la sortie propriétaire du journal,
+ * ouverte au DÉPART de la course (`beginSyncFactRun`). C'est la même identité
+ * que celle qui filtre les faits du drain (`runRealRetry` plus bas) : une seule
+ * notion de « ma sortie » dans tout l'écran.
+ *
+ * `null` (app relancée à froid, lien profond nu) N'EST PAS « aucune sortie en
+ * file » : c'est « je ne sais pas de quelle sortie je parle », donc `unknown`.
+ */
 export async function readSyncSnapshot(hints: FinishHandoffHints): Promise<SyncSnapshot> {
-  let queueDepth = QUEUE_DEPTH_UNKNOWN;
+  const runId = syncFactRunId();
+  let status: PendingUploadStatus = { readable: false };
   try {
-    queueDepth = await pendingUploadCount();
+    status = await pendingUploadStatus(runId);
   } catch {
-    // Stockage illisible : on garde QUEUE_DEPTH_UNKNOWN, jamais 0 — annoncer
-    // « rien en attente » sur une lecture ratée serait affirmer sans savoir.
+    // Ceinture : `pendingUploadStatus` n'a aucun chemin qui jette aujourd'hui
+    // (la lecture disque est déjà ceinturée). Si elle en gagnait un, une lecture
+    // ratée doit rester « illisible » — jamais « rien en attente », qui
+    // affirmerait sans savoir.
   }
   return {
     backendConfigured: supabase !== null,
     tracePoints: getFinishedTrace().length,
     hasServerVerdict: getLastRunResult() !== null,
-    queueDepth,
+    queueDepth: status.readable ? status.depth : QUEUE_DEPTH_UNKNOWN,
+    runInQueue: membershipOf(status, runId),
     fromFinish: hints.fromFinish,
     queuedHint: hints.queuedHint,
   };
+}
+
+/**
+ * TROIS RÉPONSES POSSIBLES, ET AUCUN REPLI. Une lecture ratée et un écran sans
+ * identité rendent tous deux `unknown` — pour des raisons différentes, mais avec
+ * la même conséquence : cet écran ne peut RIEN dire de l'appartenance de sa
+ * sortie à la file, et il ne le dira donc pas.
+ */
+function membershipOf(status: PendingUploadStatus, runId: string | null): RunQueueMembership {
+  if (!status.readable) return 'unknown'; // la file n'a pas pu être relue
+  if (runId === null) return 'unknown'; // aucune sortie n'est « la sienne »
+  return status.hasRun ? 'queued' : 'absent';
 }
 
 /** Observation d'ouverture (et de reprise de lecture) : monde → faits. */

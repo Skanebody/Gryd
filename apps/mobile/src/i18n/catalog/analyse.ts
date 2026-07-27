@@ -200,13 +200,22 @@ export const C = defineCatalog({
   /**
    * Combien de sorties attendent VRAIMENT (la file en porte plusieurs). Affiché
    * seulement quand la file a été lue : jamais « 0 », jamais « 1 » par défaut.
+   *
+   * ⚠ 27/07/2026 — CE COMPTE DIT MAINTENANT CE QU'IL COMPTE. C'est le TOTAL de
+   * la file, toutes sorties confondues. Il ne s'affiche que dans la phase
+   * `deferred`, laquelle n'est désormais atteinte que si la sortie du joueur est
+   * RÉELLEMENT dans la file (`runInQueue === 'queued'`, syncFacts.ts) : « ta
+   * sortie comprise » est donc vrai à chaque fois qu'il est peint. Avant ce
+   * correctif, la phase se déclenchait sur un compte GLOBAL, et ce même nombre
+   * s'affichait pour une course que la file venait de REFUSER — le joueur lisait
+   * « 12 en attente » en croyant y être.
    */
   queuedDepth: {
-    fr: '{n} en attente d’envoi',
-    en: '{n} waiting to be sent',
-    es: '{n} en espera de envío',
-    de: '{n} warten auf Übertragung',
-    pt: '{n} aguardando envio',
+    fr: '{n} en attente d’envoi, ta sortie comprise',
+    en: '{n} waiting to be sent, yours included',
+    es: '{n} en espera de envío, la tuya incluida',
+    de: '{n} in der Warteschlange, deine ist dabei',
+    pt: '{n} aguardando envio, incluindo a sua',
   },
 
   // ── Échec d'envoi : LE SERVEUR EST EN PANNE ───────────────────────────────

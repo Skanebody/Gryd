@@ -25,11 +25,15 @@ import {
   PENDING_QUEUE_MAX_BYTES,
   PENDING_QUEUE_MAX_ENTRIES,
   type PendingEntry,
+  type QueueRead,
   type SendVerdict,
   drainPendingQueue,
   enqueuePending,
+  hasPendingRun,
   isPermanentHttpStatus,
   parsePendingQueue,
+  planEnqueue,
+  planRemoval,
   removePending,
   serializePendingQueue,
 } from './pendingUploadQueue.ts';
@@ -263,9 +267,179 @@ Deno.test('une file VIDE accepte TOUJOURS : une longue sortie n’est jamais ine
   assertEquals(ids(res.queue), ['ultra']);
 });
 
+// ═══ « CETTE SORTIE-LÀ EST-ELLE DEDANS ? » — LA QUESTION QUE LE COMPTE NE
+//     POUVAIT PAS RÉPONDRE (27/07/2026) ═══════════════════════════════════════
+
+Deno.test('appartenance : la file répond SUR UNE SORTIE, pas sur son cardinal', () => {
+  const queue = queueAll(payload('a'), payload('b'));
+  assertEquals(hasPendingRun(queue, 'a'), true);
+  assertEquals(hasPendingRun(queue, 'b'), true);
+  assertEquals(hasPendingRun(queue, 'c'), false); // non vide, et pourtant absente
+  assertEquals(hasPendingRun([], 'a'), false);
+});
+
+Deno.test('LE CAS DU PLAFOND : la file REFUSE, reste NON VIDE, et ne contient PAS la sortie', () => {
+  // C'est le scénario complet du mensonge de E27, prouvé ici sur la file elle-
+  // même : un compte (`queue.length`) dit « 12 en attente » à l'instant précis
+  // où la sortie du joueur n'y est pas — parce que c'est ce plein-là qui l'a
+  // fait refuser. Seule une question NOMINATIVE distingue les deux.
+  const pleine = queueAll(
+    ...Array.from({ length: PENDING_QUEUE_MAX_ENTRIES }, (_, i) => payload(`vieille-${i}`)),
+  );
+  const res = enqueuePending(pleine, payload('la-mienne'), 1_000);
+  assertEquals(res.accepted, false);
+  assertEquals(res.outcome, 'full_entries');
+  assertEquals(res.queue.length, PENDING_QUEUE_MAX_ENTRIES); // le compte dit « plein »
+  assertEquals(hasPendingRun(res.queue, 'la-mienne'), false); // la sortie, elle, n'y est pas
+});
+
+Deno.test('appartenance : une sortie RETIRÉE sur verdict serveur n’y est plus', () => {
+  const queue = queueAll(payload('a'), payload('b'));
+  assertEquals(hasPendingRun(removePending(queue, 'a'), 'a'), false);
+  assertEquals(hasPendingRun(removePending(queue, 'a'), 'b'), true);
+});
+
+Deno.test('appartenance : une sortie RE-SOUMISE reste la MÊME entrée (idempotence)', () => {
+  // `enqueuePending` remplace sur place quand le `clientRunId` est déjà là :
+  // l'appartenance ne doit ni disparaître ni se dupliquer entre-temps.
+  const queue = queueAll(payload('a'));
+  const res = enqueuePending(queue, payload('a', 5), 2_000);
+  assertEquals(res.accepted, true);
+  assertEquals(res.outcome, 'replaced');
+  assertEquals(res.queue.length, 1);
+  assertEquals(hasPendingRun(res.queue, 'a'), true);
+});
+
+Deno.test('appartenance : une entrée relue depuis le STOCKAGE est reconnue', () => {
+  // La question doit survivre à un kill : c'est le cas nominal de E27 rouvert.
+  const relue = parsePendingQueue(serializePendingQueue(queueAll(payload('a'))), null);
+  assertEquals(hasPendingRun(relue, 'a'), true);
+  assertEquals(hasPendingRun(relue, 'jamais-vue'), false);
+});
+
 Deno.test('un payload sans clientRunId n’entre pas en file (rien à idempotencer)', () => {
   const res = enqueuePending([], { source: 'gps' } as unknown as IngestRunRequest, 1);
   assertEquals(res.accepted, false);
   assertEquals(res.outcome, 'invalid');
   assertEquals(res.queue.length, 0);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 6. UNE LECTURE EN ÉCHEC N'AUTORISE AUCUNE ÉCRITURE (27/07/2026)
+//
+// ⚠ LE DÉFAUT, DANS SA FORME EXACTE. `readQueue()` (lib/pendingUpload.ts) rend
+// `{ queue: [], readable: false }` quand AsyncStorage JETTE. Ce `[]` est un
+// repli syntaxique, pas une file vide — et il était lu comme une file vide :
+// `queuePendingUpload` y ajoutait la sortie du jour et RÉÉCRIVAIT la clé avec
+// UNE SEULE entrée. Le slot unique que cette FIFO existe pour supprimer,
+// revenu : jusqu'à 12 sorties utilisateur détruites en silence, sur une simple
+// lecture disque ratée suivie d'une écriture réussie. Le retrait après verdict
+// (`onSettled`) avait le même trou, en pire : il aurait écrit une file VIDE.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Une lecture RÉUSSIE de la file. */
+function lu(queue: readonly PendingEntry[]): QueueRead {
+  return { readable: true, queue };
+}
+
+/** La lecture telle que le stockage la rend quand il a JETÉ : vide ET illisible. */
+const ILLISIBLE: QueueRead = { readable: false, queue: [] };
+
+Deno.test('LE SCÉNARIO DE DESTRUCTION — ce qu’une lecture illisible aurait écrit', () => {
+  // On prouve d'abord le DÉGÂT, sur les fonctions pures et avec la séquence
+  // exacte de `queuePendingUpload` (lire → enfiler → écrire). Sans la règle, la
+  // file du disque — trois sorties — est remplacée par une file d'UNE entrée.
+  const surLeDisque = queueAll(payload('run-lundi'), payload('run-mardi'), payload('run-mercredi'));
+  const commeSiVide = enqueuePending([], payload('run-du-jour'), 5_000);
+  assertEquals(commeSiVide.accepted, true);
+  assertEquals(ids(commeSiVide.queue), ['run-du-jour']);
+  assertEquals(ids(parsePendingQueue(serializePendingQueue(commeSiVide.queue), null)), [
+    'run-du-jour',
+  ]); // ← ce que la clé aurait contenu : trois sorties effacées
+  assertEquals(ids(surLeDisque).length, 3); // ← ce qu'elle contenait vraiment
+
+  // Et voici la règle qui l'interdit : depuis une lecture ILLISIBLE, aucun plan
+  // d'écriture n'est produit. Rien n'est écrit, donc rien n'est détruit.
+  const plan = planEnqueue(ILLISIBLE, payload('run-du-jour'), 5_000);
+  assertEquals(plan.write, false);
+  assertEquals(plan.outcome, 'unreadable');
+});
+
+Deno.test('AUCUN plan d’écriture ne naît d’une lecture illisible — quelle que soit l’entrée', () => {
+  // Exhaustif sur ce qui varie : le payload (valide / inenvoyable) et l'instant.
+  const payloads = [payload('a'), { source: 'gps' } as unknown as IngestRunRequest];
+  for (const p of payloads) {
+    for (const now of [0, 1_000, Date.now()]) {
+      assertEquals(planEnqueue(ILLISIBLE, p, now).write, false, JSON.stringify({ p, now }));
+    }
+  }
+  for (const id of ['a', 'inconnue', '']) {
+    assertEquals(planRemoval(ILLISIBLE, id).write, false, id);
+  }
+});
+
+Deno.test('le RETRAIT après verdict n’écrit pas une file vide sur une relecture ratée', () => {
+  // Le pire cas : le drain a envoyé 'a', veut la retirer, et la relecture jette.
+  // Écrire ici poserait `[]` sur le disque — 'b' et 'c' effacées alors qu'elles
+  // n'étaient même pas parties.
+  assertEquals(planRemoval(ILLISIBLE, 'a').write, false);
+  // Lecture réussie : le retrait a bien lieu, et lui seul.
+  const plan = planRemoval(lu(queueAll(payload('a'), payload('b'), payload('c'))), 'a');
+  assert(plan.write);
+  assertEquals(ids(plan.queue), ['b', 'c']);
+});
+
+Deno.test('une lecture RÉUSSIE écrit exactement ce que la file pure décide', () => {
+  // La règle ne doit pas devenir une excuse pour ne plus rien écrire : sur une
+  // lecture saine, `planEnqueue` rend le même verdict qu'`enqueuePending`.
+  const queue = queueAll(payload('a'));
+  const ajout = planEnqueue(lu(queue), payload('b'), 2_000);
+  assert(ajout.write);
+  assertEquals(ajout.outcome, 'queued');
+  assertEquals(ids(ajout.queue), ['a', 'b']);
+
+  const pleine = queueAll(
+    ...Array.from({ length: PENDING_QUEUE_MAX_ENTRIES }, (_, i) => payload(`run-${i}`)),
+  );
+  const refus = planEnqueue(lu(pleine), payload('de-trop'), 3_000);
+  assertEquals(refus.write, false);
+  assertEquals(refus.outcome, 'full_entries'); // le plafond, PAS 'unreadable' : la cause reste exacte
+
+  const invalide = planEnqueue(lu([]), { source: 'gps' } as unknown as IngestRunRequest, 1);
+  assertEquals(invalide.write, false);
+  assertEquals(invalide.outcome, 'invalid');
+});
+
+// ═══ LE BRANCHEMENT : le stockage passe VRAIMENT par la règle ════════════════
+// Un test de comportement sur les fonctions pures ne peut pas voir un appelant
+// qui les ignore — c'est exactement ce qui s'est produit : le drapeau `readable`
+// existait déjà, et le chemin d'écriture ne le lisait pas. On relit donc la
+// source du seul module qui touche AsyncStorage (même patron que
+// `syncFactWiring.test.ts` : il tire `react-native`, il n'est pas importable ici).
+
+Deno.test('BRANCHEMENT — le stockage n’écrit QUE sur un plan, jamais sur une file brute', () => {
+  const SRC = Deno.readTextFileSync(new URL('./pendingUpload.ts', import.meta.url));
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert(
+    /planEnqueue\(read, payload, Date\.now\(\)\)/.test(code),
+    'la mise en file ne passe plus par `planEnqueue` : une lecture illisible pourrait de nouveau ' +
+      'écraser la file par une entrée unique',
+  );
+  assert(
+    /planRemoval\(await readQueue\(\), entry\.payload\.clientRunId\)/.test(code),
+    'le retrait après verdict ne passe plus par `planRemoval` : une relecture ratée en plein drain ' +
+      'écrirait une file VIDE',
+  );
+  // Aucun appel direct aux primitives non gardées depuis ce module.
+  assert(
+    !/enqueuePending\(/.test(code) && !/removePending\(/.test(code),
+    'le stockage appelle de nouveau la file NUE (sans la règle de lisibilité) : le trou est rouvert',
+  );
+  // Le rejeu non plus : il écrit la file MIGRÉE (slot v1 → v2) avant le premier
+  // envoi. Partir d'une lecture illisible y écrirait une file amputée du v1.
+  assert(
+    /if \(!readable\) return EMPTY_REPORT;/.test(code),
+    'le rejeu ne s’arrête plus sur une file illisible : sa migration écrirait par-dessus une file ' +
+      'inconnue',
+  );
 });

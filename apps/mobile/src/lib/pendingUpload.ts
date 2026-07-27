@@ -59,10 +59,11 @@ import {
   type PendingEntry,
   type SendVerdict,
   drainPendingQueue,
-  enqueuePending,
+  hasPendingRun,
   isPermanentHttpStatus,
   parsePendingQueue,
-  removePending,
+  planEnqueue,
+  planRemoval,
   serializePendingQueue,
 } from './pendingUploadQueue';
 import { supabase } from './supabase';
@@ -92,15 +93,50 @@ function httpStatusOf(error: unknown): number | undefined {
 // mais JAMAIS silencieuse côté appelant : `queuePendingUpload` rend false, et
 // l'appelant garde alors la course dans son propre buffer.
 
-async function readQueue(): Promise<{ queue: PendingEntry[]; hadLegacy: boolean }> {
+/**
+ * `readable: false` ⇒ AsyncStorage a JETÉ : ON NE SAIT PAS ce que la file
+ * contient. Le `queue: []` rendu alors n'est PAS « la file est vide » — c'est un
+ * repli syntaxique, et TOUT APPELANT QUI ÉCRIT DOIT TESTER `readable` AVANT.
+ *
+ * ═══ 27/07/2026 — POURQUOI CE DRAPEAU N'EST PAS DÉCORATIF ═══════════════════
+ * Un docblock antérieur affirmait ici que « les chemins d'écriture et de rejeu
+ * s'en accommodent en traitant la file comme vide : rien n'est détruit ».
+ * C'ÉTAIT FAUX, et de la pire façon. `queuePendingUpload` prenait ce `[]` pour
+ * une file vide, y ajoutait la sortie du jour, et RÉÉCRIVAIT la clé avec UNE
+ * SEULE ENTRÉE : jusqu'à 12 sorties utilisateur effacées en silence, par une
+ * simple lecture disque en échec suivie d'une écriture réussie. C'est le mode de
+ * défaillance « slot unique où une nouvelle fin ÉCRASE la précédente » que la
+ * FIFO existe précisément pour supprimer (pendingUploadQueue.ts), revenu par un
+ * déclencheur plus rare. `onSettled` (retrait après verdict) avait le même trou,
+ * en pire : il aurait écrit une file VIDE.
+ *
+ * La règle tenue par le code, désormais, en deux mots : ON N'ÉCRIT JAMAIS UNE
+ * FILE QU'ON N'A PAS PU RELIRE. L'écriture REFUSE (`queuePendingUpload` rend
+ * false, l'appelant garde son buffer — chemin 'lost', rien n'est détruit) ; le
+ * rejeu s'abstient (l'entrée reste en file, et son renvoi est neutre par
+ * idempotence `clientRunId` — D14).
+ *
+ * Enfin, un LECTEUR qui affiche doit distinguer « rien en attente » d'« illisible »
+ * — c'est le quatrième état de la constitution, et il était jusqu'ici écrasé ici
+ * même, sous un `queue: []` indiscernable d'une file vide.
+ */
+async function readQueue(): Promise<{
+  queue: PendingEntry[];
+  hadLegacy: boolean;
+  readable: boolean;
+}> {
   try {
     const [raw, rawLegacy] = await Promise.all([
       AsyncStorage.getItem(PENDING_QUEUE_KEY),
       AsyncStorage.getItem(LEGACY_PENDING_UPLOAD_KEY),
     ]);
-    return { queue: parsePendingQueue(raw, rawLegacy), hadLegacy: rawLegacy !== null };
+    return {
+      queue: parsePendingQueue(raw, rawLegacy),
+      hadLegacy: rawLegacy !== null,
+      readable: true,
+    };
   } catch {
-    return { queue: [], hadLegacy: false }; // stockage illisible : on n'insiste pas
+    return { queue: [], hadLegacy: false, readable: false }; // stockage illisible : on n'insiste pas
   }
 }
 
@@ -121,34 +157,43 @@ async function writeQueue(queue: readonly PendingEntry[], clearLegacy: boolean):
 
 /**
  * Marque une course « à renvoyer ». Retourne false si la course N'EST PAS en
- * file — stockage indisponible, ou file au plafond. Dans les deux cas
- * l'appelant garde son buffer runStore (dernier filet) : c'est précisément
- * pourquoi le plafond a le droit de refuser sans rien détruire.
+ * file — file ILLISIBLE (on n'écrit pas par-dessus ce qu'on n'a pas pu lire),
+ * file au plafond, ou écriture ratée. Dans TOUS ces cas l'appelant garde son
+ * buffer runStore (dernier filet) : c'est précisément pourquoi refuser ne
+ * détruit rien.
  */
 export async function queuePendingUpload(payload: IngestRunRequest): Promise<boolean> {
-  const { queue, hadLegacy } = await readQueue();
-  const res = enqueuePending(queue, payload, Date.now());
-  if (!res.accepted) {
-    // On le DIT plutôt que de jeter : aucune entrée n'a été évincée, et la
-    // course reste dans le buffer de l'appelant (chemin 'lost' de useRealRun,
-    // qui ne purge PAS les clés de la course).
+  const read = await readQueue();
+  // La règle « on n'écrit jamais une file qu'on n'a pas pu relire » est PURE et
+  // testée (`planEnqueue`, pendingUploadQueue.ts) : ce module ne fait que l'I/O.
+  const plan = planEnqueue(read, payload, Date.now());
+  if (!plan.write) {
+    // On le DIT plutôt que de jeter : aucune entrée n'a été évincée, aucune n'a
+    // été écrasée, et la course reste dans le buffer de l'appelant (chemin
+    // 'lost' de useRealRun, qui ne purge PAS les clés de la course).
+    // Le log non plus n'invente rien : sur une file ILLISIBLE, `read.queue` vaut
+    // `[]` par repli — écrire « 0/12 en attente » ferait croire à une file vide.
     console.warn(
-      `[pendingUpload] course NON mise en file (${res.outcome}) — ${queue.length}/${PENDING_QUEUE_MAX_ENTRIES} en attente ; elle reste dans le buffer de course.`,
+      plan.outcome === 'unreadable'
+        ? '[pendingUpload] file ILLISIBLE (profondeur inconnue) : course NON mise en file — écrire par-dessus écraserait une file inconnue ; elle reste dans le buffer de course.'
+        : `[pendingUpload] course NON mise en file (${plan.outcome}) — ${read.queue.length}/${PENDING_QUEUE_MAX_ENTRIES} en attente ; elle reste dans le buffer de course.`,
     );
     // E27 : le REFUS est un fait, avec sa cause EXACTE — la seule fois du dépôt
     // où elle est connue. `factsFromSnapshot` doit sinon la deviner depuis une
-    // file vide et retombe toujours sur 'storage' (syncFacts.ts:151).
+    // file vide et retombe toujours sur 'storage' (syncFacts.ts).
     // Un payload `invalid` n'est ni un plafond ni une panne de stockage : rien
     // n'a été écrit, et `local_save_failed` dit exactement ça, sans cause inventée.
+    // `unreadable` EST une panne de stockage — et pas un plafond : la file n'a
+    // même pas pu être lue, donc rien ne dit qu'elle est pleine.
     publishSyncFact(
-      res.outcome === 'invalid'
+      plan.outcome === 'invalid'
         ? { kind: 'local_save_failed' }
-        : { kind: 'not_stored', reason: 'queue_full' },
+        : { kind: 'not_stored', reason: plan.outcome === 'unreadable' ? 'storage' : 'queue_full' },
       payload.clientRunId,
     );
     return false;
   }
-  const written = await writeQueue(res.queue, hadLegacy);
+  const written = await writeQueue(plan.queue, read.hadLegacy);
   // ÉCHEC D'ÉCRITURE RÉEL (AsyncStorage a jeté), pas une supposition : la sortie
   // n'est nulle part de sûr. C'est le seul émetteur légitime de ce fait.
   // Le succès, lui, ne publie RIEN : la preuve de persistance que E27 accepte est
@@ -176,6 +221,49 @@ export async function hasPendingUpload(): Promise<boolean> {
 export async function pendingUploadCount(): Promise<number> {
   const { queue } = await readQueue();
   return queue.length;
+}
+
+/**
+ * CE QUE LA FILE DIT D'UNE SORTIE PRÉCISE (27/07/2026).
+ *
+ * ═══ POURQUOI LE COMPTE NE SUFFISAIT PAS ════════════════════════════════════
+ * `pendingUploadCount()` répond à « combien de sorties attendent », et E27 s'en
+ * servait pour répondre à « MA sortie attend-elle ? ». Les deux questions n'ont
+ * pas la même réponse, et le cas où elles divergent est précisément celui que la
+ * file produit elle-même : au PLAFOND, `queuePendingUpload` REFUSE la nouvelle
+ * sortie (pendingUploadQueue.ts:180) — et laisse derrière elle une file
+ * forcément NON VIDE, puisque c'est sa plénitude qui a motivé le refus. L'écran
+ * lisait donc « 12 en attente » et en concluait « ta sortie repartira au premier
+ * réseau », pour une course qui n'était PAS dedans.
+ *
+ * Cette lecture RELIT la file (elle ne devine pas) et rend les deux
+ * informations EN UN SEUL accès disque : la profondeur réelle, et
+ * l'appartenance de la sortie nommée.
+ *
+ * `readable: false` = AsyncStorage a jeté. Ce n'est ni « vide » ni « absente » :
+ * c'est « je ne sais pas », et l'appelant doit le dire tel quel.
+ *
+ * ⚠ LIMITE ÉCRITE PLUTÔT QUE MASQUÉE : une file dont le JSON est CORROMPU se lit
+ * `readable: true` avec zéro entrée (`parsePendingQueue` tolère et n'exception
+ * jamais — « lire ne détruit jamais »). C'est honnête ici : une entrée
+ * illisible ne partira jamais de cette file, donc « absente » est ce qui est
+ * vrai pour la sortie regardée.
+ */
+export type PendingUploadStatus =
+  | { readonly readable: false }
+  | { readonly readable: true; readonly depth: number; readonly hasRun: boolean };
+
+export async function pendingUploadStatus(clientRunId: string | null): Promise<PendingUploadStatus> {
+  const { queue, readable } = await readQueue();
+  if (!readable) return { readable: false };
+  return {
+    readable: true,
+    depth: queue.length,
+    // Sans identité (app relancée à froid, écran atteint par lien profond),
+    // on ne peut RIEN affirmer de l'appartenance : `false` dirait « elle n'y est
+    // pas », ce qu'on ne sait pas. L'appelant traduit `null` en « inconnu ».
+    hasRun: clientRunId !== null && hasPendingRun(queue, clientRunId),
+  };
 }
 
 /**
@@ -242,7 +330,11 @@ const EMPTY_REPORT: DrainReport = { remaining: [], sent: [], rejected: [], stopp
 
 async function retryPendingUploadOnce(): Promise<DrainReport> {
   if (supabase === null) return EMPTY_REPORT; // garanti par l'appelant ; requis pour le narrowing TS
-  const { queue, hadLegacy } = await readQueue();
+  const { queue, hadLegacy, readable } = await readQueue();
+  // File illisible : on ne sait pas ce qu'il y a à envoyer, et surtout on n'a
+  // rien le droit d'y écrire (migration comprise). Rapport VIDE = « rien
+  // d'appris », pas « rien à envoyer » : `factsFromDrain` n'en tire aucun fait.
+  if (!readable) return EMPTY_REPORT;
   if (queue.length === 0) {
     // Rien à envoyer : on en profite pour retirer un slot v1 vide/corrompu.
     if (hadLegacy) await writeQueue([], true);
@@ -307,8 +399,14 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
   // réenvoie pas ce qui est déjà parti. On relit la file avant d'écrire pour ne
   // pas écraser une course terminée pendant le drain.
   const onSettled = async (entry: PendingEntry): Promise<void> => {
-    const { queue: current } = await readQueue();
-    await writeQueue(removePending(current, entry.payload.clientRunId), false);
+    // Même règle pure qu'à l'écriture. Une relecture en échec EN PLEIN DRAIN
+    // aurait posé une file VIDE sur le disque — tout ce qui restait à envoyer,
+    // effacé. `planRemoval` refuse ; la conséquence est bornée et connue :
+    // l'entrée déjà partie reste en file et sera renvoyée une fois de trop,
+    // neutre côté serveur par idempotence `clientRunId` (D14).
+    const plan = planRemoval(await readQueue(), entry.payload.clientRunId);
+    if (!plan.write) return;
+    await writeQueue(plan.queue, false);
   };
 
   return await drainPendingQueue(queue, send, onSettled);

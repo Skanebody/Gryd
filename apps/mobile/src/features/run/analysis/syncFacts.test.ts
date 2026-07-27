@@ -12,10 +12,12 @@
  */
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import type { DrainReport, PendingEntry } from '../../../lib/pendingUploadQueue.ts';
+import { PENDING_QUEUE_MAX_ENTRIES } from '../../../lib/pendingUploadQueue.ts';
 import type { IngestRunRequest } from '@klaim/shared';
 import { QUEUE_DEPTH_UNKNOWN, reduceAnalysisAll, INITIAL_ANALYSIS_STATE } from './analysisMachine.ts';
 import {
   MIN_TRACE_POINTS,
+  type RunQueueMembership,
   type SyncSnapshot,
   UNREAD_SNAPSHOT,
   factsForRun,
@@ -23,12 +25,20 @@ import {
   factsFromSnapshot,
 } from './syncFacts.ts';
 
+/**
+ * Monde par défaut : backend présent, une trace mesurée, la file RELUE et vide —
+ * donc la sortie regardée n'y est pas. `runInQueue` est TOUJOURS explicite dans
+ * les tests qui en dépendent : depuis le 27/07/2026, `queueDepth` ne prouve plus
+ * rien sur la sortie du joueur (il compte la file entière), et une valeur
+ * déduite de l'autre reproduirait le défaut à l'intérieur même du test.
+ */
 function snapshot(over: Partial<SyncSnapshot> = {}): SyncSnapshot {
   return {
     backendConfigured: true,
     tracePoints: 120,
     hasServerVerdict: false,
     queueDepth: 0,
+    runInQueue: 'absent',
     fromFinish: false,
     queuedHint: false,
     ...over,
@@ -61,9 +71,24 @@ Deno.test('une trace d’un seul point ne prouve aucune sortie (seuil du Résult
   assertEquals(phaseOf(snapshot({ tracePoints: 2 })), 'unreadable');
 });
 
-Deno.test('une sortie EN FILE compte comme une sortie, même sans trace en mémoire', () => {
+Deno.test('MA sortie en file compte comme une sortie, même sans trace en mémoire', () => {
   // Relance de l'app après un kill : la trace singleton est perdue, la file non.
-  assertEquals(phaseOf(snapshot({ tracePoints: 0, queueDepth: 1 })), 'deferred');
+  // Il faut que la file ait été relue ET que la sortie regardée y soit trouvée.
+  assertEquals(
+    phaseOf(snapshot({ tracePoints: 0, queueDepth: 1, runInQueue: 'queued' })),
+    'deferred',
+  );
+});
+
+Deno.test('une file NON VIDE qui ne contient PAS ma sortie ne prouve AUCUNE sortie à analyser', () => {
+  // Le compte global disait « il y a une sortie » : c'était vrai de la FILE, et
+  // faux de cet écran. Une course d'hier en attente ne donne pas à E27, ouvert
+  // sans contexte, une sortie à raconter.
+  assertEquals(phaseOf(snapshot({ tracePoints: 0, queueDepth: 4, runInQueue: 'absent' })), 'no_run');
+  assertEquals(
+    phaseOf(snapshot({ tracePoints: 0, queueDepth: 4, runInQueue: 'unknown' })),
+    'no_run',
+  );
 });
 
 Deno.test('un verdict capturé compte comme une sortie, même sans trace en mémoire', () => {
@@ -92,19 +117,45 @@ Deno.test('verdict serveur capturé ⇒ analyse terminée (la seule preuve accep
   ]);
 });
 
-Deno.test('file non vide ⇒ envoi différé, avec la profondeur RÉELLE', () => {
-  assertEquals(factsFromSnapshot(snapshot({ queueDepth: 3 })), [
+Deno.test('MA sortie en file ⇒ envoi différé, avec la profondeur RÉELLE de la file', () => {
+  // `queueDepth` est le TOTAL de la file (3 sorties attendent, dont la mienne) :
+  // il n'est affiché que dans ce cas, où « ta sortie comprise » est vrai.
+  assertEquals(factsFromSnapshot(snapshot({ queueDepth: 3, runInQueue: 'queued' })), [
     { kind: 'local_saved' },
     { kind: 'offline_queued', queueDepth: 3 },
   ]);
 });
 
+Deno.test('file non vide SANS ma sortie ⇒ ni « à l’abri », ni « en attente »', () => {
+  // LE DÉFAUT EXACT, DANS SA FORME LA PLUS NUE : la file parle d'autres courses.
+  // Rien de ce qu'elle contient n'est une preuve sur celle-ci.
+  assertEquals(factsFromSnapshot(snapshot({ queueDepth: 5, runInQueue: 'absent' })), [
+    { kind: 'outcome_unreadable' },
+  ]);
+});
+
 Deno.test('le verdict PRIME sur la file (une sortie jugée n’est plus « en attente »)', () => {
-  assertEquals(phaseOf(snapshot({ hasServerVerdict: true, queueDepth: 2 })), 'complete');
+  assertEquals(
+    phaseOf(snapshot({ hasServerVerdict: true, queueDepth: 2, runInQueue: 'queued' })),
+    'complete',
+  );
 });
 
 Deno.test('file ILLISIBLE : on ne la compte JAMAIS pour vide, on dit qu’on ne sait pas', () => {
-  assertEquals(phaseOf(snapshot({ queueDepth: QUEUE_DEPTH_UNKNOWN })), 'unreadable');
+  assertEquals(
+    phaseOf(snapshot({ queueDepth: QUEUE_DEPTH_UNKNOWN, runInQueue: 'unknown' })),
+    'unreadable',
+  );
+});
+
+Deno.test('SANS IDENTITÉ DE SORTIE, une file lisible ne conclut rien non plus', () => {
+  // App relancée à froid / lien profond : `syncFactRunId()` est `null`, donc
+  // `runInQueue` vaut 'unknown' même si la file a été parfaitement lue. On ne
+  // sait pas de quelle sortie on parle : on ne lui attribue rien.
+  assertEquals(
+    factsFromSnapshot(snapshot({ queueDepth: 2, runInQueue: 'unknown', fromFinish: true })),
+    [{ kind: 'outcome_unreadable' }],
+  );
 });
 
 Deno.test('sortie partie, file vide, aucun verdict : issue INCONNUE, jamais « terminé »', () => {
@@ -124,9 +175,9 @@ Deno.test('un snapshot où RIEN n’a été lu ne conclut rien de flatteur', () 
 // distingue enfin — c'est la seule raison pour laquelle ces deux champs
 // existent dans le snapshot.
 
-Deno.test('relais E26 « pas envoyée » + file NON vide ⇒ envoi différé', () => {
+Deno.test('relais E26 « pas envoyée » + MA sortie retrouvée en file ⇒ envoi différé', () => {
   assertEquals(
-    phaseOf(snapshot({ fromFinish: true, queuedHint: true, queueDepth: 1 })),
+    phaseOf(snapshot({ fromFinish: true, queuedHint: true, queueDepth: 1, runInQueue: 'queued' })),
     'deferred',
   );
 });
@@ -143,11 +194,76 @@ Deno.test('relais E26 « pas envoyée » + file VIDE ⇒ la sortie n’a PAS pu 
   assertEquals(phaseOf(snapshot({ fromFinish: true, queuedHint: true })), 'unstored');
 });
 
+Deno.test('FILE AU PLAFOND : une sortie REFUSÉE n’est PAS « en file » parce que la file est pleine', () => {
+  // LE MENSONGE QUE CE TEST REPRODUIT. `queuePendingUpload` REFUSE l'entrée
+  // quand la file est au plafond (pendingUploadQueue.ts:180) et publie
+  // `not_stored` (pendingUpload.ts:143) : E27 se pose correctement en
+  // « non mise en file ». Puis `observeSync` relit une file forcément NON VIDE
+  // — c'est exactement pourquoi elle a refusé — et l'écran repliait ce compte
+  // GLOBAL par-dessus : « ta sortie repartira au premier réseau », plus
+  // « n en attente d'envoi », POUR UNE COURSE QUI N'EST PAS DANS LA FILE.
+  const snap = snapshot({
+    fromFinish: true,
+    queuedHint: true,
+    queueDepth: PENDING_QUEUE_MAX_ENTRIES,
+    runInQueue: 'absent',
+  });
+  assertEquals(factsFromSnapshot(snap), [{ kind: 'not_stored', reason: 'unknown' }]);
+  assertEquals(phaseOf(snap), 'unstored');
+});
+
 Deno.test('« pas envoyée » + file ILLISIBLE ⇒ on ne conclut PAS « non stockée »', () => {
   assertEquals(
-    phaseOf(snapshot({ fromFinish: true, queuedHint: true, queueDepth: QUEUE_DEPTH_UNKNOWN })),
+    phaseOf(
+      snapshot({
+        fromFinish: true,
+        queuedHint: true,
+        queueDepth: QUEUE_DEPTH_UNKNOWN,
+        runInQueue: 'unknown',
+      }),
+    ),
     'unreadable',
   );
+});
+
+Deno.test('LA LECTURE NE REPEINT PAS UN « non stockée » PUBLIÉ PAR LE PRODUCTEUR', () => {
+  // ⚠ LE DÉFAUT COMPLET, DANS SA COMPOSITION RÉELLE (27/07/2026).
+  // 1. `queuePendingUpload` refuse la sortie au plafond et publie la cause
+  //    EXACTE — `not_stored reason:'queue_full'` (lib/pendingUpload.ts). E27
+  //    replie ce journal au montage : phase `unstored`, copie vraie
+  //    (« elle sera reproposée à ta prochaine course »), aucune reprise peinte.
+  // 2. `observeSync` relit ENSUITE le monde. Si la relecture de la file échoue
+  //    (`runInQueue: 'unknown'`), la table ci-dessous rend `outcome_unreadable`
+  //    — ce qui est correct de SA part : elle, elle ne sait rien.
+  // 3. L'écran appliquait ce fait par-dessus : le diagnostic juste devenait
+  //    « issue non lisible », et `canRetry` rallumait un « Réessayer » qui ne
+  //    peut rien trouver (la reprise ne draine que la file, où cette sortie
+  //    n'est justement PAS).
+  const journal = reduceAnalysisAll(INITIAL_ANALYSIS_STATE, [
+    { kind: 'not_stored', reason: 'queue_full' },
+  ]);
+  const illisible = snapshot({
+    fromFinish: true,
+    queuedHint: true,
+    queueDepth: QUEUE_DEPTH_UNKNOWN,
+    runInQueue: 'unknown',
+  });
+  assertEquals(factsFromSnapshot(illisible), [{ kind: 'outcome_unreadable' }]);
+  assertEquals(reduceAnalysisAll(journal, factsFromSnapshot(illisible)).phase, 'unstored');
+});
+
+Deno.test('… et une lecture illisible ne dégrade pas non plus un « en file » déjà établi', () => {
+  const journal = reduceAnalysisAll(INITIAL_ANALYSIS_STATE, [
+    { kind: 'offline_queued', queueDepth: 3 },
+  ]);
+  const illisible = snapshot({
+    fromFinish: true,
+    queueDepth: QUEUE_DEPTH_UNKNOWN,
+    runInQueue: 'unknown',
+  });
+  const apres = reduceAnalysisAll(journal, factsFromSnapshot(illisible));
+  assertEquals(apres.phase, 'deferred');
+  assertEquals(apres.queueDepth, 3, 'la profondeur RÉELLE lue est remplacée par un « inconnu »');
 });
 
 Deno.test('un verdict serveur prime même sur le relais « pas envoyée »', () => {
@@ -280,64 +396,70 @@ Deno.test('`factsForRun` sans identité de sortie n’adopte RIEN', () => {
 
 // ═══ L'INVARIANT QUI MANQUAIT : AUCUN FAIT N'EST FABRIQUÉ ═══════════════════
 
-Deno.test('`local_saved` n’est émis QUE si la file a été relue NON VIDE', () => {
-  // La faute corrigée le 27/07 : ce fait sortait en tête de CHAQUE branche.
-  // `SyncSnapshot` ne porte qu'une seule source capable de prouver une écriture
-  // disque — `queueDepth`, rendu par `pendingUploadCount()`. Ce test énumère
-  // toutes les combinaisons du snapshot et vérifie l'équivalence stricte.
+/** Toutes les combinaisons du snapshot, sans en oublier une seule. */
+function* allSnapshots(): Generator<SyncSnapshot> {
   const bools = [false, true];
   const depths = [QUEUE_DEPTH_UNKNOWN, 0, 1, 5];
+  const memberships: RunQueueMembership[] = ['queued', 'absent', 'unknown'];
   for (const backendConfigured of bools) {
     for (const hasServerVerdict of bools) {
       for (const fromFinish of bools) {
         for (const queuedHint of bools) {
           for (const tracePoints of [0, 2]) {
             for (const queueDepth of depths) {
-              const snap = {
-                backendConfigured,
-                hasServerVerdict,
-                fromFinish,
-                queuedHint,
-                tracePoints,
-                queueDepth,
-              };
-              const saidSaved = factsFromSnapshot(snap).some((f) => f.kind === 'local_saved');
-              const proven = backendConfigured && !hasServerVerdict && queueDepth > 0;
-              assertEquals(saidSaved, proven, JSON.stringify(snap));
+              for (const runInQueue of memberships) {
+                yield {
+                  backendConfigured,
+                  hasServerVerdict,
+                  fromFinish,
+                  queuedHint,
+                  tracePoints,
+                  queueDepth,
+                  runInQueue,
+                };
+              }
             }
           }
         }
       }
     }
   }
+}
+
+Deno.test('`local_saved` n’est émis QUE si MA sortie a été RETROUVÉE dans la file', () => {
+  // Deux fautes corrigées le 27/07, et ce test les verrouille toutes les deux :
+  //  1. le fait sortait en tête de CHAQUE branche, sans qu'aucune source ne
+  //     l'atteste ;
+  //  2. il s'appuyait ensuite sur `queueDepth > 0` — la file ENTIÈRE, qui ne
+  //     prouve rien de la sortie regardée.
+  // La seule preuve d'écriture disque que ce snapshot porte est
+  // `runInQueue === 'queued'` : la file a été relue, et CETTE sortie y est.
+  for (const snap of allSnapshots()) {
+    const saidSaved = factsFromSnapshot(snap).some((f) => f.kind === 'local_saved');
+    const proven = snap.backendConfigured && !snap.hasServerVerdict && snap.runInQueue === 'queued';
+    assertEquals(saidSaved, proven, JSON.stringify(snap));
+  }
+});
+
+Deno.test('`offline_queued` n’est JAMAIS émis pour une sortie absente de la file', () => {
+  // L'énoncé exact du mensonge : « ta sortie repartira au premier réseau » ne
+  // peut être dit que d'une sortie qui EST dans la file d'envoi.
+  for (const snap of allSnapshots()) {
+    const saidQueued = factsFromSnapshot(snap).some((f) => f.kind === 'offline_queued');
+    if (saidQueued) assertEquals(snap.runInQueue, 'queued', JSON.stringify(snap));
+  }
 });
 
 Deno.test('aucun tableau de faits ne se contredit lui-même', () => {
   // `local_saved` (« durablement tenue sur l'appareil ») et `not_stored`
   // (« n'a pas pu être stockée ») étaient rendus ENSEMBLE. Plus jamais.
-  const bools = [false, true];
-  for (const backendConfigured of bools) {
-    for (const hasServerVerdict of bools) {
-      for (const fromFinish of bools) {
-        for (const queuedHint of bools) {
-          for (const queueDepth of [QUEUE_DEPTH_UNKNOWN, 0, 1]) {
-            const facts = factsFromSnapshot({
-              backendConfigured,
-              hasServerVerdict,
-              fromFinish,
-              queuedHint,
-              tracePoints: 2,
-              queueDepth,
-            });
-            const kinds = new Set(facts.map((f) => f.kind));
-            assertEquals(
-              kinds.has('local_saved') && kinds.has('not_stored'),
-              false,
-              JSON.stringify(facts),
-            );
-          }
-        }
-      }
-    }
+  for (const snap of allSnapshots()) {
+    const kinds = new Set(factsFromSnapshot(snap).map((f) => f.kind));
+    assertEquals(kinds.has('local_saved') && kinds.has('not_stored'), false, JSON.stringify(snap));
+    assertEquals(
+      kinds.has('offline_queued') && kinds.has('not_stored'),
+      false,
+      JSON.stringify(snap),
+    );
   }
 });

@@ -21,11 +21,14 @@
  *    capturé quand `ingest_run` a répondu SANS erreur (useRealRunCore.ts:179).
  *    Non nul ⇒ le serveur a rendu son verdict. C'est la seule preuve d'analyse
  *    terminée que le client possède ; elle n'est jamais déduite.
- *  · `pendingUploadCount()` (lib/pendingUpload.ts) — la file FIFO d'envoi
- *    différé. > 0 ⇒ la sortie attend un réseau : ni un succès, ni un échec, et
- *    l'écran le DIT au lieu de faire semblant d'analyser. C'est AUSSI la seule
- *    source qui prouve une écriture disque, donc le seul émetteur légitime de
- *    `local_saved` (voir le correctif du 27/07 sur `factsFromSnapshot`).
+ *  · `pendingUploadStatus(clientRunId)` (lib/pendingUpload.ts) — la file FIFO
+ *    d'envoi différé, interrogée SUR LA SORTIE REGARDÉE. Elle y est ⇒ la sortie
+ *    attend un réseau : ni un succès, ni un échec, et l'écran le DIT au lieu de
+ *    faire semblant d'analyser. C'est AUSSI la seule source qui prouve une
+ *    écriture disque, donc le seul émetteur légitime de `local_saved` (voir le
+ *    correctif du 27/07 sur `factsFromSnapshot`).
+ *    ⚠ LA PROFONDEUR SEULE NE PROUVE RIEN SUR CETTE SORTIE — voir
+ *    `RunQueueMembership` ci-dessous.
  *
  * ─── CE QU'AUCUNE SOURCE NE DIT, ET QU'ON N'AFFIRME DONC PAS ────────────────
  * « La sortie est enregistrée sur l'appareil » en dehors de la file. Rien dans
@@ -43,6 +46,33 @@
 import type { DrainReport } from '../../../lib/pendingUploadQueue';
 import { QUEUE_DEPTH_UNKNOWN, type RunSyncFact, type SyncFact } from './analysisMachine';
 
+/**
+ * LA SORTIE REGARDÉE EST-ELLE DANS LA FILE D'ENVOI DIFFÉRÉ ? (27/07/2026)
+ *
+ * ═══ LE DÉFAUT QUE CE TYPE SUPPRIME ═════════════════════════════════════════
+ * `factsFromSnapshot` concluait « ta sortie est en file » à partir de
+ * `queueDepth > 0` — un compte GLOBAL, qui additionne les courses d'hier, celles
+ * d'un vol sans réseau, et parfois celle du joueur. Le contre-exemple n'était pas
+ * théorique : quand la file est AU PLAFOND, `queuePendingUpload` REFUSE la sortie
+ * (pendingUploadQueue.ts:180) et publie `not_stored` (pendingUpload.ts). E27 se
+ * posait correctement en « non mise en file »… puis relisait une file forcément
+ * NON VIDE — c'est sa plénitude même qui a motivé le refus — et pliait
+ * `offline_queued` par-dessus. L'écran promettait alors « ta sortie repartira au
+ * premier réseau » et affichait « n en attente » POUR UNE COURSE ABSENTE DE LA
+ * FILE. Violation directe de « l'app ne ment jamais ».
+ *
+ * Trois valeurs, parce qu'il y a trois situations et pas deux :
+ *  · `queued`  — la file a été RELUE et cette sortie y est. Le seul cas qui
+ *    autorise `local_saved` et `offline_queued`.
+ *  · `absent`  — la file a été relue et cette sortie N'Y EST PAS. Ce que la file
+ *    contient par ailleurs ne la concerne pas : on n'en conclut rien.
+ *  · `unknown` — on ne peut pas répondre : lecture de la file EN ÉCHEC, ou écran
+ *    sans identité de sortie (lien profond nu, app relancée à froid — le journal
+ *    de `syncFactBus` n'appartient alors à personne). Ce n'est ni « oui » ni
+ *    « non », et surtout pas « non » par défaut.
+ */
+export type RunQueueMembership = 'queued' | 'absent' | 'unknown';
+
 /** Ce que l'écran a RÉELLEMENT pu lire du monde, à un instant donné. */
 export interface SyncSnapshot {
   /** Un backend est-il configuré ? (`supabase !== null`) */
@@ -51,8 +81,16 @@ export interface SyncSnapshot {
   readonly tracePoints: number;
   /** Le serveur a-t-il rendu un verdict capturé pour cette sortie ? */
   readonly hasServerVerdict: boolean;
-  /** Sorties en file, ou `QUEUE_DEPTH_UNKNOWN` si la file est illisible. */
+  /**
+   * TOTAL de sorties en file (toutes courses confondues), ou
+   * `QUEUE_DEPTH_UNKNOWN` si la file est illisible. Ce nombre parle de la FILE,
+   * jamais de la sortie regardée : il ne sert qu'à afficher combien de sorties
+   * attendent, une fois établi PAR `runInQueue` que celle du joueur en fait
+   * partie. Aucune branche de décision n'a le droit de conclure dessus.
+   */
   readonly queueDepth: number;
+  /** La sortie regardée est-elle dans la file ? (voir `RunQueueMembership`) */
+  readonly runInQueue: RunQueueMembership;
   /**
    * E26 a-t-elle passé le relais ? (`courseResultParams` présents dans l'URL.)
    * Faux sur un lien profond nu : l'écran n'a alors AUCUN contexte de sortie.
@@ -80,6 +118,7 @@ export const UNREAD_SNAPSHOT: SyncSnapshot = {
   tracePoints: 0,
   hasServerVerdict: false,
   queueDepth: QUEUE_DEPTH_UNKNOWN,
+  runInQueue: 'unknown',
   fromFinish: false,
   queuedHint: false,
 };
@@ -109,17 +148,33 @@ export const UNREAD_SNAPSHOT: SyncSnapshot = {
  *    faits contradictoires dans le même tableau, dont le second dit exactement
  *    que la sortie n'a PAS pu être stockée.
  *
- * LA SEULE PREUVE DE PERSISTANCE QUE CET ÉCRAN POSSÈDE est `queueDepth > 0` :
- * `pendingUploadCount()` a RELU la file FIFO sur le disque et y a compté des
- * entrées. `local_saved` n'est donc plus émis QUE là. Partout ailleurs, l'étape 1
- * ne prétend plus rien (cf. `stepStatuses`, où `no_backend` la peint
- * `unavailable` et `unreadable` la peint `unknown`).
+ * LA SEULE PREUVE DE PERSISTANCE QUE CET ÉCRAN POSSÈDE est
+ * `runInQueue === 'queued'` : la file FIFO a été RELUE sur le disque, et LA
+ * SORTIE REGARDÉE y a été trouvée. `local_saved` n'est donc plus émis QUE là.
+ * Partout ailleurs, l'étape 1 ne prétend plus rien (cf. `stepStatuses`, où
+ * `no_backend` la peint `unavailable` et `unreadable` la peint `unknown`).
+ *
+ * ═══ CORRECTIF DU 27/07 (2) — LA LECTURE DU MONDE PARLAIT D'AUTRES SORTIES ══
+ * Toutes les branches ci-dessous se décidaient sur `queueDepth`, un compte
+ * GLOBAL. Elles concluent désormais sur `runInQueue`, qui nomme la sortie. Ce
+ * que ça sépare, et que rien ne séparait :
+ *  · elle EST en file ⇒ `deferred`, et c'est vrai ;
+ *  · elle N'Y EST PAS mais la file contient AUTRE CHOSE ⇒ on ne conclut RIEN
+ *    d'elle à partir de ce que la file contient (c'est le cas exact du refus au
+ *    plafond, qui laisse forcément une file non vide derrière lui) ;
+ *  · la file est vide ⇒ elle n'y est pas non plus, même conclusion ;
+ *  · la LECTURE A ÉCHOUÉ ⇒ `unknown` : quatrième état de la constitution, jamais
+ *    replié sur « vide ».
  */
 export function factsFromSnapshot(snap: SyncSnapshot): readonly SyncFact[] {
   const hasRun =
     snap.fromFinish ||
     snap.tracePoints >= MIN_TRACE_POINTS ||
-    snap.queueDepth > 0 ||
+    // ⚠ PAS `queueDepth > 0`. Une file non vide prouve qu'UNE sortie attend,
+    // pas que CET ÉCRAN en regarde une : après un kill, un écran ouvert sans
+    // relais ni identité affichait « envoi différé » pour la course de
+    // quelqu'un d'autre — au sens propre, une autre sortie que la sienne.
+    snap.runInQueue === 'queued' ||
     snap.hasServerVerdict;
   if (!hasRun) return [{ kind: 'no_run' }];
 
@@ -136,19 +191,30 @@ export function factsFromSnapshot(snap: SyncSnapshot): readonly SyncFact[] {
     // clés locales viennent justement d'être purgées.
     return [{ kind: 'server_accepted' }];
   }
-  if (snap.queueDepth > 0) {
+  if (snap.runInQueue === 'queued') {
     // LA SEULE BRANCHE QUI PROUVE UNE PERSISTANCE LOCALE : la file a été relue
-    // sur le disque et elle n'est pas vide.
+    // sur le disque, et CETTE sortie y est. `queueDepth` n'est ici qu'un
+    // affichage — combien de sorties attendent, celle-ci COMPRISE (c'est ce que
+    // dit la copie `queuedDepth`, et c'est vrai parce qu'on est dans ce cas).
     return [{ kind: 'local_saved' }, { kind: 'offline_queued', queueDepth: snap.queueDepth }];
   }
-  if (snap.fromFinish && snap.queuedHint && snap.queueDepth === 0) {
-    // E26 affirme que la sortie n'est PAS partie, et la file est vide : elle
-    // n'a donc pas pu y entrer (stockage indisponible, ou file au plafond, qui
-    // REFUSE au lieu d'écraser). C'est le chemin 'lost' de `useRealRunCore`,
-    // et c'est le seul endroit du dépôt où il redevient distinguable de
-    // 'queued'. Sans ce croisement, les deux se lisaient « envoi différé » —
-    // dont une moitié promettait un envoi qui ne viendrait jamais.
-    return [{ kind: 'not_stored', reason: 'storage' }];
+  if (snap.fromFinish && snap.queuedHint && snap.runInQueue === 'absent') {
+    // E26 affirme que la sortie n'est PAS partie, et la file relue ne la
+    // contient pas : elle n'a donc pas pu y entrer. C'est le chemin 'lost' de
+    // `useRealRunCore`, et c'est le seul endroit du dépôt où il redevient
+    // distinguable de 'queued'. Sans ce croisement, les deux se lisaient
+    // « envoi différé » — dont une moitié promettait un envoi qui ne viendrait
+    // jamais.
+    //
+    // LA CAUSE, ELLE, N'EST PAS DEVINÉE. Une file VIDE exclut le plafond : il ne
+    // reste que l'écriture ratée ('storage'). Une file NON VIDE, en revanche,
+    // est compatible avec les deux (plafond atteint, ou écriture ratée pendant
+    // que d'autres sorties attendaient) : on rend 'unknown' plutôt que d'élire
+    // un coupable. Le producteur, lui, connaît la cause exacte et la publie
+    // (`queue_full`, pendingUpload.ts) — cette lecture-ci ne fait que constater.
+    return [
+      { kind: 'not_stored', reason: snap.queueDepth === 0 ? 'storage' : 'unknown' },
+    ];
   }
   // Reste : file vide (la sortie est partie, mais aucun verdict n'a été
   // capturé — succès à réponse creuse, ou refus définitif) ou file ILLISIBLE.

@@ -162,8 +162,17 @@ export type SyncFact =
   | { readonly kind: 'server_replied_error'; readonly httpStatus: number }
   /** Pas de réseau : la sortie est entrée dans la file d'envoi différé. */
   | { readonly kind: 'offline_queued'; readonly queueDepth: number }
-  /** La sortie n'a PAS pu être mise en file (stockage KO / file au plafond). */
-  | { readonly kind: 'not_stored'; readonly reason: 'storage' | 'queue_full' }
+  /**
+   * La sortie n'a PAS pu être mise en file. La cause n'est CONNUE que du
+   * producteur — `queuePendingUpload` sait s'il a buté sur le plafond
+   * (`queue_full`) ou sur le stockage lui-même (`storage` : file illisible, donc
+   * jamais réécrite, ou écriture ratée). Un observateur qui
+   * RELIT la file, lui, constate seulement l'absence : d'où `unknown`, qui
+   * refuse d'attribuer une cause qu'aucune lecture n'établit (27/07/2026).
+   * Le fait reste le même — la sortie n'est pas à l'abri — et c'est lui seul que
+   * l'écran affiche : `reduceAnalysis` ne lit pas `reason`.
+   */
+  | { readonly kind: 'not_stored'; readonly reason: 'storage' | 'queue_full' | 'unknown' }
   /** Le joueur a demandé une reprise, et une tentative RÉELLE vient de partir. */
   | { readonly kind: 'retry_started' };
 
@@ -239,6 +248,47 @@ export function isSettled(phase: AnalysisPhase): boolean {
   );
 }
 
+/**
+ * CETTE PHASE PORTE-T-ELLE DÉJÀ UN DIAGNOSTIC OBSERVÉ DE L'ISSUE ? (27/07/2026)
+ *
+ * ═══ LE DÉFAUT QUE CE PRÉDICAT SUPPRIME ═════════════════════════════════════
+ * `outcome_unreadable` s'appliquait SANS CONDITION (« l'issue existe mais je ne
+ * sais pas laquelle »). Or l'écran reçoit ses faits de DEUX endroits qui n'en
+ * savent pas autant :
+ *  · le PRODUCTEUR, qui publie au moment où la chose arrive et connaît la cause
+ *    EXACTE — `not_stored reason:'queue_full'` quand la file a refusé
+ *    (lib/pendingUpload.ts), `local_save_failed` sur une écriture avérée ratée,
+ *    `server_replied_error` avec le statut HTTP réel ;
+ *  · la LECTURE DU MONDE (`factsFromSnapshot`), qui relit APRÈS COUP et rend
+ *    `outcome_unreadable` dès que la file est illisible (`runInQueue: 'unknown'`).
+ *
+ * Au montage, E27 replie le journal du producteur PUIS applique la lecture du
+ * monde par-dessus (app/course/analyse.tsx). Un `unstored` juste — la sortie
+ * n'est pas en file, on sait pourquoi, et rien ne la sauvera à part la prochaine
+ * course — était donc repeint en `unreadable` par une lecture qui en savait
+ * MOINS. Deux conséquences, chacune une violation :
+ *  1. l'écran remplaçait un fait vrai par un « je ne sais pas » (l'app ment par
+ *     effacement autant que par invention) ;
+ *  2. `canRetry('unreadable')` est vrai : il repeignait donc le bouton
+ *     « Réessayer » que `canRetry` exclut EXPRESSÉMENT pour `unstored`, sur une
+ *     sortie que la reprise ne peut pas trouver (elle ne draine que la file).
+ *     Un bouton mort, ré-introduit par le bas.
+ *
+ * Le dépôt avait déjà énoncé la règle pour le chemin drain (syncFacts.ts, « sur
+ * un écran déjà en `unstored`, il aurait dégradé un diagnostic juste en un
+ * diagnostic vague ») ; elle est désormais TENUE par la machine, une seule fois,
+ * pour tous les chemins.
+ *
+ * ⚠ CE N'EST PAS `isSettled`. Une phase diagnostiquée peut encore bouger sur un
+ * fait qui en sait PLUS (un renvoi qui aboutit fait passer `deferred` à
+ * `complete`) : seule la DÉGRADATION vers l'inconnu est refusée.
+ */
+export function isDiagnosed(phase: AnalysisPhase): boolean {
+  return (
+    isSettled(phase) || phase === 'deferred' || phase === 'unstored' || phase === 'server_error'
+  );
+}
+
 /** Un travail est-il RÉELLEMENT en vol ? (Rien d'autre n'a le droit d'animer.) */
 export function isWorking(phase: AnalysisPhase): boolean {
   return phase === 'securing' || phase === 'uploading' || phase === 'analysing';
@@ -290,7 +340,12 @@ export function reduceAnalysis(state: AnalysisState, fact: SyncFact): AnalysisSt
       return { ...state, phase: 'no_run' };
 
     case 'outcome_unreadable':
-      return { ...state, phase: 'unreadable' };
+      // UNE LECTURE QUI EN SAIT MOINS N'ÉCRASE PAS UN DIAGNOSTIC OBSERVÉ
+      // (27/07/2026, voir `isDiagnosed`). Ce fait naît d'une relecture APRÈS
+      // COUP (`factsFromSnapshot`, file illisible ⇒ `runInQueue: 'unknown'`) ;
+      // il ne peut rien apprendre à un écran à qui le producteur a déjà dit,
+      // depuis l'intérieur de l'envoi, ce qui est arrivé à CETTE sortie.
+      return isDiagnosed(state.phase) ? state : { ...state, phase: 'unreadable' };
 
     case 'upload_started':
     case 'retry_started':

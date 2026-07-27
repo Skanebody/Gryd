@@ -27,6 +27,7 @@ import {
   type SyncFact,
   canRetry,
   doneStepCount,
+  isDiagnosed,
   isSettled,
   isWorking,
   reduceAnalysis,
@@ -319,6 +320,81 @@ Deno.test('les phases définitives sont exactement celles qu’on n’a pas le d
   }
   assertEquals(ALL_PHASES.filter(isSettled), ['complete', 'rejected', 'no_backend', 'no_run']);
   assertEquals(ALL_PHASES.filter(canRetry), ['deferred', 'server_error', 'unreadable']);
+});
+
+// ═══ 5 bis. UNE LECTURE QUI EN SAIT MOINS N'ÉCRASE PAS UN FAIT OBSERVÉ ══════
+//
+// ⚠ LE DÉFAUT EXACT (27/07/2026). `outcome_unreadable` s'appliquait SANS
+// CONDITION. Il naît pourtant d'une RELECTURE après coup (`factsFromSnapshot`,
+// file illisible ⇒ `runInQueue: 'unknown'`), là où `not_stored` /
+// `local_save_failed` / `server_replied_error` naissent DANS l'envoi lui-même,
+// avec la cause exacte. Au montage, E27 replie le journal du producteur PUIS
+// applique la lecture du monde par-dessus (app/course/analyse.tsx) : un
+// `unstored` juste devenait « issue illisible ». Deux dégâts : un fait vrai
+// remplacé par un « je ne sais pas », et `canRetry('unreadable')` qui repeignait
+// le bouton mort que `canRetry` refuse EXPRESSÉMENT à `unstored`.
+
+Deno.test('un diagnostic OBSERVÉ n’est pas dégradé par une relecture illisible', () => {
+  for (const phase of ['deferred', 'unstored', 'server_error'] as const) {
+    const s = at(phase);
+    assertStrictEquals(
+      reduceAnalysis(s, { kind: 'outcome_unreadable' }),
+      s,
+      `« ${phase} » est repeint en « unreadable » par une lecture qui en sait moins`,
+    );
+  }
+});
+
+Deno.test('LE CAS COMPLET — « non stockée » (cause connue) survit à une file illisible', () => {
+  // Le producteur a dit la vérité exacte sur CETTE sortie : la file l'a refusée
+  // au plafond. La lecture du monde, elle, n'arrive plus à lire la file.
+  const journal = reduceAnalysisAll(INITIAL_ANALYSIS_STATE, [
+    { kind: 'not_stored', reason: 'queue_full' },
+  ]);
+  const apres = reduceAnalysisAll(journal, [{ kind: 'outcome_unreadable' }]);
+  assertEquals(apres.phase, 'unstored');
+  assertEquals(canRetry(apres.phase), false, 'le bouton mort de `unstored` est ré-introduit');
+  assertEquals(stepStatuses(apres.phase).secure, 'failed');
+});
+
+Deno.test('… mais « illisible » reste dit quand RIEN de précis n’a été observé', () => {
+  // La règle ne doit pas servir d'excuse pour ne plus jamais dire « je ne sais
+  // pas » : depuis les phases qui ne portent aucun diagnostic, le fait s'applique.
+  for (const phase of ['securing', 'secured', 'uploading', 'analysing'] as const) {
+    assertEquals(reduceAnalysis(at(phase), { kind: 'outcome_unreadable' }).phase, 'unreadable', phase);
+  }
+});
+
+Deno.test('un fait qui en sait PLUS passe encore sur un diagnostic (aucun état gelé)', () => {
+  // `isDiagnosed` n'est PAS `isSettled` : un renvoi qui aboutit doit toujours
+  // faire passer « en file » à « terminé ».
+  assertEquals(reduceAnalysis(at('deferred'), { kind: 'server_accepted' }).phase, 'complete');
+  assertEquals(
+    reduceAnalysis(at('server_error'), { kind: 'server_replied_error', httpStatus: 403 }).phase,
+    'rejected',
+  );
+  assertEquals(
+    reduceAnalysis(at('unstored'), { kind: 'offline_queued', queueDepth: 2 }).phase,
+    'deferred',
+  );
+});
+
+Deno.test('`isDiagnosed` couvre EXACTEMENT les phases qui portent une issue observée', () => {
+  assertEquals(ALL_PHASES.filter(isDiagnosed), [
+    'complete',
+    'deferred',
+    'unstored',
+    'server_error',
+    'rejected',
+    'no_backend',
+    'no_run',
+  ]);
+  // Aucune phase de travail en vol n'est un diagnostic : sinon l'écran cesserait
+  // de pouvoir dire « je ne sais pas » là où c'est justement la vérité.
+  for (const phase of ALL_PHASES) {
+    if (isWorking(phase)) assert(!isDiagnosed(phase), `${phase} passe pour une issue observée`);
+  }
+  assert(!isDiagnosed('unreadable'), '« je ne sais pas » n’est pas un diagnostic');
 });
 
 // ═══ 6. FAITS HORS CONTEXTE : L'ÉTAT NE RECULE PAS, NE SAUTE PAS ════════════
