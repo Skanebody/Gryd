@@ -84,7 +84,28 @@ export const EVENTS = {
   shieldActivated: 'shield_activated', // props: { source }
   skinEquipped: 'skin_equipped',
   // Performance (AMENDEMENT-02)
-  performancePageViewed: 'performance_page_viewed',
+  /**
+   * E65 « Statistiques personnelles » (`/profile/stats`, servi par
+   * `/performance`). ÉMIS RÉELLEMENT depuis `app/performance.tsx:566` avec
+   * `{ period }` — 'semaine' | 'mois' | 'saison', les filtres de la spec.
+   *
+   * E65 lui ajoute deux propriétés, sur CET event plutôt qu'un nouveau nom (un
+   * second nom couperait la série temporelle à l'instant précis où l'on ajoute
+   * une dimension) :
+   *  · `activity` FERMÉ : 'run' | 'bike'. La lecture (`useStats(activity)`) est
+   *    bornée par `.eq('activity', …)` : deux mondes, deux jeux de chiffres —
+   *    sans cette propriété, un vide côté vélo et un vide côté course se
+   *    confondent ;
+   *  · `state` FERMÉ, les quatre de la constitution : 'signed_out' | 'empty'
+   *    (lu, aucune sortie) | 'failed' | 'ready'. Avec zéro course en base, la
+   *    valeur dominante sera 'empty' — et il faut pouvoir le distinguer d'une
+   *    panne sans ouvrir l'app.
+   *
+   * ⚠ AUCUN CHIFFRE DE STATISTIQUE (volume, allure, régularité, surface) : ce
+   * sont les données d'entraînement d'une personne réelle, et le serveur les a
+   * déjà. On mesure QUE l'écran a servi, et dans quel état.
+   */
+  performancePageViewed: 'performance_page_viewed', // props: { period, activity, state }
   recordShared: 'record_shared',
   performanceBonusApplied: 'performance_bonus_applied',
   segmentsExcludedViewed: 'segments_excluded_viewed',
@@ -525,8 +546,29 @@ export const EVENTS = {
    * UN SEUL event pour quatre onglets, parce que le KPI est la RÉPARTITION —
    * quatre noms auraient rendu la comparaison illisible (même raison que
    * `result_viewed` pour les six résultats).
+   *
+   * ─── 28/07/2026 — E53 « CLASSEMENT JOUEURS » (spec l.1793) ────────────────
+   * ⚠ CONSTAT D'ABORD : cet event n'a JAMAIS été émis. Défini le 27/07 pour la
+   * vague E54, il n'a aucun appelant (`app/(tabs)/classement.tsx` n'émet que
+   * `screen('classement')`). C'est à E53 de le CÂBLER — pas à un nom neuf de le
+   * remplacer, ce qui laisserait deux events pour un seul écran.
+   *
+   * E53 lui ajoute les deux dimensions que la spec pose, et rien de plus :
+   *  · `scope` FERMÉ — les niveaux de `LEADERBOARD_LEVELS` (game-rules), dont
+   *    les filtres horizontaux de la planche sont un sous-ensemble : 'local'
+   *    (autour de moi), 'ville', 'amis', 'crew'. On ne crée PAS un second
+   *    vocabulaire de portées : il en existe déjà un, il fait autorité.
+   *    « Quartier » n'y figure pas et n'est pas ajouté — aucune granularité de
+   *    quartier n'existe côté serveur, et un `scope` qui nommerait un découpage
+   *    inexistant décrirait un filtre qui n'est pas là ;
+   *  · `activity` FERMÉ : 'run' | 'bike' (le commutateur de la planche).
+   *
+   * ⚠ AUCUN RANG, AUCUN ÉCART, AUCUN NOMBRE DE JOUEURS. « 3ᵉ sur 47 à 21 h dans
+   * une ville de Saison 0 » désigne une personne. La règle psychologique de la
+   * spec (« comparé à des joueurs atteignables ») se vérifie sur le PRODUIT, pas
+   * en exportant la position de chacun.
    */
-  leaderboardViewed: 'leaderboard_viewed', // props: { board, state }
+  leaderboardViewed: 'leaderboard_viewed', // props: { board, state, scope, activity }
 
   // ── E49 — Créer une sortie crew (`/crew-sortie`) ──────────────────────────
   /**
@@ -716,7 +758,247 @@ export const EVENTS = {
   duelDecided: 'duel_decided', // props: { decision }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // VAGUE BADGES · STATISTIQUES · HISTORIQUE · BOUTIQUE · ABONNEMENT
+  // (E52 · E53 · E62-E68 · E72-E75 — spec produit UI/UX, l.1777 · 1793 · 1994 ·
+  //  2020 · 2035 · 2051 · 2080 · 2097 · 2133 · 2227 · 2260 · 2277 · 2305),
+  // ajoutée le 28/07/2026.
+  //
+  // LES QUATRE RÈGLES DES BLOCS PRÉCÉDENTS, INCHANGÉES :
+  //  1. AUCUN event sans point d'émission NOMMABLE ET ATTEIGNABLE. Trois écrans
+  //     de cette vague n'en reçoivent AUCUN — voir les notes E52, E68 et E73 en
+  //     fin de bloc. Ce n'est pas un oubli, c'est le constat ;
+  //  2. AUCUNE PII. Pas de @handle, pas d'identifiant de course, de joueur ni de
+  //     crew, pas de nom de zone ou de ville, pas de libellé i18n. Et, propre à
+  //     cette vague : AUCUNE CLÉ DE BADGE. Un badge rare, croisé avec l'heure,
+  //     désigne une personne dans une ville de Saison 0 — même raison que le
+  //     refus de transmettre le rang dans `rank_moment_dismissed` (E60). On
+  //     mesure la RARETÉ (booléen), jamais l'objet ;
+  //  3. AUCUN NOMBRE DE JEU. Le plafond de vitrine vit dans game-rules
+  //     (`FEATURED_BADGE_COUNT`) ; ici on ne transporte que l'ISSUE qu'il produit ;
+  //  4. LA BASE EST VIDE DE JEU, DONC L'ÉTAT VIDE SE MESURE. Zéro course, zéro
+  //     territoire, zéro crew au 28/07/2026 : sur une collection, un historique
+  //     ou une analyse territoriale, « rien à montrer » sera le cas DOMINANT. Un
+  //     `$screen` nu ne dit pas si l'écran a montré des faits, un vide honnête ou
+  //     une panne — d'où le `state` FERMÉ porté par chaque `*_viewed` ci-dessous,
+  //     qui distingue exactement les quatre états de la constitution.
+  //
+  // ⚠ ET UNE CINQUIÈME, IMPOSÉE PAR CETTE VAGUE — ON NE MESURE JAMAIS UN ACHAT
+  //   QUE LE STORE N'A PAS CONFIRMÉ. La chaîne existante est déjà à trois temps
+  //   et ne doit pas être aplatie : `paywall_view` (on a VU), `purchase_initiated`
+  //   (on a VOULU), `purchase_completed` (le Store a DIT OUI). Aucun event de ce
+  //   bloc ne franchit ces bornes ; aucun ne transporte de PRIX non plus — les
+  //   montants viennent du Store, et un prix figé dans l'analytique serait aussi
+  //   faux qu'un prix figé dans le code (constitution §9).
+
+  // ── E62 — Collection de badges (`/badges`) ────────────────────────────────
+  /**
+   * La collection s'est composée, avec l'état qu'elle a RÉELLEMENT rendu.
+   * `state` FERMÉ, les cinq que l'écran distingue déjà en copie (catalogue
+   * `badges.ts` : `signedOutTitle`, `noBackendTitle`, `failedTitle`, `emptyLine`,
+   * `loading`) : 'signed_out' | 'no_backend' (aucun backend configuré — il n'y a
+   * personne au bout, ce n'est PAS une panne) | 'failed' | 'empty' (lecture
+   * aboutie, aucun badge décerné) | 'ready'.
+   *
+   * POURQUOI IL NE DOUBLE PAS `$screen` : `screen('badges')` (app/badges.tsx)
+   * dit qu'on a ouvert l'écran, jamais ce qu'il a pu montrer. Or 'empty' sera la
+   * valeur dominante tant qu'aucune course n'est ingérée, et le jour où 'failed'
+   * monte il faut le voir SANS le confondre avec le vide.
+   *
+   * ⚠ AUCUN NOMBRE DE BADGES : le compte obtenu/total, croisé avec l'heure, est
+   * un quasi-identifiant. Le serveur le connaît déjà, l'analytique n'en a rien à
+   * faire.
+   */
+  badgesViewed: 'badges_viewed', // props: { state }
+
+  // ── E63 — Détail d'un badge (feuille au tap) ──────────────────────────────
+  /**
+   * La feuille de détail s'est ouverte sur un badge, dans l'état qu'il a POUR
+   * CE JOUEUR. `state` FERMÉ : 'unlocked' | 'locked' (visible avec sa condition)
+   * | 'secret' (masqué tant qu'il n'est pas obtenu).
+   *
+   * LE KPI EST UNE QUESTION DE MOTIVATION, PAS DE VANITÉ : ouvre-t-on les badges
+   * qu'on a (on se contemple) ou ceux qu'on n'a pas (on se projette) ? Si
+   * 'locked' ne s'ouvre jamais, les conditions n'appellent personne et la
+   * collection ne sert qu'à archiver.
+   *
+   * ⚠ AUCUNE CLÉ DE BADGE, AUCUNE FAMILLE, AUCUN TIER (règle 2 de ce bloc).
+   * `zone_detail_viewed` a la même forme et pour la même raison.
+   */
+  badgeDetailViewed: 'badge_detail_viewed', // props: { state }
+
+  // ── E63 / E64 — « AJOUTER AU PROFIL » ─────────────────────────────────────
+  /**
+   * L'action de vitrine a été TRANCHÉE par `addToFeatured`
+   * (features/badges/unlockMoment.ts), avec son issue réelle.
+   * `result` FERMÉ, miroir exact des trois branches de la fonction pure :
+   * 'added' | 'already' (le badge y était déjà) | 'full' (la vitrine est à
+   * `FEATURED_BADGE_COUNT`).
+   * `rare` : booléen (`isRareBadge`) — pas la clé, pas le tier. Il sert à savoir
+   * si l'on met en avant ce qui est RARE ou simplement ce qui vient d'arriver.
+   *
+   * POURQUOI 'full' MÉRITE D'ÊTRE COMPTÉ : c'est le seul cas où le CTA principal
+   * d'un moment célébratoire n'aboutit pas. S'il domine, le plafond de vitrine
+   * transforme une récompense en friction — et personne ne le saurait autrement.
+   *
+   * NE DOUBLE PAS `cta_tapped` : celui-là compte des TAPS, celui-ci des ISSUES.
+   */
+  badgeFeaturedAdded: 'badge_featured_added', // props: { result, rare }
+
+  // ── E67 — Historique des activités (`/profile/history`) ───────────────────
+  /**
+   * La liste d'historique s'est composée. `state` FERMÉ, les cinq que l'écran
+   * nomme lui-même dans son docblock (app/historique.tsx, « LES CINQ ÉTATS,
+   * JAMAIS CONFONDUS ») : 'loading' | 'signed_out' | 'no_backend' | 'failed' |
+   * 'empty' | 'ready'.
+   * `activity` FERMÉ : 'run' | 'bike' — la lentille E14 mémorisée pour cet
+   * onglet (`gryd.activity.historique`). La lecture SUIT la lentille
+   * (`.eq('activity', …)`), donc un vide côté vélo n'est pas un vide côté course :
+   * sans cette propriété, deux mondes distincts seraient additionnés.
+   *
+   * ⚠ AUCUN NOMBRE DE SORTIES, AUCUN KILOMÈTRE, AUCUNE DATE. Le résumé d'en-tête
+   * (sorties, km, captures, défenses) décrit une vie réelle : agrégé sur un
+   * `distinct_id`, il reconstitue un entraînement. Le serveur l'a déjà.
+   */
+  historyViewed: 'history_viewed', // props: { state, activity }
+
+  // ── E66 — Analytics territoriales Premium (`/premium-analytics`) ──────────
+  /**
+   * L'analyse territoriale s'est composée. `state` FERMÉ, miroir des branches
+   * réellement peintes par `app/premium-analytics.tsx` : 'loading' |
+   * 'signed_out' | 'locked' (pas de droit Pro — l'écran vend, il n'analyse pas)
+   * | 'failed' | 'empty' (lecture aboutie, ce joueur ne tient aucune zone) |
+   * 'ready'.
+   *
+   * 'locked' ET 'empty' NE SE CONFONDENT PAS, et c'est tout l'intérêt : un
+   * abonné qui ne tient rien voit un écran vide malgré son paiement. Fondre les
+   * deux masquerait exactement la population qu'il faut voir.
+   *
+   * NE DOUBLE PAS `paywall_view` : celui-ci est déjà émis en 'locked'
+   * (premium-analytics.tsx:462, `trigger: 'e66_analytics'`) et mesure une
+   * OCCASION DE VENTE. Celui-là mesure la SANTÉ D'UNE LECTURE.
+   *
+   * ⚠ AUCUNE SURFACE, AUCUNE DURÉE DE CONTRÔLE, AUCUN NOMBRE DE ZONES ni de
+   * frontières : §12 interdit la coordonnée précise, et un profil territorial
+   * chiffré en est une par approximation. E66 est aussi le seul écran dont la
+   * spec pose une LIMITE ÉTHIQUE explicite (« aide à comprendre son propre
+   * territoire, pas à espionner ») — son analytique doit s'y tenir aussi.
+   */
+  territoryAnalyticsViewed: 'territory_analytics_viewed', // props: { state }
+
+  // ── E72 — Boutique (`/shop`, servie par `/arsenal`) ───────────────────────
+  /**
+   * Le rayon s'est composé, avec l'état de vente RÉEL et la catégorie affichée.
+   * `state` FERMÉ : 'signed_out' | 'closed' (la boutique n'est pas ouverte —
+   * aucun rail d'achat n'est branché, et le catalogue `arsenal.ts` le DIT à
+   * l'écran) | 'failed' | 'ready'.
+   * `category` FERMÉ : les clés de `shopCategoryKeys()`
+   * (features/arsenal/shop.ts) — 'all' et les sections du catalogue.
+   *
+   * POURQUOI 'closed' EST UNE VALEUR ET PAS UNE ABSENCE : au 28/07/2026 la
+   * boutique montre des objets qu'on ne peut pas acheter. C'est un FAIT sur GRYD
+   * (le rail IAP n'existe pas), pas un vide de catalogue, et le jour où il
+   * s'ouvre la bascule doit se voir dans les chiffres.
+   *
+   * ⚠ AUCUN PRIX, AUCUNE CLÉ D'OBJET, AUCUN SOLDE D'ÉCLATS. Un prix dans
+   * l'analytique se fige exactement comme un prix dans le code (constitution §9),
+   * et un solde est une donnée de compte.
+   */
+  shopViewed: 'shop_viewed', // props: { state, category }
+
+  // ── E75 — Gestion d'abonnement et achats ──────────────────────────────────
+  /**
+   * L'écran de gestion s'est composé, avec le DROIT réellement lu.
+   * `state` FERMÉ, miroir de `ProStatus` (features/premium/entitlement.ts) plus
+   * les états de LECTURE, qui ne sont pas des statuts d'abonnement :
+   * 'loading' | 'signed_out' | 'unavailable' (la plateforme ou la configuration
+   * ne permet aucune lecture — web, clé absente) | 'failed' | 'none' (lu :
+   * ce compte n'a jamais eu le droit) | 'expired' | 'active'.
+   *
+   * `renews` : booléen — l'abonnement se reconduit-il ? Il vient de `willRenew`
+   * recoupé avec l'échéance, jamais du seul drapeau caché du SDK. C'est le KPI
+   * de résiliation SILENCIEUSE : quelqu'un qui a coupé le renouvellement est
+   * encore « actif » et disparaîtra sans prévenir.
+   *
+   * ⚠ AUCUNE DATE D'ÉCHÉANCE, AUCUN `productId`, AUCUN PRIX, AUCUN
+   * `originalAppUserId`. Une échéance à la seconde est un identifiant d'achat.
+   *
+   * NE DOUBLE PAS `paywall_view` : E75 n'est pas un écran de vente. Quelqu'un
+   * qui gère un abonnement qu'il a déjà ne « voit » pas une offre — compter les
+   * deux ensemble gonflerait le haut du funnel avec des clients existants.
+   */
+  subscriptionManageViewed: 'subscription_manage_viewed', // props: { state, renews }
+  /**
+   * `RESTAURER MES ACHATS` a rendu son verdict — la réponse du Store, jamais le
+   * tap. `result` FERMÉ, miroir de `PremiumActionResult`
+   * (features/premium/usePremium.ts) : 'restored' | 'nothing_to_restore' |
+   * 'failed'.
+   *
+   * POURQUOI IL COMPTE : c'est le geste du joueur qui a payé et ne voit rien —
+   * un changement d'appareil, une réinstallation, un compte Store différent. Un
+   * taux de 'nothing_to_restore' élevé ne dit pas « personne n'a payé », il dit
+   * « quelqu'un a payé et on ne le retrouve pas ». C'est aussi la seule exigence
+   * de l'App Store de cette vague qui soit mesurable côté client.
+   *
+   * ⚠ NE VAUT PAS ACHAT. `purchase_completed` reste réservé à une transaction
+   * que le Store vient de confirmer ; une restauration rend un droit ANCIEN. Les
+   * confondre inventerait des ventes.
+   */
+  purchasesRestored: 'purchases_restored', // props: { result }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // LES ÉCRANS DE CETTE VAGUE QUI N'ONT AUCUN EVENT, ET POURQUOI
+  //
+  // · E52 — INVITATION CREW. `invite_sent` existe et est RÉELLEMENT émis (3
+  //   sites), `crew_joined { via }` et `invite_accepted` ferment la boucle.
+  //   Le carnet de CONTACTS de la spec n'existe toujours nulle part (aucune
+  //   permission contacts n'est déclarée dans `apps/mobile/app.json`).
+  //   ⚠ CORRECTION DU 28/07/2026 — ce bloc affirmait que « `crew_invites` ne
+  //   porte aucune colonne d'expiration ». C'était doublement faux : la table
+  //   n'existait pas du tout, et elle existe MAINTENANT
+  //   (`supabase/migrations/0090_crew_invite_tokens.sql`), avec `expires_at`
+  //   NOT NULL et `revoked_at`. L'EXPIRATION est donc réelle CÔTÉ SERVEUR.
+  //   Elle n'a toujours pas d'event, et pour la raison inchangée : AUCUN écran
+  //   n'appelle encore `create_crew_invite` / `redeem_crew_invite` (grep,
+  //   28/07/2026 : zéro appelant hors tests). L'event viendra AVEC son écran,
+  //   comme `crew_outing_created` est venu avec la migration 0085 — un event
+  //   émis par personne serait un KPI qui ment par zéro.
+  //
+  // · E68 — DÉTAIL HISTORIQUE. Il n'existe AUCUNE lecture d'une course par
+  //   identifiant (`app/course/[id].tsx` le dit dans son docblock, et l'écran
+  //   n'affiche qu'une carte d'état). Sans donnée, il n'y a ni « vide », ni
+  //   « échec », ni « prêt » à distinguer : il n'y a qu'une situation. Son event
+  //   viendra AVEC sa lecture, pas avant — comme `crew_outing_created` est venu
+  //   avec la migration 0085.
+  //
+  // · E73 — DÉTAIL PRODUIT. La chaîne d'achat est déjà à trois temps
+  //   (`paywall_view` → `purchase_initiated` → `purchase_completed`) et E73 n'y
+  //   ajoute aucun instant NOUVEAU : l'ouverture de la fiche est un `$screen`,
+  //   le tap `ACHETER` est l'intention (`purchase_initiated`, le jour où un rail
+  //   d'achat existe), `ÉQUIPER` est déjà `skin_equipped`. Un `product_viewed`
+  //   ne dirait rien que `shop_viewed { category }` ne dise déjà — et il ferait
+  //   croire à un entonnoir produit là où il n'y a pas de caisse.
+  //
+  // · E53 — CLASSEMENT JOUEURS : `leaderboard_viewed` EXISTE DÉJÀ (bloc E54
+  //   ci-dessus) et couvre l'onglet 'players'. On ne le double pas. ⚠ MAIS il
+  //   n'est émis NULLE PART au 28/07/2026 (`grep EVENTS.leaderboardViewed` :
+  //   zéro appelant) — c'est à E53 de le câbler, pas à un nouveau nom de le
+  //   remplacer. Voir l'inventaire des events non émis en fin de fichier.
+  //
+  // · E65 — STATISTIQUES PERSONNELLES : `performance_page_viewed` existe et est
+  //   RÉELLEMENT émis (app/performance.tsx:566) avec `{ period }`. E65 ajoute
+  //   une lentille Run/Bike dont la lecture est bornée par discipline : la
+  //   propriété `activity` lui revient, sur l'event EXISTANT. Un second nom
+  //   rendrait la série temporelle illisible au moment précis où on ajoute la
+  //   dimension.
+  //
+  // · E74 — PREMIUM : entièrement couvert et CÂBLÉ (`paywall_view`
+  //   premium.tsx:69, `purchase_initiated` :78, `purchase_completed` :81 — ce
+  //   dernier uniquement sur `result.kind === 'purchased'`, donc sur une
+  //   confirmation Store). Rien à ajouter.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LES ÉCRANS DE LA VAGUE PRÉCÉDENTE QUI N'ONT AUCUN EVENT, ET POURQUOI
   //
   // · E69 — FLUX D'ACTIVITÉ. La consultation est un `$screen`, et
   //   `notification_opened` mesure déjà l'entrée depuis une notification. Le
@@ -752,6 +1034,37 @@ export const EVENTS = {
   //   collective, courbe quatre semaines) n'ont AUCUNE source : mesurer combien
   //   de fois on affiche « indisponible » n'apprendrait rien qu'on ne sache
   //   déjà.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // INVENTAIRE — LES EVENTS DÉFINIS QUE PERSONNE N'ÉMET (relevé du 28/07/2026)
+  //
+  // Ce fichier répète depuis le 27/07 sa règle n°1 : « aucun event sans point
+  // d'émission RÉEL ». Elle n'a jamais été VÉRIFIÉE. Un grep
+  // `EVENTS.<nom>` sur `apps/` et `supabase/` en trouve huit à zéro appelant.
+  // Les nommer coûte trois minutes et évite la faute que la règle vise :
+  // croire mesurer ce qu'on ne mesure pas. Aucun n'est SUPPRIMÉ ici — six ont
+  // un consommateur légitime en attente, deux sont serveur.
+  //
+  //   · leaderboard_viewed        → E53/E54. Défini pour la vague E54, jamais
+  //                                 câblé : `app/(tabs)/classement.tsx` n'émet
+  //                                 que `screen('classement')`. À CÂBLER par E53.
+  //   · subscription_started      → dépendent d'un webhook RevenueCat
+  //   · subscription_renewed        (`supabase/functions/rc_webhook`) qui ne
+  //   · subscription_cancelled      pousse rien vers PostHog. Ce sont des faits
+  //                                 SERVEUR : les émettre côté client
+  //                                 inventerait des renouvellements que l'app
+  //                                 n'observe pas.
+  //   · record_shared             → aucun partage de record n'existe côté
+  //                                 Performance (E65) ; `share_completed` porte
+  //                                 déjà les partages qui, eux, ont lieu.
+  //   · performance_bonus_applied → le bonus de performance est calculé
+  //                                 SERVEUR (ingest_run) ; le client ne le voit
+  //                                 pas s'appliquer.
+  //
+  // RÈGLE POUR LA SUITE : un event qui reste ici sans appelant à la vague
+  // suivante se supprime ou se câble. Le laisser indéfiniment redonne au
+  // fichier l'apparence d'une mesure qui n'a jamais eu lieu.
   // ══════════════════════════════════════════════════════════════════════════
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

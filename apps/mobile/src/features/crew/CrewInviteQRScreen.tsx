@@ -38,9 +38,24 @@
  * « L'app ne ment jamais » : le QR n'est rendu que si `my_crew_code()` a répondu.
  * Échec ⇒ on le DIT et on propose de réessayer — jamais un QR vide, jamais un
  * QR décoratif (le faux QR d'amis.tsx a été retiré pour cette raison).
+ *
+ * ── AUCUN BOUTON MORT (E52, 28/07/2026) ─────────────────────────────────────
+ * « Partager » et « Copier le code » étaient peints SANS CONDITION, puis
+ * découvraient à l'appel qu'ils ne pouvaient pas marcher — l'écran affichait
+ * alors « Partage indisponible sur cet appareil ». C'est la définition même du
+ * bouton mort (constitution §2 : l'affichage se dérive de la capacité RÉELLE).
+ * Désormais : `probeInviteShare()` MESURE (presse-papier réellement embarqué,
+ * `navigator.share` réellement présent), `resolveInviteCapabilities()` ARBITRE
+ * (pur, testé en Deno), et l'écran ne peint que ce qui est démontré. Une
+ * capacité NON SONDÉE vaut non : on ne peint pas ce qu'on n'a pas mesuré.
+ *
+ * Corollaire §A.4 (1 seul CTA chartreuse) : le CTA est le PREMIER geste
+ * réellement disponible — « Partager » quand il existe, sinon « Copier ». Le
+ * second, s'il existe, reste en ghost. Si aucun des deux n'est possible, il ne
+ * reste que le QR et le code en gros — qui suffisent, et qui ne mentent pas.
  */
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { colors, fontSizes, radii, sizes, spacing } from '@klaim/shared';
 import { EVENTS, screen, track } from '../../lib/analytics';
@@ -49,7 +64,9 @@ import { TabScreen } from '../../ui/TabScreen';
 import { useT } from '../../i18n/store';
 import type { Entry } from '../../i18n/types';
 import { C } from '../../i18n/catalog/crew';
-import { buildInviteLink, copyInviteLink, shareInviteLink } from './invite';
+import { useSession } from '../../lib/session';
+import { buildInviteLink, copyInviteLink, probeInviteShare, shareInviteLink } from './invite';
+import { resolveInviteCapabilities } from './inviteShareCapabilities';
 import type { CodeResult } from './real';
 
 /** Côté du QR en points. ≥ 200 : scannable depuis un écran de téléphone à ~30 cm. */
@@ -79,6 +96,7 @@ export function CrewInviteQRScreen({
   onBack,
 }: CrewInviteQRScreenProps) {
   const t = useT();
+  const { configured } = useSession();
   const [status, setStatus] = useState<Status>('loading');
   const [code, setCode] = useState<string | null>(null);
   const [flash, setFlash] = useState<Entry | null>(null);
@@ -138,6 +156,34 @@ export function CrewInviteQRScreen({
     setFlash(res.reason === 'dismissed' ? null : C.qrShareUnavailable);
   }, [code]);
 
+  /**
+   * CE QUE CET APPAREIL SAIT FAIRE, mesuré une fois par montage (le presse-papier
+   * ne s'installe pas en cours d'écran, et `navigator.share` n'apparaît pas).
+   * `configured` vient de la session : sans backend, aucune action serveur.
+   * `myRole` reste `null` — cet écran ne lit PAS le rôle, et prétendre le
+   * contraire ferait apparaître des gestes d'administration sur une permission
+   * qu'on n'a jamais vérifiée.
+   */
+  const capabilities = useMemo(() => {
+    const probe = probeInviteShare();
+    return resolveInviteCapabilities({
+      platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
+      hasShareable: code !== null,
+      clipboardAvailable: probe.clipboardAvailable,
+      webShareAvailable: probe.webShareAvailable,
+      backendConfigured: configured,
+      myRole: null,
+    });
+  }, [code, configured]);
+
+  /** Ordre de préférence : partager d'abord (c'est le geste de l'écran), copier
+   *  ensuite. Le premier disponible devient le CTA, le suivant le secondaire. */
+  const available = capabilities.actions
+    .map((a) => a.id)
+    .filter((id): id is 'share' | 'copy' => id === 'share' || id === 'copy');
+  const primaryAction = available[0] ?? null;
+  const secondaryAction = available[1] ?? null;
+
   const header = (
     <Text style={styles.count}>{t(C.rlMembersOf, { count: memberCount, max: maxMembers })}</Text>
   );
@@ -176,7 +222,7 @@ export function CrewInviteQRScreen({
     );
   }
 
-  // ── PRÊT : QR réel + code en gros + actions. ───────────────────────────────
+  // ── PRÊT : QR réel + code en gros + actions RÉELLEMENT disponibles. ───────
   const link = buildInviteLink(code);
 
   return (
@@ -214,12 +260,28 @@ export function CrewInviteQRScreen({
 
       {flash ? <Text style={styles.flash}>{t(flash)}</Text> : null}
 
-      <View style={styles.cta}>
-        <Button label={t(C.qrShare)} icon="partage" onPress={() => void onShare()} />
-      </View>
-      <View style={styles.secondaryRow}>
-        <Button variant="ghost" size="md" label={t(C.qrCopyCode)} onPress={() => void onCopy()} />
-      </View>
+      {/* Un seul CTA chartreuse (§A.4) : le premier geste RÉELLEMENT possible.
+          Le second, s'il existe, reste secondaire. Aucun des deux n'est peint
+          « au cas où » — voir le docblock de tête. */}
+      {primaryAction ? (
+        <View style={styles.cta}>
+          <Button
+            label={t(primaryAction === 'share' ? C.qrShare : C.qrCopyCode)}
+            icon={primaryAction === 'share' ? 'partage' : undefined}
+            onPress={() => void (primaryAction === 'share' ? onShare() : onCopy())}
+          />
+        </View>
+      ) : null}
+      {secondaryAction ? (
+        <View style={styles.secondaryRow}>
+          <Button
+            variant="ghost"
+            size="md"
+            label={t(secondaryAction === 'share' ? C.qrShare : C.qrCopyCode)}
+            onPress={() => void (secondaryAction === 'share' ? onShare() : onCopy())}
+          />
+        </View>
+      ) : null}
       <View style={styles.backRow}>
         <Button variant="ghost" size="md" label={t(C.rlBack)} onPress={onBack} />
       </View>

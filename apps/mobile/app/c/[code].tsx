@@ -64,6 +64,20 @@
  *  4. L'URL COPIABLE de la planche devient un CODE copiable : le lien complet
  *     n'est pas affiché sur cet écran (le destinataire arrive PAR lui), et le
  *     code est justement ce qui se ressaisit à la main dans l'onglet Crew.
+ *
+ * ── ÉTAT AU 28/07/2026 : LES ÉCARTS 1 ET 2 ONT UNE SORTIE, PAS ENCORE PRISE ─
+ * `supabase/migrations/0090_crew_invite_tokens.sql` ajoute un SECOND objet
+ * d'invitation à côté du code : un JETON de 26 caractères tiré de 128 bits, qui
+ * EXPIRE (`expires_at` NOT NULL) et se RÉVOQUE. Parce qu'il n'est pas devinable,
+ * `peek_crew_invite` peut rendre nom + effectif AVANT l'adhésion sans ouvrir
+ * l'énumération que l'écart 1 redoutait, et `redeem_crew_invite` porte une date
+ * que l'écart 2 disait inexistante.
+ * ⚠ CET ÉCRAN N'EN CONSOMME RIEN AUJOURD'HUI. Il ne lit que `params.code`, ne
+ * reconnaît que le format `[A-Z0-9]{6}` (`normalizeInviteCode`) et n'appelle
+ * que `join_crew_by_code`. Les deux écarts ci-dessus restent donc VRAIS pour ce
+ * qu'il affiche — ils cesseront de l'être le jour où un `/i/[token]` sera
+ * branché, pas avant. Les décisions clientes de ce jour-là existent déjà,
+ * pures et testées : `features/crew/inviteToken.ts`.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';

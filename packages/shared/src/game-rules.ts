@@ -360,6 +360,67 @@ export const CREW_CODE_LENGTH = 6;
 export const CREW_SWITCH_COOLDOWN_DAYS = 7;
 
 /**
+ * ─── E52 — UNE INVITATION EST UN LIEN QUI DONNE UN DROIT ────────────────────
+ * Jusqu'au 28/07/2026, « inviter » signifiait partager `crews.code` : 6
+ * caractères A-Z0-9, PERMANENTS, identiques pour tout le crew et pour toujours.
+ * Trois défauts qui ne se voient pas à l'écran :
+ *   · il n'EXPIRE pas — une affiche photographiée en 2026 recrute en 2028 ;
+ *   · il ne se RÉVOQUE pas — un membre parti garde la clé, et la seule parade
+ *     serait de changer le code de TOUT LE MONDE ;
+ *   · il se DEVINE — 36⁶ ≈ 2,2·10⁹, sans limitation de débit sur
+ *     `join_crew_by_code` : une énumération est un travail d'après-midi.
+ * Le code reste (il se tape à la main, c'est son mérite). À côté de lui vit
+ * désormais un JETON D'INVITATION : aléatoire, à durée de vie, révocable, et
+ * sans aucun identifiant personnel — un jeton ne dit ni qui l'a émis ni pour
+ * qui, il dit seulement « ce lien ouvre ce crew, jusqu'à telle date ».
+ *
+ * ANTI PAY-TO-WIN : un jeton n'achète rien, n'accélère rien, ne protège rien —
+ * il amène des gens. Aucune de ces constantes n'est une grandeur de jeu.
+ */
+
+/**
+ * Entropie du jeton, en OCTETS. 16 octets = 128 bits : le même ordre de
+ * grandeur qu'un UUIDv4, c'est-à-dire hors de portée d'une énumération, même
+ * distribuée, même patiente. En dessous de 16 on rentrerait dans le domaine du
+ * calculable ; au-dessus, on allonge un lien que des gens recopient à la main.
+ */
+export const CREW_INVITE_TOKEN_BYTES = 16;
+
+/**
+ * Longueur du jeton une fois encodé en base32 SANS remplissage :
+ * ceil(16 × 8 / 5) = 26 caractères. Base32 (Crockford, sans I/L/O/U) et pas
+ * base64 : le jeton voyage dans une URL, se lit à voix haute et se retape — un
+ * alphabet insensible à la casse et sans caractère ambigu est ici une propriété
+ * fonctionnelle, pas une coquetterie.
+ */
+export const CREW_INVITE_TOKEN_LENGTH = 26;
+
+/**
+ * Durée de vie par défaut d'une invitation, en heures (7 jours). Assez long
+ * pour qu'un lien envoyé un lundi serve encore le dimanche suivant ; assez
+ * court pour qu'une capture d'écran oubliée cesse d'ouvrir la porte.
+ */
+export const CREW_INVITE_DEFAULT_TTL_HOURS = 168;
+
+/**
+ * Plafond DUR de la durée de vie (30 jours). L'« expiration facultative » de la
+ * spec E52 est facultative dans le CHOIX (l'émetteur peut prendre plus court),
+ * jamais dans l'existence : un lien éternel est exactement ce qu'on retire.
+ */
+export const CREW_INVITE_MAX_TTL_HOURS = 720;
+
+/** Plancher : une heure. En dessous, le lien serait mort avant d'être lu. */
+export const CREW_INVITE_MIN_TTL_HOURS = 1;
+
+/**
+ * Nombre maximal d'invitations VIVANTES (ni expirées ni révoquées) par crew.
+ * Ce n'est pas une limite de jeu, c'est une limite d'exposition : chaque jeton
+ * vivant est une porte ouverte, et une liste qu'on ne peut plus relire d'un
+ * coup d'œil n'est plus révocable en pratique.
+ */
+export const CREW_INVITE_MAX_ACTIVE = 5;
+
+/**
  * ─── AMENDEMENT-43 §0 maillon 3 — LA MISSION PRIORITAIRE DU CREW ────────────
  * « je cours pour l'AIDER ». Le crew a TOUJOURS AU PLUS UNE mission affichée,
  * DÉRIVÉE de l'état RÉEL (engine/crewMission.ts `chooseCrewMission`) — jamais
@@ -1483,6 +1544,30 @@ export const CREW_FRAME_THRESHOLDS = {
   legend: 30,
 } as const;
 export type CrewFrameTier = keyof typeof CREW_FRAME_THRESHOLDS;
+
+/**
+ * VITRINE DE BADGES DU PROFIL — combien de badges un joueur met en avant.
+ *
+ * Spec E63 « Détail d'un badge » (l.2020) et E64 « Badge débloqué » (l.2035)
+ * font toutes deux reposer leur CTA `AJOUTER AU PROFIL` sur ce plafond : c'est
+ * lui qui produit la troisième issue de l'action (ajouté · déjà là · PLEIN),
+ * celle que `addToFeatured` (features/badges/unlockMoment.ts) doit trancher.
+ * Un plafond qui décide d'une issue d'écran est une règle de jeu, pas un détail
+ * de rendu — il appartient donc ici.
+ *
+ * ⚠ CE N'EST PAS UNE VALEUR NEUVE, C'EST UN RAPATRIEMENT. Elle vivait depuis
+ * AMENDEMENT-17 dans `apps/mobile/src/features/social/profileStore.ts`, hors du
+ * registre partagé — donc invisible aux Edge Functions et au web, et hors de la
+ * règle « aucun nombre magique ». La valeur (3) est INCHANGÉE : `profileStore`
+ * la ré-exporte pour que ses dix appelants existants continuent de fonctionner
+ * sans être touchés. Aucun comportement ne bouge.
+ *
+ * COSMÉTIQUE PUR, et le plafond le prouve : la vitrine ne donne ni territoire,
+ * ni point, ni protection. Elle est identique pour un compte Club et un compte
+ * gratuit — un plafond plus large payant serait du statut vendu au détriment
+ * d'un autre joueur, donc hors charte.
+ */
+export const FEATURED_BADGE_COUNT = 3;
 
 // ─── §38 Offensives / défense ────────────────────────────────────────────────
 /** Durée standard d'une offensive crew simple (§38.2, exemple : 24 h). */

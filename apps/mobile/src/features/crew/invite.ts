@@ -127,6 +127,51 @@ function getClipboard(): ClipboardModule | null {
   return clipboardMod;
 }
 
+// ─── Sondage des capacités RÉELLES (avant de peindre, pas après) ─────────────
+
+/**
+ * Ce que cet appareil sait FAIRE d'une invitation, mesuré et non supposé.
+ *
+ * ═══ POURQUOI CETTE FONCTION EXISTE (E52, constitution §2) ══════════════════
+ * `copyInviteLink` et `shareInviteLink` ci-dessous rendent
+ * `{ ok:false, reason:'unavailable' }` — c'est-à-dire qu'elles découvrent
+ * APRÈS le tap que le geste ne pouvait pas marcher. Peindre un bouton pour
+ * l'apprendre ensuite est exactement le « bouton mort » que la constitution
+ * interdit : l'affichage doit se dériver de la capacité RÉELLE.
+ *
+ * Le pire cas est la COPIE, et le dépôt l'a déjà payé deux fois :
+ * `copyInviteLink` retombe SILENCIEUSEMENT sur la feuille de partage quand
+ * `expo-clipboard` est absent, en renvoyant quand même `ok:true` — d'où les
+ * correctifs « ne dire copié que si `via === 'clipboard'` » dans
+ * `CrewInviteQRScreen` et `qr.tsx`. La vraie sortie n'est pas un meilleur
+ * message d'après-coup : c'est de savoir AVANT le rendu.
+ *
+ * IMPURE PAR NÉCESSITÉ (elle lit `globalThis` et charge un module), donc
+ * volontairement MINUSCULE : elle ne décide rien. La décision — quel geste a le
+ * droit d'être peint — vit dans `inviteShareCapabilities.ts`, qui est pur et
+ * testé en Deno. Ce fichier mesure, l'autre arbitre.
+ */
+export interface InviteShareProbe {
+  /** Un presse-papier RÉEL existe-t-il ? (jamais un repli déguisé) */
+  readonly clipboardAvailable: boolean;
+  /** Web uniquement : `navigator.share` existe-t-il ? `undefined` sur natif,
+   *  où la feuille de partage est fournie par l'OS et n'a rien à prouver. */
+  readonly webShareAvailable?: boolean;
+}
+
+export function probeInviteShare(): InviteShareProbe {
+  if (Platform.OS === 'web') {
+    const nav = (globalThis as { navigator?: Navigator & { share?: unknown } }).navigator;
+    return {
+      clipboardAvailable: typeof nav?.clipboard?.writeText === 'function',
+      webShareAvailable: typeof nav?.share === 'function',
+    };
+  }
+  // Natif : le presse-papier n'existe que si `expo-clipboard` est embarqué dans
+  // CE build (require dynamique, comme haptics). Absent ⇒ non, sans détour.
+  return { clipboardAvailable: getClipboard() !== null };
+}
+
 // ─── Actions (fire-and-forget, jamais bloquantes) ────────────────────────────
 
 /**
