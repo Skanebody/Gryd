@@ -987,7 +987,7 @@ export const C = defineCatalog({
     en: 'Captures no zone. It preserves your streak — and the points multiplier that comes with it. Never for sale.',
     es: 'No captura ninguna zona. Preserva tu racha — y el multiplicador de puntos que conlleva. Nunca está a la venta.',
     de: 'Erobert keine Zone. Er bewahrt deine Serie — und deren Punkte-Multiplikator. Nie käuflich.',
-    pt: 'Não captura nenhuma zona. Preserva a tua série — e o multiplicador de pontos que ela carrega. Nunca está à venda.',
+    pt: 'Não captura nenhuma zona. Preserva sua série — e o multiplicador de pontos que ela carrega. Nunca está à venda.',
   },
   guardrailScoutPing: {
     fr: 'Donne une information temporaire, jamais une capture automatique. Ne s’achète jamais.',

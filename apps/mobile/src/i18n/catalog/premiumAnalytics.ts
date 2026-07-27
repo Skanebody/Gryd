@@ -49,7 +49,7 @@ export const C = defineCatalog({
     en: 'Understand your territory. Never a capture advantage.',
     es: 'Entiende tu territorio. Nunca una ventaja de captura.',
     de: 'Versteh dein Gebiet. Niemals ein Eroberungsvorteil.',
-    pt: 'Compreende o teu território. Nunca uma vantagem de captura.',
+    pt: 'Entenda seu território. Nunca uma vantagem de captura.',
   },
 
   // ── Lecture en cours ───────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ export const C = defineCatalog({
     en: 'Reading your territory…',
     es: 'Leyendo tu territorio…',
     de: 'Dein Gebiet wird gelesen…',
-    pt: 'A ler o teu território…',
+    pt: 'Lendo seu território…',
   },
 
   // ── Pas connecté ───────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export const C = defineCatalog({
     en: 'Your territory is tied to your account. Without one, there is nothing to analyse.',
     es: 'Tu territorio está ligado a tu cuenta. Sin cuenta, no hay nada que analizar.',
     de: 'Dein Gebiet hängt an deinem Konto. Ohne Konto gibt es nichts zu analysieren.',
-    pt: 'O teu território está ligado à tua conta. Sem conta, não há nada a analisar.',
+    pt: 'Seu território está ligado à sua conta. Sem conta, não há nada para analisar.',
   },
   ctaSignIn: {
     fr: 'Se connecter',
@@ -97,7 +97,7 @@ export const C = defineCatalog({
     en: 'Your territory exists, we just could not read it. Nothing is lost.',
     es: 'Tu territorio existe, no hemos podido leerlo. No se ha perdido nada.',
     de: 'Dein Gebiet existiert, wir konnten es nur nicht laden. Nichts ist verloren.',
-    pt: 'O teu território existe, não conseguimos lê-lo. Nada se perdeu.',
+    pt: 'Seu território existe, não conseguimos lê-lo. Nada se perdeu.',
   },
   ctaRetry: {
     fr: 'Réessayer',
@@ -120,21 +120,21 @@ export const C = defineCatalog({
     en: 'Here is what this page computes on YOUR territory — nothing is blurred, it is simply not open to you yet.',
     es: 'Esto es lo que esta página calcula sobre TU territorio: nada está difuminado, solo aún no está abierta para ti.',
     de: 'Das berechnet diese Seite über DEIN Gebiet — nichts ist verschwommen, sie ist für dich nur noch nicht offen.',
-    pt: 'Eis o que esta página calcula sobre O TEU território — nada está desfocado, apenas ainda não está aberta para ti.',
+    pt: 'Eis o que esta página calcula sobre O SEU território — nada está desfocado, apenas ainda não está aberta para você.',
   },
   lockedPoint1: {
     fr: 'Depuis combien de temps tu tiens chaque zone.',
     en: 'How long you have held each zone.',
     es: 'Cuánto tiempo llevas manteniendo cada zona.',
     de: 'Wie lange du jede Zone schon hältst.',
-    pt: 'Há quanto tempo manténs cada zona.',
+    pt: 'Há quanto tempo você mantém cada zona.',
   },
   lockedPoint2: {
     fr: 'Une carte de tes zones colorée par cette durée réelle.',
     en: 'A map of your zones coloured by that real duration.',
     es: 'Un mapa de tus zonas coloreado por esa duración real.',
     de: 'Eine Karte deiner Zonen, eingefärbt nach dieser echten Dauer.',
-    pt: 'Um mapa das tuas zonas colorido por essa duração real.',
+    pt: 'Um mapa das suas zonas colorido por essa duração real.',
   },
   lockedPoint3: {
     fr: 'Les frontières sous contestation, la plus urgente d’abord.',
@@ -164,7 +164,7 @@ export const C = defineCatalog({
     en: 'No zone under your name yet. One looped outing creates one, and this page fills itself.',
     es: 'Aún no hay ninguna zona a tu nombre. Una salida cerrada crea una y esta página se llena sola.',
     de: 'Noch keine Zone auf deinen Namen. Eine geschlossene Runde erzeugt eine, und diese Seite füllt sich von selbst.',
-    pt: 'Ainda não há nenhuma zona em teu nome. Uma saída que fecha cria uma e esta página preenche-se sozinha.',
+    pt: 'Ainda não há nenhuma zona em seu nome. Uma saída que fecha cria uma e esta página se preenche sozinha.',
   },
   emptyNote: {
     fr: 'Aucun chiffre n’est inventé en attendant : une page vide vaut mieux qu’une fausse.',
@@ -187,14 +187,14 @@ export const C = defineCatalog({
     en: 'TIME UNDER CONTROL',
     es: 'TIEMPO DE CONTROL',
     de: 'KONTROLLDAUER',
-    pt: 'TEMPO DE CONTROLO',
+    pt: 'TEMPO DE CONTROLE',
   },
   heatCaption: {
     fr: 'Tes zones, colorées par le temps où tu les tiens. Plus c’est vif, plus c’est ancien.',
     en: 'Your zones, coloured by how long you have held them. Brighter means older.',
     es: 'Tus zonas, coloreadas por el tiempo que llevas manteniéndolas. Más vivo, más antiguo.',
     de: 'Deine Zonen, eingefärbt nach Haltedauer. Kräftiger heißt älter.',
-    pt: 'As tuas zonas, coloridas pelo tempo que as manténs. Mais vivo, mais antigo.',
+    pt: 'Suas zonas, coloridas pelo tempo que você as mantém. Mais vivo, mais antigo.',
   },
   heatLegendNew: {
     fr: 'Récente',
@@ -215,14 +215,14 @@ export const C = defineCatalog({
     en: 'All your zones were just taken: there is no gap to colour yet.',
     es: 'Todas tus zonas acaban de ser tomadas: aún no hay diferencia que colorear.',
     de: 'Alle deine Zonen wurden gerade erst erobert: es gibt noch keinen Unterschied zum Einfärben.',
-    pt: 'Todas as tuas zonas acabaram de ser tomadas: ainda não há diferença para colorir.',
+    pt: 'Todas as suas zonas acabaram de ser tomadas: ainda não há diferença para colorir.',
   },
   heatNoGeometry: {
     fr: 'Aucune de tes zones n’a encore de contour exploitable — les chiffres ci-dessous restent justes.',
     en: 'None of your zones has a usable outline yet — the figures below still hold.',
     es: 'Ninguna de tus zonas tiene aún un contorno utilizable; las cifras de abajo siguen siendo exactas.',
     de: 'Keine deiner Zonen hat schon eine brauchbare Kontur — die Zahlen unten stimmen trotzdem.',
-    pt: 'Nenhuma das tuas zonas tem ainda um contorno utilizável — os números abaixo mantêm-se certos.',
+    pt: 'Nenhuma das suas zonas tem ainda um contorno utilizável — os números abaixo continuam certos.',
   },
 
   // ── Les chiffres ───────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ export const C = defineCatalog({
     en: 'YOUR TERRITORY',
     es: 'TU TERRITORIO',
     de: 'DEIN GEBIET',
-    pt: 'O TEU TERRITÓRIO',
+    pt: 'SEU TERRITÓRIO',
   },
   statZones: {
     fr: 'Zones tenues',
@@ -280,7 +280,7 @@ export const C = defineCatalog({
     en: 'None of your zones is dated: time under control is unknown.',
     es: 'Ninguna de tus zonas está fechada: el tiempo de control es desconocido.',
     de: 'Keine deiner Zonen ist datiert: die Kontrolldauer ist unbekannt.',
-    pt: 'Nenhuma das tuas zonas está datada: o tempo de controlo é desconhecido.',
+    pt: 'Nenhuma das suas zonas está datada: o tempo de controle é desconhecido.',
   },
   deadZones: {
     fr: '{n} zone(s) éteinte(s) ne comptent plus dans ces chiffres.',
@@ -324,7 +324,7 @@ export const C = defineCatalog({
     en: 'Losses cannot be measured: when a zone changes hands, nothing records that it was yours. So we cannot write “0 lost” — that would be false.',
     es: 'Las pérdidas no son medibles: cuando una zona cambia de manos, nada guarda que fue tuya. No podemos escribir «0 pérdidas»: sería falso.',
     de: 'Verluste sind nicht messbar: wechselt eine Zone den Besitzer, hält nichts fest, dass sie dir gehörte. „0 Verluste“ wäre schlicht falsch.',
-    pt: 'As perdas não são mensuráveis: quando uma zona muda de mãos, nada guarda que foi tua. Não podemos escrever «0 perdas» — seria falso.',
+    pt: 'As perdas não são mensuráveis: quando uma zona muda de mãos, nada guarda que foi sua. Não podemos escrever «0 perdas» — seria falso.',
   },
 
   // ── Frontières à surveiller ────────────────────────────────────────────────
@@ -340,7 +340,7 @@ export const C = defineCatalog({
     en: 'None of your zones is under contest right now.',
     es: 'Ninguna de tus zonas está en disputa ahora mismo.',
     de: 'Keine deiner Zonen wird gerade umkämpft.',
-    pt: 'Nenhuma das tuas zonas está em disputa neste momento.',
+    pt: 'Nenhuma das suas zonas está em disputa neste momento.',
   },
   watchZone: {
     fr: 'Zone de {area} ha',
@@ -377,14 +377,14 @@ export const C = defineCatalog({
     en: 'This page reads only YOUR personal territory, in the discipline shown.',
     es: 'Esta página solo lee TU territorio personal, en la disciplina mostrada.',
     de: 'Diese Seite liest nur DEIN persönliches Gebiet, in der gezeigten Disziplin.',
-    pt: 'Esta página lê apenas O TEU território pessoal, na disciplina mostrada.',
+    pt: 'Esta página lê apenas O SEU território pessoal, na disciplina mostrada.',
   },
   privacyNote: {
     fr: 'Aucune information sur les rivaux : ni qui t’attaque, ni où ni quand ils courent. Le Premium aide à comprendre son territoire, pas à espionner.',
     en: 'No information about rivals: not who attacks you, nor where or when they run. Premium helps you understand your territory, not spy.',
     es: 'Ninguna información sobre los rivales: ni quién te ataca, ni dónde ni cuándo corren. El Premium ayuda a entender tu territorio, no a espiar.',
     de: 'Keine Informationen über Rivalen: weder wer dich angreift, noch wo oder wann sie laufen. Premium hilft, das eigene Gebiet zu verstehen — nicht zu spionieren.',
-    pt: 'Nenhuma informação sobre rivais: nem quem te ataca, nem onde ou quando correm. O Premium ajuda a compreender o teu território, não a espiar.',
+    pt: 'Nenhuma informação sobre rivais: nem quem te ataca, nem onde ou quando correm. O Premium ajuda a entender o seu território, não a espionar.',
   },
   antiP2w: {
     fr: 'Cette analyse ne donne aucun avantage de jeu : ni territoire, ni points, ni protection, ni priorité de classement.',
@@ -447,7 +447,7 @@ export const C = defineCatalog({
     en: 'Map of your zones, coloured by time under control',
     es: 'Mapa de tus zonas, coloreado por el tiempo de control',
     de: 'Karte deiner Zonen, eingefärbt nach Kontrolldauer',
-    pt: 'Mapa das tuas zonas, colorido pelo tempo de controlo',
+    pt: 'Mapa das suas zonas, colorido pelo tempo de controle',
   },
   activityRunA11y: {
     fr: 'Voir la course à pied',

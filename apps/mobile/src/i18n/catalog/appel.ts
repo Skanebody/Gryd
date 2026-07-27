@@ -52,7 +52,7 @@ export const C = defineCatalog({
     en: 'YOUR RUNS',
     es: 'TUS CARRERAS',
     de: 'DEINE LÄUFE',
-    pt: 'AS TUAS CORRIDAS',
+    pt: 'SUAS CORRIDAS',
   },
 
   // ── État : lecture en cours (n'affirme RIEN sur le joueur) ────────────────
@@ -61,14 +61,14 @@ export const C = defineCatalog({
     en: 'Loading',
     es: 'Cargando',
     de: 'Wird geladen',
-    pt: 'A carregar',
+    pt: 'Carregando',
   },
   chargementBody: {
     fr: 'On lit tes vérifications. Rien n’est encore affirmé sur tes courses.',
     en: 'Reading your verifications. Nothing is being claimed about your runs yet.',
     es: 'Leyendo tus verificaciones. Todavía no se afirma nada sobre tus carreras.',
     de: 'Deine Prüfungen werden gelesen. Über deine Läufe ist noch nichts gesagt.',
-    pt: 'A ler as tuas verificações. Ainda não se afirma nada sobre as tuas corridas.',
+    pt: 'Lendo suas verificações. Ainda não se afirma nada sobre suas corridas.',
   },
 
   // ── État : appareil sans serveur (mode local, O1) ─────────────────────────
@@ -100,14 +100,14 @@ export const C = defineCatalog({
     en: 'A verification belongs to an account. Sign in to see yours.',
     es: 'Una verificación pertenece a una cuenta. Inicia sesión para ver las tuyas.',
     de: 'Eine Prüfung gehört zu einem Konto. Melde dich an, um deine zu sehen.',
-    pt: 'Uma verificação pertence a uma conta. Inicia sessão para ver as tuas.',
+    pt: 'Uma verificação pertence a uma conta. Entre para ver as suas.',
   },
   seConnecter: {
     fr: 'Se connecter',
     en: 'Sign in',
     es: 'Iniciar sesión',
     de: 'Anmelden',
-    pt: 'Iniciar sessão',
+    pt: 'Entrar',
   },
 
   // ── État : échec de lecture (JAMAIS confondu avec « rien à afficher ») ────
@@ -123,7 +123,7 @@ export const C = defineCatalog({
     en: 'We could not read your verifications. That says nothing about your runs — only that the read failed.',
     es: 'No pudimos leer tus verificaciones. Eso no dice nada de tus carreras, solo que la lectura falló.',
     de: 'Deine Prüfungen konnten nicht gelesen werden. Das sagt nichts über deine Läufe — nur, dass das Laden fehlschlug.',
-    pt: 'Não foi possível ler as tuas verificações. Isso não diz nada sobre as tuas corridas — apenas que a leitura falhou.',
+    pt: 'Não foi possível ler suas verificações. Isso não diz nada sobre suas corridas — apenas que a leitura falhou.',
   },
   reessayer: {
     fr: 'Réessayer',
@@ -146,7 +146,7 @@ export const C = defineCatalog({
     en: 'None of your runs is awaiting verification. Nothing to do here.',
     es: 'Ninguna de tus carreras espera verificación. Nada que hacer aquí.',
     de: 'Keiner deiner Läufe wartet auf eine Prüfung. Hier ist nichts zu tun.',
-    pt: 'Nenhuma das tuas corridas aguarda verificação. Nada a fazer aqui.',
+    pt: 'Nenhuma das suas corridas aguarda verificação. Nada a fazer aqui.',
   },
 
   // ── Liste ─────────────────────────────────────────────────────────────────
@@ -178,14 +178,14 @@ export const C = defineCatalog({
     en: 'WHAT STAYS RECORDED',
     es: 'LO QUE QUEDA REGISTRADO',
     de: 'WAS GESPEICHERT BLEIBT',
-    pt: 'O QUE FICA REGISTADO',
+    pt: 'O QUE FICA REGISTRADO',
   },
   resteBody: {
     fr: 'Ta course, sa distance, sa durée et son tracé restent enregistrés. Seule la capture de territoire n’est pas créditée.',
     en: 'Your run, its distance, duration and route stay recorded. Only the territory capture is not credited.',
     es: 'Tu carrera, su distancia, su duración y su recorrido siguen registrados. Solo la captura de territorio no se acredita.',
     de: 'Dein Lauf, Distanz, Dauer und Strecke bleiben gespeichert. Nur die Gebietseroberung wird nicht gutgeschrieben.',
-    pt: 'A tua corrida, distância, duração e percurso ficam registados. Só a captura de território não é creditada.',
+    pt: 'Sua corrida, distância, duração e percurso ficam registrados. Só a captura de território não é creditada.',
   },
   donneesLabel: {
     fr: 'DONNÉES CONCERNÉES',
@@ -236,7 +236,7 @@ export const C = defineCatalog({
     en: 'Step count and distance',
     es: 'Podómetro y distancia',
     de: 'Schrittzähler und Distanz',
-    pt: 'Pedómetro e distância',
+    pt: 'Pedômetro e distância',
   },
   sigTraceRegularity: {
     fr: 'Régularité du tracé',
@@ -250,7 +250,7 @@ export const C = defineCatalog({
     en: 'Route already recorded',
     es: 'Recorrido ya registrado',
     de: 'Strecke bereits gespeichert',
-    pt: 'Percurso já registado',
+    pt: 'Percurso já registrado',
   },
   sigFutureTimestamps: {
     fr: 'Horloge de l’appareil',
@@ -281,7 +281,7 @@ export const C = defineCatalog({
     en: 'Recorded, not yet handled',
     es: 'Registrada, aún sin tratar',
     de: 'Erfasst, noch nicht bearbeitet',
-    pt: 'Registada, ainda por tratar',
+    pt: 'Registrada, ainda sem tratamento',
   },
   statutInProgress: {
     fr: 'En cours d’examen',
@@ -355,14 +355,14 @@ export const C = defineCatalog({
     en: 'YOUR APPEAL',
     es: 'TU APELACIÓN',
     de: 'DEIN EINSPRUCH',
-    pt: 'O TEU RECURSO',
+    pt: 'SEU RECURSO',
   },
   appelInvite: {
     fr: 'Tu peux demander un réexamen. Ajoute un mot si tu veux — ce n’est pas obligatoire.',
     en: 'You can ask for a review. Add a note if you want — it is not required.',
     es: 'Puedes pedir una revisión. Añade una nota si quieres, no es obligatorio.',
     de: 'Du kannst eine erneute Prüfung beantragen. Eine Notiz ist möglich, aber nicht nötig.',
-    pt: 'Podes pedir uma reapreciação. Acrescenta uma nota se quiseres — não é obrigatório.',
+    pt: 'Você pode pedir uma reavaliação. Acrescente uma nota se quiser — não é obrigatório.',
   },
   appelPlaceholder: {
     fr: 'Ce qui s’est passé (facultatif)',
@@ -383,35 +383,35 @@ export const C = defineCatalog({
     en: 'Sending…',
     es: 'Enviando…',
     de: 'Wird gesendet…',
-    pt: 'A enviar…',
+    pt: 'Enviando…',
   },
   appelRecu: {
     fr: 'Appel reçu. Il est enregistré, et il attend d’être traité.',
     en: 'Appeal received. It is recorded and waiting to be handled.',
     es: 'Apelación recibida. Está registrada y espera tratamiento.',
     de: 'Einspruch erhalten. Er ist erfasst und wartet auf Bearbeitung.',
-    pt: 'Recurso recebido. Está registado e aguarda tratamento.',
+    pt: 'Recurso recebido. Está registrado e aguarda tratamento.',
   },
   appelEnCours: {
     fr: 'Ton appel est en cours d’examen.',
     en: 'Your appeal is being examined.',
     es: 'Tu apelación está en examen.',
     de: 'Dein Einspruch wird geprüft.',
-    pt: 'O teu recurso está em análise.',
+    pt: 'Seu recurso está em análise.',
   },
   appelClos: {
     fr: 'Ton appel a été tranché.',
     en: 'Your appeal has been decided.',
     es: 'Tu apelación ha sido resuelta.',
     de: 'Über deinen Einspruch wurde entschieden.',
-    pt: 'O teu recurso foi decidido.',
+    pt: 'Seu recurso foi decidido.',
   },
   appelEchec: {
     fr: 'L’appel n’est pas parti. Rien n’a été enregistré — tu peux réessayer.',
     en: 'The appeal did not go through. Nothing was recorded — you can retry.',
     es: 'La apelación no se envió. No se registró nada; puedes reintentar.',
     de: 'Der Einspruch wurde nicht gesendet. Nichts wurde erfasst — versuch es erneut.',
-    pt: 'O recurso não foi enviado. Nada ficou registado — podes tentar de novo.',
+    pt: 'O recurso não foi enviado. Nada ficou registrado — você pode tentar de novo.',
   },
 
   // ── Bas de page : ce que cet écran ne sait pas faire ──────────────────────
@@ -420,13 +420,13 @@ export const C = defineCatalog({
     en: 'WHAT THIS SCREEN DOES NOT DO',
     es: 'LO QUE ESTA PANTALLA NO HACE',
     de: 'WAS DIESER BILDSCHIRM NICHT TUT',
-    pt: 'O QUE ESTE ECRÃ NÃO FAZ',
+    pt: 'O QUE ESTA TELA NÃO FAZ',
   },
   honneteteBody: {
     fr: 'Il ne te prévient pas : reviens ici pour voir où en est une vérification. Aucune notification n’est envoyée aujourd’hui.',
     en: 'It does not notify you: come back here to see where a verification stands. No notification is sent today.',
     es: 'No te avisa: vuelve aquí para ver el estado de una verificación. Hoy no se envía ninguna notificación.',
     de: 'Er benachrichtigt dich nicht: komm zurück, um den Stand einer Prüfung zu sehen. Heute wird nichts gesendet.',
-    pt: 'Não te avisa: volta aqui para ver o estado de uma verificação. Hoje não é enviada nenhuma notificação.',
+    pt: 'Não avisa você: volte aqui para ver o estado de uma verificação. Hoje não é enviada nenhuma notificação.',
   },
 });

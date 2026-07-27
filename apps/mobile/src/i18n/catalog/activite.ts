@@ -52,6 +52,29 @@ export const C = defineCatalog({
     pt: 'Progressão',
   },
 
+  // ─── Ligne « À DÉFENDRE » (contestation RÉELLE de `territory_contests`) ────
+  /**
+   * Le fait, en une ligne, SANS rien qu'on ne sache : ni le nom du rival (son
+   * profil n'est pas forcément public), ni le nom de la zone (`territories` n'en
+   * porte aucun), ni l'heure de l'attaque (§12). Le détail — carte, échéance,
+   * surface, couverture mesurée — vit sur E70, qui s'ouvre au tap.
+   */
+  defendLine: {
+    fr: 'Une de tes zones est contestée',
+    en: 'One of your zones is contested',
+    es: 'Una de tus zonas está en disputa',
+    de: 'Eine deiner Zonen wird umkämpft',
+    pt: 'Uma das suas zonas está em disputa',
+  },
+  /** VoiceOver d'une ligne à défendre : le fait, son âge, et ce que le tap fait. */
+  a11yDefendLine: {
+    fr: 'Une de tes zones est contestée, {age}. Ouvrir la zone attaquée.',
+    en: 'One of your zones is contested, {age}. Open the zone under attack.',
+    es: 'Una de tus zonas está en disputa, {age}. Abrir la zona atacada.',
+    de: 'Eine deiner Zonen wird umkämpft, {age}. Angegriffenes Gebiet öffnen.',
+    pt: 'Uma das suas zonas está em disputa, {age}. Abrir a zona atacada.',
+  },
+
   // ─── Ligne de PROGRESSION (badge réel débloqué) ────────────────────────────
   progressionBadge: {
     fr: 'Nouveau badge débloqué',
@@ -103,11 +126,17 @@ export const C = defineCatalog({
    * qui n'a encore personne à signaler.
    */
   tacticalPendingNote: {
-    fr: 'Les alertes de contestation, de rivalité et de crew arriveront ici dès que d’autres joueurs seront actifs autour de toi.',
-    en: 'Contest, rivalry and crew alerts will land here once other players are active around you.',
-    es: 'Las alertas de disputa, rivalidad y crew llegarán aquí cuando haya otros jugadores activos cerca de ti.',
-    de: 'Meldungen zu Angriff, Rivalität und Crew erscheinen hier, sobald andere Spieler in deiner Nähe aktiv sind.',
-    pt: 'Alertas de disputa, rivalidade e crew chegarão aqui quando houver outros jogadores ativos perto de você.',
+    // ⚠️ MISE À JOUR DU 27/07/2026 : la CONTESTATION a désormais une source
+    // RÉELLE (`territory_contests`, lue par `useActivityEvents`). Continuer à
+    // l'annoncer « pour plus tard » aurait fait mentir la note dans l'autre
+    // sens — une doc qui promet en retard est aussi fausse qu'une qui promet en
+    // avance. Ne restent nommées que RIVALITÉ et CREW, qui n'ont toujours
+    // aucune table derrière elles.
+    fr: 'Les alertes de rivalité et de crew arriveront ici dès que d’autres joueurs seront actifs autour de toi.',
+    en: 'Rivalry and crew alerts will land here once other players are active around you.',
+    es: 'Las alertas de rivalidad y crew llegarán aquí cuando haya otros jugadores activos cerca de ti.',
+    de: 'Meldungen zu Rivalität und Crew erscheinen hier, sobald andere Spieler in deiner Nähe aktiv sind.',
+    pt: 'Alertas de rivalidade e crew chegarão aqui quando houver outros jogadores ativos perto de você.',
   },
 
   // ─── États de lecture (patron /historique) ─────────────────────────────────

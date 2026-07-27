@@ -22,27 +22,14 @@ import { supabase } from '../../lib/supabase';
 import type { NotifChannel } from '../motivation/store';
 import type { Locale } from '../../i18n/types';
 
-/** Diagnostic d'enregistrement — chaque valeur a un message d'écran distinct. */
-export type PushStatus =
-  /** Pas encore tenté sur cet appareil. */
-  | 'idle'
-  /** Web / preview : il n'y a pas de push à activer ici. */
-  | 'unsupported'
-  /** Module natif absent du build installé (ajout postérieur). */
-  | 'module_missing'
-  /** Le joueur a refusé — c'est un choix, pas une panne. */
-  | 'permission_denied'
-  /** Pas de backend / pas de session : rien à enregistrer côté serveur. */
-  | 'not_configured'
-  /**
-   * Le service de push n'a délivré aucun token : build sans credentials APNs
-   * ou FCM, ou simulateur. C'est l'étape qui attend le fondateur.
-   */
-  | 'unavailable'
-  /** Le serveur a refusé l'enregistrement (réseau, RLS, session expirée). */
-  | 'error'
-  /** L'appareil recevra les notifications de ses canaux actifs. */
-  | 'registered';
+/**
+ * Diagnostic d'enregistrement — chaque valeur a un message d'écran distinct.
+ * Le TYPE vit dans `pushStatus.ts`, sans une seule dépendance native : c'est ce
+ * qui rend testables en Deno les règles pures qui en dépendent
+ * (`pushActionable`). Ré-exporté ici pour que rien ne change côté appelants.
+ */
+export type { PushStatus } from './pushStatus';
+import type { PushStatus } from './pushStatus';
 
 export interface PushRegistration {
   status: PushStatus;

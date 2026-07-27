@@ -8,7 +8,7 @@
  *   · afficher « il y a NaN » sur une date illisible.
  */
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { defendEventsFromContests, type FeedContestRow } from './contestEvents.ts';
+import { contestIdOf, defendEventsFromContests, type FeedContestRow } from './contestEvents.ts';
 import { actionableCount } from './activityFeed.ts';
 
 const NOW = new Date('2026-07-27T12:00:00Z').getTime();
@@ -93,4 +93,30 @@ Deno.test('plusieurs contestations : une ligne par contestation, ids distincts',
     events.map((e) => e.id),
     ['contest:k1', 'contest:k2'],
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LE CHEMIN DE RETOUR : une ligne « À DÉFENDRE » doit OUVRIR sa zone (E70)
+//
+// Sans lui, le flux affichait une alerte ACTIONNABLE — comptée par le badge de
+// la cloche — qui ne menait nulle part. Alarmer sans donner de sortie est le
+// symétrique exact d'un bouton mort.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Deno.test('contestIdOf retrouve l’identifiant que defendEventsFromContests a posé', () => {
+  const [event] = defendEventsFromContests([row({ id: 'c-42' })], MY_IDS);
+  assertEquals(contestIdOf(event!.id), 'c-42');
+});
+
+Deno.test('contestIdOf ne prétend rien sur un événement qui n’est pas une contestation', () => {
+  assertEquals(contestIdOf('badge:premiere_zone'), null);
+  assertEquals(contestIdOf(''), null);
+  // Préfixe présent mais identifiant VIDE : une route sans paramètre ne doit
+  // pas être ouverte (elle rendrait « introuvable »).
+  assertEquals(contestIdOf('contest:'), null);
+});
+
+Deno.test('un identifiant serveur qui contient « : » survit au découpage', () => {
+  // On ne coupe pas au premier « : » : on retire le PRÉFIXE, longueur connue.
+  assertEquals(contestIdOf('contest:a:b:c'), 'a:b:c');
 });

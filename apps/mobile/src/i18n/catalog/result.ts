@@ -340,14 +340,14 @@ export const C = defineCatalog({
     en: 'Your run’s route',
     es: 'El recorrido de tu carrera',
     de: 'Die Strecke deines Laufs',
-    pt: 'O trajeto da tua corrida',
+    pt: 'O trajeto da sua corrida',
   },
   a11yResultTraceBike: {
     fr: 'Le tracé de ta sortie à vélo',
     en: 'Your ride’s route',
     es: 'El recorrido de tu salida en bici',
     de: 'Die Strecke deiner Fahrt',
-    pt: 'O trajeto da tua pedalada',
+    pt: 'O trajeto da sua pedalada',
   },
   // PIONNIER — titre du hero quand cette course a OUVERT une commune vierge
   // (verdict serveur, nom réel geo.api.gouv.fr). {commune} = le nom réel.
@@ -356,7 +356,7 @@ export const C = defineCatalog({
     en: 'YOU OPENED {commune}',
     es: 'HAS ABIERTO {commune}',
     de: 'DU HAST {commune} ERÖFFNET',
-    pt: 'ABRISTE {commune}',
+    pt: 'VOCÊ ABRIU {commune}',
   },
   // Sous-titre du pionnier — statut rare, formulé sans genre (jamais « premier·ère »).
   heroPioneerSub: {
@@ -364,7 +364,7 @@ export const C = defineCatalog({
     en: 'No one had run here before you',
     es: 'Nadie había corrido aquí antes que tú',
     de: 'Vor dir ist hier niemand gelaufen',
-    pt: 'Ninguém tinha corrido aqui antes de ti',
+    pt: 'Ninguém tinha corrido aqui antes de você',
   },
   /**
    * L'ouverture d'une commune n'est PAS disciplinée côté serveur
@@ -377,7 +377,7 @@ export const C = defineCatalog({
     en: 'No one had ridden here before you',
     es: 'Nadie había rodado aquí antes que tú',
     de: 'Vor dir ist hier niemand gefahren',
-    pt: 'Ninguém tinha pedalado aqui antes de ti',
+    pt: 'Ninguém tinha pedalado aqui antes de você',
   },
   // RENDEZ-VOUS local (rétention) — invitation à poser son propre rappel.
   rendezvousOffer: {
@@ -414,7 +414,7 @@ export const C = defineCatalog({
     en: 'Allow notifications for your reminder',
     es: 'Permite las notificaciones para tu recordatorio',
     de: 'Erlaube Mitteilungen für deine Erinnerung',
-    pt: 'Permite as notificações para o teu lembrete',
+    pt: 'Permita as notificações para o seu lembrete',
   },
   // Titre de la notif — marque (identique aux 5 langues).
   rendezvousNotifTitle: {
@@ -430,7 +430,7 @@ export const C = defineCatalog({
     en: 'Your next run is waiting',
     es: 'Tu próxima salida te espera',
     de: 'Dein nächster Lauf wartet',
-    pt: 'A tua próxima corrida está à espera',
+    pt: 'Sua próxima corrida está esperando',
   },
   /**
    * Le rappel est posé DEPUIS le résultat : il hérite de la discipline qu'on
@@ -442,7 +442,7 @@ export const C = defineCatalog({
     en: 'Your next ride is waiting',
     es: 'Tu próxima salida en bici te espera',
     de: 'Deine nächste Fahrt wartet',
-    pt: 'A tua próxima pedalada está à espera',
+    pt: 'Sua próxima pedalada está esperando',
   },
   // §11 honnêteté : le SERVEUR a jugé la capture invalide (status 'rejected').
   // Le titre le DIT — jamais « TERRITOIRE ÉTENDU » + « +0 zones » (qui laissait
@@ -1188,14 +1188,14 @@ export const C = defineCatalog({
     en: 'Checking your private zones…',
     es: 'Comprobando tus zonas privadas…',
     de: 'Deine privaten Zonen werden geprüft…',
-    pt: 'A verificar as tuas zonas privadas…',
+    pt: 'Verificando suas zonas privadas…',
   },
   privacyZonesError: {
     fr: 'Impossible de vérifier tes zones privées. Le tracé reste caché tant qu’on n’est pas sûr.',
     en: 'Could not check your private zones. The route stays hidden until we are sure.',
     es: 'No se han podido comprobar tus zonas privadas. El recorrido queda oculto hasta estar seguros.',
     de: 'Deine privaten Zonen konnten nicht geprüft werden. Die Strecke bleibt verborgen, bis es sicher ist.',
-    pt: 'Não foi possível verificar as tuas zonas privadas. O percurso fica oculto até termos a certeza.',
+    pt: 'Não foi possível verificar suas zonas privadas. O percurso fica oculto até termos certeza.',
   },
   shareUnavailable: {
     fr: 'Partage indisponible ici',

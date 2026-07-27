@@ -64,9 +64,16 @@ export type RivalRing = readonly (readonly [number, number])[];
  * évite de DEMANDER des territoires qu'on sait interdits (une donnée qu'on ne
  * reçoit pas ne peut pas se retrouver dans un cache), et il garde l'écran juste
  * si la vue était un jour servie par un backend plus ancien.
- * Ce qui reste OUVERT : `hex_claims` demeure lisible par tout authentifié
- * (0003:114), donc le refus n'est pas encore opposable PAR CE CHEMIN-LÀ. C'est
- * inscrit au §3 de 0087, ce n'est pas revendiqué ici.
+ * CE QUI A ÉTÉ DIT FAUX ICI, ET QUI EST CORRIGÉ (28/07/2026) : cette note
+ * ajoutait que « `hex_claims` demeure lisible par tout authentifié (0003:114) ».
+ * Non — la migration 0079, ANTÉRIEURE, a supprimé `hex_claims_select_all`
+ * (0079:78) au profit de `hex_claims_select_own` (0079:84-86) et a retiré le
+ * SELECT à `anon` (0079:98). La surface publique de la grille n'est plus la
+ * table : c'est la vue `public_hex_claims` (0079:152) — qui, elle, ignorait
+ * `map_sharing` jusqu'à la migration 0089. Les DEUX chemins (polygonal 0087,
+ * grille 0089) opposent désormais le réglage. Ce qui reste vrai et n'est pas un
+ * trou : le PROPRIÉTAIRE lit ses propres cellules — un réglage de PARTAGE ne
+ * s'applique pas à soi-même.
  */
 export type MapSharing = 'precise' | 'simplified' | 'territory_only' | 'none';
 

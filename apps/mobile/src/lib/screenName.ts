@@ -29,6 +29,13 @@ const DYNAMIC_ROUTES: ReadonlyArray<{ readonly prefix: string; readonly pattern:
   // trou était de patron, pas d'accident, donc les deux entrent ensemble.
   { prefix: '/zones-rival/', pattern: '/zones-rival/[handle]' }, // E15
   { prefix: '/profil-rival/', pattern: '/profil-rival/[handle]' },
+  // E70 — le segment est l'identifiant d'une CONTESTATION
+  // (`territory_contests.id`). Il ne porte aucune coordonnée, mais il désigne
+  // sans ambiguïté UNE zone du joueur : laissé en clair dans `$screen`, il
+  // permettrait de recouper « ce joueur défend toujours la même zone » et donc
+  // de le situer (§18.2 interdit les coordonnées précises ; un identifiant
+  // stable de territoire en est l'équivalent par recoupement). On le rédige.
+  { prefix: '/zone-attaquee/', pattern: '/zone-attaquee/[contestId]' },
 ];
 
 /**

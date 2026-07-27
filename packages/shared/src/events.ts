@@ -553,7 +553,196 @@ export const EVENTS = {
   crewOutingCreated: 'crew_outing_created', // props: { activity, objective, hasZone, hasCapacity, leadH }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // L'ÉCRAN DE CETTE VAGUE QUI N'A AUCUN EVENT, ET POURQUOI
+  // ════════════════════════════════════════════════════════════════════════
+  // VAGUE PROFIL · SAISON · RANGS · ACTIVITÉ · RÉGLAGES (E55-E61, E69-E71,
+  // E78-E79) — ajoutée le 27/07/2026.
+  // ════════════════════════════════════════════════════════════════════════
+
+  // ── E55 / E56 — Profil personnel et profil public ─────────────────────────
+  /**
+   * `profile_view` du minimum §18.1 de la spéc. UN SEUL event pour les DEUX
+   * profils, distingués par `self` : la question produit est « regarde-t-on
+   * plus son propre profil ou celui des autres ? », et deux noms rendraient le
+   * ratio illisible (même raison que `leaderboard_viewed` pour ses 4 onglets).
+   *
+   * `self` : true = E55 (`/profile`), false = E56 (`/player/:playerId`).
+   * `activity` FERMÉ : 'run' | 'bike' — la lentille active (§4.2), parce que
+   *   les métriques du profil sont par discipline (`ACTIVITY_SCOPE`).
+   * `state` FERMÉ, les quatre états de la constitution, jamais confondus :
+   *   'signed_out' | 'empty' | 'failed' | 'ready'.
+   *
+   * ⚠ AUCUN `playerId`, AUCUN handle, AUCUN nom de crew, AUCUN chiffre de
+   * territoire. Attaché au `distinct_id` de l'OBSERVATEUR, un identifiant de
+   * profil regardé dirait « qui regarde qui » — une donnée relationnelle que
+   * GRYD ne mesure nulle part, exactement ce que `screenName.ts` rédige déjà
+   * dans `$screen` pour `/profil-rival/[handle]`.
+   */
+  profileViewed: 'profile_view', // props: { self, activity, state }
+
+  // ── E59 — Saison (`/season`) ──────────────────────────────────────────────
+  /**
+   * L'écran Saison s'est composé, avec la PHASE réelle et l'état de lecture.
+   * `phase` FERMÉ : 'upcoming' | 'active' | 'ended' — dérivé du TEMPS par
+   * `seasonProgress` (shared/season.ts), pas du statut serveur : une saison
+   * encore marquée `active` dont `ends_at` est passé rend 'ended'.
+   * `state` FERMÉ : 'signed_out' | 'none' (lu, aucune saison ouverte) |
+   *   'failed' (la lecture a échoué — on ne sait pas) | 'ready'.
+   * `activity` FERMÉ : 'run' | 'bike' (E59 : « rangs Run et Bike SÉPARÉS »).
+   *
+   * NE DOUBLE PAS `leaderboard_viewed` : celui-là mesure un CLASSEMENT (qui est
+   * devant qui), celui-ci l'écran de PROGRESSION personnelle (rang, XP, jalon,
+   * récompenses). Les deux vivent sur des routes différentes depuis l'arbitrage
+   * A2, et confondre « je regarde le classement » avec « je regarde ma
+   * progression » effacerait la seule distinction utile.
+   */
+  seasonViewed: 'season_view', // props: { phase, activity, state }
+
+  // ── E60 — Passage de rang (plein écran) ───────────────────────────────────
+  /**
+   * Le moment de rang s'est TERMINÉ, et comment. C'est la seule mesure qui
+   * vaille : un moment célébratoire qu'on saute systématiquement est un moment
+   * raté, et le fondateur doit pouvoir le voir sans ouvrir l'app.
+   *
+   * `dismissal` FERMÉ : 'auto' (l'échéance `motion.rankMomentMaxMs` est
+   *   arrivée) | 'skip' (tap n'importe où / geste de saut) | 'cta' (CONTINUER)
+   *   | 'season' (le lien « Voir la saison » — l'utilisateur veut le détail).
+   * `reduced_motion` : booléen — l'animation a-t-elle été supprimée (§3.7) ?
+   *   Sans lui, un taux de 'skip' élevé serait illisible.
+   *
+   * ⚠ AUCUN nom de rang, AUCUN niveau. Le rang atteint est une donnée de
+   * progression déjà portée par le serveur ; ici il identifierait un joueur
+   * dans une petite ville. On mesure le MOMENT, pas la personne.
+   */
+  rankMomentDismissed: 'rank_moment_dismissed', // props: { dismissal, reduced_motion }
+
+  // ── E61 — Fin de saison (bilan) ───────────────────────────────────────────
+  /**
+   * Le bilan de fin de saison s'est affiché, avec ce qu'il a RÉELLEMENT pu
+   * montrer. `state` FERMÉ : 'signed_out' | 'no_result' (la saison est close
+   * mais aucun rang final n'a été lu pour ce joueur — il n'a pas participé) |
+   * 'failed' | 'ready'.
+   *
+   * ⚠ AUCUN rang final, AUCUN palier décroché : dans une ville de Saison 0, le
+   * couple (rang, heure) désigne une personne. Le rang final est déjà connu du
+   * serveur qui l'a calculé — l'analytics n'en a aucun besoin.
+   *
+   * PAS D'EVENT « RÉCUPÉRER » : le CTA de la planche accuse RÉCEPTION d'un
+   * badge que `season_close` a déjà décerné côté serveur — rien n'est
+   * « claim » à ce moment-là. Un `season_reward_claimed` décrirait une
+   * mécanique qui n'existe pas ; le tap se mesure avec `cta_tapped`.
+   */
+  seasonRecapViewed: 'season_recap_viewed', // props: { state }
+
+  // ── E71 — Réglages de notifications ───────────────────────────────────────
+  /**
+   * Une catégorie de notification a été basculée. C'est le seul instant de
+   * l'écran qui DÉCIDE quelque chose, et le KPI est direct : quelles alertes
+   * les joueurs éteignent en premier.
+   *
+   * `category` FERMÉ, les cinq de la spéc §13 : 'defense' | 'crew' |
+   *   'rivalite' | 'progression' | 'produit' (miroir de
+   *   `NotificationCategory`, features/notifications/notifPrefs.ts).
+   * `enabled` : l'état APRÈS le basculement.
+   *
+   * ⚠ N'ÉMETTRE QUE POUR UNE CATÉGORIE RÉELLEMENT GOUVERNÉE. Aujourd'hui seules
+   * 'defense' et 'rivalite' pilotent un envoi serveur (`decay_job`,
+   * `steal_push_job`) — l'écran ne peint d'interrupteur que pour elles. Émettre
+   * pour les trois autres mesurerait un réglage qui ne gouverne rien.
+   *
+   * NE DOUBLE PAS `permission_notifications` (E10), qui mesure la réponse à la
+   * permission SYSTÈME — un oui/non de l'OS, pas une préférence de contenu.
+   */
+  notifPrefChanged: 'notif_pref_changed', // props: { category, enabled }
+
+  // ── E57 / E58 — Suivis, amis et défi (migration 0087) ─────────────────────
+  /**
+   * ⚠ CES QUATRE EVENTS N'EXISTAIENT PAS AVANT LE 27/07/2026, ET C'ÉTAIT JUSTE.
+   * Le bloc ci-dessous portait alors, en toutes lettres, « E57 et E58 n'ont
+   * aucun event » : `friendships` n'avait aucun chemin d'écriture, aucune table
+   * `follows` ni `duels` n'existait, donc aucun de ces gestes ne pouvait
+   * aboutir. La migration 0087 a créé ces chemins ; les events arrivent AVEC
+   * eux, jamais avant — exactement le protocole suivi par
+   * `crew_outing_created` (0085).
+   *
+   * ⚠ AUCUN DE CES EVENTS NE PORTE DE PII, ET C'EST PLUS STRICT QU'AILLEURS.
+   * Pas de @handle, pas de nom affiché, pas d'identifiant de personne, pas de
+   * ville, pas de libellé de zone. Un event social est le pire endroit du
+   * produit pour laisser passer un identifiant : attaché au `distinct_id` de
+   * l'émetteur, il dirait « qui connaît qui » — un GRAPHE SOCIAL, la donnée la
+   * plus ré-identifiante que GRYD manipule (même raison que la rédaction de
+   * `/profil-rival/[handle]` dans `lib/screenName.ts`).
+   */
+
+  /**
+   * Un suivi a été ENREGISTRÉ PAR LE SERVEUR (`follow_user`). `result` FERMÉ,
+   * miroir des réponses de la RPC : 'followed' | 'already' | 'not_found' |
+   * 'rate_limited'. Le KPI est le TAUX D'ÉCHEC — si 'not_found' domine, c'est
+   * que le partage de @handle ne fonctionne pas, pas que les gens refusent.
+   */
+  socialFollowed: 'social_followed', // props: { result }
+
+  /**
+   * Une demande d'ami a été SOUMISE au serveur (`friend_request`). `result`
+   * FERMÉ : 'pending' | 'accepted' (croisement) | 'already' | 'cooldown' |
+   * 'too_many_pending' | 'not_found'. 'cooldown' est le signal à surveiller :
+   * il compte les insistances après refus.
+   */
+  friendRequestSent: 'friend_request_sent', // props: { result }
+
+  /**
+   * Une demande d'ami REÇUE a été tranchée (`friend_respond`). `decision`
+   * FERMÉ : 'accepted' | 'declined'. Aucune raison de refus n'est mesurée — il
+   * n'en existe pas, et en inventer une pour l'analytique reviendrait à
+   * réintroduire la friction que E57 interdit.
+   */
+  friendRequestDecided: 'friend_request_decided', // props: { decision }
+
+  /**
+   * Un défi a été SOUMIS au serveur (`duel_create`). `kind` FERMÉ, les quatre
+   * de `DUEL_KINDS` ; `activity` FERMÉ : 'run' | 'bike' ; `periodDays` entier
+   * borné par DUEL_PERIOD_DAYS_MIN/MAX ; `result` FERMÉ : 'sent' |
+   * 'no_relation' | 'cooldown' | 'already_pending' | 'too_many_pending' |
+   * 'not_found'. Aucune CIBLE chiffrée n'est envoyée : « 12,4 km » est un
+   * quasi-identifiant du défi, et le produit n'a rien à en faire.
+   */
+  duelSent: 'duel_sent', // props: { kind, activity, periodDays, result }
+
+  /**
+   * Un défi REÇU a été tranché (`duel_respond`). `decision` FERMÉ : 'accepted'
+   * | 'declined'. C'est LA mesure de santé de E58 : un taux de refus élevé est
+   * une information saine (les gens se sentent libres) ; ce qui alerterait,
+   * c'est qu'il tombe à zéro — signe que refuser coûte quelque chose.
+   */
+  duelDecided: 'duel_decided', // props: { decision }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LES ÉCRANS DE CETTE VAGUE QUI N'ONT AUCUN EVENT, ET POURQUOI
+  //
+  // · E69 — FLUX D'ACTIVITÉ. La consultation est un `$screen`, et
+  //   `notification_opened` mesure déjà l'entrée depuis une notification. Le
+  //   « Tout lu » de la spéc n'a AUCUN modèle de lecture derrière lui :
+  //   `bell.ts` expose un statut de LECTURE DE DONNÉES ('loading' | 'failed' |
+  //   'ready'), jamais un curseur lu/non-lu. Son event viendra AVEC ce curseur,
+  //   pas avant.
+  //
+  // · E70 — ZONE ATTAQUÉE. Déjà couvert des deux côtés : `zone_detail_viewed`
+  //   porte `state: 'contested'` pour l'entrée par tap, `notification_opened`
+  //   porte le `type` pour l'entrée par notification, et le CTA DÉFENDRE est un
+  //   `cta_tapped`. Un troisième event dirait la même chose une troisième fois.
+  //
+  // · E78 — CONNEXIONS ET APPAREILS. Le Hub ne liste aujourd'hui que les deux
+  //   sources réellement utilisables sans action du fondateur (GPS natif,
+  //   import GPX) ; les autres sont RETIRÉES de l'écran, pas grisées. Il n'y a
+  //   donc ni connexion, ni expiration, ni déconnexion à mesurer — seulement un
+  //   import, que `run_complete` porte déjà via sa prop `source`.
+  //
+  // · E79 — COMPTE, AIDE ET LÉGAL. Navigation et lecture : `$screen` et
+  //   `cta_tapped` suffisent. La suppression de compte, elle, est un fait
+  //   SERVEUR (grâce de `ACCOUNT_DELETION_GRACE_DAYS`) — la mesurer côté client
+  //   compterait des intentions, pas des suppressions.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // L'ÉCRAN DE LA VAGUE PRÉCÉDENTE QUI N'A AUCUN EVENT, ET POURQUOI
   //
   // · E50 — STATISTIQUES DU CREW. Rien à ajouter : `crew_overview()` (RPC 0044)
   //   rend le total d'hexes, la dernière capture, le rang de ville et la

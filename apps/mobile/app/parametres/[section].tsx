@@ -58,9 +58,17 @@
  *   `typography.itemTitle` (il recodait famille + graisse à la main).
  *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE ──────────────────────────────────────────────
- * · Sous-page Compte : aucune action de sécurité (mot de passe, appareils liés)
- *   — raison technique : il n'existe aucune RPC ni aucun écran pour ça, et
- *   `supabase.auth` n'est pas exposé au client pour la gestion d'identités.
+ * · Sous-page Compte : toujours aucune gestion d'IDENTITÉ (changer l'e-mail,
+ *   délier Apple / Google) — il n'existe ni RPC ni écran pour ça. En revanche,
+ *   depuis le 27/07/2026, la section APPAREILS (E78) existe, et elle tient
+ *   exactement ce que Supabase Auth permet, ni plus ni moins :
+ *     · PAS de liste d'appareils — le client ne peut lire QUE la session de ce
+ *       téléphone. Une liste serait entièrement fabriquée ; l'écran nomme donc
+ *       l'absence (`otherDevicesNoListNote`) au lieu de la simuler ;
+ *     · UNE action réelle — `signOut({ scope: 'others' })` révoque côté serveur
+ *       toutes les autres sessions sans toucher celle-ci (`lib/auth.ts`).
+ *   L'état de la ligne est dérivé par `features/account/otherDevices.ts` (pur,
+ *   testé) : `unknown` / `noBackend` / `signedOut` ne peignent aucun `onPress`.
  * · Sous-page Notifications (E71, `docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md`
  *   §13) : la spec liste CINQ catégories (défense/crew/rivalité/progression/
  *   produit). L'audit de ce chantier n'a trouvé que DEUX push RÉELS derrière
@@ -82,6 +90,7 @@ import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
+  EVENTS,
   FINISHER_MIN_SEGMENT_M,
   FINISHER_MIN_SHARE,
   fontSizes,
@@ -94,6 +103,11 @@ import {
   spacing,
   typography,
 } from '@klaim/shared';
+import {
+  otherDevicesActionable,
+  otherDevicesState,
+} from '../../src/features/account/otherDevices';
+import { signOutOtherDevices } from '../../src/lib/auth';
 import { PLAY_STYLE_LABELS } from '../../src/features/motivation/labels';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { SwitchRow } from '../../src/features/motivation/ui';
@@ -101,6 +115,7 @@ import { useDeviceNotifications } from '../../src/features/notifications/useDevi
 import { notifPrefsToChannels } from '../../src/features/notifications/notifPrefs';
 import { useNotificationPrefs } from '../../src/features/notifications/notifPrefsStore';
 import type { PushStatus } from '../../src/features/notifications/push';
+import { pushActionable } from '../../src/features/notifications/pushActionable';
 import { SectionLabel } from '../../src/ui/SectionLabel';
 import { useRealCrew } from '../../src/features/crew/real';
 import { SeasonStatus } from '../../src/features/season/SeasonStatus';
@@ -110,7 +125,7 @@ import { C } from '../../src/i18n/catalog/reglages';
 import { useT } from '../../src/i18n/store';
 import { flags } from '../../src/lib/flags';
 import { useSession } from '../../src/lib/session';
-import { screen } from '../../src/lib/analytics';
+import { screen, track } from '../../src/lib/analytics';
 import { getHapticsEnabled, setHapticsEnabled } from '../../src/lib/haptics';
 import {
   settingsRowBySection,
@@ -333,6 +348,32 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
     reload: reloadCrew,
   } = useRealCrew();
   const [hapticsOn, setHapticsOn] = useState(true);
+  /**
+   * E78 — révocation des AUTRES sessions. Deux bribes d'état seulement (en vol /
+   * issue de la dernière tentative) : tout le reste est DÉRIVÉ par un module pur
+   * et testé (`features/account/otherDevices.ts`), pour que la règle « ne peins
+   * jamais une action qui échouerait » ne dépende pas d'une condition écrite à
+   * la main dans le JSX.
+   */
+  const [revokeBusy, setRevokeBusy] = useState(false);
+  const [revokeResult, setRevokeResult] = useState<'none' | 'ok' | 'error'>('none');
+  const otherDevices = otherDevicesState({
+    sessionLoading,
+    configured,
+    signedIn,
+    busy: revokeBusy,
+    lastResult: revokeResult,
+  });
+  const revokeOtherDevices = () => {
+    if (revokeBusy) return;
+    setRevokeBusy(true);
+    // L'issue est lue du serveur, jamais supposée : un échec reste un échec à
+    // l'écran (`otherDevicesFailed`), il ne se transforme pas en silence.
+    void signOutOtherDevices()
+      .then((result) => setRevokeResult(result.ok ? 'ok' : 'error'))
+      .catch(() => setRevokeResult('error'))
+      .finally(() => setRevokeBusy(false));
+  };
   // Réglages de notifications E71 (5 catégories) — cf. `notifPrefs.ts` pour ce
   // qui est réellement câblé derrière chacune.
   const { prefs: notifPrefs, update: updateNotifPrefs } = useNotificationPrefs();
@@ -424,6 +465,55 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
               onPress={() => router.push('/confidentialite')}
             />
           </Section>
+          {/* ── E78 « CONNEXIONS ET APPAREILS » (spec l.2373) ──────────────────
+              Ce que la spec appelle une LISTE d'appareils n'est pas lisible :
+              le client Supabase Auth ne connaît que la session de CE téléphone
+              (cf. `lib/auth.ts`, `signOutOtherDevices`). Peindre « iPhone 14 ·
+              Paris · il y a 2 j » serait la donnée fabriquée la plus banale et
+              la plus grave de l'écran de sécurité. On dit donc l'absence, et on
+              n'offre que ce qui existe VRAIMENT : la révocation serveur des
+              autres sessions. L'autre moitié de E78 — les connexions d'apps et
+              de montres — vit déjà dans le Verify Hub (`/sources`), et la note
+              y renvoie plutôt que d'en dupliquer une seconde liste ici. */}
+          {otherDevices !== 'unknown' ? (
+            <Section label={t(C.secAppareils)}>
+              {otherDevices === 'noBackend' ? (
+                <Absence>{t(C.otherDevicesNoBackend)}</Absence>
+              ) : otherDevices === 'signedOut' ? (
+                <Absence>{t(C.otherDevicesSignedOut)}</Absence>
+              ) : (
+                <ListRow
+                  icon="verrou"
+                  label={t(C.otherDevicesLabel)}
+                  /* La ligne DIT l'issue de la dernière tentative — jamais un
+                     silence après un échec, jamais un « fait » pendant l'appel. */
+                  sublabel={
+                    otherDevices === 'busy'
+                      ? t(C.otherDevicesBusy)
+                      : otherDevices === 'failed'
+                        ? t(C.otherDevicesFailed)
+                        : otherDevices === 'done'
+                          ? t(C.otherDevicesDone)
+                          : t(C.otherDevicesDetail)
+                  }
+                  tone={otherDevices === 'failed' ? 'danger' : 'default'}
+                  /* Aucun `onPress` tant que l'action ne peut pas aboutir : une
+                     ligne pressable qui échoue à coup sûr est un bouton mort. */
+                  onPress={
+                    otherDevicesActionable(otherDevices) ? revokeOtherDevices : undefined
+                  }
+                />
+              )}
+              <Absence>{t(C.otherDevicesNoListNote)}</Absence>
+              <ListRow
+                icon="lien"
+                label={t(C.rowSources)}
+                sublabel={t(C.otherDevicesSourcesHint)}
+                chevron
+                onPress={() => router.push('/sources')}
+              />
+            </Section>
+          ) : null}
         </>
       ) : null}
 
@@ -609,19 +699,35 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
               aujourd'hui — `notifPrefs.ts` documente l'audit qui l'établit.
               AUCUN BOUTON MORT : les trois autres restent NOMMÉES plus bas
               (`notifOtherCategoriesNote`), jamais peintes en interrupteur. */}
+          {/* ── L'EVENT §18, ENFIN ÉMIS (27/07/2026) ─────────────────────────
+              `notif_pref_changed` était DÉFINI dans `events.ts` et émis par
+              PERSONNE : le seul instant de l'écran qui décide quelque chose
+              n'était pas mesuré. Il l'est maintenant, et UNIQUEMENT pour les
+              deux catégories qui gouvernent un envoi RÉEL — c'est la consigne
+              écrite dans `events.ts` en toutes lettres (« n'émettre que pour une
+              catégorie réellement gouvernée »), et elle tient toute seule ici :
+              l'écran ne peint pas d'interrupteur pour les trois autres.
+              Les props sont des clés FERMÉES (`category` ∈ les 5 de §13,
+              `enabled` booléen) — aucun libellé i18n, aucune PII. */}
           <SwitchRow
             icon="bouclier"
             title={t(C.notifDefenseTitle)}
             subtitle={t(C.notifDefenseSubtitle)}
             value={notifPrefs.defense}
-            onValueChange={(v) => void updateNotifPrefs({ defense: v })}
+            onValueChange={(v) => {
+              track(EVENTS.notifPrefChanged, { category: 'defense', enabled: v });
+              void updateNotifPrefs({ defense: v });
+            }}
           />
           <SwitchRow
             icon="raid"
             title={t(C.notifRivaliteTitle)}
             subtitle={t(C.notifRivaliteSubtitle)}
             value={notifPrefs.rivalite}
-            onValueChange={(v) => void updateNotifPrefs({ rivalite: v })}
+            onValueChange={(v) => {
+              track(EVENTS.notifPrefChanged, { category: 'rivalite', enabled: v });
+              void updateNotifPrefs({ rivalite: v });
+            }}
           />
           <Text style={styles.note}>{t(C.notifsNote)}</Text>
           <Absence>{t(C.notifOtherCategoriesNote)}</Absence>
@@ -654,18 +760,35 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
                 : {})}
             />
           ) : (
+            /* AUCUN BOUTON MORT (28/07/2026). Cette ligne était pressable ET
+               chevronnée dans TOUS les statuts non-`registered`, et sa branche
+               par défaut appelait `pushEnable()` — y compris sur `unsupported`
+               (push.ts:95, verdict de plateforme rendu avant toute I/O),
+               `module_missing` (push.ts:98, verdict de build) et `unavailable`
+               (aucun token : credentials APNs/FCM absents). Le joueur pouvait
+               réappuyer sans fin sur ce que le sous-libellé de la MÊME ligne
+               venait de déclarer impossible.
+               `pushActionable` (fonction pure, testée) tranche, exactement comme
+               `otherDevicesActionable` le fait 260 lignes plus haut sur la ligne
+               voisine — les deux règles étaient opposées, elles sont désormais
+               les mêmes. L'état RESTE affiché : une ligne muette informe, une
+               ligne pressable qui échoue à coup sûr ment. */
             <ListRow
               icon="cloche"
               label={t(C.pushDeviceLabel)}
               sublabel={pushBusy ? t(C.pushBusy) : t(PUSH_STATUS_TEXT[pushStatus])}
-              chevron
-              onPress={() => {
-                if (pushStatus === 'registered') pushDisable();
-                // Refus système : seul le joueur peut revenir dessus, dans les
-                // réglages du téléphone — redemander ne rouvrirait rien.
-                else if (pushStatus === 'permission_denied') void Linking.openSettings();
-                else pushEnable();
-              }}
+              chevron={pushActionable(pushStatus)}
+              onPress={
+                pushActionable(pushStatus)
+                  ? () => {
+                      if (pushStatus === 'registered') pushDisable();
+                      // Refus système : seul le joueur peut revenir dessus, dans
+                      // les réglages du téléphone — redemander ne rouvrirait rien.
+                      else if (pushStatus === 'permission_denied') void Linking.openSettings();
+                      else pushEnable();
+                    }
+                  : undefined
+              }
             />
           )}
           <Text style={styles.note}>

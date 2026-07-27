@@ -40,15 +40,21 @@
  *    ici est role-INDÉPENDANT (un `where` de vue filtre pour tout le monde,
  *    superutilisateur compris) — c'est justement ce qui fait la valeur du
  *    déplacement client → serveur.
- *  · Que `hex_claims` cesse de fuir : elle reste `using (true)`, 0087 le dit.
+ *  · Rien sur le chemin GRILLE : cette migration ne le touche pas. Le §3 de 0087
+ *    disait que « hex_claims_select_all reste using (true) » — faux, 0079 l'avait
+ *    déjà remplacée par `hex_claims_select_own`. Et cette phrase fausse en
+ *    cachait une vraie : la surface publique de la grille est la vue
+ *    `public_hex_claims` (0079:152), qui ignorait `map_sharing`. C'est 0089 qui
+ *    la referme, prouvé par `public_hex_claims_map_sharing.pglite.test.mjs`.
  *
  * ═══ LANCER ════════════════════════════════════════════════════════════════
- *   mkdir -p /tmp/pglite && cd /tmp/pglite
- *   echo '{"name":"pglite-scratch","private":true}' > package.json
- *   npm i --ignore-scripts @electric-sql/pglite
- *   cd <repo> && GRYD_PGLITE=/tmp/pglite/node_modules/@electric-sql/pglite/dist/index.js \
- *     node supabase/tests/public_territories_map_sharing.pglite.test.mjs
- * Sans PGlite : sortie CODE 2 — un test non exécuté n'est JAMAIS vert.
+ *   npm run test:sql              (tous les tests SQL — inclus dans `npm run gate`)
+ *   node supabase/tests/public_territories_map_sharing.pglite.test.mjs   (celui-ci seul)
+ * `@electric-sql/pglite` est une devDependency DÉCLARÉE du dépôt depuis le
+ * 27/07/2026 : `npm install` suffit. Elle ne l'était pas avant, et le gate
+ * n'appelait aucun test SQL — les preuves de RLS existaient sans être
+ * rejouables. Sans PGlite : sortie CODE 2 — un test non exécuté n'est JAMAIS
+ * vert.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

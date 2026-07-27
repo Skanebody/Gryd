@@ -435,6 +435,109 @@ export const CREW_PING_FEED_MAX = 8;
 export const SEASON_DURATION_WEEKS = 8;
 export const INTERSEASON_DAYS = 7;
 
+/**
+ * CLÔTURE DE SAISON — les trois bornes du règlement §1, RAPATRIÉES ICI le
+ * 27/07/2026 (E59 « reset de rang clair », E61 « règles de remise à zéro »).
+ *
+ * ─── POURQUOI ELLES DÉMÉNAGENT ────────────────────────────────────────────────
+ * Elles vivaient en constantes PRIVÉES de `supabase/functions/season_close/
+ * logic.ts` (`FREEZE_HOURS = 24`, et le `MS_PER_DAY` inline de `resultsAt`).
+ * Le CLIENT ne pouvait donc pas les lire — or E59 et E61 doivent ÉNONCER la
+ * remise à zéro au joueur. Sans elles ici, chaque écran aurait recopié « 24 h »
+ * et « J+1 » en dur : exactement le nombre magique que la règle interdit.
+ * `season_close/logic.ts` les IMPORTE désormais (copie `_shared/game-rules.ts`),
+ * il n'en existe plus qu'un exemplaire.
+ *
+ * Ce sont des DÉLAIS de procédure, pas des leviers de score : les allonger ne
+ * donne de territoire à personne.
+ */
+/** Gel des scores après `ends_at` : aucune écriture de points pendant 24 h. */
+export const SEASON_FREEZE_HOURS = 24;
+/** Publication des résultats : J+1 après la fin de saison (règlement §1). */
+export const SEASON_RESULTS_DELAY_DAYS = 1;
+
+/**
+ * PALIERS DE RANG DE FIN DE SAISON — rang final maximal → clé de badge décernée.
+ *
+ * ─── SOURCE, ET FIN D'UNE DETTE NOMMÉE ───────────────────────────────────────
+ * Ces cinq coupures (100 / 50 / 10 / 3 / 1) existaient en DEUX exemplaires :
+ * `SEASON_RANK_TIERS`, constante privée de `season_close/logic.ts` (qui DÉCERNE
+ * réellement les médailles), et le tableau `LADDER` de
+ * `apps/mobile/src/features/season/seasonRewards.ts`, dont le docblock inscrit
+ * la dette mot pour mot : « le correctif propre est d'exporter
+ * SEASON_RANK_TIERS depuis packages/shared ». C'est fait ici : les deux
+ * consommateurs lisent cette table, plus aucune recopie.
+ *
+ * CUMULATIF : un rang 3 décroche aussi 10 / 50 / 100 (le moteur d'attribution
+ * ignore les doublons). `soleWinnerOnly` n'est vrai que pour
+ * `season_rank_legend` — « remporte la saison locale » exige un n°1 NON ex æquo ;
+ * un #1 partagé garde le titre (`season_rank_5`) sans le legend.
+ *
+ * ⚠ ANTI-PAY-TO-WIN — VÉRIFIÉ, PAS SUPPOSÉ. Le rang final est calculé par
+ * `computeFinalRanks` sur `season_scores.points`, alimentés par `ingest_run`
+ * depuis une activité GPS validée. Aucun SKU ne crédite de points : `SKUS` ne
+ * vend que de l'abonnement, des Éclats, des boosts de COFFRE crew et du
+ * cosmétique (`SKU_GRANTED_ITEM_KEYS` : skins, frames, templates), les objets
+ * fonctionnels sont typés `purchasable: false` (`FUNCTIONAL_ITEM_ACQUISITION`,
+ * gelé par `ingest_run/anti_pay_to_win_test.ts`), et `BOOST_BLACKOUT_END_OF_
+ * SEASON_H` éteint les boosts crew 48 h avant la clôture. Aucun euro ne franchit
+ * l'un de ces seuils. Les récompenses elles-mêmes sont des BADGES (matériau,
+ * §E59 « récompenses cosmétiques ; aucune capacité compétitive »).
+ */
+export interface SeasonRankTier {
+  /** Rang final maximal qui décroche le palier (rang ≤ maxRank). */
+  readonly maxRank: number;
+  /** Clé de badge RÉELLE (`user_badges.badge_key`) — jamais un libellé inventé. */
+  readonly badgeKey: string;
+  /** Réservé au vainqueur unique (rang 1 non ex æquo). */
+  readonly soleWinnerOnly: boolean;
+}
+
+export const SEASON_RANK_TIERS: readonly SeasonRankTier[] = [
+  { maxRank: 100, badgeKey: 'season_rank_1', soleWinnerOnly: false },
+  { maxRank: 50, badgeKey: 'season_rank_2', soleWinnerOnly: false },
+  { maxRank: 10, badgeKey: 'season_rank_3', soleWinnerOnly: false },
+  { maxRank: 3, badgeKey: 'season_rank_4', soleWinnerOnly: false },
+  { maxRank: 1, badgeKey: 'season_rank_5', soleWinnerOnly: false },
+  { maxRank: 1, badgeKey: 'season_rank_legend', soleWinnerOnly: true },
+] as const;
+
+/**
+ * CE QUI SURVIT À LA REMISE À ZÉRO — E59 « territoires et badges acquis ne
+ * disparaissent pas », E61 « règles de remise à zéro ».
+ *
+ * ⚠ CETTE TABLE DÉCRIT LE CODE, PAS UNE INTENTION. Chaque ligne a été établie en
+ * lisant ce que `season_close` FAIT (index.ts, phases 1 et 2) :
+ *   · `seasonPoints` / `seasonRank` — remis à zéro : `season_scores` et
+ *     `rank_cache` sont clés par `season_id`, la saison suivante repart vide.
+ *   · `territory` — EFFACÉ. `resetSeason()` supprime TOUTES les lignes
+ *     `hex_claims` à `reset_at` (« nouvelle saison = nouvelle histoire de la
+ *     carte » : le bonus pionnier repart de zéro, contrairement au decay qui
+ *     garde la mémoire `everOwned` À L'INTÉRIEUR d'une saison).
+ *   · `shields` — effacés eux aussi (`shields` vidée au même moment) ;
+ *     l'historique d'achat reste dans `purchases`.
+ *   · `badges` — conservés : `user_badges` n'a aucune colonne de saison et
+ *     aucun job ne les efface.
+ *   · `xp` / `level` / `foulees` — conservés : `ACTIVITY_SCOPE` les déclare
+ *     'global' et AMENDEMENT-02 §6 les dit permanents, jamais achetés.
+ *
+ * ⚠ E59 ÉNONCE « territoires et badges acquis ne disparaissent pas ». LE CODE
+ * DIT LE CONTRAIRE POUR LE TERRITOIRE, et c'est le code qui gagne : la copie de
+ * `saison.ts` (`resetLigne1`) a déjà tranché ainsi en toutes lettres (« la carte
+ * repart à zéro »). Aucun écran de cette vague ne doit reprendre la formulation
+ * de la spéc sans la corriger — ce serait promettre au-delà du code.
+ */
+export const SEASON_RESET_KEEPS = {
+  seasonPoints: false,
+  seasonRank: false,
+  territory: false,
+  shields: false,
+  badges: true,
+  xp: true,
+  level: true,
+  foulees: true,
+} as const satisfies Readonly<Record<string, boolean>>;
+
 // ─── §3.7 Parrainage ─────────────────────────────────────────────────────────
 export const REFERRAL_BOOST_MULTIPLIER = 2;
 export const REFERRAL_BOOST_DAYS = 7;
@@ -1688,6 +1791,48 @@ export type ChallengeDifficulty = (typeof CHALLENGE_DIFFICULTIES)[number];
  */
 export const CHALLENGE_METRICS = ['runs', 'distanceM', 'hexes', 'defends'] as const;
 export type ChallengeMetric = (typeof CHALLENGE_METRICS)[number];
+
+/**
+ * E58 — LES QUATRE FORMATS DE DÉFI AUTORISÉS, ET CE QUI LES MESURE AUJOURD'HUI.
+ *
+ * La spéc produit (E58) ferme la liste : « surface sur une période », « nombre
+ * de boucles », « défense d'une zone publique », « distance sportive ». Sans
+ * cette table, l'écran E58 aurait réinventé sa propre liste — ou pire, proposé
+ * un format que rien ne compte, donc un défi qui ne se termine jamais.
+ *
+ * `metric` est la SEULE chose qui rend un format proposable : `null` veut dire
+ * qu'AUCUN compteur du dépôt ne mesure ce format aujourd'hui, et donc que
+ * l'écran ne doit pas l'offrir (§ « aucun bouton mort »). C'est le cas de
+ * `loops` : `loop_closed` est un ÉVÉNEMENT d'analytics, pas un compteur
+ * persisté par joueur — aucune colonne, aucune vue ne totalise les boucles
+ * fermées d'une période. Le jour où ce compteur existe, cette ligne change ici
+ * et nulle part ailleurs.
+ *
+ * `area` s'appuie sur `hexes` : la cellule H3 reste l'INDEX INTERNE de la
+ * surface (constitution : aucun hexagone n'est VISIBLE — c'est une règle de
+ * rendu, pas de stockage). L'écran énonce une surface, jamais un nombre d'hexes.
+ *
+ * ⚠ ANTI-PAY-TO-WIN (E58 : « aucune mise d'argent ni récompense pay-to-win »).
+ * Aucun champ de mise n'existe ici, et c'est délibéré : un défi n'a ni enjeu
+ * monétaire ni récompense de jeu. Rien à ajouter côté SKU — `SKUS` ne contient
+ * aucune entrée liée à un défi, et `CHALLENGE_SEEDS` n'a aucune récompense.
+ */
+export const CHALLENGE_FORMATS = {
+  /** Surface conquise sur une période (mesurée par les cellules capturées). */
+  area: { metric: 'hexes' },
+  /** Nombre de boucles fermées — AUCUN compteur persisté : non proposable. */
+  loops: { metric: null },
+  /** Défense d'une zone PUBLIQUE (jamais une zone privée, §12). */
+  defense: { metric: 'defends' },
+  /** Distance sportive cumulée (m). */
+  distance: { metric: 'distanceM' },
+} as const satisfies Readonly<Record<string, { readonly metric: ChallengeMetric | null }>>;
+export type ChallengeFormat = keyof typeof CHALLENGE_FORMATS;
+
+/** Un format est proposable seulement si quelque chose le MESURE aujourd'hui. */
+export function isChallengeFormatMeasurable(format: ChallengeFormat): boolean {
+  return CHALLENGE_FORMATS[format].metric !== null;
+}
 /**
  * Durée standard d'un challenge rivalry (motivation §17.4, exemple 48 h). Les
  * bornes réelles (starts_at/ends_at) sont en base ; cette constante documente
@@ -4045,6 +4190,137 @@ export const CREW_STATS_TOP_CONTRIBUTORS = 5;
  * TUNABLE.
  */
 export const LEADERBOARD_ROWS_LIMIT = 50;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E57 · SUIVIS ET AMIS — E58 · DÉFI (spec l.1906 / l.1919)
+//
+// PRINCIPE QUI GOUVERNE TOUTES LES CONSTANTES CI-DESSOUS : un lien social se
+// DEMANDE, il ne se PREND pas, et une sollicitation qui ne peut pas être
+// refusée sans coût devient du harcèlement. Chaque nombre ici est un
+// PLAFOND ou un DÉLAI — aucun n'octroie quoi que ce soit, aucun ne s'achète.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Plafond de NOUVEAUX suivis par 24 h et par compte.
+ *
+ * POURQUOI UN PLAFOND SUR UN GESTE GRATUIT. `follow_user` prend un @handle et
+ * répond si ce handle existe. C'est le SEUL point du produit où l'on peut
+ * tester l'existence d'un pseudo, donc le seul par lequel on pourrait
+ * ÉNUMÉRER l'annuaire (aucune recherche, aucune liste de handles n'est servie
+ * — cf. migration 0087). Un plafond quotidien rend l'énumération inutilisable
+ * sans gêner personne : suivre 40 personnes en un jour n'arrive pas dans un
+ * usage réel, et cela reste possible le lendemain.
+ *
+ * POURQUOI 40. Un ordre de grandeur au-dessus du plus gros usage plausible
+ * (rejoindre un club et suivre ses membres présents : quelques dizaines), et
+ * trois ordres de grandeur en dessous de ce que coûterait un balayage
+ * d'annuaire. TUNABLE.
+ */
+export const SOCIAL_FOLLOW_MAX_PER_DAY = 40;
+
+/**
+ * Nombre maximal de demandes d'ami EN ATTENTE qu'un joueur peut avoir émises.
+ *
+ * Une demande en attente occupe la boîte de quelqu'un d'autre : c'est une
+ * ressource qui appartient au DESTINATAIRE, pas à l'émetteur. Le plafond porte
+ * donc sur le stock ouvert, pas sur le total historique — répondre en libère
+ * une. 20 = on peut solliciter tout un groupe de sortie sans jamais pouvoir
+ * arroser une ville. TUNABLE.
+ */
+export const SOCIAL_FRIEND_REQUESTS_MAX_PENDING = 20;
+
+/**
+ * Délai avant de pouvoir RE-demander en ami quelqu'un qui a refusé.
+ *
+ * Un refus qu'on peut ignorer en re-demandant dans la seconde n'est pas un
+ * refus. 30 jours : assez long pour qu'une insistance devienne impossible,
+ * assez court pour qu'une amitié réelle puisse se rattraper plus tard.
+ * TUNABLE.
+ */
+export const SOCIAL_FRIEND_REQUEST_COOLDOWN_DAYS = 30;
+
+/**
+ * Nombre maximal de lignes rendues par UNE section de `social_graph()`
+ * (suivis, abonnés, amis, demandes reçues, demandes envoyées).
+ *
+ * Ce n'est PAS un classement : on ne réutilise donc pas LEADERBOARD_ROWS_LIMIT,
+ * qui borne ce qu'un RANG veut dire. Ici la borne est de PAYLOAD : une réponse
+ * RPC ne doit pas grossir sans fin, et un écran qui rendrait 3 000 lignes ne
+ * serait plus lisible en moins de 3 s (§A). TUNABLE.
+ */
+export const SOCIAL_LIST_ROWS_LIMIT = 200;
+
+/**
+ * IL N'EXISTE AUCUNE SOURCE DE SUGGESTIONS DE PERSONNES — et c'est écrit ici
+ * pour qu'aucun écran n'en fabrique.
+ *
+ * La spec E57 liste quatre sections : « suit », « abonnés », « amis importés »,
+ * « suggestions locales ». Les deux premières ont une source (la table
+ * `follows`, 0087). Les deux dernières N'EN ONT PAS :
+ *   · « amis importés » supposerait un import de carnet d'adresses — aucune
+ *     permission Contacts n'est demandée par `apps/mobile/app.json`, aucun code
+ *     ne lit de contact ;
+ *   · « suggestions locales » supposerait de désigner des joueurs proches à
+ *     quelqu'un qui ne les connaît pas — ce serait révéler une présence
+ *     géographique (§12) ET, la base étant vide, une liste inventée.
+ * Tant que ce booléen est `false`, l'écran DIT que ces deux sections n'ont pas
+ * de source. Il ne peint pas une section vide qui laisserait croire à un futur
+ * remplissage automatique.
+ */
+export const SOCIAL_SUGGESTIONS_SOURCE_EXISTS: boolean = false;
+
+/**
+ * Les QUATRE formats de défi autorisés par la spec E58, et RIEN d'autre.
+ *
+ * Liste FERMÉE, miroir exact du CHECK de `public.duels.kind` (0087). Toute
+ * cinquième idée de défi devrait passer par ici et par la migration — pas par
+ * un écran.
+ */
+export const DUEL_KINDS = ['surface_period', 'loops', 'defend_zone', 'distance'] as const;
+export type DuelKind = (typeof DUEL_KINDS)[number];
+
+/**
+ * Durée d'un défi, en jours. Bornes de la fenêtre que les deux parties
+ * acceptent en même temps qu'elles acceptent le défi.
+ *
+ * MIN 1 : en dessous, « une journée » n'est plus une fenêtre, c'est une course
+ * à qui court dans l'heure — une pression, pas un jeu.
+ * MAX 14 : au-delà, un défi survivrait à un changement de saison (les rangs
+ * sont saisonniers, §E59) et son résultat ne voudrait plus rien dire.
+ * TUNABLE.
+ */
+export const DUEL_PERIOD_DAYS_MIN = 1;
+export const DUEL_PERIOD_DAYS_MAX = 14;
+
+/**
+ * Délai au bout duquel un défi NON RÉPONDU expire tout seul.
+ *
+ * NE PAS RÉPONDRE EST UNE RÉPONSE. Sans expiration, une sollicitation ignorée
+ * resterait affichée indéfiniment dans la boîte du destinataire — une
+ * culpabilisation passive, exactement ce que la consigne interdit. 72 h couvre
+ * un week-end entier ; passé ce délai, le défi tombe SANS que personne ait eu à
+ * dire non. TUNABLE.
+ */
+export const DUEL_EXPIRY_HOURS = 72;
+
+/**
+ * Nombre maximal de défis EN ATTENTE qu'un joueur peut avoir émis, toutes
+ * personnes confondues. Même raisonnement que les demandes d'ami : le stock
+ * ouvert occupe les boîtes des autres. TUNABLE.
+ */
+export const DUEL_MAX_PENDING_SENT = 5;
+
+/**
+ * Délai avant de pouvoir RE-défier quelqu'un qui a refusé (ou laissé expirer).
+ *
+ * C'est LA constante anti-harcèlement de E58 : sans elle, « refuser sans
+ * friction » serait un mensonge, puisque le refus pourrait être annulé par un
+ * nouveau défi immédiat. 168 h = 7 jours : on ne peut pas relancer quelqu'un
+ * plus d'une fois par semaine. Le délai porte sur la PAIRE de joueurs, jamais
+ * sur le format — sinon quatre refus successifs suffiraient à contourner le
+ * cooldown en changeant de type de défi à chaque fois. TUNABLE.
+ */
+export const DUEL_RETRY_COOLDOWN_HOURS = 168;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CE QUI N'A PAS ÉTÉ AJOUTÉ DANS CETTE VAGUE, ET POURQUOI

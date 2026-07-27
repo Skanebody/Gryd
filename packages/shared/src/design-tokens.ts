@@ -243,6 +243,16 @@ export const motion = {
   celebrationWaveMs: 400,
   celebrationCountMs: 800,
   traceDrawMs: 1_200, // dessin du VRAI tracé sur le Résultat (§25 peak-end)
+  /**
+   * E60 « Passage de rang » — spéc §3.7 : « Rang : moment dédié de 1,4 seconde
+   * MAXIMUM, skippable ». C'est un PLAFOND, pas une cible : l'écran doit rendre
+   * la main au plus tard à cette échéance, et immédiatement si l'utilisateur
+   * tape. Reduce Motion (§3.7) supprime le zoom, les particules et les
+   * pulsations — la valeur ne change pas, l'animation disparaît.
+   * Vit ici et non dans `game-rules` : une durée d'animation ne décide d'aucun
+   * claim ni d'aucun point.
+   */
+  rankMomentMaxMs: 1_400,
   holdToStopMs: 1_200, // stop protégé : maintenir 1,2 s
   runButtonPulseMs: 2_000,
   toastDismissMs: 2_500,

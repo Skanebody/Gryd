@@ -158,17 +158,15 @@ import {
   withTiedRanks,
   type RankedLeagueRow,
 } from '../../src/features/season/leagueRanking';
-import {
-  SEASON_REWARD_TIERS,
-  seasonStanding,
-  type SeasonRewardTier,
-} from '../../src/features/season/seasonRewards';
+import { seasonStanding } from '../../src/features/season/seasonRewards';
+// `tierLabel` / `tierCondition` vivaient ICI. Ils sont partis avec la frise dans
+// le composant partagé, pour qu'E53 et E59 nomment un palier de la MÊME façon.
+import { tierCondition, tierLabel } from '../../src/features/season/SeasonTierList';
 // E54 — le classement des CREWS a enfin une source (migration 0086 :
 // `crew_leaderboard` est rafraîchie pour de vrai, et `crew_board()` sait REFUSER
 // une vue jamais calculée). La lecture est pure et testée en Deno
 // (`features/crew/stats.ts`), le câblage n'a rien à décider.
 import { useCrewBoard } from '../../src/features/crew/statsData';
-import { useMyBadges } from '../../src/features/badges/myBadges';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import type { LeagueBoard } from '../../src/features/social/league';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
@@ -791,72 +789,6 @@ function SpecialtyBoards({
   );
 }
 
-/** Libellé d'un palier de fin de saison (« Top 10 local », « #1 local »…). */
-function tierLabel(tier: SeasonRewardTier, t: ReturnType<typeof useT>): string {
-  if (tier.soleWinnerOnly) return t(S.palierVainqueur);
-  if (tier.maxRank <= 1) return t(S.palierPremier);
-  return t(S.palierTopN, { n: tier.maxRank });
-}
-
-/** Condition EN CLAIR d'un palier (retraduite — shared la rédige en français). */
-function tierCondition(tier: SeasonRewardTier, t: ReturnType<typeof useT>): string {
-  if (tier.soleWinnerOnly) return t(S.conditionVainqueur);
-  if (tier.maxRank <= 1) return t(S.conditionPremier);
-  return t(S.conditionTopN, { n: tier.maxRank });
-}
-
-/**
- * E12-4 — UNE LIGNE de la frise verticale des paliers. La rareté vient du
- * MATÉRIAU (acier sombre → chrome → titane → élite → or limité), lu dans
- * BADGE_TIER_STYLE : aucune couleur en dur, aucun clinquant.
- * Posée sur l'ESPACE (rail + texte), jamais une card dans la card de section.
- */
-function SeasonTierRow({
-  tier,
-  last,
-  status,
-}: {
-  tier: SeasonRewardTier;
-  last: boolean;
-  /** `null` = la lecture des badges n'autorise AUCUNE affirmation. */
-  status: 'earned' | 'locked' | null;
-}) {
-  const t = useT();
-  const material = BADGE_TIER_STYLE[tier.tier];
-  const earned = status === 'earned';
-  return (
-    <View style={styles.tierRow}>
-      <View style={styles.tierRail}>
-        <View style={[styles.tierDot, { borderColor: material.ring, borderWidth: material.strokeWidth }]}>
-          <Icon name="bouclier" size={iconSizes.sm} color={earned ? material.ring : colors.gris} />
-        </View>
-        {last ? null : <View style={styles.tierLine} />}
-      </View>
-      <View style={styles.tierBody}>
-        {/* Nom propre du catalogue @klaim/shared — invariant, jamais traduit. */}
-        <Text style={styles.tierName} numberOfLines={1} ellipsizeMode="clip">
-          {tier.name}
-        </Text>
-        <Text style={styles.tierCondition}>{tierCondition(tier, t)}</Text>
-      </View>
-      {/* Le statut n'est affiché QUE si `user_badges` a été lu pour CE compte —
-          icône + texte (jamais la couleur seule). Sans lecture, aucune promesse. */}
-      {status === null ? null : (
-        <View style={styles.tierStatus}>
-          <Icon
-            name={earned ? 'badge' : 'verrou'}
-            size={iconSizes.xs}
-            color={earned ? colors.blanc : colors.grisFaible}
-          />
-          <Text style={[styles.tierStatusLabel, earned && styles.tierStatusEarned]}>
-            {t(earned ? S.statutObtenu : S.statutVerrouille)}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
 /**
  * ROUTE = LE GARDE, et rien d'autre. Ce composant n'appelle AUCUN hook : sa
  * sortie anticipée est donc inoffensive (règle des hooks).
@@ -1006,18 +938,10 @@ function LeagueScreen() {
   const rows = discreet ? rankedRows.filter((r) => r.me !== true) : rankedRows;
   const showBoardRows = onJoueurs && joueursIsReal;
 
-  // ── E12 · Palier de fin de saison RÉEL (season_close) ──
+  // ── Palier de fin de saison RÉEL (season_close) — PROVISOIRE tant que la
+  //    saison court, et l'écran le dit (`standingKicker`). La LECTURE des badges
+  //    n'est plus ici : elle a suivi la frise des récompenses sur `/season`.
   const standing = seasonStanding(meRow ? meRow.rank : null, meRow?.tied === true);
-  const badges = useMyBadges();
-  const badgesKnown = badges.source === 'server' && !badges.loading;
-  // Les QUATRE états de la lecture des récompenses, jamais confondus.
-  const badgeNote: Entry | null = badges.loading
-    ? S.badgesLecture
-    : !signedIn
-      ? S.badgesConnexion
-      : badges.failed
-        ? S.badgesEchec
-        : null;
 
   return (
     <View style={styles.root}>
@@ -1376,52 +1300,32 @@ function LeagueScreen() {
             </>
           ) : null}
 
-          {/* ══════════ E12 · RÉCOMPENSES DE SAISON ══════════
-              Les 3 anciennes cartes (« Badge Paris Race » avec Paris codé en dur,
-              « Frame Tempo », « Coffre saison » au contenu défini nulle part) sont
-              SUPPRIMÉES : elles promettaient des lots qui n'existent pas. La frise
-              liste les paliers RÉELS de season_close, avec leur CONDITION en clair
-              et le matériau (acier → chrome → titane → élite → or) du catalogue.
-              Le statut « Obtenu » est LU dans `user_badges`, jamais re-dérivé.
+          {/* ══════════ VERS E59 · L'ÉCRAN SAISON ══════════
+              CE QUI VIVAIT ICI ET QUI N'Y EST PLUS (27/07/2026) : la frise des
+              paliers de fin de saison et les deux lignes de règles du reset.
+              Elles sont parties sur `/season`, l'écran que la spéc E59 exige et
+              qui n'existait pas — la spéc SÉPARE E53 « Classement joueurs » de
+              E59 « Saison », et §A tranche pareil (un écran = une décision).
+              Rien n'a été RECOPIÉ : la frise est devenue un composant partagé
+              (`features/season/SeasonTierList.tsx`), pour qu'un seul barème soit
+              rendu à un seul endroit. Cet onglet garde ce qui répond à « qui est
+              devant qui » ; la progression personnelle (XP, rang, jalon,
+              récompenses, règles, saison précédente) se lit là-bas.
 
-              RETIRÉE hors lentille par défaut, avec les règles du reset :
-              `user_badges` est MONO-POT (0070 § 3). Une frise qui cocherait
-              « Obtenu » sur un écran vélo attribuerait au monde vélo des
-              médailles gagnées en courant. Condition DÉRIVÉE, pas écrite à la
-              main — même raison qu'au bloc précédent. */}
-          {competitiveReadAllowed(activity, false) ? (
-            <>
-              <View style={styles.sectionHead}>
-                <Icon name="cadeau" size={iconSizes.sm} color={colors.gris} />
-                <Text style={styles.sectionLabel}>{t(S.recompensesSaison)}</Text>
-              </View>
-              {badgeNote ? <Text style={styles.stateNote}>{t(badgeNote)}</Text> : null}
-              <View style={styles.frieze}>
-                {SEASON_REWARD_TIERS.map((tier, i) => (
-                  <SeasonTierRow
-                    key={tier.badgeKey}
-                    tier={tier}
-                    last={i === SEASON_REWARD_TIERS.length - 1}
-                    status={
-                      badgesKnown
-                        ? badges.unlockedIds.has(tier.badgeKey)
-                          ? 'earned'
-                          : 'locked'
-                        : null
-                    }
-                  />
-                ))}
-              </View>
-
-              {/* E12-5 · RÈGLES DU RESET, en 2 lignes, sur la page.
-                  ⚠ La planche écrit « vos territoires et badges restent acquis ».
-                  C'est FAUX pour les territoires : `season_close` phase 2 fait le
-                  WIPE des hex_claims et des boucliers. On écrit ce que le moteur
-                  fait vraiment. */}
-              <Text style={styles.resetRule}>{t(S.resetLigne1)}</Text>
-              <Text style={styles.resetRule}>{t(S.resetLigne2)}</Text>
-            </>
-          ) : null}
+              Le lien N'EST PAS un CTA chartreuse : l'unique décision de cet écran
+              reste « MA ROUTE » (§A.4). */}
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => router.push('/season')}
+            style={({ pressed }) => [styles.seasonLink, pressed && styles.pressed]}
+          >
+            <Icon name="couronne" size={iconSizes.sm} color={colors.gris} />
+            {/* §A.9 — jamais tronqué par une ellipse : coupe nette si besoin. */}
+            <Text style={styles.seasonLinkLabel} numberOfLines={1} ellipsizeMode="clip">
+              {t(S.ecranTitre)}
+            </Text>
+            <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -1787,42 +1691,22 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.xs * 1.5,
   },
 
-  // ── Frise VERTICALE des paliers : rail + lignes posées sur l'espace ──
-  frieze: { marginTop: 2 },
-  tierRow: { flexDirection: 'row', gap: spacing.sm },
-  tierRail: { alignItems: 'center', width: 32 },
-  tierDot: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.pill,
+  // ── Lien vers E59 (`/season`) : une ligne, pas une card ──
+  // `minHeight` = plancher tactile RÉEL (§22) : une ligne de texte seule ferait
+  // une cible de 20 px de haut.
+  seasonLink: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: elevation.surface,
+    gap: spacing.sm,
+    minHeight: sizes.touchTarget,
+    marginTop: 26,
   },
-  // Le fil qui relie les paliers : filet discret, jamais un cadre.
-  tierLine: { flex: 1, width: 1, backgroundColor: colors.grisLigne, marginVertical: 4 },
-  tierBody: { flex: 1, paddingBottom: spacing.md, gap: 2 },
-  tierName: {
+  seasonLinkLabel: {
+    flex: 1,
     color: colors.blanc,
     fontSize: fontSizes.sm,
     fontFamily: fonts.textSemi,
     fontWeight: '600',
     letterSpacing: 0.3,
-  },
-  tierCondition: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.5,
-  },
-  tierStatus: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingTop: 2 },
-  tierStatusLabel: { color: colors.grisFaible, fontSize: fontSizes.xs, letterSpacing: 0.3 },
-  tierStatusEarned: { color: colors.blanc },
-
-  // ── Règles du reset : deux lignes de texte, posées sur l'espace ──
-  resetRule: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.6,
-    marginTop: spacing.sm,
   },
 });

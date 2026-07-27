@@ -62,8 +62,16 @@ import { POSTAL_CONTACT } from '../../lib/legal';
 import styles from './legal.module.css';
 
 /** Dernière mise à jour — à faire évoluer à chaque changement de fond. */
-const LAST_UPDATED = '26 juillet 2026';
-const EFFECTIVE = '26 juillet 2026';
+/**
+ * Dernière mise à jour — à faire évoluer à chaque changement de fond, et à tenir
+ * ALIGNÉE sur `LEGAL_LAST_UPDATED` de la politique embarquée
+ * (`apps/mobile/src/i18n/catalog/legal.ts`) : deux documents du même produit qui
+ * portent des dates différentes laissent croire que l'un fait autorité sur
+ * l'autre. 27/07/2026 — ajout des destinataires manquants (Nominatim, OSRM,
+ * fonds de carte) et correction de la clause de transfert hors UE.
+ */
+const LAST_UPDATED = '27 juillet 2026';
+const EFFECTIVE = '27 juillet 2026';
 
 export const metadata: Metadata = {
   title: 'Politique de confidentialité — GRYD',
@@ -399,11 +407,29 @@ export default function ConfidentialitePage() {
         <section id="partage" className={styles.section}>
           <p className={styles.sectionNum}>06</p>
           <h2 className={styles.sectionTitle}>Avec qui nous partageons — et ne vendons pas</h2>
+          {/* ⚠️ 27/07/2026 — CETTE LISTE AVAIT TROIS JOURS DE RETARD SUR LE BINAIRE,
+              et c'est la version PUBLIÉE (champ « Privacy Policy URL » d'App Store
+              Connect). La politique embarquée a nommé, en trois passes du 27/07,
+              trois familles de destinataires que celle-ci passait encore sous
+              silence : Nominatim (noms de lieux), OSRM (calcul d'itinéraires) et
+              les quatre fournisseurs de FONDS DE CARTE, appelés à chaque carte
+              affichée. Deux documents du même produit qui divergent sur la liste
+              des destinataires, c'est le défaut que ce fichier corrige depuis le
+              26/07 — il ne pouvait pas le rouvrir. La source de vérité reste
+              `apps/mobile/src/i18n/catalog/legal.ts` (`privacyPartageBody2`),
+              elle-même tenue par `features/legal/networkHosts.test.ts`.
+              « Encadrés par contrat » a sauté au passage : Nominatim, OSRM et les
+              fonds de carte sont des services publics interrogés sans compte ni
+              contrat — promettre l'art. 28 RGPD sur eux serait faux. */}
           <p className={styles.body}>
             <b>Nous ne vendons aucune donnée personnelle.</b> Nous ne cédons ni ne louons
-            tes données à des courtiers ou à des annonceurs. Nous faisons appel à un nombre
-            restreint de sous-traitants techniques, encadrés par contrat, uniquement pour
-            faire tourner le service&nbsp;:
+            tes données à des courtiers ou à des annonceurs. Un petit nombre de services
+            techniques sont nécessaires pour faire tourner GRYD, et en voici la liste
+            complète. Certains sont des sous-traitants au sens du RGPD, encadrés par
+            contrat (hébergement, mesure d&rsquo;audience)&nbsp;; les autres sont des
+            services publics que l&rsquo;application interroge sans compte, sans clé et
+            sans contrat (fonds de carte, noms de lieux, calcul d&rsquo;itinéraires) — ce
+            qui ne les dispense pas d&rsquo;être nommés&nbsp;:
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
@@ -419,6 +445,35 @@ export default function ConfidentialitePage() {
               <b>Mesure d&rsquo;audience produit</b> (PostHog, hébergé dans l&rsquo;Union
               européenne) — statistiques d&rsquo;usage agrégées pour améliorer le jeu, sans
               revente ni publicité.
+            </li>
+            <li className={styles.item}>
+              <b>Noms de lieux</b> (OpenStreetMap / Nominatim, fondation OSMF) — pour
+              nommer une ville, un secteur, ou identifier le pays où tu te trouves quand
+              tu ouvres le panneau de sécurité pendant une sortie. Une position est alors
+              envoyée à ce service, sans aucun identifiant de compte&nbsp;; pour le
+              panneau de sécurité elle est d&rsquo;abord arrondie au dixième de degré, soit
+              environ 11&nbsp;km. Rien n&rsquo;est envoyé si tu n&rsquo;ouvres pas ces
+              écrans.
+            </li>
+            <li className={styles.item}>
+              <b>Calcul d&rsquo;itinéraires</b> (OSRM, servi par FOSSGIS e.V.) — pour
+              tracer une boucle qui suit les rues quand un écran te propose un parcours. Un
+              point de départ <b>approximatif</b> est alors envoyé — arrondi au millième de
+              degré, soit environ 110&nbsp;m, jamais ta position exacte — sans aucun
+              identifiant de compte. Ce point part dès l&rsquo;ouverture d&rsquo;un écran
+              qui propose un parcours, pas seulement quand tu appuies sur un bouton.
+            </li>
+            <li className={styles.item}>
+              <b>Fonds de carte</b> (CARTO, Esri, OpenMapTiles, Amazon Web Services) —
+              afficher une carte, c&rsquo;est en demander les tuiles à un service
+              tiers&nbsp;: il reçoit l&rsquo;adresse IP de ton appareil et la <b>zone</b>{' '}
+              que tu regardes, jamais ton identifiant de compte, jamais ton tracé, jamais
+              ta position exacte. CARTO sert les fonds «&nbsp;nuit&nbsp;» et
+              «&nbsp;couleur&nbsp;» ainsi que les polices des libellés (le fond
+              «&nbsp;nuit&nbsp;», celui par défaut, est chargé dès la première carte)&nbsp;;
+              Esri sert le fond satellite, avec les polices d&rsquo;OpenMapTiles&nbsp;;
+              Amazon Web Services sert le relief du terrain. Le satellite et le relief ne
+              sont demandés que si tu les actives.
             </li>
             {/* ⚠️ Le paiement était déclaré comme un traitement EN COURS alors que les
                 CGV du même produit affirment qu'aucune offre n'est commercialisée, et
@@ -447,12 +502,29 @@ export default function ConfidentialitePage() {
         <section id="transferts" className={styles.section}>
           <p className={styles.sectionNum}>07</p>
           <h2 className={styles.sectionTitle}>Transferts hors Union européenne</h2>
+          {/* ⚠️ 27/07/2026 — « AUCUN TRANSFERT HORS UE » ÉTAIT FAUX DANS LE MÊME
+              BINAIRE : Nominatim (OSMF), OSRM (FOSSGIS e.V.) et les quatre
+              fournisseurs de fonds de carte peuvent être servis hors de l'Union.
+              On corrige la PHRASE, pas le code : ces services sont nécessaires
+              (sans eux, pas de carte, pas de numéro de secours, pas de parcours),
+              et les exceptions sont nommées et bornées plutôt que niées. Aligné
+              mot pour mot sur `privacyTransfertBody` de la politique embarquée. */}
           <p className={styles.body}>
-            Tes données sont hébergées et traitées dans l&rsquo;Union européenne. Nous ne
-            procédons à <b>aucun transfert hors UE</b> dans le cadre du fonctionnement
-            normal du jeu. Si un sous-traitant venait à impliquer un tel transfert, il
-            serait encadré par les garanties prévues par le RGPD (clauses contractuelles
-            types de la Commission européenne) et signalé dans la présente politique.
+            Tes données de compte et de jeu sont hébergées et traitées dans l&rsquo;Union
+            européenne. Les exceptions sont celles-ci, et il n&rsquo;y en a pas
+            d&rsquo;autres&nbsp;: les noms de lieux demandés à OpenStreetMap / Nominatim,
+            les calculs d&rsquo;itinéraires demandés à OSRM / FOSSGIS e.V., et les fonds de
+            carte servis par CARTO, Esri, OpenMapTiles et Amazon Web Services (voir la
+            section précédente). Ces services peuvent être servis par une infrastructure
+            située hors de l&rsquo;Union. <b>Aucune de ces requêtes ne contient
+            d&rsquo;identifiant de compte</b>&nbsp;: les fonds de carte ne reçoivent que la
+            zone affichée et une adresse IP, la position transmise depuis le panneau de
+            sécurité est arrondie à environ 11&nbsp;km, celle transmise au calcul
+            d&rsquo;itinéraire à environ 110&nbsp;m. Aucun autre transfert hors UE
+            n&rsquo;a lieu dans le fonctionnement normal du jeu. Si un sous-traitant venait
+            à en impliquer un, il serait encadré par les garanties prévues par le RGPD
+            (clauses contractuelles types de la Commission européenne) et signalé dans la
+            présente politique.
           </p>
         </section>
 

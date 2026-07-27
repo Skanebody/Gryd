@@ -52,7 +52,7 @@ export const C = defineCatalog({
     en: 'Understand your territory. Never a capture advantage.',
     es: 'Entiende tu territorio. Nunca una ventaja de captura.',
     de: 'Versteh dein Gebiet. Niemals ein Eroberungsvorteil.',
-    pt: 'Compreende o teu território. Nunca uma vantagem de captura.',
+    pt: 'Entenda seu território. Nunca uma vantagem de captura.',
   },
 
   // ── Bénéfices (3 MAXIMUM, E74) — uniquement ce qui existe ─────────────────
@@ -68,7 +68,7 @@ export const C = defineCatalog({
     en: 'Your Club status, visible in the Arsenal.',
     es: 'Tu estatus Club, visible en el Arsenal.',
     de: 'Dein Club-Status, sichtbar im Arsenal.',
-    pt: 'O teu estatuto Club, visível no Arsenal.',
+    pt: 'Seu estatuto Club, visível no Arsenal.',
   },
   benefitSupport: {
     fr: 'Tu soutiens un jeu où rien de décisif ne s’achète.',
@@ -166,7 +166,7 @@ export const C = defineCatalog({
     en: 'Renews automatically until cancelled, from your Store settings.',
     es: 'Se renueva automáticamente hasta su cancelación, desde los ajustes de tu tienda.',
     de: 'Verlängert sich automatisch bis zur Kündigung, in den Einstellungen deines Stores.',
-    pt: 'Renova automaticamente até ao cancelamento, nas definições da tua loja.',
+    pt: 'Renova automaticamente até o cancelamento, nas configurações da sua loja.',
   },
   lifetimeNote: {
     fr: 'Paiement unique. Aucun renouvellement.',
@@ -225,7 +225,7 @@ export const C = defineCatalog({
     en: 'Sign in',
     es: 'Iniciar sesión',
     de: 'Anmelden',
-    pt: 'Iniciar sessão',
+    pt: 'Entrar',
   },
   ctaRetry: {
     fr: 'Réessayer',
@@ -248,7 +248,7 @@ export const C = defineCatalog({
     en: 'Reading plans…',
     es: 'Leyendo los planes…',
     de: 'Tarife werden gelesen…',
-    pt: 'A ler os planos…',
+    pt: 'Lendo os planos…',
   },
   signedOutTitle: {
     fr: 'Un abonnement s’attache à un compte',
@@ -262,7 +262,7 @@ export const C = defineCatalog({
     en: 'Sign in before buying: without an account, a payment couldn’t be attached to anyone.',
     es: 'Inicia sesión antes de comprar: sin cuenta, un pago no podría vincularse a nadie.',
     de: 'Melde dich vor dem Kauf an: ohne Konto ließe sich eine Zahlung niemandem zuordnen.',
-    pt: 'Inicia sessão antes de comprar: sem conta, um pagamento não poderia ser associado a ninguém.',
+    pt: 'Entre antes de comprar: sem conta, um pagamento não poderia ser associado a ninguém.',
   },
   unavailableTitle: {
     fr: 'Achat indisponible ici',
@@ -276,7 +276,7 @@ export const C = defineCatalog({
     en: 'In-app purchases don’t exist in a browser. Open GRYD on iPhone or Android to subscribe.',
     es: 'Las compras integradas no existen en un navegador. Abre GRYD en iPhone o Android para suscribirte.',
     de: 'In-App-Käufe gibt es im Browser nicht. Öffne GRYD auf iPhone oder Android, um zu abonnieren.',
-    pt: 'As compras integradas não existem num navegador. Abre o GRYD no iPhone ou Android para assinares.',
+    pt: 'As compras integradas não existem num navegador. Abra o GRYD no iPhone ou Android para assinar.',
   },
   unavailableSdk: {
     fr: 'Cette version de l’app n’embarque pas le module de paiement. Il arrive avec le prochain build.',

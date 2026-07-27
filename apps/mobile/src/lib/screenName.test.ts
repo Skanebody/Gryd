@@ -28,6 +28,12 @@ Deno.test('routes dynamiques rédigées — aucun id/code ne fuit', () => {
   // distinct_id de l'observateur, il reconstituerait « qui regarde qui ».
   assertEquals(normalizeScreenPath('/zones-rival/alice'), '/zones-rival/[handle]');
   assertEquals(normalizeScreenPath('/profil-rival/alice'), '/profil-rival/[handle]');
+  // E70 — l'identifiant d'une contestation désigne UNE zone du joueur : en clair
+  // dans `$screen`, il le situerait par recoupement.
+  assertEquals(
+    normalizeScreenPath('/zone-attaquee/6c1e-uuid'),
+    '/zone-attaquee/[contestId]',
+  );
 });
 
 Deno.test('routes statiques inchangées (y compris les bases des familles dynamiques)', () => {

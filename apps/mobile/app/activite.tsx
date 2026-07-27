@@ -4,13 +4,10 @@
  * à un détail, l'obsolète se retire seul.
  *
  * ─── ACCÈS (planche E23 : la cloche du header carte) ────────────────────────
- * La planche atteint cet écran par la cloche du Home. Cette cloche est
- * VOLONTAIREMENT ÉTEINTE aujourd'hui (décision committée dans `(tabs)/index.tsx`,
- * §47) : son BADGE compterait des événements tactiques qui n'existent pas avant
- * O1, et une cloche qui n'ouvre rien serait un bouton mort. Cet écran EXISTE et
- * est honnête ; le RECÂBLAGE de la cloche vit dans le Home (périmètre carte,
- * non touché ici) et reste lié à O1 — inscrit en suspens plutôt que forcé sur
- * l'écran d'un autre lot.
+ * La planche atteint cet écran par la cloche du Home. Cette cloche a été
+ * RECÂBLÉE (`features/notifications/bell.ts`) : elle n'existe que quand elle a
+ * quelque chose de VRAI à dire — au moins une ligne actionnable vivante — et
+ * reste ABSENTE (pas grisée, pas à « 0 ») le reste du temps.
  *
  * ─── ORDRE DE COMPOSITION (planche E23) ─────────────────────────────────────
  *   1. `StackScreen` : retour + titre + kicker + sous-titre ;
@@ -20,30 +17,40 @@
  *      un `SectionLabel` puis ses lignes (`ListRow` : icône 38 pt + fait +
  *      chevron/action) ;
  *   4. l'état CALME quand le flux est vide (« Tout est calme… ») ;
- *   5. en gris, en bas : ce qui n'existe pas encore (les 3 groupes tactiques) ;
+ *   5. en gris, en bas : ce qui n'existe pas encore (RIVALITÉ et CREW) ;
  *   6. le LIEN de réglages (planche « PUSH & RÉGLAGES ») : lien DIRECT vers le
  *      réglage par catégorie réel (`/parametres/notifications`) — discret, pas un
  *      second CTA, et jamais un bouton mort (l'écran de canaux existe).
  *
  * ─── LA DONNÉE EST RÉELLE OU ABSENTE (AMENDEMENT-47) ────────────────────────
  * Les valeurs de la planche (« Saint-Rémy contesté par Nina M. », « K.Runner a
- * pris Quai Sud »…) sont une COMPOSITION. On ne les fabrique pas : les trois
- * groupes tactiques naissent d'actes CROSS-JOUEUR (O1), donc restent ABSENTS
- * tant qu'aucun événement réel n'existe. La seule source honnête avant O1 est la
- * PROGRESSION — les badges réellement débloqués (`useActivityEvents` lit
- * `user_badges`). Le flux porte donc la vraie progression du joueur, ou l'état
+ * pris Quai Sud »…) sont une COMPOSITION. On ne les fabrique pas. DEUX groupes
+ * ont aujourd'hui une source RÉELLE :
+ *   · À DÉFENDRE  — les contestations ACTIVES visant mes territoires
+ *     (`territory_contests`, 0078, ouvertes par `ingest_run`). Chaque ligne
+ *     porte l'identifiant de SA contestation et ouvre E70.
+ *   · PROGRESSION — les badges réellement décernés (`user_badges`).
+ * RIVALITÉ et CREW naissent d'actes cross-joueur qui n'ont AUCUNE table : ils
+ * restent absents, pas peints « à venir ». Le flux porte donc du vrai, ou l'état
  * calme, jamais une contestation inventée.
  *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE ────────────────────────────────────────────
- * · PAS DE « TOUT LU » dans l'en-tête : il efface les alertes ACTIONNABLES, qui
- *   n'existent pas avant O1 (`actionableCount` = 0). Un bouton qui n'a jamais
- *   rien à effacer serait mort (§A). Il reviendra avec les groupes tactiques.
+ * · PAS DE « TOUT LU » dans l'en-tête. Ce n'est PLUS un problème d'événements
+ *   absents (il y en a) mais de MODÈLE : `bell.ts` expose un statut de LECTURE
+ *   DE DONNÉES, jamais un curseur lu/non-lu, et rien en base ne stocke ce
+ *   curseur. Surtout, « lire » une contestation ne la ferme pas : le bouton
+ *   effacerait un compte qui doit rester vrai jusqu'à l'échéance. Il viendra
+ *   AVEC son modèle de lecture, pas avant (décision inscrite aussi dans
+ *   `events.ts`, qui refuse de définir son event tant que le curseur n'existe
+ *   pas).
  * · PAS DE MINI-CARTE dans l'état calme : une carte de territoire sans donnée
  *   réelle serait un faux. Une tuile neutre (cloche) tient la place sans rien
  *   affirmer.
  * · PROGRESSION en CHEVRON, jamais en action inline : un badge se consulte
  *   (→ /badges), il n'appelle pas de décision — donc il ne compte pas dans le
- *   badge de la cloche.
+ *   badge de la cloche. À DÉFENDRE est, lui, ACTIONNABLE : il compte, et il
+ *   OUVRE (une alerte comptée qui ne mènerait nulle part serait le symétrique
+ *   exact d'un bouton mort).
  *
  * Analytics : screen('activite') au montage ; `notification_opened` (§8) au tap
  * d'une ligne — noms exacts, jamais inventés hors `events.ts`.
@@ -75,6 +82,7 @@ import {
   type ActivityEvent,
   type ActivityGroup,
 } from '../src/features/notifications/activityFeed';
+import { contestIdOf } from '../src/features/notifications/contestEvents';
 import { useActivityEvents } from '../src/features/notifications/useActivityEvents';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
@@ -156,11 +164,44 @@ export default function ActiviteScreen() {
         : t(C.ageWeeks, { n: age.n });
   };
 
-  /** Une ligne du flux. Aujourd'hui, seule la PROGRESSION a une source réelle. */
+  /**
+   * Une ligne du flux. Deux groupes ont aujourd'hui une source RÉELLE, et
+   * chacun mène quelque part :
+   *  · DÉFENDRE    — une contestation de `territory_contests`. Elle est
+   *    ACTIONNABLE (elle compte dans le badge de la cloche), donc elle DOIT
+   *    ouvrir sa zone : E70 `/zone-attaquee/[contestId]`. Une alerte comptée qui
+   *    ne mènerait nulle part serait le symétrique exact d'un bouton mort — on
+   *    alarmerait sans donner de sortie. L'identifiant vient de `contestIdOf`,
+   *    l'inverse exact du préfixe posé par `defendEventsFromContests`.
+   *  · PROGRESSION — un badge réellement décerné → /badges, en simple chevron
+   *    (il se consulte, il n'appelle aucune décision).
+   * RIVALITÉ et CREW n'ont pas de source : aucune de leurs lignes n'existe, donc
+   * ce cas ne se rend jamais aujourd'hui. Il reste NON tapable plutôt que
+   * d'inventer une destination pour un événement qui n'existe pas.
+   */
   const renderLine = (e: ActivityEvent) => {
     const isProgression = e.group === 'progression';
-    const label = isProgression ? t(C.progressionBadge) : t(GROUP_TITLE[e.group]);
+    const contestId = e.group === 'defend' ? contestIdOf(e.id) : null;
+    const label = isProgression
+      ? t(C.progressionBadge)
+      : contestId !== null
+        ? t(C.defendLine)
+        : t(GROUP_TITLE[e.group]);
     const age = ageLabel(e.createdAtMs);
+    // Le chevron n'est peint QUE là où le tap aboutit : `contestIdOf` peut
+    // rendre `null` (identifiant serveur inattendu), et une ligne sans
+    // destination ne doit pas en promettre une.
+    //
+    // FORME OBJET pour la route dynamique, jamais un gabarit `` `/…/${id}` `` :
+    // expo-router encode alors le segment lui-même, ET le PATRON littéral
+    // (`/zone-attaquee/[contestId]`) apparaît dans le code — c'est ce que
+    // `scripts/audit-routes.mjs` sait reconnaître comme une PORTE. Un gabarit
+    // aurait laissé E70 compté « orphelin » alors qu'il est bel et bien atteint.
+    const target: Parameters<typeof router.push>[0] | null = isProgression
+      ? '/badges'
+      : contestId !== null
+        ? { pathname: '/zone-attaquee/[contestId]', params: { contestId } }
+        : null;
     return (
       <ListRow
         key={e.id}
@@ -168,13 +209,20 @@ export default function ActiviteScreen() {
         iconColor={GROUP_COLOR[e.group]}
         label={label}
         value={age}
-        chevron={isProgression}
-        accessibilityLabel={t(C.a11yBadgeLine, { label, age })}
-        {...(isProgression
+        chevron={target !== null}
+        accessibilityLabel={
+          isProgression ? t(C.a11yBadgeLine, { label, age }) : t(C.a11yDefendLine, { age })
+        }
+        {...(target !== null
           ? {
               onPress: () => {
-                track(EVENTS.notificationOpened, { type: 'progression' });
-                router.push('/badges');
+                // `type` est une clé FERMÉE, jamais un identifiant : le
+                // `contestId` désignerait une zone, donc situerait le joueur
+                // (§18.2).
+                track(EVENTS.notificationOpened, {
+                  type: isProgression ? 'progression' : 'defend',
+                });
+                router.push(target);
               },
             }
           : {})}

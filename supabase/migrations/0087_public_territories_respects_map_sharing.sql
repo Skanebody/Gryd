@@ -133,13 +133,32 @@ comment on view public.public_territories is
 -- ════════════════════════════════════════════════════════════════════════════
 -- 3. CE QUI N'EST PAS FAIT — NOMMÉ, PAS MAQUILLÉ
 -- ════════════════════════════════════════════════════════════════════════════
--- 1. `hex_claims_select_all` (0003:114) RESTE `using (true)`. Tant que la carte
---    de l'app lit `hex_claims`, un joueur en `map_sharing = 'none'` reste
---    lisible PAR CE CHEMIN — cette migration ferme la vue polygonale, pas la
---    grille. L'ordre imposé par 0077 §3 est inchangé : (a) les lectures client
---    basculent sur `public_territories` ; (b) SEULEMENT ENSUITE `hex_claims`
---    se restreint. Dire l'inverse ici serait une garantie écrite au-dessus du
---    code.
+-- 1. `map_sharing` N'EST PAS LU PAR LE CHEMIN GRILLE — mais ce chemin ne fuit
+--    plus vers les tiers. RECTIFICATION DU 27/07/2026 : la première rédaction de
+--    ce paragraphe affirmait que « `hex_claims_select_all` (0003:114) RESTE
+--    `using (true)` ». C'ÉTAIT FAUX À LA DATE MÊME OÙ C'ÉTAIT ÉCRIT — 0079,
+--    ANTÉRIEURE, fait `drop policy if exists hex_claims_select_all`
+--    (0079:78) et la remplace par `hex_claims_select_own`
+--    (0079:84-86, `using (owner_user_id = (select auth.uid()))`), plus
+--    `revoke select on public.hex_claims from anon` (0079:98). Aucune migration
+--    postérieure ne rouvre la table (seules 0003 et 0079 y posent une policy).
+--    Les mentions identiques de 0074:364 et 0077:128 étaient vraies à LEUR date,
+--    toutes deux antérieures à 0079 ; celle-ci ne l'était pas, et une doc fausse
+--    dans une migration est un document permanent que les agents suivants
+--    tiennent pour vrai (ici : « la grille fuit de toute façon », donc la vue
+--    polygonale serait décorative — le contraire de la vérité).
+--    ET LE VRAI TROU, QUE CETTE PHRASE FAUSSE CACHAIT : 0079 n'a pas fermé la
+--    grille, elle a déplacé sa surface publique dans la vue
+--    `public.public_hex_claims` (0079:152) — laquelle NE consultait PAS
+--    `map_sharing`. Un joueur en refus disparaissait donc de la vue polygonale
+--    (ci-dessus) et restait lisible cellule par cellule dans la vue grille : la
+--    même carte, à la maille inférieure. C'est `0089` qui referme ce chemin-là,
+--    avec la MÊME fonction de consentement. Rien ne change pour le
+--    propriétaire : la vue grille exclut déjà ses propres cellules, qu'il lit
+--    dans la table — un réglage de PARTAGE ne s'applique pas à soi-même.
+--    CE QUI RESTE, ET QUI EST CÔTÉ CLIENT : basculer les lectures de carte de
+--    `hex_claims` vers `public_territories` / `public_hex_claims`, sans quoi la
+--    carte d'un joueur ne montrera que ses propres zones.
 -- 2. LE PROFIL DEVIENT UN PRÉ-REQUIS DU RENDU PUBLIC. Sans ligne
 --    `user_profiles`, un territoire ne sort plus de cette vue. Aucun écran ne
 --    régresse aujourd'hui (le seul lecteur, E15, exige déjà le profil), mais le

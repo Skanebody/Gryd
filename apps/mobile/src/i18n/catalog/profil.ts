@@ -403,7 +403,7 @@ export const C = defineCatalog({
     en: 'Visibility settings live in Privacy — one single place.',
     es: 'Los ajustes de visibilidad viven en Privacidad — un solo lugar.',
     de: 'Sichtbarkeit wird in Privatsphäre verwaltet — an einem Ort.',
-    pt: 'As definições de visibilidade ficam em Privacidade — num só lugar.',
+    pt: 'Os ajustes de visibilidade ficam em Privacidade — num só lugar.',
   },
   /** a11y de la ligne : elle NAVIGUE (jamais un contrôle mort). */
   manageInPrivacy: {
@@ -450,7 +450,7 @@ export const C = defineCatalog({
     en: 'Checking…',
     es: 'Comprobando…',
     de: 'Wird geprüft…',
-    pt: 'A verificar…',
+    pt: 'Verificando…',
   },
   /** Libre À CET INSTANT. Volontairement pas « réservé » : rien n'est réservé. */
   handleFree: {
@@ -538,21 +538,21 @@ export const C = defineCatalog({
     en: 'Your name',
     es: 'Tu nombre',
     de: 'Dein Name',
-    pt: 'O teu nome',
+    pt: 'Seu nome',
   },
   handlePlaceholder: {
     fr: 'pseudo',
     en: 'username',
     es: 'usuario',
     de: 'nutzername',
-    pt: 'utilizador',
+    pt: 'usuário',
   },
   cityPlaceholder: {
     fr: 'Ta ville',
     en: 'Your city',
     es: 'Tu ciudad',
     de: 'Deine Stadt',
-    pt: 'A tua cidade',
+    pt: 'Sua cidade',
   },
   titlePlaceholder: {
     fr: 'Tenace du 19ᵉ',
@@ -574,7 +574,7 @@ export const C = defineCatalog({
     en: 'Pick a playable city.',
     es: 'Elige una ciudad jugable.',
     de: 'Wähle eine spielbare Stadt.',
-    pt: 'Escolhe uma cidade jogável.',
+    pt: 'Escolha uma cidade jogável.',
   },
   /** a11y du sélecteur de ville. */
   a11yPickCity: {

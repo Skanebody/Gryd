@@ -44,6 +44,34 @@
 import type { ActivityEvent } from './activityFeed';
 
 /**
+ * Préfixe des identifiants d'événement issus d'une contestation. Il vit dans une
+ * CONSTANTE parce qu'il est désormais lu dans les deux sens : posé ici, il est
+ * RETIRÉ par `contestIdOf` pour ouvrir E70. Deux littéraux `'contest:'` recopiés
+ * de part et d'autre, c'est un lien qui casse en silence le jour où l'un change.
+ */
+export const CONTEST_EVENT_ID_PREFIX = 'contest:';
+
+/**
+ * `ActivityEvent.id` → identifiant de la CONTESTATION, ou `null` si cet
+ * événement n'en vient pas (un badge, par exemple).
+ *
+ * POURQUOI CETTE FONCTION EXISTE : la ligne « À DÉFENDRE » du flux E69 doit
+ * OUVRIR la zone attaquée (E70, `/zone-attaquee/[contestId]`). Sans elle, le
+ * flux affichait une alerte ACTIONNABLE — comptée par le badge de la cloche —
+ * qui ne menait nulle part : on alarmait le joueur sans lui donner de sortie,
+ * ce qui est l'exact symétrique d'un bouton mort.
+ *
+ * `null` sur un préfixe absent OU sur un identifiant vide (`'contest:'` seul) :
+ * une route ouverte sans paramètre ne doit pas produire de requête, et l'écran
+ * de destination rendrait de toute façon « introuvable ».
+ */
+export function contestIdOf(eventId: string): string | null {
+  if (!eventId.startsWith(CONTEST_EVENT_ID_PREFIX)) return null;
+  const id = eventId.slice(CONTEST_EVENT_ID_PREFIX.length);
+  return id.length > 0 ? id : null;
+}
+
+/**
  * Colonnes de `public.territory_contests` réellement lues pour le flux. La
  * liste vit ICI, à côté de son interprétation, pour qu'un ajout de colonne au
  * `select` soit forcément un ajout raisonné — et pas une fuite par distraction.
@@ -90,7 +118,7 @@ export function defendEventsFromContests(
     out.push({
       // Préfixé : `contest:` et `badge:` ne peuvent pas se télescoper dans une
       // même liste, quelle que soit la forme des identifiants serveur.
-      id: `contest:${row.id}`,
+      id: `${CONTEST_EVENT_ID_PREFIX}${row.id}`,
       group: 'defend',
       createdAtMs: startedAtMs,
       // ACTIONNABLE : c'est une décision qu'on demande au joueur (courir pour

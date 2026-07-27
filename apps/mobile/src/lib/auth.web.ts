@@ -173,3 +173,17 @@ export async function signOut(): Promise<AuthResult> {
   resetAnalytics();
   return { ok: true };
 }
+
+/**
+ * E78 — révocation des AUTRES sessions. Parité stricte avec `auth.ts` : ce
+ * chemin n'a rien de natif (un simple `POST /logout?scope=others` de GoTrue), il
+ * fonctionne donc à l'identique dans le fork web. Il ne touche pas la session
+ * courante et n'émet aucun `SIGNED_OUT` — cf. le docblock de `auth.ts` pour ce
+ * que Supabase Auth expose (et surtout ce qu'il n'expose pas : la LISTE).
+ */
+export async function signOutOtherDevices(): Promise<AuthResult> {
+  if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
+  const { error } = await supabase.auth.signOut({ scope: 'others' });
+  if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  return { ok: true };
+}

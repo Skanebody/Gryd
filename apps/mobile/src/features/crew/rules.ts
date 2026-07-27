@@ -38,6 +38,8 @@ import {
   type IconName,
   type PlayerTier,
 } from '@klaim/shared';
+import { C as RANG } from '../../i18n/catalog/rang';
+import type { Entry } from '../../i18n/types';
 
 /** Niveau crew (1..CREW_LEVEL_MAX) atteint pour une XP cumulée (§34.3). */
 export function crewLevelForXp(xp: number): number {
@@ -111,15 +113,24 @@ export function gripRankForLevel(level: number): GripRank {
   return rank;
 }
 
-/** Libellés d'affichage des rangs GRIP (français ; clés/enum inchangés). */
-export const GRIP_RANK_LABELS: Record<GripRank, string> = {
-  rookie: 'Recrue',
-  runner: 'Coureur',
-  scout: 'Éclaireur',
-  defender: 'Défenseur',
-  conqueror: 'Conquérant',
-  veteran: 'Vétéran',
-  legend: 'Légende',
+/**
+ * Libellés d'affichage des rangs GRIP — des `Entry` i18n, plus des chaînes.
+ *
+ * ⚠ CORRIGÉ LE 27/07/2026. C'était un `Record<GripRank, string>` de sept mots
+ * FRANÇAIS rendus tels quels par le Profil (app/(tabs)/profil.tsx) dans les cinq
+ * langues : un joueur allemand lisait « Conquérant · NIV. 22 ». Les sept noms
+ * vivent maintenant dans `i18n/catalog/rang.ts` (source unique, partagée avec
+ * E59/E60) et cette table ne fait que les indexer par `GripRank`. L'appelant
+ * résout avec `t(...)` — règle 17 : jamais une chaîne déjà résolue.
+ */
+export const GRIP_RANK_LABELS: Record<GripRank, Entry> = {
+  rookie: RANG.rankRookie,
+  runner: RANG.rankRunner,
+  scout: RANG.rankScout,
+  defender: RANG.rankDefender,
+  conqueror: RANG.rankConqueror,
+  veteran: RANG.rankVeteran,
+  legend: RANG.rankLegend,
 };
 
 /** État d'affichage du coffre hebdo (ChestCard) — dérivation UNIQUE partagée. */

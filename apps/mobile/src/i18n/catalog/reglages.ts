@@ -400,6 +400,93 @@ export const C = defineCatalog({
     de: 'GRYD kann die Konto-E-Mail noch nicht ändern und Apple-/Google-Logins nicht in der App verwalten. Diese beiden Einstellungen gibt es nicht — ein Datum wird erst genannt, wenn sie fertig sind.',
     pt: 'O GRYD ainda não permite trocar o e-mail da conta nem gerenciar os logins Apple / Google pelo app. Esses dois ajustes não existem: nenhuma data é anunciada enquanto não estiverem prontos.',
   },
+  // ══════════════════════════════════════════════════════════════════════════
+  // E78 — APPAREILS (spec produit l.2373). Ce bloc DIT une absence et OFFRE une
+  // action, dans cet ordre, parce que c'est l'ordre du vrai :
+  //  · le client Supabase Auth ne sait pas énumérer les sessions d'un compte —
+  //    aucune liste d'appareils ne peut être affichée sans être inventée ;
+  //  · il sait en revanche les RÉVOQUER (`signOut({ scope: 'others' })`,
+  //    cf. `lib/auth.ts`) — c'est un appel serveur, pas un réglage local.
+  // Les libellés ne nomment donc jamais un appareil, jamais un lieu, jamais une
+  // date de connexion : rien de tout cela n'est lisible.
+  // ══════════════════════════════════════════════════════════════════════════
+  secAppareils: {
+    fr: 'APPAREILS',
+    en: 'DEVICES',
+    es: 'DISPOSITIVOS',
+    de: 'GERÄTE',
+    pt: 'DISPOSITIVOS',
+  },
+  otherDevicesLabel: {
+    fr: 'Déconnecter les autres appareils',
+    en: 'Sign out other devices',
+    es: 'Cerrar sesión en los otros dispositivos',
+    de: 'Andere Geräte abmelden',
+    pt: 'Desconectar os outros dispositivos',
+  },
+  otherDevicesDetail: {
+    fr: 'Coupe l’accès à ton compte sur tous les autres téléphones et navigateurs. Celui-ci reste connecté.',
+    en: 'Cuts off account access on every other phone and browser. This one stays signed in.',
+    es: 'Corta el acceso a tu cuenta en los demás teléfonos y navegadores. Este sigue conectado.',
+    de: 'Sperrt den Kontozugriff auf allen anderen Telefonen und Browsern. Dieses bleibt angemeldet.',
+    pt: 'Corta o acesso à sua conta em todos os outros telefones e navegadores. Este continua conectado.',
+  },
+  otherDevicesBusy: {
+    fr: 'Déconnexion des autres appareils…',
+    en: 'Signing out other devices…',
+    es: 'Cerrando sesión en los otros dispositivos…',
+    de: 'Andere Geräte werden abgemeldet…',
+    pt: 'Desconectando os outros dispositivos…',
+  },
+  otherDevicesDone: {
+    fr: 'C’est fait : toutes les autres sessions ont été coupées. Tu peux recommencer si besoin.',
+    en: 'Done: every other session has been cut off. You can do it again if needed.',
+    es: 'Hecho: todas las demás sesiones se han cerrado. Puedes repetirlo si hace falta.',
+    de: 'Erledigt: Alle anderen Sitzungen wurden beendet. Du kannst es bei Bedarf wiederholen.',
+    pt: 'Pronto: todas as outras sessões foram encerradas. Você pode repetir se precisar.',
+  },
+  otherDevicesFailed: {
+    fr: 'La déconnexion n’a pas abouti — rien n’a été coupé. Vérifie ta connexion et réessaie.',
+    en: 'Sign-out didn’t go through — nothing was cut off. Check your connection and try again.',
+    es: 'El cierre de sesión no se completó: no se cortó nada. Revisa tu conexión e inténtalo otra vez.',
+    de: 'Die Abmeldung ist fehlgeschlagen — nichts wurde beendet. Prüfe deine Verbindung und versuch es erneut.',
+    pt: 'A desconexão não foi concluída — nada foi encerrado. Verifique sua conexão e tente de novo.',
+  },
+  otherDevicesSignedOut: {
+    fr: 'Aucun compte n’est ouvert sur ce téléphone : il n’y a aucune autre session à couper.',
+    en: 'No account is open on this phone: there’s no other session to cut off.',
+    es: 'No hay ninguna cuenta abierta en este teléfono: no hay otra sesión que cerrar.',
+    de: 'Auf diesem Telefon ist kein Konto geöffnet: Es gibt keine andere Sitzung zu beenden.',
+    pt: 'Nenhuma conta está aberta neste telefone: não há outra sessão para encerrar.',
+  },
+  otherDevicesNoBackend: {
+    fr: 'Ce build tourne sans compte : il n’existe aucune session à révoquer.',
+    en: 'This build runs without an account: there’s no session to revoke.',
+    es: 'Esta versión funciona sin cuenta: no hay ninguna sesión que revocar.',
+    de: 'Dieser Build läuft ohne Konto: Es gibt keine Sitzung zu widerrufen.',
+    pt: 'Esta versão funciona sem conta: não existe nenhuma sessão para revogar.',
+  },
+  /**
+   * L'ABSENCE, NOMMÉE. Sans cette phrase, un joueur pourrait croire que GRYD
+   * garde une liste d'appareils et refuse de la montrer. C'est l'inverse : elle
+   * n'est pas lisible par l'app.
+   */
+  otherDevicesNoListNote: {
+    fr: 'GRYD ne peut pas te montrer la liste de tes appareils : le service qui gère les connexions ne communique à l’app que la session de CE téléphone — ni les autres, ni leur modèle, ni leur dernière activité. Plutôt qu’une liste inventée, il n’y a qu’une action, et elle est réelle.',
+    en: 'GRYD can’t show you a list of your devices: the sign-in service only tells the app about THIS phone’s session — not the others, not their model, not their last activity. Rather than an invented list, there’s just one action, and it’s real.',
+    es: 'GRYD no puede mostrarte la lista de tus dispositivos: el servicio de acceso solo le comunica a la app la sesión de ESTE teléfono, no las demás, ni su modelo, ni su última actividad. En vez de una lista inventada, hay una sola acción, y es real.',
+    de: 'GRYD kann dir keine Geräteliste zeigen: Der Login-Dienst meldet der App nur die Sitzung DIESES Telefons — nicht die anderen, nicht deren Modell, nicht deren letzte Aktivität. Statt einer erfundenen Liste gibt es nur eine Aktion, und die ist echt.',
+    pt: 'O GRYD não pode mostrar a lista dos seus dispositivos: o serviço de login informa ao app apenas a sessão DESTE telefone — não as outras, nem o modelo, nem a última atividade. Em vez de uma lista inventada, existe só uma ação, e ela é real.',
+  },
+  /** Renvoi vers le Hub des sources : l'autre moitié de E78 (les CONNEXIONS). */
+  otherDevicesSourcesHint: {
+    fr: 'Les applications et montres reliées à ton compte se règlent dans Sources connectées.',
+    en: 'Apps and watches linked to your account are managed in Connected sources.',
+    es: 'Las apps y relojes vinculados a tu cuenta se gestionan en Fuentes conectadas.',
+    de: 'Mit deinem Konto verbundene Apps und Uhren verwaltest du unter Verbundene Quellen.',
+    pt: 'Os apps e relógios ligados à sua conta são gerenciados em Fontes conectadas.',
+  },
+
   // ── Slug de sous-page inconnu (deep link /parametres/xyz) ──
   // Le repli silencieux `isSection(raw) ? raw : 'compte'` affichait Compte sans
   // jamais dire que la section demandée n'existait pas.

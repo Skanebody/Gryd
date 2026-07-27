@@ -23,6 +23,6 @@ export const C = defineCatalog({
     en: 'Loading',
     es: 'Cargando',
     de: 'Wird geladen',
-    pt: 'A carregar',
+    pt: 'Carregando',
   },
 });

@@ -1001,7 +1001,7 @@ export default function ProfilScreen() {
                   <Text style={styles.levelLabel} numberOfLines={1}>
                     {t(C.levelTierLine, {
                       n: formatInt(runnerLevel),
-                      rank: GRIP_RANK_LABELS[gripRank],
+                      rank: t(GRIP_RANK_LABELS[gripRank]),
                     })}
                   </Text>
                   <Text style={styles.levelXp} numberOfLines={1}>
@@ -1152,11 +1152,11 @@ export default function ProfilScreen() {
                   subtitle={
                     displayedTitle.length > 0
                       ? t(C.shareSubtitle, {
-                          rank: GRIP_RANK_LABELS[gripRank],
+                          rank: t(GRIP_RANK_LABELS[gripRank]),
                           n: runnerLevel,
                           title: displayedTitle,
                         })
-                      : `${GRIP_RANK_LABELS[gripRank]} · ${t(C.identityLevelOnly, { n: runnerLevel })}`
+                      : `${t(GRIP_RANK_LABELS[gripRank])} · ${t(C.identityLevelOnly, { n: runnerLevel })}`
                   }
                 >
                   {/* Carte identité character-forward : GRIP porte la signature GRYD. */}

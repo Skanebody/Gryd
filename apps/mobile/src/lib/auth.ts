@@ -283,3 +283,32 @@ export async function signOut(): Promise<AuthResult> {
   resetAnalytics();
   return { ok: true };
 }
+
+/**
+ * E78 — LA SEULE ACTION « APPAREILS » QUI EXISTE VRAIMENT.
+ *
+ * Ce que Supabase Auth expose au CLIENT, vérifié avant d'écrire quoi que ce soit
+ * à l'écran (`@supabase/auth-js` 2.x, `GoTrueClient`) :
+ *   · `getSession()` / `getUser()` — la session de CET appareil, et elle seule ;
+ *   · `signOut({ scope })` — `local` (ici), `global` (partout) ou `others`
+ *     (toutes les AUTRES sessions, celle-ci conservée). C'est un vrai appel
+ *     serveur (`POST /logout?scope=others`) qui révoque les refresh tokens.
+ * Ce qu'il N'EXPOSE PAS : la LISTE des sessions. Il n'existe aucun endpoint
+ * client pour énumérer les appareils connectés — ni leur modèle, ni leur ville,
+ * ni leur date de dernière activité. Une liste d'appareils ne peut donc pas être
+ * peinte sans être inventée, et l'écran le DIT au lieu de la simuler.
+ *
+ * Reste donc une action, réelle et vérifiable : couper toutes les autres
+ * sessions. `scope: 'others'` n'émet PAS d'événement `SIGNED_OUT` et laisse la
+ * session courante intacte — le joueur n'est pas éjecté de l'appareil qu'il
+ * tient. C'est exactement ce qu'on attend d'un téléphone perdu.
+ *
+ * Aucun `resetAnalytics()` ici, volontairement : l'identité de CET appareil n'a
+ * pas changé.
+ */
+export async function signOutOtherDevices(): Promise<AuthResult> {
+  if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
+  const { error } = await supabase.auth.signOut({ scope: 'others' });
+  if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  return { ok: true };
+}

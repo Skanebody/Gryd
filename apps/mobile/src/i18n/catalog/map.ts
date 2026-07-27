@@ -1044,7 +1044,7 @@ export const C = defineCatalog({
     en: 'Sign in to alert your crew',
     es: 'Inicia sesión para alertar a tu crew',
     de: 'Melde dich an, um dein Crew zu alarmieren',
-    pt: 'Entra para alertar o teu crew',
+    pt: 'Entre para alertar seu crew',
   },
   defenseAlertFailed: {
     fr: 'Impossible d’alerter — réessaie',

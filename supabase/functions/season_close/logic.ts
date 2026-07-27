@@ -14,11 +14,16 @@
  *   - resetPlan : dates de clôture (règlement §1) — gel 24 h → résultats J+1 →
  *     intersaison INTERSEASON_DAYS → reset carte.
  */
-import { type Activity, INTERSEASON_DAYS } from '../_shared/game-rules.ts';
+import {
+  type Activity,
+  INTERSEASON_DAYS,
+  SEASON_FREEZE_HOURS,
+  SEASON_RANK_TIERS,
+  SEASON_RESULTS_DELAY_DAYS,
+} from '../_shared/game-rules.ts';
 
 const MS_PER_HOUR = 3_600_000;
 const MS_PER_DAY = 86_400_000;
-const FREEZE_HOURS = 24; // règlement §1 : gel des scores 24 h
 
 /** Score final d'un joueur, enrichi des critères d'égalité §13. */
 export interface SeasonScoreInput {
@@ -225,21 +230,14 @@ export const FOUNDER_BADGE_KEY = 'saison_0';
 export const LOCAL_TOP1_BADGE_KEY = 'season_rank_5';
 
 /**
- * Médailles Season Rank (famille saison V2, §1.2, décernées PAR season_close) :
- * paliers de classement LOCAL par rang final (top 100 / 50 / 10 / 3 / #1 /
- * winner). key = season_rank_1..5 + season_rank_legend. Cumulatif : le top 3
- * décroche aussi top 10/50/100 (le moteur d'attribution ignore les doublons).
- * `winner` (season_rank_legend) = « Remporte la saison locale » : réservé au(x)
- * n°1 non ex æquo (un seul vrai vainqueur ; sinon titre #1 partagé sans legend).
+ * Médailles Season Rank : la table vit désormais dans `@klaim/shared`
+ * (`SEASON_RANK_TIERS`, copie `_shared/game-rules.ts`), parce que le CLIENT en a
+ * besoin lui aussi (E59/E61 énoncent les paliers, `features/season/
+ * seasonRewards.ts` les affichait en recopiant les mêmes 100/50/10/3/1). Elle
+ * était ici en constante privée : deux exemplaires du même barème, dont un
+ * inaccessible. Un seul aujourd'hui — la sémantique (cumulatif, legend réservé
+ * au n°1 non ex æquo) est documentée à la source.
  */
-const SEASON_RANK_TIERS: readonly { maxRank: number; key: string }[] = [
-  { maxRank: 100, key: 'season_rank_1' },
-  { maxRank: 50, key: 'season_rank_2' },
-  { maxRank: 10, key: 'season_rank_3' },
-  { maxRank: 3, key: 'season_rank_4' },
-  { maxRank: 1, key: 'season_rank_5' },
-];
-
 export interface BadgeAward {
   userId: string;
   badgeKey: string;
@@ -259,11 +257,12 @@ export function founderBadges(ranks: readonly RankedScore[]): BadgeAward[] {
     if (r.points <= 0) continue; // inscrit sans participation : rien
     awards.push({ userId: r.userId, badgeKey: FOUNDER_BADGE_KEY });
     for (const tier of SEASON_RANK_TIERS) {
-      if (r.rank <= tier.maxRank) awards.push({ userId: r.userId, badgeKey: tier.key });
+      if (r.rank > tier.maxRank) continue;
+      // Vainqueur incontesté seulement pour le legend. Un #1 ex æquo garde le
+      // titre #1 (season_rank_5) mais pas le « remporte la saison locale ».
+      if (tier.soleWinnerOnly && r.tied) continue;
+      awards.push({ userId: r.userId, badgeKey: tier.badgeKey });
     }
-    // Vainqueur incontesté : legend. Un #1 ex æquo garde le titre #1 (season_rank_5)
-    // mais pas le legend « remporte la saison » (pas de vainqueur unique).
-    if (r.rank === 1 && !r.tied) awards.push({ userId: r.userId, badgeKey: 'season_rank_legend' });
   }
   return awards;
 }
@@ -282,8 +281,8 @@ export interface ResetPlan {
 /** @param closesAt fin de la saison (seasons.ends_at) — pas l'heure du cron,
  * pour que le plan soit déterministe quel que soit le retard du job. */
 export function resetPlan(closesAt: Date): ResetPlan {
-  const freezeEndsAt = new Date(closesAt.getTime() + FREEZE_HOURS * MS_PER_HOUR);
-  const resultsAt = new Date(closesAt.getTime() + MS_PER_DAY); // J+1
+  const freezeEndsAt = new Date(closesAt.getTime() + SEASON_FREEZE_HOURS * MS_PER_HOUR);
+  const resultsAt = new Date(closesAt.getTime() + SEASON_RESULTS_DELAY_DAYS * MS_PER_DAY);
   const resetAt = new Date(resultsAt.getTime() + INTERSEASON_DAYS * MS_PER_DAY);
   return { freezeEndsAt, resultsAt, resetAt };
 }

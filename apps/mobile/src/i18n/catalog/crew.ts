@@ -4310,7 +4310,7 @@ export const C = defineCatalog({
     en: 'Your crew’s active members, and nobody else. No location is recorded: only the spot you type is published. Pick a public landmark — not an address, not a door code.',
     es: 'Los miembros activos de tu crew, y nadie más. No se guarda ninguna posición: solo se publica el sitio que escribes. Elige un punto público — ni una dirección, ni un código de portal.',
     de: 'Die aktiven Mitglieder deines Crews, sonst niemand. Es wird keine Position gespeichert: veröffentlicht wird nur der Ort, den du schreibst. Wähle einen öffentlichen Treffpunkt — keine Adresse, keinen Türcode.',
-    pt: 'Os membros ativos do teu crew, e mais ninguém. Nenhuma posição é guardada: só o local que escreves é publicado. Escolhe um ponto público — não um endereço, não um código de porta.',
+    pt: 'Os membros ativos do seu crew, e mais ninguém. Nenhuma posição é guardada: só o local que você escreve é publicado. Escolha um ponto público — não um endereço, não um código de porta.',
   },
   /** Sous-titre neutre du champ « lieu » : le geste attendu, en trois mots. */
   oPlaceHint: {
@@ -4387,7 +4387,7 @@ export const C = defineCatalog({
     en: 'An indication for your crew. GRYD doesn’t count replies yet.',
     es: 'Una indicación para tu crew. GRYD todavía no cuenta las respuestas.',
     de: 'Ein Hinweis für dein Crew. GRYD zählt Antworten noch nicht.',
-    pt: 'Uma indicação para o teu crew. O GRYD ainda não conta as respostas.',
+    pt: 'Uma indicação para o seu crew. O GRYD ainda não conta as respostas.',
   },
   oCapacityPlaces: {
     fr: '{n} places',
@@ -4426,7 +4426,7 @@ export const C = defineCatalog({
     en: 'Give it a title: that’s what your crew reads first.',
     es: 'Ponle un título: es lo primero que lee tu crew.',
     de: 'Gib einen Titel an: Das liest dein Crew zuerst.',
-    pt: 'Dá um título: é o que o teu crew lê primeiro.',
+    pt: 'Dê um título: é o que o seu crew lê primeiro.',
   },
   oBlockTooLong: {
     fr: '{n} caractères maximum.',
@@ -4445,7 +4445,7 @@ export const C = defineCatalog({
     en: 'Pick the discipline for this outing.',
     es: 'Elige la disciplina de esta salida.',
     de: 'Wähle die Disziplin dieses Ausflugs.',
-    pt: 'Escolhe a disciplina desta saída.',
+    pt: 'Escolha a disciplina desta saída.',
   },
   oBlockWhenPast: {
     fr: 'Ce moment est déjà passé. Choisis une heure à venir.',
@@ -4466,7 +4466,7 @@ export const C = defineCatalog({
     en: 'Say where you all meet.',
     es: 'Indica dónde os encontráis.',
     de: 'Sag, wo ihr euch trefft.',
-    pt: 'Indica onde vocês se encontram.',
+    pt: 'Indique onde vocês se encontram.',
   },
   /** Le motif de vie privée est EXPLIQUÉ (contrairement à la modération). */
   oBlockPlaceAddress: {
@@ -4497,7 +4497,7 @@ export const C = defineCatalog({
     en: 'Published. Your crew sees it in the list below.',
     es: 'Publicado. Tu crew lo ve en la lista de abajo.',
     de: 'Veröffentlicht. Dein Crew sieht es in der Liste unten.',
-    pt: 'Publicado. O teu crew vê na lista abaixo.',
+    pt: 'Publicado. Seu crew vê na lista abaixo.',
   },
   /** Le rejeu n'est PAS un échec : on dit qu'aucun doublon n'a été créé. */
   oPublishedDuplicate: {
@@ -4513,7 +4513,7 @@ export const C = defineCatalog({
     en: 'The request didn’t go through. Reopen this screen to see whether the meet-up exists before retrying.',
     es: 'El envío no se completó. Vuelve a abrir esta pantalla para ver si la cita existe antes de repetir.',
     de: 'Das Senden hat nicht geklappt. Öffne diesen Bildschirm neu, um zu sehen, ob das Treffen existiert, bevor du es erneut versuchst.',
-    pt: 'O envio não foi concluído. Reabre este ecrã para ver se o encontro existe antes de repetir.',
+    pt: 'O envio não foi concluído. Reabra esta tela para ver se o encontro existe antes de repetir.',
   },
   /** Modération : motif VOLONTAIREMENT vague (doctrine 0050). */
   oRefusedUnavailable: {
@@ -4528,7 +4528,7 @@ export const C = defineCatalog({
     en: 'Your crew already has {n} meet-ups ahead. Wait for one to pass before adding another.',
     es: 'Tu crew ya tiene {n} citas próximas. Espera a que pase una antes de añadir otra.',
     de: 'Dein Crew hat schon {n} kommende Treffen. Warte, bis eines vorbei ist.',
-    pt: 'O teu crew já tem {n} encontros marcados. Espera que um passe antes de juntar outro.',
+    pt: 'Seu crew já tem {n} encontros marcados. Espere um deles passar antes de marcar outro.',
   },
   oRefusedGeneric: {
     fr: 'Le serveur a refusé cette publication.',
@@ -4544,7 +4544,7 @@ export const C = defineCatalog({
     en: 'Sign in to set up a meet-up with your crew.',
     es: 'Inicia sesión para organizar una cita con tu crew.',
     de: 'Melde dich an, um ein Treffen mit deinem Crew zu planen.',
-    pt: 'Inicia sessão para marcar um encontro com o teu crew.',
+    pt: 'Entre para marcar um encontro com o seu crew.',
   },
   oFailedTitle: {
     fr: 'Lecture impossible',
@@ -4558,7 +4558,7 @@ export const C = defineCatalog({
     en: 'GRYD couldn’t read your crew. Nothing is claimed until the read succeeds.',
     es: 'GRYD no pudo leer tu crew. No se afirma nada hasta que la lectura funcione.',
     de: 'GRYD konnte dein Crew nicht lesen. Bis dahin wird nichts behauptet.',
-    pt: 'O GRYD não conseguiu ler o teu crew. Nada é afirmado até a leitura funcionar.',
+    pt: 'O GRYD não conseguiu ler seu crew. Nada é afirmado até a leitura funcionar.',
   },
   oRetry: { fr: 'Réessayer', en: 'Try again', es: 'Reintentar', de: 'Erneut versuchen', pt: 'Tentar de novo' },
   oNoCrewTitle: {
@@ -4566,14 +4566,14 @@ export const C = defineCatalog({
     en: 'You’re not in a crew',
     es: 'No estás en ningún crew',
     de: 'Du bist in keinem Crew',
-    pt: 'Não estás em nenhum crew',
+    pt: 'Você não está em nenhum crew',
   },
   oNoCrewBody: {
     fr: 'Un rendez-vous se donne à un crew. Rejoins-en un, ou fonde le tien.',
     en: 'A meet-up is set for a crew. Join one, or found your own.',
     es: 'Una cita se da a un crew. Únete a uno, o funda el tuyo.',
     de: 'Ein Treffen gilt einem Crew. Tritt einem bei oder gründe deins.',
-    pt: 'Um encontro é dado a um crew. Junta-te a um, ou funda o teu.',
+    pt: 'Um encontro é dado a um crew. Entre em um, ou funde o seu.',
   },
 
   // ── La liste de ce qui est DÉJÀ prévu ─────────────────────────────────────

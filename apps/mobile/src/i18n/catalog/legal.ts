@@ -566,8 +566,19 @@ export const C = defineCatalog({
     'GRYD n’importe AUCUNE donnée de santé : l’application n’est connectée ni à Apple Santé (HealthKit) ni à Google Health Connect, et ne lit donc ni ta fréquence cardiaque, ni ton poids, ni ton historique d’entraînement. Les données de mouvement et de podomètre restent sur l’appareil autant que possible et ne sont transmises que pour valider une course. Si un import santé devait ouvrir un jour, il serait facultatif, soumis à ton consentement explicite, et cette politique serait mise à jour AVANT.',
   ),
   privacyPartageHeading: fr5('PARTAGE & SOUS-TRAITANTS'),
+  /**
+   * ⚠ 27/07/2026 (3ᵉ passe) — « ENCADRÉS PAR CONTRAT » ÉTAIT FAUX POUR LA MOITIÉ
+   * DE LA LISTE. La phrase qualifiait TOUS les destinataires de sous-traitants
+   * contractuels, alors que les trois derniers ajoutés (Nominatim, OSRM, et les
+   * fonds de carte ci-dessous) sont des services PUBLICS interrogés sans compte,
+   * sans clé et sans contrat. Ce n'est pas un détail de rédaction : « encadré par
+   * contrat » est une garantie RGPD (art. 28), et la promettre là où il n'y a
+   * aucun contrat est exactement la faute que ce catalogue corrige ailleurs. La
+   * phrase distingue donc les deux natures — et affirme que la liste est
+   * COMPLÈTE, ce que `features/legal/networkHosts.ts` vérifie contre le code.
+   */
   privacyPartageBody1: fr5(
-    'Nous ne vendons aucune donnée personnelle. Nous ne cédons ni ne louons tes données à des courtiers ou à des annonceurs. Nous faisons appel à un nombre restreint de sous-traitants techniques, encadrés par contrat, uniquement pour faire tourner le service :',
+    'Nous ne vendons aucune donnée personnelle. Nous ne cédons ni ne louons tes données à des courtiers ou à des annonceurs. Un petit nombre de services techniques sont nécessaires pour faire tourner GRYD, et en voici la liste COMPLÈTE. Certains sont des sous-traitants au sens du RGPD, encadrés par contrat (hébergement, mesure d’audience) ; les autres sont des services publics que l’app interroge sans compte, sans clé et sans contrat (fonds de carte, noms de lieux, calcul d’itinéraires) — ce qui ne les dispense pas d’être nommés ici :',
   ),
   /**
    * ⚠️ LE PAIEMENT ÉTAIT DÉCLARÉ COMME UN TRAITEMENT EN COURS, alors que la CGV
@@ -608,9 +619,31 @@ export const C = defineCatalog({
    * dit que l'envoi est automatique à l'ouverture. Une politique qui promet
    * au-delà du code est la même faute qu'une donnée fabriquée — celle-ci ne
    * promet plus rien que `liveRouting.test.ts` ne vérifie.
+   *
+   * ⚠ 27/07/2026 (3ᵉ passe) — LES QUATRE DESTINATAIRES LES PLUS SOLLICITÉS DE
+   * TOUT LE BINAIRE MANQUAIENT : LES FONDS DE CARTE. Les deux passes précédentes
+   * ont chassé les sous-traitants du GÉOCODAGE et du ROUTAGE — appelés quand on
+   * ouvre certains écrans — en laissant de côté ceux qui sont appelés à CHAQUE
+   * carte affichée, c'est-à-dire dès le premier écran de l'app et en continu
+   * pendant une sortie :
+   *   · CARTO   — `features/map/grydBasemapStyle.ts:62` (TileJSON `carto.streets/v1`)
+   *               et `:70` (glyphes), plus `features/map/mapStyle.ts:62-63` (styles
+   *               distants « nuit » de référence et « couleur ») ;
+   *   · Esri    — `features/map/mapStyle.ts:93` (raster World Imagery, fond satellite) ;
+   *   · OpenMapTiles — `features/map/mapStyle.ts:207` (glyphes du style satellite) ;
+   *   · AWS     — `features/map/mapStyle.ts:294` (DEM Terrarium, relief 3D).
+   * Une requête de tuile porte l'adresse IP de l'appareil ET la zone regardée :
+   * c'est une donnée de localisation approximative, envoyée à quatre tiers, que
+   * la liste « limitative » passait sous silence. La ligne ajoutée dit ce que
+   * chacun reçoit, ce qu'il ne reçoit pas, et lequel part par défaut.
+   *
+   * VERROU : `features/legal/networkHosts.ts` recense les hôtes réellement
+   * contactés et `networkHosts.test.ts` (1) relit l'arborescence pour refuser un
+   * hôte non recensé et (2) exige que chaque destinataire soit NOMMÉ ici. Une
+   * politique en retard sur le code casse désormais la suite de tests.
    */
   privacyPartageBody2: fr5(
-    '· Hébergement & base de données : {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).\n· Authentification : Apple (Sign in with Apple) et, si tu l’utilises, Google (Sign in with Google).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Noms de lieux : OpenStreetMap / Nominatim (fondation OSMF), pour nommer une ville, un secteur, ou identifier le pays où tu te trouves quand tu ouvres le panneau de sécurité pendant une sortie. Une position est alors envoyée à ce service, sans aucun identifiant de compte ; pour le panneau de sécurité elle est d’abord arrondie au dixième de degré, soit environ 11 km. Rien n’est envoyé si tu n’ouvres pas ces écrans.\n· Calcul d’itinéraires : OSRM, servi par FOSSGIS e.V., pour tracer une boucle qui suit les rues quand un écran te propose un parcours (mission, préparation de sortie, planificateur). Un point de départ APPROXIMATIF est alors envoyé — arrondi au millième de degré, soit environ 110 m, jamais ta position exacte — sans aucun identifiant de compte. Ce point part dès l’ouverture d’un écran qui propose un parcours, pas seulement quand tu appuies sur un bouton.\n· Paiement : aucun. Aucune offre payante n’est commercialisée à ce jour, aucun paiement n’est encaissé. Le jour où des achats intégrés ouvriront, ils seront traités par Apple (App Store) ou Google (Google Play) : la plateforme gérerait la transaction, et nous ne verrions jamais ta carte bancaire.',
+    '· Hébergement & base de données : {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).\n· Authentification : Apple (Sign in with Apple) et, si tu l’utilises, Google (Sign in with Google).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Noms de lieux : OpenStreetMap / Nominatim (fondation OSMF), pour nommer une ville, un secteur, ou identifier le pays où tu te trouves quand tu ouvres le panneau de sécurité pendant une sortie. Une position est alors envoyée à ce service, sans aucun identifiant de compte ; pour le panneau de sécurité elle est d’abord arrondie au dixième de degré, soit environ 11 km. Rien n’est envoyé si tu n’ouvres pas ces écrans.\n· Calcul d’itinéraires : OSRM, servi par FOSSGIS e.V., pour tracer une boucle qui suit les rues quand un écran te propose un parcours (mission, préparation de sortie, planificateur). Un point de départ APPROXIMATIF est alors envoyé — arrondi au millième de degré, soit environ 110 m, jamais ta position exacte — sans aucun identifiant de compte. Ce point part dès l’ouverture d’un écran qui propose un parcours, pas seulement quand tu appuies sur un bouton.\n· Fonds de carte : afficher une carte, c’est en demander les tuiles à un service tiers — qui reçoit donc l’adresse IP de ton appareil et la ZONE que tu regardes, jamais ton identifiant de compte, jamais ton tracé, jamais ta position exacte. Trois fournisseurs, selon ce que tu affiches : CARTO (fonds « nuit » et « couleur », et les polices des libellés — le fond « nuit » est celui par défaut, chargé dès la première carte de l’app), Esri (fond satellite, dont les polices viennent d’OpenMapTiles) et Amazon Web Services (le relief du terrain, uniquement en vue 3D). Le satellite et le relief ne sont demandés que si tu les actives.\n· Paiement : aucun. Aucune offre payante n’est commercialisée à ce jour, aucun paiement n’est encaissé. Le jour où des achats intégrés ouvriront, ils seront traités par Apple (App Store) ou Google (Google Play) : la plateforme gérerait la transaction, et nous ne verrions jamais ta carte bancaire.',
   ),
   privacyPartageBody3: fr5(
     'Nous pouvons divulguer des données si la loi l’exige (réquisition judiciaire), ou pour protéger nos droits et la sécurité des joueurs.',
@@ -627,7 +660,7 @@ export const C = defineCatalog({
    * faire — elle n'avait simplement jamais été appliquée.
    */
   privacyTransfertBody: fr5(
-    'Tes données de compte et de jeu sont hébergées et traitées dans l’Union européenne. DEUX exceptions, et les voici : les requêtes de noms de lieux adressées à OpenStreetMap / Nominatim, et les calculs d’itinéraires adressés à OSRM / FOSSGIS e.V. (voir « Partage des données »). Ces deux services peuvent être servis par une infrastructure située hors de l’Union. Aucune de ces requêtes ne contient d’identifiant de compte ; la position transmise depuis le panneau de sécurité est arrondie à environ 11 km, celle transmise au calcul d’itinéraire à environ 110 m. Aucun autre transfert hors UE n’a lieu dans le fonctionnement normal du jeu. Si un sous-traitant venait à en impliquer un, il serait encadré par les garanties prévues par le RGPD (clauses contractuelles types de la Commission européenne) et signalé dans la présente politique.',
+    'Tes données de compte et de jeu sont hébergées et traitées dans l’Union européenne. Les exceptions sont celles-ci, et il n’y en a pas d’autres : les noms de lieux demandés à OpenStreetMap / Nominatim, les calculs d’itinéraires demandés à OSRM / FOSSGIS e.V., et les fonds de carte servis par CARTO, Esri, OpenMapTiles et Amazon Web Services (voir « Partage & sous-traitants »). Ces services peuvent être servis par une infrastructure située hors de l’Union. Aucune de ces requêtes ne contient d’identifiant de compte : les fonds de carte ne reçoivent que la zone affichée et une adresse IP, la position transmise depuis le panneau de sécurité est arrondie à environ 11 km, celle transmise au calcul d’itinéraire à environ 110 m. Aucun autre transfert hors UE n’a lieu dans le fonctionnement normal du jeu. Si un sous-traitant venait à en impliquer un, il serait encadré par les garanties prévues par le RGPD (clauses contractuelles types de la Commission européenne) et signalé dans la présente politique.',
   ),
   privacyConservationHeading: fr5('DURÉES DE CONSERVATION'),
   privacyConservationBody: fr5(

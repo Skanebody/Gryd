@@ -13,13 +13,12 @@
  * `season_rank_1..5` + `season_rank_legend` de la famille « saison » du catalogue
  * @klaim/shared. Ce module reconstruit CETTE échelle, et rien d'autre.
  *
- * ⚠ DETTE ASSUMÉE (« aucun nombre magique ») : les rangs de coupure
- * (100/50/10/3/1) vivent aujourd'hui dans `SEASON_RANK_TIERS`, une constante
- * PRIVÉE de `season_close/logic.ts` — donc inaccessible au client. Les seuils du
- * catalogue shared (`badges.ts`, famille season_rank) sont des NIVEAUX (1..6),
- * pas des rangs. Ils sont donc recopiés ici, à l'identique et documentés. Le
- * correctif propre est d'exporter `SEASON_RANK_TIERS` depuis packages/shared —
- * hors périmètre de ce chantier (voir observations).
+ * ✅ DETTE SOLDÉE (27/07/2026). Les rangs de coupure (100/50/10/3/1) étaient
+ * recopiés ici parce que `SEASON_RANK_TIERS` était une constante PRIVÉE de
+ * `season_close/logic.ts`. Elle vit désormais dans `@klaim/shared/game-rules`
+ * et c'est ELLE qu'on lit — un seul barème pour le serveur qui décerne et pour
+ * l'écran qui l'annonce. (Les seuils de `badges.ts`, famille season_rank, sont
+ * des NIVEAUX 1..6, pas des rangs : ils ne pouvaient pas servir.)
  *
  * Le MATÉRIAU (rareté) et le NOM ne sont PAS réinventés : ils sont LUS dans
  * `BADGES_BY_KEY` (@klaim/shared) — acier sombre (road) → chrome (tempo/race) →
@@ -27,7 +26,7 @@
  *
  * Module PUR : aucun import React/RN, testable en Deno.
  */
-import { BADGES_BY_KEY, type BadgeTier } from '@klaim/shared';
+import { BADGES_BY_KEY, type BadgeTier, SEASON_RANK_TIERS } from '@klaim/shared';
 
 /** Un palier de fin de saison RÉEL — décerné par season_close, pas par l'écran. */
 export interface SeasonRewardTier {
@@ -46,22 +45,14 @@ export interface SeasonRewardTier {
   name: string;
 }
 
-/** Rangs de coupure — recopie DOCUMENTÉE de season_close/logic.ts (cf. en-tête). */
-const LADDER: readonly { badgeKey: string; maxRank: number; soleWinnerOnly: boolean }[] = [
-  { badgeKey: 'season_rank_1', maxRank: 100, soleWinnerOnly: false },
-  { badgeKey: 'season_rank_2', maxRank: 50, soleWinnerOnly: false },
-  { badgeKey: 'season_rank_3', maxRank: 10, soleWinnerOnly: false },
-  { badgeKey: 'season_rank_4', maxRank: 3, soleWinnerOnly: false },
-  { badgeKey: 'season_rank_5', maxRank: 1, soleWinnerOnly: false },
-  { badgeKey: 'season_rank_legend', maxRank: 1, soleWinnerOnly: true },
-];
-
 /**
- * L'échelle affichable, du palier le plus accessible au plus rare. Le matériau et
- * le nom viennent du catalogue shared ; si une clé manquait (catalogue amputé),
- * le palier est SILENCIEUSEMENT écarté plutôt qu'affiché avec un nom inventé.
+ * L'échelle affichable, du palier le plus accessible au plus rare. Les rangs de
+ * coupure viennent de `SEASON_RANK_TIERS` (source unique, cf. en-tête) ; le
+ * matériau et le nom du catalogue shared. Si une clé manquait (catalogue
+ * amputé), le palier est SILENCIEUSEMENT écarté plutôt qu'affiché avec un nom
+ * inventé.
  */
-export const SEASON_REWARD_TIERS: readonly SeasonRewardTier[] = LADDER.flatMap((rung) => {
+export const SEASON_REWARD_TIERS: readonly SeasonRewardTier[] = SEASON_RANK_TIERS.flatMap((rung) => {
   const def = BADGES_BY_KEY.get(rung.badgeKey);
   if (!def) return [];
   return [{ ...rung, tier: def.tier, name: def.name }];

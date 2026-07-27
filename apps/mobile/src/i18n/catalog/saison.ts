@@ -85,7 +85,7 @@ export const C = defineCatalog({
     en: 'Your leaderboard position',
     es: 'Tu posición en la clasificación',
     de: 'Deine Platzierung',
-    pt: 'A tua posição na classificação',
+    pt: 'Sua posição na classificação',
   },
   /** Écart EXPLICITE, dans l'unité RÉELLE du board (points, jamais des km²). */
   gapPourPasser: {
@@ -112,7 +112,8 @@ export const C = defineCatalog({
     en: 'You’re not in this leaderboard yet.',
     es: 'Aún no apareces en esta clasificación.',
     de: 'Du bist noch nicht in dieser Rangliste.',
-    pt: 'Ainda não apareces nesta classificação.',
+    // pt = BRÉSILIEN (CLAUDE.md) : « você aparece », jamais « (tu) apareces ».
+    pt: 'Você ainda não aparece nesta classificação.',
   },
 
   // ══════════════════ E12-2 · Card RANG (paliers RÉELS de clôture) ═════════════
@@ -185,7 +186,7 @@ export const C = defineCatalog({
     en: 'Your local rank appears after your first counted run.',
     es: 'Tu rango local aparece tras tu primera carrera contada.',
     de: 'Dein lokaler Rang erscheint nach deinem ersten gewerteten Lauf.',
-    pt: 'O teu posto local aparece após a primeira corrida contada.',
+    pt: 'Sua posição local aparece após a primeira corrida contada.',
   },
 
   // ═════════════ E12-4 · Frise VERTICALE des paliers RÉELS de saison ═══════════
@@ -203,14 +204,14 @@ export const C = defineCatalog({
     en: 'Finish in the local top {n}.',
     es: 'Termina en el top {n} local.',
     de: 'Beende in den lokalen Top {n}.',
-    pt: 'Termina no top {n} local.',
+    pt: 'Termine no top {n} local.',
   },
   conditionPremier: {
     fr: 'Termine #1 local.',
     en: 'Finish local #1.',
     es: 'Termina #1 local.',
     de: 'Beende als lokale Nr. 1.',
-    pt: 'Termina em #1 local.',
+    pt: 'Termine em #1 local.',
   },
   conditionVainqueur: {
     fr: 'Remporte la saison locale.',
@@ -240,14 +241,15 @@ export const C = defineCatalog({
     en: 'Loading your rewards…',
     es: 'Cargando tus recompensas…',
     de: 'Belohnungen werden geladen…',
-    pt: 'A carregar as tuas recompensas…',
+    pt: 'Carregando suas recompensas…',
   },
   badgesConnexion: {
     fr: 'Connecte-toi pour voir ce que tu as déjà obtenu.',
     en: 'Sign in to see what you’ve already earned.',
     es: 'Inicia sesión para ver lo que ya has obtenido.',
     de: 'Melde dich an, um deine Erfolge zu sehen.',
-    pt: 'Entra para ver o que já obtiveste.',
+    // pt = BRÉSILIEN (CLAUDE.md) : « você conquistou », jamais « (tu) obtiveste ».
+    pt: 'Entre para ver o que você já conquistou.',
   },
   badgesEchec: {
     fr: 'Récompenses non chargées.',
@@ -319,7 +321,7 @@ export const C = defineCatalog({
     en: 'Nobody is ranked on a bike in your city this season yet.',
     es: 'Nadie está clasificado en bici en tu ciudad esta temporada.',
     de: 'In deiner Stadt ist diese Saison noch niemand auf dem Rad platziert.',
-    pt: 'Ninguém está classificado de bike na tua cidade nesta temporada.',
+    pt: 'Ninguém está classificado de bike na sua cidade nesta temporada.',
   },
   /** SÉPARATION STRICTE (planche E14) : deux mondes, jamais une somme. */
   bikeBoardSeparate: {
@@ -336,5 +338,244 @@ export const C = defineCatalog({
     es: 'Empezar una salida en bici',
     de: 'Radausfahrt starten',
     pt: 'Começar um pedal',
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E59 · L'ÉCRAN SAISON DÉDIÉ (`/season`) — ajouté le 27/07/2026.
+  //
+  // Arbitrage A2 : Saison sort de la barre d'onglets et s'atteint depuis le
+  // Profil (E55 → progression de rang → `/season`). Les clés ci-dessus servent
+  // le bloc E12 de l'onglet Classement ; celles-ci complètent ce que la spéc
+  // E59 ajoute et qui manquait : XP, prochain jalon, règles, saison précédente.
+  //
+  // ⚠ AUCUNE DONNÉE FABRIQUÉE. La base est VIDE : « saison précédente » n'existe
+  // pour personne aujourd'hui, et `histoAucune` est donc l'état NORMAL, pas un
+  // repli. Ne jamais peindre un historique d'illustration.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  ecranTitre: {
+    fr: 'Saison',
+    en: 'Season',
+    es: 'Temporada',
+    de: 'Saison',
+    pt: 'Temporada',
+  },
+
+  // ── XP et prochain jalon ──────────────────────────────────────────────────
+  sectionXp: {
+    fr: 'Ta progression',
+    en: 'Your progress',
+    es: 'Tu progreso',
+    de: 'Dein Fortschritt',
+    pt: 'Seu progresso',
+  },
+  /** `{n}`/`{max}` = XP RÉELS lus en base. Jamais une barre sans dénominateur. */
+  xpVersNiveau: {
+    fr: '{n} / {max} XP vers le niveau {level}',
+    en: '{n} / {max} XP to level {level}',
+    es: '{n} / {max} XP hacia el nivel {level}',
+    de: '{n} / {max} XP bis Level {level}',
+    pt: '{n} / {max} XP para o nível {level}',
+  },
+  /** L'XP est PERMANENT : il survit au reset. C'est la promesse à tenir. */
+  xpPermanent: {
+    fr: 'L’XP ne se remet jamais à zéro, et ne s’achète pas.',
+    en: 'XP never resets, and cannot be bought.',
+    es: 'La XP nunca se reinicia y no se puede comprar.',
+    de: 'XP wird nie zurückgesetzt und ist nicht käuflich.',
+    pt: 'O XP nunca zera e não pode ser comprado.',
+  },
+  prochainJalon: {
+    fr: 'Prochain jalon',
+    en: 'Next milestone',
+    es: 'Próximo hito',
+    de: 'Nächster Meilenstein',
+    pt: 'Próximo marco',
+  },
+  /** `{rank}` = nom de rang résolu depuis `rang.ts`, jamais écrit ici. */
+  prochainJalonRang: {
+    fr: '{rank} au niveau {level}',
+    en: '{rank} at level {level}',
+    es: '{rank} en el nivel {level}',
+    de: '{rank} ab Level {level}',
+    pt: '{rank} no nível {level}',
+  },
+  /** Dernier palier atteint : on ne fabrique pas un jalon qui n'existe pas. */
+  prochainJalonAucun: {
+    fr: 'Tu tiens le dernier rang. Il n’y a rien au-dessus.',
+    en: 'You hold the top rank. There is nothing above it.',
+    es: 'Tienes el rango máximo. No hay nada por encima.',
+    de: 'Du hast den höchsten Rang. Darüber kommt nichts.',
+    pt: 'Você está na patente máxima. Não existe nada acima.',
+  },
+
+  // ── Règles de la saison (E59 « Règles ») ──────────────────────────────────
+  sectionRegles: {
+    fr: 'Les règles de la saison',
+    en: 'Season rules',
+    es: 'Reglas de la temporada',
+    de: 'Saisonregeln',
+    pt: 'Regras da temporada',
+  },
+  regleRangsSepares: {
+    fr: 'Les rangs à pied et vélo sont séparés — deux mondes, jamais additionnés.',
+    en: 'Running and Bike ranks are separate — two worlds, never summed.',
+    es: 'Los rangos a pie y en bici están separados: dos mundos, nunca sumados.',
+    de: 'Lauf- und Rad-Ränge sind getrennt — zwei Welten, nie addiert.',
+    pt: 'As posições a pé e de bike são separadas — dois mundos, nunca somados.',
+  },
+  regleDuree: {
+    fr: 'Une saison dure {weeks} semaines, suivie de {days} jours d’intersaison.',
+    en: 'A season runs {weeks} weeks, then {days} days between seasons.',
+    es: 'Una temporada dura {weeks} semanas, seguidas de {days} días de intertemporada.',
+    de: 'Eine Saison dauert {weeks} Wochen, danach {days} Tage Pause.',
+    pt: 'Uma temporada dura {weeks} semanas, seguidas de {days} dias de intervalo.',
+  },
+  regleRecompensesCosmetiques: {
+    fr: 'Les récompenses sont cosmétiques : aucune capacité compétitive, jamais achetable.',
+    en: 'Rewards are cosmetic: no competitive ability, never purchasable.',
+    es: 'Las recompensas son cosméticas: ninguna ventaja competitiva, nunca comprables.',
+    de: 'Belohnungen sind kosmetisch: kein Wettbewerbsvorteil, nie käuflich.',
+    pt: 'As recompensas são cosméticas: nenhuma vantagem competitiva, nunca compráveis.',
+  },
+
+  // ── Saison précédente (E59 « historique saison précédente ») ──────────────
+  sectionHistorique: {
+    fr: 'Saison précédente',
+    en: 'Previous season',
+    es: 'Temporada anterior',
+    de: 'Vorherige Saison',
+    pt: 'Temporada anterior',
+  },
+  histoLigne: {
+    fr: 'Saison {n} · #{rank}',
+    en: 'Season {n} · #{rank}',
+    es: 'Temporada {n} · #{rank}',
+    de: 'Saison {n} · #{rank}',
+    pt: 'Temporada {n} · #{rank}',
+  },
+  /**
+   * La saison est bien terminée, mais AUCUN rang final ne me concerne : soit je
+   * n'y ai pas couru, soit `season_close` n'a pas encore gelé `rank_cache`.
+   * On dit l'absence — inventer un rang sur une saison close serait le pire des
+   * mensonges (il n'est même plus rattrapable).
+   */
+  histoSansRang: {
+    fr: 'Saison {n} · pas de rang final pour toi',
+    en: 'Season {n} · no final rank for you',
+    es: 'Temporada {n} · sin rango final para ti',
+    de: 'Saison {n} · kein Endrang für dich',
+    pt: 'Temporada {n} · sem posição final para você',
+  },
+  /** Vers E61. N'apparaît QUE si une saison est réellement terminée. */
+  histoVoirBilan: {
+    fr: 'Voir le bilan',
+    en: 'View the recap',
+    es: 'Ver el balance',
+    de: 'Bilanz ansehen',
+    pt: 'Ver o balanço',
+  },
+  /** L'ÉTAT DOMINANT aujourd'hui : aucune saison n'est encore close. */
+  histoAucune: {
+    fr: 'Aucune saison terminée pour l’instant. La première fera ton historique.',
+    en: 'No season has ended yet. The first one will start your history.',
+    es: 'Ninguna temporada ha terminado todavía. La primera creará tu historial.',
+    de: 'Noch keine Saison beendet. Die erste beginnt deine Historie.',
+    pt: 'Nenhuma temporada terminou ainda. A primeira vai começar seu histórico.',
+  },
+  histoEchec: {
+    fr: 'Historique non chargé.',
+    en: 'History not loaded.',
+    es: 'Historial no cargado.',
+    de: 'Historie nicht geladen.',
+    pt: 'Histórico não carregado.',
+  },
+
+  // ── Les quatre états de l'écran, jamais confondus ─────────────────────────
+  ecranChargement: {
+    fr: 'Lecture de la saison…',
+    en: 'Loading the season…',
+    es: 'Cargando la temporada…',
+    de: 'Saison wird geladen …',
+    pt: 'Carregando a temporada…',
+  },
+  ecranDeconnecteTitre: {
+    fr: 'Connecte-toi pour suivre ta saison',
+    en: 'Sign in to follow your season',
+    es: 'Inicia sesión para seguir tu temporada',
+    de: 'Melde dich an für deine Saison',
+    pt: 'Entre para acompanhar sua temporada',
+  },
+  ecranDeconnecteCorps: {
+    fr: 'Rang, XP et récompenses appartiennent à un compte.',
+    en: 'Rank, XP and rewards belong to an account.',
+    es: 'Rango, XP y recompensas pertenecen a una cuenta.',
+    de: 'Rang, XP und Belohnungen gehören zu einem Konto.',
+    pt: 'Posição, XP e recompensas pertencem a uma conta.',
+  },
+  /** Lu, et il n'y a AUCUNE saison ouverte — distinct d'un échec. */
+  ecranAucuneSaisonTitre: {
+    fr: 'Aucune saison ouverte',
+    en: 'No season open',
+    es: 'Ninguna temporada abierta',
+    de: 'Keine Saison offen',
+    pt: 'Nenhuma temporada aberta',
+  },
+  ecranAucuneSaisonCorps: {
+    fr: 'Ta ville n’a pas encore de saison en cours. Tes zones et ton XP, eux, ne bougent pas.',
+    en: 'Your city has no running season yet. Your zones and XP stay put.',
+    es: 'Tu ciudad aún no tiene temporada en curso. Tus zonas y tu XP no se mueven.',
+    de: 'In deiner Stadt läuft noch keine Saison. Zonen und XP bleiben unberührt.',
+    pt: 'Sua cidade ainda não tem temporada em andamento. Suas zonas e seu XP não mudam.',
+  },
+  ecranEchecTitre: {
+    fr: 'Saison indisponible',
+    en: 'Season unavailable',
+    es: 'Temporada no disponible',
+    de: 'Saison nicht verfügbar',
+    pt: 'Temporada indisponível',
+  },
+  ecranEchecCorps: {
+    fr: 'La lecture a échoué. On ne sait pas où en est la saison — on ne devine pas.',
+    en: 'The read failed. We do not know where the season stands — we do not guess.',
+    es: 'La lectura falló. No sabemos en qué punto está la temporada, y no lo adivinamos.',
+    de: 'Das Laden schlug fehl. Wo die Saison steht, ist unbekannt — wir raten nicht.',
+    pt: 'A leitura falhou. Não sabemos em que ponto está a temporada — e não adivinhamos.',
+  },
+  /**
+   * ── LE BLOC XP A SES PROPRES QUATRE ÉTATS (28/07/2026) ────────────────────
+   * `users.xp` se lit par un chemin INDÉPENDANT de la saison
+   * (`useMyEconomy` vs la RPC `season_current`) : l'un peut échouer pendant que
+   * l'autre réussit. La carte de rang disparaissait alors SANS UN MOT, et
+   * l'écran attribuait la disparition à une absence de compte. Ces trois clés
+   * donnent au bloc XP la voix qui lui manquait.
+   */
+  xpLecture: {
+    fr: 'Lecture de ton XP…',
+    en: 'Loading your XP…',
+    es: 'Cargando tu XP…',
+    de: 'Dein XP wird geladen …',
+    pt: 'Carregando seu XP…',
+  },
+  xpEchecTitre: {
+    fr: 'XP indisponible',
+    en: 'XP unavailable',
+    es: 'XP no disponible',
+    de: 'XP nicht verfügbar',
+    pt: 'XP indisponível',
+  },
+  xpEchecCorps: {
+    fr: 'La lecture de ta progression a échoué. Ton XP n’a pas bougé — c’est l’affichage qui manque, pas les points.',
+    en: 'Reading your progress failed. Your XP hasn’t moved — it’s the display that’s missing, not the points.',
+    es: 'Falló la lectura de tu progreso. Tu XP no se movió: falta la vista, no los puntos.',
+    de: 'Deine Fortschrittsdaten konnten nicht geladen werden. Dein XP ist unverändert — es fehlt die Anzeige, nicht die Punkte.',
+    pt: 'A leitura do seu progresso falhou. Seu XP não mudou — o que falta é a exibição, não os pontos.',
+  },
+  ecranReessayer: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
   },
 });
