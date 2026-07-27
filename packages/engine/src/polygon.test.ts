@@ -25,6 +25,7 @@ import {
   normalizeRing,
   polygonAreaM2,
   polygonPerimeterM,
+  simplifyPolyline,
   simplifyRing,
   toGeoJsonPolygon,
   unionPolygons,
@@ -280,6 +281,109 @@ Deno.test('une tolérance nulle ou négative ne déplace aucun sommet', () => {
 Deno.test('un triangle reste un triangle quelle que soit la tolérance', () => {
   const triangle = [pt(0, 0), pt(1000, 0), pt(500, 900)];
   assertEgal(simplifyRing(triangle, 10_000).length, 3, 'sommets restants du triangle');
+});
+
+// ─── §5-bis Généralisation d'une POLYLIGNE (trace de course, §12.1) ──────────
+// `simplifyPolyline` alimente le pipeline de confidentialité du partage
+// (`apps/mobile/src/features/share/sharePrivacy.ts`). Ce qui s'y joue n'est pas
+// esthétique : si la fonction fabriquait un point, la card publierait une
+// position que personne n'a courue ; si elle en ressuscitait un, elle
+// annulerait un masquage. On verrouille donc les propriétés, pas le rendu.
+
+Deno.test('une polyligne simplifiée est une SOUS-SUITE — les mêmes OBJETS, jamais recalculés', () => {
+  const trace = [pt(0, 0), pt(100, 5), pt(200, -4), pt(300, 60), pt(400, 2), pt(500, 0)];
+  const out = simplifyPolyline(trace, 20);
+  assert(out.length < trace.length, 'la simplification doit retirer des sommets');
+  let i = 0;
+  for (const p of out) {
+    while (i < trace.length && trace[i] !== p) i++;
+    assert(i < trace.length, 'un point rendu n’est pas un OBJET de l’entrée');
+    i++;
+  }
+});
+
+Deno.test('les DEUX extrémités survivent toujours à la simplification', () => {
+  const trace = [pt(0, 0), pt(100, 1), pt(200, -1), pt(300, 0), pt(400, 1)];
+  const out = simplifyPolyline(trace, 50);
+  assertEgal(out[0], trace[0], 'premier point');
+  assertEgal(out[out.length - 1], trace[trace.length - 1], 'dernier point');
+});
+
+Deno.test('une polyligne ouverte n’est JAMAIS refermée (pas de segment inventé)', () => {
+  // Le piège de `simplifyRing` appliqué à une trace : recoller la fin au début
+  // dessinerait un trajet que le coureur n'a pas fait.
+  const trace = [pt(0, 0), pt(100, 40), pt(200, 0), pt(300, 40), pt(400, 0)];
+  const out = simplifyPolyline(trace, 5);
+  const premier = out[0]!;
+  const dernier = out[out.length - 1]!;
+  assert(
+    premier.lat !== dernier.lat || premier.lng !== dernier.lng,
+    'la polyligne a été refermée',
+  );
+});
+
+Deno.test('polyligne : tolérance nulle, négative, ou moins de 3 points → inchangée', () => {
+  const trace = [pt(0, 0), pt(100, 40), pt(200, 0)];
+  assertEgal(simplifyPolyline(trace, 0), trace, 'tolérance 0');
+  assertEgal(simplifyPolyline(trace, -5), trace, 'tolérance négative');
+  assertEgal(simplifyPolyline([pt(0, 0), pt(100, 0)], 10), [pt(0, 0), pt(100, 0)], '2 points');
+  assertEgal(simplifyPolyline([], 10), [], 'trace vide');
+});
+
+Deno.test('plus la tolérance est grande, moins il reste de sommets (polyligne)', () => {
+  const trace = Array.from({ length: 120 }, (_, i) => pt(i * 10, Math.sin(i / 3) * 30));
+  const fine = simplifyPolyline(trace, 2);
+  const grossiere = simplifyPolyline(trace, 25);
+  assert(
+    grossiere.length < fine.length,
+    `tolérance 25 m (${grossiere.length}) doit être plus grossière que 2 m (${fine.length})`,
+  );
+  assert(grossiere.length >= 2, 'les deux extrémités restent');
+});
+
+Deno.test('aucun sommet retiré n’était à plus de la tolérance de la ligne conservée', () => {
+  // La garantie de Douglas-Peucker, et la seule chose que la card promet : le
+  // tracé publié ne s'écarte jamais du tracé réel de plus de `toleranceM`.
+  const trace = Array.from({ length: 200 }, (_, i) => pt(i * 5, Math.sin(i / 7) * 40));
+  const tol = 15;
+  const out = simplifyPolyline(trace, tol);
+  const distance = (p: LatLngPoint, a: LatLngPoint, b: LatLngPoint): number => {
+    const toXY = (q: LatLngPoint) => ({
+      x: (q.lng - ORIGINE.lng) * RAD_PER_DEG * COS_LAT0 * EARTH_RADIUS_M,
+      y: (q.lat - ORIGINE.lat) * RAD_PER_DEG * EARTH_RADIUS_M,
+    });
+    const P = toXY(p);
+    const A = toXY(a);
+    const B = toXY(b);
+    const ex = B.x - A.x;
+    const ey = B.y - A.y;
+    const len2 = ex * ex + ey * ey;
+    const t = len2 === 0 ? 0 : Math.min(1, Math.max(0, ((P.x - A.x) * ex + (P.y - A.y) * ey) / len2));
+    return Math.hypot(P.x - (A.x + t * ex), P.y - (A.y + t * ey));
+  };
+  // Indices CONSERVÉS (identité d'objet : `simplifyPolyline` rend les points
+  // d'origine), puis contrôle de chaque sommet retiré contre SON segment.
+  const gardes: number[] = [];
+  let k = 0;
+  for (let i = 0; i < trace.length; i++) {
+    if (trace[i] === out[k]) {
+      gardes.push(i);
+      k++;
+    }
+  }
+  assertEgal(gardes.length, out.length, 'tous les points rendus retrouvés dans l’entrée');
+  // 1 % de marge : le test projette depuis ORIGINE, la fonction depuis son
+  // premier point et la latitude MOYENNE — deux projections locales voisines,
+  // pas identiques. La marge couvre cet écart, pas un dépassement de tolérance.
+  const marge = tol * 1.01;
+  for (let j = 0; j + 1 < gardes.length; j++) {
+    const a = trace[gardes[j]!]!;
+    const b = trace[gardes[j + 1]!]!;
+    for (let i = gardes[j]! + 1; i < gardes[j + 1]!; i++) {
+      const d = distance(trace[i]!, a, b);
+      assert(d <= marge, `un sommet retiré est à ${d.toFixed(2)} m de la ligne publiée`);
+    }
+  }
 });
 
 // ─── §6 Forme persistée (colonne jsonb, décision A1-bis) ─────────────────────

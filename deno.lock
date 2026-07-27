@@ -185,6 +185,7 @@
             "npm:@expo-google-fonts/inter@~0.4.2",
             "npm:@expo-google-fonts/jetbrains-mono@~0.4.1",
             "npm:@expo/metro-runtime@~4.0.1",
+            "npm:@klaim/engine@*",
             "npm:@klaim/shared@*",
             "npm:@maplibre/maplibre-react-native@10",
             "npm:@react-native-async-storage/async-storage@1.23.1",

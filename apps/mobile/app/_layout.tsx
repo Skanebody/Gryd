@@ -24,8 +24,8 @@ installFatalErrorGuard();
 // runtime Expo/Hermes ne connaît pas utf-16le, or h3-js (Emscripten) en crée
 // un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js.
 import '../src/lib/textDecoderUtf16';
-import { useEffect, useRef } from 'react';
-import { AppState, Linking, View } from 'react-native';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { AppState, Linking, StyleSheet, View } from 'react-native';
 import { router, Stack, usePathname } from 'expo-router';
 import { useAppFonts } from '../src/lib/fonts';
 import { StatusBar } from 'expo-status-bar';
@@ -35,11 +35,20 @@ import { EVENTS, registerScreen, screen, track } from '../src/lib/analytics';
 import { normalizeScreenPath } from '../src/lib/screenName';
 import { retryPendingUpload } from '../src/lib/pendingUpload';
 import { loadActiveRun, loadCurrentRun } from '../src/lib/runStore';
-import { SessionProvider } from '../src/lib/session';
+import { SessionProvider, useSession } from '../src/lib/session';
 import {
   decideCrashRecoveryNavigation,
   type InterruptedRunSnapshot,
 } from '../src/features/run/gps/crashRecovery';
+import {
+  BOOT_STORAGE_TIMEOUT_MS,
+  decideBoot,
+  type InterruptedRunProbe,
+  splashCovers,
+  type TokenProbe,
+  tokenProbe,
+} from '../src/features/boot/bootSequence';
+import { SplashE00 } from '../src/features/boot/SplashE00';
 import {
   parseInviteUrl,
   rememberPendingInvite,
@@ -99,6 +108,134 @@ function NavAnalytics(): null {
   return null;
 }
 
+/**
+ * E00 « Splash / restauration de session » — LE CHEF D'ORCHESTRE (spec l.547).
+ *
+ * Il ne CALCULE rien : la décision est PURE et testée
+ * (`src/features/boot/bootSequence.ts`), le rendu est à part
+ * (`src/features/boot/SplashE00.tsx`). Ce composant ne fait que les brancher aux
+ * trois choses qu'il est seul à pouvoir observer — les fontes, la session
+ * Supabase, le buffer de course sur le disque — et poser la couverture.
+ *
+ * ─── POURQUOI ICI, ET PAS DANS UNE ROUTE `app/index.tsx` ────────────────────
+ * Parce que la route `/` EXISTE DÉJÀ : c'est `app/(tabs)/index.tsx` (la carte),
+ * `(tabs)` étant un groupe de routes sans segment d'URL. Créer `app/index.tsx`
+ * ferait DEUX fichiers pour le même chemin — un conflit de routes expo-router,
+ * pas un écran de plus. E00 n'est de toute façon pas une destination : c'est ce
+ * qui couvre l'app pendant que la destination se décide. Le layout racine, seul
+ * composant monté avant TOUTE route, est donc exactement le bon endroit.
+ *
+ * ─── POURQUOI UNE COUVERTURE, ET PAS UN `return` ANTICIPÉ ──────────────────
+ * Le `<Stack>` reste MONTÉ sous le splash. C'est délibéré : les deux effets de
+ * `RootLayout` (lien d'invitation via `getInitialURL`, reprise de course)
+ * appellent `router.push` — sur un routeur démonté ces intentions se perdraient
+ * en silence, et un QR scanné au lancement ne ferait rien. Le splash est donc un
+ * calque OPAQUE en `absoluteFill` posé APRÈS les enfants : rien de ce qui se
+ * monte dessous n'est visible, y compris l'écran de connexion.
+ *
+ * ─── LE CRITÈRE DE LA SPEC (l.577), TENU STRUCTURELLEMENT ──────────────────
+ * « Aucun flash de l'écran de connexion lorsqu'une session valide existe. »
+ * `session.loading` vaut `true` AU PREMIER RENDU dès qu'un backend est configuré
+ * (`src/lib/session.tsx:37` — `useState(isSupabaseConfigured)`), donc
+ * `token === 'reading'`, donc `splashCovers(...)` est vrai avant même que le
+ * routeur ait tranché quoi que ce soit ; la couverture ne se lève qu'une fois le
+ * sort de la session CONNU. C'est ce que figent les tests « ANTI-FLASH » de
+ * `bootSequence.test.ts` — une capture d'écran, elle, ne pourrait pas prouver
+ * l'ABSENCE d'un flash (elle échantillonne un instant, et pas celui-là).
+ */
+function BootGate({ fontsReady, children }: { fontsReady: boolean; children: ReactNode }) {
+  const { session, loading, configured } = useSession();
+  // ÉTAPE 3 de la spec — verdict du buffer de course. `'reading'` tant qu'on n'a
+  // pas lu : « un chargement n'affirme rien sur le joueur ».
+  const [interruptedRun, setInterruptedRun] = useState<InterruptedRunProbe>('reading');
+  // Le relais a-t-il été passé ? Empêche à la fois la double navigation et la
+  // levée du splash AVANT que l'intention de navigation soit émise — sans quoi
+  // on verrait la carte une fraction de seconde avant la reprise de course.
+  const [handedOff, setHandedOff] = useState(false);
+
+  // ── ÉTAPE 3 : lire le buffer, une seule fois, au lancement FROID ──────────
+  useEffect(() => {
+    let alive = true;
+    const settle = (probe: InterruptedRunProbe): void => {
+      if (alive) setInterruptedRun(probe);
+    };
+    // PLAFOND DE PATIENCE : un AsyncStorage qui ne répond jamais ne doit pas
+    // pouvoir tenir le joueur devant le logo (« jamais de spinner infini »).
+    // Au-delà on conclut « rien à reprendre » — le choix SÛR : la trace reste
+    // sur le disque et `course-live` la repropose au prochain GO.
+    const bail = setTimeout(() => settle('none'), BOOT_STORAGE_TIMEOUT_MS);
+    void (async () => {
+      try {
+        const [active, current] = await Promise.all([loadActiveRun(), loadCurrentRun()]);
+        // Décision PURE et déjà testée (crashRecovery.ts) — non dupliquée ici.
+        const decision = decideCrashRecoveryNavigation(
+          [toRecoverySnapshot(active), toRecoverySnapshot(current)],
+          Date.now(),
+        );
+        settle(decision.shouldNavigate ? 'resumable' : 'none');
+      } catch {
+        settle('none'); // stockage illisible : rien à reprendre, jamais de crash
+      } finally {
+        clearTimeout(bail);
+      }
+    })();
+    return () => {
+      alive = false;
+      clearTimeout(bail);
+    };
+  }, []);
+
+  // ÉTAPE 1 — le token, décidé par le moteur PUR et non plus par un ternaire
+  // écrit ici. `loading` couvre AUSSI le refresh silencieux d'un token expiré
+  // (supabase-js, `autoRefreshToken: true`) : on n'en voit que le verdict.
+  // Le ternaire local était le second exemplaire d'une règle dont
+  // `bootSequence.ts` portait déjà l'énoncé : les tests anti-flash figeaient
+  // l'énoncé, pas ce qui s'exécutait.
+  const token: TokenProbe = tokenProbe({ configured, loading, hasSession: session !== null });
+  const outcome = decideBoot({
+    token,
+    // ÉTAPE 2 — la lecture du profil minimal EXISTE désormais
+    // (`features/setup/minimalProfile.ts` interroge `user_profiles`), mais elle
+    // n'est PAS un blocage de CETTE séquence, et c'est délibéré : elle est
+    // portée par la garde de route `app/(tabs)/_layout.tsx`, qui est la seule à
+    // savoir qu'en faire (E08 ou la carte). La lui faire attendre ici la
+    // dupliquerait — et le joueur ne verrait aucune différence, la garde
+    // couvrant sa propre attente avec CE MÊME écran E00 (`SplashE00`).
+    // `'unwired'` reste donc exact pour la séquence de démarrage : elle ne lit
+    // pas le profil, elle ne bloque pas dessus, elle ne promet rien.
+    profile: 'unwired',
+    interruptedRun,
+    // ÉTAPE 4 — aucune source de version minimale n'existe, et il n'existe aucun
+    // écran de blocage vers lequel router (voir `MinVersionProbe`).
+    minVersion: 'unwired',
+  });
+
+  // ── ÉTAPE 5 : le SEUL routage que ce composant s'autorise ────────────────
+  // Le fork onboarding / connexion / carte appartient à `(tabs)/_layout.tsx` et
+  // n'est PAS dupliqué ici (deux sources de vérité sur la même décision
+  // divergeraient) ; le splash garantit seulement qu'il ne s'applique qu'APRÈS
+  // les étapes 1-4.
+  const ready = outcome.phase === 'ready';
+  const next = outcome.phase === 'ready' ? outcome.next : null;
+  useEffect(() => {
+    if (!ready || handedOff) return;
+    // « Activité active retrouvée : aller directement à la récupération. »
+    if (next === 'recover_run') router.push('/course-live');
+    setHandedOff(true);
+  }, [ready, next, handedOff]);
+
+  // Fontes NIGHT PRINT prêtes avant TOUTE route : jamais de flash de la police
+  // système ensuite remplacée. Le splash, lui, est rendu dès le premier frame —
+  // il réserve la place du wordmark et ne le révèle qu'une fois la fonte là.
+  const covering = !fontsReady || splashCovers(outcome) || !handedOff;
+  return (
+    <View style={styles.bootRoot}>
+      {fontsReady ? children : null}
+      {covering ? <SplashE00 logoReady={fontsReady} /> : null}
+    </View>
+  );
+}
+
 export default function RootLayout() {
   const fontsReady = useAppFonts();
 
@@ -107,34 +244,22 @@ export default function RootLayout() {
     // AMENDEMENT-15 §2 : une fin de course restée hors-ligne est renvoyée
     // silencieusement à chaque lancement (idempotent par clientRunId, D14).
     void retryPendingUpload();
-    // PROPOSER LA REPRISE APRÈS CRASH (LOT 2.3, 27/07/2026 — voir
-    // `features/run/gps/crashRecovery.ts`). La donnée SURVIT déjà (buffer
-    // `runStore`, flush périodique `run_autosave`) et `course-live` sait déjà
-    // la reproposer (`RestoreRunCard`) — mais RIEN n'y menait au lancement :
-    // seul un nouveau GO y navigue. Un joueur qui rouvre l'app après un crash
-    // croyait donc sa course perdue alors qu'elle était sur le disque (spec
-    // §25.3, E00 : « activité active retrouvée : aller directement à la
-    // récupération »).
-    //
-    // UNE SEULE fois, au lancement FROID de cet effet (tableau de dépendances
-    // vide) — jamais sur le retour au premier plan (l'AppState listener
+    // ⚠ LA REPRISE APRÈS CRASH N'EST PLUS DÉCLENCHÉE ICI (E00, 27/07/2026).
+    // Elle vivait dans cet effet à dépendances vides, donc AU MONTAGE — c'est-
+    // à-dire en COURSE avec la restauration de session : l'étape 3 de la spec
+    // E00 (« restaurer une activité interrompue ») pouvait partir AVANT
+    // l'étape 1 (« lire le token local »), et son `router.push` courait contre
+    // le `<Redirect>` de `(tabs)/_layout.tsx`, qui remplace la pile entière.
+    // Elle est désormais ORDONNÉE par `<BootGate>` (plus bas), qui ne la
+    // déclenche qu'une fois le token lu, et toujours UNE SEULE fois au
+    // lancement FROID — jamais au retour au premier plan (l'AppState listener
     // ci-dessous ne fait QUE `retryPendingUpload`) : une course RÉELLEMENT en
-    // cours reste sur son écran `course-live`, qui continue de flusher son
-    // propre buffer pendant que l'app est en arrière-plan ; la reproposer à
-    // chaque retour arracherait le joueur de SA PROPRE course en train de se
-    // dérouler pour la lui « redécouvrir » par-dessus elle-même.
+    // cours reste sur son écran `course-live`, et la reproposer à chaque retour
+    // arracherait le joueur de SA PROPRE course pour la lui « redécouvrir ».
+    // Le module de décision (`features/run/gps/crashRecovery.ts`) et l'écran de
+    // reprise (`course-live` / `RestoreRunCard`, qui refait sa PROPRE
+    // réconciliation des deux clés ACTIVE/CURRENT) sont INCHANGÉS.
     //
-    // `course-live` refait ensuite sa PROPRE réconciliation complète des deux
-    // clés (ACTIVE/CURRENT) — ce déclencheur ne fait QUE décider s'il faut
-    // l'atteindre, jamais reprendre ou clôturer une course lui-même.
-    void (async () => {
-      const [active, current] = await Promise.all([loadActiveRun(), loadCurrentRun()]);
-      const decision = decideCrashRecoveryNavigation(
-        [toRecoverySnapshot(active), toRecoverySnapshot(current)],
-        Date.now(),
-      );
-      if (decision.shouldNavigate) router.push('/course-live');
-    })();
     // DÉCLENCHEUR DE REPRISE (27/07/2026, file FIFO) : le lancement ne suffit
     // pas — une app qui reste ouverte plusieurs jours ne relancerait jamais.
     // Le retour au PREMIER PLAN est le seul signal de reconnexion disponible
@@ -216,13 +341,17 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Fontes NIGHT PRINT prêtes avant tout rendu (jamais de flash de la police
-  // système ensuite remplacée). Fond carbone plein pendant le chargement — bref,
-  // les fichiers sont bundlés. En cas d'échec, useAppFonts rend `true` (fallback).
-  if (!fontsReady) {
-    return <View style={{ flex: 1, backgroundColor: colors.noir }} />;
-  }
-
+  // ATTENTE DES FONTES — plus de `return` anticipé sur un fond noir NU.
+  //
+  // Ce retour rendait un `<View>` vide, donc SANS `SessionProvider` : la
+  // restauration de session ne COMMENÇAIT même pas tant que les fontes
+  // n'étaient pas là (l'étape 1 de E00 sérialisée derrière un chargement de
+  // police), et l'écran de démarrage n'avait ni logo ni indicateur — E00
+  // n'était pas rendu, il était SUBI. Désormais le provider est monté dès le
+  // premier frame (la lecture du token part immédiatement) et `<BootGate>`
+  // porte les deux attentes derrière LE splash E00. `useAppFonts` rend `true`
+  // même en cas d'échec (fallback système) : cette attente ne peut pas être
+  // infinie.
   return (
     <SafeAreaProvider>
       <SessionProvider>
@@ -231,46 +360,57 @@ export default function RootLayout() {
         {/* La frontière d'erreur n'est PAS ici : elle enveloppe ce layout entier
             (export `ErrorBoundary` en tête de fichier), donc plus haut que ce
             JSX. Voir le commentaire de l'export. */}
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.noir },
-            animation: 'fade', // transitions sobres 200-250 ms (addendum §G)
-          }}
-        >
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(auth)/sign-in" />
-          {/* Onboarding motivationnel plein écran (AMENDEMENT-07 §8). */}
-          <Stack.Screen name="onboarding/index" />
-          {/* Écrans poussés par-dessus les tabs (AMENDEMENT-06 §3) */}
-          <Stack.Screen name="badges" />
-          <Stack.Screen name="arsenal" />
-          <Stack.Screen name="sources" />
-          {/* Performance (AMENDEMENT-17 chantier 3) : running + impact GRYD. */}
-          <Stack.Screen name="performance" />
-          <Stack.Screen name="support" />
-          <Stack.Screen name="crew-discovery" />
-          {/* Édition du crew (founder §8.1) : nom/tag/desc/recrutement/tags. */}
-          <Stack.Screen name="crew-edit" />
-          {/* Social (AMENDEMENT-07 §8) : Amis, fiche crew publique/recrutement. */}
-          <Stack.Screen name="amis" />
-          <Stack.Screen name="crew-public" />
-          {/* E26 « Profil rival · vue publique » (lien profond / QR). N'affiche
-              qu'un état honnête tant qu'O1 n'expose pas de rival consenti —
-              aucun profil fabriqué, aucune surface de l'app n'y mène. */}
-          <Stack.Screen name="profil-rival/[handle]" />
-          {/* Atterrissage d'une invitation crew (QR / lien `gryd://c/CODE`). */}
-          <Stack.Screen name="c/[code]" />
-          {/* Motivation (AMENDEMENT-07 §8) : Aujourd'hui, Challenges, réglages. */}
-          <Stack.Screen name="aujourdhui" />
-          <Stack.Screen name="challenges/index" />
-          <Stack.Screen name="challenges/[id]" />
-          <Stack.Screen name="settings-motivation" />
-          {/* Historique (AMENDEMENT-17 §CH3) : liste + détail d'une course. */}
-          <Stack.Screen name="historique" />
-          <Stack.Screen name="course/[id]" />
-        </Stack>
+        <BootGate fontsReady={fontsReady}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.noir },
+              animation: 'fade', // transitions sobres 200-250 ms (addendum §G)
+            }}
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(auth)/sign-in" />
+            {/* Onboarding motivationnel plein écran (AMENDEMENT-07 §8). */}
+            <Stack.Screen name="onboarding/index" />
+            {/* Écrans poussés par-dessus les tabs (AMENDEMENT-06 §3) */}
+            <Stack.Screen name="badges" />
+            <Stack.Screen name="arsenal" />
+            <Stack.Screen name="sources" />
+            {/* Performance (AMENDEMENT-17 chantier 3) : running + impact GRYD. */}
+            <Stack.Screen name="performance" />
+            <Stack.Screen name="support" />
+            <Stack.Screen name="crew-discovery" />
+            {/* Édition du crew (founder §8.1) : nom/tag/desc/recrutement/tags. */}
+            <Stack.Screen name="crew-edit" />
+            {/* Social (AMENDEMENT-07 §8) : Amis, fiche crew publique/recrutement. */}
+            <Stack.Screen name="amis" />
+            <Stack.Screen name="crew-public" />
+            {/* E26 « Profil rival · vue publique » (lien profond / QR). N'affiche
+                qu'un état honnête tant qu'O1 n'expose pas de rival consenti —
+                aucun profil fabriqué, aucune surface de l'app n'y mène. */}
+            <Stack.Screen name="profil-rival/[handle]" />
+            {/* Atterrissage d'une invitation crew (QR / lien `gryd://c/CODE`). */}
+            <Stack.Screen name="c/[code]" />
+            {/* Motivation (AMENDEMENT-07 §8) : Aujourd'hui, Challenges, réglages. */}
+            <Stack.Screen name="aujourdhui" />
+            <Stack.Screen name="challenges/index" />
+            <Stack.Screen name="challenges/[id]" />
+            <Stack.Screen name="settings-motivation" />
+            {/* Historique (AMENDEMENT-17 §CH3) : liste + détail d'une course. */}
+            <Stack.Screen name="historique" />
+            <Stack.Screen name="course/[id]" />
+          </Stack>
+        </BootGate>
       </SessionProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  /**
+   * Conteneur du `<BootGate>` : les enfants (le `<Stack>`) remplissent, le
+   * splash E00 se pose PAR-DESSUS en `absoluteFill`. Fond au token — jamais un
+   * `#000` en dur, jamais un blanc : même pendant un frame, l'app reste GRYD.
+   */
+  bootRoot: { flex: 1, backgroundColor: colors.noir },
+});

@@ -88,6 +88,22 @@
  * · LE `TODO fonts` du titre : il attendait une police qui n'arrivera pas — le
  *   hero prend `fonts.display`, comme la variante web.
  *
+ * ─── LA SAISIE E-MAIL A ÉTÉ EXTRAITE VERS E07 (27/07/2026) ──────────────────
+ * La spec produit donne à la connexion par e-mail son PROPRE écran (E07,
+ * `/email`, l.735) avec cinq états nommés — lien envoyé, adresse invalide,
+ * fournisseur externe, lien expiré, renvoi après délai. Les tenir repliés dans
+ * cet écran-ci lui faisait porter deux décisions à la fois (§A). Le champ, le
+ * CTA `RECEVOIR LE LIEN` et les cinq états vivent donc maintenant dans
+ * `app/(auth)/email.tsx` ; ici il ne reste qu'un CHOIX DE PORTE.
+ * Ce n'est PAS un second chemin d'authentification : E07 appelle exactement le
+ * même `requestEmailOtp` (src/lib/auth.ts) — c'est une extraction, pas un
+ * doublon. Le gate 16+ n'est pas contourné pour autant : il est reposé EN PLACE
+ * dans E07, parce que cet écran-là est atteignable directement et qu'un
+ * laissez-passer passé en paramètre serait falsifiable.
+ * ⚠️ L'étape « code à 6 chiffres » RESTE ici, pour le seul cas
+ * `EMAIL_DELIVERY !== 'link'` : E07 annonce un LIEN, l'y router quand c'est un
+ * code qui part promettrait un envoi qui n'a pas lieu.
+ *
  * ─── ÉCARTS ASSUMÉS ─────────────────────────────────────────────────────────
  * · PAS DE PLANCHE Vague 1 pour cet écran — raison : la série E01→E21 n'en
  *   contient pas. Il emprunte donc sa grammaire aux écrans recalés (kicker gris,
@@ -169,9 +185,13 @@ export default function SignInScreen() {
   const { session, loading, configured } = useSession();
   const [error, setError] = useState<Entry | null>(null);
   const [busy, setBusy] = useState(false);
-  // P0 D1 — filet email OTP (code à 6 chiffres, pas de magic-link : zéro deep link).
-  const [emailStep, setEmailStep] = useState<'hidden' | 'email' | 'code' | 'sent'>(
-    EMAIL_IS_ONLY_DOOR ? 'email' : 'hidden',
+  // FILET E-MAIL PAR CODE — et SEULEMENT par code. Le mode LIEN (l'actuel) a son
+  // écran dédié E07 `/email` : cette machine à états ne sert plus qu'au jour où
+  // un SMTP personnalisé remettra `EMAIL_DELIVERY` sur `'code'`. Elle démarre
+  // donc repliée tant que le lien est le mode courant — sinon un `autoFocus`
+  // ouvrirait le clavier sur un champ que l'écran ne peint pas.
+  const [emailStep, setEmailStep] = useState<'hidden' | 'email' | 'code'>(
+    EMAIL_DELIVERY !== 'link' && EMAIL_IS_ONLY_DOOR ? 'email' : 'hidden',
   );
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -329,10 +349,30 @@ export default function SignInScreen() {
                 />
               ) : null}
 
-              {/* P0 D1 — filet e-mail : replié tant qu'une autre porte existe (§A,
-                  l'écran garde UNE décision), ouvert d'emblée quand il est LA
-                  porte : le replier coûterait un tap pour rien. */}
-              {emailStep === 'hidden' ? (
+              {/* ── LA PORTE E-MAIL ──
+                  MODE LIEN (l'actuel, `EMAIL_DELIVERY === 'link'`) : la saisie
+                  ne vit plus ici. Elle a son écran DÉDIÉ — E07 `/email` (spec
+                  produit l.735), qui porte les cinq états nommés par la spec
+                  (envoyé, adresse invalide, fournisseur externe, lien expiré,
+                  renvoi après délai). Cet écran-ci n'est plus qu'un choix de
+                  porte : §A « 1 écran = 1 décision ». C'est une EXTRACTION, pas
+                  un second chemin — E07 appelle le même `requestEmailOtp`.
+                  Le CTA monte en chartreuse quand l'e-mail est la SEULE porte,
+                  sinon il reste au même rang que Google (ghost).
+                  MODE CODE : l'étape à 6 chiffres reste ICI, telle quelle — E07
+                  annonce un LIEN, l'y router promettrait un envoi qui n'a pas
+                  lieu. Voir `EMAIL_DELIVERY` (src/lib/auth.ts). */}
+              {EMAIL_DELIVERY === 'link' ? (
+                <Button
+                  label={t(C.emailCta)}
+                  onPress={() => router.push('/email')}
+                  variant={EMAIL_IS_ONLY_DOOR ? 'primary' : 'ghost'}
+                  size={EMAIL_IS_ONLY_DOOR ? 'lg' : 'md'}
+                  disabled={busy}
+                  analyticsId="signin_email_door"
+                />
+              ) : null}
+              {EMAIL_DELIVERY !== 'link' && emailStep === 'hidden' ? (
                 <Button
                   label={t(C.emailCta)}
                   onPress={() => setEmailStep('email')}
@@ -341,14 +381,12 @@ export default function SignInScreen() {
                   disabled={busy}
                 />
               ) : null}
-              {emailStep === 'email' ? (
+              {EMAIL_DELIVERY !== 'link' && emailStep === 'email' ? (
                 <>
                   {/* Dit AVANT la saisie ce que le code va faire : connecter un compte
                       existant, ou en créer un. C'est la porte d'entrée de celui qui
                       réinstalle — il doit savoir qu'il est au bon endroit. */}
-                  <Text style={styles.otpHint}>
-                    {t(EMAIL_DELIVERY === 'code' ? C.otpCreatesOrSignsIn : C.otpCreatesOrSignsInLink)}
-                  </Text>
+                  <Text style={styles.otpHint}>{t(C.otpCreatesOrSignsIn)}</Text>
                   {/* Champ 56 pt à LABEL PERSISTANT (planche E21) : un placeholder
                       seul disparaît à la première frappe — le champ ne dit alors
                       plus ce qu'il attend. */}
@@ -366,13 +404,11 @@ export default function SignInScreen() {
                     autoFocus
                   />
                   <Button
-                    label={t(EMAIL_DELIVERY === 'code' ? C.otpRequestCta : C.otpRequestLinkCta)}
+                    label={t(C.otpRequestCta)}
                     onPress={() => {
                       // N'avance vers la saisie du code QUE si l'envoi a réussi.
                       void run(() => requestEmailOtp(email.trim())).then((r) => {
-                        // On n'annonce QUE ce qui part vraiment : un lien sur le plan
-                        // actuel, un code le jour où un SMTP personnalisé le permet.
-                        if (r.ok) setEmailStep(EMAIL_DELIVERY === 'code' ? 'code' : 'sent');
+                        if (r.ok) setEmailStep('code');
                       });
                     }}
                     variant={EMAIL_IS_ONLY_DOOR ? 'primary' : 'ghost'}
@@ -381,22 +417,6 @@ export default function SignInScreen() {
                     disabled={!email.includes('@')}
                     analyticsId="signin_email_request"
                   />
-                </>
-              ) : null}
-              {emailStep === 'sent' ? (
-                <>
-                  <Text style={styles.otpHint}>{t(C.otpLinkSent, { email: email.trim() })}</Text>
-                  <Text style={styles.otpHint}>{t(C.otpLinkHint)}</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t(C.otpLinkResendCta)}
-                    accessibilityState={{ disabled: busy }}
-                    disabled={busy}
-                    onPress={() => void run(() => requestEmailOtp(email.trim()))}
-                    style={styles.resendHit}
-                  >
-                    <Text style={styles.otpResend}>{t(C.otpLinkResendCta)}</Text>
-                  </Pressable>
                 </>
               ) : null}
               {emailStep === 'code' ? (

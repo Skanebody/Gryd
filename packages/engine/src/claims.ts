@@ -465,3 +465,81 @@ export function deriveContextByHex(
 
   return context;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// L'AIRE DE LA BOUCLE DÉCRIT-ELLE CE QUI A ÉTÉ OBTENU, OU CE QUI A ÉTÉ ENCERCLÉ ?
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * ─── LE PROBLÈME EXACT, ET POURQUOI IL EST GRAVE ────────────────────────────
+ * `territories.area_m2` est l'aire GÉODÉSIQUE de l'ANNEAU couru. `ingest_run`
+ * l'écrit dès que TROIS conditions tiennent (`buildTerritoryRow`) : polygone non
+ * nul, intérieur non refusé, et **au moins UNE** cellule capturée. Une seule
+ * cellule sur trente suffit donc à écrire l'aire de toute la boucle.
+ *
+ * Or `decideClaims` (ce fichier) refuse des cellules INTÉRIEURES une par une :
+ * `blocked_no_capture_zone`, `blocked_privacy`, `blocked_daily_cap`, plus toutes
+ * celles qu'un rival garde (`blocked_lock`, `blocked_fresh_protection`,
+ * `blocked_shield`, `blocked_new_player`). Et l'anti-abus « boucle trop grande »
+ * (AMENDEMENT-16 §2) TRONQUE l'intérieur AVANT même d'arriver ici : ces
+ * cellules-là n'ont aucun résultat du tout.
+ *
+ * Conséquence sur l'écran de résultat : une boucle de 420 000 m² dont 3 cellules
+ * sur 30 sont capturées imprimait « 420 000 m² · SURFACE GAGNÉE ». C'est l'aire
+ * ENCERCLÉE, pas l'aire OBTENUE — et le même nombre partait dans le PNG partagé.
+ *
+ * ─── CE QUE CETTE FONCTION REND, ET CE QU'ELLE NE REND PAS ─────────────────
+ * `true` = l'intérieur de la boucle n'est PAS intégralement devenu la propriété
+ * du coureur, donc l'aire de l'anneau SURESTIME ce qu'il a gagné. Elle ne dit ni
+ * de combien, ni lesquelles : l'app n'a pas de surface exacte à substituer (la
+ * géométrie autoritaire reste l'anneau), et inventer un ratio serait remplacer
+ * un mensonge par un calcul plausible — le pire des deux. Le seul usage légitime
+ * est donc : NE PAS AFFICHER cette aire comme un gain.
+ *
+ * ─── CE QUI COMPTE COMME « À MOI APRÈS CETTE COURSE » ──────────────────────
+ * Quatre issues, et elles se justifient une à une :
+ *  · `claimed_neutral` / `stolen` — la cellule vient de changer de mains ;
+ *  · `defended` / `already_owned_cooldown` — elle était DÉJÀ à moi, et la
+ *    parcourir ne me l'enlève pas. Une boucle autour de son propre territoire
+ *    ne surestime rien : la surface est bien à moi.
+ * Tout le reste compte comme « pas à moi » — y compris `co_captured*` (LE
+ * RELAIS, A-41), qui paie une part de valeur SANS écrire de propriétaire : le
+ * coureur n'y possède rien, la surface n'est donc pas la sienne.
+ *
+ * Une cellule intérieure ABSENTE de `results` compte aussi comme « pas à moi » :
+ * c'est exactement la trace du plafond d'aire (elle n'a jamais été soumise).
+ *
+ * PURE. Aucune horloge, aucune I/O.
+ */
+export function loopInteriorPartial(input: {
+  /** Cellules INTÉRIEURES de la boucle, telles que le moteur les a retenues. */
+  readonly interiorCells: readonly string[];
+  /** Décisions par hex rendues par `decideClaims` (couloir + intérieur). */
+  readonly results: readonly HexClaimResult[];
+  /** L'anti-abus « boucle trop grande » a-t-il tronqué l'intérieur ? */
+  readonly capReached: boolean;
+}): boolean {
+  // Une troncature est par définition une surestimation : les cellules retirées
+  // ne figurent nulle part dans `results`, donc la boucle ci-dessous les verrait
+  // aussi — mais seulement si `interiorCells` les contient encore. Selon le
+  // moment où l'appelant capture cette liste, ce n'est pas garanti. On lit donc
+  // le drapeau explicitement plutôt que de dépendre d'un ordre d'appel.
+  if (input.capReached) return true;
+
+  const outcomeByHex = new Map<string, HexClaimResult['outcome']>();
+  for (const r of input.results) outcomeByHex.set(r.h3, r.outcome);
+
+  for (const hex of input.interiorCells) {
+    const outcome = outcomeByHex.get(hex);
+    if (outcome === undefined) return true;
+    switch (outcome) {
+      case 'claimed_neutral':
+      case 'stolen':
+      case 'defended':
+      case 'already_owned_cooldown':
+        continue;
+      default:
+        return true;
+    }
+  }
+  return false;
+}

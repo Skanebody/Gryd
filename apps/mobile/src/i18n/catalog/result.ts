@@ -1174,6 +1174,29 @@ export const C = defineCatalog({
     de: 'Start und Ziel verborgen',
     pt: 'Largada e chegada ocultas',
   },
+  /**
+   * ─── LES DEUX REFUS DE PUBLIER, DISTINCTS (constitution : « lecture EN COURS »
+   * n'est pas « échec de chargement », et aucun des deux n'est « rien à
+   * montrer ») ────────────────────────────────────────────────────────────────
+   * Le tracé ne s'affiche pas tant que les zones floutées du joueur ne sont pas
+   * connues : §1.5 dit qu'elles « prévalent sur tout rendu social ». Ces deux
+   * phrases disent laquelle des deux situations on est en train de vivre — sans
+   * jamais laisser croire que la course n'a pas de tracé.
+   */
+  privacyZonesLoading: {
+    fr: 'Vérification de tes zones privées…',
+    en: 'Checking your private zones…',
+    es: 'Comprobando tus zonas privadas…',
+    de: 'Deine privaten Zonen werden geprüft…',
+    pt: 'A verificar as tuas zonas privadas…',
+  },
+  privacyZonesError: {
+    fr: 'Impossible de vérifier tes zones privées. Le tracé reste caché tant qu’on n’est pas sûr.',
+    en: 'Could not check your private zones. The route stays hidden until we are sure.',
+    es: 'No se han podido comprobar tus zonas privadas. El recorrido queda oculto hasta estar seguros.',
+    de: 'Deine privaten Zonen konnten nicht geprüft werden. Die Strecke bleibt verborgen, bis es sicher ist.',
+    pt: 'Não foi possível verificar as tuas zonas privadas. O percurso fica oculto até termos a certeza.',
+  },
   shareUnavailable: {
     fr: 'Partage indisponible ici',
     en: 'Sharing unavailable here',

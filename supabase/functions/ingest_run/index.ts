@@ -106,7 +106,12 @@ import {
 // `decideOpenBoundary`, dont la discipline est REQUISE — et `boundary_open_test.ts`
 // refuse que ce fichier réimporte le moteur en direct.
 import { decideOpenBoundary } from './boundary_open.ts';
-import { decideClaims, deriveContextByHex, type HexState } from '../_shared/engine/claims.ts';
+import {
+  decideClaims,
+  deriveContextByHex,
+  type HexState,
+  loopInteriorPartial,
+} from '../_shared/engine/claims.ts';
 import {
   distributePointsAdjustment,
   streakMultiplier,
@@ -3923,6 +3928,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // proches du tracé sont capturés. » ; loopRejectedReason='narrow' →
       // « Zone non capturée : forme trop étroite. »
       ...(capReached ? { capReached: true } : {}),
+      // L'AIRE DE LA BOUCLE DÉCRIT-ELLE LE GAIN ? `territories.area_m2` porte
+      // l'anneau ENTIER, et `buildTerritoryRow` l'écrit dès qu'UNE cellule a
+      // été capturée. Ce drapeau dit au client que l'intérieur n'est pas
+      // intégralement à lui — plafond d'aire, plafond quotidien, zone privée,
+      // zone interdite, ou cellule qu'un rival garde — donc que cette aire
+      // SURESTIME ce qu'il a obtenu. Décidé par le moteur PUR, jamais ici.
+      ...(loopInteriorPartial({ interiorCells, results: decision.results, capReached })
+        ? { interiorPartial: true }
+        : {}),
       ...(loopRejectedReason !== undefined ? { loopRejectedReason } : {}),
       hexes: {
         claimed: decision.totals.claimed,

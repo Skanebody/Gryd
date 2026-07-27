@@ -22,6 +22,7 @@ import {
   type DecideClaimsContext,
   deriveContextByHex,
   type HexState,
+  loopInteriorPartial,
 } from '../_shared/engine/claims.ts';
 import { groupCaptureBonusPct } from '../_shared/engine/group.ts';
 import { coCaptureShare } from '../_shared/engine/social.ts';
@@ -640,4 +641,119 @@ Deno.test('A-41 budget quotidien : le cap tronque les points de relais SANS chan
   assertEquals(r.results.map((x) => x.points), [5, 2, 0]);
   assert(r.results.every((x) => x.outcome === 'co_captured'));
   assertEquals(r.totals.points, 7);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// L'AIRE DE LA BOUCLE : ENCERCLÉE ≠ OBTENUE (loopInteriorPartial)
+// ═══════════════════════════════════════════════════════════════════════════
+// `buildTerritoryRow` écrit `territories.area_m2` — l'aire de l'ANNEAU ENTIER —
+// dès qu'UNE seule cellule a été capturée. Sans ce verdict, l'écran de résultat
+// imprimait « 420 000 m² · SURFACE GAGNÉE » pour une boucle dont 3 cellules sur
+// 30 avaient été créditées, et le même nombre partait dans le PNG partagé.
+
+const R = (h3: string, outcome: Parameters<typeof loopInteriorPartial>[0]['results'][number]['outcome']) => ({
+  h3,
+  outcome,
+  points: 0,
+  pioneer: false,
+});
+
+Deno.test('loopInteriorPartial — intérieur entièrement capturé : l’aire décrit bien le gain', () => {
+  assertEquals(
+    loopInteriorPartial({
+      interiorCells: ['a', 'b', 'c'],
+      results: [R('a', 'claimed_neutral'), R('b', 'stolen'), R('couloir', 'claimed_neutral')],
+      capReached: false,
+    }),
+    true,
+    'précondition du test suivant : une cellule intérieure absente compte comme non obtenue',
+  );
+  assertEquals(
+    loopInteriorPartial({
+      interiorCells: ['a', 'b'],
+      results: [R('a', 'claimed_neutral'), R('b', 'stolen'), R('couloir', 'claimed_neutral')],
+      capReached: false,
+    }),
+    false,
+  );
+});
+
+Deno.test('loopInteriorPartial — courir autour de SON territoire ne surestime rien', () => {
+  // Une cellule déjà à moi reste à moi : `defended` et `already_owned_cooldown`
+  // ne sont pas des refus, ce sont des non-changements de propriétaire.
+  assertEquals(
+    loopInteriorPartial({
+      interiorCells: ['a', 'b'],
+      results: [R('a', 'defended'), R('b', 'already_owned_cooldown')],
+      capReached: false,
+    }),
+    false,
+  );
+});
+
+Deno.test('loopInteriorPartial — chaque refus d’une cellule INTÉRIEURE surestime l’aire', () => {
+  // Exactement les issues que `decideClaims` peut rendre sur une cellule que le
+  // coureur ne possédera pas à l'issue de la course.
+  const refusals = [
+    'blocked_no_capture_zone',
+    'blocked_privacy',
+    'blocked_daily_cap',
+    'blocked_lock',
+    'blocked_fresh_protection',
+    'blocked_shield',
+    'blocked_new_player',
+    'co_captured',
+    'co_captured_cooldown',
+  ] as const;
+  for (const outcome of refusals) {
+    assertEquals(
+      loopInteriorPartial({
+        interiorCells: ['a', 'b'],
+        results: [R('a', 'claimed_neutral'), R('b', outcome)],
+        capReached: false,
+      }),
+      true,
+      `${outcome} : la cellule n’est pas à moi, l’anneau surestime donc le gain`,
+    );
+  }
+});
+
+Deno.test('loopInteriorPartial — le plafond d’aire (capReached) suffit à lui seul', () => {
+  // L'anti-abus « boucle trop grande » RETIRE les cellules avant `decideClaims` :
+  // elles n'ont aucun résultat, et selon l'instant où l'appelant capture
+  // `interiorCells` elles peuvent aussi avoir disparu de la liste. On lit donc le
+  // drapeau, on ne le déduit pas d'un ordre d'appel.
+  assertEquals(
+    loopInteriorPartial({
+      interiorCells: ['a'],
+      results: [R('a', 'claimed_neutral')],
+      capReached: true,
+    }),
+    true,
+  );
+});
+
+Deno.test('loopInteriorPartial — aucune boucle : rien à surestimer', () => {
+  assertEquals(
+    loopInteriorPartial({ interiorCells: [], results: [R('couloir', 'stolen')], capReached: false }),
+    false,
+  );
+});
+
+Deno.test('loopInteriorPartial — le CAS RÉEL du signalement : 3 cellules sur 30', () => {
+  // 30 cellules intérieures, 3 créditées, 27 tombées sous MAX_CLAIMS_PER_DAY.
+  const interiorCells = Array.from({ length: 30 }, (_, i) => `hex-${i}`);
+  const results = interiorCells.map((h, i) =>
+    R(h, i < 3 ? 'claimed_neutral' : 'blocked_daily_cap'),
+  );
+  assertEquals(loopInteriorPartial({ interiorCells, results, capReached: false }), true);
+});
+
+Deno.test('loopInteriorPartial — PURE : deux appels identiques, même verdict', () => {
+  const input = {
+    interiorCells: ['a', 'b'],
+    results: [R('a', 'claimed_neutral'), R('b', 'blocked_privacy')],
+    capReached: false,
+  };
+  assertEquals(loopInteriorPartial(input), loopInteriorPartial(input));
 });

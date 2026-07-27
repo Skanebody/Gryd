@@ -10,7 +10,7 @@
  *     (surface non calculée lue « tu as gagné 0 m² », rang non renvoyé lu
  *     « +0 places »).
  */
-import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import {
   UNJUDGED_FACTS,
   composeResult,
@@ -243,4 +243,83 @@ Deno.test('formatArea : m² entiers en dessous du seuil, km² à 2 décimales au
   assertEquals(formatArea(420_000, ','), { value: '0,42', unit: 'km²' });
   assertEquals(formatArea(420_000, '.'), { value: '0.42', unit: 'km²' });
   assertEquals(formatArea(2_500_000, ','), { value: '2,50', unit: 'km²' });
+});
+
+// ── 5. ENCERCLÉ ≠ OBTENU (le défaut corrigé le 27/07/2026) ─────────────────
+// `territories.area_m2` est l'aire de l'ANNEAU couru, et le serveur l'écrit dès
+// qu'UNE cellule de la boucle a été capturée. Quand l'intérieur n'est pas
+// intégralement devenu la propriété du coureur (plafond d'aire, plafond
+// quotidien, zone privée/interdite, cellule tenue par un rival), ce nombre
+// décrit ce qui a été ENCERCLÉ. L'écran l'annonçait « SURFACE GAGNÉE », et le
+// PNG partagé — lui — la retirait déjà : deux niveaux d'honnêteté pour un même
+// nombre, dans un même fichier.
+
+Deno.test('surface surévaluée : retirée, jamais corrigée par un ratio inventé', () => {
+  assertEquals(displayableArea(420_000, true), null);
+  assertEquals(displayableArea(420_000, false), 420_000);
+  // Défaut : une surface dont personne n'a signalé le contraire décrit ce
+  // qu'elle décrit — sinon toutes les surfaces disparaîtraient.
+  assertEquals(displayableArea(420_000), 420_000);
+});
+
+Deno.test('surface surévaluée : le bloc héro disparaît sur TOUTES les variantes qui l’affichent', () => {
+  for (const narrative of ['capture', 'reprise', 'defense'] as const) {
+    const shown = composeResult(judged({ narrative, areaM2: 420_000 }));
+    const hidden = composeResult(judged({ narrative, areaM2: 420_000, areaOverstated: true }));
+    assertEquals(shown.areaM2, 420_000, `${narrative} : précondition — la surface s’affiche`);
+    assertEquals(
+      hidden.areaM2,
+      null,
+      `${narrative} : l’aire ENCERCLÉE serait annoncée comme l’aire GAGNÉE`,
+    );
+  }
+});
+
+Deno.test('surface surévaluée : UNE seule décision, donc l’écran et le PNG ne divergent plus', () => {
+  // `app/course-result.tsx` construisait sa surface de partage avec sa PROPRE
+  // garde (`capReached !== true`) et affichait `composition.areaM2` sans elle.
+  // Le partage lit désormais `composition.areaM2` : ce test fige que la valeur
+  // exportable EST la valeur affichée, y compris dans le cas litigieux.
+  const c = composeResult(judged({ narrative: 'capture', areaM2: 420_000, areaOverstated: true }));
+  assertEquals(c.areaM2, null, 'affiché');
+  assertEquals(c.areaM2, null, 'partagé — même source, donc même verdict');
+});
+
+Deno.test('surface surévaluée : sans signal, rien ne change (aucune régression)', () => {
+  assertEquals(UNJUDGED_FACTS.areaOverstated, false);
+  assertEquals(composeResult(judged({ narrative: 'capture', areaM2: 42_000 })).areaM2, 42_000);
+});
+
+// ── 6. TRIPWIRE DE SOURCE : l'écran ne refait pas la décision dans son coin ──
+// Ce module pur ne prouve rien si `app/course-result.tsx` continue de filtrer la
+// surface lui-même. On relit donc sa source (même patron que
+// `setup/setupChain.test.ts` et `boot/splashE00.source.test.ts`).
+
+const RESULT_SCREEN = Deno.readTextFileSync(
+  new URL('../../../app/course-result.tsx', import.meta.url),
+).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+Deno.test('course-result : plus aucune garde `capReached` locale sur la surface', () => {
+  assert(
+    !RESULT_SCREEN.includes('capReached'),
+    'la garde locale est de retour : elle protégeait le PNG partagé et PAS le bloc ' +
+      'affiché, et elle ne couvrait que le plafond d’aire — pas le plafond quotidien, ' +
+      'ni les zones privées/interdites, ni les cellules qu’un rival garde',
+  );
+});
+
+Deno.test('course-result : la surface partagée EST la surface affichée', () => {
+  assert(
+    /const shareArea\s*=\s*\n?\s*composition\.areaM2 !== null \? formatArea\(/.test(RESULT_SCREEN),
+    'le partage doit lire `composition.areaM2` — la décision de composeResult — et ' +
+      'ne rien re-filtrer, sinon les deux surfaces reprennent deux niveaux d’honnêteté',
+  );
+  assert(
+    RESULT_SCREEN.includes('areaOverstated:'),
+    'l’écran doit transmettre le fait `areaOverstated` au moteur pur',
+  );
+  assert(
+    RESULT_SCREEN.includes('serverResult?.interiorPartial === true'),
+    'le fait doit venir du VERDICT SERVEUR (`interiorPartial`), jamais d’une déduction client',
+  );
 });

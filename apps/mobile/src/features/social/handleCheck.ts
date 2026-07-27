@@ -28,6 +28,7 @@
  * abandonné écraserait celui du handle en cours de frappe).
  */
 import { useEffect, useRef, useState } from 'react';
+import { HANDLE_CHECK_DEBOUNCE_MS, HANDLE_MIN_LENGTH } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
 
@@ -49,12 +50,23 @@ export type HandleCheck =
   | { state: 'refused'; reason: HandleRefusal }
   | { state: 'unknown' };
 
-/** Délai de repos avant d'interroger le serveur (ms). Une frappe normale ne
- *  déclenche donc qu'UNE requête, pas une par caractère. */
-const DEBOUNCE_MS = 450;
-
-/** Longueur minimale avant même de déranger le serveur (miroir de 0011). */
-const MIN_LEN = 3;
+/**
+ * Délai de repos avant d'interroger le serveur (ms) et longueur minimale avant
+ * même de déranger le serveur.
+ *
+ * ⚠️ CE FICHIER PORTAIT SES PROPRES LITTÉRAUX (`DEBOUNCE_MS = 450`,
+ * `MIN_LEN = 3`), écrits quand `game-rules.ts` n'avait pas encore ces deux
+ * constantes. Elles y sont depuis (`HANDLE_CHECK_DEBOUNCE_MS`,
+ * `HANDLE_MIN_LENGTH`), et ce module est le SEUL qui exécute réellement le
+ * debounce et le seuil d'appel de la RPC : garder une copie locale rendait la
+ * source unique décorative — changer 450 → 700 dans game-rules n'aurait rien
+ * changé au comportement. Les alias ci-dessous sont des IMPORTS, pas des
+ * valeurs : « aucun nombre magique » (CLAUDE.md) est tenu, et la longueur
+ * affichée par E08 (`handleTooShort` avec `{n}`) et le seuil appliqué ici ne
+ * peuvent plus diverger.
+ */
+const DEBOUNCE_MS = HANDLE_CHECK_DEBOUNCE_MS;
+const MIN_LEN = HANDLE_MIN_LENGTH;
 
 const REFUSALS: readonly string[] = ['too_short', 'too_long', 'bad_chars', 'reserved', 'taken'];
 

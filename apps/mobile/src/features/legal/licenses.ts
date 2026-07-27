@@ -45,7 +45,7 @@ export const UNDECLARED: LicenseId = 'UNDECLARED';
  * Les exclure explicitement vaut mieux que les oublier dans l'instantané, où ils
  * ressembleraient à un tiers non crédité.
  */
-export const WORKSPACE_PACKAGES: readonly string[] = ['@klaim/shared'];
+export const WORKSPACE_PACKAGES: readonly string[] = ['@klaim/shared', '@klaim/engine'];
 
 /**
  * LES FAMILLES DE LICENCE QUE LE DOCUMENT COUVRE — une section par famille dans

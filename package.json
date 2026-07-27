@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "test:e2e:web": "playwright test --project=web",
     "test:e2e:mobile": "playwright test --project=mobile",
-    "test:packages": "deno test --allow-read --allow-env packages/"
+    "test:packages": "deno test --allow-read --allow-env packages/",
+    "audit:routes": "node scripts/audit-routes.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0"

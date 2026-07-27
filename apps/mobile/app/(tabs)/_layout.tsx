@@ -62,12 +62,35 @@
  * l'accès d'un drapeau d'âge stocké localement est ce qui a briqué l'app une
  * fois (cf. entête de `(auth)/sign-in.tsx`) : le gate légal vit au point de
  * CRÉATION de compte, jamais dans une garde de route.
+ *
+ * ─── TROISIÈME GARDE : LE PREMIER USAGE (E08 → E09 → E10 → carte) ──────────
+ * Ajoutée le 27/07/2026. Une fois la session acquise, il reste une question :
+ * ce compte a-t-il un profil minimal ? La réponse ne se DEVINE pas — elle se LIT
+ * dans `public.user_profiles` (`features/setup/minimalProfile.ts`), et la
+ * décision qu'on en tire est PURE et testée (`features/setup/firstRun.ts`).
+ *
+ * C'est le SEUL point de décision du parcours, délibérément. Les écrans d'auth
+ * (E06 `sign-in`, E07 `email`) se contentent de rendre `<Redirect href="/" />`
+ * après une authentification réussie : ils n'ont pas à savoir ce qu'il reste à
+ * configurer, et deux gardes sur la même question finiraient par diverger (c'est
+ * exactement ce qui est arrivé au fork onboarding/session, corrigé le 21/07).
+ *
+ * Trois propriétés à ne pas casser :
+ *  · un échec de lecture N'EST PAS un profil absent — on n'envoie alors personne
+ *    dans E08, où son propre @handle lui serait refusé (« déjà pris ») ;
+ *  · pendant la lecture on ne tranche pas : on rend l'écran E00 (`SplashE00`),
+ *    la même surface que le démarrage vient de montrer ;
+ *  · un joueur dont le profil est LU comme présent ne retraverse JAMAIS
+ *    E08/E09/E10.
  */
 import { Redirect, Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { colors } from '@klaim/shared';
+import { SplashE00 } from '../../src/features/boot/SplashE00';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
 import { useOnboardingState } from '../../src/features/onboarding/store';
+import { SETUP_ENTRY, decideFirstRun } from '../../src/features/setup/firstRun';
+import { useMinimalProfile } from '../../src/features/setup/minimalProfile';
 import { C } from '../../src/i18n/catalog/nav';
 import { useT } from '../../src/i18n/store';
 import { useSession } from '../../src/lib/session';
@@ -75,6 +98,9 @@ import { useSession } from '../../src/lib/session';
 export default function TabsLayout() {
   const { session, loading, configured } = useSession();
   const { state: onboarding, status: onboardingStatus } = useOnboardingState();
+  // ⚠️ Règle des hooks : déclaré AVANT tout retour anticipé. Il ne déclenche
+  // aucune requête tant qu'il n'y a ni backend ni session (`shouldStartRead`).
+  const minimalProfile = useMinimalProfile(session?.user?.id ?? null);
   const t = useT();
 
   // Restauration de session en cours : fond noir muet (splash implicite).
@@ -94,6 +120,33 @@ export default function TabsLayout() {
     const seen = onboardingStatus === 'ready' && onboarding.onboardingDone;
     return <Redirect href={seen ? '/sign-in' : '/onboarding'} />;
   }
+
+  // ── PORTE DU PREMIER USAGE (E08 → E09 → E10 → carte) ──────────────────────
+  // Elle vient APRÈS la garde d'auth, et c'est l'ordre qui la rend juste : sans
+  // session il n'y a pas de profil à lire, et l'écran de connexion doit gagner.
+  //
+  // Le drapeau ne se DEVINE pas, il se LIT : `useMinimalProfile` interroge
+  // `user_profiles` (le juge est la table, pas le téléphone — voir l'entête de
+  // `features/setup/firstRun.ts`). La décision, elle, est PURE et testée :
+  // `decideFirstRun` distingue les quatre états sans jamais les confondre, et
+  // en particulier n'envoie JAMAIS dans E08 sur un échec de lecture.
+  //
+  // C'est le SEUL point de décision du parcours. Les écrans d'auth se
+  // contentent de rendre `<Redirect href="/" />` : ils n'ont pas à savoir ce
+  // qu'il reste à configurer, et deux gardes sur la même question finiraient
+  // par diverger.
+  const firstRun = decideFirstRun({
+    configured,
+    hasSession: session !== null,
+    profile: minimalProfile,
+  });
+  // Lecture EN COURS : on ne tranche pas, et on ne peint pas non plus un fond
+  // noir muet. C'est la MÊME surface E00 que le démarrage vient de montrer
+  // (logo, indicateur discret au-delà du seuil de la spec) : la continuité
+  // visuelle est exacte, et « ça travaille » reste dit. Les fontes sont
+  // forcément prêtes ici — `app/_layout.tsx` ne monte le `<Stack>` qu'après.
+  if (firstRun === 'wait') return <SplashE00 logoReady />;
+  if (firstRun === 'setup') return <Redirect href={SETUP_ENTRY} />;
 
   return (
     <View style={styles.root}>

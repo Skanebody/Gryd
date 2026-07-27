@@ -123,6 +123,27 @@ export interface ResultFacts {
    * cellules : convertir des hexagones en surface ici serait un chiffre inventé.
    */
   readonly areaM2: number | null;
+  /**
+   * CETTE SURFACE DÉCRIT-ELLE CE QUI A ÉTÉ ENCERCLÉ PLUTÔT QU'OBTENU ?
+   *
+   * `territories.area_m2` est l'aire GÉODÉSIQUE de l'ANNEAU couru, et le serveur
+   * l'écrit dès qu'UNE seule cellule de la boucle a été capturée
+   * (`buildTerritoryRow` : polygone non nul, intérieur non refusé,
+   * `capturedCellCount > 0`). Quand l'intérieur n'est pas intégralement devenu
+   * la propriété du coureur — plafond d'aire (`capReached`), plafond quotidien,
+   * zone privée, zone non capturable, cellule qu'un rival garde — cette aire
+   * SURESTIME le gain. Le serveur le dit : `IngestRunResponse.interiorPartial`,
+   * décidé par `loopInteriorPartial` (moteur pur).
+   *
+   * `composeResult` retire alors la surface. Il ne la remplace pas : aucune
+   * surface exacte n'est calculable, et un ratio inventé serait un chiffre
+   * plausible et faux. Une absence n'est pas un mensonge ; une surface
+   * surévaluée en est un — et elle partait aussi dans le PNG partagé.
+   *
+   * `false` par défaut dans `UNJUDGED_FACTS` : sans verdict serveur il n'y a
+   * de toute façon aucune surface lue à afficher.
+   */
+  readonly areaOverstated: boolean;
   /** Niveau de protection obtenu (`territories.defense_level`). `null` = inconnu. */
   readonly protectionLevel: number | null;
   /** Échéance de contestation ÉVITÉE (ISO 8601). `null` = aucune lue. */
@@ -159,6 +180,7 @@ export const UNJUDGED_FACTS: ResultFacts = {
   openBoundary: null,
   loopRejectedNarrow: false,
   areaM2: null,
+  areaOverstated: false,
   protectionLevel: null,
   deadlineAvoidedAt: null,
   defendedAt: null,
@@ -243,7 +265,18 @@ export function deadlineAvoidedHours(
  * Refuse le non-fini, le négatif et le zéro : `territories.area_m2` à 0 veut
  * dire « la base n'a pas su calculer », pas « tu as gagné zéro mètre carré ».
  */
-export function displayableArea(areaM2: number | null | undefined): number | null {
+export function displayableArea(
+  areaM2: number | null | undefined,
+  /**
+   * L'aire décrit-elle l'anneau ENCERCLÉ plutôt que le gain ? (voir
+   * `ResultFacts.areaOverstated`.) Vrai ⇒ rien à afficher : l'écran ne peut ni
+   * l'annoncer comme un gain, ni la corriger — aucune surface exacte n'existe.
+   * Défaut `false` : une surface dont personne n'a signalé le contraire est
+   * réputée décrire ce qu'elle décrit.
+   */
+  overstated: boolean = false,
+): number | null {
+  if (overstated) return null;
   if (typeof areaM2 !== 'number' || !Number.isFinite(areaM2)) return null;
   if (areaM2 <= 0) return null;
   return areaM2;
@@ -325,11 +358,17 @@ export function composeResult(facts: ResultFacts): ResultComposition {
   const variant = variantOf(facts);
   return {
     variant,
-    // La surface n'a de sens que là où une zone a changé de main ou été tenue.
+    // La surface n'a de sens que là où une zone a changé de main ou été tenue —
+    // ET seulement si elle décrit ce qui a été OBTENU. `areaOverstated` (verdict
+    // serveur `interiorPartial`) la retire sinon : sur une boucle dont
+    // l'intérieur a été tronqué, `territories.area_m2` porte l'anneau entier, et
+    // l'annoncer « SURFACE GAGNÉE » serait afficher l'aire encerclée pour l'aire
+    // gagnée. UN SEUL endroit décide, et le partage lit ce même champ : l'écran
+    // et le PNG exporté ne peuvent plus avoir deux niveaux d'honnêteté.
     areaM2:
       variant === 'conquest' || variant === 'reprise' || variant === 'defense' ||
       variant === 'crewContribution'
-        ? displayableArea(facts.areaM2)
+        ? displayableArea(facts.areaM2, facts.areaOverstated)
         : null,
     rankChange: displayableRankChange(facts.rankChange),
     previousOwner: variant === 'reprise' ? facts.previousOwner : null,

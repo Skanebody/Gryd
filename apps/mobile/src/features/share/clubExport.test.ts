@@ -58,8 +58,25 @@ const northLine = (count: number, stepM: number): LatLngPoint[] =>
     lng: HOME.lng,
   }));
 
-/** 2 km de trace : largement de quoi survivre à une coupe de 250 m aux deux bouts. */
-const LONG_TRACE = northLine(101, 20);
+/** 1 m en degrés de LONGITUDE à la latitude de HOME. */
+const LNG_DEG_PER_M = 1 / (111_320 * Math.cos((HOME.lat * Math.PI) / 180));
+
+/**
+ * 2 km de trace SINUEUSE : largement de quoi survivre à une coupe de 250 m aux
+ * deux bouts, et surtout assez de relief pour que la SIMPLIFICATION (§12.1,
+ * `applySharePrivacy` étape 3) laisse des sommets à compter.
+ *
+ * Pourquoi pas une ligne droite (ce qu'était cette fixture jusqu'au 27/07/2026) :
+ * Douglas-Peucker réduit une droite à ses deux bouts, quel que soit ce qu'on lui
+ * donne. Toutes les assertions de ce fichier qui comparent des NOMBRES de points
+ * (« la zone a mordu », « une coupe plus large retire davantage ») devenaient
+ * alors vraies-vides — 3 points contre 3 points. La fixture doit ressembler à une
+ * course, sinon elle ne teste plus le pipeline mais son cas dégénéré.
+ */
+const LONG_TRACE: readonly LatLngPoint[] = Array.from({ length: 101 }, (_, i) => ({
+  lat: HOME.lat + i * 20 * DEG_PER_M,
+  lng: HOME.lng + Math.sin(i / 2) * 40 * LNG_DEG_PER_M,
+}));
 
 /**
  * Largeurs d'aperçu RÉELLES de /partage (`PREVIEW_WIDTH`) et aspects réels de

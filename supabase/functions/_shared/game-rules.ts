@@ -629,6 +629,36 @@ export const MIN_AGE_YEARS = 16;
 export const SHARE_TRIM_M = 250;
 
 /**
+ * §12.1 / §E35 « Confidentialité — avant export : […] simplifier la carte » —
+ * tolérance (mètres) du Douglas-Peucker appliqué au tracé AVANT qu'il parte dans
+ * une image publique.
+ *
+ * CE N'EST PAS UN DOUBLON DE `SHARE_TRIM_M` (250 m) : celui-là COUPE les deux
+ * extrémités (le domicile), celui-ci DÉGRADE la résolution de TOUT ce qui reste.
+ * Un tracé coupé aux bouts reste, entre les deux, une carte au mètre près :
+ * quel trottoir, quelle contre-allée, quelle entrée d'immeuble traversée — assez
+ * pour rejouer un itinéraire. Les deux règles sont donc cumulatives, jamais
+ * alternatives.
+ *
+ * POURQUOI 15 m. C'est la première valeur qui efface l'échelle du BÂTIMENT tout
+ * en gardant celle du QUARTIER : 15 m ≈ la largeur d'une rue, donc « quel côté
+ * de la rue » cesse d'être lisible, alors que la forme de la boucle (le seul
+ * fait que la card raconte) reste intacte. C'est aussi sous le pixel utile du
+ * rendu : une card 1080 px sur un cadrage de 2 km donne ~1,9 m/px, l'écart
+ * maximal introduit tient donc dans ~8 px — invisible à l'œil, décisif pour qui
+ * essaierait de géolocaliser une habitude.
+ *
+ * ÉCHELLE, pour situer les trois tolérances du projet (elles ne servent pas la
+ * même chose et ne doivent pas être confondues) :
+ *   · `GPS_DECIMATE_EPSILON_M` = 2 m  → allègement du PAYLOAD, sous le bruit GPS ;
+ *   · `SHARE_SIMPLIFY_EPSILON_M` = 15 m → confidentialité d'un rendu PUBLIC ;
+ *   · `territory.ts SIMPLIFY_TOLERANCE_M` = 24 m → lissage des CONTOURS d'hexes.
+ *
+ * TUNABLE (à la hausse seulement : baisser réduirait la protection annoncée).
+ */
+export const SHARE_SIMPLIFY_EPSILON_M = 15;
+
+/**
  * §1.5 — « La publication d'un nouveau territoire est différée de 60 minutes
  * par défaut. » Alimente `territories.publish_after` (migration 0074, colonne
  * `not null` SANS défaut : c'est l'ÉCRIVAIN qui décide l'instant, jamais le
@@ -1482,6 +1512,92 @@ export const GROUP_RUN_HEX_SHARE_MIN = 0.7;
 export const SAME_CREW_CONTRIB_STEPS = [1, 0.3, 0.2, 0.1] as const;
 /** Handle @ social (AMENDEMENT-07 §4, doc §44) : minuscules/chiffres/_, 3-20. */
 export const HANDLE_REGEX = /^[a-z0-9_]{3,20}$/;
+
+// ─── §E07 « Connexion par e-mail » — le RENVOI APRÈS DÉLAI ───────────────────
+/**
+ * §E07 (spec produit l.735, état « renvoi après délai ») — secondes à attendre,
+ * après un envoi ACCEPTÉ par le serveur, avant que « Renvoyer le lien » soit
+ * armé.
+ *
+ * 60 s, et ce n'est PAS un choix d'ergonomie : c'est la cadence RÉELLE de
+ * l'expéditeur. GoTrue applique un `SMTP_MAX_FREQUENCY` (60 s par défaut, la
+ * valeur de l'expéditeur intégré Supabase que ce projet utilise — cf. l'entête
+ * de `apps/mobile/src/lib/auth.web.ts` sur le plan gratuit) : un second envoi
+ * demandé plus tôt est REFUSÉ (`over_email_send_rate_limit`). Armer le bouton
+ * avant ce délai peindrait donc une action qui échoue toujours — exactement le
+ * bouton mort que la constitution §2 interdit. Le compte à rebours ne « punit »
+ * personne : il DIT l'attente que le serveur impose de toute façon.
+ *
+ * ⚠️ CE NOMBRE DÉCRIT UN SERVEUR, il ne le commande pas. Si l'expéditeur change
+ * (SMTP personnalisé, `SMTP_MAX_FREQUENCY` différent), c'est ICI qu'on le
+ * recale — et l'écran suit. Le descendre sous la cadence réelle réarmerait un
+ * bouton condamné à un refus ; le monter au-delà ferait attendre pour rien.
+ *
+ * Ce n'est pas la durée de vie du lien (1 h côté GoTrue, `mailer_otp_exp`) :
+ * celle-là est dite au joueur en copie (catalog/authEmail `sentHint`) et n'est
+ * pas une constante de jeu — l'app ne la mesure jamais, elle la subit.
+ */
+export const AUTH_EMAIL_RESEND_DELAY_S = 60;
+
+// ─── §E08 « Création du profil minimal » — le @handle, en pièces nommées ─────
+// `HANDLE_REGEX` ci-dessus reste LE juge (il est le miroir exact du `check` de
+// la migration 0011 et de la RPC 0047 : on ne le dérive pas d'une concaténation
+// de constantes, sinon un jour la base et le client ne diraient plus la même
+// chose). Ce qui suit l'ÉCLATE en pièces utilisables par l'écran — longueurs,
+// jeu de caractères, cadence de vérification, nombre de repêchages — parce que
+// E08 doit AFFICHER « 3 caractères minimum », filtrer la frappe et rythmer ses
+// requêtes, et qu'aucune de ces trois choses ne se fait avec une regex ancrée.
+//
+// ⚠️ INVARIANT : ces trois-là DÉCRIVENT `HANDLE_REGEX`, elles ne le
+// redéfinissent pas. Changer l'un sans l'autre casse le contrat client/serveur.
+
+/** §E08 — longueur minimale d'un @handle. Miroir de `HANDLE_REGEX` / 0011. */
+export const HANDLE_MIN_LENGTH = 3;
+/** §E08 — longueur maximale d'un @handle. Miroir de `HANDLE_REGEX` / 0011. */
+export const HANDLE_MAX_LENGTH = 20;
+/**
+ * §E08 — jeu de caractères autorisé, exprimé CARACTÈRE PAR CARACTÈRE (non
+ * ancré, contrairement à `HANDLE_REGEX`). Sert au FILTRE de saisie : l'écran
+ * écarte la frappe interdite au lieu de laisser taper puis de gronder. ASCII
+ * strict et volontairement : le @handle sert d'identifiant d'URL publique
+ * (`profileLink.ts`) — un accent y serait ré-encodé, et deux graphies
+ * différentes pourraient viser le même profil.
+ */
+export const HANDLE_ALLOWED_CHAR_REGEX = /[a-z0-9_]/;
+/**
+ * §E08 « handle vérifié en temps réel avec debounce » — repos (ms) après la
+ * dernière frappe avant d'interroger `check_handle_available` (RPC 0047).
+ *
+ * 450 ms : au-dessus de l'intervalle entre deux frappes d'une saisie normale
+ * (~150-250 ms), donc un pseudo tapé d'un trait ne déclenche QU'UNE requête au
+ * lieu d'une par caractère ; en dessous du seuil où le verdict paraît en retard
+ * sur la frappe. Le champ n'est JAMAIS gelé pendant ce délai (handleCheck.ts
+ * règle 2) : ce nombre borne un TRAFIC, il ne bloque aucune saisie.
+ *
+ * SUSPENS REFERMÉ (27/07/2026) : `apps/mobile/src/features/social/handleCheck.ts`
+ * — le SEUL module qui exécute réellement ce debounce et ce seuil — importe
+ * désormais ces deux constantes au lieu d'en porter une copie
+ * (`DEBOUNCE_MS = HANDLE_CHECK_DEBOUNCE_MS`, `MIN_LEN = HANDLE_MIN_LENGTH`).
+ * Changer la valeur ici change donc le comportement, ce qui n'était pas le cas
+ * tant que le littéral 450 vivait là-bas.
+ */
+export const HANDLE_CHECK_DEBOUNCE_MS = 450;
+/**
+ * §E08 « suggestions en cas d'indisponibilité » — combien on en propose.
+ *
+ * TROIS. §A (« 1 écran = 1 décision », « comprendre l'écran en moins de 3 s ») :
+ * les suggestions sont un REPÊCHAGE sous un champ, pas un menu. Trois pills de
+ * ~20 caractères tiennent sur une ligne à 375 px sans troncature (§A : aucun
+ * texte d'action coupé) ; six en imposeraient deux et transformeraient un
+ * dépannage en second choix à faire. C'est aussi le plancher de la fourchette
+ * « 3 à 6 choix maximum » que la spec pose pour l'éditeur E36.
+ *
+ * Ce nombre borne l'AFFICHAGE. Il n'affirme rien sur la disponibilité : chaque
+ * suggestion reste soumise au serveur au moment de l'enregistrement, exactement
+ * comme une saisie manuelle (le client n'attribue jamais un @handle).
+ */
+export const HANDLE_SUGGESTION_COUNT = 3;
+
 /**
  * Anti-collusion (§11, approx MVP) : nombre d'alternances de reprise d'un même
  * hex entre les DEUX mêmes crews au-delà duquel le bonus vol est retiré (statut
@@ -1836,6 +1952,26 @@ export const LOOP_MIN_WIDTH_M = 80;
  */
 export const LOOP_HINT_DISTANCE_M = 600;
 export const LOOP_PREVIEW_DISTANCE_M = 300;
+
+// ─── E00 « Splash / restauration de session » (spec produit l.547-577) ───────
+/**
+ * Seuil (ms) au-delà duquel le splash E00 a le DROIT de montrer un indicateur
+ * discret. En dessous, RIEN ne bouge : un démarrage à froid normal (session
+ * déjà en cache, aucune course interrompue) se résout en quelques dizaines de
+ * millisecondes, et faire clignoter un spinner sur cette durée fabrique une
+ * impression de lenteur que l'app n'a pas.
+ *
+ * Chiffre SPÉCIFIÉ par la spec (« indicateur discret uniquement si le
+ * chargement dépasse 600 ms », l.550) — d'où sa place ici et non dans un
+ * fichier UI, exactement comme LOOP_HINT_DISTANCE_M au-dessus, lui aussi une
+ * mise en scène chiffrée par la spec.
+ *
+ * ⚠ Ce n'est PAS un délai maximum : le splash ne « part » jamais tout seul au
+ * bout de 600 ms. Il part quand la séquence de démarrage a réellement fini
+ * (features/boot/bootSequence.ts). Ce seuil ne gouverne QUE l'apparition de
+ * l'indicateur — un chargement n'affirme rien sur le joueur.
+ */
+export const SPLASH_INDICATOR_DELAY_MS = 600;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // §9 spec unifiée — Contestation & défense POLYGONALE (27/07/2026, audit

@@ -2,14 +2,30 @@
  * GRYD — PARTAGE DE LA COURSE AFFICHÉE (AMENDEMENT-22 §7, UI en scènes) :
  *
  *   ← Résultat
- *   Partager ta conquête / ta défense / ta course   ← titre selon l'intention
+ *   Partager ta conquête …            [ 🔒 Protégé ]  ← badge PERMANENT, détail au tap
  *      [ preview story qui FLOTTE — la story EST le container ]
- *      🔒 Protégé · Départ et arrivée masqués       ← badge PERMANENT (E10)
- *   Format  [ Story | Portrait | Carré | Carte seule ]  ← segmented (surface)
- *   Style   [ Auto | Carte | Conquête | Défense ]   ← rangée de modes narratifs
- *   Pourquoi ce style ? Tu as repris une zone…      ← la raison, MÊME moteur
+ *   Pourquoi ce style ? Tu as repris…   Personnaliser ← la raison (MÊME moteur) + E36
  *   [ Partager en story ]                           ← UN SEUL gros CTA chartreuse
- *      ○ Sticker   ○ Rejouer   ○ Autre app          ← actions légères, zéro card
+ *      Instagram · TikTok · WhatsApp · Plus         ← destinations RÉELLEMENT joignables
+ *      ○ Sticker   ○ Rejouer                        ← actions légères, zéro card
+ *
+ * ─── RECALAGE E10/E35/E36 (27/07/2026) ──────────────────────────────────────
+ * Trois choses ont bougé, et aucune n'est cosmétique :
+ *  1. FORMAT et STYLE ne sont plus deux segmenteds à plat : ils ont DÉMÉNAGÉ
+ *     dans le sheet « Personnaliser » (features/share/CustomizeSheet.tsx), une
+ *     section à la fois, avec Donnée / Texte / Confidentialité. Ils n'y sont pas
+ *     dupliqués — l'écran garde UNE décision et un seul CTA (§A).
+ *  2. La rangée « Sticker · Rejouer · Autre app » devient la rangée de
+ *     DESTINATIONS de la planche. « Autre app » ≡ « Plus » (la feuille système),
+ *     donc il disparaît d'ici. Sticker et Rejouer restent en actions légères :
+ *     ce ne sont pas des réglages de carte, ce sont des actions.
+ *     Ce qui est peint est décidé par `resolveShareTargets` (pur, testé) : tant
+ *     qu'aucun pont natif n'existe, Instagram et TikTok ne sont PAS peints —
+ *     ouvrir Instagram sans lui remettre l'image serait un bouton mort (§2).
+ *  3. Le badge « Protégé » est PERMANENT, en haut à droite, et son DÉTAIL
+ *     s'ouvre au tap (`ProtectedBadge` + `protectionLines`). Un badge permanent
+ *     ne peut plus porter une promesse figée : ce qui est protégé dépend de
+ *     l'état réel du pipeline, jusqu'à « aucun tracé n'est publié ».
  *
  * ─── LE MOTEUR CHOISIT LE RÉCIT, L'UTILISATEUR CHANGE LE STYLE (planche E10) ─
  * Le style par défaut ne vient PLUS de l'intention du joueur (ce qu'il voulait
@@ -83,17 +99,38 @@
  * CÂBLÉES ; en web/démo, capture & Share natives indisponibles → toasts. En
  * prod : ViewShot + Share + expo-media-library (O1).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, elevation, fontSizes, motion, radii, type Activity } from '@klaim/shared';
+import {
+  colors,
+  fonts,
+  elevation,
+  fontSizes,
+  motion,
+  radii,
+  sizes,
+  spacing,
+  type Activity,
+} from '@klaim/shared';
 import { EVENTS, screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { goBack } from '../src/lib/nav';
 import { useSession } from '../src/lib/session';
 import { Icon } from '../src/ui/Icon';
-import { IconAction, Segmented, ShareCard, type ShareCardRatio } from '../src/ui/game';
+// `Segmented` a quitté cet écran avec les rangées Format/Style : il vit
+// désormais dans les sections du sheet (features/share/CustomizeSheet.tsx).
+import { IconAction, SHARE_CARD_ASPECT, ShareCard, type ShareCardRatio } from '../src/ui/game';
 import { C, resultCopy, type ResultActivityCopy } from '../src/i18n/catalog/result';
 // La discipline arrive par l'URL, et son PARSING appartient au domaine du
 // DÉPART : on l'importe au lieu de réécrire une reconnaissance locale, qui
@@ -108,16 +145,44 @@ import { ShareMap } from '../src/features/share/ShareMap';
 import { SHARE_COPY } from '../src/features/share/copy';
 import { getShareRun, type ShareRunData } from '../src/features/share/shareRun';
 import {
-  SHARE_TEMPLATES,
   SHARE_TEMPLATES_BY_ID,
+  UNIT_KM,
+  factsOf,
+  heroLabel,
   type ShareDemoData,
   type ShareTemplateId,
   type ShareView,
 } from '../src/features/share/templates';
-import { applySharePrivacy } from '../src/features/share/sharePrivacy';
+import {
+  HERO_METRICS,
+  contextParts,
+  heroMetricAvailable,
+  heroValueFor,
+  type HeroMetricId,
+} from '../src/features/share/cardModel';
+import {
+  applySharePrivacy,
+  SHARE_SIMPLIFY_EPSILON_M,
+  SHARE_TRIM_M,
+} from '../src/features/share/sharePrivacy';
+import {
+  CUSTOMIZE_SECTIONS,
+  changedSections,
+  protectionLines,
+  type ComposerDraft,
+} from '../src/features/share/composerModel';
+import { CustomizeSheet } from '../src/features/share/CustomizeSheet';
+import { ShareDestinations } from '../src/features/share/ShareDestinations';
+import { ProtectedBadge } from '../src/features/share/ProtectedBadge';
+import {
+  pillDestinations,
+  resolveShareTargets,
+  type ResolvedShareTarget,
+  type ShareMediaKind,
+  type SharePlatform,
+} from '../src/features/share/shareTargets';
 import { buildShareLink, defaultShareTarget } from '../src/features/share/shareDeepLink';
 import {
-  openShareSheet,
   shareAsImage,
   shareStickerImage,
   stickerText,
@@ -132,6 +197,8 @@ import {
 } from '../src/features/share/narrative';
 import { StickerCard } from '../src/features/share/StickerCard';
 import { usePrivacyPrefs } from '../src/features/privacy/store';
+import { zonesForPublication } from '../src/features/privacy/zones';
+import { usePrivacyZones } from '../src/features/privacy/zonesStore';
 import { type RunIntention } from '../src/features/run/intention';
 import { GripMascot } from '../src/features/social/GripMascot';
 import { useMyEconomy } from '../src/features/social/economy';
@@ -145,36 +212,69 @@ import { gripRankForLevel, playerLevelForXp } from '../src/features/crew/rules';
 const FORMATS: readonly {
   id: ShareCardRatio;
   label: Entry;
-  icon: 'partage' | 'carte';
 }[] = [
   // Libellés courts (les ratios 9:16/4:5/1:1 étaient décoratifs — « Story »
   // implique 9:16, « Portrait » 4:5, « Carré » 1:1). Entries i18n résolues au
   // rendu (t) — parité 5 langues forcée par le type. Strip défilant : aucun
   // libellé n'est jamais tronqué même à 4 options (§A.9).
-  { id: 'story', label: C.formatStory, icon: 'partage' },
+  // Plus d'ICÔNE depuis que le choix vit dans le sheet : deux formats la
+  // partageaient (« partage » pour story ET feed), donc elle ne distinguait
+  // rien — un pictogramme qui ne discrimine pas est du bruit (§A).
+  { id: 'story', label: C.formatStory },
   // 4:5 — imposé par la planche E10 (9:16 · 4:5 · 1:1). L'aspect existait déjà
   // (SHARE_CARD_ASPECT.feed) et n'était simplement pas proposé.
-  { id: 'feed', label: C.formatFeed, icon: 'partage' },
-  { id: 'square', label: C.formatSquare, icon: 'carte' },
-  { id: 'mapOnly', label: C.formatMapOnly, icon: 'carte' },
+  { id: 'feed', label: C.formatFeed },
+  { id: 'square', label: C.formatSquare },
+  { id: 'mapOnly', label: C.formatMapOnly },
 ];
 
 /**
- * Rangée de modes narratifs (planche E10 : « Auto · Impact · Photo · Avant/Après
- * · Plus »). AUTO est en tête : c'est le choix du MOTEUR, et c'est le défaut.
+ * Modes narratifs (planche E10 : « Auto · Impact · Photo · Avant/Après · Plus »).
+ * AUTO est en tête : c'est le choix du MOTEUR, et c'est le défaut.
  *
- * « Photo » est délibérément ABSENT : `expo-image-picker` est bien installé,
- * mais `NSPhotoLibraryUsageDescription` (app.json) déclare EXPLICITEMENT au
- * système un usage « photo de profil » uniquement. Peindre un mode Photo sans
- * élargir cette chaîne serait un bouton incohérent avec la promesse faite à
- * l'utilisateur au moment de la permission — et app.json est hors périmètre.
+ * ⚠️ « PHOTO » EST DÉLIBÉRÉMENT ABSENT — ICI ET DANS LE SHEET (E36).
+ * `expo-image-picker` est bien installé, mais `apps/mobile/app.json` déclare
+ * `NSPhotoLibraryUsageDescription` pour un usage PHOTO DE PROFIL uniquement.
+ * Peindre un mode Photo ferait servir à un autre usage une permission demandée
+ * pour celui-là : l'app dirait une chose au système et en ferait une autre.
+ * Élargir cette chaîne est une décision de FONDATION (app.json + revue App
+ * Store), pas un choix d'écran — c'est écrit ici et dans `composerModel.ts`,
+ * à l'endroit exact où la section serait ajoutée.
+ *
+ * Depuis le recalage E10/E35 (27/07/2026), cette rangée ne vit plus À PLAT sur
+ * l'écran : Format et Style ont DÉMÉNAGÉ dans le sheet « Personnaliser » (une
+ * section à la fois), ils n'y sont pas dupliqués. L'écran garde une seule
+ * décision (partager) et un seul CTA chartreuse.
  */
 const STYLE_AUTO = 'auto' as const;
 type StyleChoice = typeof STYLE_AUTO | ShareTemplateId;
 
-/** Styles proposés d'emblée ; « Plus de styles » déplie les restants. */
-const STYLE_MAIN: readonly ShareTemplateId[] = ['simple', 'conquete', 'defense'];
-const STYLE_EXTRA: readonly ShareTemplateId[] = [
+/** Même convention pour le chiffre héros : `auto` = celui que le template choisit. */
+const HERO_AUTO = 'auto' as const;
+type HeroChoice = typeof HERO_AUTO | HeroMetricId;
+
+/**
+ * L'état que le sheet « Personnaliser » modifie. C'est le `ComposerDraft` PUR
+ * (composerModel.ts, testable en Deno) RENARROWÉ sur les types de l'écran : le
+ * modèle ne connaît ni les formats de card ni les templates — les connaître
+ * l'obligerait à importer l'UI et il cesserait d'être testable hors React.
+ */
+interface ComposerState extends ComposerDraft {
+  readonly ratio: ShareCardRatio;
+  readonly style: StyleChoice;
+  readonly hero: HeroChoice;
+}
+
+/**
+ * Ordre des styles dans la section « Style ». Un seul tableau depuis que le
+ * choix vit dans un sheet défilant : le dépliage « +3 styles » (et son bouton
+ * qui pouvait n'ouvrir sur rien quand le verdict filtrait tous les extras) n'a
+ * plus de raison d'être.
+ */
+const STYLE_ORDER: readonly ShareTemplateId[] = [
+  'simple',
+  'conquete',
+  'defense',
   'boucle',
   'crew',
   'classement',
@@ -223,6 +323,25 @@ const STYLE_LABEL: Record<ShareTemplateId, Entry> = {
   carte3d: C.styleMap3d,
 };
 
+/**
+ * Libellé de CHIP de la section « Donnée » (planche E10) — un par grandeur du
+ * chiffre héros. Cinq réutilisent le libellé que la CARTE imprime déjà
+ * (`C.zonesStatLabel`, `heroLabelHeld/Bonus/Crew/Rank`) : le chip et l'image
+ * doivent nommer la même grandeur du même mot. Trois n'en avaient pas, parce
+ * que sur la carte elles portent une unité (« km », « m² ») ou rien du tout
+ * (une durée se lit seule) — un chip, lui, doit être nommé.
+ */
+const HERO_PICK_LABEL: Record<HeroMetricId, Entry> = {
+  surface: SHARE_COPY.heroPickSurface,
+  zones: C.zonesStatLabel,
+  defended: C.heroLabelHeld,
+  loop: C.heroLabelBonus,
+  crew: C.heroLabelCrew,
+  rank: C.heroLabelRank,
+  distance: SHARE_COPY.heroPickDistance,
+  duration: SHARE_COPY.heroPickDuration,
+};
+
 /** Styles dont la carte porte un VRAI tracé animable (bouton Rejouer pertinent). */
 const ANIMATABLE_STYLES: readonly ShareTemplateId[] = [
   'simple',
@@ -239,6 +358,15 @@ const PREVIEW_WIDTH: Record<ShareCardRatio, number> = {
   feed: 280,
   mapOnly: 264,
 };
+
+/**
+ * Largeur du MINI-aperçu du sheet (E36 : « aperçu ; onglet actif ; 3 à 6 choix
+ * maximum ; CTA APPLIQUER »). Volontairement petit : il est là pour montrer que
+ * le brouillon CHANGE quelque chose, pas pour relire la carte — celle-ci est en
+ * grand derrière, et le sheet se ferme. Même largeur pour tous les ratios : la
+ * hauteur suit l'aspect, donc la vignette reste une vignette.
+ */
+const MINI_PREVIEW_WIDTH = 116;
 
 /**
  * Aiguillage : une course est armée → l'aperçu réel ; sinon → l'état vide qui
@@ -338,14 +466,22 @@ function SharePreview({ run }: { run: ShareRunData }) {
     !statsOnlyShare && isTemplateId(params.template) ? params.template : STYLE_AUTO,
   );
   const [ratioRaw, setRatio] = useState<ShareCardRatio>('story');
+  /**
+   * CHIFFRE HÉROS choisi par l'utilisateur (section « Donnée », planche E10) :
+   * `auto` = celui du template. Toute autre valeur passe par la MÊME garde que
+   * le reste (`heroMetricAvailable`, cardModel.ts) — un chiffre indisponible ne
+   * peut pas être sélectionné, donc jamais rendu.
+   */
+  const [heroChoice, setHeroChoice] = useState<HeroChoice>(HERO_AUTO);
+  /** Section « Texte » : imprimer ou non les deux textes OPTIONNELS de la carte. */
+  const [showChallenge, setShowChallenge] = useState(true);
+  const [showContext, setShowContext] = useState(true);
+  /** Le sheet « Personnaliser » (E36) est-il ouvert ? */
+  const [customizing, setCustomizing] = useState(false);
   /** Cible de l'export PNG (D6) : le conteneur EXACT de la ShareCard. */
   const cardShotRef = useRef<View | null>(null);
   /** Cible de l'export du STICKER PNG transparent (monté hors écran). */
   const stickerShotRef = useRef<View | null>(null);
-  // « +3 styles » ouvre le choix complet (déplié aussi si on arrive sur un extra).
-  const [stylesExpanded, setStylesExpanded] = useState<boolean>(
-    isTemplateId(params.template) ? STYLE_EXTRA.includes(params.template) : false,
-  );
   // Rejouer l'animation de la preview (doc §4.8 « Replay Conquête » — free =
   // replay animé in-app, honnête : la trace se redessine et la zone se remplit).
   // `fullReplay` : l'ENTRÉE de l'aperçu joue la partition comprimée (l'écran est
@@ -353,13 +489,34 @@ function SharePreview({ run }: { run: ShareRunData }) {
   const [replayKey, setReplayKey] = useState(0);
   const [fullReplay, setFullReplay] = useState(false);
 
-  // MASQUAGE PRIVACY (doc §9) : par défaut on retire départ/arrivée du tracé
-  // PARTAGÉ. La zone conquise reste entière (territoire public, pas la position).
-  const { prefs } = usePrivacyPrefs();
+  // ═══ MASQUAGE PRIVACY (§12.1) — TROIS ÉTAPES, PAS UNE ══════════════════════
+  // 1. coupe des extrémités (SHARE_TRIM_M), RÉGLABLE par le joueur ;
+  // 2. exclusion de ses zones floutées, lues en base (`usePrivacyZones`) ;
+  // 3. simplification de la trace, NON réglable — c'est une règle du produit.
+  // La zone conquise reste entière (territoire public, pas la position).
+  //
+  // `maskEndpoints` désactivé ne rend PLUS la trace brute : il passe `trimM = 0`
+  // dans le pipeline, qui applique quand même zones et simplification. Le
+  // réglage gouverne les 250 m, pas la §12.1 entière.
+  // `update` : le sheet « Personnaliser » peut rebasculer `maskEndpoints`, qui
+  // est le MÊME réglage persistant que l'écran Confidentialité (il le dit).
+  const { prefs, update: updatePrivacy } = usePrivacyPrefs();
   const maskEndpoints = prefs.maskEndpoints;
+  // Les zones floutées PRÉVALENT sur tout rendu social (§1.5) : tant qu'on ne
+  // les connaît pas, on ne dessine RIEN — publier « en attendant » parierait
+  // que le joueur n'en a déclaré aucune, et une image publiée ne se rattrape pas.
+  const zonesRead = usePrivacyZones();
+  const zonePublication = useMemo(() => zonesForPublication(zonesRead), [zonesRead]);
   const safeTrace = useMemo(
-    () => (maskEndpoints ? applySharePrivacy(runCard.trace) : runCard.trace),
-    [maskEndpoints, runCard.trace],
+    () =>
+      zonePublication.ready
+        ? applySharePrivacy(
+            runCard.trace,
+            maskEndpoints ? SHARE_TRIM_M : 0,
+            zonePublication.zones,
+          )
+        : [],
+    [maskEndpoints, runCard.trace, zonePublication],
   );
   // Le tracé de CETTE course est-il connu ? (le Résultat arme `trace: []` pour
   // une vraie course : ingest_run ne renvoie pas encore la géométrie). Tout ce
@@ -392,11 +549,19 @@ function SharePreview({ run }: { run: ShareRunData }) {
   // Normalisation : un choix intenable (deep link `?template=conquete` sur une
   // course sans capture, masquage qui vient de raboter la trace…) retombe sur le
   // choix du MOTEUR — jamais sur une affirmation que le serveur n'a pas faite.
-  const selected: ShareTemplateId = useMemo(() => {
-    if (choice !== STYLE_AUTO && canRender(choice)) return choice;
-    return canRender(autoStyle) ? autoStyle : 'simple';
-  }, [choice, canRender, autoStyle]);
-  const ratio: ShareCardRatio = !hasKnownRoute && ratioRaw === 'mapOnly' ? 'story' : ratioRaw;
+  const normalizeStyle = useCallback(
+    (c: StyleChoice): ShareTemplateId => {
+      if (c !== STYLE_AUTO && canRender(c)) return c;
+      return canRender(autoStyle) ? autoStyle : 'simple';
+    },
+    [canRender, autoStyle],
+  );
+  const normalizeRatio = useCallback(
+    (r: ShareCardRatio): ShareCardRatio => (!hasKnownRoute && r === 'mapOnly' ? 'story' : r),
+    [hasKnownRoute],
+  );
+  const selected: ShareTemplateId = normalizeStyle(choice);
+  const ratio: ShareCardRatio = normalizeRatio(ratioRaw);
 
   useEffect(() => {
     // Preview auto-générée (doc §12 : share_preview_generated). Émis ICI et pas
@@ -404,10 +569,19 @@ function SharePreview({ run }: { run: ShareRunData }) {
     track(EVENTS.shareCardGenerated, { template: selected });
   }, []);
 
-  const template = useMemo(
-    () => SHARE_TEMPLATES.find((t) => t.id === selected) ?? SHARE_TEMPLATES_BY_ID.conquete,
-    [selected],
+  /**
+   * LES FAITS de cette course, projetés une seule fois pour tout l'écran
+   * (`factsOf`, templates.tsx — la MÊME projection que les cards). C'est lui qui
+   * décide quelles grandeurs la section « Donnée » a le droit de proposer : une
+   * grandeur indisponible n'est pas grisée, elle n'est pas peinte (§2).
+   */
+  const facts = useMemo(() => factsOf(runCard), [runCard]);
+  const normalizeHero = useCallback(
+    (h: HeroChoice): HeroMetricId | null =>
+      h !== HERO_AUTO && heroMetricAvailable(h, facts) ? h : null,
+    [facts],
   );
+
   // État de RENDU injecté dans chaque carte : anime + rejoue + fournit le tracé
   // DÉJÀ masqué (privacy). La preview est animée d'entrée (story auto, doc §7.2).
   // captured=false en social_run : aucune capture → la zone ne se remplit pas.
@@ -422,49 +596,97 @@ function SharePreview({ run }: { run: ShareRunData }) {
     [replayKey, safeTrace, statsOnlyShare, fullReplay],
   );
 
-  // Le badge « Protégé · départ et arrivée masqués » n'est HONNÊTE que sur une
-  // carte qui rend RÉELLEMENT la trace tronquée (les templates SVG animables,
-  // hors « Carte seule »). La Carte 3D / mapOnly rend une boucle FERMÉE
-  // (départ = arrivée) et ne peut pas refléter le masquage → pas de badge
-  // menteur là-dessus. Cette garde EXISTAIT et reste intacte : le recalage rend
-  // le badge PERMANENT (planche E10) sur tous les styles qui le méritent, il ne
-  // l'étend pas à ceux qui ne le méritent pas.
-  const traceShown = hasKnownRoute && ANIMATABLE_STYLES.includes(selected) && ratio !== 'mapOnly';
-
-  const cardProps = useMemo(() => {
-    // La card projette les VRAIES valeurs du run (runCard). `privacyNote` =
-    // badge de confiance §9, seulement là où la trace tronquée est visible.
-    const built = {
-      ...template.build(runCard, view),
-      privacyNote: traceShown ? privacyNote : undefined,
-    };
-    // « Carte seule » (AMENDEMENT-24) : la carte EN GRAND quel que soit le
-    // style — si le template n'a pas déjà son propre fond carte (les 5 SVG),
-    // on injecte une carte plein cadre. Le style choisi ne règle alors QUE le
-    // KPI/la ligne (chrome minimale). Toujours la carte SVG du tracé réellement
-    // couru : la 3D (`ShareMap3D`) est une géométrie de démo FIGÉE (République)
-    // et n'a plus d'aperçu d'exemple où s'afficher. « Carte seule » n'est de
-    // toute façon pas proposé quand le tracé est inconnu (voir `formatOptions`).
-    if (ratio === 'mapOnly' && built.mapBackground === undefined) {
-      return {
-        ...built,
-        mapBackground: (
-          <View style={styles.previewMapFill}>
-            <ShareMap
-              style={styles.previewMapSquare}
-              animated={view.animated}
-              replayKey={view.replayKey}
-              trace={view.trace ?? []}
-              captured={view.captured}
-              fullReplay={view.fullReplay}
-            />
-          </View>
-        ),
+  /**
+   * LA CARTE, POUR UN ÉTAT DONNÉ. Une seule fabrique, appelée deux fois : par
+   * l'aperçu de l'écran (état COMMITÉ) et par le mini-aperçu du sheet (état
+   * BROUILLON). Deux fabriques auraient fini par diverger, et le sheet aurait
+   * montré une image que le partage n'aurait pas produite — dans un écran dont
+   * toute la promesse est « la preview EST le média exporté » (planche E10).
+   */
+  const buildCard = useCallback(
+    (s: ComposerState, v: ShareView) => {
+      const templateId = normalizeStyle(s.style);
+      const r = normalizeRatio(s.ratio);
+      // Le badge « départ et arrivée masqués » DANS l'image n'est honnête que
+      // sur une carte qui rend RÉELLEMENT la trace tronquée (templates SVG
+      // animables, hors « Carte seule » : mapOnly rend une boucle fermée et ne
+      // peut pas refléter le masquage).
+      const shows = hasKnownRoute && ANIMATABLE_STYLES.includes(templateId) && r !== 'mapOnly';
+      let built = {
+        ...SHARE_TEMPLATES_BY_ID[templateId].build(runCard, v),
+        privacyNote: shows ? privacyNote : undefined,
       };
-    }
-    return built;
+
+      // ─── CHIFFRE HÉROS CHOISI (section « Donnée ») ────────────────────────
+      // On ne recalcule RIEN : `heroValueFor` et `heroLabel` sont exactement les
+      // fonctions que la card utilise, et `contextParts` retire du contexte la
+      // grandeur passée en géant — sinon la même mesure serait affirmée deux
+      // fois sur la même image.
+      const hero = normalizeHero(s.hero);
+      if (hero !== null) {
+        const value = heroValueFor(hero, facts);
+        if (value !== null) {
+          const ctx = contextParts(facts, hero, UNIT_KM).join(' · ');
+          built = {
+            ...built,
+            stat: value,
+            statLabel: heroLabel(hero, facts),
+            title: ctx === '' ? undefined : ctx,
+          };
+        }
+      }
+
+      // ─── SECTION « TEXTE » : on RETIRE, on n'ajoute jamais ────────────────
+      // Masquer un texte vrai n'est pas un mensonge ; en inventer un le serait.
+      if (!s.showChallenge) built = { ...built, challenge: undefined };
+      if (!s.showContext) built = { ...built, title: undefined };
+
+      // « Carte seule » (AMENDEMENT-24) : la carte EN GRAND quel que soit le
+      // style — si le template n'a pas déjà son propre fond carte (les 5 SVG),
+      // on injecte une carte plein cadre. Le style choisi ne règle alors QUE le
+      // KPI/la ligne (chrome minimale). Toujours la carte SVG du tracé réellement
+      // couru : la 3D (`ShareMap3D`) est une géométrie de démo FIGÉE (République)
+      // et n'a plus d'aperçu d'exemple où s'afficher. « Carte seule » n'est de
+      // toute façon pas proposé quand le tracé est inconnu (voir `formatOptions`).
+      if (r === 'mapOnly' && built.mapBackground === undefined) {
+        built = {
+          ...built,
+          mapBackground: (
+            <View style={styles.previewMapFill}>
+              <ShareMap
+                style={styles.previewMapSquare}
+                animated={v.animated}
+                replayKey={v.replayKey}
+                trace={v.trace ?? []}
+                captured={v.captured}
+                fullReplay={v.fullReplay}
+              />
+            </View>
+          ),
+        };
+      }
+      return { props: built, ratio: r, templateId, traceShown: shows };
+    },
     // `t` (stable par langue) force la re-construction des cards à la bascule.
-  }, [template, ratio, runCard, view, privacyNote, traceShown, t]);
+    [normalizeStyle, normalizeRatio, normalizeHero, runCard, privacyNote, hasKnownRoute, facts, t],
+  );
+
+  /** L'état COMMITÉ — celui que l'écran rend et que le partage exporte. */
+  const committed: ComposerState = useMemo(
+    () => ({
+      ratio: ratioRaw,
+      style: choice,
+      hero: heroChoice,
+      showChallenge,
+      showContext,
+      maskEndpoints,
+    }),
+    [ratioRaw, choice, heroChoice, showChallenge, showContext, maskEndpoints],
+  );
+
+  const card = useMemo(() => buildCard(committed, view), [buildCard, committed, view]);
+  const cardProps = card.props;
+  const traceShown = card.traceShown;
 
   // DEEP LINK de la story (doc §6.4) : UN lien par partage, dérivé de
   // l'intention/zone/crew + du style choisi. Attaché à tous les partages.
@@ -481,68 +703,70 @@ function SharePreview({ run }: { run: ShareRunData }) {
     [intention, runCard.zoneName, runCard.crewName, selected],
   );
 
-  // ─── RANGÉE DE MODES NARRATIFS (planche E10) ───────────────────────────────
-  // « Auto » en TÊTE (le choix du moteur, réversible), puis les styles qui
-  // peuvent être TENUS par cette course (`canRender` : verdict + géométrie +
-  // boucle). Un style qui affirmerait une conquête non jugée n'apparaît pas du
-  // tout — plutôt une option en moins qu'une image qui ment.
+  // ─── LES OPTIONS DU SHEET « PERSONNALISER » (E36) ──────────────────────────
+  // Toutes suivent la même règle : on ne propose QUE ce que cette course peut
+  // tenir. Une option en moins vaut mieux qu'une image qui ment (§2).
+
+  /**
+   * STYLES. « Auto » en tête (le choix du moteur, réversible), puis les styles
+   * TENABLES (`canRender` : verdict + géométrie + crew).
+   *
+   * LISTE VIDE quand il n'y a rien à choisir : en social_run (aucune capture
+   * possible, un seul visuel honnête) ou quand un seul style est tenable —
+   * « Auto » et lui produiraient alors la MÊME image, donc deux boutons sans
+   * conséquence (§A r.1). La section le DIT au lieu de peindre un faux choix.
+   */
   const styleOptions = useMemo(() => {
-    const shown = stylesExpanded ? [...STYLE_MAIN, ...STYLE_EXTRA] : STYLE_MAIN;
+    const tenable = STYLE_ORDER.filter(canRender);
+    if (statsOnlyShare || tenable.length < 2) return [];
     return [
       { id: STYLE_AUTO as StyleChoice, label: t(C.styleAuto) },
-      ...shown
-        .filter(canRender)
-        .map((id) => ({ id: id as StyleChoice, label: t(STYLE_LABEL[id]) })),
+      ...tenable.map((id) => ({ id: id as StyleChoice, label: t(STYLE_LABEL[id]) })),
     ];
-  }, [stylesExpanded, canRender, t]);
-
-  /**
-   * Reste-t-il des styles à déplier ? Sans cette garde, « +3 styles » pouvait
-   * n'ouvrir sur RIEN (tous les extras filtrés par le verdict) — un bouton qui
-   * ne fait rien est un bouton mort (§A).
-   */
-  const hasHiddenStyles = useMemo(
-    () => !stylesExpanded && STYLE_EXTRA.some(canRender),
-    [stylesExpanded, canRender],
-  );
-
-  /**
-   * Y a-t-il vraiment un CHOIX ? Quand un seul style est tenable (typiquement
-   * « Carte », le repli honnête d'une course que le serveur n'a pas jugée), la
-   * rangée n'offre que « Auto » et lui — deux boutons qui produisent la MÊME
-   * image. C'est un contrôle sans conséquence, donc un contrôle mort (§A r.1) :
-   * on le retire, et la phrase « Pourquoi ce style ? » reste pour dire POURQUOI
-   * il n'y a rien à choisir. Un écran = une décision.
-   */
-  const styleChoiceMatters = useMemo(
-    () => [...STYLE_MAIN, ...STYLE_EXTRA].filter(canRender).length >= 2,
-    [canRender],
-  );
+  }, [canRender, statsOnlyShare, t]);
 
   // Formats : « Carte seule » (la carte EN GRAND) n'a aucun sens — et serait un
   // cadre vide — quand le tracé de cette course est inconnu. On ne le propose pas.
   const formatOptions = useMemo(
-    () =>
-      FORMATS.filter((f) => f.id !== 'mapOnly' || hasKnownRoute).map((f) => ({
-        id: f.id,
+    () => FORMATS.filter((f) => f.id !== 'mapOnly' || hasKnownRoute).map((f) => ({
+        id: f.id as ShareCardRatio,
         label: t(f.label),
-        icon: f.icon,
       })),
     [hasKnownRoute, t],
   );
 
-  const pickStyle = (id: StyleChoice) => {
-    setChoice(id);
-    // On trace le style RÉELLEMENT rendu (« auto » n'est pas un template) :
-    // l'analytics doit refléter l'image vue, pas l'étiquette du bouton.
-    track(EVENTS.shareTemplateChanged, {
-      template: id === STYLE_AUTO ? autoStyle : id,
-    });
-  };
-  const expandStyles = () => {
-    haptics.light();
-    setStylesExpanded(true);
-  };
+  /**
+   * DONNÉE (planche E10). « Auto » + les grandeurs RÉELLEMENT disponibles dans
+   * les faits de cette course (`heroMetricAvailable`) : la surface n'apparaît
+   * que si `territories.area_m2` a été lue, le rang que si une saison en fournit
+   * un, la durée que si elle a été mesurée. Une grandeur absente n'est pas
+   * grisée — elle n'est pas peinte.
+   *
+   * Moins de 2 grandeurs ⇒ liste VIDE : « Auto » et l'unique grandeur donneraient
+   * la même image.
+   */
+  const heroOptions = useMemo(() => {
+    const available = HERO_METRICS.filter((m) => heroMetricAvailable(m, facts));
+    if (available.length < 2) return [];
+    return [
+      { id: HERO_AUTO as HeroChoice, label: t(C.styleAuto) },
+      ...available.map((m) => ({ id: m as HeroChoice, label: t(HERO_PICK_LABEL[m]) })),
+    ];
+  }, [facts, t]);
+
+  /**
+   * TEXTE. On ne propose un interrupteur que pour un texte que la carte porte
+   * RÉELLEMENT : la capsule de défi n'existe pas sur tous les récits, et la
+   * ligne de contexte est vide quand ni crew, ni rang, ni mesure ne sont connus.
+   * Un interrupteur sur un texte absent serait un contrôle sans effet.
+   */
+  const textParts = useMemo(() => {
+    const bare = buildCard({ ...committed, showChallenge: true, showContext: true }, view);
+    return {
+      challenge: bare.props.challenge !== undefined,
+      context: bare.props.title !== undefined,
+    };
+  }, [buildCard, committed, view]);
 
   // Le style courant porte-t-il un vrai tracé animable (bouton Rejouer utile) ?
   const canReplay = ANIMATABLE_STYLES.includes(selected);
@@ -651,6 +875,122 @@ function SharePreview({ run }: { run: ShareRunData }) {
           ? { label: t(C.shareMapCta), channel: 'instagram_feed' as const }
           : { label: t(C.shareStoryCta), channel: 'instagram_story' as const };
 
+  /** Export de la card (feuille système) — la même action que la CTA primaire. */
+  const shareCurrentCard = (channel: string) =>
+    runAction(
+      shareAsImage(cardShotRef.current, shareMessage),
+      (via) => (via === 'image' ? t(C.storyExported) : t(C.storyReady)),
+      channel,
+      (via) => {
+        // P1 D6 — share_exported = une IMAGE a réellement été produite
+        // (≠ share_card_generated, la preview React ; ≠ share_completed, qui
+        // compte aussi le filet texte).
+        if (via === 'image') track(EVENTS.shareExported, { ratio, channel });
+      },
+    );
+
+  // ═══ DESTINATIONS NOMMÉES (planche E10 : Instagram · TikTok · WhatsApp · Plus)
+  /**
+   * CE QU'ON A VRAIMENT DANS LES MAINS, et c'est ça qui décide la rangée.
+   * Sur natif, la CTA rasterise la card : le média est une IMAGE (story pour le
+   * 9:16, post pour les autres formats). Sur le web, `captureRef` n'existe pas —
+   * `shareAsImage` retombe sur `openShareSheet`, donc le média est un TEXTE, et
+   * le prétendre autrement peindrait des destinations qui ne recevraient jamais
+   * l'image (constitution §2 : l'affichage se dérive de la capacité RÉELLE).
+   */
+  const sharePlatform: SharePlatform =
+    Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+  const shareMedia: ShareMediaKind =
+    Platform.OS === 'web' ? 'text' : ratio === 'story' ? 'story_image' : 'post_image';
+  /**
+   * Aucune sonde (`probes`) n'est passée, et ce n'est pas un oubli :
+   * `DECLARED_QUERIES` est VIDE des deux côtés (app.json ne déclare aucun
+   * `LSApplicationQueriesSchemes`, et Android exige un config plugin). Une sonde
+   * `canOpenURL` sur un schéma non déclaré répond `false` par construction — la
+   * mesure n'aurait pas lieu, elle coûterait un avertissement iOS pour une
+   * réponse inutilisable. Aucun `bridges` non plus : aucun pont n'est embarqué
+   * (voir shareTargets.ts). Conséquence VISIBLE et assumée : Instagram et TikTok
+   * ne sont pas peints aujourd'hui.
+   */
+  const destinations = useMemo(
+    () =>
+      resolveShareTargets({
+        platform: sharePlatform,
+        media: shareMedia,
+        text: shareMessage,
+      }),
+    [sharePlatform, shareMedia, shareMessage],
+  );
+  /**
+   * LA RANGÉE NE REFAIT PAS LE GESTE DU CTA (§A). La pastille « Plus » ouvre la
+   * feuille système — exactement ce que fait le CTA chartreuse quinze lignes
+   * plus bas (`shareCurrentCard` → `shareAsImage` → feuille de partage). Deux
+   * contrôles pour une seule action sont un contrôle de trop, et ce fichier se
+   * l'interdisait déjà pour « Autre app » : le doublon avait juste changé de
+   * côté. `pillDestinations` (pur, testé) retire la feuille système ; sur natif
+   * il ne reste alors RIEN et la rangée disparaît, sur le web WhatsApp survit
+   * (destination réellement distincte) avec sa note d'absence.
+   */
+  const destinationPills = useMemo(
+    () => pillDestinations(destinations.targets),
+    [destinations.targets],
+  );
+
+  const pickDestination = (target: ResolvedShareTarget) => {
+    // INTENTION, pas partage : l'event le dit lui-même (events.ts). La remise
+    // réelle se mesure avec `share_exported` / `share_completed`.
+    track(EVENTS.shareChannelTapped, { channel: target.id });
+    // `os_share_sheet` n'arrive plus ici : `pillDestinations` l'a retiré parce
+    // que c'est le CTA chartreuse lui-même. La branche reste, et c'est délibéré
+    // — elle est le FILET si la rangée reprend un jour la feuille système, et
+    // sans elle un tap tomberait dans le message d'échec ci-dessous, c'est-à-dire
+    // mentirait sur une action qui, elle, marche.
+    if (target.open.via === 'os_share_sheet') {
+      shareCurrentCard(target.id);
+      return;
+    }
+    if (target.open.via === 'url') {
+      const url = target.open.url;
+      haptics.light();
+      // Aucun `share_completed` ici, volontairement : `openURL` ne dit que
+      // « l'OS a pris l'URL », jamais que le joueur a envoyé son message. Le
+      // compter comme un partage abouti gonflerait le KPI d'un pas qui n'a
+      // peut-être pas eu lieu.
+      void Linking.openURL(url).catch(() => toast.show(t(SHARE_COPY.channelHandoffFailed)));
+      return;
+    }
+    // `native_sdk` / `android_intent` exigent un PONT que ce build n'embarque
+    // pas — `resolveShareTargets` ne peut donc pas les rendre aujourd'hui. Si
+    // ça arrivait quand même, on le DIT plutôt que de ne rien faire en silence.
+    toast.show(t(SHARE_COPY.channelHandoffFailed));
+  };
+
+  // ═══ SHEET « PERSONNALISER » (E36) ═════════════════════════════════════════
+  const applyCustomize = (next: ComposerState) => {
+    const changed = changedSections(committed, next);
+    setRatio(next.ratio);
+    setChoice(next.style);
+    setHeroChoice(next.hero);
+    setShowChallenge(next.showChallenge);
+    setShowContext(next.showContext);
+    if (next.maskEndpoints !== maskEndpoints) {
+      // Réglage PERSISTANT (le même que l'écran Confidentialité) — pas un état
+      // d'écran. Le sheet le dit à l'utilisateur (`privacyEndpointsGlobal`).
+      void updatePrivacy({ maskEndpoints: next.maskEndpoints });
+    }
+    // Un `APPLIQUER` qui ne change rien n'émet RIEN : l'analytics ne doit pas
+    // compter des réglages fantômes.
+    for (const section of CUSTOMIZE_SECTIONS) {
+      if (changed.includes(section)) track(EVENTS.shareCustomizeApplied, { tab: section });
+    }
+    if (changed.includes('style')) {
+      // On trace le style RÉELLEMENT rendu (« auto » n'est pas un template) :
+      // l'analytics doit refléter l'image vue, pas l'étiquette du bouton.
+      track(EVENTS.shareTemplateChanged, { template: normalizeStyle(next.style) });
+    }
+    setCustomizing(false);
+  };
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -674,7 +1014,40 @@ function SharePreview({ run }: { run: ShareRunData }) {
           <Text style={styles.backText}>{t(C.backToResult)}</Text>
         </Pressable>
 
-        <Text style={styles.title}>{title}</Text>
+        {/* ─── EN-TÊTE : titre + BADGE « PROTÉGÉ » (planche E10 : « header
+             `Partager` + badge `🛡 Protégé` », E35 : « badge Protégé en haut
+             droite ») ────────────────────────────────────────────────────────
+             TROIS DÉFAUTS CORRIGÉS D'UN COUP (27/07/2026) :
+              · il était rendu en `View`, donc AUCUN détail au tap — la planche
+                l'exige (« Badge 🛡 Protégé permanent, détail au tap ») ;
+              · il vivait SOUS l'aperçu et centré, pas en haut à droite ;
+              · il était conditionné à `traceShown && privacyNote`, donc
+                intermittent — la planche le veut PERMANENT.
+             Permanent oblige à ne plus figer sa promesse dans son libellé : le
+             badge ne dit QUE « Protégé », et le détail (ProtectedBadge +
+             `protectionLines`, pur et testé) énumère ce qui est protégé DANS
+             CETTE SITUATION — jusqu'à « aucun tracé n'est publié » quand il n'y
+             a rien à masquer. Le libellé « départ et arrivée masqués » reste,
+             lui, DANS l'image (`privacyNote`) là où la trace tronquée est
+             réellement visible.
+             POSITION : haut-droite du BLOC d'aperçu, sur la ligne du titre —
+             et non posé PAR-DESSUS la card. La card, elle, est la cible exacte
+             de l'export : tout ce qui la recouvre est soit capturé dans le PNG
+             (et alors ce n'est plus un badge d'écran), soit un chrome qui
+             recouvre son sceau « ✓ Verified », déjà en haut à droite. */}
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>{title}</Text>
+          <ProtectedBadge
+            lines={protectionLines({
+              routePublished: traceShown,
+              maskEndpoints,
+              declaredZones: zonePublication.ready ? zonePublication.zones.length : 0,
+            })}
+            trimM={SHARE_TRIM_M}
+            simplifyM={SHARE_SIMPLIFY_EPSILON_M}
+            zoneCount={zonePublication.ready ? zonePublication.zones.length : 0}
+          />
+        </View>
 
         {/* PREVIEW qui FLOTTE : la story EST le container (pas de card noire autour).
             `cardShotRef` + collapsable=false : la cible EXACTE de l'export PNG (D6). */}
@@ -686,121 +1059,81 @@ function SharePreview({ run }: { run: ShareRunData }) {
             mascot={gripRank ? <GripMascot rank={gripRank} size={36} /> : undefined}
           />
         </View>
-        {/* ─── BADGE « PROTÉGÉ » PERMANENT (planche E10, non négociable) ───────
-             Il n'apparaissait qu'en mode héros (`heroTitle && privacyNote`) :
-             sur tous les autres styles la note était rendue DANS l'image, donc
-             invisible au moment où le partageur en a besoin — juste avant de
-             publier. Il vit maintenant au MÊME endroit pour tous les styles qui
-             montrent réellement une trace tronquée (`traceShown`).
-             Ce qu'il promet est borné à ce que le pipeline tient VRAIMENT :
-             départ/arrivée masqués (SHARE_TRIM_M) et aucune heure exacte sur la
-             card. L'exclusion des zones privées et la simplification de trace ne
-             sont PAS implémentées — le badge ne les revendique donc pas. */}
-        {traceShown && privacyNote ? (
-          <View style={styles.privacyBadge}>
-            <Icon name="verrou" size={12} color={colors.gris} />
-            <Text style={styles.privacyCaption} numberOfLines={1} ellipsizeMode="clip">
-              {t(C.protectedBadge)} · {privacyNote}
-            </Text>
-          </View>
-        ) : null}
-        {/* Tracé inconnu : la card le dit déjà à la place de la carte ; ici on
-            explique POURQUOI, et que les chiffres, eux, sont bien ceux de cette
-            course (état vide qui parle, jamais un carré nu). */}
-        {!hasKnownRoute ? (
+        {/* PAS DE TRACÉ À L'ÉCRAN : trois raisons DIFFÉRENTES, trois phrases
+            différentes — les confondre serait exactement le mensonge que la
+            constitution nomme (« lecture EN COURS » n'affirme rien sur le
+            joueur, et « échec de chargement » n'est pas « rien à montrer ») :
+              · zones floutées en cours de lecture → on attend, on le dit ;
+              · lecture des zones échouée → on ne publie pas, on le dit ;
+              · sinon, le tracé de la course est réellement inconnu (le Résultat
+                arme `trace: []` — ingest_run ne renvoie pas la géométrie).
+            Dans les trois cas les CHIFFRES restent ceux de cette course. */}
+        {!zonePublication.ready ? (
+          <Text style={styles.noRouteNote}>
+            {t(zonePublication.reason === 'loading' ? C.privacyZonesLoading : C.privacyZonesError)}
+          </Text>
+        ) : !hasKnownRoute ? (
           <Text style={styles.noRouteNote}>{t(A.traceUnavailableNote)}</Text>
         ) : null}
 
-        {/* Format — UN segmented (accent chartreuse). */}
-        <View style={styles.controlRow}>
-          <Text style={[styles.controlLabel, styles.controlLabelSolo]}>{t(C.formatLabel)}</Text>
-          <Segmented
-            accessibilityLabel={t(C.formatA11y)}
-            options={formatOptions}
-            value={ratio}
-            onChange={(id) => setRatio(id)}
-            // surface (pas accent) : un seul focus chartreuse fort par scène est
-            // la CTA « Partager » (§A). Un segment actif chartreuse plein ferait
-            // un 2e bloc chartreuse concurrent.
-            tone="surface"
-            // 3 formats aux libellés complets (Story · Carré · Carte seule) →
-            // strip défilant : AUCUN label n'est jamais tronqué (§7).
-            scrollable
-          />
+        {/* ─── « Pourquoi ce style ? » + « Personnaliser » (planche E10) ──────
+             Format et Style ne sont PLUS à plat ici : ils ont déménagé dans le
+             sheet (une section à la fois), ils n'y sont pas dupliqués. L'écran
+             garde UNE décision — partager — et la phrase du moteur qui explique
+             l'image qu'il propose. La raison vient du MÊME moteur que le style
+             Auto : elle ne peut pas raconter une autre histoire que la card. */}
+        <View style={styles.reasonRow}>
+          <Text style={styles.whyStyle}>
+            {t(C.whyThisStyle, { reason: t(narrativeReasons(A)[narrative]) })}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(SHARE_COPY.customizeLink)}
+            onPress={() => {
+              haptics.light();
+              setCustomizing(true);
+            }}
+            style={({ pressed }) => [styles.customizeLink, pressed && styles.pressed]}
+          >
+            <Text style={styles.customizeLinkText}>{t(SHARE_COPY.customizeLink)}</Text>
+          </Pressable>
         </View>
-
-        {/* Style — rangée de MODES NARRATIFS, « Auto » en tête (planche E10).
-            Masquée en social_run : une course sans capture n'a qu'un visuel
-            honnête, la carte de stats — il n'y a rien à choisir. */}
-        {!statsOnlyShare ? (
-          <View style={styles.controlRow}>
-            {styleChoiceMatters ? (
-              <>
-                <View style={styles.controlHead}>
-                  <Text style={styles.controlLabel}>{t(C.styleLabel)}</Text>
-                  {hasHiddenStyles ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={t(C.moreStylesA11y)}
-                      onPress={expandStyles}
-                      hitSlop={14}
-                      style={({ pressed }) => [styles.moreLink, pressed && styles.pressed]}
-                    >
-                      <Text style={styles.moreLinkText}>{t(C.moreStyles)}</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-                <Segmented
-                  accessibilityLabel={t(C.styleA11y)}
-                  options={styleOptions}
-                  value={choice}
-                  onChange={pickStyle}
-                  tone="surface"
-                  // Toujours défilant : « Auto » ajoute un segment, et §A.9 interdit
-                  // qu'un libellé soit tronqué à 375 px.
-                  scrollable
-                />
-              </>
-            ) : null}
-            {/* « Pourquoi ce style ? » — la raison vient du MÊME moteur que le
-                style Auto, donc elle ne peut pas décrire une autre histoire que
-                celle de la card. Elle reste affichée quand l'utilisateur change
-                de style (le RÉCIT, lui, n'a pas changé) ET quand il n'y a rien à
-                choisir (elle dit alors pourquoi). */}
-            <Text style={styles.whyStyle}>
-              {t(C.whyThisStyle, { reason: t(narrativeReasons(A)[narrative]) })}
-            </Text>
-          </View>
-        ) : null}
 
         {/* UN SEUL gros CTA chartreuse (suit le format, verbe précis). */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={primaryCta.label}
-          onPress={() =>
-            runAction(
-              shareAsImage(cardShotRef.current, shareMessage),
-              (via) => (via === 'image' ? t(C.storyExported) : t(C.storyReady)),
-              primaryCta.channel,
-              (via) => {
-                // P1 D6 — share_exported = une IMAGE a réellement été produite
-                // (≠ share_card_generated, la preview React ; ≠ share_completed,
-                // qui compte aussi le filet texte).
-                if (via === 'image')
-                  track(EVENTS.shareExported, {
-                    ratio,
-                    channel: primaryCta.channel,
-                  });
-              },
-            )
-          }
+          onPress={() => shareCurrentCard(primaryCta.channel)}
           style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
         >
           <Icon name="partage" size={18} color={colors.noir} />
           <Text style={styles.ctaLabel}>{primaryCta.label}</Text>
         </Pressable>
 
-        {/* Actions LÉGÈRES (doc §7.2 : Sticker · Rejouer · Plus), zéro grosse card. */}
+        {/* ─── DESTINATIONS NOMMÉES (planche E10) ────────────────────────────
+             « Instagram · TikTok · WhatsApp · Plus », mais UNIQUEMENT celles que
+             `resolveShareTargets` déclare atteignables ICI, MAINTENANT, pour CE
+             média, ET qui ne sont pas déjà le CTA ci-dessus (`pillDestinations`).
+             Tant qu'aucun pont natif n'est embarqué, Instagram et TikTok
+             ne sont pas peints : un raccourci qui ouvrirait l'app SANS l'image
+             est exactement le bouton mort que la constitution §2 interdit.
+             Conséquence AUJOURD'HUI sur iOS/Android : il ne reste aucune
+             pastille, et le composant ne rend rien du tout. */}
+        <ShareDestinations
+          targets={destinationPills}
+          omitted={destinations.omitted}
+          onPick={pickDestination}
+        />
+
+        {/* ─── ACTIONS LÉGÈRES : Sticker · Rejouer ───────────────────────────
+             « Autre app » a DISPARU d'ici : c'est exactement « Plus » de la
+             rangée de destinations ci-dessus (la feuille système), et deux
+             contrôles pour la même action sont un contrôle de trop.
+             Sticker et Rejouer restent, en `IconAction` : cercle N2, icône
+             blanche, label gris — aucun chartreuse, donc aucun second CTA (§A).
+             Ils ne peuvent pas vivre dans le sheet « Personnaliser » : ce ne
+             sont pas des réglages de la carte, ce sont des ACTIONS (l'une
+             exporte un autre média, l'autre rejoue l'animation). */}
         <View style={styles.actionRow}>
           <IconAction
             icon="copier"
@@ -816,14 +1149,60 @@ function SharePreview({ run }: { run: ShareRunData }) {
               onPress={replay}
             />
           ) : null}
-          <IconAction
-            icon="partage"
-            label={t(C.otherApp)}
-            accessibilityLabel={t(C.otherAppA11y)}
-            onPress={() => runAction(openShareSheet(shareMessage), t(C.storyReady), 'native')}
-          />
         </View>
       </ScrollView>
+
+      {/* ─── SHEET « PERSONNALISER » (E36) ───────────────────────────────────
+           Format · Style · Donnée · Texte · Confidentialité — une section à la
+           fois, et PAS de section Photo (voir le docblock de STYLE_AUTO plus
+           haut : app.json ne déclare la photothèque que pour la photo de
+           profil). Le mini-aperçu est construit par la MÊME fabrique que
+           l'aperçu de l'écran (`buildCard`), sur le BROUILLON : ce que le sheet
+           montre est exactement ce qu'`APPLIQUER` produira. */}
+      <CustomizeSheet
+        visible={customizing}
+        committed={committed}
+        onClose={() => setCustomizing(false)}
+        onApply={applyCustomize}
+        onOpened={(section) => track(EVENTS.shareCustomizeOpened, { tab: section })}
+        formatOptions={formatOptions}
+        styleOptions={styleOptions}
+        heroOptions={heroOptions}
+        textParts={textParts}
+        renderPreview={(d) => {
+          const mini = buildCard(d, { ...view, animated: false, fullReplay: false });
+          // ─── LA VIGNETTE EST LA CARTE, RÉDUITE — PAS UNE CARTE ÉTROITE ─────
+          // Monter la ShareCard à 116 pt la casserait : ses textes ont des
+          // `numberOfLines`, donc le titre héros, la ligne de contexte et la
+          // capsule de défi sortiraient TRONQUÉS (« J'AI P… », « PREN… ») dans
+          // le sheet — exactement ce que §A.9 interdit, et une fausse promesse
+          // en prime, puisque l'export ne ressemblerait pas à l'aperçu.
+          // On monte donc la carte à SA largeur d'écran et on la RÉDUIT par
+          // transform : la mise en page reste celle du média exporté, seule la
+          // taille de rendu change.
+          const full = PREVIEW_WIDTH[mini.ratio];
+          const scale = MINI_PREVIEW_WIDTH / full;
+          const height = full / SHARE_CARD_ASPECT[mini.ratio];
+          return (
+            <View
+              style={[styles.miniPreview, { width: full * scale, height: height * scale }]}
+              // Vignette DÉCORATIVE : l'aperçu qui compte est celui de l'écran,
+              // et VoiceOver n'a rien à lire dans une carte réduite de moitié.
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <View style={{ transform: [{ scale }] }}>
+                <ShareCard
+                  {...mini.props}
+                  ratio={mini.ratio}
+                  width={full}
+                  mascot={gripRank ? <GripMascot rank={gripRank} size={36} /> : undefined}
+                />
+              </View>
+            </View>
+          );
+        }}
+      />
 
       {/* STICKER PNG — monté HORS ÉCRAN (jamais visible, jamais tappable) : c'est
           la cible de `captureRef`, pas un élément d'interface. Son fond est
@@ -1041,25 +1420,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
   },
-  // Badge « Protégé » : une ligne discrète sous l'aperçu, jamais une card (§A).
-  privacyBadge: {
+  // En-tête : le titre PREND la place, le badge garde la sienne à droite. Le
+  // titre n'a AUCUN `numberOfLines` — il passe à la ligne plutôt que d'être
+  // coupé (§A.9), et le badge ne se comprime jamais sous sa cible de 44 pt.
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  // « Pourquoi ce style ? » + « Personnaliser » sur une ligne (planche E10).
+  reasonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 8,
-  },
-  privacyCaption: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    flexShrink: 1,
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
   // « Pourquoi ce style ? » — explication, pas une action : ton discret.
   whyStyle: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.5,
-    marginTop: 10,
+    flex: 1,
+  },
+  // Lien « Personnaliser » : action SECONDAIRE (blanc, pas de fond plein), avec
+  // une cible tactile RÉELLE de 44 pt — pas un hitSlop qui simule.
+  customizeLink: {
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+  },
+  customizeLinkText: {
+    color: colors.blanc,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
   },
   // Hors écran : présent dans l'arbre (donc capturable) mais jamais visible.
   stickerOffscreen: { position: 'absolute', left: -10_000, top: 0 },
@@ -1086,36 +1480,14 @@ const styles = StyleSheet.create({
 
   // La preview flotte librement dans l'espace (pas de container autour).
   previewWrap: { alignItems: 'center', marginTop: 22, marginBottom: 26 },
-  // Carte 3D injectée en « Carte seule » : remplit le slot plein cadre.
-  previewMap: { flex: 1 },
+  // Vignette du sheet : la carte à taille RÉELLE, réduite par transform (voir
+  // `renderPreview`). Le cadre fait la taille réduite et centre la carte, dont
+  // l'échelle se fait autour de son centre.
+  miniPreview: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   // Carte SVG en « Carte seule » (vraie course) : centrée dans le slot 3:4 —
   // elle reste carrée (aspect du tracé conservé, jamais étirée).
   previewMapFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   previewMapSquare: { width: '100%' },
-
-  // Un bloc « label + segmented » séparé du suivant par l'ESPACE, pas par une boîte.
-  controlRow: { marginTop: 18 },
-  controlHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  // Le label du bloc Style vit DANS controlHead (déjà espacé) → pas de marge propre.
-  controlLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.sm,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  // Le label Format est un enfant direct de controlRow → il porte son propre espace.
-  controlLabelSolo: { marginBottom: 10 },
-  moreLink: { paddingVertical: 2 },
-  moreLinkText: {
-    color: colors.blanc,
-    fontSize: fontSizes.sm,
-    fontWeight: '600',
-  },
 
   cta: {
     flexDirection: 'row',

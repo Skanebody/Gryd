@@ -38,7 +38,26 @@
  * terrain de jeu est l'Europe ; aucune de ces fonctions ne recolle une
  * longitude qui saute de +180 à −180.
  */
-import type { LatLngPoint } from './hexing.ts';
+/**
+ * Point lat/lng. DÉCLARÉ ICI, et surtout PAS importé de `./hexing.ts` — c'est la
+ * dernière ligne qui manquait au « AUCUNE dépendance » revendiqué ci-dessus.
+ *
+ * Un `import type` est effacé à la compilation, donc il ne coûtait rien à
+ * l'exécution ; mais il oblige tout typechecker qui ouvre ce fichier à ouvrir
+ * AUSSI `hexing.ts`, donc `@klaim/shared/game-rules` et h3-js. Le mobile
+ * (`moduleResolution: node`, qui ne lit pas le champ `exports`) échouait dessus
+ * — et c'est ce module qui alimente son pipeline de confidentialité du partage
+ * (`apps/mobile/src/features/share/sharePrivacy.ts`).
+ *
+ * TypeScript étant STRUCTUREL, ce type et `hexing.LatLngPoint` restent
+ * interchangeables partout : rien à convertir chez les appelants. Il n'est
+ * volontairement PAS exporté — `src/index.ts` ré-exporte `hexing.ts` ET ce
+ * fichier, deux exports du même nom entreraient en collision.
+ */
+interface LatLngPoint {
+  lat: number;
+  lng: number;
+}
 
 // ─── Constantes physiques / numériques — PAS des règles de jeu ───────────────
 const EARTH_RADIUS_M = 6_371_000;
@@ -583,10 +602,19 @@ function pointSegmentDistM(p: XY, a: XY, b: XY): number {
   return Math.hypot(p.x - (a.x + t * ex), p.y - (a.y + t * ey));
 }
 
-/** Douglas-Peucker itératif (pile explicite : pas de récursion profonde sur 2 000 points). */
-function douglasPeucker(points: readonly XY[], toleranceM: number): XY[] {
+/**
+ * Douglas-Peucker itératif (pile explicite : pas de récursion profonde sur
+ * 2 000 points) — rend les INDICES conservés, croissants.
+ *
+ * Pourquoi des indices et pas des points : c'est la seule forme qui permet à
+ * l'appelant de rendre les objets d'ORIGINE (`simplifyPolyline` en dépend — un
+ * aller-retour lat/lng → XY → lat/lng réintroduirait des coordonnées qui ne
+ * sont plus, au bit près, celles que le GPS a mesurées). Le corps de
+ * l'algorithme est inchangé ; `douglasPeucker` en devient un habillage.
+ */
+function douglasPeuckerKeep(points: readonly XY[], toleranceM: number): number[] {
   const n = points.length;
-  if (n < 3) return [...points];
+  if (n < 3) return points.map((_, i) => i);
   const keep = new Uint8Array(n);
   keep[0] = 1;
   keep[n - 1] = 1;
@@ -607,9 +635,14 @@ function douglasPeucker(points: readonly XY[], toleranceM: number): XY[] {
     keep[farthest] = 1;
     stack.push([lo, farthest], [farthest, hi]);
   }
-  const out: XY[] = [];
-  for (let i = 0; i < n; i++) if (keep[i] === 1) out.push(points[i]!);
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) if (keep[i] === 1) out.push(i);
   return out;
+}
+
+/** Douglas-Peucker itératif — les POINTS conservés (cf. `douglasPeuckerKeep`). */
+function douglasPeucker(points: readonly XY[], toleranceM: number): XY[] {
+  return douglasPeuckerKeep(points, toleranceM).map((i) => points[i]!);
 }
 
 /**
@@ -648,4 +681,38 @@ export function simplifyRing(ring: PolygonRing, toleranceM: number): LatLngPoint
   if (mergedXY.length < 3) return normalized;
   const simplified = normalizeRing(mergedXY.map((q) => toLatLng(q, proj)));
   return simplified.length < 3 ? normalized : simplified;
+}
+
+/**
+ * Polyligne OUVERTE généralisée — le pendant de `simplifyRing` pour une TRACE
+ * (§12.1 « simplifier les contours » appliqué à un parcours, pas à un
+ * territoire). Même Douglas-Peucker, même projection locale ; sans le
+ * découpage/recollage propre à la boucle, parce qu'une course a un début et une
+ * fin qui ne se rejoignent pas — les refermer dessinerait un segment jamais
+ * couru.
+ *
+ * TROIS GARANTIES, et ce sont elles qui rendent la fonction utilisable dans un
+ * pipeline de CONFIDENTIALITÉ (cf. `apps/mobile/src/features/share/sharePrivacy.ts`) :
+ *  1. SOUS-SUITE STRICTE — la sortie ne contient que des points de l'entrée,
+ *     dans le même ordre, et ce sont les OBJETS d'origine (aucune coordonnée
+ *     recalculée : le passage en XY sert uniquement à choisir les indices).
+ *     Corollaire : un point retiré en amont ne peut pas réapparaître ici.
+ *  2. les DEUX extrémités de l'entrée sont conservées — la généralisation ne
+ *     rallonge donc jamais la trace vers ce qu'un masquage amont a coupé ;
+ *  3. la sortie n'est jamais plus longue (ni en points, ni en mètres) que
+ *     l'entrée : DP ne fait que supprimer, et supprimer un sommet d'une
+ *     polyligne raccourcit toujours (inégalité triangulaire).
+ *
+ * `toleranceM <= 0` ou moins de 3 points → l'entrée est rendue telle quelle
+ * (copie). Comme pour `simplifyRing`, la tolérance est un PARAMÈTRE : sa valeur
+ * est une règle de jeu et vit dans game-rules, jamais ici.
+ */
+export function simplifyPolyline(
+  points: readonly LatLngPoint[],
+  toleranceM: number,
+): LatLngPoint[] {
+  if (points.length < 3 || toleranceM <= 0) return [...points];
+  const proj = projectionFor(points);
+  const xy = points.map((p) => toXY(p, proj));
+  return douglasPeuckerKeep(xy, toleranceM).map((i) => points[i]!);
 }

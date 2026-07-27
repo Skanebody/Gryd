@@ -613,6 +613,24 @@ function ConquestResultScreen({
       // La surface de la zone TENUE vient du territoire fortifié (E31) ; celle
       // de la zone PRISE, du territoire que cette sortie a écrit (E29/E30).
       areaM2: territoryRead.defended?.areaM2 ?? territoryRead.own?.areaM2 ?? null,
+      /**
+       * L'AIRE AFFICHÉE SURESTIME-T-ELLE LE GAIN ? Deux faits, et les deux
+       * comptent :
+       *  · le serveur signale que l'intérieur de la boucle n'est pas
+       *    intégralement devenu la propriété du coureur (`interiorPartial` —
+       *    plafond d'aire, plafond quotidien, zone privée ou interdite, cellule
+       *    qu'un rival garde). `territories.area_m2` porte alors l'anneau
+       *    ENTIER : c'est ce qui a été ENCERCLÉ, pas ce qui a été obtenu ;
+       *  · et le nombre affiché vient bien de CETTE sortie
+       *    (`territoryRead.own`). Quand la surface vient du territoire DÉFENDU,
+       *    elle décrit une boucle ANTÉRIEURE que ce verdict-ci ne juge pas :
+       *    la retirer sur ce motif effacerait un fait vrai.
+       * La DÉCISION, elle, est prise une seule fois — dans `composeResult`.
+       */
+      areaOverstated:
+        territoryRead.defended?.areaM2 == null &&
+        territoryRead.own?.areaM2 != null &&
+        serverResult?.interiorPartial === true,
       protectionLevel:
         territoryRead.defended?.protectionLevel ?? territoryRead.own?.protectionLevel ?? null,
       deadlineAvoidedAt: territoryRead.defended?.deadlineAvoidedAt ?? null,
@@ -792,6 +810,30 @@ function ConquestResultScreen({
   const share = () => {
     haptics.medium();
     track(EVENTS.shareCardGenerated);
+    // ─── LA SURFACE QUI PART SUR LA CARTE (27/07/2026) ────────────────────────
+    // Le chiffre héros de la planche E10 (« +420 000 m² ») avait été INTERDIT
+    // faute de source : `IngestRunResponse` ne renvoie que des comptes d'hexagones.
+    // Il en a une depuis le lot 1 — `territories.area_m2`, l'aire GÉODÉSIQUE du
+    // polygone réellement couru, déjà lue ici par `useResultTerritory` et déjà
+    // affichée juste au-dessus. On transmet EXACTEMENT le même nombre, formaté
+    // par le même `formatArea` : l'image publiée et l'écran ne peuvent pas
+    // diverger, et rien n'est recalculé côté carte.
+    //
+    // ⚠️ LA GARDE A CHANGÉ DE PLACE, ET C'EST LA CORRECTION DU JOUR. Elle vivait
+    // ICI (`serverResult?.capReached !== true`) et NULLE PART AILLEURS : la même
+    // aire était jugée indigne d'être exportée en PNG, puis affichée telle quelle
+    // en surface héro deux cents lignes plus bas. Deux niveaux d'honnêteté pour
+    // un seul nombre, dans un seul fichier.
+    // La garde est désormais DANS `composeResult` (moteur pur, testé), sur un
+    // signal PLUS LARGE que `capReached` : `interiorPartial` couvre aussi le
+    // plafond quotidien, les zones privées, les zones interdites et les cellules
+    // qu'un rival garde — tous les cas où `territories.area_m2` décrit l'anneau
+    // ENCERCLÉ plutôt que le gain. `composition.areaM2` est donc déjà `null`
+    // dans ces situations, et le partage n'a plus rien à re-filtrer : il lit LA
+    // décision. Une absence n'est pas un mensonge ; une surface surévaluée en
+    // serait un — et la carte retombe alors sur les ZONES, verdict serveur exact.
+    const shareArea =
+      composition.areaM2 !== null ? formatArea(composition.areaM2, decimalSeparator()) : null;
     setShareRun({
       mode,
       intention,
@@ -804,6 +846,10 @@ function ConquestResultScreen({
         // playerName / crewName sont posés PLUS BAS à la chaîne vide : aucune
         // identité de démo (KORO / LES FOULÉES 9³) ne signe jamais un vrai run.
         zoneName: stats.zoneName,
+        // SURFACE — voir le bloc `shareArea` juste au-dessus. `null` ⇒ chaînes
+        // vides, que la card lit « aucune surface connue » (jamais « 0 m² »).
+        surfaceValue: shareArea?.value ?? '',
+        surfaceUnit: shareArea?.unit ?? '',
         // Zones/points : le verdict serveur, ou les valeurs NEUTRES de
         // NEUTRAL_SHARE_CARD (0) quand personne n'a jugé. Ce 0-là n'est pas un
         // résultat affiché au joueur : c'est l'absence de chiffre sur la card,
@@ -1074,8 +1120,11 @@ function ConquestResultScreen({
               · pas de verdict / non crédité → les KM MESURÉS aussi.
             Le « +0 ZONES CAPTURÉES » du 2ᵉ cas était le zéro nu que la loi
             interdit — et il s'affichait sous un titre « TERRITOIRE ÉTENDU ».
-            Aucun km² : `IngestRunResponse` n'en porte aucun, et convertir des
-            hexes en surface côté client serait un chiffre inventé. */}
+            LA SURFACE est un bloc SÉPARÉ, juste dessous (elle a sa propre
+            source : `territories.area_m2`, cf. son commentaire). Ce qui reste
+            interdit ici comme partout : dériver une surface d'un COMPTE d'hexes
+            — `IngestRunResponse` n'en porte aucune, et « zones × aire nominale »
+            serait un chiffre inventé. */}
         <ResultReveal visible={shown('chiffre')} haptic="none" style={styles.heroSecond}>
           {kpiShowsZones && zones ? (
             <View style={styles.heroKpi}>
@@ -1103,7 +1152,14 @@ function ConquestResultScreen({
                et faux, c'est-à-dire le pire.
                ABSENTE quand la lecture n'a rien rendu (territoire pas encore
                écrit, migration non déployée, lecture en échec) : le bloc
-               disparaît, il n'affiche pas « 0 m² ». */}
+               disparaît, il n'affiche pas « 0 m² ».
+               ABSENTE AUSSI quand l'intérieur de la boucle n'est pas
+               intégralement devenu la propriété du coureur (verdict serveur
+               `interiorPartial` → `composeResult`) : `area_m2` porte alors
+               l'anneau ENTIER, et l'annoncer « SURFACE GAGNÉE » afficherait ce
+               qui a été ENCERCLÉ pour ce qui a été obtenu. C'est la MÊME
+               décision que celle qui gouverne le PNG partagé — un seul endroit
+               tranche, l'écran et l'image ne peuvent plus diverger. */}
           {composition.areaM2 !== null ? (
             <View style={styles.surfaceBlock}>
               <Text style={styles.surfaceValue} numberOfLines={1}>
@@ -1355,11 +1411,13 @@ function ConquestResultScreen({
         {/* ═══ 2. PROGRESSION (planche : territoire → PROGRESSION → stats) ══════
              Sources RÉELLES uniquement : `xpAwarded` et `crewXp` sont décidés
              SERVEUR, le nom du crew vient de `useRealCrew`.
-             ABSENTS FAUTE DE SOURCE, et donc non peints (ni barre vide, ni « — ») :
+             ABSENT FAUTE DE SOURCE, et donc non peint (ni barre vide, ni « — ») :
              le RANG LOCAL de la maquette (« #3 du quartier » — aucune lecture de
-             season_scores ici) et le km² (« +0,42 km² » — `IngestRunResponse` ne
-             porte aucune aire, et en dériver une depuis les hexes serait un
-             chiffre inventé). */}
+             season_scores ici).
+             Le km² de la maquette (« +0,42 km² ») N'EST PLUS absent : il a une
+             source depuis le lot 1 (`territories.area_m2`) et il est rendu par le
+             bloc SURFACE du chiffre héros, plus haut. Il n'a rien à faire en
+             double ici — §A.1 : une grandeur, un endroit. */}
         <ResultReveal visible={shown('progression')} haptic="none" style={styles.progressBlock}>
           {xpAwarded > 0 || (crewXp > 0 && crewName) ? (
             <>

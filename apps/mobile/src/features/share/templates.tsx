@@ -34,11 +34,22 @@
  *     toute façon aucune source (voir `knownPlaceName`), donc le peindre vide
  *     aurait été un emplacement mort ;
  *   · #7 SIGNATURE EN PIED : le wordmark existe, mais en haut à gauche ;
- *   · #6 DÉFI « DISCRET » : la capsule est pleine largeur et chartreuse. Ce lot
- *     la réserve aux trois récits qui l'ont MÉRITÉE (une zone a changé de main,
- *     ou une frontière a tenu) au lieu de la peindre partout ; son poids
- *     visuel, lui, se règle dans ShareCard.
- * Ces trois écarts sont listés dans le retour de lot, pas cachés ici.
+ *   · #6 DÉFI « DISCRET » : la capsule est pleine largeur et chartreuse. Son
+ *     poids visuel se règle dans ShareCard, hors périmètre. Son CÂBLAGE, lui,
+ *     est complet depuis le 27/07/2026 (voir juste dessous).
+ * Ces écarts sont listés dans le retour de lot, pas cachés ici.
+ *
+ * ─── LES SIX CTA DE DÉFI, AU COMPLET (27/07/2026) ───────────────────────────
+ * La planche E10 impose « un CTA par événement, un seul par média » et en nomme
+ * six. Trois seulement étaient câblés : `boucle`, `crew` et `classement`
+ * exportaient une carte SANS défi — trois emplacements #6 vides sur des images
+ * qui quittent l'app. Les six correspondent maintenant un à un aux six récits
+ * territoriaux de `styleForNarrative()` (narrative.ts) ; le septième récit,
+ * `effort`/`record` → `simple`, n'en reçoit AUCUN et ne doit pas en recevoir :
+ * les six défis désignent tous un territoire qu'une sortie sans capture n'a pas.
+ * L'attribution, les deux écarts de mot avec la planche (défense, classement) et
+ * la borne de longueur de la capsule sont argumentés dans `copy.ts` ;
+ * `challengeCta.test.ts` verrouille le tout.
  *
  * ─── LA CARTE NOMME LA BONNE DISCIPLINE (26/07/2026) ────────────────────────
  * Le vélo est une discipline RÉELLE depuis le 26/07/2026, et cette carte-ci
@@ -130,6 +141,24 @@ export interface ShareDemoData {
   playerName: string;
   crewName: string;
   zoneName: string;
+  /**
+   * SURFACE du territoire de cette sortie, DÉJÀ FORMATÉE (« 0,42 », « 420 000 »).
+   *
+   * SA SEULE SOURCE LÉGALE est `territories.area_m2` — l'aire GÉODÉSIQUE du
+   * polygone réellement couru (moteur `polygonAreaM2`, écrite par ingest_run),
+   * RELUE en base pour CE run par `useResultTerritory` puis mise en forme par
+   * `formatArea` côté Résultat. Il est INTERDIT de la dériver d'un compte
+   * d'hexagones : une cellule H3 varie d'environ ±20 % d'aire selon la latitude,
+   * donc « zones × aire nominale » produirait un chiffre plausible et faux — le
+   * pire, dans une image qui SORT de l'app.
+   *
+   * Vide = aucune surface connue (territoire pas encore écrit, migration non
+   * déployée, lecture en échec, capture plafonnée). Vide n'est pas zéro : la
+   * carte bascule sur une autre grandeur, elle n'imprime jamais « 0 m² ».
+   */
+  surfaceValue: string;
+  /** Unité de `surfaceValue` (« m² » / « km² »), choisie par `formatArea`. Vide = inconnue. */
+  surfaceUnit: string;
   zonesGained: number;
   loopBonusZones: number;
   zonesDefended: number;
@@ -167,7 +196,7 @@ export interface ShareDemoData {
  * i18n/catalog/result.ts). Elle est passée aux fonctions pures plutôt que
  * codée dedans — un modèle ne décide pas d'un libellé.
  */
-const UNIT_KM = 'km';
+export const UNIT_KM = 'km';
 
 /**
  * Les replis de nom de zone, dans les CINQ langues. Ce ne sont pas des noms de
@@ -177,18 +206,24 @@ const UNIT_KM = 'km';
 const ZONE_FALLBACKS: readonly string[] = Object.values(C.zoneFallback);
 
 /**
- * Libellé du chiffre héros — un par grandeur AUTORISÉE (jamais une aire).
+ * Libellé du chiffre héros — un par grandeur AUTORISÉE.
  *
- * Deux cas ne prennent pas de MOT, et c'est délibéré :
+ * Trois cas ne prennent pas de MOT, et c'est délibéré :
  *   · `distance` porte son UNITÉ (« 4,2 » + « KM ») : la valeur complète
  *     « 4,2 km » composée en 64 pt déborde une story de 232 pt, et §A.9 interdit
  *     un texte coupé. L'unité en libellé dit la même chose en deux caractères ;
+ *   · `surface` fait pareil, pour la même raison et en pire (« 420 000 m² ») —
+ *     et son unité n'est pas fixe : elle vient de `formatArea` (m² sous le
+ *     seuil, km² au-dessus), donc des FAITS, jamais d'un choix de rendu. C'est
+ *     pourquoi cette fonction prend les faits en second argument ;
  *   · `duration` n'en porte AUCUN : « 26:10 » se lit comme une durée, et cette
  *     valeur occupe déjà toute la ligne. Une chaîne vide n'est pas un texte
  *     manquant — c'est un libellé qui n'ajouterait rien.
  */
-function heroLabel(m: HeroMetricId): string {
+export function heroLabel(m: HeroMetricId, f: ShareCardFacts): string {
   switch (m) {
+    case 'surface':
+      return f.surfaceUnit;
     case 'zones':
       return t(C.zonesStatLabel);
     case 'defended':
@@ -206,9 +241,22 @@ function heroLabel(m: HeroMetricId): string {
   }
 }
 
-/** Projection vers le modèle PUR (cardModel.ts) — aucune décision ici. */
-function factsOf(d: ShareDemoData): ShareCardFacts {
+/**
+ * Projection vers le modèle PUR (cardModel.ts) — aucune décision ici.
+ *
+ * EXPORTÉE (27/07/2026) pour la section « Donnée » du sheet Personnaliser
+ * (`app/partage.tsx`) : l'écran doit savoir quelles grandeurs sont RÉELLEMENT
+ * disponibles avant d'en peindre les chips (constitution §2). Il aurait pu
+ * recopier cette projection à dix champs ; deux copies auraient dérivé au
+ * premier champ ajouté, et l'écran aurait fini par proposer une grandeur que la
+ * carte ne sait pas rendre. Une seule projection, un seul verdict.
+ */
+export function factsOf(d: ShareDemoData): ShareCardFacts {
   return {
+    // La surface arrive DÉJÀ FORMATÉE par le Résultat depuis `territories.area_m2`
+    // (voir ShareDemoData.surfaceValue). Rien n'est calculé ni converti ici.
+    surfaceValue: d.surfaceValue,
+    surfaceUnit: d.surfaceUnit,
     zonesGained: d.zonesGained,
     zonesDefended: d.zonesDefended,
     loopBonusZones: d.loopBonusZones,
@@ -264,11 +312,11 @@ interface CardGrammar {
  * LA grammaire commune. Tous les modes passent ici : c'est ce qui fait « un
  * système » et non « sept mises en page ».
  *
- * Le chiffre héros n'est JAMAIS une aire (contrainte (a) : aucune source
- * serveur, ±20 % de variation d'un hexagone H3 selon la latitude) — voir
- * cardModel.ts, où l'interdiction est structurelle. Quand rien n'est
- * disponible, on affiche « — » et on DIT que la mesure manque, plutôt qu'un
- * « +0 » géant dans une image publiée.
+ * Le chiffre héros peut être une SURFACE depuis que `territories.area_m2` existe
+ * et est LUE pour la course affichée — jamais une aire déduite d'un compte
+ * d'hexagones, ce qui reste impossible ici (cardModel.ts ne reçoit qu'une chaîne
+ * déjà formatée). Quand rien n'est disponible, on affiche « — » et on DIT que la
+ * mesure manque, plutôt qu'un « +0 » géant dans une image publiée.
  */
 function shareCard(
   d: ShareDemoData,
@@ -281,7 +329,8 @@ function shareCard(
   const base = {
     heroTitle: g.event,
     stat: value ?? '—',
-    statLabel: metric !== null && value !== null ? heroLabel(metric) : t(C.heroMetricUnavailable),
+    statLabel:
+      metric !== null && value !== null ? heroLabel(metric, f) : t(C.heroMetricUnavailable),
     // Ligne de contexte (#5). Vide → aucun texte, jamais un « · » orphelin.
     title: context === '' ? undefined : context,
     challenge: g.challenge,
@@ -375,6 +424,12 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
   },
   // 2. CONQUÊTE — le récit dominant de la planche. Titre SANS lieu tant qu'aucun
   //    secteur réel n'est câblé : « J'AI PRIS ZONE » se lit comme un nom de lieu.
+  //
+  //    CHIFFRE HÉROS = LA SURFACE (planche E10 « +420 000 m² », spec §D E29
+  //    « surface héro » : « le territoire est le contenu principal »). Ce n'est
+  //    plus un vœu : `territories.area_m2` existe et est LUE pour cette course.
+  //    Sans surface lue, `heroMetricFor` retombe sur les ZONES — c'est-à-dire
+  //    exactement la carte d'avant, à l'identique. Aucun cas ne régresse.
   {
     id: 'conquete',
     build: (d, view) => {
@@ -383,7 +438,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
         event: place
           ? t(C.heroTook, { zone: place.toUpperCase() })
           : t(C.heroTookNoPlace),
-        hero: 'zones',
+        hero: 'surface',
         challenge: t(C.challengeTakeIt),
         visual: proofMap(d, view),
       });
@@ -406,18 +461,25 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
       });
     },
   },
-  // 4. BOUCLE — le geste malin : la boucle fait la zone.
+  // 4. BOUCLE — le geste malin : la boucle fait la zone. Défi « FERME LA
+  //    TIENNE » : le 5ᵉ des six CTA de la planche, et le seul qui parle d'un
+  //    geste que le lecteur peut refaire chez lui. Ce style n'est proposé QUE si
+  //    la boucle a réellement gagné un intérieur (narrative.ts `styleAllowed`),
+  //    donc le défi ne pointe jamais vers une boucle qui n'a rien fermé.
   {
     id: 'boucle',
     build: (d, view) =>
       shareCard(d, {
         event: t(C.heroLoopClosed),
         hero: 'loop',
+        challenge: t(SHARE_COPY.challengeCloseYours),
         visual: proofMap(d, view),
       }),
   },
   // 5. CREW — crew inconnu : le titre ne le nomme pas et la ligne de contexte
-  //    l'omet. Ni titre vide, ni identité empruntée.
+  //    l'omet. Ni titre vide, ni identité empruntée. Le défi « REJOINS LE CREW »
+  //    tient dans les DEUX cas : sans nom, la carte dit « COURU POUR LE CREW »
+  //    — le crew existe (de l'XP crew a été créditée), il n'est pas identifié.
   {
     id: 'crew',
     build: (d, view) => {
@@ -427,12 +489,17 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
           ? t(A.cardHeroForCrewNamed, { crew: d.crewName.toUpperCase() })
           : t(A.cardHeroForCrewNoName),
         hero: 'crew',
+        challenge: t(SHARE_COPY.challengeJoinCrew),
         visual: proofMap(d, view),
       });
     },
   },
   // 6. CLASSEMENT — moteur viral de base (jamais bloqué premium). Le rang vient
   //    du serveur ; sans rang, ce style n'est même pas proposé par /partage.
+  //    Défi « RATTRAPE-MOI » — à la PREMIÈRE PERSONNE DU SINGULIER, comme le
+  //    titre « JE SUIS #8 » qu'il accompagne : la planche écrit « Rattrape-nous »
+  //    pour une composition de rang de CREW, qui n'existe nulle part dans le
+  //    pipeline (voir le docblock de `challengeCatchMe`).
   {
     id: 'classement',
     build: (d, view) =>
@@ -443,6 +510,7 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
           ? t(C.heroRankLine, { rank: d.rankLabel })
           : t(copyOf(d).cardHeroLogged),
         hero: 'rank',
+        challenge: t(SHARE_COPY.challengeCatchMe),
         visual: proofMap(d, view),
       }),
   },
@@ -455,7 +523,9 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
         event: place
           ? t(C.heroRetookPlace, { zone: place.toUpperCase() })
           : t(C.heroRetookNoPlace),
-        hero: 'zones',
+        // Spec §D E30 : « surface reprise ». Même repli que `conquete` — sans
+        // surface lue, la carte reste celle d'avant (les zones).
+        hero: 'surface',
         // Défi PROPRE à la reprise (planche E10, CTA par événement) : « REPRENDS-LA »,
         // le pendant du titre « J'AI REPRIS » — et non le « PRENDS-LA-MOI » d'une
         // conquête neutre, qui reste sur `conquete`/`carte3d`.
@@ -483,7 +553,9 @@ export const SHARE_TEMPLATES: readonly ShareTemplate[] = [
         event: place
           ? t(C.heroTook, { zone: place.toUpperCase() })
           : t(C.heroTookNoPlace),
-        hero: 'zones',
+        // Même événement que `conquete`, même chiffre : le plein cadre change la
+        // mise en page, jamais ce que la carte affirme.
+        hero: 'surface',
         challenge: t(C.challengeTakeIt),
         fullBleed: true,
         visual: (

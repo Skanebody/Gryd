@@ -18,7 +18,16 @@ import {
   BIKE_MIN_DURATION_S,
   CONTEST_INTERSECTION_THRESHOLD,
   FORTIFICATION_WINDOW_HOURS_BY_LEVEL,
+  GPS_DECIMATE_EPSILON_M,
+  HANDLE_ALLOWED_CHAR_REGEX,
+  HANDLE_CHECK_DEBOUNCE_MS,
+  HANDLE_MAX_LENGTH,
+  HANDLE_MIN_LENGTH,
+  HANDLE_REGEX,
+  HANDLE_SUGGESTION_COUNT,
   LOOP_CLOSE_TOLERANCE_M,
+  SHARE_SIMPLIFY_EPSILON_M,
+  SHARE_TRIM_M,
   MAX_CLOSURE_DISTANCE_ACCURACY_FACTOR,
   MAX_CLOSURE_DISTANCE_FLOOR_M,
   MIN_POLYGON_AREA_M2,
@@ -124,4 +133,89 @@ Deno.test('FORTIFICATION_WINDOW_HOURS_BY_LEVEL suit les paliers 18/24/30/36 h (�
   assertEquals(FORTIFICATION_WINDOW_HOURS_BY_LEVEL.length, 4);
   assertEquals(FORTIFICATION_WINDOW_HOURS_BY_LEVEL[0], BASE_DEFENSE_WINDOW_HOURS);
   assertEquals([...FORTIFICATION_WINDOW_HOURS_BY_LEVEL], [18, 24, 30, 36]);
+});
+
+// ─── §E08 — le @handle : les pièces nommées DÉCRIVENT bien HANDLE_REGEX ─────
+// `HANDLE_REGEX` reste le juge (miroir du `check` de 0011 et de la RPC 0047).
+// `HANDLE_MIN_LENGTH` / `HANDLE_MAX_LENGTH` / `HANDLE_ALLOWED_CHAR_REGEX` en
+// sont l'éclatement pour l'écran. Le commentaire de game-rules.ts déclare cet
+// invariant ; un commentaire n'enforce rien — ces tests, si.
+
+function assert(condition: boolean, message: string): void {
+  if (!condition) throw new Error(message);
+}
+
+Deno.test('HANDLE_MIN_LENGTH est bien la longueur MINIMALE acceptée par HANDLE_REGEX', () => {
+  const justEnough = 'a'.repeat(HANDLE_MIN_LENGTH);
+  const oneShort = 'a'.repeat(HANDLE_MIN_LENGTH - 1);
+  assert(HANDLE_REGEX.test(justEnough), `HANDLE_REGEX refuse ${HANDLE_MIN_LENGTH} caractères`);
+  assert(
+    !HANDLE_REGEX.test(oneShort),
+    `HANDLE_REGEX accepte ${HANDLE_MIN_LENGTH - 1} caractères : E08 annoncerait une longueur que le serveur ne tient pas`,
+  );
+});
+
+Deno.test('HANDLE_MAX_LENGTH est bien la longueur MAXIMALE acceptée par HANDLE_REGEX', () => {
+  const atLimit = 'a'.repeat(HANDLE_MAX_LENGTH);
+  const oneOver = 'a'.repeat(HANDLE_MAX_LENGTH + 1);
+  assert(HANDLE_REGEX.test(atLimit), `HANDLE_REGEX refuse ${HANDLE_MAX_LENGTH} caractères`);
+  assert(
+    !HANDLE_REGEX.test(oneOver),
+    `HANDLE_REGEX accepte ${HANDLE_MAX_LENGTH + 1} caractères : la borne affichée par E08 serait fausse`,
+  );
+});
+
+Deno.test('HANDLE_ALLOWED_CHAR_REGEX filtre EXACTEMENT le jeu de caractères de HANDLE_REGEX', () => {
+  // Le filtre de saisie ne doit ni laisser passer ce que le serveur refusera,
+  // ni écarter ce qu'il accepterait (l'un donne un refus tardif, l'autre un
+  // champ qui « mange » des touches sans raison visible).
+  for (const ok of ['a', 'z', '0', '9', '_']) {
+    assert(HANDLE_ALLOWED_CHAR_REGEX.test(ok), `« ${ok} » est refusé par le filtre de saisie`);
+    assert(
+      HANDLE_REGEX.test(ok.repeat(HANDLE_MIN_LENGTH)),
+      `« ${ok} » est refusé par HANDLE_REGEX — les deux ne décrivent pas le même alphabet`,
+    );
+  }
+  for (const ko of ['A', 'Z', 'é', '-', '.', ' ', '@', 'ç']) {
+    assert(!HANDLE_ALLOWED_CHAR_REGEX.test(ko), `« ${ko} » passe le filtre de saisie`);
+    assert(
+      !HANDLE_REGEX.test(ko.repeat(HANDLE_MIN_LENGTH)),
+      `« ${ko} » passe HANDLE_REGEX — les deux ne décrivent pas le même alphabet`,
+    );
+  }
+});
+
+Deno.test('HANDLE_CHECK_DEBOUNCE_MS et HANDLE_SUGGESTION_COUNT restent dans leur plage utile', () => {
+  // Bornes de SANITÉ, pas de goût : sous ~200 ms le debounce ne débounce plus
+  // rien (une frappe = une requête), au-delà d'une seconde le verdict paraît en
+  // retard sur la frappe et l'écran semble cassé.
+  assert(
+    HANDLE_CHECK_DEBOUNCE_MS >= 200 && HANDLE_CHECK_DEBOUNCE_MS <= 1_000,
+    `debounce hors plage utile : ${HANDLE_CHECK_DEBOUNCE_MS} ms`,
+  );
+  // §A : les suggestions sont un repêchage sur UNE ligne, jamais un menu. La
+  // spec E36 pose « 3 à 6 choix maximum » comme plafond d'un éditeur ; sous un
+  // champ, on reste au plancher.
+  assert(
+    HANDLE_SUGGESTION_COUNT >= 1 && HANDLE_SUGGESTION_COUNT <= 6,
+    `nombre de suggestions hors §A : ${HANDLE_SUGGESTION_COUNT}`,
+  );
+});
+
+// ─── §12.1 — Partage : les deux protections sont CUMULATIVES et distinctes ──
+
+Deno.test('SHARE_SIMPLIFY_EPSILON_M dégrade la résolution SANS remplacer la coupe des extrémités', () => {
+  // Deux règles différentes, deux nombres différents : la coupe (SHARE_TRIM_M)
+  // supprime le départ/l'arrivée, la simplification floute tout le reste. Si un
+  // jour l'un dépassait l'autre, c'est que quelqu'un aurait confondu les deux.
+  assert(
+    SHARE_SIMPLIFY_EPSILON_M < SHARE_TRIM_M,
+    'la tolérance de simplification a dépassé la coupe des extrémités : les deux règles ont été confondues',
+  );
+  // Elle doit être franchement AU-DESSUS du bruit GPS, sinon elle ne protège
+  // rien (elle ne ferait qu'alléger le tracé, ce que fait déjà la décimation).
+  assert(
+    SHARE_SIMPLIFY_EPSILON_M > GPS_DECIMATE_EPSILON_M,
+    'la simplification de partage est sous la décimation de payload : elle ne protège plus rien',
+  );
 });

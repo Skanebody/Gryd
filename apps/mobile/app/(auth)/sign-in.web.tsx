@@ -21,9 +21,24 @@
  * vide, ÉCRAN NOIR MORT. Aucun message, aucun spinner, aucune erreur console —
  * l'état exactement interdit par « état vide ≠ écran blanc ».
  *
+ * ─── LA SAISIE E-MAIL A ÉTÉ EXTRAITE VERS E07 (27/07/2026) ──────────────────
+ * La spec produit donne à la connexion par e-mail son propre écran (E07,
+ * `/email`, l.735). Tant que `EMAIL_DELIVERY === 'link'` — le mode actuel —
+ * cet écran-ci n'affiche donc plus qu'UN bouton qui y mène, et E07 porte le
+ * champ, le CTA `RECEVOIR LE LIEN` et les cinq états de la spec.
+ * Ce n'est pas qu'un déplacement : cet écran réclamait un « code à 6 chiffres »
+ * que le gabarit du plan gratuit N'ENVOIE PAS (il ne porte que
+ * `{{ .ConfirmationURL }}` — voir l'entête de src/lib/auth.web.ts). La saisie
+ * était donc impossible à remplir. E07 annonce et attend un LIEN, ce qui part
+ * vraiment. L'étape « code » reste ici pour le seul cas où `EMAIL_DELIVERY`
+ * repasserait à `'code'` (SMTP personnalisé).
+ * Le gate 16+ n'est pas contourné : E07 le repose EN PLACE — cet écran-là est
+ * atteignable par URL directe, et un laissez-passer passé en paramètre de route
+ * serait falsifiable.
+ *
  * ─── CE QU'IL FAIT MAINTENANT ───────────────────────────────────────────────
- * Un VRAI écran de connexion, e-mail OTP (code à 6 chiffres). Trois états
- * distincts, jamais confondus :
+ * Un VRAI écran de connexion, par e-mail. Trois états distincts, jamais
+ * confondus :
  *   · session en cours de restauration → fond noir muet, on n'affirme RIEN sur
  *     le joueur (un chargement n'est pas un état vide) ;
  *   · pas connecté → cet écran, invite à se connecter ;
@@ -110,7 +125,12 @@ import {
   STORAGE_UNAVAILABLE_NOTICE,
   useOnboardingState,
 } from '../../src/features/onboarding/store';
-import { requestEmailOtp, verifyEmailOtp, type AuthResult } from '../../src/lib/auth';
+import {
+  EMAIL_DELIVERY,
+  requestEmailOtp,
+  verifyEmailOtp,
+  type AuthResult,
+} from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
 
 /** Retourne l'Entry i18n (résolue à l'affichage — la bascule de langue suit). */
@@ -252,6 +272,26 @@ export default function SignInScreenWeb() {
                 <Text style={styles.gateLinkLabel}>{t(AGE.under)}</Text>
               </Pressable>
             </>
+          ) : EMAIL_DELIVERY === 'link' ? (
+            /* ── LA SEULE PORTE DE L'ÉCRAN, et elle a son propre écran ──
+               MODE LIEN (l'actuel — cf. `EMAIL_DELIVERY`, src/lib/auth.web.ts) :
+               la saisie vit dans E07 `/email` (spec produit l.735), qui porte les
+               cinq états nommés par la spec. Ce bouton est donc LE CTA de cet
+               écran-ci, et il ne fait qu'une chose : y mener.
+               ⚠️ CE N'EST PAS QU'UN DÉPLACEMENT — c'est aussi un MENSONGE RETIRÉ.
+               Cet écran réclamait ici même un « code à 6 chiffres » (`otpRequestCta`,
+               `otpSent`, champ à 6 chiffres) alors qu'aucun code n'est envoyé : le
+               gabarit du plan gratuit ne porte que `{{ .ConfirmationURL }}` (voir
+               l'entête de src/lib/auth.web.ts). Personne ne pouvait le saisir. E07
+               annonce et attend ce qui part vraiment : un LIEN. */
+            <Button
+              label={t(C.emailCta)}
+              onPress={() => router.push('/email')}
+              variant="primary"
+              size="lg"
+              disabled={busy}
+              analyticsId="signin_email_door"
+            />
           ) : step === 'email' ? (
             <>
               {/* Dit AVANT la saisie ce que le code va faire : connecter un
@@ -274,9 +314,9 @@ export default function SignInScreenWeb() {
                 keyboardType="email-address"
                 autoFocus
               />
-              {/* LA SEULE PORTE DE L'ÉCRAN : elle est donc LE CTA. `Button` porte
-                  l'état désactivé (visible ET annoncé) — un bouton qui ne répond
-                  pas sans l'expliquer fait conclure que l'app est cassée. */}
+              {/* `Button` porte l'état désactivé (visible ET annoncé) — un bouton
+                  qui ne répond pas sans l'expliquer fait conclure que l'app est
+                  cassée. */}
               <Button
                 label={t(C.otpRequestCta)}
                 onPress={() => {

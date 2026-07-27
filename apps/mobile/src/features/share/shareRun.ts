@@ -79,6 +79,12 @@ const NEUTRAL_SHARE_CARD: ShareDemoData = {
   playerName: '',
   crewName: '',
   zoneName: '',
+  // SURFACE : vide par défaut, et jamais autrement. Elle n'a qu'une source
+  // légale — `territories.area_m2` relue pour CE run (voir ShareDemoData). Un
+  // appelant qui l'oublie obtient donc « pas de surface », et la carte bascule
+  // sur les zones ; il n'obtient JAMAIS un chiffre par défaut.
+  surfaceValue: '',
+  surfaceUnit: '',
   zonesGained: 0,
   loopBonusZones: 0,
   zonesDefended: 0,

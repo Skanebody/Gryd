@@ -115,5 +115,97 @@ export const EVENTS = {
   deepLinkOpened: 'deep_link_opened', // props: { kind } — l'app ouverte par un lien (kind FERMÉ, jamais l'URL/le code)
   // t0 = signup_completed persisté ; émis UNE fois à la 1re capture serveur-jugée.
   timeToFirstCapture: 'time_to_first_capture', // props: { seconds }
+
+  // ── E07-E10 : la marche d'entrée (spec produit UI/UX, l.735 à ~l.810) ──────
+  // RÈGLE APPLIQUÉE ICI, la même que §26 : aucun event n'est ajouté sans un
+  // point d'émission RÉEL et nommable. Ceux-ci en ont un — les quatre écrans
+  // E07/E08/E09/E10 sont à construire, et chaque nom ci-dessous désigne un
+  // instant que SON écran traverse vraiment. Ils ne DOUBLENT pas le funnel
+  // existant : `signup_started` / `signup_completed` restent les bornes du
+  // compte (E06 les émet déjà au tap d'une méthode), ce qui suit mesure ce
+  // qu'il y a ENTRE — l'endroit exact où l'on perd les gens.
+  //
+  // AUCUN de ces events ne transporte de PII : ni adresse e-mail, ni @handle,
+  // ni nom de ville, ni libellé i18n. Les `reason` / `result` sont des clés
+  // FERMÉES, énumérées dans le commentaire de chaque ligne.
+
+  // E07 — connexion par e-mail (`/auth/email`). Les cinq états de la spec sont
+  // couverts par trois events : « lien envoyé » et « renvoi après délai » sont
+  // le MÊME instant (d'où `resend`, un booléen, plutôt qu'un second event) ;
+  // « e-mail invalide » et « compte existant avec fournisseur externe » sont
+  // deux motifs du même échec ; « lien expiré » se constate à l'OUVERTURE du
+  // lien, dans une autre session — c'est donc un troisième instant.
+  /** Le serveur a ACCEPTÉ d'envoyer le lien (pas le tap : le tap, c'est signup_started). */
+  authEmailLinkSent: 'auth_email_link_sent', // props: { resend: boolean }
+  /** L'envoi n'a pas eu lieu. reason FERMÉ : 'invalid_email' | 'existing_provider' | 'rate_limited' | 'network' | 'unknown' */
+  authEmailLinkFailed: 'auth_email_link_failed', // props: { reason }
+  /** Le lien a été OUVERT et le verdict est tombé. result FERMÉ : 'signed_in' | 'expired' | 'invalid' */
+  authEmailLinkOpened: 'auth_email_link_opened', // props: { result }
+
+  // E08 — profil minimal (`/setup/profile`). Le KPI : combien abandonnent au
+  // @handle, et pour quel motif (c'est le seul champ qui peut REFUSER).
+  setupProfileViewed: 'setup_profile_viewed',
+  /**
+   * Un verdict de `check_handle_available` (RPC 0047) a été AFFICHÉ. Un par
+   * fenêtre de debounce (HANDLE_CHECK_DEBOUNCE_MS), jamais un par frappe.
+   * result FERMÉ, miroir de `HandleCheck` : 'free' | 'taken' | 'reserved' |
+   * 'too_short' | 'too_long' | 'bad_chars' | 'unknown'.
+   * ⚠️ Le @handle lui-même ne part JAMAIS — seulement le verdict.
+   */
+  setupHandleChecked: 'setup_handle_checked', // props: { result }
+  /** Une suggestion de repêchage a été prise. `rank` = 0…HANDLE_SUGGESTION_COUNT-1. */
+  setupHandleSuggestionPicked: 'setup_handle_suggestion_picked', // props: { rank }
+  /**
+   * Profil minimal ENREGISTRÉ (réponse serveur, pas le tap du CTA).
+   * city_source FERMÉ : 'location' (ville déduite de la position) | 'manual'
+   * (l'utilisateur l'a changée) — le KPI de « ville issue de la localisation,
+   * mais modifiable ». Aucun nom de ville n'est transmis.
+   */
+  setupProfileCompleted: 'setup_profile_completed', // props: { city_source }
+
+  // E09 — choix d'activité initial (`/setup/activity`). Ce choix « initialise
+  // seulement le filtre » : l'event dit lequel, il n'affirme aucune pratique.
+  setupActivityViewed: 'setup_activity_viewed',
+  setupActivityChosen: 'setup_activity_chosen', // props: { activity: 'run' | 'bike' }
+
+  // E10 — permissions utiles (`/setup/permissions`). `permission_location`
+  // existe déjà (E05 l'explique et la demande) : on ne le double pas. Les deux
+  // permissions de CET écran manquaient — et sans elles, impossible de savoir
+  // si « le bouton principal peut être CONTINUER même si une permission
+  // secondaire est refusée » coûte quelque chose.
+  setupPermissionsViewed: 'setup_permissions_viewed',
+  /** Mouvements et activité physique. result FERMÉ : 'granted' | 'denied' | 'blocked' | 'unavailable' */
+  permissionMotion: 'permission_motion', // props: { result }
+  /** Notifications tactiques. Mêmes valeurs de `result` que ci-dessus. */
+  permissionNotifications: 'permission_notifications', // props: { result }
+  /** CONTINUER tapé — avec l'état RÉEL des deux permissions à cet instant. */
+  setupPermissionsCompleted: 'setup_permissions_completed', // props: { motion: boolean, notifications: boolean }
+
+  // ── E35/E36 : compositeur de partage ──────────────────────────────────────
+  // `share_card_generated`, `share_export`, `share_completed` et
+  // `share_template_changed` existent déjà (preview, PNG, canal, format). Ce
+  // qui manquait : l'ÉDITEUR (E36) et le raccourci NOMMÉ vers un réseau.
+  /**
+   * Le sheet « Personnaliser » (E36) s'ouvre.
+   * tab FERMÉ : 'style' | 'format' | 'data' | 'text' | 'privacy'
+   *
+   * `'data'` (la section « Donnée » de la planche E10 : quel chiffre passe en
+   * géant) a été AJOUTÉ au vocabulaire le 27/07/2026, quand la section a été
+   * peinte. `'media'` en a été RETIRÉ : c'est la section Photo, et elle n'est
+   * pas peinte — `apps/mobile/app.json` déclare `NSPhotoLibraryUsageDescription`
+   * pour un usage photo de PROFIL uniquement. Un vocabulaire qui listerait un
+   * onglet inexistant décrirait un écran qui n'existe pas.
+   */
+  shareCustomizeOpened: 'share_customize_opened', // props: { tab }
+  /** CTA `APPLIQUER` de E36 — un réglage a réellement été appliqué à l'aperçu. */
+  shareCustomizeApplied: 'share_customize_applied', // props: { tab }
+  /**
+   * Raccourci vers un réseau NOMMÉ (E35 : Instagram, TikTok, WhatsApp, Plus).
+   * C'est une INTENTION, pas un partage : la remise à l'app tierce se mesure
+   * avec `share_exported`, et l'aboutissement avec `share_completed`. Les trois
+   * ne se confondent pas — l'écart entre eux EST le KPI.
+   * channel FERMÉ : 'instagram' | 'tiktok' | 'whatsapp' | 'more'
+   */
+  shareChannelTapped: 'share_channel_tapped', // props: { channel }
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

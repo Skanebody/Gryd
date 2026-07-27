@@ -279,6 +279,30 @@ export interface IngestRunResponse {
    */
   capReached?: boolean;
   /**
+   * L'AIRE DE LA BOUCLE SURESTIME-T-ELLE CE QUI A ÉTÉ OBTENU ? (27/07/2026)
+   *
+   * Présent (`true`) quand au moins une cellule INTÉRIEURE de la boucle n'est
+   * pas devenue la propriété du coureur : plafond d'aire (`capReached`), plafond
+   * quotidien, zone privée, zone non capturable, ou cellule qu'un rival garde
+   * (lock, protection fraîche, bouclier, compte neuf). Décidé serveur par
+   * `loopInteriorPartial` (moteur pur, `packages/engine/src/claims.ts`).
+   *
+   * POURQUOI CE CHAMP EXISTE. `territories.area_m2` est l'aire GÉODÉSIQUE de
+   * l'ANNEAU couru, et `buildTerritoryRow` l'écrit dès qu'UNE seule cellule a
+   * été capturée. Sans ce drapeau, l'écran de résultat imprimait « 420 000 m² ·
+   * SURFACE GAGNÉE » pour une boucle dont 3 cellules sur 30 avaient été
+   * créditées — l'aire ENCERCLÉE présentée comme l'aire OBTENUE, et le même
+   * nombre partait dans le PNG partagé.
+   *
+   * CE QU'IL NE DIT PAS : de combien, ni lesquelles. Aucune surface de
+   * remplacement n'est calculable (la géométrie autoritaire reste l'anneau), et
+   * un ratio inventé serait un chiffre plausible et faux. Le seul usage
+   * légitime côté client est donc de NE PAS afficher cette aire comme un gain.
+   *
+   * Absent = l'intérieur est intégralement à moi, l'aire décrit bien le gain.
+   */
+  interiorPartial?: boolean;
+  /**
    * AMENDEMENT-16 §2 anti-abus « boucle trop fine » : présent quand la boucle
    * est fermée mais son intérieur est REFUSÉ (course et couloir restent
    * pleinement valides). 'narrow' = compacité 4πA/P² < LOOP_MIN_COMPACTNESS

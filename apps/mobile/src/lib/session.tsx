@@ -6,6 +6,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from './supabase';
+import { initialTokenProbe } from '../features/boot/bootSequence';
 import { cancelAccountDeletion } from '../features/account/deletion';
 
 export interface SessionState {
@@ -34,7 +35,20 @@ const SessionContext = createContext<SessionState>({
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState<boolean>(isSupabaseConfigured);
+  /**
+   * ANTI-FLASH E00 — LA VALEUR DU TOUT PREMIER RENDU, ET ELLE N'EST PAS ÉCRITE
+   * ICI. Elle vient d'`initialTokenProbe` (features/boot/bootSequence.ts), la
+   * fonction PURE que la séquence de démarrage utilise déjà et que ses tests
+   * figent. Auparavant cette ligne portait `useState(isSupabaseConfigured)` et
+   * `initialTokenProbe` en était une COPIE que personne n'appelait : les tests
+   * « aucun flash de l'écran de connexion » validaient donc un duplicata, et
+   * repasser cette ligne à `useState(false)` aurait ramené le flash en laissant
+   * la suite verte. Un seul énoncé, un seul endroit — et `bootSequence.test.ts`
+   * relit CE fichier pour vérifier que l'appel y est toujours.
+   */
+  const [loading, setLoading] = useState<boolean>(
+    initialTokenProbe(isSupabaseConfigured) === 'reading',
+  );
   const [deletionCancelled, setDeletionCancelled] = useState(false);
 
   useEffect(() => {
