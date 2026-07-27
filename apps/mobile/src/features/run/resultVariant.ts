@@ -12,7 +12,15 @@
  * tenir ses zones lisait « TERRITOIRE ÉTENDU ». Deux fois le même bug : l'écran
  * racontait une INTENTION là où il devait rapporter un VERDICT.
  *
- * Ce module est la porte d'entrée unique de ce choix. Il est PUR (zéro import,
+ * NOTE 27/07 — ce module n'importait RIEN. Il importe désormais une (et une
+ * seule) chose : `displayableFortificationLevel` de `@klaim/shared`, parce que
+ * la règle « quel niveau de protection est affichable » existait ici ET dans
+ * features/map avec des bornes DIFFÉRENTES. Un import de constantes de jeu ne
+ * casse pas la testabilité Deno (`features/map/*` en importe déjà) et il est le
+ * seul moyen d'avoir une vérité au lieu de deux. Aucun autre import n'entre ici.
+ *
+ * Ce module est la porte d'entrée unique de ce choix. Il est PUR (aucun import
+ * React/RN/stockage/réseau,
  * zéro I/O, instant injecté) et donc Deno-testable, comme `revealSequence.ts`,
  * `openBoundaryClock.ts` et `narrative.ts`.
  *
@@ -40,15 +48,18 @@
  * traque, et « +0 de rang » se lit comme une mesure).
  */
 
+import { displayableFortificationLevel } from '@klaim/shared';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. LE RÉCIT DOMINANT, TEL QUE LE MOTEUR PARTAGÉ LE REND
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
  * Miroir STRUCTUREL de `NarrativeId` (features/share/narrative.ts). Dupliqué
- * EXPRÈS, comme `narrative.ts` duplique `ShareTemplateId` : ce module doit
- * rester sans import pour être testable en Deno. La compatibilité est vérifiée
- * à la compilation par l'affectation faite dans `app/course-result.tsx`.
+ * EXPRÈS, comme `narrative.ts` duplique `ShareTemplateId` : `narrative.ts` vit
+ * dans un dossier que ce module ne doit pas tirer (il traîne le rendu de
+ * partage). La compatibilité est vérifiée à la compilation par l'affectation
+ * faite dans `app/course-result.tsx`.
  */
 export type DominantNarrative =
   | 'capture'
@@ -202,6 +213,33 @@ export type FreeRunReason =
   /** Aucune action territoriale, et rien de plus précis à dire. */
   | { readonly kind: 'noAction' };
 
+/**
+ * E34 — CE QUE LA VÉRIFICATION A CONCLU, EN TROIS ÉTATS DISTINCTS.
+ *
+ * `RunStatus` en compte quatre (`valid` · `partial` · `rejected` · `flagged`),
+ * et l'écran les repliait sur UN booléen :
+ *   `verified = status === 'valid' || status === 'partial'` (course-result.tsx).
+ * Ce booléen ne distinguait donc RIEN : il valait exactement « la course est
+ * créditée ». Conséquence directe, sur une course `partial` : l'écran affichait
+ * en haut « Une partie du parcours n'a pas été retenue » (`excluded`) et, dans
+ * le détail du calcul, « GPS et mouvement fiables : CAPTURE PLEINE ». Deux
+ * affirmations contradictoires sur le même écran, dont une fausse.
+ *
+ * Les trois états, et ce que chacun autorise à dire :
+ *  · `full`            — `valid` : rien n'a été écarté, la capture est pleine.
+ *  · `partialExcluded` — `partial` : GRYD Verify a bien été passé (une course au
+ *    score de confiance insuffisant serait `flagged`, pas `partial` — voir
+ *    `ingest_run`), MAIS `claimableSegments` a écarté au moins un segment du
+ *    claim. La vérification n'est pas « partielle » : c'est le PARCOURS RETENU
+ *    qui l'est, et la copie doit dire ça et pas autre chose.
+ *  · `notCredited`     — `rejected` / `flagged`, ou aucun verdict du tout.
+ *
+ * Ce que cet état ne fera JAMAIS : chiffrer la portion écartée. Le serveur ne
+ * renvoie ni sa longueur ni sa durée — un pourcentage calculé ici serait un
+ * chiffre plausible et faux, exactement ce que ce module existe pour refuser.
+ */
+export type VerifyConclusion = 'full' | 'partialExcluded' | 'notCredited';
+
 /** Ce que l'écran a le DROIT d'afficher, une fois les absences retirées. */
 export interface ResultComposition {
   readonly variant: ResultVariantId;
@@ -225,6 +263,13 @@ export interface ResultComposition {
    * sous une célébration serait mentir par omission.
    */
   readonly excluded: boolean;
+  /**
+   * E34 — la conclusion de vérification, en TROIS états (voir `VerifyConclusion`).
+   * `excluded` dit QU'une portion a été écartée ; `verify` dit ce que la ligne
+   * de conclusion a le droit d'affirmer. Les deux viennent du même fait serveur
+   * et ne peuvent donc plus se contredire.
+   */
+  readonly verify: VerifyConclusion;
   /** Un recours RÉEL est ouvert : `/appel` a de quoi répondre. */
   readonly appealOpen: boolean;
 }
@@ -296,14 +341,19 @@ export function displayableRankChange(delta: number | null | undefined): number 
 }
 
 /**
- * Le niveau de protection AFFICHABLE. `defense_level` vaut 0 sur un territoire
- * jamais fortifié : ce n'est pas « niveau 0 de protection », c'est « aucune
- * fortification » — donc rien à annoncer sur un écran qui célèbre une défense.
+ * Le niveau de protection AFFICHABLE.
+ *
+ * ⚠ CORRECTIF DU 27/07 — CETTE FONCTION N'AVAIT AUCUNE BORNE HAUTE, là où son
+ * jumeau de la carte (`zoneProtectionLevel`, features/map/zoneDetail.ts) rejetait
+ * tout niveau > 3. Le MÊME fait de jeu se lisait donc différemment selon
+ * l'écran : sur une ligne `territories` à `defense_level = 4` (contrainte SQL
+ * contournée, migration future élargissant la borne, lecture corrompue), la
+ * feuille de carte masquait la protection pendant que course-result imprimait
+ * « niveau 4 ». Les deux délèguent désormais à la même fonction partagée, dont
+ * la borne est DÉRIVÉE de la table de fortification.
  */
 export function displayableProtection(level: number | null | undefined): number | null {
-  if (typeof level !== 'number' || !Number.isFinite(level)) return null;
-  if (!Number.isInteger(level) || level < 1) return null;
-  return level;
+  return displayableFortificationLevel(level);
 }
 
 /**
@@ -389,8 +439,22 @@ export function composeResult(facts: ResultFacts): ResultComposition {
     // L'exclusion se dit TOUJOURS quand elle a eu lieu — y compris sous une
     // conquête réussie. C'est la moitié de la vérité qui manquait (audit E34).
     excluded: facts.judged && facts.credited && facts.partial,
+    verify: verifyConclusionOf(facts),
     appealOpen: facts.appealOpen,
   };
+}
+
+/**
+ * La conclusion de vérification, seule (exposée pour les tests).
+ *
+ * L'ordre compte : SANS verdict, ou sur une course non créditée, il n'y a rien
+ * à conclure — surtout pas « capture pleine ». Un état INCONNU n'est pas un
+ * état vérifié, et `notCredited` couvre les deux (le hors-ligne comme le refus)
+ * parce que dans les deux cas l'écran n'a le droit d'affirmer AUCUNE capture.
+ */
+export function verifyConclusionOf(facts: ResultFacts): VerifyConclusion {
+  if (!facts.judged || !facts.credited) return 'notCredited';
+  return facts.partial ? 'partialExcluded' : 'full';
 }
 
 /** Le choix d'écran seul (exposé pour les tests et pour la lisibilité). */

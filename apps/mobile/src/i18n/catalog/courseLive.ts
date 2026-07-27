@@ -243,6 +243,150 @@ export const C = defineCatalog({
     de: 'Countdown abbrechen',
     pt: 'Cancelar a contagem regressiva',
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // E19 — ACQUISITION GPS / PRÊT (spec produit UI/UX, l.1088-1106), 27/07/2026.
+  //
+  // POURQUOI ICI ET PAS DANS UN CATALOGUE NEUF : `/activity/ready` est l'écran
+  // que `RunPreflight.tsx` rend déjà, et RunPreflight lit CE catalogue (l.64 du
+  // composant). Un fichier neuf aurait posé deux sources pour un seul écran.
+  //
+  // LES QUATRE ÉTATS DE L'ANNEAU sont ceux de `GpsAccuracyGrade`
+  // (game-rules.ts) — et `ringUnknown` n'est PAS `ringPoor` : avant le premier
+  // fix, personne ne sait si le signal est bon. Un anneau rouge affiché à
+  // l'ouverture affirmerait un mauvais GPS sur une mesure qui n'existe pas.
+  // Aucun de ces libellés ne chiffre le seuil : le nombre vit dans game-rules,
+  // l'écran dit l'état.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Bande VERTE (≤ GPS_READY_ACCURACY_M) — le mot exact de la spec (l.1096). */
+  ringReady: {
+    fr: 'Prêt',
+    en: 'Ready',
+    es: 'Listo',
+    de: 'Bereit',
+    pt: 'Pronto',
+  },
+  /** Bande ORANGE — utilisable, et l'écran le dit sans dramatiser. */
+  ringUsable: {
+    fr: 'Signal correct',
+    en: 'Signal OK',
+    es: 'Señal aceptable',
+    de: 'Signal brauchbar',
+    pt: 'Sinal aceitável',
+  },
+  /** Bande ROUGE — un fait, pas un reproche, avec la seule chose à faire. */
+  ringPoor: {
+    fr: 'Signal faible — sors à découvert',
+    en: 'Weak signal — move into the open',
+    es: 'Señal débil — sal a cielo abierto',
+    de: 'Schwaches Signal — geh ins Freie',
+    pt: 'Sinal fraco — vá para um lugar aberto',
+  },
+  /** AUCUN fix encore reçu : le texte de la spec, « Recherche du signal ». */
+  ringUnknown: {
+    fr: 'Recherche du signal',
+    en: 'Searching for signal',
+    es: 'Buscando la señal',
+    de: 'Signal wird gesucht',
+    pt: 'Procurando sinal',
+  },
+  /** a11y de l'anneau : l'état en toutes lettres, jamais une couleur seule. */
+  a11yRing: {
+    fr: 'Précision du signal : {state}',
+    en: 'Signal accuracy: {state}',
+    es: 'Precisión de la señal: {state}',
+    de: 'Signalgenauigkeit: {state}',
+    pt: 'Precisão do sinal: {state}',
+  },
+  /**
+   * CTA de la bande verte (spec l.1097). Unique bouton chartreuse de l'écran.
+   * Il n'est peint QUE en `'ready'` : peindre un départ « maintenant » sur un
+   * signal absent serait le bouton mort que la constitution interdit.
+   */
+  startNow: {
+    fr: 'DÉMARRER MAINTENANT',
+    en: 'START NOW',
+    es: 'EMPEZAR AHORA',
+    de: 'JETZT STARTEN',
+    pt: 'COMEÇAR AGORA',
+  },
+  /**
+   * Le lien de la bande orange (spec l.1098 : « seulement si la précision reste
+   * exploitable »). C'est un LIEN, pas un second bouton plein : un écran, une
+   * décision (§A).
+   */
+  startAnyway: {
+    fr: 'Démarrer quand même',
+    en: 'Start anyway',
+    es: 'Empezar igualmente',
+    de: 'Trotzdem starten',
+    pt: 'Começar mesmo assim',
+  },
+  /**
+   * Ce que « démarrer quand même » coûte vraiment, dit avant le tap. Le serveur
+   * garde la précision réelle de chaque point (spec l.1106) : certains points
+   * ne compteront pas pour le territoire, la sortie, elle, sera bien enregistrée.
+   */
+  startAnywayNote: {
+    fr: 'Certains points seront trop flous pour compter dans le territoire. Ta sortie, elle, est enregistrée.',
+    en: 'Some points will be too fuzzy to count towards territory. Your outing itself is recorded.',
+    es: 'Algunos puntos serán demasiado imprecisos para contar en el territorio. Tu salida sí queda registrada.',
+    de: 'Einige Punkte sind zu ungenau, um fürs Gebiet zu zählen. Deine Aktivität wird trotzdem aufgezeichnet.',
+    pt: 'Alguns pontos ficarão imprecisos demais para contar no território. Sua atividade é registrada mesmo assim.',
+  },
+  /**
+   * La précision RÉELLE, au centre de l'anneau. Le « ± » n'est pas décoratif :
+   * une précision GPS est un RAYON d'incertitude, pas une distance parcourue.
+   * L'entrée existe dans les cinq langues parce que l'unité et la ponctuation
+   * ne se placent pas partout pareil, même si le mètre est universel.
+   */
+  ringAccuracy: {
+    fr: '± {m} m',
+    en: '± {m} m',
+    es: '± {m} m',
+    de: '± {m} m',
+    pt: '± {m} m',
+  },
+  /**
+   * AUCUNE mesure possible ici (capteur muet, ou position rendue sans précision
+   * chiffrée). L'écran ne peint alors PAS d'anneau — cette phrase le remplace.
+   * Elle constate, elle n'accuse pas : rien ne dit que le signal est mauvais,
+   * seulement que personne ne peut le chiffrer.
+   */
+  ringUnmeasurable: {
+    fr: 'Précision non mesurable ici',
+    en: 'Accuracy can’t be measured here',
+    es: 'Aquí no se puede medir la precisión',
+    de: 'Genauigkeit hier nicht messbar',
+    pt: 'Precisão não mensurável aqui',
+  },
+  /**
+   * L'attente dure (PREFLIGHT_PROBE_HINT_MS). « Jamais de spinner infini » :
+   * passé ce délai, l'écran nomme ce qui se passe et donne le seul geste qui
+   * aide. Tutoiement, et aucun reproche — un signal faible sous un porche est
+   * normal et universel.
+   */
+  /**
+   * a11y du bouton « Annuler » PENDANT L'ACQUISITION. Il ne peut pas réutiliser
+   * `a11yCancelCountdown` (« Annuler le compte à rebours ») : à cet instant
+   * aucun décompte ne tourne, et un lecteur d'écran annoncerait une chose qui
+   * n'existe pas — la même faute qu'un chiffre fabriqué, en plus discret.
+   */
+  a11yCancelPreflight: {
+    fr: 'Annuler le départ',
+    en: 'Cancel the start',
+    es: 'Cancelar la salida',
+    de: 'Start abbrechen',
+    pt: 'Cancelar a partida',
+  },
+  ringSearchingLong: {
+    fr: 'Toujours rien. Sous un toit ou entre deux immeubles, ça peut prendre un moment.',
+    en: 'Still nothing. Under a roof or between tall buildings, this can take a while.',
+    es: 'Todavía nada. Bajo techo o entre edificios altos, esto puede tardar.',
+    de: 'Noch nichts. Unter einem Dach oder zwischen hohen Häusern kann das dauern.',
+    pt: 'Ainda nada. Sob um teto ou entre prédios altos, isso pode demorar.',
+  },
 });
 
 /**

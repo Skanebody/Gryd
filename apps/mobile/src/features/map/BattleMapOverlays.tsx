@@ -124,6 +124,10 @@ import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
 import { SheetMetrics, type SheetMetric } from './SheetMetrics';
 import { MissionBriefingSheet } from './MissionBriefingSheet';
 import { DefenseZoneSheet } from './DefenseZoneSheet';
+// E14 — les décisions de contenu de la feuille de zone (variante, frontière,
+// CTA, note de confidentialité) viennent d'un module PUR, testé, partagé par la
+// carte native et la carte web : elles ne peuvent pas diverger d'un écran à l'autre.
+import { zoneCta, zoneShowsPrivacyNote } from './zoneDetail';
 import { useDefenseCrewAlert } from './useDefenseCrewAlert';
 import { ToastHost, useToast } from '../social/Toast';
 import {
@@ -792,6 +796,12 @@ export function BattleMapOverlays({
             areaKm2: zone.areaKm2,
             zones: zone.zones,
             capturedDaysAgo: daysSinceCapture(zone.capturedAt, new Date()),
+            // E14 — les deux faits que seule `territories` porte : le SENS de la
+            // date (début de contrôle vs dernière prise) et le niveau de
+            // protection. Tous deux déjà filtrés par `selectZoneView` : `null`
+            // ici veut dire « pas de source », et la ligne saute.
+            timeMetric: zone.timeMetric,
+            protectionLevel: zone.protectionLevel,
           }),
     [zone],
   );
@@ -823,8 +833,16 @@ export function BattleMapOverlays({
   // l'autre — et sa sheet se resserre d'autant au lieu de laisser un vide.
   const zoneHeight = zoneSheetHeight({
     metrics: zoneMetrics.length,
-    hasCta: zone?.role === 'rival',
+    // E14 — MA zone porte désormais elle aussi un CTA (« Planifier une sortie »,
+    // spec l.962) : la hauteur doit le réserver, sinon il passerait sous la ligne
+    // de flottaison de la sheet (§A9). Seule une propriété INDÉTERMINÉE n'en a
+    // aucun. Le lien tertiaire, lui, reste propre à la zone rivale.
+    hasCta: zone !== null && zoneCta(zone.role, zone.ownership) !== null,
     hasTertiary: zone?.role === 'rival',
+    // La ligne « Frontière · … » est toujours rendue : elle a toujours une
+    // réponse vraie (exacte / simplifiée / approximative).
+    hasBorderNote: zone !== null,
+    hasPrivacyNote: zone !== null && zoneShowsPrivacyNote(zone.role),
   });
   const briefingHeight = briefSheetHeight({
     state: briefState,
@@ -1589,28 +1607,81 @@ function ZoneDecisionPeek({
     : isRival
       ? gameColors.rival
       : gameColors.crew;
+  /**
+   * E14 — QUATRE kickers, pas trois. Le CONTESTÉ prime toujours (c'est l'état
+   * qui déclenche l'action), puis la variante RIVALE, puis — nouveauté du lot —
+   * la ZONE DU CREW, que `role: 'mine'` fondait avec la zone personnelle. La
+   * distinction vient de `zone.ownership`, dérivée des ids par `zoneOwnership` ;
+   * `'unknown'` retombe sur « TON TERRITOIRE », dont la copie couvre déjà
+   * « moi/mon crew » sans trancher entre les deux.
+   */
   const kicker = zone.contested
     ? C.zoneKickerContested
     : isRival
       ? C.zoneKickerRival
-      : C.zoneKickerMine;
+      : zone.ownership === 'crew'
+        ? C.zoneKickerCrew
+        : C.zoneKickerMine;
+
+  /**
+   * E14 — les trois décisions de contenu, toutes dérivées de faits par le module
+   * pur `zoneDetail.ts` : QUI tient la zone (ligne de propriétaire), CE QUE
+   * MONTRE le contour (frontière), et QUEL CTA unique proposer. Aucune n'est
+   * prise ici, pour que les deux cartes (native et web) ne puissent pas diverger
+   * — c'est exactement la raison d'être de `zoneSelection.ts`.
+   */
+  const ownerLine =
+    zone.ownership === 'personal'
+      ? C.zoneOwnerMine
+      : zone.ownership === 'crew'
+        ? C.zoneOwnerCrew
+        : zone.ownership === 'rival'
+          ? C.zoneOwnerRival
+          : // Indéterminée : aucune ligne plutôt qu'un propriétaire désigné au hasard.
+            null;
+  const borderCopy =
+    zone.border === 'exact'
+      ? C.zoneBorderExact
+      : zone.border === 'generalized'
+        ? C.zoneBorderGeneralized
+        : C.zoneBorderApprox;
+  const cta = zoneCta(zone.role, zone.ownership);
+  const ctaCopy = cta === 'reprendre' ? C.zoneReprendre : C.zonePlanOutingCta;
+  const showPrivacy = zoneShowsPrivacyNote(zone.role);
 
   const days = daysSinceCapture(zone.capturedAt, new Date());
-  const cells: readonly SheetMetric[] = metrics.map((key) => {
+  // `flatMap` et non `map` : la cellule PROTECTION disparaît si sa source venait
+  // à manquer, au lieu de se rabattre sur un `0` — ce zéro nu serait lu « niveau
+  // de protection : 0 » alors qu'il signifierait « je ne sais pas ». Le cas est
+  // déjà fermé en amont par `zoneMetricKeys` ; on ne laisse pas pour autant un
+  // repli mensonger dans le rendu.
+  const cells: readonly SheetMetric[] = metrics.flatMap<SheetMetric>((key) => {
     if (key === 'area') {
       // « 0,42 » (gros) + « km² » (petit) : la composition de la planche.
       const { value, unit } = areaStatParts(zone.areaKm2, locale);
-      return { key, value, unit, label: t(C.zoneMetricArea) };
+      return [{ key, value, unit, label: t(C.zoneMetricArea) }];
     }
     if (key === 'zones') {
       // Pas d'unité : le libellé « Zones » porte déjà le sens (planche E04).
-      return { key, value: String(zone.zones), label: t(C.zoneMetricZones) };
+      return [{ key, value: String(zone.zones), label: t(C.zoneMetricZones) }];
     }
-    return {
+    if (key === 'protection') {
+      // E14 (spec l.960). `protectionLevel` est DÉJÀ filtré par `selectZoneView` :
+      // cette cellule n'existe que s'il y a une fortification RÉELLE à annoncer,
+      // donc jamais « Niveau 0 ». La valeur est le chiffre seul (gros, rôle
+      // `typography.stat`), le libellé dit de quoi il s'agit.
+      return zone.protectionLevel === null
+        ? []
+        : [{ key, value: String(zone.protectionLevel), label: t(C.zoneMetricProtection) }];
+    }
+    return [{
       key,
       value: days === 0 ? t(C.zoneAgoToday) : t(C.zoneAgoDays, { n: days ?? 0 }),
-      label: t(C.zoneMetricLastCapture),
-    };
+      // E14 — « Tenue depuis » n'est vrai que quand la date EST le début du
+      // contrôle ininterrompu (`territories.controlled_since`). Sur un paquet de
+      // cellules, seule « Dernière prise » est mesurable : la clé le porte.
+      label: t(key === 'held' ? C.zoneMetricHeldFor : C.zoneMetricLastCapture),
+    }];
   });
 
   return (
@@ -1639,45 +1710,76 @@ function ZoneDecisionPeek({
       <Text style={styles.zoneName} numberOfLines={1} adjustsFontSizeToFit>
         {zoneName ?? t(C.zoneFallback)}
       </Text>
-      {/* PROPRIÉTAIRE — un fait neutre, ton compétitif jamais humiliant. */}
-      <Text style={styles.zoneControl} numberOfLines={1} adjustsFontSizeToFit>
-        {t(isRival ? C.zoneOwnerRival : C.zoneOwnerMine)}
+      {/* PROPRIÉTAIRE — un fait neutre, ton compétitif jamais humiliant.
+          E14 : « À ton crew » est distinct de « À toi ». Propriété INDÉTERMINÉE
+          sur une zone peinte en rival (contestée, lecteur pas encore identifié)
+          ⇒ AUCUNE ligne : on ne désigne pas un propriétaire au hasard. */}
+      {ownerLine ? (
+        <Text style={styles.zoneControl} numberOfLines={1} adjustsFontSizeToFit>
+          {t(ownerLine)}
+        </Text>
+      ) : null}
+      {/* FRONTIÈRE (spec l.975) — ce que montre le contour peint : le tracé
+          exact, sa version publique simplifiée, ou un contour approximatif tant
+          qu'aucun polygone ne décrit ces captures. Dire lequel est la seule
+          protection contre « je regarde ma course » alors qu'on regarde des
+          cellules (§1.4 + territoriesSource.ts §5). */}
+      <Text style={styles.zoneBorderNote} numberOfLines={2}>
+        {`${t(C.zoneBorderLabel)} · ${t(borderCopy)}`}
       </Text>
       {/* Filet horizontal fin (planche -selection10) — rythme de section, pas un
           contenant : sépare le bloc propriétaire des métriques. */}
       <View style={styles.zoneHairline} />
       {/* 3 MÉTRIQUES MAX à séparateurs — et moins dès qu'une source manque. */}
       <SheetMetrics metrics={cells} testID="zone-metrics" />
-      {isRival ? (
+      {/* E14 — UN SEUL CTA chartreuse (§A4), choisi par `zoneCta` :
+          « Reprendre » sur une zone rivale, « Planifier une sortie » sur la
+          mienne / celle de mon crew (spec l.962 — avant ce lot MA zone n'avait
+          AUCUNE action et la feuille était un cul-de-sac, GO étant retiré tant
+          qu'elle est ouverte). Propriété indéterminée ⇒ aucun CTA. */}
+      {cta !== null ? (
         <>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t(C.zoneReprendre)}
-            onPress={onReprendre}
+            accessibilityLabel={t(ctaCopy)}
+            onPress={cta === 'reprendre' ? onReprendre : onPlanLater}
             style={({ pressed }) => [styles.zoneReprendreBtn, pressed && styles.pressed]}
-            testID="zone-reprendre"
+            testID={cta === 'reprendre' ? 'zone-reprendre' : 'zone-plan-outing'}
           >
             <Text style={styles.zoneReprendreLabel} numberOfLines={1} adjustsFontSizeToFit>
-              {t(C.zoneReprendre)}
+              {t(ctaCopy)}
             </Text>
           </Pressable>
           {/* Action TERTIAIRE : jamais un 2ᵉ bouton plein (§A.4). CENTRÉE sous le
               CTA pleine largeur, semibold gris — la forme exacte de la planche
               (-selection10). Sûre ici car GO se retire tant que la sheet de zone
               est ouverte (useZoneSheetOpen) : aucun tap volé au coin bas-droit. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(C.zonePlanLaterA11y)}
-            hitSlop={8}
-            onPress={onPlanLater}
-            style={({ pressed }) => [styles.zoneTertiaryHit, pressed && styles.pressed]}
-            testID="zone-plan-later"
-          >
-            <Text style={styles.zoneTertiaryLabel} numberOfLines={1}>
-              {t(C.zonePlanLater)}
-            </Text>
-          </Pressable>
+          {/* Le lien tertiaire n'a de sens QUE sous « Reprendre » : sous
+              « Planifier une sortie », il ouvrirait le même planificateur — deux
+              chemins vers un seul écran, exactement le doublon que §A retire. */}
+          {cta === 'reprendre' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.zonePlanLaterA11y)}
+              hitSlop={8}
+              onPress={onPlanLater}
+              style={({ pressed }) => [styles.zoneTertiaryHit, pressed && styles.pressed]}
+              testID="zone-plan-later"
+            >
+              <Text style={styles.zoneTertiaryLabel} numberOfLines={1}>
+                {t(C.zonePlanLater)}
+              </Text>
+            </Pressable>
+          ) : null}
         </>
+      ) : null}
+      {/* CONFIDENTIALITÉ (spec l.983) — dite seulement sur une zone qui n'est pas
+          la mienne, là où elle informe : personne ne lira ici un départ, une
+          arrivée, un horaire ni un tracé brut. */}
+      {showPrivacy ? (
+        <Text style={styles.zonePrivacyNote} numberOfLines={2}>
+          {t(C.zonePrivacyNote)}
+        </Text>
       ) : null}
     </View>
   );
@@ -1993,6 +2095,24 @@ const styles = StyleSheet.create({
   // Filet horizontal fin (planche -selection10) sous le bloc propriétaire, avant
   // les métriques — un FILET, pas un contenant (§A : jamais de card-in-card).
   zoneHairline: { height: 1, backgroundColor: colors.grisLigne, marginTop: 12 },
+  // E14 — « Frontière · … » (spec l.975) et la note de confidentialité (l.983).
+  // Deux lignes de contexte, PAS deux cards : même typographie discrète que la
+  // ligne de propriétaire, aucun fond, aucune bordure (§A : jamais de card dans
+  // une card). `numberOfLines={2}` sans `adjustsFontSizeToFit` : ces phrases
+  // s'enroulent, elles ne rétrécissent pas — l'allemand ne doit pas passer sous
+  // le plancher a11y.
+  zoneBorderNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '500',
+    marginTop: 6,
+  },
+  zonePrivacyNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '500',
+    marginTop: 10,
+  },
   // E04 — CTA REPRENDRE : chartreuse (unique CTA tant que le sheet est ouvert,
   // GO retiré via useZoneSheetOpen). Libellé NOIR (jamais chartreuse sur clair).
   // CTA REPRENDRE — hauteur 54 mesurée sur la planche (-selection10), pill,

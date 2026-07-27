@@ -1318,4 +1318,287 @@ export const C = defineCatalog({
     de: 'KARTE ANSEHEN',
     pt: 'VER O MAPA',
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // E14 — DÉTAIL D'UN TERRITOIRE (`/map/zone/:zoneId`), spec produit l.943-985.
+  // Ajouté le 27/07/2026.
+  //
+  // ⚠ NUMÉROTATION : E14 = la NOUVELLE spec (ARBITRAGES A4). Le « E14 » cité
+  // ailleurs dans le dépôt (commutateur Run/Bike) est la planche Vague 1, à
+  // citer `V1-E14`.
+  //
+  // POURQUOI ICI ET PAS DANS UN CATALOGUE NEUF : la feuille de zone EXISTE
+  // (`features/map/zoneSelection.ts` + les sheets de `BattleMapOverlays.tsx` /
+  // `MapScreen*.tsx`) et lit CE catalogue. Les clés `zoneKickerMine`,
+  // `zoneKickerRival`, `zoneKickerContested`, `zoneReprendre`, `zoneMetric*`
+  // et tout le bloc `defense*` couvrent DÉJÀ trois des cinq variantes de la
+  // spec (rivale, contestée, et le tronc commun de la personnelle) : elles ne
+  // sont pas recréées ici.
+  //
+  // CE QUI MANQUAIT VRAIMENT, et que ce bloc ajoute :
+  //   · la variante ZONE LIBRE — `selectZoneView` ne rend aujourd'hui que
+  //     'mine' | 'rival' (une zone libre n'a aucune ligne `hex_claims`) ;
+  //   · la variante ZONE CREW, aujourd'hui FONDUE dans « à toi » (`role: 'mine'`
+  //     dès que `status === 'crew'`), alors que la spec en fait deux écrans
+  //     avec deux contenus ;
+  //   · le niveau de protection et le CTA `RENFORCER` de la zone personnelle.
+  //
+  // ⚠ CONTRAT POUR L'ÉCRAN QUI CONSOMMERA CES CLÉS : chacune suppose une SOURCE
+  // RÉELLE. Tant qu'une donnée n'est pas lue (contribution crew, événements
+  // récents, niveau de protection), la ligne ne se peint pas — l'absence est un
+  // état, pas un trou à combler. Et aucune de ces clés ne nomme un joueur : la
+  // spec ferme le sujet (l.983 : « Aucun départ, arrivée, horaire précis ou
+  // trace brute d'un tiers »).
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Variante 1 : ZONE LIBRE ───────────────────────────────────────────────
+  zoneKickerFree: {
+    fr: 'ZONE LIBRE',
+    en: 'FREE ZONE',
+    es: 'ZONA LIBRE',
+    de: 'FREIE ZONE',
+    pt: 'ZONA LIVRE',
+  },
+  /** Surface ESTIMÉE (spec l.952) — le mot « estimée » est dans le libellé. */
+  zoneMetricAreaEstimated: {
+    fr: 'Surface estimée',
+    en: 'Estimated area',
+    es: 'Superficie estimada',
+    de: 'Geschätzte Fläche',
+    pt: 'Área estimada',
+  },
+  /**
+   * « Meilleure boucle suggérée » (spec l.953) — une SUGGESTION du planificateur,
+   * jamais une promesse de capture. Le mot « suggérée » n'est pas décoratif.
+   */
+  zoneSuggestedLoop: {
+    fr: 'Boucle suggérée',
+    en: 'Suggested loop',
+    es: 'Bucle sugerido',
+    de: 'Vorgeschlagene Schleife',
+    pt: 'Circuito sugerido',
+  },
+  /** Aucune boucle calculable ici : on le dit plutôt que d'en inventer une. */
+  zoneSuggestedLoopNone: {
+    fr: 'Aucune boucle proposée ici pour l’instant',
+    en: 'No loop suggested here for now',
+    es: 'Ningún bucle propuesto aquí por ahora',
+    de: 'Hier vorerst keine Schleife vorgeschlagen',
+    pt: 'Nenhum circuito sugerido aqui por enquanto',
+  },
+  /** CTA de la zone libre (spec l.954). */
+  zoneConquerCta: {
+    fr: 'CONQUÉRIR',
+    en: 'CONQUER',
+    es: 'CONQUISTAR',
+    de: 'EROBERN',
+    pt: 'CONQUISTAR',
+  },
+
+  // ── Variante 2 : ZONE PERSONNELLE ─────────────────────────────────────────
+  /**
+   * « Durée de contrôle » (spec l.959). DISTINCT de `zoneMetricLastCapture` :
+   * celle-ci dit depuis quand la zone est tenue SANS INTERRUPTION, et ne
+   * s'affiche donc que si le serveur porte cette durée. Sans elle, on garde
+   * « Dernière prise », qui est mesurable.
+   */
+  zoneMetricHeldFor: {
+    fr: 'Tenue depuis',
+    en: 'Held for',
+    es: 'En tu poder desde',
+    de: 'Gehalten seit',
+    pt: 'Mantida há',
+  },
+  /** « Niveau de protection » (spec l.960) — jamais un « 0 » nu (voir ci-dessous). */
+  zoneMetricProtection: {
+    fr: 'Protection',
+    en: 'Protection',
+    es: 'Protección',
+    de: 'Schutz',
+    pt: 'Proteção',
+  },
+  /**
+   * `defense_level` vaut 0 sur un territoire jamais fortifié : ce n'est pas
+   * « niveau 0 », c'est « aucune fortification ». Même règle que
+   * `displayableProtection()` côté Résultat — une seule vérité dans l'app.
+   */
+  zoneProtectionNone: {
+    fr: 'Aucune fortification',
+    en: 'No fortification',
+    es: 'Sin fortificación',
+    de: 'Keine Befestigung',
+    pt: 'Sem fortificação',
+  },
+  zoneProtectionLevel: {
+    fr: 'Niveau {n}',
+    en: 'Level {n}',
+    es: 'Nivel {n}',
+    de: 'Stufe {n}',
+    pt: 'Nível {n}',
+  },
+  /** CTA « RENFORCER » (spec l.962), servi seulement s'il y a de quoi renforcer. */
+  zoneReinforceCta: {
+    fr: 'RENFORCER',
+    en: 'REINFORCE',
+    es: 'REFORZAR',
+    de: 'VERSTÄRKEN',
+    pt: 'REFORÇAR',
+  },
+  /**
+   * CTA de la zone personnelle / crew (spec l.962). La spec l'écrit en
+   * capitales ; il est rendu en CASSE DE PHRASE comme `zoneReprendre`, parce que
+   * les deux occupent le MÊME bouton de la MÊME feuille : deux casses pour un
+   * seul emplacement se lirait comme deux composants différents.
+   *
+   * « RENFORCER » (l.962, premier choix de la spec) n'est volontairement PAS
+   * servi : `defense_level` ne monte que lorsqu'une contestation active est
+   * repoussée (ingest_run/index.ts:3604), donc rien dans le jeu ne renforce une
+   * zone tranquille — ce serait un bouton mort (constitution §2).
+   */
+  zonePlanOutingCta: {
+    fr: 'Planifier une sortie',
+    en: 'Plan an outing',
+    es: 'Planificar una salida',
+    de: 'Aktivität planen',
+    pt: 'Planejar uma atividade',
+  },
+
+  // ── Variante 3 : ZONE CREW ────────────────────────────────────────────────
+  zoneKickerCrew: {
+    fr: 'ZONE DU CREW',
+    en: 'CREW ZONE',
+    es: 'ZONA DEL CREW',
+    de: 'CREW-ZONE',
+    pt: 'ZONA DO CREW',
+  },
+  /**
+   * « Contribution de l'utilisateur » (spec l.968) — MA part, en pourcentage
+   * entier. Aucun classement interne, aucun nom de coéquipier : le mérite se
+   * dispute vite, et la spec ne demande que ma part.
+   */
+  zoneCrewContribution: {
+    fr: 'Ta part : {pct} %',
+    en: 'Your share: {pct}%',
+    es: 'Tu parte: {pct} %',
+    de: 'Dein Anteil: {pct} %',
+    pt: 'Sua parte: {pct}%',
+  },
+  /** Ma part n'est pas lisible : on n'affiche pas « 0 % », qui serait faux. */
+  zoneCrewContributionUnknown: {
+    fr: 'Ta part n’est pas encore mesurable',
+    en: 'Your share isn’t measurable yet',
+    es: 'Tu parte aún no se puede medir',
+    de: 'Dein Anteil ist noch nicht messbar',
+    pt: 'Sua parte ainda não é mensurável',
+  },
+  /**
+   * Ligne de propriétaire de la variante CREW — pendant de `zoneOwnerMine` /
+   * `zoneOwnerRival`. Aucun NOM de crew : `territories` ne le porte pas dans la
+   * lecture de la carte, et l'inventer serait exactement le mensonge que §C
+   * évite en peignant par RÔLE plutôt que par identité.
+   */
+  zoneOwnerCrew: {
+    fr: 'À ton crew',
+    en: 'Your crew’s',
+    es: 'De tu crew',
+    de: 'Von deinem Crew',
+    pt: 'Do seu crew',
+  },
+
+  // ── Variante 4 : ZONE RIVALE — « frontière » (spec l.975) ─────────────────
+  //
+  // CE QUE MONTRE LE CONTOUR PEINT, dit en toutes lettres. Trois cas RÉELS,
+  // dérivés de `precision` (§12.3) et de `geometrySource` — jamais devinés :
+  // c'est la seule ligne de l'app qui empêche de prendre une forme approchée
+  // pour la trace d'une course.
+  zoneBorderLabel: {
+    fr: 'Frontière',
+    en: 'Border',
+    es: 'Frontera',
+    de: 'Grenze',
+    pt: 'Fronteira',
+  },
+  /** Ma propre trace, telle que le moteur l'a produite. */
+  zoneBorderExact: {
+    fr: 'Ton tracé exact',
+    en: 'Your exact route',
+    es: 'Tu trazado exacto',
+    de: 'Deine exakte Strecke',
+    pt: 'Seu traçado exato',
+  },
+  /** Version publique d'un territoire d'autrui (§12.3) — vraie, mais grossie. */
+  zoneBorderGeneralized: {
+    fr: 'Contour public simplifié',
+    en: 'Simplified public outline',
+    es: 'Contorno público simplificado',
+    de: 'Vereinfachte öffentliche Kontur',
+    pt: 'Contorno público simplificado',
+  },
+  /**
+   * Aucun polygone n'existe encore pour ces captures : ce qui est peint est un
+   * contour de cellules adouci. La spec §1.4 interdit l'hexagone à l'écran ; la
+   * transition en laisse trois cas (territoriesSource.ts §5) et les TAIRE serait
+   * pire que les dire — le joueur croirait regarder son tracé.
+   */
+  zoneBorderApprox: {
+    fr: 'Contour approximatif (tracé pas encore disponible)',
+    en: 'Approximate outline (route not available yet)',
+    es: 'Contorno aproximado (trazado aún no disponible)',
+    de: 'Ungefähre Kontur (Strecke noch nicht verfügbar)',
+    pt: 'Contorno aproximado (traçado ainda indisponível)',
+  },
+
+  /** « Derniers événements » (spec l.969) — en-tête de la liste. */
+  zoneCrewEvents: {
+    fr: 'Derniers événements',
+    en: 'Latest events',
+    es: 'Últimos eventos',
+    de: 'Letzte Ereignisse',
+    pt: 'Últimos eventos',
+  },
+  /** Aucun événement lisible : état VIDE explicite, jamais une ligne inventée. */
+  zoneCrewEventsEmpty: {
+    fr: 'Rien à signaler sur cette zone',
+    en: 'Nothing to report on this zone',
+    es: 'Nada que señalar en esta zona',
+    de: 'Nichts zu dieser Zone zu melden',
+    pt: 'Nada a relatar nesta zona',
+  },
+
+  // ── États de lecture de la feuille (les quatre, jamais confondus) ─────────
+  /** LECTURE EN COURS — n'affirme rien sur la zone. */
+  zoneLoading: {
+    fr: 'Lecture de la zone…',
+    en: 'Reading the zone…',
+    es: 'Leyendo la zona…',
+    de: 'Zone wird gelesen…',
+    pt: 'Lendo a zona…',
+  },
+  /** ÉCHEC de lecture — distinct du vide, avec une vraie reprise. */
+  zoneFailed: {
+    fr: 'Zone illisible pour l’instant',
+    en: 'Zone unreadable for now',
+    es: 'Zona ilegible por ahora',
+    de: 'Zone derzeit nicht lesbar',
+    pt: 'Zona ilegível por enquanto',
+  },
+  zoneRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  /**
+   * La confidentialité de la spec (l.983), dite à l'écran quand la feuille
+   * montre une zone qui n'est pas la mienne : personne ne lira ici un départ,
+   * une arrivée, un horaire ni un tracé.
+   */
+  zonePrivacyNote: {
+    fr: 'Ni départ, ni arrivée, ni horaire : seule la zone publique est montrée.',
+    en: 'No start, no finish, no times: only the public zone is shown.',
+    es: 'Ni salida, ni llegada, ni horarios: solo se muestra la zona pública.',
+    de: 'Kein Start, kein Ziel, keine Zeiten: nur die öffentliche Zone wird gezeigt.',
+    pt: 'Sem partida, sem chegada, sem horários: só a zona pública é mostrada.',
+  },
 });

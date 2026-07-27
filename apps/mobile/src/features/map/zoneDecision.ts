@@ -32,30 +32,68 @@
  * claims, pas le début de possession — « tenu depuis 6 jours » serait faux dès
  * qu'un seul hex a été repris entre-temps.
  */
-export type ZoneMetricKey = 'area' | 'zones' | 'lastCapture';
+export type ZoneMetricKey = 'area' | 'zones' | 'lastCapture' | 'held' | 'protection';
 
-/** Ordre d'affichage (planche E04 : surface, puis zones, puis temporalité). */
-export const ZONE_METRIC_ORDER: readonly ZoneMetricKey[] = ['area', 'zones', 'lastCapture'];
+/**
+ * Ordre d'affichage (planche E04 : surface, puis zones, puis temporalité).
+ * E14 y insère ses deux variantes AU MÊME RANG que celle qu'elles remplacent —
+ * `protection` là où `zones` se serait affiché, `held` là où `lastCapture` se
+ * serait affiché — pour qu'une cellule ne saute jamais d'une colonne à l'autre
+ * selon la source de la zone tapée.
+ */
+export const ZONE_METRIC_ORDER: readonly ZoneMetricKey[] = [
+  'area',
+  'zones',
+  'protection',
+  'lastCapture',
+  'held',
+];
 
 export interface ZoneMetricsInput {
   areaKm2: number;
   zones: number;
   /** Jours depuis la dernière prise. `null` = aucune source (la ligne saute). */
   capturedDaysAgo: number | null;
+  /**
+   * E14 — SENS de la date (zoneDetail.ts `zoneTimeMetric`). `'held'` = début du
+   * contrôle ININTERROMPU (`territories.controlled_since`), `'lastCapture'` = le
+   * claim le plus récent d'un paquet de cellules. Absent ⇒ `'lastCapture'`, le
+   * sens le plus prudent des deux : il ne prétend rien sur la continuité.
+   */
+  timeMetric?: 'held' | 'lastCapture';
+  /**
+   * E14 — niveau de protection DÉJÀ filtré par `zoneProtectionLevel` (spec
+   * l.960). `null`/absent = aucune fortification, et la ligne saute : `0` n'est
+   * pas un niveau, c'est une absence.
+   */
+  protectionLevel?: number | null;
 }
 
 /**
  * Les métriques RÉELLEMENT affichables, dans l'ordre de la planche. Jamais plus
  * de trois — et souvent moins, ce qui est le comportement recherché.
+ *
+ * E14 — POURQUOI LA PROTECTION PREND LA PLACE DE « ZONES », ET NE S'AJOUTE PAS.
+ * La planche pose trois cellules sur 375 px de large ; une quatrième les
+ * écraserait sous le plancher a11y, c'est-à-dire tronquerait un libellé (§A9).
+ * Quand `defense_level` a quelque chose à dire, il dit strictement plus que le
+ * compte de cellules — lequel vaut d'ailleurs toujours 1 sur un territoire
+ * polygonal (« un territoire EST une zone », territoriesSource.ts:333), donc
+ * n'apprend rien. Il cède la place ; il ne disparaît jamais pour rien.
  */
 export function zoneMetricKeys(input: ZoneMetricsInput): readonly ZoneMetricKey[] {
   const out: ZoneMetricKey[] = [];
   // Une surface nulle ou non finie n'est pas « 0 km² » : c'est une absence de
   // mesure. On se tait plutôt que d'afficher un zéro nu (§ zéro-mensonge).
   if (Number.isFinite(input.areaKm2) && input.areaKm2 > 0) out.push('area');
-  if (Number.isFinite(input.zones) && input.zones > 0) out.push('zones');
+  const protection =
+    typeof input.protectionLevel === 'number' && Number.isFinite(input.protectionLevel)
+      ? input.protectionLevel
+      : null;
+  if (protection !== null) out.push('protection');
+  else if (Number.isFinite(input.zones) && input.zones > 0) out.push('zones');
   if (input.capturedDaysAgo !== null && Number.isFinite(input.capturedDaysAgo)) {
-    out.push('lastCapture');
+    out.push(input.timeMetric === 'held' ? 'held' : 'lastCapture');
   }
   return out;
 }
@@ -146,10 +184,20 @@ const ROW_SLACK = 20;
 export interface ZoneSheetHeightInput {
   /** Nombre de métriques réellement rendues (0 ⇒ pas de bloc du tout). */
   metrics: number;
-  /** CTA « Reprendre » présent (zone rivale uniquement). */
+  /** CTA unique de la feuille (« Reprendre » ou « Planifier une sortie »). */
   hasCta: boolean;
   /** Lien tertiaire « Planifier pour plus tard ». */
   hasTertiary: boolean;
+  /**
+   * E14 — ligne « frontière » (exacte / généralisée / contour approximatif,
+   * spec l.975). Une ligne de 11-12 px, toujours rendue quand elle est vraie.
+   */
+  hasBorderNote?: boolean;
+  /**
+   * E14 — note de CONFIDENTIALITÉ (spec l.983), sur une zone qui n'est pas la
+   * mienne. Deux lignes possibles en allemand : elle ne se tronque pas (§A9).
+   */
+  hasPrivacyNote?: boolean;
 }
 
 /**
@@ -161,9 +209,14 @@ export interface ZoneSheetHeightInput {
  */
 export function zoneSheetHeight(input: ZoneSheetHeightInput): number {
   let h = SHEET_CHROME + HEAD_ROW + GAP + NAME_ROW + GAP + LINE_ROW + ROW_SLACK;
+  if (input.hasBorderNote === true) h += GAP + LINE_ROW;
   if (input.metrics > 0) h += GAP + METRICS_BLOCK;
   if (input.hasCta) h += CTA_ROW;
   if (input.hasTertiary) h += GAP + LINK_ROW;
+  // Deux lignes réservées : la phrase de confidentialité est la plus longue de
+  // la feuille et l'allemand la fait passer sur deux lignes. Sous-évaluer sa
+  // hauteur la ferait rogner par le bas de la sheet.
+  if (input.hasPrivacyNote === true) h += GAP + LINE_ROW * 2;
   return h;
 }
 

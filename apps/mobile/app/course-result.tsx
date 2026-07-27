@@ -1227,6 +1227,20 @@ function ConquestResultScreen({
                   {t(C.crewBoundaryContributors, { n: composition.crewBoundary.contributors })}
                 </Text>
               ) : null}
+              {/* CE QUE LA FERMETURE A RAPPORTÉ AU CREW — `crewPoints`, décidé
+                  SERVEUR (`boundaryCompleted.crewPoints`). L'écran le lisait
+                  déjà (facts → composition) et ne le montrait nulle part : le
+                  seul chiffre RÉEL d'E33 restait invisible, alors que la copie
+                  gelée de la spec le cite. Strictement > 0 : `0` ne veut pas
+                  dire « le crew a gagné zéro point », il veut dire que le
+                  serveur n'a rien attribué — et « +0 pts » est le zéro nu. */}
+              {composition.crewBoundary.crewPoints > 0 ? (
+                <Text style={styles.heroQueued} numberOfLines={1}>
+                  {t(C.crewBoundaryPoints, {
+                    n: formatInt(composition.crewBoundary.crewPoints),
+                  })}
+                </Text>
+              ) : null}
             </>
           ) : null}
 
@@ -1789,15 +1803,36 @@ function ConquestResultScreen({
                         <MiniStat
                           label={t(C.validLabel)}
                           value={
-                            stats.verified ? `≥ ${verifyTiers.full}` : `< ${verifyTiers.partial}`
+                            composition.verify === 'notCredited'
+                              ? `< ${verifyTiers.partial}`
+                              : `≥ ${verifyTiers.full}`
                           }
                         />
                       </View>
                     </View>
 
-                    {/* Statut verify — la conclusion, en une ligne. */}
+                    {/* ═══ E34 — LA CONCLUSION, EN TROIS ÉTATS ═══════════════
+                         Elle en avait DEUX, décidés par `stats.verified`, qui
+                         valait `status === 'valid' || status === 'partial'` —
+                         c'est-à-dire exactement « la course est créditée », donc
+                         rien du tout. Sur une course `partial`, cet écran
+                         affirmait ici « GPS et mouvement fiables : CAPTURE
+                         PLEINE » quinze lignes après avoir annoncé « une partie
+                         du parcours n'a pas été retenue ». Deux affirmations
+                         contradictoires, dont une fausse.
+                         `composition.verify` (moteur pur, testé) les sépare :
+                         `full` / `partialExcluded` / `notCredited`. La case
+                         VALIDÉ ci-dessus lit la MÊME source — sur `partial`, le
+                         seuil de confiance EST bien atteint (une confiance
+                         insuffisante produirait `flagged`, pas `partial`) : ce
+                         qui est partiel, c'est le parcours retenu, pas la
+                         vérification, et la copie dit désormais lequel des deux. */}
                     <Text style={styles.calcVerifyNote} numberOfLines={2}>
-                      {stats.verified ? t(C.verifyOk) : t(C.verifyKo)}
+                      {composition.verify === 'full'
+                        ? t(C.verifyOk)
+                        : composition.verify === 'partialExcluded'
+                          ? t(C.verifyPartial)
+                          : t(C.verifyKo)}
                     </Text>
                   </View>
                 ) : null}

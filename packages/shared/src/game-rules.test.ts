@@ -34,6 +34,14 @@ import {
   RUN_MIN_DISTANCE_M,
   RUN_MIN_DURATION_S,
   maxClosureDistanceM,
+  // ── Vague E14/E19/E22/E25/E26/E27/E30/E33/E34/E37 (27/07/2026) ────────────
+  EMERGENCY_NUMBER_EUROPE,
+  GPS_ACCURACY_MAX_M,
+  GPS_READY_ACCURACY_M,
+  GPS_USABLE_ACCURACY_M,
+  POINT_MAX_ACCURACY_M,
+  activityProducesResult,
+  gpsAccuracyGrade,
 } from './game-rules';
 
 // Voir le docblock : le runner Deno, typé localement (tsc ET Deno satisfaits).
@@ -218,4 +226,86 @@ Deno.test('SHARE_SIMPLIFY_EPSILON_M dégrade la résolution SANS remplacer la co
     SHARE_SIMPLIFY_EPSILON_M > GPS_DECIMATE_EPSILON_M,
     'la simplification de partage est sous la décimation de payload : elle ne protège plus rien',
   );
+});
+
+// ─── E19 §« Seuils » — l'anneau de précision (spec l.1100-1104) ─────────────
+
+Deno.test('GPS_READY_ACCURACY_M / GPS_USABLE_ACCURACY_M sont les seuils LITTÉRAUX de la spec E19', () => {
+  assertEquals(GPS_READY_ACCURACY_M, 15);
+  assertEquals(GPS_USABLE_ACCURACY_M, 30);
+});
+
+Deno.test('gpsAccuracyGrade classe les trois bandes E19 exactement aux bornes', () => {
+  // Vert : « précision ≤ 15 m » — la borne est INCLUSE.
+  assertEquals(gpsAccuracyGrade(0), 'ready');
+  assertEquals(gpsAccuracyGrade(15), 'ready');
+  // Orange : « 16-30 m » — 15,4 m est encore vert, 30 m est encore orange.
+  assertEquals(gpsAccuracyGrade(15.4), 'usable');
+  assertEquals(gpsAccuracyGrade(16), 'usable');
+  assertEquals(gpsAccuracyGrade(30), 'usable');
+  // Rouge : « > 30 m ».
+  assertEquals(gpsAccuracyGrade(30.1), 'poor');
+  assertEquals(gpsAccuracyGrade(300), 'poor');
+});
+
+Deno.test('gpsAccuracyGrade ne confond JAMAIS « pas de mesure » avec « mauvaise mesure »', () => {
+  // La charte : quatre états distincts, et une lecture en cours n'affirme rien.
+  assertEquals(gpsAccuracyGrade(null), 'unknown');
+  assertEquals(gpsAccuracyGrade(undefined), 'unknown');
+  assertEquals(gpsAccuracyGrade(Number.NaN), 'unknown');
+  assertEquals(gpsAccuracyGrade(Number.POSITIVE_INFINITY), 'unknown');
+  // Précision négative = fix invalide sur certaines plateformes. La traiter
+  // comme « ≤ 15 m » aurait affiché « Prêt » sur une position inexistante.
+  assertEquals(gpsAccuracyGrade(-1), 'unknown');
+});
+
+Deno.test('les seuils E19 ne DOUBLENT aucun seuil existant (ils ordonnent, ils ne recopient pas)', () => {
+  assert(
+    GPS_READY_ACCURACY_M < GPS_USABLE_ACCURACY_M,
+    'la bande verte a dépassé la bande orange',
+  );
+  // POINT_MAX_ACCURACY_M (claim §3.2) et GPS_ACCURACY_MAX_M (filtre d'affichage)
+  // répondent à d'autres questions. On vérifie l'ORDRE qui les rend cohérents :
+  // un point à 30 m (bande orange, départ « quand même » autorisé) doit encore
+  // entrer dans la trace affichée, sinon l'écran proposerait un départ dont
+  // aucun point ne survivrait à `cleanTrace`. Les quatre valeurs sont des
+  // littéraux : `tsc` refuse `!==` entre elles (TS2367), et c'est tant mieux —
+  // l'égalité accidentelle serait une erreur de compilation, pas de test.
+  const claimFilter: number = POINT_MAX_ACCURACY_M;
+  const traceFilter: number = GPS_ACCURACY_MAX_M;
+  assert(
+    GPS_USABLE_ACCURACY_M <= traceFilter,
+    'la bande orange laisse démarrer sur des points que cleanTrace jetterait tous',
+  );
+  assert(
+    GPS_READY_ACCURACY_M < claimFilter,
+    'la bande verte promet « Prêt » au-delà du seuil de claim §3.2',
+  );
+});
+
+// ─── E26 — « trop court pour produire un résultat » (spec l.1194) ───────────
+
+Deno.test('activityProducesResult applique EXACTEMENT les minima §3.2 de la discipline', () => {
+  // Course : sous l'un des deux minima ⇒ pas de résultat.
+  assertEquals(activityProducesResult(RUN_MIN_DISTANCE_M, RUN_MIN_DURATION_S, 'run'), true);
+  assertEquals(activityProducesResult(RUN_MIN_DISTANCE_M - 1, RUN_MIN_DURATION_S, 'run'), false);
+  assertEquals(activityProducesResult(RUN_MIN_DISTANCE_M, RUN_MIN_DURATION_S - 1, 'run'), false);
+  // Vélo : ses PROPRES bornes, jamais celles de la course.
+  assertEquals(activityProducesResult(BIKE_MIN_DISTANCE_M, BIKE_MIN_DURATION_S, 'bike'), true);
+  assertEquals(activityProducesResult(RUN_MIN_DISTANCE_M, RUN_MIN_DURATION_S, 'bike'), false);
+});
+
+Deno.test('activityProducesResult ne promet rien sans mesure lisible', () => {
+  assertEquals(activityProducesResult(Number.NaN, RUN_MIN_DURATION_S, 'run'), false);
+  assertEquals(activityProducesResult(RUN_MIN_DISTANCE_M, Number.NaN, 'run'), false);
+  // Argument absent ⇒ DEFAULT_ACTIVITY ('run'), comme activityRules().
+  assertEquals(activityProducesResult(RUN_MIN_DISTANCE_M, RUN_MIN_DURATION_S), true);
+});
+
+// ─── E25 — le numéro de secours n'est pas un choix produit ──────────────────
+
+Deno.test('EMERGENCY_NUMBER_EUROPE est le 112 et rien d’autre', () => {
+  // Un numéro de secours faux coûte plus cher que n'importe quel bug de jeu :
+  // ce test est là pour qu'aucune « localisation » ne le remplace en douce.
+  assertEquals(EMERGENCY_NUMBER_EUROPE, '112');
 });

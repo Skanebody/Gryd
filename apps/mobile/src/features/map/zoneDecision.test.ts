@@ -160,3 +160,54 @@ Deno.test('briefSheetHeight : un tracé RÉEL ouvre plus grand qu’un état d�
   // Sur un écran de 812 px, l'état « prêt » approche les 58 % de la planche.
   assert(ready > 812 * 0.5 && ready < 812 * 0.7, `hauteur inattendue : ${ready}`);
 });
+
+// ─── E14 — les deux métriques que seule `territories` rend possibles ─────────
+
+Deno.test('E14 : la PROTECTION prend la place de « Zones », elle ne s’y ajoute pas', () => {
+  // Trois cellules maximum sur 375 px : une quatrième tronquerait un libellé
+  // (§A9). Et sur un territoire polygonal `zones` vaut toujours 1 — il n'apprend
+  // rien, alors que le niveau de protection dit un fait.
+  assertEquals(
+    zoneMetricKeys({ areaKm2: 0.42, zones: 1, capturedDaysAgo: 6, protectionLevel: 2 }),
+    ['area', 'protection', 'lastCapture'],
+  );
+  // Aucune fortification (déjà filtré en amont ⇒ null) : « Zones » reprend sa place.
+  assertEquals(
+    zoneMetricKeys({ areaKm2: 0.42, zones: 3, capturedDaysAgo: 6, protectionLevel: null }),
+    ['area', 'zones', 'lastCapture'],
+  );
+});
+
+Deno.test('E14 : « Tenue depuis » n’apparaît que si la date EST le début du contrôle', () => {
+  assertEquals(
+    zoneMetricKeys({ areaKm2: 0.42, zones: 1, capturedDaysAgo: 6, timeMetric: 'held' }),
+    ['area', 'zones', 'held'],
+  );
+  // Défaut = le sens le plus prudent : il ne prétend rien sur la continuité.
+  assertEquals(
+    zoneMetricKeys({ areaKm2: 0.42, zones: 1, capturedDaysAgo: 6 }),
+    ['area', 'zones', 'lastCapture'],
+  );
+  // Sans date, aucune des deux : la ligne disparaît, elle ne devient pas « — ».
+  assertEquals(
+    zoneMetricKeys({ areaKm2: 0.42, zones: 1, capturedDaysAgo: null, timeMetric: 'held' }),
+    ['area', 'zones'],
+  );
+});
+
+Deno.test('E14 : la hauteur réserve le CTA de MA zone, la frontière et la confidentialité', () => {
+  const base = { metrics: 3, hasCta: false, hasTertiary: false };
+  const bare = zoneSheetHeight(base);
+  // Chaque ligne ajoutée AGRANDIT réellement la sheet : sans ça, le CTA de la
+  // zone personnelle (nouveau) passerait sous la ligne de flottaison.
+  assert(zoneSheetHeight({ ...base, hasCta: true }) > bare);
+  assert(zoneSheetHeight({ ...base, hasBorderNote: true }) > bare);
+  assert(zoneSheetHeight({ ...base, hasPrivacyNote: true }) > bare);
+  // La note de confidentialité réserve DEUX lignes (l'allemand y passe).
+  assertEquals(
+    zoneSheetHeight({ ...base, hasPrivacyNote: true }) - bare,
+    2 * (zoneSheetHeight({ ...base, hasBorderNote: true }) - bare) - 6,
+  );
+  // Les champs optionnels omis se comportent comme `false` (aucun appelant cassé).
+  assertEquals(zoneSheetHeight({ ...base, hasBorderNote: false }), bare);
+});

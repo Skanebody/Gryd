@@ -30,6 +30,7 @@ import {
   LEGACY_PENDING_UPLOAD_KEY,
   PENDING_QUEUE_KEY,
   PENDING_QUEUE_MAX_ENTRIES,
+  type DrainReport,
   type PendingEntry,
   type SendVerdict,
   drainPendingQueue,
@@ -153,30 +154,51 @@ let retryInFlight = false;
  * ne verra jamais que replayed:true — le sauter reperdrait le funnel que ce fix
  * restaure.
  */
-export async function retryPendingUpload(): Promise<void> {
-  if (supabase === null || retryInFlight) return;
+/**
+ * ═══ 27/07/2026 — LE RENVOI REND SON RAPPORT (E27 « Analyse et synchro ») ═══
+ * Il rendait `void`. Silencieux convient aux appelants d'arrière-plan (_layout,
+ * fin de course) : ils déclenchent et n'affichent rien. Mais l'écran E27, lui,
+ * DOIT dire ce qui vient de se passer — « partie », « refusée », « toujours en
+ * attente » — et sans rapport il n'avait que la profondeur de file pour le
+ * deviner. Or une entrée quitte la file sur DEUX verdicts opposés (envoyée, ou
+ * refusée définitivement) : une file redevenue vide ne dit pas lequel. Deviner
+ * ici aurait été annoncer une conquête sur un refus.
+ *
+ * `null` = aucun rejeu n'a eu lieu (pas de backend, ou un rejeu déjà en vol) —
+ * ce n'est PAS un rapport vide, et l'appelant ne doit rien en conclure.
+ * Les appelants d'arrière-plan restent inchangés (`void retryPendingUpload()`).
+ */
+export async function retryPendingUpload(): Promise<DrainReport | null> {
+  if (supabase === null || retryInFlight) return null;
   retryInFlight = true;
   try {
-    await retryPendingUploadOnce();
+    return await retryPendingUploadOnce();
   } finally {
     retryInFlight = false;
   }
 }
 
-async function retryPendingUploadOnce(): Promise<void> {
-  if (supabase === null) return; // garanti par l'appelant ; requis pour le narrowing TS
+const EMPTY_REPORT: DrainReport = { remaining: [], sent: [], rejected: [], stoppedBy: 'empty' };
+
+async function retryPendingUploadOnce(): Promise<DrainReport> {
+  if (supabase === null) return EMPTY_REPORT; // garanti par l'appelant ; requis pour le narrowing TS
   const { queue, hadLegacy } = await readQueue();
   if (queue.length === 0) {
     // Rien à envoyer : on en profite pour retirer un slot v1 vide/corrompu.
     if (hadLegacy) await writeQueue([], true);
-    return;
+    return EMPTY_REPORT;
   }
   // La migration est actée dès maintenant : la file v2 contient déjà l'entrée
   // v1, l'écrire avant le premier envoi évite de la reperdre sur un kill.
   if (hadLegacy) await writeQueue(queue, true);
 
   const session = await currentSession();
-  if (session === null) return; // pas de session : on retentera connecté
+  // Pas de session : on retentera connecté. Rien n'est perdu — la file entière
+  // RESTE, et le rapport le dit explicitement plutôt que de passer pour un
+  // rejeu qui n'aurait rien trouvé à envoyer.
+  if (session === null) {
+    return { remaining: queue, sent: [], rejected: [], stoppedBy: 'no_session' };
+  }
 
   const send = async (payload: IngestRunRequest): Promise<SendVerdict> => {
     if (supabase === null) return 'retry_later';
@@ -219,7 +241,7 @@ async function retryPendingUploadOnce(): Promise<void> {
     await writeQueue(removePending(current, entry.payload.clientRunId), false);
   };
 
-  await drainPendingQueue(queue, send, onSettled);
+  return await drainPendingQueue(queue, send, onSettled);
 }
 
 /** Session courante, ou null (une auth injoignable n'est pas une raison de crasher). */

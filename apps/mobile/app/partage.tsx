@@ -8,6 +8,28 @@
  *   [ Partager en story ]                           ← UN SEUL gros CTA chartreuse
  *      Instagram · TikTok · WhatsApp · Plus         ← destinations RÉELLEMENT joignables
  *      ○ Sticker   ○ Rejouer                        ← actions légères, zéro card
+ *   ┌────────────────────────────────────────┐
+ *   │ Partage terminé                      ✕ │      ← E37, après un canal EXTERNE
+ *   │ [ Revenir au résultat ]                │
+ *   │   Copier le lien · Partager ailleurs   │
+ *   └────────────────────────────────────────┘
+ *
+ * ─── E37 « PARTAGE TERMINÉ » (spec l.1463, 27/07/2026) ──────────────────────
+ * Le seul retour de fin était un toast auto-dismiss : il s'effaçait avant qu'on
+ * puisse s'en servir, et il ne proposait AUCUNE suite — pas même le retour au
+ * résultat, alors que c'est le geste évident après avoir publié. La spec veut un
+ * « toast ou petit écran de succès SELON CANAL » : c'est désormais
+ * `shareOutcome()` (features/share/shareOutcome.ts, pur et testé) qui tranche —
+ * une COPIE reste un toast (rien à faire ensuite), un canal EXTERNE ouvre le
+ * panneau `ShareDonePanel` avec ses actions.
+ *
+ * ⚠ ET ON NE PRÉTEND PAS SAVOIR CE QU'ON NE SAIT PAS. « Partage terminé » n'est
+ * écrit que si la plateforme a RAPPORTÉ l'envoi (iOS `Share.share`, Web Share
+ * API). `expo-sharing` — donc TOUS les partages d'image, c'est-à-dire le CTA
+ * chartreuse sur téléphone — résout à la fermeture de la feuille sans aucun
+ * verdict, et l'`Intent` Android ne remonte jamais l'issue : le panneau y dit
+ * « Média remis au partage » et avoue qu'il ignore la suite. Une ANNULATION,
+ * elle, n'ouvre rien du tout.
  *
  * ─── RECALAGE E10/E35/E36 (27/07/2026) ──────────────────────────────────────
  * Trois choses ont bougé, et aucune n'est cosmétique :
@@ -183,11 +205,23 @@ import {
 } from '../src/features/share/shareTargets';
 import { buildShareLink, defaultShareTarget } from '../src/features/share/shareDeepLink';
 import {
+  clipboardAvailable,
+  copyText,
   shareAsImage,
   shareStickerImage,
   stickerText,
   type ShareActionResult,
 } from '../src/features/share/shareActions';
+import {
+  shareDoneActions,
+  shareOutcome,
+  type ShareDeliveryClaim,
+  type ShareDoneActionId,
+  type ShareFailureReason,
+  type ShareOutcomePlatform,
+  type ShareVia,
+} from '../src/features/share/shareOutcome';
+import { ShareDonePanel } from '../src/features/share/ShareDonePanel';
 import {
   dominantNarrative,
   styleAllowed,
@@ -350,6 +384,20 @@ const ANIMATABLE_STYLES: readonly ShareTemplateId[] = [
   'classement',
   'avantApres',
 ];
+
+/**
+ * E37, troisième action de la spec (l.1472) : « voir le profil public ».
+ *
+ * ⚠ FAUX, ET C'EST UN CONSTAT DATÉ, PAS UN CHOIX. Au 27/07/2026 il n'existe
+ * aucune route de profil public dans `apps/mobile/app/` (ni `u/[handle]`, ni
+ * équivalent — `profil-rival/[handle]` affiche un état « indisponible » faute de
+ * lectures cross-utilisateur, O1). `i18n/catalog/result.ts` porte déjà le
+ * libellé `seePublicProfile` avec exactement cet avertissement.
+ * Peindre l'action ferait un bouton mort dans l'écran qui célèbre un partage :
+ * la constitution §2 l'interdit. Le jour où la route existe, c'est CETTE ligne
+ * qui passe à `true` — rien d'autre.
+ */
+const PUBLIC_PROFILE_ROUTE_EXISTS = false;
 
 /** Largeur de preview par format (la hauteur suit l'aspect de la card). */
 const PREVIEW_WIDTH: Record<ShareCardRatio, number> = {
@@ -776,26 +824,73 @@ function SharePreview({ run }: { run: ShareRunData }) {
   // nomme la DISCIPLINE : c'est du texte qui part dans le fil du crew.
   const shareMessage = `${buildShareHeadline(t, intention, runCard, statsOnlyShare, narrative, A.headlineStats)}\n${deepLink}`;
 
+  /**
+   * PLATEFORME D'EXÉCUTION — remontée ICI (elle servait plus bas aux
+   * destinations) parce que c'est elle qui décide ce qu'un partage a le droit
+   * d'AFFIRMER : seul iOS distingue une annulation dans `Share.share`
+   * (`shareOutcome.ts`). La même valeur sert donc aux deux usages, et les deux
+   * ne peuvent pas diverger.
+   */
+  const sharePlatform: SharePlatform =
+    Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+
+  /**
+   * ═══ E37 « PARTAGE TERMINÉ » — L'ÉTAT D'APRÈS-PARTAGE ═════════════════════
+   * `null` = rien à commenter. Sinon, ce que la plateforme a RÉELLEMENT rapporté
+   * (`confirmed` / `handed_off`) plus la capacité de retour mesurée AU MOMENT du
+   * partage : `router.canGoBack()` est un fait daté, pas une propriété d'écran —
+   * le lire au rendu du panneau donnerait la réponse d'un autre instant.
+   */
+  const [done, setDone] = useState<{
+    readonly claim: Exclude<ShareDeliveryClaim, 'copied'>;
+    readonly resultReachable: boolean;
+  } | null>(null);
+
+  /**
+   * Le lien de partage a-t-il RÉELLEMENT été mis au presse-papiers ? Sert à
+   * remplacer le libellé « Copier le lien » par « Lien copié » DANS le panneau :
+   * un toast serait invisible sous un `Modal`, et un « copié » affiché au tap
+   * (avant la réponse du presse-papiers) serait une affirmation sans preuve.
+   */
+  const [linkCopied, setLinkCopied] = useState(false);
+
   // Action de partage RÉELLE (fire-and-forget) : ne confirme que si ça a marché
   // (honnêteté — un « annulé » reste silencieux). `msg` peut dépendre du canal
   // réel (`via`) pour ne jamais mentir (« copié » vs « prêt à partager »).
   // `onOk` émet les events qui exigent un succès réel (jamais au tap).
+  //
+  // ─── CE QUE CE BLOC A CHANGÉ (E37, 27/07/2026) ────────────────────────────
+  // Le seul retour de fin était un toast auto-dismiss : il disparaissait avant
+  // qu'on puisse en faire quoi que ce soit, et il ne proposait AUCUNE suite —
+  // pas même le retour au résultat. La surface est désormais choisie par
+  // `shareOutcome()` (pur, testé) selon le CANAL, comme la spec le demande :
+  // une copie reste un toast (rien à faire ensuite), un canal EXTERNE ouvre le
+  // petit écran de succès. Une annulation n'ouvre toujours rien.
   const runAction = (
     p: Promise<ShareActionResult>,
-    msg: string | ((via: 'clipboard' | 'share' | 'webshare' | 'image') => string),
+    msg: string | ((via: ShareVia) => string),
     channel: string,
-    onOk?: (via: 'clipboard' | 'share' | 'webshare' | 'image') => void,
+    onOk?: (via: ShareVia) => void,
   ) => {
     haptics.light();
     void p.then((r) => {
       if (r.ok) {
         track(EVENTS.shareCompleted, { channel });
         onOk?.(r.via);
-        toast.show(typeof msg === 'function' ? msg(r.via) : msg);
-      } else if (r.reason === 'unavailable') {
-        toast.show(t(C.shareUnavailable));
       }
-      // 'dismissed' → silencieux (l'utilisateur a fermé la feuille de partage).
+      const outcome = shareOutcome(r, sharePlatform);
+      // Le panneau ne s'ouvre QUE sur un canal externe abouti — donc jamais
+      // après une annulation (`surface: 'none'`), et jamais sur une simple
+      // copie (`claim: 'copied'`, qui reste un toast).
+      if (outcome.surface === 'panel' && outcome.claim !== null && outcome.claim !== 'copied') {
+        setLinkCopied(false);
+        setDone({ claim: outcome.claim, resultReachable: router.canGoBack() });
+        return;
+      }
+      if (outcome.surface === 'toast') {
+        toast.show(r.ok ? (typeof msg === 'function' ? msg(r.via) : msg) : t(C.shareUnavailable));
+      }
+      // 'none' → silencieux (l'utilisateur a fermé la feuille de partage).
     });
   };
 
@@ -898,8 +993,8 @@ function SharePreview({ run }: { run: ShareRunData }) {
    * le prétendre autrement peindrait des destinations qui ne recevraient jamais
    * l'image (constitution §2 : l'affichage se dérive de la capacité RÉELLE).
    */
-  const sharePlatform: SharePlatform =
-    Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+  // `sharePlatform` est déclaré PLUS HAUT (avec `runAction`) : c'est lui qui
+  // décide aussi ce qu'un partage a le droit d'affirmer (E37).
   const shareMedia: ShareMediaKind =
     Platform.OS === 'web' ? 'text' : ratio === 'story' ? 'story_image' : 'post_image';
   /**
@@ -989,6 +1084,64 @@ function SharePreview({ run }: { run: ShareRunData }) {
       track(EVENTS.shareTemplateChanged, { template: normalizeStyle(next.style) });
     }
     setCustomizing(false);
+  };
+
+  // ═══ E37 « PARTAGE TERMINÉ » — LES SUITES (spec l.1470-1472) ══════════════
+  /**
+   * LES ACTIONS DU PANNEAU, dérivées des capacités RÉELLES :
+   *   · `resultReachable` — mesuré à l'instant du partage (voir `done`) ;
+   *   · `linkAvailable`   — un lien a été construit ET un presse-papiers existe
+   *                         (`clipboardAvailable`). Sans lui, `copyText`
+   *                         retomberait sur la feuille de partage : le bouton
+   *                         marcherait, mais il ferait autre chose que ce que
+   *                         son libellé promet ;
+   *   · profil public     — voir `PUBLIC_PROFILE_ROUTE_EXISTS`.
+   */
+  const doneActions = useMemo(
+    () =>
+      shareDoneActions({
+        resultReachable: done?.resultReachable ?? false,
+        linkAvailable: deepLink !== '' && clipboardAvailable(),
+        publicProfileReachable: PUBLIC_PROFILE_ROUTE_EXISTS,
+      }),
+    [done, deepLink],
+  );
+
+  const copyDeepLink = () => {
+    haptics.light();
+    void copyText(deepLink).then((r) => {
+      // On ne dit « Lien copié » que sur un `via: 'clipboard'` RÉEL. Les autres
+      // issues (repli feuille de partage, échec) ne changent pas le libellé :
+      // ne rien affirmer vaut mieux qu'affirmer à côté — et le repli ouvre de
+      // toute façon une feuille système que le joueur voit.
+      if (r.ok && r.via === 'clipboard') {
+        track(EVENTS.shareLinkCopied);
+        setLinkCopied(true);
+      }
+    });
+  };
+
+  const onDoneAction = (id: ShareDoneActionId) => {
+    switch (id) {
+      case 'back_to_result':
+        // La suite que la spec liste en premier, et le trou exact de l'écran.
+        setDone(null);
+        goBack();
+        return;
+      case 'copy_link':
+        copyDeepLink();
+        return;
+      case 'share_again':
+        // Refermer : le compositeur est intact derrière, prêt pour un autre canal.
+        setDone(null);
+        return;
+      case 'public_profile':
+        // INJOIGNABLE PAR CONSTRUCTION : `PUBLIC_PROFILE_ROUTE_EXISTS` vaut
+        // false, donc `shareDoneActions` ne peut pas émettre cette action. La
+        // branche existe pour que l'arrivée de la route soit un changement d'UNE
+        // ligne, et pour que le `switch` reste exhaustif (typecheck).
+        return;
+    }
   };
 
   return (
@@ -1204,6 +1357,20 @@ function SharePreview({ run }: { run: ShareRunData }) {
         }}
       />
 
+      {/* ─── E37 « PARTAGE TERMINÉ » (spec l.1463) ──────────────────────────
+           Le « petit écran de succès » de la spec, avec ses suites. Il ne
+           s'ouvre QUE sur un canal externe abouti (`shareOutcome`) : jamais
+           après une annulation, jamais sur une simple copie (qui reste un
+           toast). Son TITRE suit ce que la plateforme a réellement rapporté —
+           « Partage terminé » seulement quand elle l'a confirmé. */}
+      <ShareDonePanel
+        claim={done?.claim ?? null}
+        actions={doneActions}
+        linkCopied={linkCopied}
+        onAction={onDoneAction}
+        onClose={() => setDone(null)}
+      />
+
       {/* STICKER PNG — monté HORS ÉCRAN (jamais visible, jamais tappable) : c'est
           la cible de `captureRef`, pas un élément d'interface. Son fond est
           transparent, ce qui est tout l'intérêt du PNG (planche E10). */}
@@ -1350,6 +1517,29 @@ const _styleIdsAligned: [StyleIdsOnlyInEngine, StyleIdsOnlyInTemplates] extends 
   ? true
   : never = true;
 void _styleIdsAligned;
+
+/**
+ * Même dispositif pour E37 : `features/share/shareOutcome.ts` doit rester SANS
+ * IMPORT (testable en Deno), il redéclare donc les canaux, les raisons d'échec
+ * et les plateformes. Cette assertion casse la compilation si l'une des trois
+ * unions diverge de sa source RÉELLE (`ShareActionResult` de shareActions.ts,
+ * `SharePlatform` de shareTargets.ts) — un canal ajouté d'un côté et pas de
+ * l'autre ferait silencieusement retomber le moteur sur une branche inexistante,
+ * c'est-à-dire sur une affirmation non vérifiée.
+ */
+type ActionVia = Extract<ShareActionResult, { ok: true }>['via'];
+type ActionReason = Extract<ShareActionResult, { ok: false }>['reason'];
+const _shareOutcomeAligned: [
+  Exclude<ShareVia, ActionVia>,
+  Exclude<ActionVia, ShareVia>,
+  Exclude<ShareFailureReason, ActionReason>,
+  Exclude<ActionReason, ShareFailureReason>,
+  Exclude<ShareOutcomePlatform, SharePlatform>,
+  Exclude<SharePlatform, ShareOutcomePlatform>,
+] extends [never, never, never, never, never, never]
+  ? true
+  : never = true;
+void _shareOutcomeAligned;
 
 function isTemplateId(v: string | undefined): v is ShareTemplateId {
   return (

@@ -45,6 +45,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import {
   type Activity,
+  EVENTS,
   GPS_SIGNAL_LOST_AFTER_S,
   colors,
   fonts,
@@ -59,7 +60,7 @@ import {
 import { ACTIVITY_NAME, C, RUN_GPS_COPY } from '../../../i18n/catalog/runGps';
 import { useT } from '../../../i18n/store';
 import type { Entry } from '../../../i18n/types';
-import { screen } from '../../../lib/analytics';
+import { screen, track } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
 // Table de LIBELLÉS invariants (RUN / BIKE), la même que le commutateur de la
 // Carte : le joueur retrouve ici le mot exact qu'il a validé au préflight.
@@ -109,6 +110,28 @@ import {
   PreciseLocationBanner,
   RestoreRunCard,
 } from './GpsStatusUI';
+// E22 « DÉFENSE ACTIVE » — variante de CET écran, jamais un écran de plus. La
+// sélection (quelle contestation, quelle zone, à quelle échéance) est PURE et
+// testée dans `defense/liveDefense.ts` ; la lecture Supabase n'ajoute aucune
+// décision. Si rien de réel ne vise le joueur, aucun de ces éléments n'existe.
+import { DefenseHud, DefenseUnavailableNotice } from '../defense/DefenseHud';
+import {
+  INITIAL_DEFENSE_COVERAGE,
+  defenseLevel,
+  frontierCoverage,
+  stepDefenseCoverage,
+  type DefenseCoverageMemory,
+  type DefenseLevel,
+} from '../defense/coverage';
+import { defenseDeadlineDisplay } from '../defense/liveDefense';
+import { useLiveDefense } from '../defense/useLiveDefense';
+// E25 « SÉCURITÉ » — panneau discret, ouvert PENDANT l'activité.
+import { SafetyPanel } from '../safety/SafetyPanel';
+import { C as SAFETY_C } from '../../../i18n/catalog/securite';
+// E26 « FIN D'ACTIVITÉ » — la feuille qui s'intercale entre l'arrêt et l'analyse.
+import { FinishSheet } from '../finish/FinishSheet';
+import { finishSheetModel } from '../finish/finishModel';
+import { useRealCrew } from '../../crew/real';
 
 /**
  * Zoom de la carte live (présentation, pas une règle) : niveau RUE — c'est
@@ -184,6 +207,13 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   // retombe dès que la séquence se réduit en badge (onCollapse), et n'est jamais
   // levé à vitesse élevée (badge seul, aucune surface plein écran à regarder).
   const [capturing, setCapturing] = useState(false);
+  // E25 — le panneau Sécurité, et E26 — la feuille de fin. Deux surfaces
+  // POSÉES sur l'activité : ni l'une ni l'autre ne navigue, ni ne termine quoi
+  // que ce soit en s'ouvrant.
+  const [safetyVisible, setSafetyVisible] = useState(false);
+  const [finishSheetVisible, setFinishSheetVisible] = useState(false);
+  /** `finish()` est parti (arrêt capteurs + envoi) : les deux commandes E26 se désarment. */
+  const [finishing, setFinishing] = useState(false);
   const finishedRef = useRef(false);
   const s = run.snapshot;
   const mode = run.effectiveMode;
@@ -241,6 +271,63 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
    * « on ne sait pas encore » — il ne franchit jamais cette ligne (`liveRate`).
    */
   const rate = liveRateDisplay(activity, s.paceSPerKm, decimalSeparator());
+
+  // ══ E22 — LA VARIANTE DÉFENSE ═══════════════════════════════════════════
+  // Le crew RÉEL sert à une seule chose ici : une zone possédée par MON crew
+  // se défend comme une zone à moi (policy 0078 §4, camp défenseur). Sans lui,
+  // un membre de crew ne verrait jamais la variante sur les zones de son
+  // équipe — une absence silencieuse, donc un mensonge par omission.
+  const { crew } = useRealCrew();
+  const defenseRead = useLiveDefense({
+    here,
+    myCrewId: crew?.id ?? null,
+    // La défense n'a aucun sens sur une sortie qui NE CAPTURE PAS : peindre
+    // `DÉFENSE` dessus contredirait la pill de mode affichée juste au-dessus.
+    //
+    // ⚠ LE TEST N'EST PAS `mode === 'conquete'`, ET C'EST DÉLIBÉRÉ. Le serveur
+    // ne prive de capture que DEUX modes — `ingest_run.effectiveRunMode`
+    // (index.ts:218) renvoie `social_run`/`course_privee` tels quels et fait
+    // retomber TOUT le reste (`race_mode`, `event_run`) sur `conquete`. Un test
+    // sur la seule égalité à `conquete` aurait donc caché la variante à
+    // quelqu'un dont la sortie capture et défend vraiment : une omission
+    // silencieuse, c'est-à-dire un mensonge.
+    enabled: mode !== 'social_run' && mode !== 'course_privee' && s.phase !== 'finished',
+  });
+  const defenseTarget = defenseRead.target;
+  /**
+   * COUVERTURE MESURÉE sur le contour réel de la zone, avec la trace réellement
+   * enregistrée. Elle ne se recalcule pas à chaque fix : la mesure balaie tout
+   * le contour contre toute la trace, et la refaire une fois par seconde en
+   * pleine course dépenserait de la batterie pour un chiffre qui bouge de
+   * quelques millièmes. Le pas de recalcul (5 points) est une décision
+   * d'AFFICHAGE — il ne change aucun seuil, et le serveur remesure de toute
+   * façon sur la trace complète à l'ingestion.
+   */
+  const coverageTick = Math.floor(s.tracePoints.length / 5);
+  const coverage = useMemo<number | null>(() => {
+    if (defenseTarget === null || s.tracePoints.length < 2) return null;
+    return frontierCoverage(defenseTarget.ring, s.tracePoints);
+  }, [defenseTarget?.contestId, coverageTick]);
+  const coverageLevel: DefenseLevel | null = coverage === null ? null : defenseLevel(coverage);
+  const [defensePossible, setDefensePossible] = useState(false);
+  const defenseMemory = useRef<DefenseCoverageMemory>(INITIAL_DEFENSE_COVERAGE);
+  useEffect(() => {
+    if (coverageLevel === null) return;
+    const step = stepDefenseCoverage(defenseMemory.current, coverageLevel);
+    defenseMemory.current = step.memory;
+    if (step.reached !== null) track(EVENTS.defenseCoverageReached, { level: step.reached });
+    if (step.celebrate) {
+      // Spec l.1178-1181 : haptique SUCCÈS, jamais une alerte — et le label
+      // « Défense possible » prend la place de la mesure dans le bloc.
+      haptics.success();
+      setDefensePossible(true);
+    }
+  }, [coverageLevel]);
+  useEffect(() => {
+    if (defenseTarget === null) return;
+    track(EVENTS.defenseRunViewed);
+  }, [defenseTarget?.contestId]);
+  const deadline = defenseDeadlineDisplay(defenseTarget?.expiresAtMs ?? null, Date.now());
 
   // §10 — UN SEUL avis temporaire à la fois (sûreté d'abord). La pill d'ÉTAT, la
   // pill de MODE et la pill de FERMETURE restent en contexte permanent ; tout le
@@ -333,6 +420,19 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   // ── Couches de carte ──────────────────────────────────────────────────────
   const layers = useMemo<RealMapGeoJSONLayer[]>(() => {
     const out: RealMapGeoJSONLayer[] = [];
+    // E22 — LE CONTOUR DE LA ZONE CONTESTÉE, dessiné SOUS la trace : c'est le
+    // décor de la sortie, pas son sujet. Violet = couleur de RÔLE du contesté
+    // (§C), jamais une couleur de crew. Il n'existe que si une contestation
+    // RÉELLE vise le joueur — aucune zone n'est peinte « pour l'exemple ».
+    if (defenseTarget !== null) {
+      out.push({
+        id: 'live-defense-zone',
+        data: lineCollection([defenseTarget.ring]),
+        lineColor: gameColors.contested,
+        lineWidth: 3,
+        lineDash: TRACE_DASH.excluded,
+      });
+    }
     const segments = s.traceSegments;
     if (segments.length > 0) {
       // §B — trace HÉROS : casing sombre + liseré fin + core chartreuse plein,
@@ -375,7 +475,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       });
     }
     return out;
-  }, [s.traceSegments, phase, start?.lat, start?.lng, here?.lat, here?.lng]);
+  }, [s.traceSegments, phase, start?.lat, start?.lng, here?.lat, here?.lng, defenseTarget?.contestId]);
 
   const markers = useMemo<RealMapMarker[]>(() => {
     const out: RealMapMarker[] = [];
@@ -402,9 +502,42 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     return out;
   }, [start?.lat, start?.lng, here?.lat, here?.lng, phase]);
 
+  // ══ E26 — LA FEUILLE DE FIN S'INTERCALE ENTRE L'ARRÊT ET LE RÉSULTAT ═════
+  // Elle s'ouvre AVANT `run.finish()`, jamais après : `finish()` est
+  // irréversible (il arrête les capteurs, vide le buffer et lance l'envoi), et
+  // une feuille affichée après lui n'aurait aucun `REPRENDRE` à offrir. Tant
+  // qu'elle est ouverte, la sortie est en PAUSE UTILISATEUR — la trace vit, en
+  // mémoire et sur le disque. `REPRENDRE` ne restaure donc rien : il lève la
+  // pause, et le segment enregistré n'a jamais cessé d'exister.
+  const model = finishSheetModel({
+    defenseActive: defenseTarget !== null,
+    mode,
+    activity,
+    distanceM: s.distanceM,
+    durationS: s.activeS,
+  });
+  const openFinishSheet = () => {
+    if (finishedRef.current || finishSheetVisible) return;
+    haptics.light();
+    // La sortie s'arrête de COMPTER pendant qu'on décide : sans cette pause, le
+    // chrono continuerait de tourner sur une feuille qui demande justement s'il
+    // faut s'arrêter.
+    if (s.phase === 'tracking') run.togglePause();
+    setFinishSheetVisible(true);
+    track(EVENTS.activityFinishSheetViewed, { produces_result: model.producesResult });
+  };
+  const resumeFromFinishSheet = () => {
+    if (finishing) return;
+    haptics.light();
+    setFinishSheetVisible(false);
+    if (run.snapshot.phase === 'paused-user') run.togglePause();
+    track(EVENTS.activityResumed, { from: 'finish_sheet' });
+  };
+
   const finish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
+    setFinishing(true);
     haptics.success();
     void run.finish().then(({ distanceM, durationS, uploadQueued }) => {
       // Ce qui part est exclusivement MESURÉ ou DÉCLARÉ : la distance et la
@@ -421,8 +554,16 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       // un littéral n'est vérifiable par rien, et c'est exactement comme ça
       // qu'un chantier entier de libellés vélo est resté inatteignable.
       // Fin hors-ligne : ligne discrète « envoi dès que possible » (anti-shame).
+      //
+      // E26 → E27 (27/07/2026) : le tap `TERMINER ET ANALYSER` n'ouvre plus le
+      // Résultat directement, il ouvre L'ANALYSE (`/course/analyse`, spec
+      // l.1254-1268 — sécurisation, envoi, attente du verdict), qui enchaîne
+      // ensuite sur `/course-result`. Le passage de relais ne change pas : ce
+      // sont les MÊMES paramètres, sérialisés par la même fonction pure, pour
+      // que l'analyse n'ait rien à réinventer et puisse les transmettre tels
+      // quels.
       router.replace({
-        pathname: '/course-result',
+        pathname: '/course/analyse',
         params: courseResultParams({ mode, activity, distanceM, durationS, uploadQueued }),
       });
     });
@@ -536,6 +677,24 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           />
         </View>
 
+        {/* ── E22 — CE QUE LA DÉFENSE AJOUTE, ET RIEN DE PLUS ──────────────
+            Le bloc n'apparaît QUE si une contestation réelle, ouverte et à
+            portée vise une de mes zones. Une lecture ÉCHOUÉE ne se déguise pas
+            en « rien à défendre » : elle le dit (`DefenseUnavailableNotice`),
+            et la sortie continue de s'enregistrer. Une lecture EN COURS
+            n'affiche rien — un chargement n'affirme rien sur le joueur. */}
+        {defenseTarget !== null ? (
+          <DefenseHud
+            coverage={coverage}
+            level={coverageLevel}
+            deadline={deadline}
+            possible={defensePossible}
+            deadlineLoading={false}
+          />
+        ) : defenseRead.phase === 'failed' ? (
+          <DefenseUnavailableNotice />
+        ) : null}
+
         {/* La FERMETURE en toutes lettres — le pendant du segment sur la carte. */}
         {phase !== 'idle' && s.loopGapM !== null ? (
           <ClosurePill
@@ -625,7 +784,11 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
                 <SmallControl
                   label={t(C.ctrlFinish)}
                   accessibilityLabel={t(copy.a11yFinishRun)}
-                  onLongPress={finish}
+                  // E26 — ce geste n'appelle PLUS `finish()` : il ouvre la
+                  // feuille de fin, qui montre temps/distance/objectif et
+                  // laisse encore reprendre. Le maintien reste exigé — il
+                  // protège de l'arrêt accidentel, et c'est toujours vrai.
+                  onLongPress={openFinishSheet}
                   danger
                 >
                   <View style={styles.stopSquare} />
@@ -673,10 +836,24 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
                 </Text>
               </View>
 
-              {/* La planche pose un bouton « son » ici. GRYD n'embarque aucune
-                  dépendance audio : il n'aurait rien à couper. Il est OMIS —
-                  l'espace reste vide plutôt que d'accueillir un bouton mort. */}
-              <View style={styles.controlSpacer} />
+              {/* ── E25 — L'ICÔNE DISCRÈTE DE SÉCURITÉ ─────────────────────
+                  La spec (l.1221) la veut accessible PENDANT l'activité, et
+                  discrète. Elle prend la place laissée vide par le bouton
+                  « son » de la planche (GRYD n'embarque aucune dépendance
+                  audio : il n'aurait rien à couper, et il reste OMIS).
+                  Contrairement à « Terminer », elle est atteignable SANS mettre
+                  la sortie en pause : quelqu'un qui a besoin de ce panneau n'a
+                  pas à réussir deux gestes d'abord. */}
+              <SmallControl
+                label={t(SAFETY_C.title)}
+                accessibilityLabel={t(SAFETY_C.openA11y)}
+                onPress={() => {
+                  haptics.light();
+                  setSafetyVisible(true);
+                }}
+              >
+                <Icon name="bouclier" size={20} color={colors.blanc} />
+              </SmallControl>
             </View>
           </>
         )}
@@ -715,6 +892,31 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           onOpenSettings={openSettings}
         />
       )}
+
+      {/* ── E25 — Sécurité. Rendu par-dessus TOUT, y compris pendant E08 : un
+              panneau de sécurité qu'une animation de capture pourrait masquer
+              n'en serait pas un. */}
+      <SafetyPanel
+        visible={safetyVisible}
+        onClose={() => setSafetyVisible(false)}
+        onStop={openFinishSheet}
+        here={here}
+      />
+
+      {/* ── E26 — Fin d'activité. POSÉE sur la course (la carte reste visible
+              derrière), jamais une navigation : tant qu'elle est là, rien n'est
+              terminé et `REPRENDRE` lève simplement la pause. */}
+      <FinishSheet
+        visible={finishSheetVisible}
+        activity={activity}
+        distanceM={s.distanceM}
+        durationS={s.activeS}
+        objective={model.objective}
+        producesResult={model.producesResult}
+        onFinish={finish}
+        onResume={resumeFromFinishSheet}
+        busy={finishing}
+      />
     </View>
   );
 }

@@ -56,6 +56,29 @@ function getClipboard(): ClipboardModule | null {
 }
 
 /**
+ * PEUT-ON VRAIMENT COPIER, ICI ET MAINTENANT ? (constitution §2 : l'affichage se
+ * dérive de la capacité RÉELLE.)
+ *
+ * `copyText` est volontairement tolérante — sans presse-papiers elle retombe sur
+ * la feuille de partage, ce qui est le bon comportement pour une action déjà
+ * déclenchée. Mais une action dont le LIBELLÉ promet une copie (« Copier le
+ * lien », E37) ne doit pas être peinte quand aucun presse-papiers n'existe : le
+ * bouton marcherait, et il ferait autre chose que ce qu'il annonce.
+ *
+ * Web : la Clipboard API n'existe qu'en contexte sécurisé (https/localhost).
+ * Natif : `expo-clipboard` est déclaré dans `apps/mobile/package.json`, mais on
+ * teste sa présence RÉELLE (le require dynamique) plutôt que la déclaration —
+ * un build sans le module natif répondrait faussement « oui » sinon.
+ */
+export function clipboardAvailable(): boolean {
+  if (Platform.OS === 'web') {
+    const nav = (globalThis as { navigator?: Navigator }).navigator;
+    return typeof nav?.clipboard?.writeText === 'function';
+  }
+  return getClipboard() !== null;
+}
+
+/**
  * Copie du texte (sticker prêt à coller / lien). Web : Clipboard API navigateur.
  * Natif : `expo-clipboard` si présent, sinon feuille de partage système. Renvoie
  * `ok:false` seulement si RIEN n'a pu être copié ni partagé (l'UI n'affiche alors

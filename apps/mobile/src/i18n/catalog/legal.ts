@@ -144,7 +144,7 @@ export const LEGAL_HOSTING = {
  * traduire. À faire évoluer À LA MAIN à chaque changement de fond (comme la date
  * des pages web) : une date figée qui dérive silencieusement serait un mensonge.
  */
-export const LEGAL_LAST_UPDATED = '26/07/2026';
+export const LEGAL_LAST_UPDATED = '27/07/2026';
 
 /**
  * TEXTE DE RÉFÉRENCE FRANÇAISE, identique dans les cinq langues.
@@ -576,15 +576,41 @@ export const C = defineCatalog({
    * RÉEL et ce qui se passera le jour où une offre ouvrira.
    * {provider} / {region} = LEGAL_HOSTING (sourcé, cf. son commentaire).
    */
+  /**
+   * ⚠ 27/07/2026 — LE SOUS-TRAITANT QUI MANQUAIT À LA LISTE. L'app interroge
+   * OpenStreetMap/Nominatim pour NOMMER un lieu : la ville de départ d'un
+   * itinéraire (`features/route/geocode.ts`), le nom d'un secteur
+   * (`features/map/sectorNaming.ts`) et — depuis le panneau de sécurité E25 — le
+   * PAYS où se trouve le coureur, dont dépend le numéro de secours proposé
+   * (`features/run/safety/country.ts`). Ces requêtes envoient une position à un
+   * tiers ; la liste ci-dessous les passait sous silence, alors qu'elle se
+   * présente comme limitative. Un document RGPD qui omet un destinataire est un
+   * faux au même titre qu'une donnée fabriquée à l'écran.
+   *
+   * La ligne dit aussi ce qui LIMITE cette sortie, parce que c'est vrai et
+   * vérifiable dans le code : la position du panneau de sécurité est arrondie au
+   * dixième de degré (~11 km) avant l'envoi (`COUNTRY_LOOKUP_DECIMALS`), et
+   * aucune de ces requêtes ne porte d'identifiant de compte.
+   */
   privacyPartageBody2: fr5(
-    '· Hébergement & base de données : {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).\n· Authentification : Apple (Sign in with Apple) et, si tu l’utilises, Google (Sign in with Google).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Paiement : aucun. Aucune offre payante n’est commercialisée à ce jour, aucun paiement n’est encaissé. Le jour où des achats intégrés ouvriront, ils seront traités par Apple (App Store) ou Google (Google Play) : la plateforme gérerait la transaction, et nous ne verrions jamais ta carte bancaire.',
+    '· Hébergement & base de données : {provider}, sur des serveurs situés dans l’Union européenne (région {region}, Irlande).\n· Authentification : Apple (Sign in with Apple) et, si tu l’utilises, Google (Sign in with Google).\n· Mesure d’audience produit : PostHog, hébergé dans l’Union européenne — statistiques d’usage agrégées, sans revente ni publicité.\n· Noms de lieux : OpenStreetMap / Nominatim (fondation OSMF), pour nommer une ville, un secteur, ou identifier le pays où tu te trouves quand tu ouvres le panneau de sécurité pendant une sortie. Une position est alors envoyée à ce service, sans aucun identifiant de compte ; pour le panneau de sécurité elle est d’abord arrondie au dixième de degré, soit environ 11 km. Rien n’est envoyé si tu n’ouvres pas ces écrans.\n· Paiement : aucun. Aucune offre payante n’est commercialisée à ce jour, aucun paiement n’est encaissé. Le jour où des achats intégrés ouvriront, ils seront traités par Apple (App Store) ou Google (Google Play) : la plateforme gérerait la transaction, et nous ne verrions jamais ta carte bancaire.',
   ),
   privacyPartageBody3: fr5(
     'Nous pouvons divulguer des données si la loi l’exige (réquisition judiciaire), ou pour protéger nos droits et la sécurité des joueurs.',
   ),
   privacyTransfertHeading: fr5('TRANSFERTS HORS UNION EUROPÉENNE'),
+  /**
+   * ⚠ 27/07/2026 — CETTE SECTION AFFIRMAIT « aucun transfert hors UE dans le
+   * cadre du fonctionnement normal du jeu », alors que le même binaire appelle
+   * OpenStreetMap/Nominatim, dont l'infrastructure (fondation OSMF, Royaume-Uni,
+   * plus des miroirs) n'est pas garantie européenne. La phrase est corrigée
+   * plutôt que le code : le service est nécessaire (sans lui, aucun numéro de
+   * secours n'est proposé) et l'exception est nommée, bornée et datée. C'est
+   * exactement ce que la dernière phrase de la version précédente promettait de
+   * faire — elle n'avait simplement jamais été appliquée.
+   */
   privacyTransfertBody: fr5(
-    'Tes données sont hébergées et traitées dans l’Union européenne. Nous ne procédons à aucun transfert hors UE dans le cadre du fonctionnement normal du jeu. Si un sous-traitant venait à impliquer un tel transfert, il serait encadré par les garanties prévues par le RGPD (clauses contractuelles types de la Commission européenne) et signalé dans la présente politique.',
+    'Tes données de compte et de jeu sont hébergées et traitées dans l’Union européenne. UNE seule exception, et la voici : les requêtes de noms de lieux adressées à OpenStreetMap / Nominatim (voir « Partage des données ») peuvent être servies par une infrastructure située hors de l’Union. Elles ne contiennent aucun identifiant de compte, et la position transmise depuis le panneau de sécurité est arrondie à environ 11 km. Aucun autre transfert hors UE n’a lieu dans le fonctionnement normal du jeu. Si un sous-traitant venait à en impliquer un, il serait encadré par les garanties prévues par le RGPD (clauses contractuelles types de la Commission européenne) et signalé dans la présente politique.',
   ),
   privacyConservationHeading: fr5('DURÉES DE CONSERVATION'),
   privacyConservationBody: fr5(

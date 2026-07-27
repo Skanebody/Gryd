@@ -20,8 +20,19 @@ export const EVENTS = {
   cityOpened: 'city_opened', // props: { created, source: 'manual' | 'run' }
   privacyZoneSet: 'privacy_zone_set',
   // Boucle cœur
-  // E06 — préflight affiché (conditions vérifiées avant le compte à rebours).
-  runPreflightViewed: 'run_preflight_viewed', // props: { readiness: 'ready'|'approximate', platform }
+  // E06/E19 — préflight affiché (conditions vérifiées avant le compte à rebours).
+  // `readiness` dit la GRANULARITÉ de la permission (fine vs coarse), PAS la
+  // qualité du fix : une permission fine sur un signal à 28 m est « prêt » côté
+  // permission et orange côté anneau.
+  //
+  // ⚠ PAS de `accuracy_grade` ICI, contrairement à ce que cette ligne annonçait
+  // le 27/07/2026 avant que l'écran existe : à l'instant où le préflight
+  // s'affiche, AUCUNE position n'est encore arrivée (le sondage vient d'ouvrir
+  // le capteur). La valeur y serait 'unknown' à tous les coups — une colonne
+  // constante qui ferait croire à une mesure. La qualité RÉELLE du fix se lit
+  // dans les deux events d'E19 ci-dessous, `gps_ready_reached` (bande verte
+  // atteinte, avec le délai) et `run_start_degraded` (départ pris sans elle).
+  runPreflightViewed: 'run_preflight_viewed', // props: { readiness: 'ready'|'approximate', platform, requested }
   runStart: 'run_start',
   runAutosave: 'run_autosave',
   runCancelAttempt: 'run_cancel_attempt',
@@ -207,5 +218,154 @@ export const EVENTS = {
    * channel FERMÉ : 'instagram' | 'tiktok' | 'whatsapp' | 'more'
    */
   shareChannelTapped: 'share_channel_tapped', // props: { channel }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // VAGUE E14 · E19 · E22 · E25 · E26 · E27 · E30 · E33 · E34 · E37
+  // (spec produit UI/UX, l.943 · 1088 · 1163 · 1219 · 1234 · 1254 · 1311 ·
+  //  1362 · 1377 · 1463), ajoutée le 27/07/2026.
+  //
+  // TROIS RÈGLES APPLIQUÉES, les mêmes que les blocs précédents :
+  //  1. AUCUN event sans point d'émission NOMMABLE. Chaque nom ci-dessous
+  //     désigne un instant qu'un écran de cette vague traverse vraiment ; aucun
+  //     n'est posé « pour plus tard ». Quand un event existant couvrait déjà
+  //     l'instant, il n'est PAS doublé — c'est dit à sa place ;
+  //  2. AUCUNE PII, AUCUNE POSITION. Pas d'`id` de zone, de secteur ni de
+  //     cellule H3 : un index H3 EST une coordonnée, et §18.2 interdit les
+  //     coordonnées précises dans l'analytics. Pas de pseudo, pas de nom de
+  //     quartier, pas de libellé i18n — seulement des clés fermées, énumérées
+  //     ligne par ligne ;
+  //  3. AUCUN NOMBRE DE JEU. Les seuils (bandes GPS, couverture de défense)
+  //     vivent dans game-rules.ts ; ici on ne transporte que la CLASSE dérivée.
+
+  // ── E14 — Détail d'un territoire (`/map/zone/:zoneId`) ────────────────────
+  /**
+   * La feuille de zone s'est ouverte, avec l'état qu'elle a RÉELLEMENT rendu.
+   * `state` FERMÉ, miroir des cinq variantes de la spec (l.949-978) :
+   * 'free' | 'personal' | 'crew' | 'rival' | 'contested'.
+   * L'identifiant de la zone ne part PAS : il localise le joueur au mètre.
+   * Le CTA de la feuille (CONQUÉRIR / RENFORCER / REPRENDRE / DÉFENDRE) se
+   * mesure avec `cta_tapped`, qui existe déjà pour ça.
+   */
+  zoneDetailViewed: 'zone_detail_viewed', // props: { state }
+
+  // ── E19 — Acquisition GPS / prêt (`/activity/ready`) ──────────────────────
+  /**
+   * L'anneau a atteint la bande VERTE pour la première fois de cet écran.
+   * `seconds` = durée d'acquisition mesurée depuis l'ouverture (entier, jamais
+   * un horodatage : une heure précise est une donnée de vie privée).
+   * Le KPI : combien de temps on fait attendre avant un départ propre.
+   */
+  gpsReadyReached: 'gps_ready_reached', // props: { seconds }
+  /**
+   * Départ pris SANS la bande verte — le lien « Démarrer quand même ».
+   * `grade` FERMÉ (`GpsAccuracyGrade`) : en pratique 'usable', mais la valeur
+   * est transmise telle quelle plutôt que supposée. C'est le signal qui dira si
+   * le seuil de 15 m est trop sévère sur le terrain.
+   */
+  runStartDegraded: 'run_start_degraded', // props: { grade }
+
+  // ── E22 — Défense active (variante de E20/E21) ────────────────────────────
+  /** L'activité s'affiche en mode DÉFENSE (contour de zone + jauge + échéance). */
+  defenseRunViewed: 'defense_run_viewed',
+  /**
+   * La couverture de frontière a franchi un palier RÉEL (moteur pur
+   * `engine/coverage.ts`, seuils `DEFENSE_COVER_LONGE_MIN` /
+   * `DEFENSE_COVER_FULL_MIN`) — c'est l'instant du label « Défense possible ».
+   * `level` FERMÉ, miroir de `DefenseLevel` : 'traverse' | 'longe' | 'cover'.
+   * Aucun pourcentage n'est envoyé : une couverture fine, croisée avec l'heure,
+   * dessine un tracé.
+   */
+  defenseCoverageReached: 'defense_coverage_reached', // props: { level }
+
+  // ── E25 — Sécurité (panneau discret pendant l'activité) ───────────────────
+  /** Le panneau Sécurité a été ouvert pendant une activité. */
+  safetyPanelOpened: 'safety_panel_opened',
+  /**
+   * Une fonction du panneau a été tapée. `action` FERMÉ :
+   * 'share' (prévenir un proche) | 'emergency' (ouverture du composeur —
+   * JAMAIS la preuve d'un appel, l'app n'en sait rien) | 'stop' | 'guidelines'.
+   * Aucun numéro, aucun destinataire, aucun contenu de message.
+   */
+  safetyActionTapped: 'safety_action_tapped', // props: { action }
+
+  // ── E26 — Fin d'activité (feuille basse) ──────────────────────────────────
+  /**
+   * La feuille de fin s'est ouverte. `produces_result` = verdict de
+   * `activityProducesResult()` (les minima §3.2 de la discipline) : c'est LUI
+   * qui décide si `TERMINER` demande confirmation (spec l.1194), donc il doit
+   * être mesurable — sinon personne ne saura jamais combien de sorties meurent
+   * sous le plancher.
+   */
+  activityFinishSheetViewed: 'activity_finish_sheet_viewed', // props: { produces_result }
+  /**
+   * L'activité REPREND au lieu de se terminer. `from` FERMÉ :
+   * 'finish_sheet' (E26) | 'pause' (E23). Deux hésitations différentes, deux
+   * décisions produit différentes — les confondre effacerait l'information.
+   */
+  activityResumed: 'activity_resumed', // props: { from }
+
+  // ── E27 — Analyse et synchronisation ──────────────────────────────────────
+  /** L'écran d'analyse s'ouvre (après le tap `TERMINER ET ANALYSER`). */
+  activityAnalysisViewed: 'activity_analysis_viewed',
+  /**
+   * UNE ÉTAPE RÉELLEMENT FRANCHIE. `step` FERMÉ :
+   * 'securing' (finalisation + chiffrement locaux) | 'uploading' (envoi en
+   * cours) | 'judging' (envoi accepté, verdict serveur attendu).
+   *
+   * ⚠ CE VOCABULAIRE S'ÉCARTE DES TROIS ÉTAPES DE LA SPEC (l.1258-1261 :
+   * « sécurisation ; analyse de boucle ; validation territoriale »), ET C'EST
+   * VOLONTAIRE. « Analyse de boucle » et « validation territoriale » se
+   * déroulent TOUTES DEUX à l'intérieur du même appel serveur : le client ne
+   * peut pas savoir quand l'une finit et l'autre commence. Émettre deux étapes
+   * distinctes fabriquerait une progression — exactement ce que la spec
+   * interdit à la ligne suivante (« progression non artificielle »). On mesure
+   * donc les trois transitions que le client OBSERVE vraiment.
+   */
+  activityAnalysisStep: 'activity_analysis_step', // props: { step }
+  /**
+   * L'envoi n'a pas pu aboutir et la sortie attend en file locale (le
+   * `uploadQueued` que `RealRunApi.finish()` renvoie déjà). `reason` FERMÉ :
+   * 'offline' | 'error'. Rien n'est perdu, et l'analytics doit pouvoir le
+   * prouver plutôt que de laisser un trou entre `run_complete` et `claim_result`.
+   */
+  activityUploadQueued: 'activity_upload_queued', // props: { reason }
+  /**
+   * L'utilisateur QUITTE l'écran avant le verdict — un droit explicite de la
+   * spec (l.1265 : « L'utilisateur peut quitter »). `step` = la même énumération
+   * fermée que ci-dessus : savoir OÙ on abandonne dit si l'attente est trop longue.
+   */
+  activityAnalysisLeft: 'activity_analysis_left', // props: { step }
+
+  // ── E29-E34 — Les six résultats ───────────────────────────────────────────
+  /**
+   * L'écran de résultat s'est composé, avec la variante RÉELLEMENT rendue.
+   * `variant` FERMÉ, miroir de `ResultVariantId`
+   * (`features/run/resultVariant.ts`) : 'conquest' | 'reprise' | 'defense' |
+   * 'freeRun' | 'crewContribution' | 'partial'.
+   *
+   * UN SEUL event pour six écrans, parce que le KPI est justement la
+   * RÉPARTITION : « combien de sorties finissent en E32 plutôt qu'en E29 ».
+   * Six noms auraient rendu ce ratio impossible à lire d'un seul graphe.
+   *
+   * NE DOUBLE RIEN : `claim_result` porte le verdict SERVEUR (nouveau/volé/
+   * défendu/refusé), `celebration_viewed` l'animation, et
+   * `segments_excluded_viewed` la portion exclue d'E34 — qui existe déjà et ne
+   * doit PAS être recréée.
+   */
+  resultViewed: 'result_viewed', // props: { variant }
+
+  // ── E37 — Partage terminé ─────────────────────────────────────────────────
+  /**
+   * Le lien du partage a été copié depuis l'écran de fin (spec l.1471).
+   * Distinct de `sticker_copied` (une IMAGE mise au presse-papiers) et de
+   * `share_completed` (le canal a abouti). Aucune URL n'est transmise : un lien
+   * de partage porte un identifiant de course.
+   *
+   * La troisième action de la spec, « voir le profil public », n'a PAS d'event
+   * ici : aucune route de profil public n'existe dans l'app au 27/07/2026
+   * (`apps/mobile/app/` n'a pas de `u/[handle]`). Un event pour une destination
+   * inexistante décrirait un écran qui n'existe pas.
+   */
+  shareLinkCopied: 'share_link_copied',
 } as const;
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

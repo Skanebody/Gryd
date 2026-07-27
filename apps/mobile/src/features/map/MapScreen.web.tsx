@@ -384,8 +384,15 @@ export function MapScreen() {
     loading: crewLoading,
     loadFailed: crewFailed,
   } = useRealCrew();
-  const crewIdsKey = crewMembers
-    .map((m) => m.userId)
+  // E14 — L'ID DU CREW LUI-MÊME EST DANS LE SET, et ce n'est pas cosmétique.
+  // `territoryRole` (territoriesSource.ts:246) déclare rattacher un territoire
+  // « que le propriétaire soit le crew lui-même ou l'un de ses membres », mais il
+  // ne dispose que de ce Set : sans `myCrew.id`, une ligne `owned_crew` (écrite
+  // par `contest_wiring.ownedStateFor`) tombait en RIVAL — la carte peignait en
+  // orange le territoire du crew du joueur, et sa feuille lui proposait de le
+  // « reprendre ». Un seul Set alimente le RENDU et la FEUILLE : ils ne peuvent
+  // pas diverger.
+  const crewIdsKey = [...crewMembers.map((m) => m.userId), ...(myCrew ? [myCrew.id] : [])]
     .sort()
     .join(',');
   const crewIds = useMemo(
@@ -556,9 +563,19 @@ export function MapScreen() {
    * exactement ce qui avait fait sortir les zones du crew en orange rival ici et
    * en chartreuse sur iPhone.
    */
+  /**
+   * QUI REGARDE (E14) — le même `meId` et le MÊME Set de crew que ceux qui ont
+   * servi à peindre. `zoneOwnership` en tire la variante de la feuille
+   * (personnelle / crew / rivale), que `props.status` seul ne sait pas rendre
+   * sur une zone `contested`.
+   */
+  const zoneViewer = useMemo(
+    () => ({ meId: mapSession?.user.id ?? null, crewIds }),
+    [mapSession?.user.id, crewIds],
+  );
   const selectedZone: MapZoneView | null = useMemo(
-    () => selectZoneView(territories, sectorViews, selectedZoneId),
-    [selectedZoneId, territories, sectorViews],
+    () => selectZoneView(territories, sectorViews, selectedZoneId, zoneViewer),
+    [selectedZoneId, territories, sectorViews, zoneViewer],
   );
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */

@@ -2277,6 +2277,136 @@ export const C = defineCatalog({
     de: 'Zurück zur Karte',
     pt: 'Voltar ao mapa',
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // E30 · E33 · E34 · E37 — CE QUI MANQUAIT VRAIMENT (27/07/2026).
+  //
+  // AUDIT D'ABORD : ces quatre écrans EXISTENT déjà, et leur copie aussi.
+  // `heroReprise` / `repriseFrom` couvrent E30, `crewBoundaryShare` /
+  // `crewBoundaryContributors` / `crewBoundaryNamed` couvrent E33, `heroPartial`
+  // / `partialNotice` / `partialWhy` / `partialAppeal` couvrent E34, et
+  // `backToResult` / `stickerCopied` / `storyExported` couvrent l'essentiel
+  // d'E37. Rien de tout cela n'est recréé ici — la composition d'écran vit dans
+  // `features/run/resultVariant.ts`, qui décide déjà des six variantes.
+  //
+  // NE RESTAIENT QUE CES QUATRE TROUS.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * E30 (spec l.1319) — « variation de rang ».
+   *
+   * ⚠ CONTRAT : cette ligne ne se peint QUE si `composition.rankChange` n'est
+   * pas `null`. Au 27/07/2026, `app/course-result.tsx:644` passe `rankChange:
+   * null` en dur — AUCUNE lecture de classement n'alimente cet écran. La clé
+   * existe pour le jour où la source arrive, jamais pour afficher « +0 »
+   * (`displayableRankChange` écarte d'ailleurs le zéro, qui n'est pas une
+   * nouvelle). Le signe est porté par la valeur, formatée par l'appelant.
+   */
+  rankChangeLine: {
+    fr: 'Classement : {delta} place(s)',
+    en: 'Ranking: {delta} place(s)',
+    es: 'Clasificación: {delta} puesto(s)',
+    de: 'Rangliste: {delta} Platz/Plätze',
+    pt: 'Classificação: {delta} posição(ões)',
+  },
+
+  /**
+   * E33 (spec l.1373) — CTA `VOIR LA MISSION`. Il n'existait pas : la sheet de
+   * carte s'en passait faute d'objet mission (cf. `BattleMapOverlays.tsx:1556`).
+   * Sur le Résultat, la cible est la mission crew RÉELLE que la frontière
+   * refermée vient de servir — donc à ne peindre que si cette mission est
+   * lisible. Un CTA sans destination reste un bouton mort, même au bon endroit.
+   */
+  seeMissionCta: {
+    fr: 'VOIR LA MISSION',
+    en: 'SEE THE MISSION',
+    es: 'VER LA MISIÓN',
+    de: 'MISSION ANSEHEN',
+    pt: 'VER A MISSÃO',
+  },
+
+  /**
+   * E37 (spec l.1471) — « copier le lien ». Distinct de `stickerCopied` (une
+   * IMAGE au presse-papiers) : ici c'est le lien de partage. Le toast de
+   * confirmation est `linkCopied`.
+   */
+  copyLink: {
+    fr: 'Copier le lien',
+    en: 'Copy link',
+    es: 'Copiar el enlace',
+    de: 'Link kopieren',
+    pt: 'Copiar o link',
+  },
+  linkCopied: {
+    fr: 'Lien copié',
+    en: 'Link copied',
+    es: 'Enlace copiado',
+    de: 'Link kopiert',
+    pt: 'Link copiado',
+  },
+  /**
+   * E37, troisième action de la spec (l.1472) — « voir le profil public ».
+   *
+   * ⚠ À NE PAS PEINDRE AUJOURD'HUI. Aucune route de profil public n'existe dans
+   * l'app au 27/07/2026 : `apps/mobile/app/` n'a pas de `u/[handle]`, et
+   * `catalog/reglages.ts` le dit déjà au joueur (« il n'y a ni profil public, ni
+   * fil d'activité »). Le libellé est posé pour le jour où la page existe ;
+   * l'afficher avant serait exactement le bouton mort que la constitution
+   * interdit. La clé est ici, avec sa condition — pas dans un écran.
+   */
+  seePublicProfile: {
+    fr: 'Voir le profil public',
+    en: 'See the public profile',
+    es: 'Ver el perfil público',
+    de: 'Öffentliches Profil ansehen',
+    pt: 'Ver o perfil público',
+  },
+
+  /**
+   * E34 (spec l.1377) — LA CONCLUSION DE VÉRIFICATION D'UNE COURSE `partial`.
+   *
+   * Ce trou-là était un MENSONGE, pas une absence : l'écran repliait `valid` et
+   * `partial` sur un booléen `verified` unique, et servait donc `verifyOk`
+   * — « GPS et mouvement fiables : CAPTURE PLEINE » — à une course dont il
+   * venait d'annoncer, quinze lignes plus haut, qu'« une partie du parcours n'a
+   * pas été retenue ». Deux affirmations contradictoires sur un même écran.
+   *
+   * Ce que cette phrase dit, et pourquoi exactement ainsi :
+   *  · elle CONFIRME la vérification — une course `partial` a bien passé GRYD
+   *    Verify (un score de confiance insuffisant produirait `flagged`, pas
+   *    `partial` : cf. `ingest_run`). Dire « vérification partielle » serait
+   *    faux dans l'autre sens ;
+   *  · elle nomme ce qui est réellement partiel : LE PARCOURS RETENU ;
+   *  · elle ne CHIFFRE rien — le serveur ne renvoie ni longueur ni durée de la
+   *    portion écartée, et un pourcentage calculé ici serait inventé ;
+   *  · elle ne CULPABILISE pas et ne promet AUCUNE revue : le recours a son
+   *    propre lien (`partialAppeal`), peint uniquement si une revue existe.
+   */
+  verifyPartial: {
+    fr: 'GPS et mouvement fiables : capture partielle, une portion a été écartée.',
+    en: 'GPS and motion reliable: partial capture, one portion was set aside.',
+    es: 'GPS y movimiento fiables: captura parcial, se descartó una porción.',
+    de: 'GPS und Bewegung zuverlässig: Teil-Eroberung, ein Abschnitt fiel weg.',
+    pt: 'GPS e movimento confiáveis: captura parcial, uma porção foi descartada.',
+  },
+
+  /**
+   * E33 (spec l.1362) — les POINTS CREW que la fermeture de frontière a
+   * réellement rapportés (`IngestRunResponse.boundaryCompleted.crewPoints`,
+   * décidé serveur). La copie gelée de la spec les cite (« Crew +{crewPoints}
+   * pts ») et l'écran les lisait déjà sans jamais les montrer.
+   *
+   * ⚠ CONTRAT : ne se peint QUE si `crewPoints > 0`. Zéro ne veut pas dire
+   * « le crew a gagné 0 point », il veut dire « rien à annoncer » — et « +0 pts »
+   * est le zéro nu que la constitution interdit.
+   */
+  crewBoundaryPoints: {
+    fr: 'Crew +{n} pts',
+    en: 'Crew +{n} pts',
+    es: 'Crew +{n} pts',
+    de: 'Crew +{n} Pkt.',
+    pt: 'Crew +{n} pts',
+  },
 });
 
 /**

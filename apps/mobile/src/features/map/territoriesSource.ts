@@ -455,7 +455,23 @@ export function splitTerritoryRowsByActivity(rows: readonly TerritoryRow[]): {
  * LA VOIE RETENUE — LE COMPLÉMENT GÉOMÉTRIQUE. Une cellule `hex_claims` est
  * ÉCARTÉE si et seulement si son CENTRE tombe à l'intérieur d'un polygone DU
  * MÊME PROPRIÉTAIRE : elle est alors déjà peinte, exactement, par ce polygone.
- * Toutes les autres cellules restent peintes, en hexagones.
+ * Toutes les autres cellules restent peintes.
+ *
+ * ⚠ CE QUE CETTE PHRASE DISAIT DE TROP (corrigé le 27/07). Elle finissait par
+ * « …restent peintes, EN HEXAGONES », ce qui décrit un rendu que le code ne fait
+ * pas : `buildTerritories` → `cellsToTerritory` DISSOUT d'abord les cellules
+ * d'un même propriétaire (`h3-js.cellsToMultiPolygon` — 19 cellules contiguës
+ * rendent UN anneau de 31 sommets, pas 19 hexagones), puis lisse le contour
+ * obtenu (`smoothRing` : simplification 24 m + Chaikin ×2). AUCUN contour
+ * hexagonal par cellule n'est donc dessiné, et aucune arête interne n'apparaît.
+ *
+ * CE QUI RESTE VRAI, ET RESTE UN ÉCART À §1.4 / constitution §6 : la SILHOUETTE
+ * de ce contour reste dérivée de la grille (crans d'arête ~70 m à la résolution
+ * 10, adoucis mais pas effacés par le lissage) — ce n'est pas la trace du
+ * coureur. Cet écart ne se referme pas par un meilleur lissage : il se referme
+ * quand chaque capture porte sa ligne `territories` (backfill + lots suivants).
+ * L'écran l'avoue déjà, sans jamais exposer H3 à l'utilisateur (« Contour
+ * approximatif (tracé pas encore disponible) », i18n/catalog/map.ts).
  *   ⇒ RIEN N'EST CACHÉ : une cellule sans polygone garde son contour.
  *   ⇒ RIEN N'EST DOUBLÉ : une cellule sous un polygone n'est pas repeinte.
  *   ⇒ §1.4 EST VRAI LÀ OÙ LE POLYGONE EXISTE, et faux ailleurs — et « ailleurs »

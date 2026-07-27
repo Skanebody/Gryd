@@ -748,4 +748,95 @@ export const SHARE_COPY = defineCatalog({
     de: 'Keine Uhrzeit auf der Karte, nur eine Dauer.',
     pt: 'Nenhum horário no cartão, apenas uma duração.',
   },
+
+  // ═══ E37 — PARTAGE TERMINÉ (spec l.1463-1472) ═════════════════════════════
+  // « Format : toast ou petit écran de succès selon canal. Actions : retour au
+  //   résultat ; copier le lien ; voir le profil public. »
+  //
+  // ─── DEUX TITRES, PARCE QU'IL Y A DEUX VÉRITÉS ─────────────────────────────
+  // `shareDeliveryClaim()` (features/share/shareOutcome.ts, pur et testé) sépare
+  // ce que la plateforme a RAPPORTÉ de ce qu'on aimerait dire. « Partage
+  // terminé » n'est vrai que sur `confirmed` (iOS `Share.share`, Web Share API).
+  // Sur `handed_off` — le cas de TOUS les partages d'image (`expo-sharing` ne
+  // rend aucun verdict) et de tout Android (`ACTION_SEND` ne remonte pas
+  // l'issue) — l'app ne sait pas si l'envoi a été validé, et elle le dit.
+  // Écrire « Partage terminé » là serait la même faute qu'une donnée fabriquée :
+  // une affirmation sans mesure.
+  //
+  // Ces libellés vivent ICI et pas dans `i18n/catalog/result.ts` parce qu'ils ne
+  // NOMMENT aucun effort (ni « course » ni « sortie ») : ils n'ont donc pas de
+  // jumeau vélo à maintenir, et le catalogue partagé n'a rien à en faire.
+
+  /** Titre du panneau quand la plateforme a CONFIRMÉ l'envoi. */
+  doneTitleConfirmed: {
+    fr: 'Partage terminé',
+    en: 'Share complete',
+    es: 'Compartido',
+    de: 'Geteilt',
+    pt: 'Compartilhado',
+  },
+  doneBodyConfirmed: {
+    fr: 'C’est envoyé. Tu peux revenir à ton résultat.',
+    en: 'It’s sent. You can go back to your result.',
+    es: 'Enviado. Puedes volver a tu resultado.',
+    de: 'Gesendet. Du kannst zu deinem Ergebnis zurückkehren.',
+    pt: 'Enviado. Você pode voltar ao seu resultado.',
+  },
+
+  /**
+   * Titre du panneau quand la feuille système ne dit RIEN de l'issue. Il décrit
+   * le geste qu'on a réellement fait — remettre le média — et pas un résultat
+   * qu'on n'a pas mesuré.
+   */
+  doneTitleHandedOff: {
+    fr: 'Média remis au partage',
+    en: 'Handed to the share sheet',
+    es: 'Entregado al menú de compartir',
+    de: 'An die Teilen-Ansicht übergeben',
+    pt: 'Entregue ao menu de compartilhamento',
+  },
+  /**
+   * L'AVEU, en une phrase : la feuille système ne rapporte pas si l'envoi a été
+   * validé. Le joueur, lui, le sait — l'app n'a pas à faire semblant.
+   */
+  doneBodyHandedOff: {
+    fr: 'GRYD ne sait pas si tu as validé l’envoi : la feuille de partage ne le dit pas.',
+    en: 'GRYD can’t tell whether you confirmed the send: the share sheet doesn’t report it.',
+    es: 'GRYD no sabe si confirmaste el envío: el menú de compartir no lo informa.',
+    de: 'GRYD weiß nicht, ob du das Senden bestätigt hast – die Teilen-Ansicht meldet es nicht.',
+    pt: 'O GRYD não sabe se você confirmou o envio: o menu de compartilhamento não informa.',
+  },
+
+  /**
+   * CTA principal — la suite que la spec liste en premier, et le trou exact de
+   * l'écran : après un partage, rien ne ramenait au résultat. Majuscules comme
+   * les autres CTA pleins de ce parcours (`customizeApply`).
+   */
+  doneBackToResult: {
+    fr: 'Revenir au résultat',
+    en: 'Back to the result',
+    es: 'Volver al resultado',
+    de: 'Zurück zum Ergebnis',
+    pt: 'Voltar ao resultado',
+  },
+  /**
+   * Action neutre : refermer le panneau et retrouver le compositeur intact
+   * derrière. C'est aussi le CTA principal quand il n'y a AUCUN historique de
+   * navigation (deep link) — « retour au résultat » n'aurait alors nulle part
+   * où aller, et un CTA qui retombe sur les onglets sous ce libellé mentirait.
+   */
+  doneShareAgain: {
+    fr: 'Partager ailleurs',
+    en: 'Share somewhere else',
+    es: 'Compartir en otro sitio',
+    de: 'Woanders teilen',
+    pt: 'Compartilhar em outro lugar',
+  },
+  doneCloseA11y: {
+    fr: 'Fermer et revenir au partage',
+    en: 'Close and go back to sharing',
+    es: 'Cerrar y volver a compartir',
+    de: 'Schließen und zurück zum Teilen',
+    pt: 'Fechar e voltar para o compartilhamento',
+  },
 });

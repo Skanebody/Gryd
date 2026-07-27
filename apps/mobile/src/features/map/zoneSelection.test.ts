@@ -153,3 +153,134 @@ Deno.test('E22 : part rivale absente (source pauvre {id,contested}) ⇒ rivalPer
   assertEquals(view?.contested, true);
   assertEquals(view?.rivalPercent, null);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E14 — DÉTAIL D'UN TERRITOIRE : ce que la sélection remonte du POLYGONE.
+//
+// Ces tests partent de `rowToTerritory` (la vraie ligne `territories`) et non de
+// `buildTerritories` : c'est le chemin AUTORITAIRE depuis le LOT 1, et c'est
+// exactement là que les champs manquants vivaient sans jamais atteindre l'écran.
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { rowToTerritory, type TerritoryRow } from './territoriesSource.ts';
+import type { RealTerritory } from './territoryBuild.ts';
+
+const CREW_ID = 'crew-uuid';
+const NOW = '2026-07-27T10:00:00.000Z';
+/** Un carré autour du centre de Paris — anneau FERMÉ, comme le stocke la base. */
+const SQUARE = {
+  type: 'Polygon',
+  coordinates: [
+    [
+      [2.3600, 48.8650],
+      [2.3700, 48.8650],
+      [2.3700, 48.8700],
+      [2.3600, 48.8700],
+      [2.3600, 48.8650],
+    ],
+  ],
+};
+
+function territoryRow(o: Partial<TerritoryRow> = {}): TerritoryRow {
+  return {
+    id: 'territory-1',
+    activity: 'run',
+    owner_type: 'user',
+    owner_id: ME,
+    geometry: SQUARE,
+    geometry_generalized: SQUARE,
+    area_m2: 420_000,
+    state: 'owned_personal',
+    defense_level: 0,
+    controlled_since: '2026-07-21T10:00:00.000Z',
+    publish_after: NOW,
+    source_run_id: 'run-1',
+    ...o,
+  };
+}
+
+function polygonOf(
+  o: Partial<TerritoryRow> = {},
+  crewIds?: ReadonlySet<string> | null,
+): RealTerritory[] {
+  const res = rowToTerritory(territoryRow(o), ME, NOW, crewIds);
+  if (!res.ok) throw new Error(`ligne non peinte : ${res.reason}`);
+  return [res.territory];
+}
+
+Deno.test('E14 : MA zone personnelle — ownership, frontière exacte, « tenue depuis »', () => {
+  const built = polygonOf();
+  const view = selectZoneView(built, [], built[0].props.territoryId, { meId: ME });
+  assertEquals(view?.role, 'mine');
+  assertEquals(view?.ownership, 'personal');
+  // Ma propre ligne : `pickRenderGeometry` sert `geometry`, donc le tracé exact.
+  assertEquals(view?.border, 'exact');
+  // `capturedAt` EST `controlled_since` sur ce chemin : « tenue depuis » y est vrai.
+  assertEquals(view?.timeMetric, 'held');
+  // defense_level = 0 ⇒ AUCUNE fortification, jamais « niveau 0 ».
+  assertEquals(view?.protectionLevel, null);
+});
+
+Deno.test('E14 : LE DÉFAUT CORRIGÉ — ma zone `contested` n’est plus une zone rivale', () => {
+  const built = polygonOf({ state: 'contested' });
+  // Avant : props.status = 'contested' ⇒ role 'rival' ⇒ « ZONE RIVALE ·
+  // Reprendre » sur MA zone, et `isDefenseZone` (qui exige 'mine') muet.
+  const view = selectZoneView(built, [], built[0].props.territoryId, { meId: ME });
+  assertEquals(view?.role, 'mine');
+  assertEquals(view?.ownership, 'personal');
+  // Et `territories.state` est une SOURCE de contesté à part entière : sans
+  // elle, une zone officiellement attaquée s'ouvrait en feuille calme tant
+  // qu'aucun agrégat de secteur n'avait bougé.
+  assertEquals(view?.contested, true);
+});
+
+Deno.test('E14 : zone du CREW — distincte de la mienne, sans nom de crew', () => {
+  const built = polygonOf(
+    { owner_type: 'crew', owner_id: CREW_ID, state: 'owned_crew' },
+    new Set([CREW_ID]),
+  );
+  const view = selectZoneView(built, [], built[0].props.territoryId, {
+    meId: ME,
+    crewIds: new Set([CREW_ID]),
+  });
+  assertEquals(view?.role, 'mine');
+  assertEquals(view?.ownership, 'crew');
+});
+
+Deno.test('E14 : zone rivale — contour PUBLIC simplifié, jamais la trace exacte', () => {
+  const built = polygonOf({ owner_id: RIVAL }, null);
+  const view = selectZoneView(built, [], built[0].props.territoryId, { meId: ME });
+  assertEquals(view?.ownership, 'rival');
+  // §12.3 : le territoire d'autrui n'est servi que généralisé.
+  assertEquals(view?.border, 'generalized');
+});
+
+Deno.test('E14 : protection — le niveau RÉEL remonte, le 0 par défaut ne remonte pas', () => {
+  const fortified = polygonOf({ state: 'defended', defense_level: 2 });
+  const view = selectZoneView(fortified, [], fortified[0].props.territoryId, { meId: ME });
+  assertEquals(view?.protectionLevel, 2);
+  const plain = polygonOf({ defense_level: 0 });
+  assertEquals(
+    selectZoneView(plain, [], plain[0].props.territoryId, { meId: ME })?.protectionLevel,
+    null,
+  );
+});
+
+Deno.test('E14 : chemin HEXAGONAL — contour avoué approximatif, « dernière prise »', () => {
+  const built = buildTerritories(paris.map((c) => row(c, ME, '2026-07-25T10:00:00.000Z')), ME);
+  const view = selectZoneView(built, [], built[0].props.territoryId, { meId: ME });
+  // La spec §1.4 interdit l'hexagone ; la transition en laisse. L'app le DIT.
+  assertEquals(view?.border, 'approx');
+  assertEquals(view?.timeMetric, 'lastCapture');
+  // Aucun `defense_level` sur ce chemin : absence, jamais un zéro affiché.
+  assertEquals(view?.protectionLevel, null);
+});
+
+Deno.test('E14 : sans viewer, `status` garde son sens (aucune régression E04)', () => {
+  const mine = buildTerritories(paris.map((c) => row(c, ME)), ME);
+  assertEquals(selectZoneView(mine, [], mine[0].props.territoryId)?.role, 'mine');
+  const theirs = buildTerritories(paris.map((c) => row(c, RIVAL)), ME);
+  assertEquals(selectZoneView(theirs, [], theirs[0].props.territoryId)?.role, 'rival');
+  // Mais la variante fine reste INDÉTERMINÉE : on ne devine pas personnel/crew.
+  assertEquals(selectZoneView(mine, [], mine[0].props.territoryId)?.ownership, 'unknown');
+});

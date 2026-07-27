@@ -11,6 +11,8 @@
  *     « +0 places »).
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import { FORTIFICATION_LEVEL_MAX } from '@klaim/shared';
+import { zoneProtectionLevel } from '../map/zoneDetail.ts';
 import {
   UNJUDGED_FACTS,
   composeResult,
@@ -21,6 +23,7 @@ import {
   formatArea,
   myBoundaryShare,
   variantOf,
+  verifyConclusionOf,
   type ResultFacts,
 } from './resultVariant.ts';
 
@@ -168,6 +171,20 @@ Deno.test('protection : 0 = « jamais fortifié », pas « niveau 0 » ⇒ rien 
   assertEquals(displayableProtection(null), null);
   assertEquals(displayableProtection(2.5), null);
   assertEquals(displayableProtection(3), 3);
+  // CORRECTIF 27/07 — cette fonction n'avait AUCUNE borne haute là où son jumeau
+  // de la carte (`zoneProtectionLevel`) rejetait tout niveau > 3 : un
+  // `defense_level` de 4 s'imprimait « niveau 4 » sur le Résultat pendant que la
+  // feuille de carte le masquait. Les deux passent désormais par
+  // `displayableFortificationLevel` (@klaim/shared), et la borne est dérivée de
+  // FORTIFICATION_WINDOW_HOURS_BY_LEVEL — plus de « 3 » écrit deux fois.
+  assertEquals(displayableProtection(FORTIFICATION_LEVEL_MAX + 1), null);
+  assertEquals(displayableProtection(99), null);
+  assertEquals(
+    composeResult(judged({ narrative: 'defense', protectionLevel: FORTIFICATION_LEVEL_MAX + 1 }))
+      .protectionLevel,
+    null,
+    'aucun écran n’imprime un niveau que la base n’autorise pas',
+  );
   assertEquals(
     composeResult(judged({ narrative: 'defense', protectionLevel: 0 })).protectionLevel,
     null,
@@ -233,6 +250,87 @@ Deno.test('E33 : ma part de frontière vient de MON identifiant, ou n’existe p
   assertEquals(myBoundaryShare([{ user: 'user-me', share: 0 }], 'user-me'), null);
   assertEquals(myBoundaryShare([{ user: 'user-me', share: 1.4 }], 'user-me'), null);
   assertEquals(myBoundaryShare([{ user: 'user-me', share: Number.NaN }], 'user-me'), null);
+});
+
+// ── 4bis. E34 — `partial` EST UN ÉTAT, PAS UNE NUANCE DE `valid` ───────────
+// Le défaut d'origine : l'écran repliait les quatre `RunStatus` sur UN booléen
+// `verified = status === 'valid' || status === 'partial'`, qui valait donc
+// exactement « la course est créditée ». Résultat, sur une course `partial` :
+// « une partie du parcours n'a pas été retenue » en haut, « capture PLEINE »
+// dans le détail. Ces tests interdisent le retour de cette fusion.
+
+Deno.test('E34 : `partial` a sa PROPRE conclusion, jamais celle de `valid`', () => {
+  assertEquals(verifyConclusionOf(judged({ partial: true })), 'partialExcluded');
+  assertEquals(verifyConclusionOf(judged({ partial: false })), 'full');
+  // Le point du test : les deux ne peuvent PAS retomber sur la même valeur.
+  assert(
+    verifyConclusionOf(judged({ partial: true })) !== verifyConclusionOf(judged()),
+    'partial et valid se sont refondus dans un seul état',
+  );
+});
+
+Deno.test('E34 : une conquête RÉUSSIE mais amputée ne conclut pas « capture pleine »', () => {
+  // La variante reste `conquest` (la zone est bien prise) — mais la conclusion
+  // de vérification, elle, doit dire l'exclusion. Le bug vivait exactement là :
+  // c'est le cas où l'écran célébrait ET mentait dans la même colonne.
+  const c = composeResult(judged({ narrative: 'capture', partial: true }));
+  assertEquals(c.variant, 'conquest');
+  assertEquals(c.excluded, true);
+  assertEquals(c.verify, 'partialExcluded');
+});
+
+Deno.test('E34 : `excluded` et `verify` viennent du MÊME fait — jamais contradictoires', () => {
+  for (const facts of [
+    judged({ partial: true }),
+    judged({ partial: true, narrative: 'capture' }),
+    judged({ partial: true, narrative: 'defense' }),
+    judged({ partial: false }),
+    judged({ partial: false, narrative: 'reprise' }),
+  ]) {
+    const c = composeResult(facts);
+    assertEquals(
+      c.excluded,
+      c.verify === 'partialExcluded',
+      'l’écran peut de nouveau annoncer une exclusion ET une capture pleine',
+    );
+  }
+});
+
+Deno.test('E34 : sans verdict ou non crédité, AUCUNE conclusion de capture', () => {
+  // Hors-ligne : personne n'a jugé. Affirmer « capture pleine » y serait
+  // inventer un verdict ; affirmer une exclusion aussi.
+  assertEquals(verifyConclusionOf(UNJUDGED_FACTS), 'notCredited');
+  assertEquals(verifyConclusionOf({ ...UNJUDGED_FACTS, judged: true }), 'notCredited');
+  // §11 — refus / signalement : `partial` ne prend pas le dessus sur un refus.
+  assertEquals(
+    verifyConclusionOf({ ...UNJUDGED_FACTS, judged: true, credited: false, partial: true }),
+    'notCredited',
+  );
+  assertEquals(composeResult(UNJUDGED_FACTS).verify, 'notCredited');
+});
+
+// ── 4ter. E33 — LES POINTS CREW SONT UN CHIFFRE SERVEUR, PAS UN ORNEMENT ───
+
+Deno.test('E33 : les points crew de la fermeture traversent jusqu’à l’écran', () => {
+  const c = composeResult(
+    judged({
+      narrative: 'capture',
+      boundaryClosed: { name: 'République', contributors: 2, myShare: 0.79, crewPoints: 120 },
+    }),
+  );
+  assertEquals(c.crewBoundary?.crewPoints, 120);
+  // Zéro = « le serveur n'a rien attribué », pas « le crew a gagné 0 » : la
+  // valeur passe telle quelle, et c'est l'écran qui se tait sur `> 0`.
+  const zero = composeResult(
+    judged({
+      boundaryClosed: { name: 'République', contributors: 1, myShare: 1, crewPoints: 0 },
+    }),
+  );
+  assertEquals(zero.crewBoundary?.crewPoints, 0);
+});
+
+Deno.test('E33 : hors frontière refermée, aucun point crew ne fuit sur l’écran', () => {
+  assertEquals(composeResult(judged({ narrative: 'capture' })).crewBoundary, null);
 });
 
 // ── 5. LA SURFACE SE LIT ────────────────────────────────────────────────────
@@ -322,4 +420,61 @@ Deno.test('course-result : la surface partagée EST la surface affichée', () =>
     RESULT_SCREEN.includes('serverResult?.interiorPartial === true'),
     'le fait doit venir du VERDICT SERVEUR (`interiorPartial`), jamais d’une déduction client',
   );
+});
+
+Deno.test('course-result : la conclusion verify ne repasse pas par le booléen fusionné', () => {
+  // `stats.verified` vaut `status === 'valid' || status === 'partial'`, donc
+  // exactement « la course est créditée ». Le laisser décider de la ligne de
+  // conclusion faisait dire « capture pleine » à une course amputée.
+  assert(
+    !/stats\.verified \? t\(C\.verifyOk\)/.test(RESULT_SCREEN),
+    'la conclusion verify est redevenue binaire : `partial` et `valid` y racontent ' +
+      'de nouveau la même chose, et `partial` y ment (« capture pleine »)',
+  );
+  assert(
+    RESULT_SCREEN.includes("composition.verify === 'partialExcluded'"),
+    'la ligne de conclusion doit lire les TROIS états du moteur pur (composition.verify)',
+  );
+  assert(
+    RESULT_SCREEN.includes('t(C.verifyPartial)'),
+    'l’état `partialExcluded` doit avoir SA copie — pas celle de `valid`, pas celle d’un refus',
+  );
+});
+
+Deno.test('course-result : E33 montre les points crew RÉELS, et se tait sur zéro', () => {
+  assert(
+    RESULT_SCREEN.includes('composition.crewBoundary.crewPoints > 0'),
+    'les points crew de la fermeture doivent être peints, et uniquement au-dessus de zéro ' +
+      '(« Crew +0 pts » est le zéro nu que la constitution interdit)',
+  );
+});
+
+Deno.test('LA MÊME VÉRITÉ SUR LES DEUX ÉCRANS : Résultat et carte ne divergent jamais', () => {
+  // Le test que le dépôt n'avait pas, et sans lequel la divergence a vécu :
+  // `displayableProtection` (Résultat) et `zoneProtectionLevel` (feuille de
+  // carte) décrivent le MÊME fait de jeu, `territories.defense_level`. Ils
+  // vivent dans deux dossiers que Metro ne partage pas, donc rien ne les
+  // confrontait — jusqu'ici.
+  const cases: (number | null | undefined)[] = [
+    null,
+    undefined,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    -1,
+    0,
+    0.5,
+    1,
+    1.5,
+    2,
+    FORTIFICATION_LEVEL_MAX,
+    FORTIFICATION_LEVEL_MAX + 1,
+    42,
+  ];
+  for (const level of cases) {
+    assertEquals(
+      displayableProtection(level),
+      zoneProtectionLevel(level),
+      `divergence sur defense_level = ${String(level)}`,
+    );
+  }
 });

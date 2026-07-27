@@ -2040,6 +2040,45 @@ export const FORTIFICATION_WINDOW_HOURS_BY_LEVEL = [
 ] as const;
 export type FortificationLevel = 0 | 1 | 2 | 3;
 
+/**
+ * §9.2 — LE NIVEAU MAXIMUM, DÉRIVÉ DE LA TABLE PLUTÔT QUE RECOPIÉ. Il vaut
+ * exactement la borne haute de la contrainte SQL `territories_defense_level_check`
+ * (supabase/migrations/0074_territories_polygon.sql : `between 0 and 3`) : la
+ * base et le jeu doivent bouger ENSEMBLE, et le seul moyen de le garantir est
+ * que personne n'écrive « 3 » une deuxième fois.
+ */
+export const FORTIFICATION_LEVEL_MAX = FORTIFICATION_WINDOW_HOURS_BY_LEVEL.length - 1;
+
+/**
+ * LE NIVEAU DE PROTECTION AFFICHABLE — une seule fonction pour toute l'app.
+ *
+ * ⚠ POURQUOI ELLE VIT ICI, ET PAS DANS UN ÉCRAN. Elle existait en DEUX
+ * exemplaires, dans deux dossiers que Metro ne partage pas : `features/map/
+ * zoneDetail.ts` (`zoneProtectionLevel`, qui rejetait > 3) et `features/run/
+ * resultVariant.ts` (`displayableProtection`, qui n'avait AUCUNE borne haute).
+ * Le docblock du premier revendiquait « une seule vérité dans l'app » — c'était
+ * faux : sur une ligne `territories` dont `defense_level` vaudrait 4 (contrainte
+ * contournée, migration future, lecture corrompue), la feuille de carte masquait
+ * la protection pendant que l'écran de Résultat imprimait « niveau 4 ». Deux
+ * écrans, deux vérités sur le MÊME fait de jeu. Les deux appelants délèguent
+ * désormais ici, et aucun test ne peut plus les voir diverger sans le dire.
+ *
+ * `null` = RIEN À AFFICHER, et couvre trois situations qu'on ne peint jamais :
+ *  · `0` — la valeur par défaut d'un territoire jamais fortifié. Ce n'est pas
+ *    « niveau 0 de protection », c'est « aucune fortification » : peindre un
+ *    bouclier vide serait le « 0 nu » que la charte interdit ;
+ *  · non entier / non fini / absent — un niveau est un palier discret ;
+ *  · hors bornes — une valeur qu'on ne sait pas lire ne devient pas un chiffre.
+ */
+export function displayableFortificationLevel(
+  level: number | null | undefined,
+): number | null {
+  if (typeof level !== 'number' || !Number.isFinite(level)) return null;
+  if (!Number.isInteger(level)) return null;
+  if (level < 1 || level > FORTIFICATION_LEVEL_MAX) return null;
+  return level;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // AMENDEMENT-15 §1 — Moteur GPS pur (pipeline IDENTIQUE client/serveur).
 // Le client pré-filtre pour l'affichage, le serveur reste SEUL juge du claim.
@@ -2099,6 +2138,94 @@ export const GPS_TRUST_WEIGHTS = {
 } as const;
 /** Ratio d'outliers (points rejetés / points reçus, hors jitter d'arrêt) qui met la composante outliers à 0. */
 export const GPS_TRUST_OUTLIER_BAD_RATIO = 0.3;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E19 — ACQUISITION GPS / PRÊT : LES TROIS BANDES DE L'ANNEAU DE PRÉCISION
+// (docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md, l.1100-1104 — « vert :
+//  précision ≤ 15 m ; orange : 16-30 m ; rouge : > 30 m »).
+//
+// POURQUOI CES DEUX CONSTANTES N'EN DOUBLENT AUCUNE. Le fichier portait déjà
+// TROIS seuils de précision, et pas un ne dit ce que dit la spec E19 :
+//   · `POINT_MAX_ACCURACY_M` = 25 — filtre de CLAIM §3.2 (un point plus flou ne
+//     capture pas). Verdict serveur sur un point ENREGISTRÉ ;
+//   · `GPS_ACCURACY_MAX_M` = 35 — filtre d'AFFICHAGE de `cleanTrace` (au-delà,
+//     le point est un outlier et sort de la trace) ;
+//   · `GPS_ACCURACY_GOOD_M` = 10 — précision « excellente » qui met la
+//     composante accuracy du GPS Trust à 1 (une NOTE, pas un feu tricolore).
+// E19 parle d'autre chose : ce que l'anneau montre AVANT le départ, quand
+// aucune trace n'existe encore. Réutiliser 10/25/35 aurait peint un anneau
+// rouge à 26 m là où la spec le veut orange, et surtout aurait fait dépendre un
+// message d'attente d'un seuil anti-triche — deux idées qui doivent pouvoir
+// bouger séparément.
+//
+// CE QUE CES SEUILS NE FONT PAS : décider d'un claim. Le serveur « garde la
+// précision réelle de chaque point » (spec l.1106) et reste seul juge. Un
+// départ en bande orange enregistre une sortie parfaitement valide dont
+// certains points seront simplement écartés du claim par §3.2.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** E19 — bande VERTE : précision ≤ 15 m, l'acquisition est « Prêt ». */
+export const GPS_READY_ACCURACY_M = 15;
+/** E19 — bande ORANGE : 16-30 m ; au-delà de 30 m, bande ROUGE. */
+export const GPS_USABLE_ACCURACY_M = 30;
+
+/**
+ * L'état de l'anneau E19. QUATRE valeurs et pas trois : `unknown` est l'état
+ * « aucun fix reçu pour l'instant » — la lecture EN COURS, que la charte
+ * interdit de confondre avec un mauvais signal. Un anneau rouge affiché avant
+ * le premier fix affirmerait que le GPS est mauvais alors que personne ne sait
+ * encore rien.
+ */
+export type GpsAccuracyGrade = 'unknown' | 'ready' | 'usable' | 'poor';
+
+/**
+ * Précision horizontale (m) → bande E19. Fonction PURE, sans horloge ni I/O :
+ * elle est l'unique traduction du feu tricolore, pour que l'anneau, le libellé,
+ * l'état du bouton `DÉMARRER MAINTENANT` et l'analytics ne puissent pas se
+ * contredire.
+ *
+ * `null` / `undefined` / non-fini / négatif ⇒ `'unknown'`. Une précision
+ * négative est ce que renvoient certaines plateformes quand le fix est
+ * invalide : la traiter comme « ≤ 15 m » aurait affiché « Prêt » sur une
+ * position inexistante.
+ *
+ * LECTURE DES DEUX PHRASES DE LA SPEC (l.1097-1098), à l'usage des écrans :
+ * « bouton `DÉMARRER MAINTENANT` lorsque le seuil est acceptable » ⇒ `'ready'` ;
+ * « lien `Démarrer quand même` seulement si la précision reste exploitable »
+ * ⇒ `'usable'`. En `'poor'` comme en `'unknown'`, aucun des deux n'est peint :
+ * un bouton qui promet un départ propre sur un signal absent est le bouton mort
+ * que la constitution interdit. La spec ne nomme pas explicitement quelle bande
+ * est « exploitable » — c'est la seule lecture qui laisse les trois bandes
+ * distinctes, et elle est isolée ICI pour qu'un arbitrage la change en un point.
+ */
+export function gpsAccuracyGrade(accuracyM: number | null | undefined): GpsAccuracyGrade {
+  if (typeof accuracyM !== 'number' || !Number.isFinite(accuracyM) || accuracyM < 0) {
+    return 'unknown';
+  }
+  if (accuracyM <= GPS_READY_ACCURACY_M) return 'ready';
+  if (accuracyM <= GPS_USABLE_ACCURACY_M) return 'usable';
+  return 'poor';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E25 — SÉCURITÉ PENDANT L'ACTIVITÉ (spec produit, l.1219-1232 : « appeler les
+// secours selon pays »).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Numéro d'urgence unique européen. Ce n'est pas un choix produit : c'est le
+ * numéro imposé dans tout l'EEE (directive « service universel »), joignable
+ * gratuitement depuis tout mobile, y compris hors abonnement. Le terrain de jeu
+ * de GRYD est l'Europe (AMENDEMENT-35), donc un seul numéro couvre le
+ * périmètre réel du jeu.
+ *
+ * ⚠ RÈGLE D'USAGE, aussi contraignante que la valeur : hors d'un pays que l'app
+ * SAIT être en Europe, l'écran E25 ne pré-remplit AUCUN numéro et se contente
+ * d'ouvrir le composeur. Deviner un numéro national (911, 999, 000…) sur une
+ * position mal résolue serait un « bouton mort » dont le coût ne se mesure pas
+ * en rétention. On n'invente pas un numéro de secours — jamais.
+ */
+export const EMERGENCY_NUMBER_EUROPE = '112';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AMENDEMENT-16 §4 — Monétisation & contribution (doc §12-§26).
@@ -3277,6 +3404,39 @@ export const ACTIVITY_RULES: Readonly<Record<Activity, ActivityRuleSet>> = {
  */
 export function activityRules(activity: Activity = DEFAULT_ACTIVITY): ActivityRuleSet {
   return ACTIVITY_RULES[activity] ?? RUN_RULES;
+}
+
+/**
+ * E26 — « L'ACTIVITÉ EST-ELLE ASSEZ LONGUE POUR PRODUIRE UN RÉSULTAT ? »
+ *
+ * La spec (l.1194) fait dépendre une confirmation de cette question : « `Terminer`
+ * demande confirmation uniquement si l'activité est trop courte pour produire un
+ * résultat ». Sans fonction commune, chaque écran (feuille de fin E26, overlay de
+ * pause E23) aurait recodé le test — et un écran aurait fini par demander
+ * confirmation sur une sortie valide, ou pire, par n'en demander aucune sur une
+ * sortie qui allait être refusée.
+ *
+ * LES BORNES NE SONT PAS NOUVELLES : ce sont EXACTEMENT les deux minima §3.2 de
+ * la discipline (`minDistanceM`, `minDurationS` — 800 m / 300 s à pied,
+ * 2 000 m / 360 s à vélo), donc les mêmes que celles que le serveur applique à
+ * l'ingestion. Aucun troisième seuil n'est introduit : un client qui promettrait
+ * un résultat que le serveur refuse serait la définition du mensonge d'écran.
+ *
+ * CE QUE CETTE FONCTION N'AFFIRME PAS : qu'un TERRITOIRE sera capturé. Elle dit
+ * seulement que la sortie franchit le plancher d'enregistrement §3.2. La boucle,
+ * son aire, sa compacité et le verdict territorial restent au serveur.
+ *
+ * Valeurs non finies ou négatives ⇒ `false` : sans mesure lisible, on ne
+ * promet rien.
+ */
+export function activityProducesResult(
+  distanceM: number,
+  durationS: number,
+  activity: Activity = DEFAULT_ACTIVITY,
+): boolean {
+  if (!Number.isFinite(distanceM) || !Number.isFinite(durationS)) return false;
+  const rules = activityRules(activity);
+  return distanceM >= rules.minDistanceM && durationS >= rules.minDurationS;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

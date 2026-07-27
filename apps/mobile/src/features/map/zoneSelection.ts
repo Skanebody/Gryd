@@ -13,6 +13,17 @@
  * Zéro import React/RN : Deno charge ce module tel quel.
  */
 import type { RealTerritory } from './territoryBuild';
+import {
+  zoneBorderKind,
+  zoneOwnership,
+  zoneProtectionLevel,
+  zoneRole,
+  zoneTimeMetric,
+  type ZoneBorderKind,
+  type ZoneOwnership,
+  type ZoneTimeMetric,
+  type ZoneViewer,
+} from './zoneDetail';
 
 /**
  * Ce que la sélection a besoin de savoir d'un secteur — et rien de plus. Prendre
@@ -46,6 +57,14 @@ export interface ZoneSectorFact {
  */
 export interface MapZoneView {
   role: 'mine' | 'rival';
+  /**
+   * E14 — QUI tient la zone (spec l.956/966/972). Le `role` ci-dessus reste la
+   * COULEUR (§C, deux valeurs) ; celui-ci est le fait, et il distingue les deux
+   * variantes que `role: 'mine'` fondait en une : ma zone personnelle et celle
+   * de mon crew. `'unknown'` = on ne sait pas encore qui regarde, et l'écran ne
+   * l'invente pas. Dérivé par `zoneOwnership` (zoneDetail.ts).
+   */
+  ownership: ZoneOwnership;
   zones: number;
   areaKm2: number;
   /**
@@ -77,6 +96,51 @@ export interface MapZoneView {
    * l'activité privée du rival (RLS `runs_select_own`).
    */
   rivalPercent: number | null;
+  /**
+   * E14 — NIVEAU DE PROTECTION (spec l.960) : `territories.defense_level`, déjà
+   * filtré par `zoneProtectionLevel`. `null` = aucune fortification (le `0` par
+   * défaut de 0074:150 n'est pas « niveau 0 ») ou source absente.
+   */
+  protectionLevel: number | null;
+  /**
+   * E14 — CE QUE MONTRE LE CONTOUR PEINT (spec l.975 « frontière ») : la trace
+   * exacte, sa version publique généralisée (§12.3), ou — pendant la transition
+   * du LOT 1 — un contour d'hexagones. L'écran le DIT plutôt que de laisser
+   * croire à une trace là où il n'y en a pas.
+   */
+  border: ZoneBorderKind;
+  /**
+   * E14 — SENS de `capturedAt` : `'held'` (début du contrôle ininterrompu, chemin
+   * polygonal) ou `'lastCapture'` (claim le plus récent, chemin hexagonal). Les
+   * confondre afficherait « Tenue depuis 6 j » sur un paquet de cellules dont
+   * une seule a 6 jours.
+   */
+  timeMetric: ZoneTimeMetric;
+}
+
+/**
+ * LES CHAMPS QUE SEULE LA TABLE `territories` PORTE (`precision`,
+ * `defense_level`). `PolygonTerritory` (territoriesSource.ts:305) étend
+ * `RealTerritory`, mais TypeScript ne réduit pas un supertype par un
+ * discriminant : d'où ce garde-fou explicite plutôt qu'un `as` posé au milieu du
+ * `return`.
+ *
+ * L'invariant qui le rend sûr : `geometrySource: 'polygon'` n'est produit QUE
+ * par `rowToTerritory` (territoriesSource.ts:392), qui renseigne les deux champs
+ * dans le même objet littéral. Le chemin hexagonal rend `null`, et
+ * `zoneProtectionLevel` / `zoneBorderKind` traduisent alors l'absence en absence
+ * — jamais en « niveau 0 » ni en « frontière exacte ».
+ */
+function polygonFacts(
+  t: RealTerritory,
+): { precision: 'exact' | 'generalized'; defenseLevel: number } | null {
+  if (t.geometrySource !== 'polygon') return null;
+  const withTable = t as RealTerritory & {
+    precision?: 'exact' | 'generalized';
+    defenseLevel?: number;
+  };
+  if (withTable.precision === undefined || withTable.defenseLevel === undefined) return null;
+  return { precision: withTable.precision, defenseLevel: withTable.defenseLevel };
 }
 
 /**
@@ -95,6 +159,13 @@ export function selectZoneView(
   territories: readonly RealTerritory[] | null,
   sectors: readonly ZoneSectorFact[],
   zoneId: string | null,
+  /**
+   * QUI REGARDE (E14). Omis ⇒ `ownership: 'unknown'` sur toute zone dont le
+   * `status` ne tranche pas déjà, et l'écran se tait alors sur le propriétaire
+   * au lieu d'en désigner un au hasard. Ce paramètre est OPTIONNEL et en
+   * dernière position pour que les appels existants gardent leur sens exact.
+   */
+  viewer?: ZoneViewer | null,
 ): MapZoneView | null {
   if (zoneId === null || territories === null) return null;
   const found = territories.find((t) => t.props.territoryId === zoneId);
@@ -103,7 +174,21 @@ export function selectZoneView(
   // Index des secteurs contestés RÉELLEMENT couverts par ce territoire, avec leur
   // part rivale. On y lit à la fois « la zone est-elle contestée ? » et « quelle
   // couverture rivale approximative montrer ? » — une seule passe, une seule vérité.
-  let contested = false;
+  /**
+   * CONTESTÉ — DEUX SOURCES SERVEUR, TOUTES DEUX RÉELLES, et il en manquait une.
+   *
+   * `sector_snapshot.contested` (la boucle ci-dessous) décrit la PRESSION sur un
+   * secteur entier. `territories.state = 'contested'` (0078/0080) décrit une
+   * contestation ouverte sur CE territoire précis — c'est le fait le plus direct
+   * qui existe, et il était ignoré : une zone officiellement attaquée s'ouvrait
+   * en feuille d'information calme tant qu'aucun agrégat de secteur n'avait
+   * bougé, donc sans sheet de DÉFENSE et sans compte à rebours.
+   *
+   * On les UNIT plutôt que d'en préférer une : l'un peut être vrai sans l'autre,
+   * et taire l'un des deux sous-déclarerait le danger — le mensonge le plus
+   * coûteux ici (defenseZone.ts, même raisonnement sur `earliestDecayAt`).
+   */
+  let contested = found.props.status === 'contested';
   let rivalPercent: number | null = null;
   for (const s of sectors) {
     if (!coveredIds.has(s.id) || !s.contested) continue;
@@ -114,8 +199,32 @@ export function selectZoneView(
       rivalPercent = rivalPercent === null ? s.rivalPercent : Math.max(rivalPercent, s.rivalPercent);
     }
   }
+  const fromTable = polygonFacts(found);
+
+  // ─── E14 — LA PROPRIÉTÉ SE LIT SUR LES IDS, PAS SUR LA COULEUR ─────────────
+  // `props.status` vaut aussi `'contested'` depuis que la carte lit `territories`
+  // (territoriesSource.ts:241), et cet état NE DIT RIEN du tenant. L'ancien
+  // `status === 'crew' ? 'mine' : 'rival'` classait donc MA zone attaquée en
+  // « rivale » : elle s'ouvrait avec « Reprendre » au lieu de la sheet de
+  // DÉFENSE, qui exige `role === 'mine'` (defenseZone.ts:41).
+  const ownership = zoneOwnership(
+    {
+      status: found.props.status,
+      ownerType: found.props.ownerType,
+      ownerId: found.props.ownerId,
+    },
+    viewer ?? null,
+  );
+
   return {
-    role: found.props.status === 'crew' ? 'mine' : 'rival',
+    role: zoneRole(found.props.status, ownership),
+    ownership,
+    protectionLevel: zoneProtectionLevel(fromTable?.defenseLevel),
+    border: zoneBorderKind({
+      geometrySource: found.geometrySource,
+      precision: fromTable?.precision,
+    }),
+    timeMetric: zoneTimeMetric(found.geometrySource),
     zones: found.zoneCount,
     areaKm2: found.props.areaM2 / 1_000_000,
     capturedAt: found.props.capturedAt,
