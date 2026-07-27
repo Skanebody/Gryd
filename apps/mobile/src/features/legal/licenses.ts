@@ -102,6 +102,10 @@ export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
   react: 'MIT',
   'react-dom': 'MIT',
   'react-native': 'MIT',
+  // Ajouté le 27/07/2026 avec le SDK RevenueCat (écran E74 `/premium`). Le
+  // crédit accompagne la dépendance dans le MÊME commit : c'est précisément la
+  // dérive que ce test existe pour empêcher.
+  'react-native-purchases': 'MIT',
   'react-native-qrcode-svg': 'MIT',
   'react-native-safe-area-context': 'MIT',
   'react-native-screens': 'MIT',

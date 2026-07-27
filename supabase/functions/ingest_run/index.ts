@@ -74,6 +74,16 @@ import {
 // LOT 1 ÉTAPE 2 — la ligne `territories` (polygone autoritaire) d'une course.
 // Décision PURE et testable, hors de ce fichier (index.ts n'est pas importable).
 import { buildTerritoryRow } from './territory.ts';
+// LOT 3 (suite) — la CONTESTATION (§9) : une boucle rivale n'emporte plus le
+// polygone, elle ouvre une fenêtre de défense. Décision PURE et testable, hors
+// de ce fichier ; l'échéance est tranchée par `resolve_due_contests()` (0080).
+import {
+  type CandidateTerritory,
+  type ExistingContest,
+  planContestWiring,
+  TERRITORY_STATE_CONTESTED,
+  TERRITORY_STATE_DEFENDED,
+} from './contest_wiring.ts';
 import {
   canComplete,
   contributionSplit,
@@ -3263,6 +3273,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // unique `territories_source_run_unique` (0075) refuse le second insert avec
     // un 23505 — qu'on traite comme un SUCCÈS, parce que c'en est un : le
     // territoire de cette course existe.
+    // L'ANNEAU DE LA BOUCLE, calculé UNE FOIS pour les deux consommateurs qui
+    // suivent : la ligne `territories` (lot 1) et la contestation §9 (lot 3).
+    // Avant ce hoist, `detectLoop` était rappelé dans le bloc `territories` ;
+    // deux appels à une fonction pure et déterministe ne peuvent pas diverger,
+    // mais un troisième aurait fini par le faire croire. `null` = la course n'a
+    // fermé aucune boucle : ni territoire à écrire, ni surface à opposer.
+    const runLoopRing = loopClosed && loopTrace !== null
+      ? detectLoop(loopTrace, activity)?.polygon ?? null
+      : null;
+
     try {
       const capturedCellCount = decision.results.filter(
         (r) => r.outcome === 'claimed_neutral' || r.outcome === 'stolen',
@@ -3271,7 +3291,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // ET qu'une boucle a été fermée — sinon il n'y a rien à décrire.
       if (capturedCellCount > 0 && loopClosed && loopTrace !== null) {
         const territoryRow = buildTerritoryRow({
-          polygon: detectLoop(loopTrace, activity)?.polygon ?? null,
+          polygon: runLoopRing,
           // Forme trop étroite ou GPS sous le seuil : le moteur a REFUSÉ
           // l'intérieur. La surface n'a pas été gagnée, on n'en écrit pas.
           interiorRejected: loopRejectedReason !== undefined,
@@ -3301,6 +3321,236 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     } catch (e) {
       console.error('[ingest_run] territories fail-safe (course créditée):', e);
+    }
+
+    // ── LOT 3 (suite) : LA CONTESTATION (§9) — LE VOL DU POLYGONE N'EST PLUS
+    //    INSTANTANÉ ────────────────────────────────────────────────────────────
+    // Spec §9.1 : « une zone devient contestée lorsqu'une boucle rivale valide
+    // couvre le seuil de surface ». Jusqu'ici les briques existaient
+    // (`contest.ts` 36 tests, table `territory_contests` 0078) et PERSONNE ne
+    // les appelait. Ici on les appelle.
+    //
+    // CE QUI CHANGE : recouvrir la zone POLYGONALE d'un rival ouvre une fenêtre
+    // de défense au lieu de la lui prendre ; courir chez soi pendant une
+    // contestation la referme et FORTIFIE la zone ; à l'échéance,
+    // `resolve_due_contests()` (0080) transfère faute de défense.
+    //
+    // CE QUI NE CHANGE PAS, ET IL FAUT LE DIRE : `claim_hexes` continue de
+    // transférer les CELLULES dans la transaction (0070:610). Les points, les
+    // classements et le decay suivent toujours les hexagones. Pendant la
+    // transition, une zone peut donc être « contestée » côté polygone alors que
+    // ses cellules ont déjà changé de main côté hexagones — écart RÉEL, décrit
+    // dans `contest_wiring.ts` (suspens 1) et refermable seulement en retirant
+    // le vol instantané ET les protections d'AMENDEMENT-23 §D en même temps.
+    //
+    // BEST-EFFORT STRICT, comme les trois blocs précédents : la course est déjà
+    // créditée et la propriété hexagonale déjà appliquée. Un échec ici loggue et
+    // ne change NI la réponse, NI le verdict, NI un seul point.
+    //
+    // IDEMPOTENCE À TROIS ÉTAGES : (1) un renvoi du même `clientRunId` sort bien
+    // avant ce point ; (2) le PLAN refuse d'ouvrir sur un territoire qui porte
+    // déjà une contestation active ; (3) l'index unique partiel de 0078 refuse
+    // le dernier cas de concurrence avec un 23505, traité comme un succès (une
+    // contestation existe, c'est ce qu'on voulait).
+    try {
+      if (runLoopRing !== null) {
+        // ─── LES CANDIDATS ────────────────────────────────────────────────────
+        // BORNE ASSUMÉE : même discipline (E14 — `run` et `bike` ne se mélangent
+        // jamais) et même ville (ou territoire sans ville). `territories.geometry`
+        // est du jsonb SANS index spatial (0074 §1) : il n'existe aucun moyen de
+        // filtrer par géométrie en SQL aujourd'hui. Conséquence réelle, inscrite
+        // en suspens : un territoire rattaché à une AUTRE ville n'est pas
+        // contesté, même si les polygones se chevauchent à une frontière.
+        const contestCityId = request.cityId ?? null;
+        let candidateQuery = supabase
+          .from('territories')
+          .select('id, owner_type, owner_id, state, defense_level, geometry')
+          .eq('activity', activity)
+          // Un territoire `unowned`/`expired`/`invalidated` n'a pas de
+          // propriétaire à contester ; `transfer_pending`/`protected_by_privacy`
+          // ne sont produits par rien aujourd'hui.
+          .in('state', ['owned_personal', 'owned_crew', 'contested', 'defended']);
+        candidateQuery = contestCityId === null
+          ? candidateQuery.is('city_id', null)
+          // `or()` prend une chaîne de filtre PostgREST : on ne l'interpole que
+          // pour un identifiant à la forme vérifiée (les `city_id` sont des
+          // slugs). Sinon on retombe sur un `eq` paramétré, qui perd les
+          // territoires ruraux mais ne construit aucune requête douteuse.
+          : /^[A-Za-z0-9_-]+$/.test(contestCityId)
+          ? candidateQuery.or(`city_id.eq.${contestCityId},city_id.is.null`)
+          : candidateQuery.eq('city_id', contestCityId);
+        const { data: candidateRows, error: candidateErr } = await candidateQuery;
+        // `throw` ICI est sans danger — et volontairement nommé « contest … » et
+        // non « territories … » : la lecture est enfermée dans le fail-safe de ce
+        // bloc, et `territory_test.ts` interdit précisément qu'un `throw new
+        // Error(\`territories…` apparaisse dans ce fichier (le bloc d'écriture du
+        // lot 1 doit rester best-effort). Le garde textuel reste donc juste.
+        if (candidateErr) throw new Error(`contest candidates read: ${candidateErr.message}`);
+
+        const rows = candidateRows ?? [];
+        if (rows.length > 0) {
+          // ─── LES CONTESTATIONS CONNUES ────────────────────────────────────
+          // `active` : pour ne pas ré-ouvrir (idempotence) et pour juger une
+          // défense. `defended` : sa `resolved_at` est la DERNIÈRE DÉFENSE
+          // RÉUSSIE, entrée de `decayedDefenseLevel` (§9.2, axe temporel) — sans
+          // elle un territoire fortifié il y a une semaine ouvrirait encore une
+          // fenêtre de 36 h.
+          const territoryIds = rows.map((r) => r.id as string);
+          const { data: contestRows, error: contestErr } = await supabase
+            .from('territory_contests')
+            .select(
+              'id, territory_id, status, attacker_type, attacker_id, started_at, expires_at, resolved_at',
+            )
+            .in('territory_id', territoryIds)
+            .in('status', ['active', 'defended']);
+          if (contestErr) throw new Error(`territory_contests read: ${contestErr.message}`);
+
+          // ─── LA PROTECTION D'ONBOARDING DU DÉFENSEUR (§3.3 réexprimée) ────
+          // Elle empêche l'OUVERTURE de la contestation. On ne la lit que pour
+          // les propriétaires JOUEURS : un crew n'a pas d'âge de compte, et le
+          // garde-fou n'est alors simplement pas évalué (contrat de `ContestGate`).
+          const ownerIds = [
+            ...new Set(
+              rows
+                .filter((r) => r.owner_type === 'user' && r.owner_id !== null)
+                .map((r) => r.owner_id as string),
+            ),
+          ];
+          const createdAtByOwner = new Map<string, number>();
+          for (const batch of chunk(ownerIds, DB_IN_CHUNK)) {
+            const { data: owners, error: ownersErr } = await supabase
+              .from('users')
+              .select('id, created_at')
+              .in('id', batch);
+            if (ownersErr) throw new Error(`users read (contest): ${ownersErr.message}`);
+            for (const o of owners ?? []) {
+              createdAtByOwner.set(o.id as string, new Date(o.created_at as string).getTime());
+            }
+          }
+
+          const candidates: CandidateTerritory[] = rows
+            .filter((r) => r.owner_type !== null && r.owner_id !== null)
+            .map((r) => ({
+              id: r.id as string,
+              ownerType: r.owner_type as 'user' | 'crew',
+              ownerId: r.owner_id as string,
+              state: r.state as string,
+              defenseLevel: Number(r.defense_level ?? 0),
+              geometry: r.geometry,
+              ownerCreatedAtMs: r.owner_type === 'user'
+                ? createdAtByOwner.get(r.owner_id as string) ?? null
+                : null,
+            }));
+
+          const contests: ExistingContest[] = (contestRows ?? []).map((c) => ({
+            id: c.id as string,
+            territoryId: c.territory_id as string,
+            status: c.status as ExistingContest['status'],
+            attackerType: c.attacker_type as 'user' | 'crew',
+            attackerId: c.attacker_id as string,
+            startedAtMs: new Date(c.started_at as string).getTime(),
+            expiresAtMs: new Date(c.expires_at as string).getTime(),
+            resolvedAtMs: c.resolved_at === null
+              ? null
+              : new Date(c.resolved_at as string).getTime(),
+          }));
+
+          // FIN DE COURSE : `runs` ne porte pas de `finished_at` — c'est
+          // `started_at + duration_s`, la vraie fin de l'activité (et non
+          // l'instant d'ingestion, qui serait faux pour un GPX importé).
+          // Bornée à `now` : une horloge client en avance ne doit pas produire
+          // une activité « terminée dans le futur », que §9.3 rejetterait alors
+          // qu'elle a bel et bien eu lieu.
+          const finishedAtMs = Math.min(
+            new Date(request.startedAt).getTime() + durationS * 1000,
+            now.getTime(),
+          );
+
+          const contestPlan = planContestWiring({
+            activity: {
+              runId,
+              actorUserId: userId,
+              actorCrewId: crew.crewId,
+              polygon: runLoopRing,
+              loopClosed,
+              // §11 : le verdict du pipeline, jamais re-décidé ici. À ce point du
+              // handler `validation.kind` vaut 'claimable' (les autres cas sont
+              // sortis bien plus haut) — on le DÉRIVE quand même plutôt que
+              // d'écrire `true`, pour que le jour où le flux change, la
+              // contestation cesse d'elle-même au lieu de mentir.
+              antiCheatPassed: validation.kind === 'claimable',
+              finishedAtMs,
+            },
+            candidates,
+            contests,
+            nowMs: now.getTime(),
+          });
+
+          // ─── (a) LES DÉFENSES D'ABORD ────────────────────────────────────
+          // La garde `.eq('status', 'active')` est LE verrou : si le job
+          // d'échéance (0080) a tranché entre la lecture et l'écriture, la mise
+          // à jour ne touche rien et on ne fortifie pas un territoire perdu.
+          for (const d of contestPlan.defenses) {
+            const { data: closed, error: closeErr } = await supabase
+              .from('territory_contests')
+              .update({
+                status: 'defended',
+                resolved_at: new Date(d.resolvedAtMs).toISOString(),
+              })
+              .eq('id', d.contestId)
+              .eq('status', 'active')
+              .select('id');
+            if (closeErr) {
+              console.error('[ingest_run] contest defend (best-effort):', closeErr.message);
+              continue;
+            }
+            if ((closed?.length ?? 0) === 0) continue; // déjà tranchée ailleurs
+            const { error: fortifyErr } = await supabase
+              .from('territories')
+              .update({ state: TERRITORY_STATE_DEFENDED, defense_level: d.defenseLevel })
+              .eq('id', d.territoryId);
+            if (fortifyErr) {
+              console.error('[ingest_run] territory fortify (best-effort):', fortifyErr.message);
+            }
+          }
+
+          // ─── (b) PUIS LES OUVERTURES ─────────────────────────────────────
+          for (const o of contestPlan.opens) {
+            const { error: openErr } = await supabase.from('territory_contests').insert({
+              territory_id: o.territoryId,
+              attacker_type: o.attackerType,
+              attacker_id: o.attackerId,
+              source_activity_id: o.sourceActivityId,
+              overlap_ratio: o.overlapRatio,
+              started_at: new Date(o.startedAtMs).toISOString(),
+              expires_at: new Date(o.expiresAtMs).toISOString(),
+            });
+            if (openErr) {
+              // 23505 = `territory_contests_one_active_per_territory` : un rival
+              // a ouvert la contestation entre notre lecture et notre écriture.
+              // Une contestation existe sur cette zone — c'est le résultat voulu,
+              // et c'est LUI qui passera le territoire en `contested`.
+              if (openErr.code !== '23505') {
+                console.error('[ingest_run] contest open (best-effort):', openErr.message);
+              }
+              continue;
+            }
+            // §5.3 : la zone passe CONTESTÉE (la carte la peint en violet). La
+            // garde `in('state', …)` évite d'écraser un état qui aurait changé
+            // entre-temps (transfert par le job, purge…).
+            const { error: markErr } = await supabase
+              .from('territories')
+              .update({ state: TERRITORY_STATE_CONTESTED })
+              .eq('id', o.territoryId)
+              .in('state', ['owned_personal', 'owned_crew', 'defended']);
+            if (markErr) {
+              console.error('[ingest_run] territory contested (best-effort):', markErr.message);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[ingest_run] contest fail-safe (course créditée):', e);
     }
 
     // ── Mécaniques nourrissant les badges (décision fondateur 03/07/2026 :
