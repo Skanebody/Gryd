@@ -22,11 +22,28 @@
  * La DÉCISION de transition — ce qui reste hexagonal à l'écran et pourquoi c'est
  * vrai plutôt que caché — est écrite dans `territoriesSource.ts` §5.
  *
+ * ─── AUDIT R3 (27/07/2026) : LES CELLULES D'AUTRUI CHANGENT DE SOURCE ───────
+ * `hex_claims` était lisible EN ENTIER par tout compte connecté
+ * (`hex_claims_select_all using (true)`, 0003:114) : `owner_user_id` +
+ * `claimed_at` exact + `run_id` suffisaient à reconstituer les horaires ET le
+ * parcours de n'importe quel joueur. La migration 0079 ferme la table à SES
+ * PROPRES cellules et ouvre `public.public_hex_claims` — mêmes cellules, sans
+ * `run_id`, horodatages tronqués à l'heure, publication différée (§1.5).
+ *
+ * Les deux hooks lisent donc DEUX sources de cellules, DISJOINTES par
+ * construction (la vue exclut le lecteur) :
+ *   · `hex_claims`         → MES cellules, à leur précision réelle ;
+ *   · `public_hex_claims`  → celles des autres, à la granularité publique.
+ * Aucune déduplication n'est nécessaire, et la précision de MON compte à
+ * rebours de défense n'est pas dégradée par la fermeture.
+ *
  * ⚠️ DÉPENDANCE DE DÉPLOIEMENT, dite ici plutôt que découverte en prod : ces
- * lectures exigent que la migration 0074 soit APPLIQUÉE. Si la table n'existe
- * pas, PostgREST rend une erreur et les hooks passent en `failed` — pas en
- * « aucune zone ». C'est le comportement voulu (une lecture impossible n'est pas
- * un vide), mais il rend l'application de 0074 obligatoire avant ce code.
+ * lectures exigent que les migrations 0074 ET 0079 soient APPLIQUÉES. Si une
+ * table ou la vue n'existe pas, PostgREST rend une erreur et les hooks passent
+ * en `failed` — pas en « aucune zone ». C'est le comportement voulu (une lecture
+ * impossible n'est pas un vide), mais il rend leur application obligatoire avant
+ * ce code. Inversement, 0079 appliquée SANS ce fichier ferait disparaître les
+ * rivaux de la carte : les deux vont ensemble.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ACTIVITIES, DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
@@ -50,6 +67,50 @@ export type {
   RealTerritory,
   TerritoryProperties,
 } from './territoryBuild';
+
+/**
+ * Une ligne de la vue `public.public_hex_claims` (migration 0079) — LA SURFACE
+ * PUBLIQUE des cellules d'AUTRUI. Ce n'est PAS un `HexClaimRow` :
+ *  · les horodatages s'appellent `…_hour` parce qu'ils SONT tronqués à l'heure
+ *    (game-rules `PUBLIC_TIMESTAMP_TRUNC`) — les nommer `claimed_at` ici
+ *    laisserait croire à un instant exact ;
+ *  · `run_id` n'existe pas : c'est lui qui regroupait les cellules d'une même
+ *    sortie en TRAJET (§12.3) ;
+ *  · les lignes du lecteur en sont ABSENTES (il lit les siennes dans la table).
+ */
+interface PublicHexClaimRow {
+  h3index: string | number;
+  owner_user_id: string | null;
+  claim_type: string | null;
+  claimed_at_hour: string | null;
+  decay_at_hour: string | null;
+}
+
+type PublicHexClaimRowWithActivity = PublicHexClaimRow & { activity: string };
+
+/**
+ * Vue publique → forme commune de rendu. Le renommage est le SEUL travail fait
+ * ici, et il perd de la précision — c'est le POINT, pas un effet de bord :
+ * l'écran affiche « prise il y a 3 j » et « expire dans 5 j », deux phrases que
+ * l'heure suffit à écrire. Conséquence à connaître : le compte à rebours de
+ * DÉFENSE d'une zone RIVALE peut être en avance d'au plus 59 min (la troncature
+ * arrondit vers le passé). Une échéance annoncée trop tôt fait agir trop tôt ;
+ * l'inverse aurait fait croire qu'une zone tient encore alors qu'elle est
+ * tombée. Entre les deux, on garde le biais qui ne promet rien.
+ * MES zones, elles, gardent leur échéance EXACTE : elles ne passent pas par ici.
+ */
+function fromPublicClaim(row: PublicHexClaimRow): HexClaimRow {
+  return {
+    h3index: row.h3index,
+    owner_user_id: row.owner_user_id,
+    claim_type: row.claim_type,
+    claimed_at: row.claimed_at_hour,
+    decay_at: row.decay_at_hour,
+  };
+}
+
+const fromPublicClaims = (rows: readonly PublicHexClaimRow[]): HexClaimRow[] =>
+  rows.map(fromPublicClaim);
 
 export interface UseRealTerritoriesResult {
   /** null = pas encore chargé ; [] = chargé et VRAIMENT VIDE (état honnête). */
@@ -200,27 +261,38 @@ export function useRealTerritories(
     let cancelled = false;
     setFailed(false);
     void (async () => {
-      // ─── DEUX LECTURES, UNE SEULE VÉRITÉ (LOT 1, étape 4) ─────────────────
+      // ─── TROIS LECTURES, UNE SEULE VÉRITÉ (AUDIT R3, 27/07/2026) ──────────
       // `territories` porte la forme AUTORITAIRE (le polygone de la trace,
-      // §1.4) ; `hex_claims` porte ce qu'aucun polygone ne décrit encore. Les
-      // deux partent EN PARALLÈLE : les enchaîner doublerait la latence de la
-      // carte pour rien.
-      const [claims, territoryRows] = await Promise.all([
+      // §1.4) ; les CELLULES portent ce qu'aucun polygone ne décrit encore, et
+      // elles viennent désormais de DEUX sources disjointes (voir §R3 en tête
+      // de fichier) : `hex_claims` pour les MIENNES (précision réelle), la vue
+      // `public_hex_claims` pour celles D'AUTRUI (horodatages tronqués à
+      // l'heure, sans `run_id`, publication différée §1.5). Les trois partent EN
+      // PARALLÈLE : les enchaîner triplerait la latence de la carte pour rien.
+      const [claims, others, territoryRows] = await Promise.all([
         supabase
           .from('hex_claims')
           .select('h3index, owner_user_id, claim_type, decay_at, claimed_at')
+          // La policy `hex_claims_select_own` (0079) borne déjà la réponse à mes
+          // cellules ; le filtre explicite dit l'INTENTION dans le code plutôt
+          // que de la laisser dépendre d'une policy lue ailleurs.
+          .eq('owner_user_id', session.user.id)
           // E14 — UNE seule discipline par lecture. Voir l'en-tête : la clé
           // primaire est composite depuis 0070, donc sans ce filtre les deux
           // mondes se peignent l'un sur l'autre.
           .eq('activity', activity),
+        supabase
+          .from('public_hex_claims')
+          .select('h3index, owner_user_id, claim_type, decay_at_hour, claimed_at_hour')
+          .eq('activity', activity),
         supabase.from('territories').select(TERRITORY_SELECT_COLUMNS).eq('activity', activity),
       ]);
       if (cancelled) return;
-      // ⚠️ « ÉCHEC PARTIEL » N'EXISTE PAS. Si UNE des deux lectures rate, on ne
-      // peint PAS l'autre : la carte montrerait moins de territoire qu'il n'y
+      // ⚠️ « ÉCHEC PARTIEL » N'EXISTE PAS. Si UNE des trois lectures rate, on ne
+      // peint PAS les autres : la carte montrerait moins de territoire qu'il n'y
       // en a, c'est-à-dire une sous-déclaration silencieuse — le même mensonge
       // par omission que confondre « échec » et « aucune capture ».
-      const error = claims.error ?? territoryRows.error;
+      const error = claims.error ?? others.error ?? territoryRows.error;
       if (error) {
         // Échec réseau → on NE bascule PAS sur la démo en la faisant passer pour du réel,
         // et on ne prétend PAS non plus que le joueur n'a rien capturé : `failed` permet
@@ -234,7 +306,15 @@ export function useRealTerritories(
         activity,
         rows: mergeTerritorySources({
           territoryRows: (territoryRows.data ?? []) as unknown as TerritoryRow[],
-          claimRows: (claims.data ?? []) as HexClaimRow[],
+          // CONCATÉNATION, PAS FUSION : la vue EXCLUT les cellules du lecteur
+          // (0079 §2), les deux ensembles sont donc disjoints par construction.
+          // Aucune déduplication n'est nécessaire — et surtout aucune n'est
+          // SIMULÉE : si les deux sources se recouvraient un jour, il faudrait
+          // le corriger côté vue, pas le masquer ici.
+          claimRows: [
+            ...((claims.data ?? []) as HexClaimRow[]),
+            ...fromPublicClaims((others.data ?? []) as PublicHexClaimRow[]),
+          ],
           meId: session.user.id,
           now: new Date().toISOString(),
           crewIds,
@@ -350,25 +430,42 @@ export function useRealTerritoriesByActivity(
     setFailed(false);
     void (async () => {
       // Même patron que `useRealTerritories` : la forme autoritaire vient de
-      // `territories`, `hex_claims` complète ce qu'aucun polygone ne décrit.
+      // `territories`, les CELLULES complètent ce qu'aucun polygone ne décrit —
+      // les miennes depuis `hex_claims` (précision réelle), celles d'autrui
+      // depuis `public_hex_claims` (AUDIT R3 / 0079).
       // Ici encore, PAS de `.eq('activity', …)` : c'est la colonne qui sépare,
-      // pas le serveur — une requête par table, deux mondes, séparés en pur.
-      const [claims, territoryRows] = await Promise.all([
+      // pas le serveur — une requête par source, deux mondes, séparés en pur.
+      const [claims, others, territoryRows] = await Promise.all([
         supabase
           .from('hex_claims')
-          .select('h3index, owner_user_id, claim_type, decay_at, claimed_at, activity'),
+          .select('h3index, owner_user_id, claim_type, decay_at, claimed_at, activity')
+          .eq('owner_user_id', session.user.id),
+        supabase
+          .from('public_hex_claims')
+          .select('h3index, owner_user_id, claim_type, decay_at_hour, claimed_at_hour, activity'),
         supabase.from('territories').select(TERRITORY_SELECT_COLUMNS),
       ]);
       if (cancelled) return;
       // Échec partiel interdit : voir `useRealTerritories`.
-      const error = claims.error ?? territoryRows.error;
+      const error = claims.error ?? others.error ?? territoryRows.error;
       if (error) {
         console.error('[hexClaims] lecture des deux mondes échouée :', error.message);
         setWorlds(null);
         setFailed(true);
         return;
       }
-      const split = splitClaimsByActivity((claims.data ?? []) as HexClaimRowWithActivity[]);
+      // Sources DISJOINTES (la vue exclut mes cellules) : on concatène.
+      const split = splitClaimsByActivity([
+        ...((claims.data ?? []) as HexClaimRowWithActivity[]),
+        ...((others.data ?? []) as PublicHexClaimRowWithActivity[]).map((row) => ({
+          ...fromPublicClaim(row),
+          // La discipline n'est PAS relue depuis la vue par défaut : elle est
+          // recopiée telle quelle, y compris une valeur inattendue, pour que
+          // `splitClaimsByActivity` la compte en `unknownCount` au lieu de la
+          // verser d'office dans la course (voir plus bas).
+          activity: row.activity,
+        })),
+      ]);
       const territorySplit = splitTerritoryRowsByActivity(
         (territoryRows.data ?? []) as unknown as TerritoryRow[],
       );

@@ -21,6 +21,11 @@ export * from './coverage.ts';
 export * from './zone.ts';
 export * from './sectors.ts';
 export * from './sectorSnapshot.ts';
+// Contestation & défense §9 (lot 3) : règles PURES du modèle TEMPOREL — une
+// boucle rivale ouvre une contestation, le propriétaire a une fenêtre pour
+// défendre, le transfert n'a lieu qu'à l'échéance. Remplace (et n'empile pas)
+// le vol instantané de claim_hexes — cf. le tableau de réexpression du docblock.
+export * from './contest.ts';
 export * from './claims.ts';
 export * from './crewJoin.ts';
 export * from './scoring.ts';
