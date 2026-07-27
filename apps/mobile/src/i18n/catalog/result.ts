@@ -149,6 +149,176 @@ export const C = defineCatalog({
     de: 'GEBIET ERWEITERT',
     pt: 'TERRITÓRIO EXPANDIDO',
   },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // LES SIX RÉSULTATS (spec produit §D, E29 → E34)
+  // ═════════════════════════════════════════════════════════════════════════
+  // Le choix de la variante vit dans `features/run/resultVariant.ts` (pur,
+  // testé) ; ici ne vivent que les MOTS. Tous NEUTRES en discipline (zone,
+  // parcours, boucle, frontière) : aucun n'a de jumeau `Bike`, parce qu'aucun
+  // ne nomme l'effort — en dupliquer un à l'identique créerait deux vérités à
+  // maintenir (même arbitrage que « ZONE DÉFENDUE »).
+
+  /**
+   * E30 — REPRISE. La spec écrit « SAINT-RÉMY REPRIS » ; aucun nom de secteur
+   * RÉEL n'arrive jusqu'ici (`IngestRunResponse` n'en porte pas), et inventer
+   * « Saint-Rémy » serait exactement la donnée fabriquée que la charte interdit.
+   * Le titre reste donc générique tant que la source n'existe pas.
+   * Le ton célèbre L'ACTION : « REPRISE », jamais « TU AS BATTU X ».
+   */
+  heroReprise: {
+    fr: 'ZONE REPRISE',
+    en: 'ZONE TAKEN BACK',
+    es: 'ZONA RECUPERADA',
+    de: 'ZONE ZURÜCKEROBERT',
+    pt: 'ZONA RETOMADA',
+  },
+  /**
+   * E30 — l'ancien propriétaire, UNIQUEMENT si la confidentialité §12 l'autorise
+   * et si une source le donne (aucune aujourd'hui : `territories` ne garde pas
+   * d'historique de propriété). Formulé sans humiliation — un constat, pas un
+   * trophée sur quelqu'un.
+   */
+  repriseFrom: {
+    fr: 'Reprise à {owner}',
+    en: 'Taken back from {owner}',
+    es: 'Recuperada a {owner}',
+    de: 'Zurückerobert von {owner}',
+    pt: 'Retomada de {owner}',
+  },
+
+  // ── Surface HÉROS (territories.area_m2 — jamais une somme de cellules) ──
+  surfaceGained: {
+    fr: 'SURFACE GAGNÉE',
+    en: 'AREA GAINED',
+    es: 'SUPERFICIE GANADA',
+    de: 'GEWONNENE FLÄCHE',
+    pt: 'ÁREA GANHA',
+  },
+  surfaceTaken: {
+    fr: 'SURFACE REPRISE',
+    en: 'AREA TAKEN BACK',
+    es: 'SUPERFICIE RECUPERADA',
+    de: 'ZURÜCKGEHOLTE FLÄCHE',
+    pt: 'ÁREA RETOMADA',
+  },
+  surfaceKept: {
+    fr: 'SURFACE CONSERVÉE',
+    en: 'AREA KEPT',
+    es: 'SUPERFICIE CONSERVADA',
+    de: 'GEHALTENE FLÄCHE',
+    pt: 'ÁREA MANTIDA',
+  },
+
+  // ── E31 défense : ce que la défense a évité, et ce qu'elle a obtenu ──
+  /** {h} = heures PLEINES d'avance, tronquées vers le bas (jamais arrondies). */
+  deadlineAvoided: {
+    fr: 'Échéance évitée · {h} h d’avance',
+    en: 'Deadline avoided · {h} h to spare',
+    es: 'Plazo evitado · {h} h de margen',
+    de: 'Frist abgewendet · {h} h Vorsprung',
+    pt: 'Prazo evitado · {h} h de folga',
+  },
+  protectionLevel: {
+    fr: 'Protection niveau {n}',
+    en: 'Protection level {n}',
+    es: 'Protección nivel {n}',
+    de: 'Schutzstufe {n}',
+    pt: 'Proteção nível {n}',
+  },
+
+  // ── E32 sortie libre : la raison, puis UNE suggestion concrète ──
+  /** Boucle fermée mais intérieur refusé (forme trop étroite, A-16 §2). */
+  notEligible: {
+    fr: 'Zone non éligible · forme trop étroite',
+    en: 'Zone not eligible · shape too narrow',
+    es: 'Zona no elegible · forma demasiado estrecha',
+    de: 'Zone nicht gültig · Form zu schmal',
+    pt: 'Zona não elegível · forma estreita demais',
+  },
+  /**
+   * LA SUGGESTION de la spec : concrète, actionnable, et surtout SANS ton
+   * d'échec — on dit quoi faire, on ne dit pas ce qui a raté.
+   */
+  suggestCloseLoop: {
+    fr: 'La prochaine fois, reviens vers ton point de départ : la boucle fait la zone.',
+    en: 'Next time, head back to your start point: the loop makes the zone.',
+    es: 'La próxima vez, vuelve a tu punto de partida: el bucle hace la zona.',
+    de: 'Beim nächsten Mal zurück zum Startpunkt: die Schleife macht die Zone.',
+    pt: 'Da próxima vez, volte ao ponto de partida: o loop faz a zona.',
+  },
+  suggestWiderLoop: {
+    fr: 'Vise un tour plus large : un aller-retour ne referme aucune zone.',
+    en: 'Aim for a wider loop: an out-and-back closes no zone.',
+    es: 'Busca una vuelta más amplia: ir y volver no cierra ninguna zona.',
+    de: 'Zieh die Schleife weiter: hin und zurück schließt keine Zone.',
+    pt: 'Faça uma volta mais larga: ida e volta não fecha nenhuma zona.',
+  },
+
+  // ── E33 contribution crew : la frontière commune, pas un exploit solo ──
+  /**
+   * {pct} = MA part de la longueur validée, entière. On n'affiche PAS les autres
+   * parts : `boundaryCompleted.contributions[].user` est un IDENTIFIANT, pas un
+   * pseudo — l'afficher peindrait un UUID à la place d'un coéquipier.
+   */
+  crewBoundaryShare: {
+    fr: 'Ta part de la frontière · {pct} %',
+    en: 'Your share of the border · {pct} %',
+    es: 'Tu parte de la frontera · {pct} %',
+    de: 'Dein Anteil an der Grenze · {pct} %',
+    pt: 'Sua parte da fronteira · {pct} %',
+  },
+  crewBoundaryContributors: {
+    fr: '{n} membres du crew l’ont tracée',
+    en: '{n} crew members traced it',
+    es: '{n} miembros del crew la trazaron',
+    de: '{n} Crew-Mitglieder haben sie gezogen',
+    pt: '{n} membros do crew a traçaram',
+  },
+  crewBoundaryNamed: {
+    fr: '{name} refermée avec ton crew',
+    en: '{name} closed with your crew',
+    es: '{name} cerrada con tu crew',
+    de: '{name} mit deiner Crew geschlossen',
+    pt: '{name} fechada com o seu crew',
+  },
+
+  // ── E34 partiellement valide : ce qui n'a PAS été retenu ──
+  heroPartial: {
+    fr: 'PARCOURS PARTIELLEMENT RETENU',
+    en: 'ROUTE PARTLY COUNTED',
+    es: 'RECORRIDO PARCIALMENTE VÁLIDO',
+    de: 'STRECKE TEILWEISE GEWERTET',
+    pt: 'TRAJETO PARCIALMENTE VÁLIDO',
+  },
+  /**
+   * La portion exclue n'est PAS chiffrée : le serveur ne renvoie ni sa longueur
+   * ni sa durée (`status: 'partial'` est tout ce qui remonte). Un pourcentage
+   * calculé ici serait inventé — on dit le fait, pas un chiffre.
+   */
+  partialNotice: {
+    fr: 'Une partie du parcours n’a pas été retenue',
+    en: 'Part of the route wasn’t counted',
+    es: 'Una parte del recorrido no se contabilizó',
+    de: 'Ein Teil der Strecke wurde nicht gewertet',
+    pt: 'Parte do trajeto não foi contabilizada',
+  },
+  /** La raison, en langage simple — aucun seuil, aucun jargon, aucune accusation. */
+  partialWhy: {
+    fr: 'Des points GPS trop incohérents ont été écartés. Le reste compte normalement.',
+    en: 'GPS points that were too inconsistent were set aside. The rest counts as usual.',
+    es: 'Se descartaron puntos GPS demasiado incoherentes. El resto cuenta con normalidad.',
+    de: 'Zu widersprüchliche GPS-Punkte wurden aussortiert. Der Rest zählt normal.',
+    pt: 'Pontos de GPS incoerentes demais foram descartados. O resto conta normalmente.',
+  },
+  /** Lien d'appel — peint UNIQUEMENT si une revue existe réellement (§A, zéro bouton mort). */
+  partialAppeal: {
+    fr: 'Contester cette décision',
+    en: 'Contest this decision',
+    es: 'Impugnar esta decisión',
+    de: 'Entscheidung anfechten',
+    pt: 'Contestar esta decisão',
+  },
   /**
    * VARIANTE SANS CAPTURE (planche selection15). Titre FACTUEL et honnête quand
    * la boucle est réellement restée ouverte (`serverResult.openBoundary`) :

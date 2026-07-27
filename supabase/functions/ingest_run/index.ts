@@ -84,6 +84,17 @@ import {
   TERRITORY_STATE_CONTESTED,
   TERRITORY_STATE_DEFENDED,
 } from './contest_wiring.ts';
+// §11 — L'ANTI-TRICHE EN SERVICE. `scoreRun` (moteur pur, 20 tests) existait
+// depuis le lot 9 mais n'était appelé par PERSONNE : `anticheat_reviews` (0081)
+// restait vide à jamais et l'écran d'appel (E28) n'aurait jamais montré autre
+// chose que son état vide. Décision PURE et testable, hors de ce fichier ; la
+// correspondance « 4 décisions moteur → runs.status » y est écrite en toutes
+// lettres, avec la raison de chaque ligne.
+import {
+  buildReviewRow,
+  isDuplicateReview,
+  planAntiCheat,
+} from './anticheat_wiring.ts';
 import {
   canComplete,
   contributionSplit,
@@ -2622,7 +2633,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // tricheur, exactement l'inverse de « l'app ne ment jamais ».
     const filtered = filterPoints(request.points, activity);
     const stats = computeStats(filtered.segments);
-    const validation = validateOrStatus(
+    // ⚠️ `gameVerdict`, PAS `validation` : c'est le verdict des RÈGLES DE JEU
+    // (§3.2 + GRYD Verify) SEUL. L'anti-triche §11 se prononce plus bas (après
+    // la dédup) et peut le DÉCLASSER ; c'est le résultat de cette seconde étape
+    // qui s'appelle `validation` et que tout l'aval consomme. Deux noms
+    // distincts pour deux états distincts — un seul nom laisserait une branche
+    // lire le verdict d'avant l'anti-triche sans que rien ne le signale.
+    const gameVerdict = validateOrStatus(
       filtered,
       stats,
       request.stepCount,
@@ -2693,6 +2710,40 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
       return json({ status: 'duplicate', runId: dupOf, replayed: false }, 200);
     }
+
+    // ── §11 ANTI-TRICHE : le moteur se prononce, ICI et pas ailleurs ─────────
+    // PLACÉ APRÈS LA DÉDUP, et c'est un choix : un doublon est déjà sorti par
+    // `return` juste au-dessus, donc il ne coûte pas un scoring — et surtout, un
+    // renvoi d'une course déjà ingérée ne doit produire AUCUN effet de bord,
+    // ligne de revue comprise.
+    // PLACÉ AVANT l'auto-ouverture de commune, `ensureHomeCity` et la branche
+    // « non claimable » : toutes lisent `validation.kind`, et toutes doivent
+    // hériter du verdict FINAL. Sans ce placement, une trace invraisemblable
+    // pourrait ouvrir une commune en pionnière puis être déclassée ensuite —
+    // un provisionnement gagné par une course que le système vient de refuser.
+    //
+    // `nowMs` est INJECTÉ depuis l'horloge du handler : le moteur ne lit jamais
+    // `Date.now()`, et le signal « horodatages dans le futur » se juge donc à
+    // l'instant d'INGESTION, seul instant que le serveur constate lui-même.
+    const antiCheat = planAntiCheat({
+      verdict: gameVerdict,
+      // Trace BRUTE : `filterPoints` retire justement les points trop rapides,
+      // donc mesurer la vitesse soutenue sur `filtered` rendrait toujours zéro.
+      points: request.points,
+      activity,
+      stepCount: request.stepCount,
+      source: request.source,
+      nowMs: now.getTime(),
+      // `priorTraceFingerprints` NON FOURNI, volontairement : aucune trace
+      // antérieure exploitable n'est conservée (cf. le champ dans
+      // `anticheat_wiring.ts`). Passer `[]` affirmerait « aucun antécédent ne
+      // colle », ce qu'aucune lecture ne soutient. Le rejeu reste attrapé en
+      // amont par `findDuplicateRun`.
+    });
+    // À partir d'ici, `validation` = le verdict §3.2 ET §11 réunis. Tout l'aval
+    // (auto-ouverture, ville d'attache, statut inséré, hexing, contestation)
+    // n'en connaît qu'un seul.
+    const validation = antiCheat.verdict;
 
     // ── Auto-ouverture par PRÉSENCE (23/07/2026) ──────────────────────────────
     // Si la course est CLAIMABLE, part d'un point HORS de toute city_zone, et
@@ -2823,6 +2874,44 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }, userId, request.clientRunId, profile.streak_weeks);
       if (inserted.replayed) return json(inserted.payload);
       response.runId = inserted.runId;
+      // ── §11.3/§11.4 : LA REVUE EXISTE ENFIN, ET ELLE EST ÉCRITE ICI ────────
+      // PLACÉE JUSTE APRÈS `insertRun` (elle a besoin du `run_id`) et AVANT le
+      // reste : c'est la fenêtre la plus courte possible entre « la course est
+      // refusée » et « la raison chiffrée du refus est consultable ». Un plantage
+      // dans cet intervalle laisse une course `flagged` sans revue — soit
+      // EXACTEMENT le comportement d'avant ce chantier, jamais pire.
+      //
+      // BEST-EFFORT ASSUMÉ (`console.error`, pas de `throw`) : la course a déjà
+      // été jugée et n'est déjà pas créditée. Faire échouer l'ingestion entière
+      // parce que la ligne d'audit n'est pas passée priverait le joueur de sa
+      // réponse sans rien protéger — et son client renverrait le même
+      // `clientRunId`, qui ressortirait par l'idempotence sans jamais rejouer ce
+      // bloc. Même patron que `territories` / `territory_contests`.
+      if (antiCheat.review) {
+        try {
+          const { error: reviewErr } = await supabase
+            .from('anticheat_reviews')
+            .insert(buildReviewRow({
+              runId: inserted.runId,
+              userId,
+              review: antiCheat.review,
+            }));
+          // IDEMPOTENCE PAR LA CONTRAINTE, pas par un `select` préalable :
+          // `anticheat_reviews.run_id` est `unique` (0081). Deux renvois
+          // simultanés du même `clientRunId` ne peuvent pas empiler deux
+          // dossiers du même fait — le second retombe sur 23505 et se tait,
+          // parce que la ligne déjà présente porte le MÊME contenu
+          // (`planAntiCheat` est déterministe).
+          if (reviewErr && !isDuplicateReview(reviewErr.code)) {
+            console.error(
+              '[ingest_run] anticheat_reviews insert (best-effort, course déjà non créditée):',
+              reviewErr.message,
+            );
+          }
+        } catch (e) {
+          console.error('[ingest_run] anticheat fail-safe (verdict inchangé):', e);
+        }
+      }
       await persistCelebration(inserted.runId, response, 0);
       // Clean Runner : un run rejeté remet cleanDays à 0 (applyRunToStats ignore
       // les rejets ; applyRejectedRun mémorise le jour du rejet). Flagged compte

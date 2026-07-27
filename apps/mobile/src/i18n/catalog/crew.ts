@@ -3491,6 +3491,309 @@ export const C = defineCatalog({
     de: 'Du bist schon in einem anderen Crew: Mit diesem Code einzutreten führt dich dort hinaus.',
     pt: 'Você já está em outro crew: entrar com este código faz você sair dele.',
   },
+
+  // ══ E38/E39/E40 — DÉCOUVERTE RÉELLE (LOT 7, migration 0083) ═══════════════
+  // ⚠ NE PAS confondre avec les clés `welcomeAt` / `requestSentTo` /
+  // `noCrewMatch` / `discoveryFootnote` plus haut : elles portent « (démo) » et
+  // servaient l'ancienne vitrine de crews INVENTÉS (supprimée, A-47). Les clés
+  // ci-dessous décrivent des données SERVEUR. Aucune ne parle au conditionnel.
+
+  // ── E38 : l'état sans crew devient DÉCOUVERTE-FIRST ──────────────────────
+  dHeroTitle: {
+    fr: 'Trouvez votre crew',
+    en: 'Find your crew',
+    es: 'Encuentra tu crew',
+    de: 'Finde dein Crew',
+    pt: 'Encontre seu crew',
+  },
+  /**
+   * ⚠ COPIE VOLONTAIREMENT NEUTRE EN DISCIPLINE (E14, garde `crew.test.ts`).
+   * La première rédaction disait « qui COURT déjà près de chez vous » — or cet
+   * écran mène à une liste qui mélange crews à pied ET à vélo, et aucun de ses
+   * écrans ne lit une discipline. Nommer la course y aurait rendu les crews
+   * cyclistes invisibles dans la promesse. On parle donc de TERRAIN TENU, qui
+   * est vrai dans les deux mondes.
+   */
+  dHeroBody: {
+    fr: 'Un crew tient un quartier à plusieurs. Regardez qui tient déjà du terrain près de chez vous, puis rejoignez — ou fondez le vôtre.',
+    en: 'A crew holds a neighbourhood together. See who already holds ground near you, then join — or found your own.',
+    es: 'Un crew defiende un barrio en grupo. Mira quién ya tiene terreno cerca de ti y únete — o funda el tuyo.',
+    de: 'Ein Crew hält ein Viertel gemeinsam. Sieh, wer in deiner Nähe schon Gebiet hält, und tritt bei — oder gründe dein eigenes.',
+    pt: 'Um crew segura um bairro em grupo. Veja quem já tem terreno perto de você e entre — ou funde o seu.',
+  },
+  dDiscoverCta: {
+    fr: 'DÉCOUVRIR LES CREWS',
+    en: 'DISCOVER CREWS',
+    es: 'DESCUBRIR CREWS',
+    de: 'CREWS ENTDECKEN',
+    pt: 'DESCOBRIR CREWS',
+  },
+  dCreateSecondary: {
+    fr: 'Créer un crew',
+    en: 'Create a crew',
+    es: 'Crear un crew',
+    de: 'Crew erstellen',
+    pt: 'Criar um crew',
+  },
+
+  // ── E39 : l'écran de découverte ──────────────────────────────────────────
+  dTitle: {
+    fr: 'Découvrir',
+    en: 'Discover',
+    es: 'Descubrir',
+    de: 'Entdecken',
+    pt: 'Descobrir',
+  },
+  dSearchPh: {
+    fr: 'Nom ou tag d’un crew',
+    en: 'Crew name or tag',
+    es: 'Nombre o tag de un crew',
+    de: 'Crew-Name oder Tag',
+    pt: 'Nome ou tag de um crew',
+  },
+  dFilterAll: { fr: 'Tous', en: 'All', es: 'Todos', de: 'Alle', pt: 'Todos' },
+  dFilterFriends: { fr: 'Amis', en: 'Friends', es: 'Amigos', de: 'Freunde', pt: 'Amigos' },
+  dFilterOpen: { fr: 'Ouverts', en: 'Open', es: 'Abiertos', de: 'Offen', pt: 'Abertos' },
+  /** La portée est DITE, pour qu'on ne croie pas à un annuaire mondial (§E38). */
+  dScope: {
+    fr: 'Crews de {city}',
+    en: 'Crews in {city}',
+    es: 'Crews de {city}',
+    de: 'Crews in {city}',
+    pt: 'Crews de {city}',
+  },
+  /** Aucune ville connue : on DEMANDE, on ne devine pas (jamais « près de chez vous »). */
+  dNoCityTitle: {
+    fr: 'Quelle ville ?',
+    en: 'Which city?',
+    es: '¿Qué ciudad?',
+    de: 'Welche Stadt?',
+    pt: 'Qual cidade?',
+  },
+  /** Neutre en discipline (E14) : la liste mélange les deux mondes. */
+  dNoCityBody: {
+    fr: 'GRYD ne connaît pas encore votre ville. Choisissez-la pour voir les crews qui y jouent.',
+    en: 'GRYD doesn’t know your city yet. Pick it to see the crews playing there.',
+    es: 'GRYD aún no conoce tu ciudad. Elígela para ver los crews que juegan allí.',
+    de: 'GRYD kennt deine Stadt noch nicht. Wähle sie, um die Crews dort zu sehen.',
+    pt: 'A GRYD ainda não conhece sua cidade. Escolha-a para ver os crews que jogam ali.',
+  },
+  /** Réponse LUE et vide : une affirmation vraie, distincte d'un échec. */
+  dEmptyTitle: {
+    fr: 'Aucun crew ici pour l’instant',
+    en: 'No crew here yet',
+    es: 'Ningún crew aquí por ahora',
+    de: 'Noch kein Crew hier',
+    pt: 'Nenhum crew aqui por enquanto',
+  },
+  dEmptyBody: {
+    fr: 'Personne n’a encore fondé de crew dans cette ville. Le premier tient le premier quartier.',
+    en: 'Nobody has founded a crew in this city yet. The first one takes the first neighbourhood.',
+    es: 'Nadie ha fundado un crew en esta ciudad todavía. El primero se queda el primer barrio.',
+    de: 'Hier hat noch niemand ein Crew gegründet. Das erste nimmt das erste Viertel.',
+    pt: 'Ninguém fundou um crew nesta cidade ainda. O primeiro fica com o primeiro bairro.',
+  },
+  dEmptySearch: {
+    fr: 'Aucun crew ne porte ce nom dans cette ville.',
+    en: 'No crew by that name in this city.',
+    es: 'Ningún crew con ese nombre en esta ciudad.',
+    de: 'Kein Crew mit diesem Namen in dieser Stadt.',
+    pt: 'Nenhum crew com esse nome nesta cidade.',
+  },
+  /** Échec de LECTURE : on ne le déguise jamais en « aucun crew ». */
+  dFailedTitle: {
+    fr: 'Lecture impossible',
+    en: 'Couldn’t load',
+    es: 'No se pudo leer',
+    de: 'Laden fehlgeschlagen',
+    pt: 'Não foi possível ler',
+  },
+  dFailedBody: {
+    fr: 'Les crews n’ont pas pu être lus. Rien n’est affirmé sur cette ville tant que la lecture n’a pas abouti.',
+    en: 'Crews couldn’t be read. Nothing is claimed about this city until the read succeeds.',
+    es: 'No se pudieron leer los crews. No se afirma nada sobre esta ciudad hasta que la lectura funcione.',
+    de: 'Crews konnten nicht gelesen werden. Über diese Stadt wird nichts behauptet, bis das Lesen klappt.',
+    pt: 'Não foi possível ler os crews. Nada é afirmado sobre esta cidade até a leitura funcionar.',
+  },
+  dSignedOut: {
+    fr: 'Connectez-vous pour voir les crews de votre ville.',
+    en: 'Sign in to see the crews in your city.',
+    es: 'Inicia sesión para ver los crews de tu ciudad.',
+    de: 'Melde dich an, um die Crews deiner Stadt zu sehen.',
+    pt: 'Entre para ver os crews da sua cidade.',
+  },
+
+  // ── Une ligne de crew : des FAITS, jamais un décor ───────────────────────
+  dMembers: {
+    fr: '{n} membres',
+    en: '{n} members',
+    es: '{n} miembros',
+    de: '{n} Mitglieder',
+    pt: '{n} membros',
+  },
+  dZonesHeld: {
+    fr: '{n} zones tenues',
+    en: '{n} zones held',
+    es: '{n} zonas retenidas',
+    de: '{n} Zonen gehalten',
+    pt: '{n} zonas mantidas',
+  },
+  /** Emprise NULLE : on le dit en clair, jamais un « 0 » nu. */
+  dNoZones: {
+    fr: 'Aucune zone tenue',
+    en: 'No zone held',
+    es: 'Ninguna zona retenida',
+    de: 'Keine Zone gehalten',
+    pt: 'Nenhuma zona mantida',
+  },
+  dFriendsInside: {
+    fr: '{n} de vos amis',
+    en: '{n} of your friends',
+    es: '{n} de tus amigos',
+    de: '{n} deiner Freunde',
+    pt: '{n} dos seus amigos',
+  },
+  dSeatsLeft: {
+    fr: '{n} places',
+    en: '{n} seats',
+    es: '{n} plazas',
+    de: '{n} Plätze',
+    pt: '{n} vagas',
+  },
+  dNoSeats: {
+    fr: 'Complet',
+    en: 'Full',
+    es: 'Completo',
+    de: 'Voll',
+    pt: 'Lotado',
+  },
+  dLastActive: {
+    fr: 'Actif il y a {d} j',
+    en: 'Active {d} d ago',
+    es: 'Activo hace {d} d',
+    de: 'Aktiv vor {d} T',
+    pt: 'Ativo há {d} d',
+  },
+  dActiveToday: {
+    fr: 'Actif aujourd’hui',
+    en: 'Active today',
+    es: 'Activo hoy',
+    de: 'Heute aktiv',
+    pt: 'Ativo hoje',
+  },
+  dNeverActive: {
+    fr: 'Aucune capture',
+    en: 'No capture yet',
+    es: 'Ninguna captura',
+    de: 'Noch keine Eroberung',
+    pt: 'Nenhuma captura',
+  },
+
+  // ── Adhésion (E40) ───────────────────────────────────────────────────────
+  dJoinCta: { fr: 'REJOINDRE', en: 'JOIN', es: 'UNIRME', de: 'BEITRETEN', pt: 'ENTRAR' },
+  dRequestCta: {
+    fr: 'DEMANDER À REJOINDRE',
+    en: 'ASK TO JOIN',
+    es: 'PEDIR UNIRME',
+    de: 'BEITRITT ANFRAGEN',
+    pt: 'PEDIR PARA ENTRAR',
+  },
+  dRequestPending: {
+    fr: 'Demande envoyée — en attente du crew.',
+    en: 'Request sent — waiting for the crew.',
+    es: 'Solicitud enviada — esperando al crew.',
+    de: 'Anfrage gesendet — das Crew entscheidet.',
+    pt: 'Pedido enviado — aguardando o crew.',
+  },
+  /**
+   * ⚠ Le texte NE PROMET PAS de notification : aucune n'existe (0083 § suspens).
+   * Écrire « vous serez prévenu » serait une garantie que le code ne tient pas.
+   */
+  dRequestNoNotice: {
+    fr: 'Aucune notification n’est envoyée : revenez ici pour voir la réponse.',
+    en: 'No notification is sent: come back here to see the answer.',
+    es: 'No se envía ninguna notificación: vuelve aquí para ver la respuesta.',
+    de: 'Es wird keine Benachrichtigung gesendet: Komm für die Antwort hierher zurück.',
+    pt: 'Nenhuma notificação é enviada: volte aqui para ver a resposta.',
+  },
+  dJoined: {
+    fr: 'Vous êtes dans le crew.',
+    en: 'You’re in the crew.',
+    es: 'Ya estás en el crew.',
+    de: 'Du bist im Crew.',
+    pt: 'Você está no crew.',
+  },
+  dClosedNote: {
+    fr: 'Ce crew ne recrute pas ici — il faut un code d’invitation.',
+    en: 'This crew isn’t recruiting here — an invite code is required.',
+    es: 'Este crew no recluta aquí — hace falta un código de invitación.',
+    de: 'Dieses Crew rekrutiert hier nicht — es braucht einen Einladungscode.',
+    pt: 'Este crew não recruta aqui — é preciso um código de convite.',
+  },
+  dAlreadyMember: {
+    fr: 'C’est votre crew.',
+    en: 'This is your crew.',
+    es: 'Este es tu crew.',
+    de: 'Das ist dein Crew.',
+    pt: 'Este é o seu crew.',
+  },
+  dInOtherCrew: {
+    fr: 'Vous êtes déjà dans un crew. Quittez-le depuis l’onglet Crew pour en rejoindre un autre.',
+    en: 'You’re already in a crew. Leave it from the Crew tab to join another.',
+    es: 'Ya estás en un crew. Sal desde la pestaña Crew para unirte a otro.',
+    de: 'Du bist schon in einem Crew. Verlasse es im Crew-Tab, um einem anderen beizutreten.',
+    pt: 'Você já está em um crew. Saia pela aba Crew para entrar em outro.',
+  },
+
+  // ── E40 : fiche publique ─────────────────────────────────────────────────
+  dPublicTitle: {
+    fr: 'Fiche du crew',
+    en: 'Crew profile',
+    es: 'Ficha del crew',
+    de: 'Crew-Profil',
+    pt: 'Ficha do crew',
+  },
+  dCityRank: {
+    fr: '{rank}ᵉ sur {total} à {city}',
+    en: '#{rank} of {total} in {city}',
+    es: '{rank}º de {total} en {city}',
+    de: 'Platz {rank} von {total} in {city}',
+    pt: '{rank}º de {total} em {city}',
+  },
+  /** Aucun rang : un crew neuf n'est pas « dernier », il n'est pas classé. */
+  dNoRank: {
+    fr: 'Pas encore classé — ce crew ne tient aucune zone.',
+    en: 'Not ranked yet — this crew holds no zone.',
+    es: 'Aún sin clasificar — este crew no retiene ninguna zona.',
+    de: 'Noch nicht platziert — dieses Crew hält keine Zone.',
+    pt: 'Ainda sem classificação — este crew não mantém nenhuma zona.',
+  },
+  /** §E40 : rien de privé avant d'entrer. On le DIT, pour que l'absence se lise. */
+  dPrivacyNote: {
+    fr: 'Avant d’entrer, un crew ne montre que ses totaux : ni membres, ni messages, ni tracés.',
+    en: 'Before joining, a crew only shows totals: no members, no messages, no routes.',
+    es: 'Antes de entrar, un crew solo muestra sus totales: ni miembros, ni mensajes, ni recorridos.',
+    de: 'Vor dem Beitritt zeigt ein Crew nur Summen: keine Mitglieder, keine Nachrichten, keine Strecken.',
+    pt: 'Antes de entrar, um crew mostra apenas totais: nem membros, nem mensagens, nem percursos.',
+  },
+  dNotFound: {
+    fr: 'Ce crew n’existe pas ou n’est plus visible.',
+    en: 'This crew doesn’t exist or is no longer visible.',
+    es: 'Este crew no existe o ya no es visible.',
+    de: 'Dieses Crew existiert nicht oder ist nicht mehr sichtbar.',
+    pt: 'Este crew não existe ou não está mais visível.',
+  },
+
+  // ── Candidatures reçues (contrepartie obligatoire de la demande) ─────────
+  dRequestsKicker: {
+    fr: 'DEMANDES REÇUES',
+    en: 'JOIN REQUESTS',
+    es: 'SOLICITUDES RECIBIDAS',
+    de: 'BEITRITTSANFRAGEN',
+    pt: 'PEDIDOS RECEBIDOS',
+  },
+  dAcceptCta: { fr: 'Accepter', en: 'Accept', es: 'Aceptar', de: 'Annehmen', pt: 'Aceitar' },
+  dRejectCta: { fr: 'Refuser', en: 'Decline', es: 'Rechazar', de: 'Ablehnen', pt: 'Recusar' },
 });
 
 // ─── Lookups par clé de jeu (Entries dérivées du catalogue — parité garantie) ──

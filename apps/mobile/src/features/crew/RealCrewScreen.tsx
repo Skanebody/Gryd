@@ -84,6 +84,7 @@ import { useLocale, useT } from '../../i18n/store';
 import type { Entry, Locale } from '../../i18n/types';
 import { C, CREW_ROLE_E, CREW_SIGNAL_E } from '../../i18n/catalog/crew';
 import { CrewHero } from './CrewHero';
+import { CrewJoinRequests } from './CrewJoinRequests';
 import { CrewMembersStrip } from './CrewMembersStrip';
 import { CrewStarterPlan } from './CrewStarterPlan';
 import { CrewTerritoryStrip } from './CrewTerritoryStrip';
@@ -1141,6 +1142,16 @@ export function RealCrewScreen() {
              · crew SANS TERRITOIRE → le plan d'action porte déjà l'unique CTA
                chartreuse, et l'invitation y est l'étape 1.
           */}
+          {/*
+            LES CANDIDATURES REÇUES — livrées AVEC la découverte, jamais après.
+            Depuis 0083, un joueur peut demander à rejoindre un crew depuis sa
+            fiche publique ; sans ce bloc, sa demande n'aurait aucun lecteur et
+            le bouton d'en face ferait semblant. Le composant se retire de
+            lui-même quand je n'ai pas le droit de décider ou qu'il n'y a rien à
+            trancher — il n'affiche jamais un « 0 demande ».
+          */}
+          <CrewJoinRequests />
+
           {crewFull ? <Text style={styles.fullNotice}>{t(C.crewFullNotice)}</Text> : null}
           {!crewFull && !noTerritory ? (
             <View style={styles.cta}>
@@ -1286,26 +1297,49 @@ export function RealCrewScreen() {
   }
 
   /*
-    ── SANS CREW (home) : pitch 1 ligne + créer (CTA) + « J’ai un code » ────────
-    Le pitch (« Personne ne tient un quartier seul ») est une vérité générale,
-    pas une affirmation sur l'utilisateur : il peut rester pendant la 1ʳᵉ
-    lecture sans mentir, et évite l'écran blanc.
+    ── E38 · SANS CREW : DÉCOUVERTE-FIRST ──────────────────────────────────────
+    La planche E38 impose un ordre précis : carte héro « Trouvez votre crew »,
+    CTA `DÉCOUVRIR LES CREWS`, secondaire `CRÉER UN CREW`, et une explication de
+    trois lignes maximum. Sa logique tient en une phrase : « proposer d'abord
+    les crews locaux pertinents, pas un annuaire mondial ».
 
-    Les ACTIONS, elles, présupposent qu'on n'a pas de crew. Tant que la lecture
-    est en vol, on ne le sait pas encore : elles restent visibles (la page ne
-    saute pas) mais INERTES. Sans ça, un tap rapide au lancement pouvait ouvrir
-    « Fonde ton crew » à un membre d'un crew existant — le serveur refusait
-    ensuite (`already_in_crew`), après lui avoir fait saisir un nom pour rien.
+    ⚠ CE N'EST PAS UN SIMPLE ÉCHANGE DE BOUTONS — l'écran promouvait « Créer mon
+    crew » parce que découvrir était IMPOSSIBLE : `/crew-discovery` était un
+    `<Redirect href="/crew"/>` (vitrine supprimée, A-47), et le seul chemin réel
+    vers un crew était un CODE, c'est-à-dire un secret qu'il fallait déjà avoir
+    reçu de quelqu'un. Mettre « Découvrir » en tête aurait été un bouton mort.
+    Il ne l'est plus : la migration 0083 pose `crew_discovery` /
+    `crew_public_profile` / `crew_join_intent`, et l'écran de découverte lit des
+    crews RÉELS. La hiérarchie de la planche devient donc tenable — et le
+    fondateur solo garde « Créer un crew » à un tap, en secondaire.
+
+    Le pitch reste une vérité générale, pas une affirmation sur l'utilisateur :
+    il peut rester pendant la 1ʳᵉ lecture sans mentir, et évite l'écran blanc.
+    Les ACTIONS, elles, présupposent qu'on n'a pas de crew ; tant que la lecture
+    est en vol elles restent visibles (la page ne saute pas) mais INERTES.
+    Exception : « Découvrir » n'a PAS besoin de cette garde — cet écran-là est
+    valable qu'on ait un crew ou non (il le dit et retire ses adhésions), donc
+    le désactiver ferait attendre pour rien.
   */
   return (
     <TabScreen title="Crew" kicker={kicker} subtitle={loading ? undefined : t(C.emptySubtitle)}>
       {flash ? <Text style={styles.flash}>{t(flash.entry, flash.vars)}</Text> : null}
       <View style={styles.block}>
-        <Text style={styles.title}>{t(C.emptyTitle)}</Text>
-        <Text style={styles.body}>{t(C.emptyBody)}</Text>
+        <Text style={styles.title}>{t(C.dHeroTitle)}</Text>
+        {/* Explication : DEUX phrases, sous le plafond de trois lignes de la
+            planche, et aucune ne promet un crew qui n'existerait pas. */}
+        <Text style={styles.body}>{t(C.dHeroBody)}</Text>
         <View style={styles.cta}>
           <Button
-            label={t(C.createMyCrew)}
+            label={t(C.dDiscoverCta)}
+            onPress={() => router.push('/crew-discovery')}
+            analyticsId="crew_discover"
+          />
+        </View>
+        {/* Les deux autres chemins en GHOST : un seul CTA chartreuse (§A4). */}
+        <View style={styles.leaveRow}>
+          <Button variant="ghost" size="md"
+            label={t(C.dCreateSecondary)}
             disabled={loading}
             onPress={() => {
               resetForms();

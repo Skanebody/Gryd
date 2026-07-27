@@ -126,9 +126,18 @@ export default function AppelScreen() {
   const t = useT();
   const { session, loading: sessionLoading, configured } = useSession();
   const [etat, setEtat] = useState<Etat>({ kind: 'loading' });
-  const [message, setMessage] = useState('');
+  /**
+   * Brouillons d'appel INDEXÉS PAR REVUE. Un `useState<string>` unique
+   * paraissait suffisant — il ne l'est pas : deux vérifications peuvent coexister
+   * (la requête en remonte jusqu'à vingt), et un état partagé ferait apparaître
+   * dans le second formulaire le texte tapé dans le premier. Sur un écran où le
+   * message part vers un dossier nominatif, écrire le mot d'un recours dans un
+   * autre n'est pas un défaut cosmétique.
+   */
+  const [brouillons, setBrouillons] = useState<Record<string, string>>({});
   const [envoi, setEnvoi] = useState<string | null>(null);
-  const [echecEnvoi, setEchecEnvoi] = useState(false);
+  /** Id de la revue dont le dernier envoi a échoué — jamais un drapeau global. */
+  const [echecEnvoi, setEchecEnvoi] = useState<string | null>(null);
 
   useEffect(() => {
     screen('appel');
@@ -185,7 +194,8 @@ export default function AppelScreen() {
   async function faireAppel(review: ReviewRow): Promise<void> {
     if (!supabase || !session?.user.id) return;
     setEnvoi(review.id);
-    setEchecEnvoi(false);
+    setEchecEnvoi(null);
+    const texte = (brouillons[review.id] ?? '').trim();
     // Trois colonnes, et pas une de plus : ce sont exactement celles que 0081
     // accorde au client (`grant insert (review_id, user_id, message)`). Le
     // statut et la décision viennent des DEFAULT — un joueur ne se rend pas
@@ -193,14 +203,14 @@ export default function AppelScreen() {
     const { error } = await supabase.from('anticheat_appeals').insert({
       review_id: review.id,
       user_id: session.user.id,
-      message: message.trim().length > 0 ? message.trim() : null,
+      message: texte.length > 0 ? texte : null,
     });
     setEnvoi(null);
     if (error) {
-      setEchecEnvoi(true);
+      setEchecEnvoi(review.id);
       return;
     }
-    setMessage('');
+    setBrouillons((prev) => ({ ...prev, [review.id]: '' }));
     await charger();
   }
 
@@ -311,15 +321,17 @@ export default function AppelScreen() {
                     <Text style={styles.corps}>{t(C.appelInvite)}</Text>
                     <TextInput
                       style={styles.champ}
-                      value={message}
-                      onChangeText={setMessage}
+                      value={brouillons[review.id] ?? ''}
+                      onChangeText={(v) => setBrouillons((prev) => ({ ...prev, [review.id]: v }))}
                       placeholder={t(C.appelPlaceholder)}
                       placeholderTextColor={colors.grisFaible}
                       multiline
                       maxLength={2000}
                       accessibilityLabel={t(C.appelPlaceholder)}
                     />
-                    {echecEnvoi && <Text style={styles.echec}>{t(C.appelEchec)}</Text>}
+                    {echecEnvoi === review.id && (
+                      <Text style={styles.echec}>{t(C.appelEchec)}</Text>
+                    )}
                     <View style={styles.cta}>
                       <Button
                         label={envoi === review.id ? t(C.appelEnvoi) : t(C.appelCta)}

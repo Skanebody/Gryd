@@ -43,6 +43,39 @@
  * IMPACT, décomposition du calcul) disparaît alors — plutôt un bloc absent
  * qu'un « 0 » qui se lit comme un verdict.
  *
+ * ─── LES SIX RÉSULTATS (spec produit §D, E29 → E34 — 27/07/2026) ────────────
+ * La spec décrit SIX écrans, pas un seul avec des variantes cosmétiques :
+ *   E29 conquête · E30 reprise · E31 défense · E32 sortie libre ·
+ *   E33 contribution crew · E34 partiellement valide.
+ * Cet écran en servait deux, et encore : « ZONE DÉFENDUE » se déclenchait sur
+ * l'INTENTION déclarée AVANT le départ (`intention === 'defense'`), pas sur ce
+ * que le serveur avait jugé. Un joueur parti « défendre » qui capturait du
+ * neutre lisait « ZONE DÉFENDUE » ; un joueur parti « conquérir » qui n'avait
+ * fait que tenir ses zones lisait « TERRITOIRE ÉTENDU ». L'écran racontait une
+ * INTENTION là où il devait rapporter un VERDICT.
+ *
+ * La variante se décide désormais dans `features/run/resultVariant.ts` — PUR,
+ * testé, et bâti SUR l'ordre de dominance du moteur narratif partagé (une seule
+ * vérité pour le Résultat et le Partage). Deux arbitrages y sont inscrits :
+ *   · une frontière crew REFERMÉE (`boundaryCompleted`) passe DEVANT la
+ *     conquête — la zone n'est pas l'œuvre d'une seule sortie (spec E33) ;
+ *   · les récits `boucle`/`crew`/`classement`/`record` À ZÉRO ZONE tombent en
+ *     E32. Ils allumaient jusqu'ici la branche de conquête et produisaient un
+ *     « 0 ZONES CAPTURÉES » de 64 px sous un titre de victoire.
+ *
+ * CE QUI DEVIENT VRAI ICI, ET D'OÙ ÇA VIENT :
+ *   · la SURFACE (E29/E30/E31) vient de `territories.area_m2` (lot 1), LUE
+ *     dans la base pour cette course — jamais convertie depuis des hexagones ;
+ *   · l'ÉCHÉANCE ÉVITÉE et le NIVEAU DE PROTECTION (E31) viennent de la
+ *     contestation que cette sortie a refermée (`territory_contests`, lot 3) ;
+ *   · le LIEN D'APPEL (E34) n'est peint que si une revue anti-triche existe
+ *     RÉELLEMENT — sinon `/appel` répondrait « aucune vérification », donc
+ *     bouton mort.
+ * CE QUI RESTE ABSENT, ET POURQUOI : la VARIATION DE RANG (aucune lecture de
+ * classement n'alimente cet écran) et l'ANCIEN PROPRIÉTAIRE d'une zone reprise
+ * (`territories` ne garde pas d'historique de propriété, et §12 réserve
+ * l'identité de l'assaillant aux deux parties). Absents, pas à zéro.
+ *
  * ─── L'ÉCRAN NOMME LA DISCIPLINE (E14, vélo réel — 26/07/2026) ──────────────
  * Le préflight montre au joueur, pendant le décompte, la discipline qu'il
  * s'apprête à enregistrer, et la lui laisse corriger d'un tap. L'écran de fin
@@ -153,6 +186,19 @@ import {
   dominantNarrative,
   type NarrativeVerdict,
 } from '../src/features/share/narrative';
+// LES SIX RÉSULTATS (spec §D, E29→E34) — le choix de la variante et le filtrage
+// des données manquantes vivent dans un moteur PUR et testé : cet écran ne fait
+// que rendre ce qu'on lui autorise à rendre.
+import {
+  composeResult,
+  formatArea,
+  myBoundaryShare,
+  type DominantNarrative,
+  type ResultFacts,
+} from '../src/features/run/resultVariant';
+// La SURFACE vient de `territories.area_m2` (lot 1) et l'échéance évitée de
+// `territory_contests` (lot 3) : deux lectures réelles, jamais un calcul client.
+import { useResultTerritory } from '../src/features/run/useResultTerritory';
 // NOTE (21/07/2026) : `buildRunSimulation` / `buildLiveNav` / `buildRunLoop` ne
 // sont PLUS importés ici. Seuls les formateurs purs et le parsing de mode
 // survivent de simulation.ts — aucune course fabriquée n'entre dans cet écran.
@@ -518,6 +564,70 @@ function ConquestResultScreen({
     };
   }, [serverResult]);
   const narrative = dominantNarrative(verdict);
+
+  // ─── LES SIX RÉSULTATS (spec §D, E29 → E34) ────────────────────────────────
+  // L'écran n'en servait que deux, et « ZONE DÉFENDUE » se déclenchait sur
+  // l'INTENTION déclarée AVANT le départ : un joueur parti « défendre » qui
+  // capturait du neutre lisait « ZONE DÉFENDUE ». La variante se décide
+  // désormais sur le VERDICT SERVEUR, dans un moteur pur qui prend l'ordre de
+  // dominance du moteur narratif partagé (une seule vérité pour E09 et E10).
+  //
+  // LES DEUX LECTURES RÉELLES qui donnent leur substance à E29/E30/E31/E34 :
+  // la surface (`territories.area_m2`), l'échéance de contestation évitée +
+  // le niveau de protection (`territory_contests` + le territoire fortifié), et
+  // l'existence d'une revue anti-triche (sans laquelle le lien d'appel serait
+  // un bouton mort). Elles ne partent QUE si le verdict les rend pertinentes.
+  const territoryRead = useResultTerritory({
+    runId: serverResult?.runId ?? null,
+    captured: verdict.zonesClaimed > 0 || verdict.zonesStolen > 0,
+    defended: verdict.zonesDefended > 0,
+    partial: serverResult?.status === 'partial',
+    myCrewId: crew?.id ?? null,
+  });
+  const composition = useMemo(() => {
+    // L'affectation force la compatibilité STRUCTURELLE des deux énumérés à la
+    // compilation : `resultVariant.ts` duplique `NarrativeId` pour rester sans
+    // import (Deno-testable), et c'est ici que la duplication est vérifiée.
+    const dominant: DominantNarrative = narrative;
+    const boundary = serverResult?.boundaryCompleted;
+    const facts: ResultFacts = {
+      narrative: dominant,
+      judged: verdict.judged,
+      credited: verdict.credited && !notCredited,
+      partial: serverResult?.status === 'partial',
+      boundaryClosed: boundary
+        ? {
+            name: boundary.name,
+            contributors: boundary.contributions.length,
+            myShare: myBoundaryShare(boundary.contributions, territoryRead.meId),
+            crewPoints: boundary.crewPoints,
+          }
+        : null,
+      openBoundary: serverResult?.openBoundary
+        ? {
+            name: serverResult.openBoundary.name,
+            missingM: serverResult.openBoundary.missingM,
+          }
+        : null,
+      loopRejectedNarrow: serverResult?.loopRejectedReason === 'narrow',
+      // La surface de la zone TENUE vient du territoire fortifié (E31) ; celle
+      // de la zone PRISE, du territoire que cette sortie a écrit (E29/E30).
+      areaM2: territoryRead.defended?.areaM2 ?? territoryRead.own?.areaM2 ?? null,
+      protectionLevel:
+        territoryRead.defended?.protectionLevel ?? territoryRead.own?.protectionLevel ?? null,
+      deadlineAvoidedAt: territoryRead.defended?.deadlineAvoidedAt ?? null,
+      defendedAt: territoryRead.defended?.defendedAt ?? null,
+      // §12 — aucune source ne donne l'ancien propriétaire d'une zone reprise
+      // (`territories` ne garde pas d'historique, `attacker_*` est réservé aux
+      // deux parties). La reprise se raconte donc sans nommer personne.
+      previousOwner: null,
+      // Aucune lecture de classement n'alimente cet écran : le rang reste
+      // INCONNU, et un rang inconnu ne s'affiche pas (surtout pas « +0 »).
+      rankChange: null,
+      appealOpen: territoryRead.appealOpen,
+    };
+    return composeResult(facts);
+  }, [narrative, verdict, notCredited, serverResult, territoryRead]);
   /**
    * VARIANTE SANS CAPTURE (planche E09). `zones.total === 0` produisait
    * « TERRITOIRE ÉTENDU · +0 ZONES CAPTURÉES » : l'objet `zones` étant truthy,
@@ -532,8 +642,17 @@ function ConquestResultScreen({
    * état vide : le KPI retombe sur les km mesurés, et l'écran se tait sur les
    * zones (4 états distincts).
    */
+  //
+  // 27/07/2026 — la condition ne lit plus `narrative === 'effort'` mais la
+  // VARIANTE `freeRun`, ce qui étend la variante d'effort aux récits `boucle`,
+  // `crew`, `classement` et `record` À ZÉRO ZONE. Ils tombaient jusqu'ici dans
+  // la branche de conquête et produisaient un « 0 ZONES CAPTURÉES » géant sous
+  // « TERRITOIRE ÉTENDU » — le zéro nu, exactement ce que la variante d'effort
+  // existait pour supprimer. Ces récits servent à choisir un STYLE de card au
+  // partage ; aucun d'eux n'affirme une prise de territoire.
   const effortHero =
-    conquest && !notCredited && verdict.judged && verdict.credited && narrative === 'effort';
+    conquest && !notCredited && verdict.judged && verdict.credited &&
+    composition.variant === 'freeRun';
 
   // LOT 1 — la série APRÈS cette course, telle que le SERVEUR l'a calculée à
   // partir des courses réelles du joueur (jamais reconstruite ici, jamais
@@ -797,7 +916,12 @@ function ConquestResultScreen({
   // se réduit au kicker d'intention. Sinon on lisait « 4,30 » en géant, puis
   // « RUN LIBRE · 4,30 km », puis « 4,30 km DISTANCE » — trois fois le même
   // chiffre sur un écran qui tient en un coup d'œil.
-  const kpiShowsZones = conquest && zones !== null && !notCredited && !effortHero;
+  // `zones.total > 0` (27/07/2026) : sans lui, une course JUGÉE à zéro zone qui
+  // n'entrait pas dans la variante d'effort (récit `boucle`/`crew`, ou trace
+  // partiellement exclue) affichait un « 0 » de 64 px sous « ZONES CAPTURÉES ».
+  // Le KPI ne montre un compte de zones que s'il y a des zones à compter.
+  const kpiShowsZones =
+    conquest && zones !== null && zones.total > 0 && !notCredited && !effortHero;
   // Variante SANS CAPTURE (planche selection15) : recap SOBRE, sans kicker
   // d'intention (« CONQUÊTE ») — le récit y est porté par la phrase d'effort
   // (« l'effort compte, même sans capture »), pas par une bannière de conquête
@@ -848,9 +972,22 @@ function ConquestResultScreen({
               effortHero && serverResult?.openBoundary
               ? t(C.loopNotClosed)
               : t(A.heroDone)
-            : intention === 'defense'
-              ? t(C.heroDefended)
-              : t(C.heroExtended);
+            : // ─── LES SIX RÉSULTATS : LE TITRE VIENT DU VERDICT ────────────
+              // Il venait de `intention` — c'est-à-dire de ce que le joueur
+              // avait ANNONCÉ vouloir faire avant de partir. Un joueur parti
+              // « défendre » qui capturait du neutre lisait « ZONE DÉFENDUE » ;
+              // un joueur parti « conquérir » qui n'avait fait que tenir ses
+              // zones lisait « TERRITOIRE ÉTENDU ». L'écran racontait une
+              // intention là où il devait rapporter un verdict.
+              composition.variant === 'crewContribution'
+              ? t(C.crewLoopClosed) // E33 — la zone n'est pas l'œuvre d'une seule sortie
+              : composition.variant === 'reprise'
+                ? t(C.heroReprise) // E30 — célèbre l'ACTION, jamais l'humiliation d'un joueur
+                : composition.variant === 'defense'
+                  ? t(C.heroDefended) // E31
+                  : composition.variant === 'partial'
+                    ? t(C.heroPartial) // E34 — rien de pris, et une portion écartée
+                    : t(C.heroExtended); // E29
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
@@ -957,6 +1094,86 @@ function ConquestResultScreen({
             </View>
           )}
 
+          {/* ═══ LA SURFACE (spec §D : « surface héro » E29/E30, « surface
+               conservée » E31) ══════════════════════════════════════════════
+               Elle vient de `territories.area_m2` — l'aire GÉODÉSIQUE calculée
+               par le moteur et écrite par ingest_run — LUE dans la base pour
+               cette course précise. Jamais une somme de cellules H3 : convertir
+               des hexagones en km² côté client donnerait un chiffre plausible
+               et faux, c'est-à-dire le pire.
+               ABSENTE quand la lecture n'a rien rendu (territoire pas encore
+               écrit, migration non déployée, lecture en échec) : le bloc
+               disparaît, il n'affiche pas « 0 m² ». */}
+          {composition.areaM2 !== null ? (
+            <View style={styles.surfaceBlock}>
+              <Text style={styles.surfaceValue} numberOfLines={1}>
+                {formatArea(composition.areaM2, decimalSeparator()).value}
+                <Text style={styles.surfaceUnit}>
+                  {' '}
+                  {formatArea(composition.areaM2, decimalSeparator()).unit}
+                </Text>
+              </Text>
+              <Text style={styles.surfaceLabel} numberOfLines={1}>
+                {composition.variant === 'defense'
+                  ? t(C.surfaceKept)
+                  : composition.variant === 'reprise'
+                    ? t(C.surfaceTaken)
+                    : t(C.surfaceGained)}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* E30 — L'ANCIEN PROPRIÉTAIRE, et rien de plus. `null` aujourd'hui
+              (aucune source ne le donne : `territories` ne garde pas
+              d'historique de propriété, et §12 réserve `attacker_*` aux deux
+              parties). La ligne est donc ABSENTE, pas vide — et le ton, le jour
+              où elle s'allumera, reste « Reprise à X », jamais « tu as écrasé X ». */}
+          {composition.previousOwner ? (
+            <Text style={styles.heroWhy} numberOfLines={1}>
+              {t(C.repriseFrom, { owner: composition.previousOwner })}
+            </Text>
+          ) : null}
+
+          {/* E31 — CE QUE LA DÉFENSE A ÉVITÉ, puis CE QU'ELLE A OBTENU.
+              L'échéance vient de la contestation RÉELLE que cette sortie a
+              refermée (`territory_contests.expires_at`), la protection du
+              territoire fortifié (`defense_level`). Aucune des deux ne
+              s'invente : sans contestation lue, les deux lignes disparaissent. */}
+          {composition.deadlineAvoidedHours !== null ? (
+            <Text style={styles.heroWhy} numberOfLines={1}>
+              {t(C.deadlineAvoided, { h: composition.deadlineAvoidedHours })}
+            </Text>
+          ) : null}
+          {composition.protectionLevel !== null ? (
+            <Text style={styles.heroWhySoft} numberOfLines={1}>
+              {t(C.protectionLevel, { n: composition.protectionLevel })}
+            </Text>
+          ) : null}
+
+          {/* E33 — LA FRONTIÈRE COMMUNE. Le nom vient du serveur ; MA part et le
+              NOMBRE de contributeurs aussi. On n'affiche PAS la liste des
+              contributions : `contributions[].user` est un IDENTIFIANT, pas un
+              pseudo — le rendre peindrait un UUID à la place d'un coéquipier. */}
+          {composition.crewBoundary ? (
+            <>
+              <Text style={styles.heroWhy} numberOfLines={2}>
+                {t(C.crewBoundaryNamed, { name: composition.crewBoundary.name })}
+              </Text>
+              {composition.crewBoundary.myShare !== null ? (
+                <Text style={styles.heroWhySoft} numberOfLines={1}>
+                  {t(C.crewBoundaryShare, {
+                    pct: Math.round(composition.crewBoundary.myShare * 100),
+                  })}
+                </Text>
+              ) : null}
+              {composition.crewBoundary.contributors > 1 ? (
+                <Text style={styles.heroQueued} numberOfLines={1}>
+                  {t(C.crewBoundaryContributors, { n: composition.crewBoundary.contributors })}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+
           {/* §11 — REFUS serveur : la RAISON précise, distincte de « aucune zone »
               (qui, elle, veut dire « boucle non fermée », pas « course invalide »).
               `rejectCopy` est résolu défensivement (skew serveur → rien, pas de crash). */}
@@ -1002,10 +1219,72 @@ function ConquestResultScreen({
               ) : null}
             </>
           ) : null}
-          {conquest && !notCredited && zones?.total === 0 && !serverResult?.openBoundary ? (
+          {/* E32 — la boucle fermée dont l'INTÉRIEUR a été refusé (forme trop
+              étroite, A-16 §2). Elle n'apparaissait nulle part : le joueur lisait
+              « Aucune zone capturée — ferme une boucle », alors qu'il en AVAIT
+              fermé une. Un conseil faux est pire qu'aucun conseil. */}
+          {composition.freeRunReason?.kind === 'narrow' ? (
+            <Text style={styles.heroWhy} numberOfLines={2}>
+              {t(C.notEligible)}
+            </Text>
+          ) : null}
+          {/* Le message générique ne sert plus QUE la sortie libre sans autre
+              explication : sous E34 (portion exclue) il conseillait de fermer une
+              boucle pour un problème qui n'a rien à voir. */}
+          {conquest &&
+          !notCredited &&
+          composition.freeRunReason?.kind === 'noAction' &&
+          zones?.total === 0 ? (
             <Text style={styles.heroWhy} numberOfLines={2}>
               {t(C.noZones)}
             </Text>
+          ) : null}
+          {/* E32 — LA SUGGESTION CONCRÈTE que la spec demande, adossée à la
+              raison RÉELLE. Aucun sentiment d'échec : on dit quoi faire la fois
+              d'après, jamais ce qui a raté. Elle ne s'affiche pas sur une course
+              non créditée (§11 a sa propre explication) ni hors conquête. */}
+          {conquest && !notCredited && composition.freeRunReason ? (
+            // 3 lignes : §A interdit qu'un texte soit coupé, et la phrase
+            // française tient tout juste sur deux à 375 px.
+            <Text style={styles.heroWhySoft} numberOfLines={3}>
+              {composition.freeRunReason.kind === 'narrow'
+                ? t(C.suggestWiderLoop)
+                : t(C.suggestCloseLoop)}
+            </Text>
+          ) : null}
+
+          {/* ═══ E34 — LA PORTION EXCLUE ════════════════════════════════════
+               `status: 'partial'` était fondu dans un unique booléen `verified`
+               avec `valid` : une course dont une partie avait été écartée
+               affichait exactement le même écran qu'une course intégralement
+               retenue. L'exclusion se DIT désormais, y compris sous une conquête
+               réussie — et sans chiffre, parce que le serveur n'en renvoie
+               aucun (ni longueur ni durée de la portion écartée). */}
+          {composition.excluded ? (
+            <>
+              <Text style={styles.heroWhy} numberOfLines={2}>
+                {t(C.partialNotice)}
+              </Text>
+              <Text style={styles.heroWhySoft} numberOfLines={3}>
+                {t(C.partialWhy)}
+              </Text>
+              {/* LE LIEN D'APPEL — peint UNIQUEMENT si une revue anti-triche
+                  existe RÉELLEMENT pour cette course (lecture réelle de
+                  `anticheat_reviews`). Sans elle, `/appel` répondrait « aucune
+                  vérification » : un lien vers un écran vide est un bouton mort
+                  (§A), et la spec dit « lien d'appel SI NÉCESSAIRE. */}
+              {composition.appealOpen ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t(C.partialAppeal)}
+                  onPress={() => router.push('/appel')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.tertiary, pressed && styles.pressed]}
+                >
+                  <Text style={styles.tertiaryLabel}>{t(C.partialAppeal)}</Text>
+                </Pressable>
+              ) : null}
+            </>
           ) : null}
 
           {/* « L'effort compte, même sans capture. » — la phrase qui retourne le
@@ -1706,6 +1985,28 @@ const styles = StyleSheet.create({
     fontFamily: fonts.textSemi,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  // ── LA SURFACE (E29/E30/E31) ──
+  // Un cran SOUS le KPI de zones : c'est la même information vue autrement (la
+  // spec la veut « héro », mais deux chiffres de 64 px côte à côte ne font plus
+  // de héros du tout). Valeur en display, unité en exposant gris — même
+  // grammaire que la rangée de statistiques (§A : une seule façon de lire un
+  // nombre dans tout l'écran).
+  surfaceBlock: { alignItems: 'center', gap: 2 },
+  surfaceValue: {
+    color: colors.blanc,
+    fontSize: fontSizes.xxl,
+    fontFamily: fonts.display,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  surfaceUnit: { color: colors.gris, fontSize: fontSizes.sm, fontFamily: fonts.textSemi },
+  surfaceLabel: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.textSemi,
+    fontWeight: '700',
+    letterSpacing: 2,
   },
   // Complément factuel du POURQUOI (échéance de la frontière) — un cran en
   // dessous : c'est une précision, pas l'information principale.
