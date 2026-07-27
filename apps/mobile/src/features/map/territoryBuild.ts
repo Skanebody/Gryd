@@ -64,6 +64,21 @@ export interface RealTerritory {
   props: TerritoryProperties;
   /** Multi-polygone fusionné/lissé, [lng, lat] (sortie de cellsToTerritory). */
   polygons: [number, number][][][];
+  /**
+   * D'OÙ VIENT LA FORME (LOT 1, étape 4). Deux mondes coexistent pendant la
+   * transition et ils ne se comptent PAS pareil :
+   *   `polygon`  — ligne `public.territories` : la forme EST la trace réelle
+   *                (§1.4 « aucun hexagone »), `areaM2` est l'aire géodésique du
+   *                polygone, et `zoneCount` vaut 1 (un territoire EST une zone).
+   *   `h3cells`  — fusion de cellules `hex_claims` : contour hexagonal adouci,
+   *                `areaM2` = somme des `cellArea`, `zoneCount` = nombre
+   *                d'hexagones tenus.
+   * Ce champ existe pour qu'aucun lecteur ne puisse additionner les deux
+   * `zoneCount` sans savoir qu'il additionne deux unités différentes. Voir la
+   * décision de transition, écrite en toutes lettres dans `territoriesSource.ts`
+   * §5 : ce qui reste hexagonal à l'écran, et pourquoi c'est vrai.
+   */
+  geometrySource: 'polygon' | 'h3cells';
   zoneCount: number;
   /**
    * SECTEURS (H3 res 7) réellement couverts par ce territoire, triés — un
@@ -129,6 +144,16 @@ export function sectorsOf(cells: readonly string[]): readonly string[] {
 /**
  * Groupe les captures par (PROPRIÉTAIRE × état) puis fusionne CHAQUE groupe en UNE
  * géométrie. Arbitrage fondateur du 15/07 : l'unité de lecture est le TERRITOIRE.
+ *
+ * ⚠️ CE CHEMIN EST DEVENU LE REPLI (LOT 1, étape 4 — 27/07/2026). La forme
+ * AUTORITAIRE d'un territoire est le POLYGONE de la trace réelle, lu dans
+ * `public.territories` par `territoriesSource.ts`. Cette fonction ne reçoit plus
+ * que les captures qu'AUCUN polygone ne décrit (captures antérieures au
+ * polygone, cellules de couloir, territoire d'autrui sans version publique) :
+ * elle produit alors, en toute connaissance de cause, un contour HEXAGONAL
+ * adouci. La décision de transition et la liste exhaustive de ce qui reste
+ * hexagonal à l'écran sont écrites dans `territoriesSource.ts` §5 — ne pas les
+ * dupliquer ici, les lire.
  *
  * POURQUOI PAS PAR ZONE (mon premier essai, mesuré et rejeté) : grouper par cellule
  * parente puis fusionner chaque groupe découpe un territoire à cheval sur deux zones en
@@ -232,7 +257,11 @@ export function buildTerritories(
         displayName: null,
         ownerId: g.ownerId,
         ownerType: g.ownerId === null ? 'neutral' : 'user',
-        // Vraie aire H3 sommée — plus de 0 en dur (une valeur fausse dès le 1er lecteur).
+        // Somme des aires H3 des cellules tenues. Ce N'EST PAS l'aire d'un
+        // polygone de trace : pour un territoire polygonal, `areaM2` vaut
+        // `territories.area_m2` (aire géodésique calculée par le moteur). Les
+        // deux nombres mesurent deux surfaces différentes — `geometrySource`
+        // dit laquelle on regarde.
         areaM2: cells.reduce((sum, cell) => sum + cellArea(cell, 'm2'), 0),
         status: g.state,
         capturedAt: g.capturedAt,
@@ -241,6 +270,8 @@ export function buildTerritories(
         center: territoryCentroid(cells),
       },
       polygons: territory.polygons as unknown as [number, number][][][],
+      // Contour HEXAGONAL adouci (cellsToTerritory) — dit, pas caché.
+      geometrySource: 'h3cells',
       zoneCount: territory.zoneCount,
       sectorIds: sectorsOf(cells),
     });

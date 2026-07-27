@@ -592,6 +592,56 @@ export const PRIVACY_ZONE_DEFAULT_RADIUS_M = 300;
 export const PRIVACY_ZONE_H3_RESOLUTION = 8; // centre stocké grossier, jamais en lat/lng exact
 export const RAW_POLYLINE_RETENTION_DAYS = 90;
 export const MIN_AGE_YEARS = 16;
+
+// ─── §12.1 Masquage des rendus PUBLICS (spec produit UI/UX complète, D-19) ───
+// « couper au moins 250 m autour du départ et de l'arrivée publics ; appliquer
+//   les zones floutées ; simplifier les contours ; retarder la publication ;
+//   supprimer les timestamps détaillés. »  (§1.5 le redit : « Les 250 premiers
+//   et derniers mètres d'une activité sont masqués dans les exports publics par
+//   défaut », « la publication d'un nouveau territoire est différée de 60
+//   minutes par défaut »).
+//
+// Ces trois constantes vivent ICI parce que ce sont des règles de produit, pas
+// des détails d'écran : la card de partage, la note de l'écran Confidentialité
+// et la vue SQL publique doivent toutes trois parler de la MÊME distance, du
+// MÊME délai et de la MÊME granularité. Elles étaient auparavant écrites à
+// découvert dans le code appelant (200 m dans `sharePrivacy.ts`, 60 min dans
+// `supabase/functions/ingest_run/territory.ts`) — deux nombres magiques.
+
+/**
+ * §12.1 / §1.5 — mètres masqués à CHAQUE extrémité d'une trace rendue
+ * PUBLIQUE (card de partage). Plancher de la spec : « AU MOINS 250 m ».
+ * Consommé par `apps/mobile/src/features/share/sharePrivacy.ts` (qui coupe) et
+ * par l'écran Confidentialité (qui ANNONCE la distance réellement appliquée) :
+ * un seul nombre, donc l'écran ne peut pas promettre autre chose que la coupe.
+ */
+export const SHARE_TRIM_M = 250;
+
+/**
+ * §1.5 — « La publication d'un nouveau territoire est différée de 60 minutes
+ * par défaut. » Alimente `territories.publish_after` (migration 0074, colonne
+ * `not null` SANS défaut : c'est l'ÉCRIVAIN qui décide l'instant, jamais le
+ * schéma) et le filtre de la vue publique `public_territories` (0077).
+ *
+ * ⚠️ SUSPENS ASSUMÉ (27/07/2026) : `supabase/functions/ingest_run/territory.ts`
+ * porte encore SA PROPRE copie du littéral `60`, posée là quand game-rules.ts
+ * était hors périmètre. Les deux valeurs sont égales aujourd'hui et rien ne le
+ * garantit demain. Le déménagement (remplacer la déclaration locale par un
+ * import depuis `../_shared/game-rules.ts`) est un changement d'une ligne, mais
+ * il touche un fichier tenu par un autre chantier en cours — il est donc
+ * inscrit en suspens plutôt que fait à l'aveugle.
+ */
+export const TERRITORY_PUBLISH_DELAY_MINUTES = 60;
+
+/**
+ * §12.1 « supprimer les timestamps détaillés » — granularité (unité
+ * `date_trunc` Postgres) à laquelle un horodatage devient PUBLIC. À l'heure :
+ * une minute exacte, répétée, trahit une habitude (« il part à 7 h 12 tous les
+ * mardis ») ; l'heure suffit à situer un territoire dans le temps sans dessiner
+ * un emploi du temps. Lue par la vue `public_territories` (0077), annotée là-bas
+ * `-- game-rules: PUBLIC_TIMESTAMP_TRUNC` selon le patron de 0002/0074.
+ */
+export const PUBLIC_TIMESTAMP_TRUNC = 'hour';
 /**
  * Suppression de compte DIFFÉRÉE (RGPD art. 17 + Apple 5.1.1(v)) — politique
  * « Snapchat » : la demande rend le compte INVISIBLE immédiatement (profil,

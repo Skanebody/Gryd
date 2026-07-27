@@ -12,12 +12,33 @@
  * Pattern de câblage : session → serveur, sinon RIEN. Depuis la fin du mode
  * vitrine (21/07/2026) il n'y a plus de repli « démo étiquetée » : les appelants
  * peignent `territories ?? []`, c'est-à-dire une carte réellement vide.
+ *
+ * ─── LOT 1, ÉTAPE 4 (27/07/2026) : DEUX TABLES, PAS UNE ─────────────────────
+ * Les deux hooks lisent DÉSORMAIS `public.territories` (le POLYGONE de la trace
+ * réelle, spec §1.4) EN PLUS de `hex_claims`, et fusionnent les deux en pur via
+ * `territoriesSource.mergeTerritorySources`. La forme autoritaire est le
+ * polygone ; les cellules ne peignent plus que ce qu'aucun polygone ne décrit
+ * (captures antérieures, couloirs, territoire d'autrui sans version publique).
+ * La DÉCISION de transition — ce qui reste hexagonal à l'écran et pourquoi c'est
+ * vrai plutôt que caché — est écrite dans `territoriesSource.ts` §5.
+ *
+ * ⚠️ DÉPENDANCE DE DÉPLOIEMENT, dite ici plutôt que découverte en prod : ces
+ * lectures exigent que la migration 0074 soit APPLIQUÉE. Si la table n'existe
+ * pas, PostgREST rend une erreur et les hooks passent en `failed` — pas en
+ * « aucune zone ». C'est le comportement voulu (une lecture impossible n'est pas
+ * un vide), mais il rend l'application de 0074 obligatoire avant ce code.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ACTIVITIES, DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
-import { buildTerritories, type HexClaimRow, type RealTerritory } from './territoryBuild';
+import type { HexClaimRow, RealTerritory } from './territoryBuild';
+import {
+  mergeTerritorySources,
+  splitTerritoryRowsByActivity,
+  TERRITORY_SELECT_COLUMNS,
+  type TerritoryRow,
+} from './territoriesSource';
 import {
   splitClaimsByActivity,
   type HexClaimRowWithActivity,
@@ -179,31 +200,45 @@ export function useRealTerritories(
     let cancelled = false;
     setFailed(false);
     void (async () => {
-      const { data, error } = await supabase
-        .from('hex_claims')
-        .select('h3index, owner_user_id, claim_type, decay_at, claimed_at')
-        // E14 — UNE seule discipline par lecture. Voir l'en-tête : la clé
-        // primaire est composite depuis 0070, donc sans ce filtre les deux
-        // mondes se peignent l'un sur l'autre.
-        .eq('activity', activity);
+      // ─── DEUX LECTURES, UNE SEULE VÉRITÉ (LOT 1, étape 4) ─────────────────
+      // `territories` porte la forme AUTORITAIRE (le polygone de la trace,
+      // §1.4) ; `hex_claims` porte ce qu'aucun polygone ne décrit encore. Les
+      // deux partent EN PARALLÈLE : les enchaîner doublerait la latence de la
+      // carte pour rien.
+      const [claims, territoryRows] = await Promise.all([
+        supabase
+          .from('hex_claims')
+          .select('h3index, owner_user_id, claim_type, decay_at, claimed_at')
+          // E14 — UNE seule discipline par lecture. Voir l'en-tête : la clé
+          // primaire est composite depuis 0070, donc sans ce filtre les deux
+          // mondes se peignent l'un sur l'autre.
+          .eq('activity', activity),
+        supabase.from('territories').select(TERRITORY_SELECT_COLUMNS).eq('activity', activity),
+      ]);
       if (cancelled) return;
+      // ⚠️ « ÉCHEC PARTIEL » N'EXISTE PAS. Si UNE des deux lectures rate, on ne
+      // peint PAS l'autre : la carte montrerait moins de territoire qu'il n'y
+      // en a, c'est-à-dire une sous-déclaration silencieuse — le même mensonge
+      // par omission que confondre « échec » et « aucune capture ».
+      const error = claims.error ?? territoryRows.error;
       if (error) {
         // Échec réseau → on NE bascule PAS sur la démo en la faisant passer pour du réel,
         // et on ne prétend PAS non plus que le joueur n'a rien capturé : `failed` permet
         // à l'écran de dire la vérité (« on n'a pas pu charger »), pas une approximation.
-        console.error('[hexClaims] lecture hex_claims échouée :', error.message);
+        console.error('[hexClaims] lecture territoire échouée :', error.message);
         setRead(null);
         setFailed(true);
         return;
       }
       setRead({
         activity,
-        rows: buildTerritories(
-          (data ?? []) as HexClaimRow[],
-          session.user.id,
-          undefined,
+        rows: mergeTerritorySources({
+          territoryRows: (territoryRows.data ?? []) as unknown as TerritoryRow[],
+          claimRows: (claims.data ?? []) as HexClaimRow[],
+          meId: session.user.id,
+          now: new Date().toISOString(),
           crewIds,
-        ),
+        }).territories,
       });
     })().catch((e: unknown) => {
       // Symétrie avec features/performance/real.ts. supabase-js convertit
@@ -314,20 +349,38 @@ export function useRealTerritoriesByActivity(
     let cancelled = false;
     setFailed(false);
     void (async () => {
-      const { data, error } = await supabase
-        .from('hex_claims')
-        // `activity` EST demandée, et il n'y a PAS de `.eq` : c'est la colonne
-        // qui sépare, pas le serveur. Voir l'en-tête — une seule requête pour
-        // deux mondes, séparés ensuite en pur.
-        .select('h3index, owner_user_id, claim_type, decay_at, claimed_at, activity');
+      // Même patron que `useRealTerritories` : la forme autoritaire vient de
+      // `territories`, `hex_claims` complète ce qu'aucun polygone ne décrit.
+      // Ici encore, PAS de `.eq('activity', …)` : c'est la colonne qui sépare,
+      // pas le serveur — une requête par table, deux mondes, séparés en pur.
+      const [claims, territoryRows] = await Promise.all([
+        supabase
+          .from('hex_claims')
+          .select('h3index, owner_user_id, claim_type, decay_at, claimed_at, activity'),
+        supabase.from('territories').select(TERRITORY_SELECT_COLUMNS),
+      ]);
       if (cancelled) return;
+      // Échec partiel interdit : voir `useRealTerritories`.
+      const error = claims.error ?? territoryRows.error;
       if (error) {
         console.error('[hexClaims] lecture des deux mondes échouée :', error.message);
         setWorlds(null);
         setFailed(true);
         return;
       }
-      const split = splitClaimsByActivity((data ?? []) as HexClaimRowWithActivity[]);
+      const split = splitClaimsByActivity((claims.data ?? []) as HexClaimRowWithActivity[]);
+      const territorySplit = splitTerritoryRowsByActivity(
+        (territoryRows.data ?? []) as unknown as TerritoryRow[],
+      );
+      if (territorySplit.unknownCount > 0) {
+        // Impossible par contrainte SQL (0074 `territories_activity_check`). Si
+        // ça arrivait, la ligne n'est rangée dans AUCUN monde plutôt que versée
+        // d'office dans la course — son territoire reste alors décrit par ses
+        // cellules, jamais peint dans une discipline qui n'est pas la sienne.
+        console.error(
+          `[hexClaims] ${territorySplit.unknownCount} territoire(s) de discipline inconnue — ignorés`,
+        );
+      }
       if (split.unknownCount > 0) {
         // Impossible par contrainte SQL (0070:103-104). Si ça arrivait, on ne
         // range PAS ces lignes dans la course à pied — on le dit dans les logs
@@ -337,9 +390,16 @@ export function useRealTerritoriesByActivity(
           `[hexClaims] ${split.unknownCount} capture(s) de discipline inconnue — ignorées`,
         );
       }
+      const now = new Date().toISOString();
       const built = {} as Record<Activity, RealTerritory[]>;
       for (const a of ACTIVITIES) {
-        built[a] = buildTerritories(split.rows[a], session.user.id, undefined, crewIds);
+        built[a] = mergeTerritorySources({
+          territoryRows: territorySplit.rows[a],
+          claimRows: split.rows[a],
+          meId: session.user.id,
+          now,
+          crewIds,
+        }).territories;
       }
       setWorlds(built);
     })().catch((e: unknown) => {

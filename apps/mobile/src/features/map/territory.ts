@@ -2,14 +2,26 @@
  * GRYD — modes de carte + fusion H3 « comptes » (AMENDEMENT-11, réduit par
  * AMENDEMENT-13 §4ter). Les frontières AFFICHÉES sont désormais les TRACÉS DE
  * COURSE nets d'allTerritories (« la frontière EST le tracé du coureur ») :
- * tout le pipeline de RENDU Chaikin (territoryPath, battleTerritories,
+ * tout le pipeline de RENDU Chaikin nommé (territoryPath, battleTerritories,
  * territoriesToGeoJSON) est MORT et a été retiré. Restent ici :
  *   - les MODES de carte et leurs emphases (MODE_EMPHASIS — AMENDEMENT-11 §3) ;
- *   - `cellsToTerritory`, conservé UNIQUEMENT pour les clusters France démo
- *     (franceTerritories.franceClusters → zoneCount des KPI « digital twin ») —
- *     ses polygones ne sont plus jamais DESSINÉS (le lissage Chaikin interne
- *     ne produit plus un seul pixel ; les cellules H3 restent le moteur
- *     invisible des comptes).
+ *   - `cellsToTerritory`.
+ *
+ * ⚠️ CORRECTIF D'HONNÊTETÉ (LOT 1, étape 4). L'en-tête a affirmé jusqu'ici que
+ * les polygones de `cellsToTerritory` « ne sont plus jamais DESSINÉS » et que le
+ * lissage Chaikin « ne produit plus un seul pixel ». C'ÉTAIT FAUX : depuis P0.2,
+ * `territoryBuild.buildTerritories` appelle `cellsToTerritory` et sa sortie
+ * traverse `allTerritories.realTerritoriesToGeo` → `mapStyle` → la carte. Chaque
+ * territoire réel était donc peint avec un contour HEXAGONAL adouci — exactement
+ * ce que la spec §1.4 interdit, sous un commentaire qui prétendait le contraire.
+ *
+ * ÉTAT RÉEL ET DATÉ (27/07/2026) — `cellsToTerritory` a DEUX consommateurs :
+ *   1. `territoryBuild.buildTerritories`, désormais le REPLI de transition : il
+ *      ne sert plus qu'aux captures qui n'ont pas (encore) de ligne
+ *      `public.territories`. La forme autoritaire est le polygone de la trace,
+ *      lu par `territoriesSource.ts` — dont le §5 énumère ce qui reste
+ *      hexagonal à l'écran, et pourquoi c'est vrai plutôt que caché ;
+ *   2. `franceTerritories.franceClusters` (zoneCount des KPI).
  * Aucune règle de jeu ici — pur module de présentation, 100 % déterministe.
  */
 import { cellsToMultiPolygon } from 'h3-js';
@@ -283,10 +295,12 @@ function ringCentroid(ring: TerritoryRing): LatLngPoint {
 }
 
 /**
- * Fusion d'un groupe de cellules en Territory (null si vide). §4ter : SES
- * POLYGONES NE SONT PLUS JAMAIS DESSINÉS — seul consommateur restant :
- * franceTerritories.franceClusters (zoneCount des KPI). Supprimer ce dernier
- * usage emportera tout le pipeline Chaikin ci-dessus avec lui.
+ * Fusion d'un groupe de cellules en Territory (null si vide).
+ *
+ * SES POLYGONES SONT DESSINÉS — voir l'en-tête du module : ils portent le REPLI
+ * hexagonal des captures sans ligne `public.territories`, et les KPI France.
+ * Le contour qu'ils produisent est un contour d'HEXAGONES lissé, pas la trace du
+ * coureur : c'est pour cela qu'il est un repli et non la source.
  */
 export function cellsToTerritory(
   cells: readonly string[],
