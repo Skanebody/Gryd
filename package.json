@@ -18,10 +18,12 @@
     "test:e2e:mobile": "playwright test --project=mobile",
     "test:packages": "deno test --allow-read --allow-env packages/",
     "audit:routes": "node scripts/audit-routes.mjs",
-    "audit:migrations": "node scripts/audit-migrations.mjs"
+    "audit:migrations": "node scripts/audit-migrations.mjs",
+    "verify:rls": "node scripts/verify-rls-remote.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
-    "@playwright/test": "^1.62.0"
+    "@playwright/test": "^1.62.0",
+    "pg": "^8.13.1"
   }
 }
