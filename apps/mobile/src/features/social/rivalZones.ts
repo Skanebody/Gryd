@@ -52,12 +52,21 @@ export type RivalRing = readonly (readonly [number, number])[];
  * Réglage de partage de carte du joueur observé (`user_profiles.map_sharing`,
  * migration 0011 : `precise | simplified | territory_only | none`).
  *
- * ⚠️ VÉRITÉ DÉSAGRÉABLE, ÉCRITE PLUTÔT QUE MAQUILLÉE : la vue `public_territories`
- * (0077) NE CONSULTE PAS ce réglage. Le filtre ci-dessous est donc une décision
- * CLIENTE, pas une protection serveur : il empêche GRYD d'afficher une carte que
- * son propriétaire a refusé de partager, il n'empêche pas un appel direct à
- * l'API de la lire. La correction appartient à la vue (ou à une RLS sur
- * `territories`), et elle est inscrite en suspens — pas revendiquée ici.
+ * ⚠️ CETTE NOTE DISAIT UNE VÉRITÉ DÉSAGRÉABLE — ELLE EST LEVÉE (27/07/2026).
+ * Elle disait : « la vue `public_territories` (0077) NE CONSULTE PAS ce réglage ;
+ * le filtre ci-dessous est une décision CLIENTE, pas une protection serveur ».
+ * C'était exact, et c'était grave : au moment où l'écran décidait de ne pas
+ * peindre, la donnée avait déjà quitté le serveur. La migration 0087
+ * (`territory_owner_shares_map`) met le réglage dans le `where` de la vue :
+ * `map_sharing = 'none'` retire réellement les territoires de la surface
+ * publique, pour tout appelant, app ou non.
+ * Le filtre ci-dessous SUBSISTE, et ce n'est pas une redondance décorative : il
+ * évite de DEMANDER des territoires qu'on sait interdits (une donnée qu'on ne
+ * reçoit pas ne peut pas se retrouver dans un cache), et il garde l'écran juste
+ * si la vue était un jour servie par un backend plus ancien.
+ * Ce qui reste OUVERT : `hex_claims` demeure lisible par tout authentifié
+ * (0003:114), donc le refus n'est pas encore opposable PAR CE CHEMIN-LÀ. C'est
+ * inscrit au §3 de 0087, ce n'est pas revendiqué ici.
  */
 export type MapSharing = 'precise' | 'simplified' | 'territory_only' | 'none';
 

@@ -41,16 +41,21 @@ const SCAN_DIRS = [join(ROOT, 'apps/mobile/app'), join(ROOT, 'apps/mobile/src')]
 const KNOWN_ORPHANS = new Map([
   [
     '/profil-rival/[handle]',
-    "atteint par lien profond / QR uniquement ; aucune surface n'y mène tant " +
-      "qu'O1 n'expose pas de rival consenti (docblock de l'écran)",
+    'E56 — atteint par lien profond / QR uniquement. La raison a CHANGÉ le ' +
+      '27/07/2026 : ce n’est plus « O1 n’expose pas de rival consenti » (la ' +
+      'lecture consentie existe et l’écran s’en sert), c’est qu’aucune surface ' +
+      'de l’app ne DÉSIGNE encore un autre joueur — il n’y a ni annuaire, ni ' +
+      'flux, ni classement peuplé d’où partir. La porte viendra du premier ' +
+      'écran qui nommera quelqu’un (docblock de l’écran).',
   ],
   [
     '/zones-rival/[handle]',
-    'E15 — MÊME raison que /profil-rival/[handle], dont c’est la carte : atteint ' +
-      'par lien profond seulement tant qu’O1 n’expose pas de rival consenti. Le ' +
-      'profil rival lui-même ne peint PAS son CTA « voir ses zones » (bouton ' +
-      'mort sinon) — les deux écrans restent donc silencieux ensemble, et le ' +
-      'docblock de l’écran porte la raison en toutes lettres.',
+    'E15 — la carte d’E56. Elle EST désormais liée : le CTA « Voir ses zones » ' +
+      'de /profil-rival/[handle] y mène (et n’est peint que s’il y a des ' +
+      'contours à ouvrir). Le lien est un gabarit `/zones-rival/${handle}`, que ' +
+      'ce script ne sait pas reconnaître comme une porte — l’orpheline est donc ' +
+      'un angle mort de l’audit, pas un écran mort. Sa VRAIE porte d’entrée ' +
+      'reste celle d’E56, ci-dessus.',
   ],
   ['/aujourdhui', "sans porte stable dans l'app — trou PRÉEXISTANT, inscrit dans son docblock"],
   // ─── RÉVÉLÉES LE 27/07/2026 PAR L'EXCLUSION DES TESTS (voir isTestFile) ────

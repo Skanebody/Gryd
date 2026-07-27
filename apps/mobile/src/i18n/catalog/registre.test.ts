@@ -77,10 +77,16 @@ const PLURIEL_ASSUME: ReadonlyMap<string, string> = new Map([
     'La défense collective se renforce avec le NOMBRE : « plus vous êtes ' +
       'nombreux » est la mécanique, pas une politesse.',
   ],
+  // `rivalProfile:whatRivalry` a été RETIRÉE le 27/07/2026 avec le bloc « ce que
+  // cet écran montrera » : E56 lit désormais la source consentie, il n'a plus à
+  // décrire au futur ce qu'il fait au présent. L'exception meurt avec sa clé —
+  // c'est exactement ce que ce test garde.
   [
-    'rivalProfile:whatRivalry',
-    'Une rivalité lie DEUX personnes : « la relation entre vous » désigne le ' +
-      'couple observateur+rival. Au singulier, la phrase perd son objet.',
+    'rivalProfile:sectionRivalite',
+    'TITRE du bloc E56 : « Votre ' +
+      'rivalité » nomme la relation du couple observateur+rival, pas le seul ' +
+      'lecteur. « Ta rivalité » suggérerait une rivalité qui n’appartiendrait ' +
+      'qu’à lui — or elle se joue à deux, et la spéc nomme le bloc ainsi.',
   ],
 ]);
 

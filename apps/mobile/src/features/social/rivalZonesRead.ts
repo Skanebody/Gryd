@@ -16,6 +16,10 @@
  *     `source_run_id`, un `controlled_since` tronqué à l'heure, et seulement les
  *     lignes dont `publish_after` est échu (publication différée §1.5). La
  *     généralisation est donc SERVEUR et irréversible : rien n'est lissé ici.
+ *     Depuis 0087, la vue applique AUSSI le `map_sharing` du propriétaire : le
+ *     refus de partager sa carte est devenu une protection serveur, plus un
+ *     filtre client. Celui du dessous reste utile — il évite de demander ce
+ *     qu'on sait interdit — mais il n'est plus ce qui protège.
  *
  * ═══ CE QUE CE MODULE NE DEMANDE JAMAIS ════════════════════════════════════
  * Ni `geometry`, ni `source_run_id`, ni `publish_after`, ni `created_at` — la

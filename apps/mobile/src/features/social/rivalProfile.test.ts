@@ -11,6 +11,7 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import {
   deriveRivalry,
+  resolveRivalProfileScreen,
   resolveRivalProfileState,
   rivalryHeadline,
   type MyTerritoryContext,
@@ -180,4 +181,95 @@ Deno.test('identité publique + territoire consenti lu → profil complet', () =
     resolveRivalProfileState({ identity: 'public', territoryAvailable: true }),
     { status: 'full' },
   );
+});
+
+// ─── resolveRivalProfileScreen (E56 : ce que la lecture PUBLIQUE autorise) ────
+//
+// Ces tests gardent la frontière la plus coûteuse de l'écran : E56 PUBLIE de
+// l'information sur AUTRUI. Chaque cas ci-dessous vérifie qu'un état de lecture
+// ne devient jamais une affirmation plus forte que lui.
+
+Deno.test('lecture en cours → aucun profil affirmé (un chargement ne dit rien du joueur)', () => {
+  assertEquals(resolveRivalProfileScreen({ status: 'loading' }), { status: 'loading' });
+});
+
+Deno.test('hors session → état propre, jamais un profil vide', () => {
+  assertEquals(resolveRivalProfileScreen({ status: 'signed_out' }), { status: 'signed_out' });
+});
+
+Deno.test('échec de lecture ≠ profil inexistant', () => {
+  assertEquals(resolveRivalProfileScreen({ status: 'failed' }), { status: 'failed' });
+});
+
+Deno.test('profil non rendu (inexistant OU non visible) → indisponible, sans distinguer les deux', () => {
+  assertEquals(resolveRivalProfileScreen({ status: 'not_found' }), { status: 'unavailable' });
+});
+
+Deno.test('carte refusée par son propriétaire → profil restreint, aucun chiffre, aucun CTA', () => {
+  const screen = resolveRivalProfileScreen({ status: 'hidden' });
+  assertEquals(screen, {
+    status: 'profile',
+    identity: { status: 'restricted' },
+    territory: { kind: 'hidden' },
+    canOpenZones: false,
+  });
+});
+
+Deno.test('aucune zone publiée ≠ carte masquée (deux mondes distincts)', () => {
+  const screen = resolveRivalProfileScreen({ status: 'empty' });
+  assertEquals(screen, {
+    status: 'profile',
+    identity: { status: 'restricted' },
+    territory: { kind: 'empty' },
+    canOpenZones: false,
+  });
+});
+
+Deno.test('des lignes illisibles ne se disent JAMAIS « il ne tient rien »', () => {
+  const screen = resolveRivalProfileScreen({ status: 'unreadable', count: 3 });
+  assertEquals(screen, {
+    status: 'profile',
+    identity: { status: 'restricted' },
+    territory: { kind: 'unreadable', count: 3 },
+    canOpenZones: false,
+  });
+});
+
+Deno.test('territoire public lu → profil complet, faits MESURÉS, CTA autorisé', () => {
+  const screen = resolveRivalProfileScreen({
+    status: 'ready',
+    zones: [],
+    facts: { zoneCount: 4, totalAreaM2: 250_000, oldestHeldFor: { unit: 'd', value: 3 } },
+    unreadable: 0,
+  });
+  assertEquals(screen, {
+    status: 'profile',
+    identity: { status: 'full' },
+    territory: { kind: 'facts', zoneCount: 4, totalAreaM2: 250_000 },
+    canOpenZones: true,
+  });
+});
+
+Deno.test('zéro zone dessinable → aucun CTA « voir ses zones » (jamais de bouton mort)', () => {
+  const screen = resolveRivalProfileScreen({
+    status: 'ready',
+    zones: [],
+    facts: { zoneCount: 0, totalAreaM2: 0, oldestHeldFor: null },
+    unreadable: 0,
+  });
+  assertEquals(screen.status, 'profile');
+  if (screen.status === 'profile') assertEquals(screen.canOpenZones, false);
+});
+
+Deno.test('aucun horaire ni contour ne traverse le moteur d’écran', () => {
+  // La sortie `facts` ne porte QUE deux nombres agrégés : ni géométrie, ni
+  // instant. Ce test fige cette surface — l'élargir demanderait de le casser.
+  const screen = resolveRivalProfileScreen({
+    status: 'ready',
+    zones: [],
+    facts: { zoneCount: 1, totalAreaM2: 10, oldestHeldFor: { unit: 'h', value: 5 } },
+    unreadable: 0,
+  });
+  if (screen.status !== 'profile' || screen.territory.kind !== 'facts') throw new Error('état inattendu');
+  assertEquals(Object.keys(screen.territory).sort(), ['kind', 'totalAreaM2', 'zoneCount']);
 });

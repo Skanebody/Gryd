@@ -6,31 +6,56 @@
  *
  * ══ POURQUOI CE MODULE N'INVENTE JAMAIS « NINA M. » ═══════════════════════════
  * La planche E26 montre un rival concret (Nina M., Saint-Rémy, #2 quartier). Le
- * réflexe fautif serait de coder ces valeurs pour « reproduire la planche ». Or
- * lire le profil et le territoire d'UN AUTRE joueur suppose des lectures
- * cross-utilisateur CONSENTIES (public_profiles + faits territoriaux publics
- * gouvernés par la confidentialité E25). Ce chemin n'est pas encore câblé
- * (point ouvert O1 : identité d'un rival consenti + lecture publique de son
- * territoire). Tant qu'il manque, il n'existe AUCUN rival réel à montrer — et un
- * rival d'illustration serait exactement la donnée fabriquée que la constitution
- * interdit. Ce module ne connaît donc aucun nom : il reçoit des faits ou décide
- * que le profil est INDISPONIBLE.
+ * réflexe fautif serait de coder ces valeurs pour « reproduire la planche ». Ce
+ * module ne connaît donc AUCUN nom, aucun chiffre : il reçoit des faits, ou il
+ * décide que le profil est indisponible. Un rival d'illustration serait la
+ * donnée fabriquée que la constitution interdit.
  *
- * Deux responsabilités, deux fonctions pures :
+ * ══ CE QUI A CHANGÉ LE 27/07/2026 (l'en-tête d'avant était PÉRIMÉ) ════════════
+ * Il disait « ce chemin n'est pas encore câblé (O1) » et « il n'existe AUCUN
+ * rival réel à montrer ». C'était vrai à l'écriture ; ça ne l'est plus :
+ *   · `user_profiles` est lisible en cross-utilisateur, BORNÉ PAR LE SERVEUR —
+ *     policy `user_profiles_select_visible` (0011:201) : la ligne ne sort que si
+ *     le joueur observé l'a rendue publique, ou m'a en ami / en coéquipier ;
+ *   · son territoire public sort de la vue `public_territories` (0077), qui
+ *     n'expose que des contours GÉNÉRALISÉS, sans `source_run_id`, avec un
+ *     instant tronqué à l'heure, et seulement après le délai de publication ;
+ *   · depuis 0087, cette vue respecte AUSSI `map_sharing` côté serveur — le
+ *     refus de partager sa carte n'est plus un filtre client décoratif.
+ * La lecture existe donc (`social/rivalZonesRead.ts`) et E15 s'en sert déjà. Ce
+ * qui n'existe pas, c'est un JOUEUR : la base est vide. Un écran juste rendra
+ * donc « introuvable » ou « aucune zone publiée » — et c'est le comportement
+ * correct, pas un placeholder.
+ *
+ * Trois responsabilités, trois fonctions pures :
  *  1. `deriveRivalry` — le DIFFÉRENCIATEUR de la planche : « Votre rivalité »,
  *     c'est-à-dire la relation territoriale entre lui et moi, calculée de faits
  *     PUBLICS (secteurs tenus / contestés / repris, crew commun). Aucune donnée
- *     de course privée, aucune position live.
+ *     de course privée, aucune position live. ⚠️ NON CÂBLÉE À L'ÉCRAN : rien ne
+ *     rattache aujourd'hui un contour public à un identifiant de SECTEUR commun
+ *     aux deux joueurs. Tant que ce lien manque, E56 ne peint pas le bloc — une
+ *     rivalité déduite d'une adjacence devinée serait une donnée fabriquée.
  *  2. `resolveRivalProfileState` — la porte d'honnêteté : selon ce que les
  *     sources consenties ont réellement rendu, l'écran est `full` / `restricted`
  *     (identité réduite E25) / `unavailable`. Encode les états distincts au lieu
  *     de les confondre.
+ *  3. `resolveRivalProfileScreen` — la traduction de CE QUE LA LECTURE A RENDU
+ *     (l'état d'E15, déjà résolu par `rivalZones.resolveRivalZonesState`) en
+ *     l'état d'écran d'E56. Une seule porte, pour que l'écran n'ait aucune
+ *     décision à reprendre à son compte.
  *
  * ANTI-FUITE : on ne raisonne que sur des IDENTIFIANTS DE SECTEUR (agrégat façon
  * quartier), jamais sur des hexes de course ni des coordonnées — la planche dit
  * « contours généralisés », pas la trace. Le module n'a d'ailleurs pas de quoi
  * révéler une position : on ne lui passe que des ensembles de secteurs.
  */
+
+// Type SEULEMENT (`import type`) : aucune VALEUR n'est importée, donc aucune
+// dépendance d'exécution — le module reste pur et chargeable seul. Extension
+// omise comme partout dans l'app (la config Deno racine résout ces imports).
+// L'alternative — redéclarer l'état d'E15 ici — ferait deux définitions d'une
+// même vérité de vie privée, et un jour elles divergeraient.
+import type { RivalZonesView } from './rivalZones';
 
 /** Identifiant opaque d'un secteur (agrégat de territoire, façon quartier). */
 export type SectorId = string;
@@ -189,6 +214,113 @@ export type RivalProfileState =
   | { readonly status: 'unavailable' }
   | { readonly status: 'restricted' }
   | { readonly status: 'full' };
+
+/**
+ * Ce que la surface PUBLIQUE dit du territoire du joueur observé. Quatre
+ * mondes, jamais confondus — et surtout `hidden` ≠ `empty` : « il a refusé de
+ * partager sa carte » est une DÉCISION DE SA PART, pas une absence de
+ * territoire. Les confondre lui ferait dire quelque chose qu'il n'a pas dit.
+ */
+export type RivalPublicTerritory =
+  /** Refus explicite (`map_sharing = 'none'`), opposable côté serveur (0087). */
+  | { readonly kind: 'hidden' }
+  /** Lecture ABOUTIE, rien de publié. La seule situation où l'on peut le dire. */
+  | { readonly kind: 'empty' }
+  /** Des lignes sont revenues, aucune n'avait de contour lisible. */
+  | { readonly kind: 'unreadable'; readonly count: number }
+  /** Des faits mesurés : un décompte et une surface, rien qui localise. */
+  | {
+      readonly kind: 'facts';
+      readonly zoneCount: number;
+      readonly totalAreaM2: number;
+    };
+
+/**
+ * L'état d'écran d'E56. `profile` porte l'identité résolue (`full` /
+ * `restricted`) ET ce que le territoire public a rendu : l'écran n'a plus
+ * qu'à peindre, jamais à décider.
+ *
+ * `canOpenZones` est la SEULE autorisation du CTA « Voir ses zones » (§A4,
+ * aucun bouton mort) : il n'est vrai que si des contours dessinables existent
+ * réellement. Mener à une carte vide serait un bouton mort déguisé.
+ */
+export type RivalProfileScreen =
+  | { readonly status: 'loading' }
+  | { readonly status: 'signed_out' }
+  | { readonly status: 'failed' }
+  | { readonly status: 'unavailable' }
+  | {
+      readonly status: 'profile';
+      readonly identity: RivalProfileState;
+      readonly territory: RivalPublicTerritory;
+      readonly canOpenZones: boolean;
+    };
+
+/**
+ * Traduit l'état de la lecture publique (résolu par
+ * `rivalZones.resolveRivalZonesState`, déjà testé) en état d'écran E56.
+ *
+ * Pourquoi passer par l'état d'E15 plutôt que refaire une lecture : les deux
+ * écrans lisent EXACTEMENT les mêmes sources consenties (profil visible + vue
+ * `public_territories`). Deux résolutions parallèles finiraient par diverger,
+ * et la divergence se paierait en vie privée — c'est-à-dire au pire endroit.
+ *
+ * `not_found` → `unavailable` : le handle n'existe pas OU son profil ne m'est
+ * pas visible. Les deux restent INDISTINGUABLES (sinon l'écran devient un
+ * oracle d'existence de comptes) ; on montre donc le même état honnête.
+ *
+ * `hidden` / `empty` / `unreadable` → identité `restricted` : on a bien un
+ * joueur consenti, mais rien de territorial à affirmer. On ne peint alors ni
+ * chiffres à zéro, ni carte, ni CTA.
+ *
+ * ⚠️ Le typage est ce qui empêche la triche : `RivalZonesView` ne porte aucune
+ * géométrie exacte, aucun horaire à la minute, aucun identifiant de course.
+ * Ce qui n'entre pas ici ne peut pas sortir sur l'écran.
+ */
+export function resolveRivalProfileScreen(view: RivalZonesView): RivalProfileScreen {
+  switch (view.status) {
+    case 'loading':
+      return { status: 'loading' };
+    case 'signed_out':
+      return { status: 'signed_out' };
+    case 'failed':
+      return { status: 'failed' };
+    case 'not_found':
+      return { status: 'unavailable' };
+    case 'hidden':
+      return restricted({ kind: 'hidden' });
+    case 'empty':
+      return restricted({ kind: 'empty' });
+    case 'unreadable':
+      return restricted({ kind: 'unreadable', count: view.count });
+    case 'ready':
+      return {
+        status: 'profile',
+        // Identité consentie ET territoire lu : le profil COMPLET de la spec.
+        identity: resolveRivalProfileState({ identity: 'public', territoryAvailable: true }),
+        territory: {
+          kind: 'facts',
+          zoneCount: view.facts.zoneCount,
+          totalAreaM2: view.facts.totalAreaM2,
+        },
+        canOpenZones: view.facts.zoneCount > 0,
+      };
+  }
+}
+
+/**
+ * Identité consentie, territoire muet. `territoryAvailable: false` fait rendre
+ * `restricted` à la porte d'honnêteté : on n'annonce pas un profil « complet »
+ * dont la moitié des blocs seraient vides.
+ */
+function restricted(territory: RivalPublicTerritory): RivalProfileScreen {
+  return {
+    status: 'profile',
+    identity: resolveRivalProfileState({ identity: 'public', territoryAvailable: false }),
+    territory,
+    canOpenZones: false,
+  };
+}
 
 export function resolveRivalProfileState(sources: RivalSources): RivalProfileState {
   // Aucune identité consentie atteinte → indisponible. On NE prétend pas à un
