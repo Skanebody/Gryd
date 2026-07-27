@@ -168,21 +168,13 @@ export const C = defineCatalog({
     de: 'GRYD ist erst ab 16 verfügbar. Wir halten dir deine Stadt warm.',
     pt: 'O GRYD não está disponível antes dos 16. Guardamos sua cidade para você.',
   },
-  /**
-   * SORTIE de la question d'âge posée EN PLACE devant l'écran ville (le raccourci
-   * « utiliser ma position » la déclenche). Sans elle, répondre « moins de 16 »
-   * rendait un écran terminal SANS pied : la seule issue était la flèche du
-   * header, qui ramène à la rivalité — l'écran ville disparaissait sans que le
-   * joueur l'ait décidé. Le choix MANUEL d'une ville n'est pas gaté par l'âge :
-   * la porte se rouvre donc, et elle le DIT.
-   */
-  ageBackToCity: {
-    fr: 'Revenir au choix de ma ville',
-    en: 'Back to choosing my city',
-    es: 'Volver a elegir mi ciudad',
-    de: 'Zurück zur Stadtwahl',
-    pt: 'Voltar à escolha da cidade',
-  },
+  // ⚠️ `ageBackToCity` RETIRÉE le 27/07/2026 (planches E01b) : elle était la
+  // sortie de la question d'âge posée EN PLACE devant l'écran VILLE, et l'écran
+  // ville a quitté l'onboarding (la planche 06 place pseudo et ville au premier
+  // usage réel). Le gate d'âge, lui, reste entier là où il a un sens légal —
+  // `app/(auth)/sign-in.tsx`, où il est posé en place et n'a nulle part où
+  // « revenir ». Une Entry que plus aucun écran ne lit est une promesse de texte
+  // sans écran derrière : elle est RETIRÉE, pas commentée en attente.
 
   // ─── ANCIEN ÉCRAN « LE TERRAIN + LA RÈGLE » — SUPPRIMÉ LE 22/07/2026 ───────
   //
@@ -237,33 +229,16 @@ export const C = defineCatalog({
   // rallonge se mesure avant d'être écrite.
   // ═════════════════════════════════════════════════════════════════════════
 
-  // ─── Démonstrations animées (labels du 4e temps + a11y) ────────────────────
+  // ─── Visuels des planches ──────────────────────────────────────────────────
   //
   // ⚠️ `captureDemoLabel` (« Zone prise ») RETIRÉE le 25/07/2026 avec le composant
-  // `CaptureDemo`, qui n'avait plus AUCUN importeur depuis que la carte 1 est
-  // rendue par le hero plein cadre `E01Hero` : le hero n'a pas de 4e temps à
-  // étiqueter. Une Entry que plus aucune surface ne rend est une promesse de texte
-  // sans écran derrière — retirée, pas commentée en attente d'un jour meilleur.
-  /** Label bref à la fin de la carte 2 — l'état, pas un score. */
-  rivalryDemoLabel: {
-    fr: 'Zone contestée',
-    en: 'Zone contested',
-    es: 'Zona disputada',
-    de: 'Zone umkämpft',
-    pt: 'Zona disputada',
-  },
-  /**
-   * a11y du visuel tapable (« toucher pour relancer »). Jamais rendu en
-   * mouvement réduit : l'image y est déjà à son état final, un bouton qui ne
-   * montrerait rien serait un bouton mort.
-   */
-  demoReplay: {
-    fr: 'Revoir l’exemple',
-    en: 'Replay the sample',
-    es: 'Ver el ejemplo otra vez',
-    de: 'Beispiel noch einmal ansehen',
-    pt: 'Ver o exemplo de novo',
-  },
+  // `CaptureDemo`. `rivalryDemoLabel` (« Zone contestée ») et `demoReplay`
+  // (« Revoir l'exemple ») RETIRÉES le 27/07/2026 avec `RivalryDemo` : les
+  // planches E01b décrivent des animations d'ENTRÉE jouées une fois, plus une
+  // boucle de 3 s tapable — il n'y a donc ni 4e temps à étiqueter, ni bouton
+  // « rejouer » à nommer. Le mot posé sur la zone reprise est `rivalryTakenLabel`
+  // ci-dessous. Une Entry que plus aucune surface ne rend est une promesse de
+  // texte sans écran derrière — retirée, pas commentée en attente.
 
   // ─── CARTE 1 — MÉCANIQUE ───────────────────────────────────────────────────
   mechanicKicker: {
@@ -366,39 +341,163 @@ export const C = defineCatalog({
     pt: 'Pular',
   },
 
-  // ─── CARTE 2 — RIVALITÉ ────────────────────────────────────────────────────
-  // Le CREW entre ICI, et pas avant : sur la carte 1, un joueur qui découvre le
-  // produit ne sait pas encore ce qu'est un crew. Il apparaît quand il répond à
-  // une question qu'il vient de se poser — « on peut me la reprendre ? ».
-  rivalryKicker: {
-    fr: 'POURQUOI TU REVIENS',
-    en: 'WHY YOU COME BACK',
-    es: 'POR QUÉ VUELVES',
-    de: 'WARUM DU WIEDERKOMMST',
-    pt: 'POR QUE VOCÊ VOLTA',
-  },
-  rivalryTitle: {
-    fr: 'Ta zone peut\nêtre reprise.',
-    en: 'Your zone can\nbe taken back.',
-    es: 'Tu zona puede\nser recuperada.',
-    de: 'Deine Zone kann\nzurückerobert werden.',
-    pt: 'Sua zona pode\nser retomada.',
+  // ═════════════════════════════════════════════════════════════════════════
+  // PLANCHES E01b (27/07/2026) — E02 · E03 · E04 · E05
+  //
+  // Les quatre écrans qui suivent E01 portent la MÊME composition que lui : un
+  // visuel plein cadre, puis un bloc bas (titre display 2 lignes → sous-titre
+  // 2 lignes → CTA pleine largeur → frise 5 points). D'où deux règles de copie :
+  //   · les TITRES portent un « \n » explicite — la coupure est typographique,
+  //     pas laissée au hasard des largeurs, et elle est bornée par le budget du
+  //     titre HÉROS (copyFit.test.ts), le même que E01 ;
+  //   · les SOUS-TITRES ne coupent JAMAIS eux-mêmes et tiennent en 2 lignes.
+  //
+  // ⚠️ REGISTRE : LES PLANCHES VOUVOIENT (« votre tracé », « vos zones »), CE
+  // CATALOGUE TUTOIE. Le tutoiement gagne — c'est la décision fondateur du dépôt,
+  // verrouillée par `explain/copyDiscipline.test.ts`, et deux registres dans la
+  // même app seraient pires que l'écart. Écart ASSUMÉ et signalé.
+  // ═════════════════════════════════════════════════════════════════════════
+
+  // ─── E02 — FERME LA BOUCLE ─────────────────────────────────────────────────
+  // Le GESTE, et rien d'autre : ni rival, ni crew, ni ville. C'est ici que la
+  // mécanique s'enseigne (E01 est une promesse, pas une leçon).
+  loopTitle: {
+    fr: 'FERME\nLA BOUCLE.',
+    en: 'CLOSE\nTHE LOOP.',
+    es: 'CIERRA\nEL BUCLE.',
+    de: 'SCHLIESS\nDIE RUNDE.',
+    pt: 'FECHE\nO CIRCUITO.',
   },
   /**
-   * Le CREW entre par cette ligne — et elle disait « COURS seul » (26/07/2026).
-   * Ce que la phrase doit poser, c'est le CHOIX (seul ou à plusieurs), pas la
-   * façon de se déplacer : le verbe d'effort partait donc sans rien emporter.
-   * « Défends-la » reprend le titre juste au-dessus (« Ta zone peut être
-   * reprise. ») — la tagline répond à la question que le titre vient de poser.
-   * Mesuré à 375 pt (327 px utiles, Inter 16) : 1 ligne dans les 5 langues,
-   * max 290,4 px (de).
+   * La règle, en une phrase, SANS nommer de discipline (l'onboarding ne porte
+   * aucune lentille Run/Bike : le geste est le même à pied et à vélo). Le mot de
+   * la planche est « tracé » — il vaut pour les deux mondes, là où « course »
+   * n'en nommerait qu'un.
    */
+  loopTagline: {
+    fr: 'Quand ton tracé se referme, la zone à l’intérieur devient la tienne.',
+    en: 'When your line closes, the zone inside becomes yours.',
+    es: 'Cuando tu trazo se cierra, la zona de dentro es tuya.',
+    de: 'Wenn deine Linie sich schließt, gehört die Zone darin dir.',
+    pt: 'Quando seu traçado se fecha, a zona por dentro fica sua.',
+  },
+
+  // ─── E03 — ON PEUT TE LA REPRENDRE ────────────────────────────────────────
+  // Ton FACTUEL, jamais menaçant (note de planche) : la phrase constate une
+  // règle et rend les DEUX rôles au joueur (défendre, reprendre). Pas de compte
+  // à rebours, pas de « attention », pas de rouge de danger.
+  rivalryTitle: {
+    fr: 'ON PEUT TE\nLA REPRENDRE.',
+    en: 'IT CAN BE\nTAKEN BACK.',
+    es: 'TE LA PUEDEN\nQUITAR.',
+    de: 'SIE KANN DIR\nGENOMMEN WERDEN.',
+    pt: 'PODEM\nTOMAR DE VOLTA.',
+  },
   rivalryTagline: {
-    fr: 'Défends-la seul, ou avec ton crew.',
-    en: 'Defend it solo, or with your crew.',
-    es: 'Defiéndela solo o con tu crew.',
-    de: 'Verteidige sie allein — oder mit deiner Crew.',
-    pt: 'Defenda-a sozinho ou com seu crew.',
+    fr: 'Tes zones restent en jeu. Défends-les, ou reprends celles des autres.',
+    en: 'Your zones stay in play. Defend them, or take others back.',
+    es: 'Tus zonas siguen en juego. Defiéndelas, o recupera las de otros.',
+    de: 'Deine Zonen bleiben im Spiel. Verteidige sie, oder hol dir andere.',
+    pt: 'Suas zonas seguem em jogo. Defenda-as, ou retome as dos outros.',
+  },
+  /**
+   * Le mot posé DANS la moitié reprise du visuel (planche : « le mot “REPRIS” en
+   * orange au centre de la partie droite »). Il nomme un ÉTAT, il ne compte rien
+   * — aucun chiffre n'est attribué au joueur sur un écran d'exemple.
+   */
+  rivalryTakenLabel: {
+    fr: 'REPRIS',
+    en: 'TAKEN',
+    es: 'RECUPERADA',
+    de: 'ZURÜCKEROBERT',
+    pt: 'RETOMADA',
+  },
+
+  // ─── E04 — PLUS FORTS EN CREW ─────────────────────────────────────────────
+  // Le CREW entre ICI, et pas avant : sur E01/E02, un joueur qui découvre le
+  // produit ne sait pas encore ce qu'est un crew. Il apparaît quand il répond à
+  // une question qu'il vient de se poser — « on peut me la reprendre ? ».
+  // ⚠️ CET ÉCRAN ENSEIGNE, IL NE DEMANDE RIEN : aucune adhésion, aucun nom,
+  // aucun effectif (note de planche : « la création/adhésion au crew reste
+  // post-onboarding, jamais forcée ici »).
+  crewTitle: {
+    fr: 'PLUS FORTS\nEN CREW.',
+    en: 'STRONGER\nAS A CREW.',
+    es: 'MÁS FUERTES\nEN CREW.',
+    de: 'STÄRKER\nALS CREW.',
+    pt: 'MAIS FORTES\nEM CREW.',
+  },
+  /**
+   * « Vos boucles s'additionnent » sur la planche → « Les boucles du crew » ici :
+   * le tutoiement du dépôt n'a pas de pluriel de politesse à opposer au « vos »
+   * collectif, et « tes boucles » perdrait le sens (ce sont celles de TOUT le
+   * crew). Le sujet devient donc le crew lui-même — sens intact, registre tenu.
+   */
+  crewTagline: {
+    fr: 'Les boucles du crew s’additionnent. Le quartier se prend à plusieurs.',
+    en: 'Crew loops add up. A neighborhood is taken together.',
+    es: 'Los bucles del crew se suman. El barrio se toma entre varios.',
+    de: 'Die Runden der Crew addieren sich. Das Viertel nimmt man zusammen.',
+    pt: 'Os circuitos do crew se somam. O bairro se toma em grupo.',
+  },
+
+  // ─── E05 — LA PRÉ-PERMISSION DE LOCALISATION ──────────────────────────────
+  // ⚠️ Le dialogue SYSTÈME ne s'ouvre QU'AU TAP sur `locationAllow`. Ces trois
+  // garanties sont donc LUES AVANT : la boîte système ne tombe jamais de nulle
+  // part. Aucune n'est une promesse en avance sur le code — chacune décrit ce que
+  // l'app fait aujourd'hui (lecture pendant l'activité, aucun direct public,
+  // floutage autour des lieux sensibles : cf. features/share/sharePrivacy).
+  locationTitle: {
+    fr: 'TA POSITION\nCRÉE LE TRACÉ.',
+    en: 'YOUR LOCATION\nDRAWS THE LINE.',
+    es: 'TU POSICIÓN\nCREA EL TRAZO.',
+    de: 'DEIN STANDORT\nZEICHNET DIE SPUR.',
+    pt: 'SUA POSIÇÃO\nCRIA O TRAÇADO.',
+  },
+  /** Garantie 1 — « sorties », jamais « courses » : aucune discipline nommée. */
+  locationGuaranteeRuns: {
+    fr: 'Utilisée seulement pendant tes sorties',
+    en: 'Used only during your outings',
+    es: 'Se usa solo durante tus salidas',
+    de: 'Nur während deiner Touren genutzt',
+    pt: 'Usada só durante suas saídas',
+  },
+  /** Garantie 2 — le direct public n'existe pas dans GRYD, et ça se dit. */
+  locationGuaranteeLive: {
+    fr: 'Jamais visible en direct par les autres',
+    en: 'Never visible live to other players',
+    es: 'Nunca visible en directo para los demás',
+    de: 'Nie live für andere sichtbar',
+    pt: 'Nunca visível ao vivo para os outros',
+  },
+  /** Garantie 3 — le floutage des lieux sensibles (le halo du visuel E05). */
+  locationGuaranteeBlur: {
+    fr: 'Zones floutées autour des lieux sensibles',
+    en: 'Blurred zones around sensitive places',
+    es: 'Zonas difuminadas cerca de lugares sensibles',
+    de: 'Unscharfe Zonen rund um sensible Orte',
+    pt: 'Zonas desfocadas perto de locais sensíveis',
+  },
+  /** Le seul CTA du flow qui DÉCIDE — c'est lui qui ouvre la boîte système. */
+  locationAllow: {
+    fr: 'Autoriser la localisation',
+    en: 'Allow location',
+    es: 'Permitir ubicación',
+    de: 'Standort erlauben',
+    pt: 'Permitir localização',
+  },
+  /**
+   * Aucun capteur sur cette plateforme (web sans `navigator.geolocation`) : le
+   * CTA d'autorisation n'est PAS peint — un bouton qui échoue à coup sûr est un
+   * bouton mort (§A4) — et l'écran DIT pourquoi au lieu de se taire. Il annonce
+   * aussi ce qui se passe ensuite : la carte reste en lecture, pas cassée.
+   */
+  locationUnavailable: {
+    fr: 'Pas de position sur cet appareil. La carte reste en lecture.',
+    en: 'No location on this device. The map stays read-only.',
+    es: 'Sin ubicación en este dispositivo. El mapa queda en solo lectura.',
+    de: 'Kein Standort auf diesem Gerät. Die Karte bleibt nur lesbar.',
+    pt: 'Sem localização neste aparelho. O mapa fica só de leitura.',
   },
 
   // ─── CARTE 3 — VILLE (choix MANUEL, sans GPS) ──────────────────────────────

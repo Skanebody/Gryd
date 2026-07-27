@@ -1,89 +1,63 @@
 /**
- * GRYD — ONBOARDING. Refonte « 3 cartes + profil » (demande fondateur
- * 22/07/2026), posée sur l'AMENDEMENT-30 (« sans friction ») qu'elle ne renie
- * pas : on ne reconstruit rien de ce qui marchait — l'age-gate, la porte « J'ai
- * déjà un compte », l'écran compte et son anti-bouton-mort sont REPRIS TELS
- * QUELS, seule la colonne vertébrale du parcours change.
+ * GRYD — ONBOARDING. LA SÉQUENCE DES PLANCHES E01b (fondateur, 27/07/2026).
  *
  * ═══ ORDRE DE COMPOSITION (le parcours) ═════════════════════════════════════
  *
- *   1. mechanic  (E01, plein cadre — voir E01Hero)
- *   2. rivalry   (carte pédagogique)
- *   3. city      (la première décision ; l'âge y est demandé EN PLACE si, et
- *                 seulement si, le raccourci de position est touché)
- *   4. account   (nom + entrée ; l'âge y est un gate STRUCTUREL)
+ *   1. mechanic (E01) — LA PROMESSE            · photo plein cadre (E01Hero)
+ *   2. loop     (E02) — FERME LA BOUCLE        · la boucle se dessine PUIS se remplit
+ *   3. rivalry  (E03) — ON PEUT TE LA REPRENDRE · la zone coupée en deux
+ *   4. crew     (E04) — PLUS FORTS EN CREW      · deux territoires qui se touchent
+ *   5. location (E05) — TA POSITION CRÉE LE TRACÉ · la PRÉ-permission
+ *          │
+ *          └──→ (auth)/sign-in  (E06 — l'authentification, écran à part entière)
  *
- *      │
- *      └──── « J'ai déjà un compte » ──────→ (auth)/sign-in
+ * L'ordre du flow vit dans `content.ts` : un seul endroit le décrit, et la frise
+ * de points en DÉRIVE (`stepProgress`) — elle n'est jamais chiffrée dans ce JSX.
  *
- * Chaque étape se compose pareil : en-tête (marque · retour · FRISE) → corps
- * (kicker → titre → visuel/champ → phrase) → pied (CTA unique → sorties → notes
- * d'état). L'ordre du flow, lui, vit dans `content.ts` : un seul endroit le décrit.
+ * ⚠️ CE CHANTIER RENVERSE UN ARBITRAGE ANTÉRIEUR, ET C'EST VOULU. Le 26/07 le
+ * fondateur avait répondu « garder 4 cartes (AMENDEMENT-30) » à la question
+ * d'ajouter la carte « FERME LA BOUCLE ». Cette réponse PRÉCÈDE la spec produit
+ * (D-19, « prends le dernier »), qui définit explicitement E01→E06, et le
+ * fondateur a depuis re-fourni les planches E01b en demandant que l'onboarding y
+ * corresponde. Ne pas « recorriger » vers 4 cartes en invoquant A-30.
  *
- * L'onboarding ne fait que TROIS choses : faire comprendre le concept,
- * personnaliser un peu, entrer dans l'app. LA PREMIÈRE COURSE VIENT APRÈS,
- * jamais pendant. Il doit être utilisable ASSIS, SANS GPS, SANS courir, SANS
- * crew, SANS donner une seule permission, à une main, et il doit survivre à une
- * fermeture d'app.
- *
- * Quatre écrans de PRODUIT (les quatre demandés) : le geste, la menace, la
- * ville, le pseudo. Deux écrans qu'on ne peut pas retirer sans mentir : `age`
- * (gate légal, avant la carte ville qui peut LIRE la position) et `account` (la
- * carte exige une session dès qu'un backend existe — cf. (tabs)/_layout). Le
- * détail du raisonnement est en tête de `content.ts`, à côté de la liste des
- * étapes : un seul endroit décrit le flow.
- *
- * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ───────────────────────────────────────
- * Le splash `hook` et son décor : rues grises traversant l'écran
- * (`HookMapBackground`), petite forme G flottante (`LogoRouteMark`), point
- * chartreuse isolé, polygone perdu. Les icônes DANS les CTA (l'hexagone du CTA
- * carte, le bouclier, la conquête, le profil) : un CTA n'a pas besoin d'un
- * pictogramme pour être compris, et il en devient plus lisible. Le mot CREW du
- * premier écran : il n'apparaît qu'à la carte 2, quand il répond enfin à une
- * question que le joueur vient de se poser.
- *
- * Passe du 25/07/2026 (recalage Vague 1) :
- * · le CTA chartreuse RECODÉ — il portait `radii.pill` ici et `radii.btn` sur
- *   E01 : deux rayons pour un même rôle, sur deux écrans qui se suivent. Il
- *   consomme `ui/Button`, qui apporte aussi le libellé qui rétrécit sans ellipse
- *   (ce CTA nomme parfois une ville) et l'anneau de focus clavier ;
- * · le bouton ghost recodé (54 px, hors des gabarits 48/56) — même raison ;
- * · le kicker local (police mono, interlettrage 2,5) → `ui/SectionLabel` ;
- * · CINQ styles morts du sélecteur de ville local (`listLabel`, `cityRow`,
- *   `cityRowSelected`, `cityName`, `cityNameSelected`), reliquats du remplacement
- *   par `CitySearch` : un style sans JSX est un piège pour le prochain lecteur ;
- * · l'haptique de `go()` : `Button` la joue déjà — un geste, deux impulsions ;
- * · `step` et `go` des dépendances de `confirmAge`, qui ne les utilise pas.
- *
- * ─── ÉCARTS ASSUMÉS ─────────────────────────────────────────────────────────
- * · LES ÉTAPES 2 À 4 N'ONT PAS DE PLANCHE — raison : la Vague 1 n'en fournit que
- *   pour E01. Elles gardent leur gabarit (corps centré + pied), et reçoivent du
- *   système ce qui est transposable : kicker canonique, `Button`, frise.
- * · LA FRISE VIT DANS L'EN-TÊTE ici, sous le CTA sur E01 — raison : la planche
- *   E01 la place sous son CTA, et les pieds des autres étapes portent déjà
- *   jusqu'à quatre éléments (CTA, sortie, précision, avis de non-persistance).
- * · PAS DE ScrollView, sur AUCUNE étape — raison : un écran d'onboarding qui se
- *   scrolle est un écran de trop (§A). La copie est bornée par `copyFit.test.ts`
- *   plutôt que par une barre de défilement.
+ * ─── CE QUI A QUITTÉ CET ÉCRAN, ET OÙ ÇA VIT (vérifiable, pas promis) ───────
+ * La planche 06 est explicite : « Aucune création de profil ici — pseudo et
+ * ville arrivent au premier usage réel. » Trois blocs sortent donc du stepper :
+ *   · L'AGE-GATE 16+ (Apple 5.1.1). Il n'est PAS perdu : il vit déjà, entier, au
+ *     point de création du compte — `app/(auth)/sign-in.tsx` (question posée EN
+ *     PLACE + blocage terminal) et son jumeau `sign-in.web.tsx`, qui importent
+ *     tous deux `AGE` de `features/onboarding/content`. Il faisait doublon ici,
+ *     et il y rendait menteur le CTA de l'écran précédent.
+ *   · LE CHOIX DE VILLE → `app/profil-edit.tsx`, qui consomme le sélecteur
+ *     PARTAGÉ `features/city/CityPicker` : les 7 870 villes réelles, la même
+ *     recherche et les mêmes états qu'ici.
+ *   · LE PSEUDO → même écran (champ borné par `DISPLAY_NAME_MAX`).
+ * ⚠️ CE QUI RESTE À FAIRE, DIT SANS EMBELLISSEMENT : `profil-edit` écrit le
+ * profil LOCAL, pas `onboarding.cityId`. `MapScreen` se servait de cette ville
+ * DÉCLARÉE comme repli de CADRAGE quand aucun fix GPS n'est disponible ; ce repli
+ * n'est plus alimenté. La carte garde alors sa vue monde, qui DIT la vérité
+ * (« je ne sais pas encore où tu es ») au lieu de poser le joueur quelque part :
+ * aucun mensonge n'est introduit, c'est un confort en moins. Le recâblage
+ * appartient à l'écran E08 (`/setup/profile`) du premier usage réel.
  *
  * ─── L'APP NE MENT JAMAIS ───────────────────────────────────────────────────
  * L'onboarding est la PREMIÈRE expérience du produit : il n'a pas le droit d'y
- * fabriquer une course. Les deux démonstrations animées ENSEIGNENT une règle —
- * chip « Exemple » posée sur le visuel, aucun lieu nommé, aucun chiffre attribué
- * au joueur, aucune célébration. Leur géométrie est réelle (un tracé doit être
- * crédible) mais elles ne se recentrent JAMAIS sur la ville choisie à l'écran
- * suivant : le jour où le plateau d'exemple devient « ta ville », l'exemple
- * devient un mensonge sur l'état de son monde. Et la chip « Exemple » ne migre
- * pas sur l'onglet Carte : cette surface-là dit la vérité, ou elle est vide.
+ * fabriquer une course. Les trois démonstrations (boucle, reprise, crew)
+ * ENSEIGNENT une règle — chip « Exemple » posée sur le visuel, aucun lieu nommé,
+ * aucun nom de crew, aucun chiffre attribué au joueur, aucune célébration. Leur
+ * géométrie est crédible mais elles ne se recentrent JAMAIS sur la ville du
+ * joueur : le jour où le plateau d'exemple devient « ta ville », l'exemple ment
+ * sur l'état de son monde.
  *
- * ─── AUCUNE PERMISSION N'EST DEMANDÉE PAR CE FLOW ───────────────────────────
- * Ni notifications, ni santé, ni contacts, ni photothèque (d'où l'absence de
- * choix d'avatar : « facultatif » ne veut pas dire « proposé quand même »). Le
- * GPS n'est demandé qu'à UN endroit, et seulement si le joueur touche le bouton
- * FACULTATIF « Utiliser ma position » de l'écran ville — dont la phrase
- * d'explication est affichée EN PERMANENCE juste en dessous, donc avant le tap :
- * la boîte système ne tombe jamais de nulle part. Le GPS de COURSE, lui, reste
- * annoncé par `PROFILE.gpsNote` et demandé au premier GO.
+ * ─── UNE SEULE PERMISSION EST DEMANDÉE, ET SEULEMENT AU TAP ─────────────────
+ * Ni notifications, ni santé, ni contacts, ni photothèque. Le GPS n'est demandé
+ * qu'à UN endroit — le CTA de E05 — et JAMAIS à froid : les trois garanties de la
+ * planche sont lues AVANT, donc la boîte système ne tombe jamais de nulle part.
+ * « Plus tard » mène à la suite sans la moindre culpabilisation, et là où aucun
+ * capteur ne peut répondre (web sans `navigator.geolocation`) le CTA
+ * d'autorisation n'est PAS peint : un bouton qui échoue à coup sûr est un bouton
+ * mort (§A4).
  *
  * ─── SESSION DÉJÀ OUVERTE → AUCUN DE CES ÉCRANS ─────────────────────────────
  * Un joueur connecté n'a rien à faire ici : dès que la session est là, on marque
@@ -91,123 +65,81 @@
  *
  * ⚠️ AUCUNE NAVIGATION N'ATTEND LE DISQUE. `finish()` lance la persistance puis
  * route, sans l'attendre : un AsyncStorage lent, bloqué ou absent ne peut pas
- * retenir le joueur sur un écran. L'ordre des écritures reste garanti par la
- * file sérialisée du store, pas par un `await` sur le chemin de navigation.
+ * retenir le joueur sur un écran. L'ordre des écritures reste garanti par la file
+ * sérialisée du store, pas par un `await` sur le chemin de navigation.
  *
- * ⚠️ ET LA REPRISE NE TRANCHE JAMAIS SUR UN DÉFAUT. L'étape atteinte est
- * persistée pour que « quitter et reprendre » marche vraiment ; on ne la
- * restaure QUE sur un `status === 'ready'` (une lecture, pas un défaut) et
- * seulement si le joueur n'a pas déjà avancé dans CETTE session.
+ * ⚠️ ET LA REPRISE NE TRANCHE JAMAIS SUR UN DÉFAUT. L'étape atteinte est persistée
+ * pour que « quitter et reprendre » marche vraiment ; on ne la restaure QUE sur un
+ * `status === 'ready'` (une lecture, pas un défaut) et seulement si le joueur n'a
+ * pas déjà avancé dans CETTE session.
  *
- * Discipline (§A) : 1 écran = 1 décision, 1 CTA chartreuse maximum, texte court
- * jamais tronqué, pas de card-dans-card, compris en < 3 s. Copy 100 %
- * centralisée dans content.ts (5 langues, parité forcée par le typage).
- *
- * ⚠️ VOCABULAIRE DE CTA — arbitrage fondateur 22/07/2026. « Continuer » est
- * ADMIS sur les deux cartes pédagogiques, qui ne décident de rien : trois cartes
- * qui s'enchaînent sont UN parcours, et trois verbes différents y feraient croire
- * à trois décisions. Dès qu'il y a décision, le CTA NOMME la suite (« Choisir ma
- * ville », « Continuer avec Paris », « Entrer sur la carte »). Ne pas
- * « recorriger » ce point au prochain audit §A — et ne pas le confondre avec
- * l'override AMENDEMENT-38 (« GO »), qui ne concerne QUE le bouton d'action
- * central de l'app, jamais l'onboarding.
+ * ─── ÉCARTS ASSUMÉS AUX PLANCHES ────────────────────────────────────────────
+ * · LA FLÈCHE RETOUR (coin haut-gauche, grise) n'est sur AUCUNE planche. Elle est
+ *   conservée : §A demande de pouvoir rattraper un mistap sans quitter le flow, et
+ *   un parcours de cinq écrans sans marche arrière fait payer cher un tap de
+ *   travers. Elle n'est jamais un 2e CTA (gris, cible 44 px).
+ * · PAS DE ScrollView, sur AUCUNE étape — un écran d'onboarding qui se scrolle est
+ *   un écran de trop (§A). La copie est bornée par `copyFit.test.ts` plutôt que
+ *   par une barre de défilement.
+ * · LA MARQUE « GRYD » NE SIGNE PLUS LE HAUT DES ÉCRANS : les planches montrent
+ *   un visuel plein cadre et un bloc bas, sans en-tête. Elle reste sur E01 (le
+ *   logo de la photo) et sur E06.
+ * · LE REGISTRE : les planches vouvoient (« votre tracé »), le dépôt tutoie
+ *   partout et des tests le verrouillent. Le tutoiement gagne — deux registres
+ *   dans la même app seraient pires que l'écart (cf. content.ts).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, iconSizes, radii, sizes, spacing } from '@klaim/shared';
+import type { EdgeInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
+import { colors, fontSizes, fonts, iconSizes, sizes, spacing, withAlpha } from '@klaim/shared';
 import { EVENTS, track } from '../../src/lib/analytics';
 import { haptics } from '../../src/lib/haptics';
 import { useT } from '../../src/i18n/store';
-import type { Entry } from '../../src/i18n/types';
-import { GOOGLE_CAPABLE, signInWithApple, signInWithGoogle, type AuthResult } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
 import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
-import { SectionLabel } from '../../src/ui/SectionLabel';
-import { withAlpha } from '../../src/features/map/mapStyle';
 import { resolveLocation } from '../../src/features/map/locationState';
-import { CitySearch, type CityEntry } from '../../src/features/city/CityPicker';
-import {
-  cityEntryLabel,
-  findCityEntry,
-  nearestCityEntry,
-} from '../../src/features/city/catalog';
-import { useCityCatalog } from '../../src/features/city/useCityCatalog';
-import { DISPLAY_NAME_MAX, saveProfile } from '../../src/features/social/profileStore';
-import { OnboardingAppleButton } from '../../src/features/onboarding/AppleButton';
 import {
   STORAGE_UNAVAILABLE_NOTICE,
   useOnboardingState,
 } from '../../src/features/onboarding/store';
 import { LOCATION_CAPABLE, LOCATION_PROVIDER } from '../../src/features/onboarding/locate';
 import {
-  ACCOUNT,
-  AGE,
-  BRAND,
-  CITY,
-  CITY_CTA_LABEL_MAX,
+  CREW,
+  LOCATION,
+  LOOP,
   MECHANIC,
   NAV,
   ONB_SKIP,
-  PROFILE,
   RIVALRY,
-  SIGN_IN_DOOR,
   STEP_EVENT_N,
   isOnboardingStep,
-  stepAfterRivalry,
-  stepBeforeCity,
+  stepAfter,
+  stepBefore,
   stepProgress,
   type OnboardingStep,
 } from '../../src/features/onboarding/content';
-import { RivalryDemo } from '../../src/features/onboarding/visuals';
+import {
+  CrewAdjacent,
+  PlancheStage,
+  PrivacyRing,
+  RivalrySplit,
+  StreetGridBackground,
+} from '../../src/features/onboarding/visuals';
+import { E02Loop } from '../../src/features/onboarding/E02Loop';
 import { E01Hero } from '../../src/features/onboarding/E01Hero';
 import { StepDots } from '../../src/features/onboarding/StepDots';
 
 /**
- * Étape précédente pour la flèche retour discrète (§A : rattraper un mistap sans
- * quitter le flow). La première n'a pas de précédent → aucune flèche.
+ * Titre display des planches : 40 / interligne 44, comme E01 — les cinq écrans se
+ * lisent comme UNE séquence, pas comme un hero suivi de quatre cartes. Mesures de
+ * COMPOSITION (pas des règles de jeu).
  */
-const STEP_PREV: Partial<Record<OnboardingStep, OnboardingStep>> = {
-  rivalry: 'mechanic',
-  city: 'rivalry',
-  account: 'city',
-};
-
-
-/**
- * Part de la HAUTEUR d'écran occupée par la démonstration animée (demande
- * fondateur : « l'illustration occupe ~35-40 % de la hauteur, pas un petit
- * polygone perdu »). Constante de RENDU, pas une règle de jeu.
- *
- * ⚠️ ELLE SE MESURE, ELLE NE SE DÉCRÈTE PAS. Il n'y a pas de ScrollView dans
- * l'onboarding (un écran d'onboarding qui se scrolle est un écran de trop, §A),
- * et l'ancien écran `learn` a déjà débordé d'environ 70 px sur un 375×667 : le
- * texte passait SOUS le CTA. Le plateau est donc borné par la hauteur ET par la
- * largeur disponible — c'est le contenu qui rentre, jamais la fenêtre qui
- * s'allonge.
- */
-const DEMO_HEIGHT_RATIO = 0.38;
-/** Rapport du plateau (viewBox 320×300 de `demoPhases`) : h = w × 0,9375. */
-const DEMO_ASPECT = 300 / 320;
-
-/**
- * Hero d'icône des écrans sans visuel (âge) : anneau de 92 px, glyphe de 40.
- * Mesures de COMPOSITION — l'échelle `iconSizes` s'arrête à 24 (usage en ligne)
- * puis saute à 48 (`display`), et 48 dans un anneau de 92 ne respire plus.
- */
-const AGE_RING = 92;
-const AGE_ICON = 40;
-
+const TITLE_LINE_HEIGHT = 44;
+const TAGLINE_MAX_WIDTH = 320;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Écran
@@ -217,7 +149,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const t = useT();
   const { state: onboarding, status, persistenceFailed, update } = useOnboardingState();
-  const { session, loading: sessionLoading, configured } = useSession();
+  const { session, loading: sessionLoading } = useSession();
   const [step, setStep] = useState<OnboardingStep>('mechanic');
 
   // Funnel §8 : un event par étape atteinte (n dédié, content.STEP_EVENT_N).
@@ -233,10 +165,11 @@ export default function OnboardingScreen() {
    *  · on ne restaure que sur `status === 'ready'` — une lecture impossible
    *    (`unavailable`) n'est PAS une réponse, et trancher une porte sur un défaut
    *    de stockage a déjà briqué l'app en boucle ;
-   *  · on ne restaure JAMAIS par-dessus une décision de session (`movedRef`) :
-   *    la lecture peut atterrir après un tap, elle ne doit pas l'annuler ;
-   *  · une étape inconnue (nom d'une version antérieure) est ignorée : le flow a
-   *    changé, on repart du début plutôt que de rendre un écran disparu.
+   *  · on ne restaure JAMAIS par-dessus une décision de session (`movedRef`) : la
+   *    lecture peut atterrir après un tap, elle ne doit pas l'annuler ;
+   *  · une étape inconnue (nom d'une version antérieure — `city`, `account`, …)
+   *    est ignorée : le flow a changé, on repart du début plutôt que de rendre un
+   *    écran disparu.
    */
   const movedRef = useRef(false);
   const restoredRef = useRef(false);
@@ -250,12 +183,12 @@ export default function OnboardingScreen() {
 
   /**
    * Sortie du flow : marque l'onboarding fait (pré-compte) + route vers `href`.
-   * `firstCaptureDone` n'est PAS posé ici : aucune capture n'a eu lieu — le
-   * poser était l'app qui se ment à elle-même (voir store.ts).
+   * `firstCaptureDone` n'est PAS posé ici : aucune capture n'a eu lieu — le poser
+   * était l'app qui se ment à elle-même (voir store.ts).
    *
    * Le verrou `exited` n'est pas décoratif : la sortie peut être demandée DEUX
-   * fois quasi simultanément — une auth qui réussit avance l'écran à la main, et
-   * l'événement Supabase SIGNED_IN arrive juste après par la garde de session.
+   * fois quasi simultanément — la fin du flow route à la main, et l'événement
+   * Supabase SIGNED_IN peut arriver juste après par la garde de session.
    */
   const exited = useRef(false);
   const finish = useCallback(
@@ -263,8 +196,8 @@ export default function OnboardingScreen() {
       if (exited.current) return;
       exited.current = true;
       // ⚠️ LA NAVIGATION N'ATTEND PAS LE DISQUE : `update()` enqueue de façon
-      // SYNCHRONE avant de rendre la main, donc le démontage qui suit n'annule
-      // pas la persistance, et un stockage lent ne peut pas retenir le joueur.
+      // SYNCHRONE avant de rendre la main, donc le démontage qui suit n'annule pas
+      // la persistance, et un stockage lent ne peut pas retenir le joueur.
       void update({ onboardingDone: true });
       router.replace(href);
     },
@@ -281,8 +214,8 @@ export default function OnboardingScreen() {
    * Avance/recule d'une étape, et se souvient d'où on en est.
    *
    * L'HAPTIQUE APPARTIENT AU CONTRÔLE, PAS AU DÉPLACEMENT : `Button` la joue déjà
-   * au tap. La poser ici AUSSI produisait deux impulsions pour un seul geste.
-   * La flèche retour, qui n'est pas un `Button`, joue la sienne.
+   * au tap. La poser ici AUSSI produisait deux impulsions pour un seul geste. La
+   * flèche retour, qui n'est pas un `Button`, joue la sienne.
    */
   const go = useCallback(
     (next: OnboardingStep) => {
@@ -294,39 +227,21 @@ export default function OnboardingScreen() {
   );
 
   /**
-   * Déclaration d'âge. Elle est posée dans l'état AVANT toute navigation : le
-   * `update` du store met `state`/`stateRef` à jour de façon synchrone, donc
-   * l'étape suivante la voit immédiatement, que le disque suive ou non.
-   *
-   * Depuis l'étape `age`, répondre avance vers la ville. Quand la question est
-   * posée EN PLACE devant l'étape compte (garde structurelle, plus bas), y
-   * répondre démasque simplement l'étape — il n'y a nulle part où aller.
+   * Le CTA d'une étape : l'étape SUIVANTE s'il y en a une, la SORTIE vers E06
+   * (l'authentification) sinon. Dérivé du flow — écrire « location → sign-in » à
+   * la main ferait diverger ce JSX de `ONBOARDING_STEPS` au premier écran ajouté.
    */
-  const confirmAge = useCallback(() => {
-    void update({ ageConfirmed: true });
-  }, [update]);
-
-  /**
-   * La ville CHOISIE (jamais devinée, jamais préremplie par un repli).
-   *
-   * On persiste le LIBELLÉ COMPLET, pays inclus (« Brest (FR) ») : sans lui,
-   * l'écran suivant afficherait « Brest » sans dire lequel des deux — et 71 noms
-   * de villes européennes sont ambigus.
-   */
-  const chooseCity = useCallback(
-    (city: CityEntry) => {
-      void update({ cityId: city.cityId, cityName: cityEntryLabel(city) });
+  const advance = useCallback(
+    (from: OnboardingStep) => {
+      const next = stepAfter(from);
+      if (next) go(next);
+      else finish('/sign-in');
     },
-    [update],
+    [go, finish],
   );
 
-  /**
-   * Flèche retour : revient à l'étape précédente (sans effet sur la première).
-   * Un âge déjà déclaré retire son écran des DEUX sens de marche — sinon le
-   * retour reposerait une question à laquelle l'aller ne s'arrête plus.
-   */
-  const prevStep =
-    step === 'city' ? stepBeforeCity() : STEP_PREV[step];
+  /** Flèche retour : revient à l'étape précédente (sans effet sur la première). */
+  const prevStep = stepBefore(step);
   const back = useCallback(() => {
     if (!prevStep) return;
     haptics.light();
@@ -346,10 +261,9 @@ export default function OnboardingScreen() {
   // surtout on ne montre pas un écran d'accueil à quelqu'un déjà connecté.
   if (sessionLoading) return <View style={styles.root} />;
 
-  // E01 « promesse » (planche Vague 1) : photo plein cadre + promesse + CTA, rendu
-  // en PLEIN ÉCRAN (hors de l'en-tête commun). L'écran suivant (rivalité) reprend
-  // la grille standard. Le contenu reste honnête : la photo est une DA, pas une
-  // donnée de jeu ; aucune course n'est fabriquée.
+  // E01 « promesse » (planche) : photo plein cadre + promesse + CTA, rendu en
+  // PLEIN ÉCRAN par son propre composant. Le contenu reste honnête : la photo est
+  // une DA, pas une donnée de jeu ; aucune course n'est fabriquée.
   if (step === 'mechanic') {
     return (
       <E01Hero
@@ -357,12 +271,10 @@ export default function OnboardingScreen() {
         tagline={t(MECHANIC.tagline)}
         cta={t(MECHANIC.cta)}
         skipLabel={t(ONB_SKIP)}
-        onNext={() => go('rivalry')}
+        onNext={() => advance('mechanic')}
         // « Passer » ENTRE DANS L'APP : c'est (tabs)/_layout qui sait si une
-        // session est exigée, pas cet écran. Router d'office vers /sign-in
-        // faisait dire « Passer » à une porte de connexion. (La porte du compte
-        // — « J'ai déjà un compte » — a été RETIRÉE de E01 : pas sur la planche,
-        // l'auth E06 la porte en fin de séquence.)
+        // session est exigée, pas cet écran. Router d'office vers /sign-in faisait
+        // dire « Passer » à une porte de connexion.
         onSkip={() => finish('/')}
         insets={insets}
         stepIndex={progress.index}
@@ -372,756 +284,358 @@ export default function OnboardingScreen() {
     );
   }
 
-  return (
-    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* En-tête commun : marque DISCRÈTE en haut à gauche (elle ne concurrence
-          pas le titre) + flèche retour, dans la même rangée — deux éléments
-          absolus au même coin se seraient recouverts. */}
-      <StepHeader
-        onBack={prevStep ? back : undefined}
-        backLabel={t(NAV.back)}
-        stepIndex={progress.index}
-        stepCount={progress.count}
-        stepA11yLabel={progressA11y}
+  /** Le décor commun aux quatre planches suivantes — écrit UNE fois. */
+  const chrome: PlancheChromeProps = {
+    insets,
+    skipLabel: t(ONB_SKIP),
+    onSkip: () => finish('/'),
+    backLabel: t(NAV.back),
+    onBack: prevStep ? back : undefined,
+    stepIndex: progress.index,
+    stepCount: progress.count,
+    stepA11yLabel: progressA11y,
+  };
+
+  if (step === 'loop') {
+    return (
+      <PlancheStep
+        {...chrome}
+        title={t(LOOP.title)}
+        tagline={t(LOOP.tagline)}
+        cta={t(LOOP.cta)}
+        onNext={() => advance('loop')}
+        analyticsId="onboarding_e02_next"
+        visual={
+          <PlancheStage exampleLabel={t(LOOP.exampleTag)}>
+            <E02Loop />
+          </PlancheStage>
+        }
       />
+    );
+  }
 
-      {/* mechanic (E01) est rendu en PLEIN ÉCRAN par E01Hero (early-return plus
-          haut) — il n'apparaît donc jamais dans la grille standard ci-dessous. */}
+  if (step === 'rivalry') {
+    return (
+      <PlancheStep
+        {...chrome}
+        title={t(RIVALRY.title)}
+        tagline={t(RIVALRY.tagline)}
+        cta={t(RIVALRY.cta)}
+        onNext={() => advance('rivalry')}
+        analyticsId="onboarding_e03_next"
+        visual={
+          <PlancheStage exampleLabel={t(RIVALRY.exampleTag)}>
+            <RivalrySplit takenLabel={t(RIVALRY.takenLabel)} />
+          </PlancheStage>
+        }
+      />
+    );
+  }
 
-      {step === 'rivalry' ? (
-        <DemoCard
-          kicker={t(RIVALRY.kicker)}
-          title={t(RIVALRY.title)}
-          tagline={t(RIVALRY.tagline)}
-          cta={t(RIVALRY.cta)}
-          onNext={() => go(stepAfterRivalry())}
-          demo={
-            <RivalryDemo
-              exampleLabel={t(RIVALRY.exampleTag)}
-              label={t(RIVALRY.demoLabel)}
-              replayA11y={t(RIVALRY.demoReplay)}
-            />
-          }
-        />
-      ) : null}
+  if (step === 'crew') {
+    return (
+      <PlancheStep
+        {...chrome}
+        title={t(CREW.title)}
+        tagline={t(CREW.tagline)}
+        cta={t(CREW.cta)}
+        onNext={() => advance('crew')}
+        analyticsId="onboarding_e04_next"
+        visual={
+          <PlancheStage exampleLabel={t(CREW.exampleTag)}>
+            <CrewAdjacent />
+          </PlancheStage>
+        }
+      />
+    );
+  }
 
-
-      {step === 'city' ? (
-        <CityStep
-          chosenId={onboarding.cityId}
-          chosenName={onboarding.cityName}
-          onChoose={chooseCity}
-          onNext={() => go('account')}
-          ageConfirmed={onboarding.ageConfirmed}
-          onConfirmAge={confirmAge}
-        />
-      ) : null}
-
-      {/* ÉCRAN D'ARRIVÉE FUSIONNÉ : nom (facultatif) + entrée (compte OU « plus
-          tard »). Le pseudo se pose ici, plus sur un écran à lui.
-
-          ⚠️ LE GATE EST STRUCTUREL, PLUS SEULEMENT ORDINAL. L'entrée peut créer
-          un compte (Apple/Google/e-mail) : l'écran ne s'affiche donc QUE si l'âge
-          a été déclaré, au lieu de faire confiance à l'ordre des écrans. Si un
-          jour un chemin l'atteint sans passer par le gate — une reprise depuis le
-          disque, par exemple — il tombe sur la question, pas sur une porte de
-          création ouverte. Aucune navigation : répondre démasque l'étape. */}
-      {step === 'account' ? (
-        onboarding.ageConfirmed ? (
-          <AccountStep
-            cityName={onboarding.cityName}
-            persistenceFailed={persistenceFailed}
-            onDone={() => finish('/')}
-            onEmail={() => finish('/sign-in')}
-          />
-        ) : (
-          <AgeStep onConfirm={confirmAge} />
-        )
-      ) : null}
-    </View>
+  return (
+    <LocationStep
+      {...chrome}
+      persistenceFailed={persistenceFailed}
+      onDone={() => advance('location')}
+    />
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Briques de layout partagées (§A : 1 titre géant, texte court, 1 CTA)
+// LE GABARIT DES PLANCHES — le visuel porte l'écran, le bloc bas le nomme
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * En-tête de chaque étape : la marque, discrète, la flèche retour, et la FRISE
- * DE PROGRESSION.
- *
- * La marque est un MOT, plus un logo couru de 116 px au milieu de l'écran : le
- * fondateur veut qu'elle signe la page sans concurrencer le titre. La flèche est
- * grise, jamais un 2e CTA, et sa cible fait 44 px (+ hitSlop).
- *
- * ⚠️ LA FRISE EST REMONTÉE ICI (25/07/2026). Elle ne vivait que sur E01 : la
- * rivalité, la ville et l'arrivée n'avaient AUCUN repère — le joueur ne savait
- * plus s'il en avait pour un écran ou pour dix. Elle se pose dans l'en-tête, déjà
- * rendu hors du contenu, plutôt que dans le pied, qui porte déjà le CTA, une
- * sortie et jusqu'à deux notes d'état.
- */
-function StepHeader({
-  onBack,
-  backLabel,
-  stepIndex,
-  stepCount,
-  stepA11yLabel,
-}: {
-  onBack?: () => void;
+interface PlancheChromeProps {
+  insets: EdgeInsets;
+  skipLabel: string;
+  onSkip: () => void;
   backLabel: string;
+  onBack?: () => void;
   stepIndex: number;
   stepCount: number;
   stepA11yLabel: string;
-}) {
+}
+
+/**
+ * Le décor commun : la GRILLE DE RUES plein cadre (planche), « Passer » en haut à
+ * droite (planche), la flèche retour en haut à gauche (écart assumé, cf. l'entête)
+ * et la frise de progression sous le CTA — comme sur E01.
+ *
+ * Les cinq écrans partagent ce gabarit EXPRÈS : cinq écrans qui se lisent pareil
+ * enseignent une SUITE ; cinq gabarits différents enseigneraient cinq objets sans
+ * rapport.
+ */
+function PlancheChrome({
+  insets,
+  skipLabel,
+  onSkip,
+  backLabel,
+  onBack,
+  stepIndex,
+  stepCount,
+  stepA11yLabel,
+  children,
+  footer,
+}: PlancheChromeProps & { children: ReactNode; footer: ReactNode }) {
   return (
-    <View style={styles.header}>
+    <View style={styles.root}>
+      <StreetGridBackground />
+
       {onBack ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={backLabel}
           hitSlop={12}
           onPress={onBack}
-          style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.back,
+            { top: insets.top + spacing.sm },
+            pressed && styles.pressed,
+          ]}
         >
           {/* Chevron pointé à gauche (le tracé pointe à droite → miroir). */}
           <View style={styles.backMirror}>
             <Icon name="chevron" size={iconSizes.lg} color={colors.gris} />
           </View>
         </Pressable>
-      ) : (
-        <View style={styles.back} />
-      )}
-      <Text style={styles.brand}>{BRAND}</Text>
-      <StepDots
-        index={stepIndex}
-        count={stepCount}
-        a11yLabel={stepA11yLabel}
-        style={styles.headerDots}
-      />
+      ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={skipLabel}
+        onPress={onSkip}
+        hitSlop={12}
+        style={({ pressed }) => [
+          styles.skip,
+          { top: insets.top + spacing.sm },
+          pressed && styles.pressed,
+        ]}
+      >
+        <Text style={styles.skipLabel}>{skipLabel}</Text>
+      </Pressable>
+
+      {/* LA SCÈNE : le visuel, centré dans l'espace qui reste au-dessus du bloc
+          bas. `flex: 1` + centrage = c'est le contenu qui rentre, jamais la
+          fenêtre qui s'allonge (il n'y a pas de ScrollView ici). */}
+      <View style={[styles.scene, { paddingTop: insets.top + sizes.touchTarget }]}>{children}</View>
+
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.lg }]}>
+        {footer}
+        <StepDots
+          index={stepIndex}
+          count={stepCount}
+          a11yLabel={stepA11yLabel}
+          style={styles.dots}
+        />
+      </View>
     </View>
   );
 }
 
-/**
- * Sur-titre de section (kicker) — il CONSOMME le composant canonique
- * (`ui/SectionLabel`, rôle typo R1 + gris + capitales) au lieu de recoder la
- * règle : l'onboarding en avait sa propre version (police mono, interlettrage
- * 2,5), donc sa propre dérive possible. Ce qui reste local est ce qui appartient
- * à CETTE mise en page : la marge sous le kicker.
- */
-function Kicker({ children }: { children: string }) {
-  return <SectionLabel style={styles.kicker}>{children}</SectionLabel>;
-}
-
-/**
- * CTA primaire chartreuse, pleine largeur (§A4 : un par écran ; demande fondateur :
- * « aucune icône inutile »).
- *
- * ⚠️ IL NE SE RECODE PLUS. Il vivait ici en `radii.pill` et sur E01 en
- * `radii.btn` : DEUX rayons pour le MÊME rôle, sur deux écrans consécutifs, et
- * aucun garde-fou de troncature sur le libellé — alors que ce CTA nomme parfois
- * une ville (« Continuer avec Villeneuve-d'Ascq »). `Button` tranche la forme,
- * fait rétrécir le libellé sans jamais l'ellipse, et apporte l'anneau de focus
- * clavier.
- *
- * `disabled` n'est pas un bouton mort : il ne s'emploie que sur l'écran ville,
- * où la décision attendue est à quelques pixels au-dessus (choisir une ville) et
- * où continuer sans elle n'aurait aucun sens. L'état est annoncé aux lecteurs
- * d'écran, pas seulement peint.
- */
-function PrimaryCta({
-  label,
-  onPress,
-  a11yLabel,
-  disabled = false,
-  analyticsId,
-}: {
-  label: string;
-  onPress: () => void;
-  a11yLabel?: string;
-  disabled?: boolean;
-  analyticsId?: string;
-}) {
-  return (
-    <Button
-      label={label}
-      onPress={onPress}
-      variant="primary"
-      size="lg"
-      disabled={disabled}
-      accessibilityLabel={a11yLabel}
-      analyticsId={analyticsId}
-    />
-  );
-}
-
-/**
- * Lien secondaire — texte gris discret, jamais un 2e CTA (§A4). `underline` le
- * réserve aux liens qui MÈNENT AILLEURS (la porte de connexion) : une sortie
- * douce (« Plus tard ») reste dans le flow et ne le porte pas.
- */
-function TextLink({
-  label,
-  onPress,
-  underline = false,
-}: {
-  label: string;
-  onPress: () => void;
-  underline?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [styles.link, pressed && styles.pressed]}
-    >
-      <Text style={[styles.linkLabel, underline && styles.linkUnderline]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 1 & 2 — LES CARTES PÉDAGOGIQUES : la démonstration porte l'écran
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Carte pédagogique : kicker, titre en 2 lignes typographiques, DÉMONSTRATION,
- * une phrase, un CTA. Les deux cartes partagent ce gabarit exprès — deux écrans
- * qui se lisent pareil enseignent une SUITE ; deux gabarits différents
- * enseigneraient deux objets sans rapport.
- *
- * L'animation ne décore pas : elle démontre. Elle est tapable pour être rejouée
- * (sauf en mouvement réduit, où elle est déjà à son état final — un bouton qui
- * ne montrerait rien serait un bouton mort), et le joueur peut continuer sans
- * l'attendre : le CTA est actif dès la première image.
- */
-function DemoCard({
-  kicker,
+/** Une planche pédagogique : visuel → titre → sous-titre → CTA unique → frise. */
+function PlancheStep({
+  visual,
   title,
   tagline,
   cta,
-  demo,
   onNext,
-  signInLabel,
-  onSignIn,
-}: {
-  kicker: string;
+  analyticsId,
+  ...chrome
+}: PlancheChromeProps & {
+  visual: ReactNode;
   title: string;
   tagline: string;
   cta: string;
-  demo: React.ReactNode;
   onNext: () => void;
-  signInLabel?: string;
-  onSignIn?: () => void;
+  analyticsId: string;
 }) {
-  const { width, height } = useWindowDimensions();
-  // Le plateau est borné par la HAUTEUR (≈ 38 %) ET par la largeur utile : sur
-  // un écran court c'est la hauteur qui gagne, sur un écran étroit la largeur.
-  const boardWidth = Math.min(
-    width - 2 * (spacing.cardPadding + 4),
-    (height * DEMO_HEIGHT_RATIO) / DEMO_ASPECT,
-  );
   return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{kicker}</Kicker>
-        <Text style={styles.title}>{title}</Text>
-        <View style={[styles.boardWrap, { width: boardWidth }]}>{demo}</View>
-        <Text style={styles.tagline}>{tagline}</Text>
-      </View>
-      <View style={styles.footer}>
-        <PrimaryCta label={cta} onPress={onNext} />
-        {signInLabel && onSignIn ? (
-          <TextLink label={signInLabel} onPress={onSignIn} underline />
-        ) : null}
-      </View>
-    </View>
+    <PlancheChrome
+      {...chrome}
+      footer={
+        <>
+          {/* `adjustsFontSizeToFit` : le titre RÉTRÉCIT si une langue dépasse la
+              largeur — jamais une 3e ligne, jamais un débordement sur un écran
+              sans scroll (§A : aucun texte coupé). */}
+          <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+            {title}
+          </Text>
+          <Text style={styles.tagline}>{tagline}</Text>
+          {/* L'UNIQUE CTA chartreuse de l'écran (§A4). */}
+          <Button
+            label={cta}
+            onPress={onNext}
+            variant="primary"
+            size="lg"
+            analyticsId={analyticsId}
+          />
+        </>
+      }
+    >
+      {visual}
+    </PlancheChrome>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3 — AGE-GATE 16+ (Apple 5.1.1 / mineurs) : AVANT toute collecte — et l'écran
-// ville en est une, puisqu'il peut LIRE la position. Il est aussi posé sur
-// l'autre chemin : (auth)/sign-in, car l'OTP e-mail crée un compte quand
-// l'adresse est inconnue.
+// E05 — LA PRÉ-PERMISSION DE LOCALISATION
+//
+// ⚠️ RÈGLE CAPITALE (planche + spec E05) : LE DIALOGUE SYSTÈME NE S'OUVRE QU'AU
+// TAP SUR LE CTA, jamais au montage. Les trois garanties sont donc à l'écran
+// AVANT le geste — la boîte système ne tombe jamais de nulle part.
+//
+// « Plus tard » mène à la suite, et la carte fonctionnera en lecture seule. AUCUNE
+// culpabilisation : le libellé est neutre, aucune phrase ne dit au joueur ce qu'il
+// « rate », et le lien est gris — jamais un 2e CTA (§A4).
+//
+// ET LÀ OÙ AUCUN CAPTEUR NE PEUT RÉPONDRE (web sans `navigator.geolocation`), le
+// CTA d'autorisation n'est PAS peint : l'écran DIT pourquoi et le parcours
+// continue avec un CTA neutre. L'absence d'un bouton n'est pas un mensonge ; un
+// bouton qui échoue à coup sûr en est un.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Auto-déclaration d'âge. « 16+ » = CTA chartreuse (avance) ; « moins de 16 » =
- * lien gris secondaire → écran de blocage TERMINAL (aucun chemin vers l'avant :
- * §A 1 CTA). Le blocage est un état local (remount = nouvelle tentative — une
- * auto-déclaration reste par nature contournable ; c'est le gate attendu).
- */
-function AgeStep({ onConfirm, onBack }: { onConfirm: () => void; onBack?: () => void }) {
-  const t = useT();
-  const [blocked, setBlocked] = useState(false);
-
-  if (blocked) {
-    return (
-      <View style={styles.step}>
-        <View style={styles.body}>
-          <Kicker>{t(AGE.kicker)}</Kicker>
-          <View style={styles.iconHero}>
-            <View style={styles.iconHeroRing}>
-              <Icon name="verrou" size={AGE_ICON} color={colors.chartreuse} />
-            </View>
-          </View>
-          <Text style={styles.title}>{t(AGE.blockedTitle)}</Text>
-          <Text style={styles.tagline}>{t(AGE.blockedTagline)}</Text>
-        </View>
-        {/* PAS UN CUL-DE-SAC. Quand la question est posée en place devant l'écran
-            ville, la flèche du header pointe sur la RIVALITÉ : sans cette sortie,
-            répondre « moins de 16 » faisait disparaître l'écran ville sans que le
-            joueur l'ait décidé. Le choix MANUEL d'une ville n'est pas gaté par
-            l'âge — seul le geste qui lit un capteur l'est. */}
-        {onBack ? (
-          <View style={styles.footer}>
-            <TextLink label={t(AGE.backToCity)} onPress={onBack} />
-          </View>
-        ) : null}
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{t(AGE.kicker)}</Kicker>
-        <View style={styles.iconHero}>
-          <View style={styles.iconHeroRing}>
-            <Icon name="profil" size={AGE_ICON} color={colors.chartreuse} />
-          </View>
-        </View>
-        <Text style={styles.title}>{t(AGE.title)}</Text>
-        <Text style={styles.tagline}>{t(AGE.tagline)}</Text>
-      </View>
-      <View style={styles.footer}>
-        <PrimaryCta
-          label={t(AGE.confirm)}
-          onPress={onConfirm}
-          a11yLabel={t(AGE.confirmA11y)}
-          analyticsId="onboarding_age_confirm"
-        />
-        <TextLink
-          label={t(AGE.under)}
-          onPress={() => {
-            haptics.light();
-            setBlocked(true);
-          }}
-        />
-        {onBack ? <TextLink label={t(AGE.backToCity)} onPress={onBack} /> : null}
-      </View>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 4 — LA VILLE, CHOISIE À LA MAIN. SANS GPS.
-//
-// « Autorise ta localisation pour continuer » n'existe pas ici : on peut être
-// assis dans un train, en vacances, loin de chez soi, ou simplement ne pas
-// vouloir donner sa position à une app qu'on découvre. La position est un
-// RACCOURCI, secondaire, et il n'est même pas peint là où il ne peut rien
-// produire (web sans `navigator.geolocation`).
-//
-// AUCUNE VILLE N'EST INVENTÉE — et depuis le 23/07/2026 elles sont TOUTES là.
-// L'écran ne propose plus les deux villes du seed : il consomme le SÉLECTEUR
-// PARTAGÉ (`features/city/CityPicker`), donc les 7 870 villes réelles d'Europe
-// du référentiel GeoNames, la même liste et la même recherche que la création de
-// crew et le profil. Trois sélecteurs différents, c'était trois vérités
-// différentes sur ce qu'est « ma ville ».
-//
-// Ce que l'écran continue de ne PAS faire : promettre qu'une ville est jouable.
-// Le sélecteur marque « Ouverte » ce que le serveur a confirmé ouvert, ne marque
-// RIEN tant qu'il n'a rien lu (ici, avant le compte, c'est le cas normal), et
-// une position hors de toute ville le dit — jamais de repli silencieux sur
-// Paris, très exactement le mensonge démonté par AMENDEMENT-47.
-//
-// Et il ne propose PAS d'ouvrir une ville ici, alors qu'il sait le faire
-// ailleurs : ouvrir est une écriture, le serveur exige un compte, et cet écran
-// vit AVANT le compte. Peindre le bouton quand même serait un bouton mort — la
-// décision se prend dans le sélecteur, qui lit sa capacité réelle et se tait
-// quand elle est absente.
-// ═══════════════════════════════════════════════════════════════════════════
-
-function CityStep({
-  chosenId,
-  chosenName,
-  onChoose,
-  onNext,
-  ageConfirmed,
-  onConfirmAge,
-}: {
-  chosenId: string | null;
-  /**
-   * Nom PERSISTÉ de la ville choisie. Il n'est pas redondant avec `chosenId` :
-   * une ville de démarrage (`paris`, `lille`) n'est retrouvable dans l'index
-   * qu'APRÈS une lecture de `city_zones` — impossible ici, l'écran ville vit
-   * avant le compte. Sans ce nom, un joueur revenant sur cet écran avec un
-   * `paris` déjà persisté verrait son CTA désactivé et resterait bloqué.
-   */
-  chosenName: string | null;
-  onChoose: (city: CityEntry) => void;
-  onNext: () => void;
-  /** L'âge a-t-il déjà été déclaré ? Gouverne le SEUL geste qui lit un capteur. */
-  ageConfirmed: boolean;
-  onConfirmAge: () => void;
+function LocationStep({
+  persistenceFailed,
+  onDone,
+  ...chrome
+}: PlancheChromeProps & {
+  /** Le stockage local n'a pas retenu ce qui a été décidé — ça se DIT. */
+  persistenceFailed: boolean;
+  onDone: () => void;
 }) {
   const t = useT();
-  const catalog = useCityCatalog();
-  const [locBusy, setLocBusy] = useState(false);
-  /** La question d'âge, posée seulement si l'on tente d'utiliser sa position. */
-  const [askAge, setAskAge] = useState(false);
-  /** Ce que la dernière tentative de position a produit — dit, jamais tu. */
-  const [locNotice, setLocNotice] = useState<Entry | null>(null);
-
-  const chosen = findCityEntry(catalog.index, chosenId);
-  /**
-   * Ce que le CTA affiche. L'index d'abord (le nom y est à jour) ; à défaut le
-   * nom persisté ; à défaut rien — et alors le CTA attend, parce qu'aucune ville
-   * n'a été choisie. On ne se sert JAMAIS de `chosenId` comme libellé : afficher
-   * « Continuer avec 2988507 » serait pire que de ne rien afficher.
-   */
-  const chosenLabel = chosen?.name ?? (chosenName && chosenName.length > 0 ? chosenName : null);
+  const [busy, setBusy] = useState(false);
+  const doneRef = useRef(false);
 
   /**
-   * Le CTA NOMME la ville — tant que ça TIENT. « Continuer avec
-   * Villeneuve-d'Ascq » déborde la pill de hauteur fixe et se ferait rogner ;
-   * dans ce cas on repasse au libellé neutre, et la ville reste nommée en entier
-   * dans le sélecteur juste au-dessus (§A : rien n'est coupé, l'info est
-   * déplacée). Le plafond est mesuré, pas deviné — cf. CITY_CTA_LABEL_MAX.
-   */
-  const namedCta = chosenLabel ? t(CITY.ctaWithCity, { city: chosenLabel }) : null;
-  const ctaLabel =
-    namedCta && namedCta.length <= CITY_CTA_LABEL_MAX ? namedCta : t(CITY.cta);
-
-  /**
-   * LE RACCOURCI FACULTATIF. Il PRÉSÉLECTIONNE une ville que le joueur confirme
-   * ensuite avec le CTA — qui la nomme. Rien n'est décidé à sa place.
+   * LE SEUL GESTE DE TOUT L'ONBOARDING QUI TOUCHE UN CAPTEUR.
    *
    * `resolveLocation` est la séquence commune et testée de la carte : elle ne
    * demande la permission que si elle n'est pas déjà accordée, et distingue le
    * REFUS (une décision du joueur) de l'INDISPONIBLE (capteur muet, GPS coupé,
-   * timeout). Deux causes, deux phrases : appeler « panne » un refus, ou
-   * « refus » une panne, met sur le dos du joueur ce qu'il n'a pas fait.
+   * timeout). On avance dans les TROIS cas — accordé, refusé, muet — parce que cet
+   * écran ne fait pas de la position une condition d'entrée : la carte sait déjà
+   * raconter chacun de ces états (`map/locationState`, matrice testée), et les
+   * répéter ici produirait deux récits pour une seule situation (§A).
    */
-  const useMyLocation = useCallback(async () => {
-    if (locBusy) return;
-    // ⚠️ LE SEUL GESTE DE CET ÉCRAN QUI TOUCHE UN CAPTEUR. L'age-gate a quitté le
-    // parcours (il vit au point de création du compte, là où il a un sens légal),
-    // mais il ne disparaît PAS d'ici : la raison qui le plaçait devant la ville
-    // était précisément ce raccourci. On pose donc la question À CET INSTANT,
-    // jamais en écran obligatoire — « au moment utile », comme les permissions.
-    // La recherche MANUELLE, elle, n'est jamais gatée : l'écran doit rester
-    // utilisable assis, sans GPS et sans avoir rien déclaré.
-    if (!ageConfirmed) {
-      setAskAge(true);
-      return;
-    }
-    haptics.light();
-    setLocBusy(true);
-    setLocNotice(null);
-    const outcome = await resolveLocation(LOCATION_PROVIDER);
-    setLocBusy(false);
-    if (!outcome.point) {
-      setLocNotice(outcome.state === 'denied' ? CITY.locationDenied : CITY.locationFailed);
-      return;
-    }
-    // `nearestCityEntry` interroge les villes OUVERTES d'abord : sans cette
-    // priorité, quelqu'un dans le 15ᵉ se verrait proposer « Paris 15 Vaugirard »
-    // (le référentiel GeoNames contient les arrondissements) au lieu de Paris.
-    const match = nearestCityEntry(catalog.index, outcome.point);
-    if (!match) {
-      setLocNotice(CITY.locationOutside);
-      return;
-    }
-    onChoose(match);
-  }, [ageConfirmed, catalog.index, locBusy, onChoose]);
-
-  // La question d'âge prend TOUT l'écran le temps d'être répondue : une question
-  // légale ne se glisse pas en encart au milieu d'un choix de ville (§A1, une
-  // décision à la fois). On revient ensuite exactement là où on était.
-  if (askAge) {
-    return (
-      <AgeStep
-        onConfirm={() => {
-          onConfirmAge();
-          setAskAge(false);
-        }}
-        // La sortie de la question : on revient EXACTEMENT là où on était, y
-        // compris après un « moins de 16 » — la recherche manuelle n'est pas
-        // gatée, seul le geste qui lit un capteur l'est.
-        onBack={() => setAskAge(false)}
-      />
-    );
-  }
+  const ask = useCallback(async () => {
+    if (busy || doneRef.current) return;
+    setBusy(true);
+    await resolveLocation(LOCATION_PROVIDER);
+    doneRef.current = true;
+    setBusy(false);
+    onDone();
+  }, [busy, onDone]);
 
   return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        <Kicker>{t(CITY.kicker)}</Kicker>
-        <Text style={styles.title}>{t(CITY.title)}</Text>
-        <Text style={styles.tagline}>{t(CITY.tagline)}</Text>
-
-        {/* LE SÉLECTEUR PARTAGÉ — même champ, même recherche, mêmes états que
-            la création de crew et le profil. Il porte lui-même son placeholder,
-            sa liste bornée, son « aucun résultat » et sa ligne d'état : les
-            réécrire ici, c'était la deuxième vérité qu'on vient de supprimer. */}
-        <CitySearch catalog={catalog} selectedId={chosenId} onSelect={onChoose} />
-
-        {/* LE RACCOURCI — action SECONDAIRE (jamais le CTA chartreuse), et pas
-            peint du tout là où aucun capteur ne peut répondre. */}
-        {LOCATION_CAPABLE ? (
-          <>
-            <View style={styles.secondary}>
-              <Button
-                label={t(CITY.useLocation)}
-                onPress={() => void useMyLocation()}
-                variant="ghost"
-                size="md"
-                loading={locBusy}
-              />
-            </View>
-            {/* LA PRÉ-PERMISSION. Affichée EN PERMANENCE sous le bouton, donc
-                lue AVANT le tap : la boîte système ne tombe jamais de nulle
-                part. Un écran de plus pour dire une phrase aurait été un écran
-                de plus (§A) ; une phrase invisible n'aurait rien expliqué. */}
-            <Text style={styles.note}>{t(CITY.locationWhy)}</Text>
-          </>
-        ) : null}
-
-        {locNotice ? (
-          <Text style={styles.notice} accessibilityRole="alert">
-            {t(locNotice)}
+    <PlancheChrome
+      {...chrome}
+      footer={
+        <>
+          <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+            {t(LOCATION.title)}
           </Text>
-        ) : null}
-      </View>
 
-      <View style={styles.footer}>
-        {/* Le CTA NOMME la ville dès qu'elle est choisie. Tant qu'aucune ne
-            l'est, il attend la décision de l'écran — qui est juste au-dessus. */}
-        <PrimaryCta
-          label={ctaLabel}
-          onPress={onNext}
-          disabled={!chosenLabel}
-          analyticsId="onboarding_city_continue"
-        />
-      </View>
-    </View>
+          {/* LES TROIS GARANTIES : une par ligne, coche + filet séparateur
+              (planche). Elles ne promettent rien que le code ne tienne. */}
+          <View style={styles.guarantees}>
+            {LOCATION.guarantees.map((entry, i) => (
+              <View key={i} style={[styles.guarantee, i > 0 && styles.guaranteeDivided]}>
+                <CheckMark />
+                {/* Aucun `numberOfLines` : la ligne s'enroule plutôt que d'être
+                    coupée — §A interdit le texte tronqué, pas le retour à la ligne. */}
+                <Text style={styles.guaranteeLabel}>{t(entry)}</Text>
+              </View>
+            ))}
+          </View>
+
+          {LOCATION_CAPABLE ? (
+            <>
+              <Button
+                label={t(LOCATION.cta)}
+                onPress={() => void ask()}
+                variant="primary"
+                size="lg"
+                loading={busy}
+                analyticsId="onboarding_e05_allow"
+              />
+              {/* Sortie douce — elle mène à la suite, exactement comme le CTA. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(LOCATION.later)}
+                onPress={onDone}
+                style={({ pressed }) => [styles.link, pressed && styles.pressed]}
+              >
+                <Text style={styles.linkLabel}>{t(LOCATION.later)}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.note}>{t(LOCATION.unavailable)}</Text>
+              <Button
+                label={t(LOCATION.continueCta)}
+                onPress={onDone}
+                variant="primary"
+                size="lg"
+                analyticsId="onboarding_e05_continue"
+              />
+            </>
+          )}
+
+          {/* CE QU'ON N'A PAS PU RETENIR SE DIT : sans cette ligne, l'échec vivait
+              dans un `catch {}` — le joueur refaisait l'onboarding à chaque
+              lancement en croyant l'app cassée. Gris, jamais chartreuse. */}
+          {persistenceFailed ? (
+            <Text style={styles.note}>{t(STORAGE_UNAVAILABLE_NOTICE)}</Text>
+          ) : null}
+        </>
+      }
+    >
+      <PrivacyRing />
+    </PlancheChrome>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 4 — NOM + ENTRÉE (§6), fondus. Pseudo (facultatif) puis compte : créer **OU**
-//     se connecter (Apple / Google / e-mail, 1 tap), ou « plus tard » sans backend.
-//
-// ─── DEUX PORTES, DITES ─────────────────────────────────────────────────────
-// L'écran s'intitulait « Crée ton compte. » et sa 3e voie « Continuer avec un
-// e-mail » : deux libellés qui ne parlaient que de CRÉATION, alors que les trois
-// voies savent aussi CONNECTER. Le titre nomme donc les deux portes, et
-// `emailHint` dit ce que fait réellement le code OTP — il connecte si l'adresse
-// existe, il crée sinon.
-//
-// « Plus tard » n'est proposé QUE s'il passe réellement : sans backend, aucune
-// garde d'auth en aval, il tient sa promesse ; avec backend, il n'en tenait
-// aucune (cul-de-sac /sign-in) — il disparaît, et l'écran DIT que le compte est
-// nécessaire au lieu de faire semblant.
-//
-// ─── ON NE PEINT PLUS DE BOUTON MORT ────────────────────────────────────────
-// La capacité réelle d'un fournisseur, c'est TROIS conditions, pas une :
-//   plateforme (le module natif existe) + identifiant OAuth + backend Supabase.
-// D'où : `CAN_*` (statique, plateforme + env inlinée au build) × `configured`
-// (connu du composant) — et le JSX ne lit jamais `Platform.OS`.
-//
-// Ce que ça donne selon l'état réel :
-//   · iOS + backend            → bouton système Apple, Google en secondaire s'il
-//                                est configuré, lien e-mail ;
-//   · Android + backend + O2   → Google = CTA chartreuse + lien e-mail ;
-//   · Android/Web + backend, O2 ouvert (état actuel) → aucun fournisseur ;
-//                                l'e-mail (OTP, HTTP pur) monte en CTA
-//                                chartreuse — c'est la seule porte, elle doit
-//                                être LA décision ;
-//   · pas de backend (O1)      → AUCUN fournisseur, AUCUN e-mail (tous
-//                                retournent `supabase_not_configured`) : il ne
-//                                reste que « Plus tard », qui lui passe vraiment.
-//                                L'écran n'a alors PAS de CTA chartreuse — §A4
-//                                en autorise un au plus, pas au moins.
-// Le jour où O2 est fermé, c'est `GOOGLE_CONFIGURED` qui bascule — pas le JSX.
-// ═══════════════════════════════════════════════════════════════════════════
-
-/* La visibilité vient de la MÊME source que le moteur : `GOOGLE_CAPABLE` est
-   dérivé de `googleClientId()`, qui lit l'identifiant de LA plateforme courante.
-   Un bouton ne se peint pas d'après ce qui lui ressemble, mais d'après ce qui le
-   fait marcher. */
-const GOOGLE_CONFIGURED = GOOGLE_CAPABLE;
-const CAN_APPLE = Platform.OS === 'ios'; // expo-apple-authentication : iOS only
-// expo-auth-session : natif only (web = O2) ET client id présent (O2 encore).
-const CAN_GOOGLE = Platform.OS !== 'web' && GOOGLE_CONFIGURED;
-
-function AccountStep({
-  cityName,
-  persistenceFailed,
-  onDone,
-  onEmail,
-}: {
-  /** La ville choisie à l'écran précédent — RAPPELÉE, jamais redemandée. */
-  cityName: string | null;
-  /** Le stockage local n'a pas retenu ce qui a été décidé — ça se DIT. */
-  persistenceFailed: boolean;
-  onDone: () => void;
-  onEmail: () => void;
-}) {
-  const t = useT();
-  // `configured` = un backend existe → (tabs)/_layout exigera une session.
-  const { configured } = useSession();
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [pseudo, setPseudo] = useState('');
-  const accountRequired = configured;
-
-  /**
-   * Le pseudo n'est PAS un péage : rien ne bloque si le champ est vide, et rien
-   * n'est alors enregistré — le joueur garde l'identité neutre de l'app et
-   * pourra la choisir dans Profil. Rempli, il écrit le nom affiché du profil
-   * LOCAL (`profileStore`, le même que /profil-edit) : l'onglet Profil le montre
-   * dès l'arrivée. Local tant que `user_profiles` n'est pas branché (O1), d'où
-   * `privacyNote` qui dit ce qui est vrai (« rien n'est publié ici »).
-   *
-   * Il est persisté au moment où l'on QUITTE l'onboarding, quelle que soit la
-   * porte — auth réussie, e-mail, ou « plus tard » : le nom saisi ne doit pas se
-   * perdre selon le chemin de sortie choisi.
-   */
-  const persistPseudo = useCallback(() => {
-    const name = pseudo.trim();
-    if (name.length > 0) void saveProfile({ displayName: name });
-  }, [pseudo]);
-
-  const leave = useCallback(() => {
-    // §26 — « plus tard » assumé : une chute AVANT le compte, mesurée pour elle-même.
-    track(EVENTS.onboardingSkipped);
-    persistPseudo();
-    onDone();
-  }, [persistPseudo, onDone]);
-
-  const goEmail = useCallback(() => {
-    persistPseudo();
-    onEmail();
-  }, [persistPseudo, onEmail]);
-
-  const run = async (fn: () => Promise<AuthResult>) => {
-    // Garde de réentrance : le bouton Apple (natif) n'a pas de prop `disabled`,
-    // donc un double-tap — ou Apple puis Google pendant l'attente — pourrait
-    // relancer l'auth. On ignore tout appel tant qu'un run est en cours.
-    if (busy) return;
-    setBusy(true);
-    setFailed(false);
-    const result = await fn();
-    setBusy(false);
-    // Honnêteté (§ charte n°1) : un refus/échec n'est PAS un succès — on ne sort
-    // que si l'auth réussit. On reste sur l'écran avec un message court, et la
-    // voie e-mail reste offerte (Apple/Google peuvent être indisponibles — O2).
-    if (result.ok) {
-      persistPseudo();
-      onDone();
-    } else setFailed(true);
-  };
-
-  const canApple = CAN_APPLE && configured;
-  const canGoogle = CAN_GOOGLE && configured;
-  /** L'e-mail est la seule porte quand aucun fournisseur n'est utilisable. */
-  const emailIsOnlyDoor = !canApple && !canGoogle;
-
+/**
+ * La COCHE des trois garanties.
+ *
+ * ⚠️ ELLE N'EST PAS UNE ICÔNE DU SYSTÈME, ET C'EST UN MANQUE ASSUMÉ : la famille
+ * `packages/shared/src/icons.ts` n'a pas de `coche` autonome (le seul chevron de
+ * validation vit DANS le tracé du badge). Ajouter un glyphe à la famille se fait
+ * dans `packages/shared`, hors du périmètre de ce chantier — c'est signalé en
+ * handoff. En attendant, le tracé vit ici, aux mêmes proportions que la famille
+ * (viewBox 24, trait 2, terminaisons rondes) et sur un token de couleur.
+ */
+function CheckMark() {
   return (
-    <View style={styles.step}>
-      <View style={styles.body}>
-        {/* L'écran MÈNE par l'identité — vrai dans tous les cas — puis présente
-            l'entrée. Pas d'icône héros ici : la place va au champ pseudo, et le
-            tout doit tenir sans ScrollView. */}
-        <Kicker>{t(PROFILE.kicker)}</Kicker>
-        <Text style={styles.title}>{t(PROFILE.title)}</Text>
-
-        <Text style={styles.fieldLabel}>{t(PROFILE.pseudoLabel)}</Text>
-        <TextInput
-          style={styles.input}
-          value={pseudo}
-          onChangeText={setPseudo}
-          maxLength={DISPLAY_NAME_MAX}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="done"
-          accessibilityLabel={t(PROFILE.pseudoLabel)}
-        />
-
-        {/* La ville choisie, RAPPELÉE — et seulement si elle existe : sans
-            choix, pas de ligne vide qui laisserait croire à un réglage manquant. */}
-        {cityName ? (
-          <Text style={styles.recap}>
-            {t(PROFILE.cityLabel)} · {cityName}
-          </Text>
-        ) : null}
-
-        {/* Le compte est requis : on le dit AVANT que le joueur cherche « Plus
-            tard » et se cogne à une porte fermée. Seulement quand c'est vrai. */}
-        {accountRequired ? (
-          <Text style={styles.tagline}>{t(ACCOUNT.taglineRequired)}</Text>
-        ) : null}
-
-        <Text style={styles.note}>{t(PROFILE.privacyNote)}</Text>
-        {/* Le seul héritage de l'écran `permission` supprimé, au plus près du
-            premier GO : le GPS s'allume au départ d'une course, jamais avant. */}
-        <Text style={styles.note}>{t(PROFILE.gpsNote)}</Text>
-      </View>
-      <View style={styles.footer}>
-        {failed ? (
-          <Text style={styles.authError} accessibilityRole="alert">
-            {t(ACCOUNT.error)}
-          </Text>
-        ) : null}
-        {canApple ? <OnboardingAppleButton onPress={() => void run(signInWithApple)} /> : null}
-        {canGoogle ? (
-          canApple ? (
-            <View style={styles.secondary}>
-              <Button
-                label={t(ACCOUNT.google)}
-                onPress={() => void run(signInWithGoogle)}
-                variant="ghost"
-                size="md"
-                loading={busy}
-                analyticsId="onboarding_account_google"
-              />
-            </View>
-          ) : (
-            <PrimaryCta
-              label={t(ACCOUNT.google)}
-              onPress={() => void run(signInWithGoogle)}
-              analyticsId="onboarding_account_google"
-            />
-          )
-        ) : null}
-        {/* UNE seule voie secondaire (§A), et elle mène TOUJOURS quelque part.
-            Chaque sortie passe par `leave`/`goEmail` : le pseudo saisi est
-            persisté quel que soit le chemin choisi. */}
-        {!accountRequired ? (
-          <TextLink label={t(ACCOUNT.skip)} onPress={leave} />
-        ) : emailIsOnlyDoor ? (
-          <PrimaryCta
-            label={t(ACCOUNT.email)}
-            onPress={goEmail}
-            analyticsId="onboarding_account_email"
-          />
-        ) : (
-          <TextLink label={t(ACCOUNT.email)} onPress={goEmail} underline />
-        )}
-        {accountRequired ? <Text style={styles.hint}>{t(ACCOUNT.emailHint)}</Text> : null}
-        {/* CE QU'ON N'A PAS PU RETENIR SE DIT : sans cette ligne, l'échec vivait
-            dans un `catch {}` — le joueur refaisait l'onboarding à chaque
-            lancement en croyant l'app cassée. Gris, jamais chartreuse. */}
-        {persistenceFailed ? (
-          <Text style={styles.hint}>{t(STORAGE_UNAVAILABLE_NOTICE)}</Text>
-        ) : null}
-      </View>
-    </View>
+    <Svg width={iconSizes.md} height={iconSizes.md} viewBox="0 0 24 24">
+      <Path
+        d="M5 12.5l4.5 4.5L19 7"
+        stroke={colors.chartreuse}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
   );
 }
 
@@ -1130,156 +644,94 @@ function AccountStep({
 // ═══════════════════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.noir },
+  root: { flex: 1, backgroundColor: colors.carbonImmersive },
 
-  // ── En-tête commun : flèche retour + marque discrète + frise, sur une rangée ──
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.cardPadding,
-    gap: spacing.xxs,
+  // « Passer » (planche, haut-droit) et la flèche retour (écart assumé,
+  // haut-gauche) : deux liens GRIS, jamais des CTA, cible ≥ 44 px avec hitSlop.
+  skip: {
+    position: 'absolute',
+    right: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    zIndex: 2,
   },
-  // La frise se pousse à droite de la rangée : elle informe, elle ne dispute
-  // rien au titre (qui vit dans le corps).
-  headerDots: { marginLeft: 'auto' },
+  skipLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },
   back: {
+    position: 'absolute',
+    left: spacing.xs,
     width: sizes.touchTarget,
     height: sizes.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   backMirror: { transform: [{ scaleX: -1 }] },
-  // La marque SIGNE la page sans la dominer : petite, chartreuse sur fond noir
-  // (jamais sur clair), très espacée — elle se lit comme un logo, pas un titre.
-  brand: {
-    color: colors.chartreuse,
-    fontFamily: fonts.displayBold, // Inter Tight 700 — la famille porte la graisse
-    fontSize: fontSizes.sm,
-    letterSpacing: 3.5,
+
+  // La scène : le visuel centré dans l'espace laissé par le bloc bas. Le padding
+  // haut dégage la rangée « Passer » / retour — un visuel qui passerait dessous
+  // rendrait les deux illisibles.
+  scene: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
   },
 
-  step: { flex: 1, paddingHorizontal: spacing.cardPadding + 4 },
-  // Corps : contenu principal (titre + visuel + textes) — centré verticalement.
-  body: { flex: 1, justifyContent: 'center' },
-  footer: { paddingBottom: spacing.md, paddingTop: spacing.sm, gap: 10 },
-
-  // Le kicker CONSOMME `ui/SectionLabel` (rôle R1) : ne reste ici que ce qui
-  // appartient à cette mise en page — la marge sous le sur-titre.
-  kicker: { marginBottom: spacing.sm },
+  // Le bloc bas des planches : titre → sous-titre → CTA → frise.
+  bottom: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  // Titre display de la planche : 40 / interligne 44 / -0,01em (identique à E01).
   title: {
     color: colors.blanc,
     fontFamily: fonts.display, // Inter Tight 800 — la famille porte la graisse
-    fontSize: fontSizes.xl, // 28 — sûr sur tous les pas de l'onboarding (titres variables)
-    letterSpacing: -0.8,
-    lineHeight: fontSizes.xl * 1.12,
+    fontSize: fontSizes.xxl,
+    letterSpacing: -0.4,
+    lineHeight: TITLE_LINE_HEIGHT,
   },
   tagline: {
     color: colors.gris,
-    fontFamily: fonts.text, // Inter — Body 16/22 secondary
+    fontFamily: fonts.text,
     fontSize: fontSizes.md,
     lineHeight: fontSizes.md * 1.4,
-    marginTop: spacing.md,
+    maxWidth: TAGLINE_MAX_WIDTH,
   },
-  // Notes d'honnêteté (confidentialité, GPS, pré-permission) : discrètes, jamais
-  // sous 12 px, grises — ce ne sont pas des actions.
+  // Frise SOUS le CTA (planche) — centrée.
+  dots: { alignSelf: 'center' },
+
+  // ── E05 : les trois garanties ──
+  // Filet SÉPARATEUR entre les lignes (planche), jamais un cadre : une card autour
+  // de trois lignes serait la card-in-card interdite par §A.
+  guarantees: { marginTop: spacing.xxs },
+  guarantee: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  guaranteeDivided: { borderTopWidth: 1, borderTopColor: withAlpha(colors.blanc, 0.1) },
+  guaranteeLabel: {
+    flex: 1,
+    color: colors.blanc,
+    fontFamily: fonts.text,
+    fontSize: fontSizes.sm,
+    lineHeight: fontSizes.sm * 1.4,
+  },
+
+  // Lien secondaire (« Plus tard ») — cible ≥ 44 px, gris, jamais un 2e CTA.
+  link: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: sizes.touchTarget,
+  },
+  linkLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },
+
+  // Notes d'honnêteté (capteur absent, stockage muet) : discrètes, jamais sous
+  // 12 px, grises — ce ne sont pas des actions.
   note: {
     color: colors.gris,
     fontFamily: fonts.text,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.45,
-    marginTop: spacing.xs,
-  },
-  // Retour d'une tentative de position : plus lisible qu'une note (c'est une
-  // réponse à un geste), blanc, jamais chartreuse — ce n'est pas un gain.
-  notice: {
-    color: colors.blanc,
-    fontFamily: fonts.textMedium,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.4,
-    marginTop: spacing.sm,
+    textAlign: 'center',
   },
 
   pressed: { opacity: 0.85 },
-
-  // Espacement d'une action SECONDAIRE (`Button` ghost) : le bouton porte sa
-  // forme et sa hauteur, la page porte son rythme.
-  secondary: { marginTop: spacing.sm },
-
-  // Lien secondaire (porte de connexion, « Plus tard ») — cible ≥ 44 px.
-  link: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: sizes.touchTarget,
-    paddingVertical: spacing.sm,
-  },
-  linkLabel: { color: colors.gris, fontFamily: fonts.textMedium, fontSize: fontSizes.sm },
-  linkUnderline: { textDecorationLine: 'underline' },
-
-  // ── Cartes pédagogiques : le plateau de démonstration ──
-  // Largeur calculée au rendu (≈ 38 % de la hauteur d'écran, bornée par la
-  // largeur utile) : c'est le contenu qui rentre, pas la fenêtre qui s'allonge.
-  boardWrap: { alignSelf: 'center', marginTop: spacing.md, marginBottom: spacing.xxs },
-
-  // ── Profil : le champ pseudo ──
-  // ⚠️ CINQ STYLES MORTS ONT ÉTÉ RETIRÉS ICI (25/07/2026) : `listLabel`,
-  // `cityRow`, `cityRowSelected`, `cityName`, `cityNameSelected` — reliquats du
-  // sélecteur de ville local, remplacé par `CitySearch` (le sélecteur PARTAGÉ).
-  // Un style que plus aucun JSX ne consomme est un piège pour le prochain lecteur.
-  //
-  // Champ 56 pt à LABEL PERSISTANT (planche E21, patron déjà appliqué dans
-  // /profil-edit) : 48 px, c'était la hauteur d'un bouton secondaire, pas celle
-  // d'un champ de saisie.
-  input: {
-    fontFamily: fonts.text,
-    height: sizes.buttonLg,
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone2,
-    color: colors.blanc,
-    fontSize: fontSizes.md,
-  },
-  fieldLabel: {
-    color: colors.gris,
-    fontFamily: fonts.textSemi,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-    marginTop: spacing.lg,
-    marginBottom: spacing.xs,
-  },
-  recap: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.sm, marginTop: spacing.md },
-
-  // ── Age / compte : hero icône ──
-  iconHero: { alignItems: 'center', marginBottom: spacing.xl },
-  iconHeroRing: {
-    width: AGE_RING,
-    height: AGE_RING,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: withAlpha(colors.chartreuse, 0.4),
-    backgroundColor: withAlpha(colors.chartreuse, 0.08),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Précision sous la voie e-mail : ce que le code fait vraiment. Centrée,
-  // lisible (≥ 12 px), gris — jamais chartreuse : ce n'est pas une action.
-  hint: {
-    color: colors.gris,
-    fontFamily: fonts.text,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.45,
-    textAlign: 'center',
-  },
-
-  // Message d'échec d'auth (honnête) : centré, lisible (≥ 12 px), non chartreuse.
-  authError: {
-    color: colors.blanc,
-    fontFamily: fonts.textMedium,
-    fontSize: fontSizes.sm,
-    textAlign: 'center',
-    marginBottom: spacing.xxs,
-  },
 });

@@ -1,361 +1,364 @@
 /**
- * GRYD — LA DÉMONSTRATION ANIMÉE DE L'ONBOARDING. SVG react-native-svg (cross
- * natif / web preview), TOUTES les couleurs dérivées des tokens (charte : toute
- * couleur hors tokens = bug ; jamais de chartreuse sur fond clair — ici tout est
- * sur noir). Réutilise `territoryStyle` / `traceStyle` (mapStyle) et le hook
- * `useReduceMotion` du design system.
+ * GRYD — LES VISUELS DES PLANCHES E01b (02 · 03 · 04 · 05). SVG
+ * react-native-svg (cross natif / web preview), TOUTES les couleurs dérivées des
+ * tokens (charte : toute couleur hors tokens = bug ; jamais de chartreuse sur
+ * fond clair — ici tout est sur carbone).
  *
- *   RivalryDemo — carte 2 « RIVALITÉ » : la zone tenue devient contestée. (La
- *   carte 1 est rendue par `E01Hero` SEUL — une photo plein cadre propre, sans
- *   boucle par-dessus ; cf. la note plus bas.)
+ *   PlancheBoard  — le plateau commun : fond carbone, GRILLE de rues (4 colonnes
+ *                   × 5 lignes, filets très discrets) et chip « Exemple ».
+ *   RivalrySplit  — planche 03 : une zone, moitié gauche à moi, moitié droite
+ *                   REPRISE (orange), le contour rival débordant à droite.
+ *   CrewAdjacent  — planche 04 : deux territoires qui se TOUCHENT, frontière
+ *                   commune partagée.
+ *   PrivacyRing   — planche 05 : le halo pointillé + le point « toi ».
+ * (La boucle de la planche 02 vit dans `E02Loop.tsx`, récupérée depuis git.)
  *
- * VRAIS TRACÉS (demande fondateur) : plus AUCUN blob ni ellipse décoratif —
- * chaque territoire et chaque trace sont projetés depuis de VRAIES géométries de
- * boucles et de rues (`realAnchors`) par le projecteur pur `fitTracesToBox`. Un
- * tracé qui ne ressemble pas à une course n'enseigne pas une course.
+ * ─── ELLES NE CALCULENT RIEN ────────────────────────────────────────────────
+ * Géométrie et temps viennent du module PUR `plancheMotion.ts` (bornes des
+ * animations, ordre des temps, sommets des zones, grille). C'est la seule façon
+ * de PROUVER une animation ici : dans l'aperçu headless
+ * `document.visibilityState` vaut "hidden", `requestAnimationFrame` tourne à
+ * 0 fps, et toute capture d'écran montre une image figée qui ne prouve rien.
  *
- * ─── ELLES NE CALCULENT RIEN (23/07/2026) ───────────────────────────────────
- * Les deux composants ne font que RENDRE l'état renvoyé par le module PUR
- * `demoPhases.ts` à l'instant t (bornes du storyboard, ordre des temps,
- * invariants de sens, géométrie projetée). C'est la seule façon de PROUVER une
- * animation ici : dans l'aperçu headless `document.visibilityState` vaut
- * "hidden", `requestAnimationFrame` tourne à 0 fps, et toute capture d'écran
- * montre une image figée qui ne prouve rien.
- *
- * ─── CE QUI A ÉTÉ SUPPRIMÉ LE 23/07/2026 (refonte « 3 cartes ») ─────────────
- * `HookMapBackground` (rues grises décoratives traversant le splash),
- * `TerrainVisual` (le plateau 3-rôles de l'écran `learn`) et `LogoRouteMark`
- * (la petite forme G flottante, avec son module `logoRoute`) figuraient mot pour
- * mot dans la liste « à supprimer » du fondateur. Leurs écrans n'existent plus :
- * on les RETIRE au lieu de les laisser en dette. Ce qu'ils avaient de vrai est
- * passé dans les démonstrations ci-dessous — géométrie réelle, chip « Exemple »,
- * mouvement réduit respecté.
+ * ─── CE QUI A ÉTÉ SUPPRIMÉ PAR CE CHANTIER, ET POURQUOI ─────────────────────
+ * `RivalryDemo` — le plateau animé à 4 temps de l'ancienne carte 2 (zone tenue →
+ * pression rivale → contestée violet → label), monté sur de VRAIES rues
+ * projetées (`demoPhases.ts`, supprimé avec lui). Les planches E01b décrivent un
+ * autre écran : une grille stylisée, UNE zone, une bascule de 600 ms, le mot
+ * « REPRIS ». Garder l'ancien composant à côté du nouveau, c'était garantir
+ * qu'il divergerait de ce qui est à l'écran — et c'est exactement comme ça que la
+ * chip « Exemple » avait disparu du premier écran de l'app.
  *
  * ─── HONNÊTETÉ ─────────────────────────────────────────────────────────────
  * Ces plateaux ILLUSTRENT une règle ; ils n'affichent aucun état du monde. Chip
  * « Exemple » posée sur le visuel, AUCUN lieu nommé, AUCUN nom de crew, AUCUN
- * chiffre attribué au joueur, AUCUNE célébration (le label du 4e temps est
- * BLANC : nommer n'est pas célébrer). Et ils ne se recentrent JAMAIS sur la
- * ville que le joueur vient de choisir : le jour où l'exemple devient « ta
- * ville », il ment sur l'état de son monde.
+ * chiffre attribué au joueur, AUCUNE célébration. Et ils ne se recentrent JAMAIS
+ * sur la ville du joueur : le jour où l'exemple devient « ta ville », il ment sur
+ * l'état de son monde.
  */
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path, Polyline, G, Defs, RadialGradient, Stop } from 'react-native-svg';
-import { colors, fontSizes, fonts, gameColors, radii, spacing } from '@klaim/shared';
-import { useReduceMotion } from '../../ui/game';
-import { territoryStyle, withAlpha } from '../map/mapStyle';
-import { fitTracesToBox } from '../map/projectTrace';
+import { type ReactNode, useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import Svg, {
+  Circle,
+  ClipPath,
+  Defs,
+  G,
+  Line,
+  Path,
+  Rect,
+  Text as SvgText,
+} from 'react-native-svg';
+import { colors, fontSizes, fonts, gameColors, withAlpha } from '@klaim/shared';
+import { useReduceMotion } from '../../ui/game/anim';
 import {
-  CAPTURE_LOOP,
-  DEMO_BOARD_H,
-  DEMO_BOARD_W,
-  DEMO_CYCLE_MS,
-  DEMO_PLAY_MS,
-  DEMO_STREETS,
-  RIVAL_LOOP,
-  RIVALRY_PROJ,
-  demoElapsedMs,
-  rivalryPhases,
-} from './demoPhases';
-import type { LatLngPoint } from '../map/realAnchors';
-// La chip d'honnêteté est un COMPOSANT PARTAGÉ (`./ExampleTag`) : elle vivait ici,
-// et elle a disparu du premier écran de l'app le jour où ce fichier a cessé d'en
-// être l'hôte. Un garde-fou ne se range pas dans le composant qu'il garde.
+  BOARD_H,
+  BOARD_W,
+  CREW_BORDER,
+  CREW_MINE_D,
+  CREW_OTHER_D,
+  PRIVACY_BOX,
+  PRIVACY_DASH,
+  PRIVACY_DOT_R,
+  PRIVACY_RING_R,
+  RIVALRY_LABEL_ANCHOR,
+  RIVALRY_OVERFLOW,
+  RIVALRY_SPLIT_X,
+  RIVALRY_ZONE_D,
+  TAKEOVER_MS,
+  gridLines,
+} from './plancheMotion';
+// La chip d'honnêteté est un COMPOSANT PARTAGÉ (`./ExampleTag`) : elle vivait
+// dans ce fichier, et elle a disparu du premier écran de l'app le jour où il a
+// cessé d'en être l'hôte. Un garde-fou ne se range pas dans le composant qu'il garde.
 import { ExampleTag } from './ExampleTag';
 
+const AnimatedG = Animated.createAnimatedComponent(G);
+
+/** Opacités des aplats de zone — la trace/le contour restent dominants (§C). */
+const ZONE_FILL = 0.17;
+const RIVAL_FILL = 0.2;
+const OTHER_CREW_FILL = 0.16;
+/** Filets de la grille de rues : « très discrets » (planche). */
+const GRID_ALPHA = 0.07;
+
 /**
- * Rues réelles projetées — DÉCOR, jamais un état de jeu, jamais nommé à l'écran.
- * Ni projection ni liste par défaut : chaque démonstration passe LA SIENNE (les
- * deux cartes n'ont pas le même cadrage), et un défaut invisible serait le
- * meilleur moyen de dessiner le mauvais quartier sans s'en apercevoir.
+ * L'AUTRE CREW (planche 04 : « un BLEU désaturé »).
+ *
+ * ⚠️ ÉCART ASSUMÉ À §C, ET IL EST BORNÉ. La règle est « couleur par RÔLE, jamais
+ * par identité de crew » — un voisin qui n'est ni rival ni contesté y serait
+ * gris. La planche demande un bleu, parce que l'écran doit faire LIRE deux
+ * territoires distincts qui se touchent, et que deux gris adjacents ne se
+ * distinguent pas. La teinte DÉRIVE du token `--gryd-info` (`gameColors.verify`)
+ * et reste désaturée par son alpha : c'est le rôle « un territoire qui n'est pas
+ * le mien », pas la couleur d'un crew nommé. Aucun crew n'est nommé sur cet
+ * écran, et cette teinte ne sort pas de l'onboarding.
  */
-function RealStreets({
-  proj,
-  streets,
-  opacity = 0.08,
+const OTHER_CREW = gameColors.verify;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LE PLATEAU COMMUN (planches 02 · 03 · 04)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * La GRILLE DE RUES. Ce n'est PAS une carte : aucune rue réelle, aucun lieu,
+ * aucune projection — un décor régulier qui dit « ville » sans rien affirmer sur
+ * celle du joueur. (Les vraies rues projetées de l'ancien plateau faisaient
+ * croire, à qui les reconnaissait, que la démonstration montrait un quartier
+ * précis.)
+ */
+export function StreetGridBackground() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {/* `preserveAspectRatio="none"` : une grille RÉGULIÈRE peut s'étirer au
+          format de l'écran sans rien perdre de son sens — c'est un décor, pas une
+          géométrie. Les visuels, eux, gardent leur ratio (ce sont des tracés). */}
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}
+        preserveAspectRatio="none"
+      >
+        {gridLines().map((l, i) => (
+          <Line
+            key={i}
+            x1={l.x1}
+            y1={l.y1}
+            x2={l.x2}
+            y2={l.y2}
+            stroke={withAlpha(colors.blanc, GRID_ALPHA)}
+            strokeWidth={1}
+          />
+        ))}
+      </Svg>
+    </View>
+  );
+}
+
+/**
+ * LE PLATEAU des planches pédagogiques : le visuel, centré, et LA CHIP
+ * « EXEMPLE » à son coin haut-droit — position fixe, jamais sur le tracé : on la
+ * cherche toujours au même endroit.
+ *
+ * ⚠️ AUCUN CADRE, AUCUN FOND. La planche décrit un écran PLEIN CADRE (« fond
+ * carbone + grille de rues […] AU CENTRE : une boucle fermée »), pas une carte
+ * posée sur l'écran. Le rendre en card produirait exactement le card-in-card que
+ * §A interdit, et couperait la grille en deux (une dedans, une dehors).
+ *
+ * La chip, elle, n'est pas décorative : sans elle, une boucle qui se ferme puis
+ * se remplit est la représentation exacte d'une capture que personne n'a courue.
+ */
+export function PlancheStage({
+  exampleLabel,
+  children,
 }: {
-  proj: ReturnType<typeof fitTracesToBox>;
-  streets: readonly (readonly LatLngPoint[])[];
-  opacity?: number;
+  exampleLabel?: string;
+  children: ReactNode;
 }) {
   return (
+    <View style={styles.stage}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${BOARD_W} ${BOARD_H}`}>{children}</Svg>
+      <ExampleTag label={exampleLabel} style={styles.exampleTag} />
+    </View>
+  );
+}
+
+/**
+ * Animation d'ENTRÉE, jouée UNE fois (les planches E01b décrivent des entrées,
+ * pas des boucles) : 0 → 1 sur `durationMs`. En mouvement réduit, la valeur part
+ * — et reste — à 1 : l'état final, lisible d'emblée.
+ *
+ * ⚠️ Driver JS obligatoire (`useNativeDriver: false`) : ces valeurs pilotent des
+ * props SVG (`opacity` d'un `G`), pas des transforms.
+ */
+function useEntrance(durationMs: number): Animated.Value {
+  const reduce = useReduceMotion();
+  const value = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduce) {
+      value.setValue(1);
+      return;
+    }
+    value.setValue(0);
+    const anim = Animated.timing(value, {
+      toValue: 1,
+      duration: durationMs,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [durationMs, reduce, value]);
+  return value;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PLANCHE 03 — « ON PEUT TE LA REPRENDRE »
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * UNE zone, coupée en deux : la moitié gauche reste à moi (chartreuse), la
+ * moitié droite BASCULE en orange (600 ms) avec le mot « REPRIS » posé dedans, et
+ * le contour rival déborde légèrement à droite — c'est ce débord qui dit « ça
+ * vient de l'extérieur ».
+ *
+ * Couleurs par RÔLE, jamais par identité : aucun crew n'est nommé, aucun rival
+ * n'existe (l'app n'a ni joueur ni classement à montrer ici). C'est une règle qui
+ * est illustrée, pas un état du monde. Ton FACTUEL : « REPRIS » constate, il ne
+ * menace pas — et il est peint en orange, pas en rouge de danger.
+ */
+export function RivalrySplit({ takenLabel }: { takenLabel: string }) {
+  const taken = useEntrance(TAKEOVER_MS);
+  return (
     <>
-      {streets.map((street, i) => (
-        <Polyline
-          key={i}
-          points={proj.points(street)}
-          stroke={withAlpha(colors.blanc, opacity)}
+      <Defs>
+        {/* Les deux moitiés de LA MÊME zone (planche) : un seul polygone, deux
+            découpes — jamais deux zones côte à côte, qui diraient autre chose. */}
+        <ClipPath id="planche03-mine">
+          <Rect x={0} y={0} width={RIVALRY_SPLIT_X} height={BOARD_H} />
+        </ClipPath>
+        <ClipPath id="planche03-taken">
+          <Rect x={RIVALRY_SPLIT_X} y={0} width={BOARD_W - RIVALRY_SPLIT_X} height={BOARD_H} />
+        </ClipPath>
+      </Defs>
+
+      {/* MA MOITIÉ — chartreuse, contour net (c'est lui qui porte le rôle « moi »). */}
+      <G clipPath="url(#planche03-mine)">
+        <Path
+          d={RIVALRY_ZONE_D}
+          fill={withAlpha(colors.chartreuse, ZONE_FILL)}
+          stroke={colors.chartreuse}
           strokeWidth={2}
-          strokeLinecap="round"
-          fill="none"
+          strokeLinejoin="round"
         />
-      ))}
+      </G>
+
+      {/* LA MOITIÉ REPRISE — elle arrive en 600 ms, par-dessus. */}
+      <AnimatedG opacity={taken}>
+        <G clipPath="url(#planche03-taken)">
+          <Path
+            d={RIVALRY_ZONE_D}
+            fill={withAlpha(gameColors.rival, RIVAL_FILL)}
+            stroke={gameColors.rival}
+            strokeWidth={2}
+            strokeLinejoin="round"
+          />
+          {/* Le contour rival, DÉCALÉ vers la droite : il déborde de la zone. */}
+          <Path
+            d={RIVALRY_ZONE_D}
+            fill="none"
+            stroke={gameColors.rival}
+            strokeWidth={2}
+            strokeLinejoin="round"
+            translateX={RIVALRY_OVERFLOW}
+          />
+        </G>
+        {/* « REPRIS » au centre de la partie reprise. Orange (le rôle rival), et
+            jamais un chiffre : nommer un état n'est pas afficher un score. */}
+        <SvgText
+          x={RIVALRY_LABEL_ANCHOR[0]}
+          y={RIVALRY_LABEL_ANCHOR[1]}
+          fill={gameColors.rival}
+          fontFamily={fonts.textBold}
+          fontSize={fontSizes.md}
+          letterSpacing={1.5}
+          textAnchor="middle"
+        >
+          {takenLabel}
+        </SvgText>
+      </AnimatedG>
     </>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// LA MICRO-DÉMONSTRATION (cartes 1 et 2) — elle DÉMONTRE, elle ne décore pas
+// PLANCHE 04 — « PLUS FORTS EN CREW »
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Horloge des démonstrations : UNE seule `Animated.timing` LINÉAIRE bouclée,
- * dont la valeur brute est convertie en millisecondes par `demoElapsedMs`
- * (module pur). Deux raisons, toutes deux déjà payées :
+ * Deux territoires ADJACENTS qui se touchent : le mien (chartreuse) et celui d'un
+ * autre crew (bleu désaturé, cf. `OTHER_CREW`). Leur frontière commune est
+ * dessinée UNE fois, en blanc discret : elle appartient aux deux — c'est tout le
+ * propos de « le quartier se prend à plusieurs ».
  *
- *  · `Animated.loop(Animated.sequence([...]))` — la forme naturelle d'un
- *    storyboard à 4 temps — NE DÉMARRE PAS sur react-native-web : mesuré sur
- *    6 s le 21/07/2026, le tracé restait figé à 0. La tenue de fin est donc
- *    calculée au rendu, pas jouée par l'animation.
- *  · driver JS obligatoire (`useNativeDriver: false`) : ces valeurs pilotent des
- *    props SVG, pas des transforms.
- *
- * MOUVEMENT RÉDUIT : aucune animation dégradée, aucun écran vide — on affiche
- * l'ÉTAT FINAL lisible (boucle fermée, zone remplie, label posé), qui est très
- * exactement `capturePhases(DEMO_PLAY_MS)`.
- *
- * `replayKey` relance le cycle depuis zéro (tap sur le visuel).
+ * ⚠️ CET ÉCRAN ENSEIGNE, IL NE DEMANDE RIEN (note de planche : « la création /
+ * adhésion au crew reste post-onboarding, jamais forcée ici »). Aucun bouton
+ * « créer un crew », aucun nom, aucun effectif, aucun classement.
  */
-function useDemoElapsed(replayKey: number): { ms: number; reduce: boolean } {
-  const reduce = useReduceMotion();
-  const [raw, setRaw] = useState(0);
-  const anim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (reduce) return;
-    anim.setValue(0);
-    setRaw(0);
-    const id = anim.addListener(({ value }) => setRaw(value));
-    const runner = Animated.loop(
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: DEMO_CYCLE_MS,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }),
-    );
-    runner.start();
-    return () => {
-      runner.stop();
-      anim.removeListener(id);
-    };
-  }, [anim, reduce, replayKey]);
-  return { ms: reduce ? DEMO_PLAY_MS : demoElapsedMs(raw), reduce };
+export function CrewAdjacent() {
+  return (
+    <>
+      {/* L'AUTRE CREW — peint en premier : le mien passe devant, comme partout. */}
+      <Path
+        d={CREW_OTHER_D}
+        fill={withAlpha(OTHER_CREW, OTHER_CREW_FILL)}
+        stroke={withAlpha(OTHER_CREW, 0.75)}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+      {/* LE MIEN. */}
+      <Path
+        d={CREW_MINE_D}
+        fill={withAlpha(colors.chartreuse, ZONE_FILL)}
+        stroke={colors.chartreuse}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+      {/* LA FRONTIÈRE COMMUNE : un seul trait, partagé. Deux traits parallèles
+          diraient « deux crews voisins » ; un seul dit « ils se touchent ». */}
+      <Line
+        x1={CREW_BORDER[0][0]}
+        y1={CREW_BORDER[0][1]}
+        x2={CREW_BORDER[1][0]}
+        y2={CREW_BORDER[1][1]}
+        stroke={withAlpha(colors.blanc, 0.8)}
+        strokeWidth={2}
+        strokeDasharray="6 5"
+      />
+    </>
+  );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PLANCHE 05 — « TA POSITION CRÉE LE TRACÉ »
+// ═══════════════════════════════════════════════════════════════════════════
+
 /**
- * Cadre commun des deux démonstrations : le plateau, la chip « Exemple », le
- * label bref du 4e temps, et le tap-pour-rejouer.
+ * Le halo POINTILLÉ (la zone floutée) et le point plein (toi) au centre.
  *
- * Le tap n'est peint comme BOUTON que s'il fait réellement quelque chose : sans
- * libellé d'accessibilité, ou en mouvement réduit (l'image est déjà à son état
- * final — la rejouer ne montrerait rien), aucun `Pressable` n'est monté. Un
- * bouton qui n'aboutit jamais est le bouton mort de §A4 ; son absence, elle,
- * ne ment pas.
+ * Il ne porte NI grille NI chip « Exemple », et c'est voulu : ce n'est pas un
+ * plateau de démonstration mais un PICTOGRAMME de la garantie énoncée juste en
+ * dessous (« zones floutées autour des lieux sensibles »). Il n'illustre aucune
+ * capture, donc il n'y a rien à étiqueter comme exemple — et il n'affiche
+ * évidemment aucune position réelle : aucun capteur n'est lu par cet écran tant
+ * que le joueur n'a pas touché le CTA.
  */
-function DemoFrame({
-  exampleLabel,
-  label,
-  labelOpacity,
-  replayA11y,
-  onReplay,
-  children,
-}: {
-  exampleLabel?: string;
-  label?: string;
-  labelOpacity: number;
-  replayA11y?: string;
-  onReplay?: () => void;
-  children: ReactNode;
-}) {
-  const board = (
-    <View style={styles.board}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${DEMO_BOARD_W} ${DEMO_BOARD_H}`}>
-        {children}
+export function PrivacyRing() {
+  const c = PRIVACY_BOX / 2;
+  return (
+    <View style={styles.privacy}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${PRIVACY_BOX} ${PRIVACY_BOX}`}>
+        <Circle
+          cx={c}
+          cy={c}
+          r={PRIVACY_RING_R}
+          fill={withAlpha(colors.chartreuse, 0.06)}
+          stroke={withAlpha(colors.chartreuse, 0.55)}
+          strokeWidth={2}
+          strokeDasharray={PRIVACY_DASH}
+          strokeLinecap="round"
+        />
+        <Circle cx={c} cy={c} r={PRIVACY_DOT_R} fill={colors.chartreuse} />
       </Svg>
-      {/* Coin haut-DROIT du plateau — position fixe, jamais sur la trace. */}
-      <ExampleTag label={exampleLabel} style={styles.exampleTag} />
-      {/* Le label bref (4e temps). BLANC, jamais chartreuse : nommer ce qui
-          vient de se passer est de la pédagogie ; le peindre en couleur de gain
-          serait célébrer une capture que personne n'a courue. */}
-      {label ? (
-        <View style={[styles.demoLabel, { opacity: labelOpacity }]} pointerEvents="none">
-          <Text style={styles.demoLabelText}>{label}</Text>
-        </View>
-      ) : null}
     </View>
   );
-  if (!onReplay || !replayA11y) return board;
-  return (
-    <Pressable onPress={onReplay} accessibilityRole="button" accessibilityLabel={replayA11y}>
-      {board}
-    </Pressable>
-  );
 }
-
-/** Tap-pour-rejouer : une clé qui remonte l'effet d'animation. */
-function useReplay(): { key: number; replay: () => void } {
-  const [key, setKey] = useState(0);
-  const replay = useCallback(() => setKey((k) => k + 1), []);
-  return { key, replay };
-}
-
-/**
- * ⚠️ `CaptureDemo` (carte 1) A ÉTÉ RETIRÉE LE 25/07/2026. Elle n'avait plus AUCUN
- * importeur depuis que la carte 1 est rendue par le hero plein cadre `E01Hero`
- * SEUL (une photo propre) : ~90 lignes compilées, jamais montées. La boucle
- * chartreuse un temps prévue par-dessus (`E01Route`) a été SUPPRIMÉE pour la même
- * raison — du code mort jamais monté. Garder du code jamais rendu, c'est garantir
- * qu'il divergera de ce qui est à l'écran — et c'est exactement comme ça que la
- * chip « Exemple » a disparu du premier écran de l'app : le garde-fou vivait dans
- * le composant remplacé.
- *
- * Ce qui lui servait reste, et pour de bonnes raisons : `capturePhases`
- * (`demoPhases.ts`) est le STORYBOARD PUR de la capture — l'ordre « la zone ne se
- * remplit qu'après la fermeture » y est verrouillé et testé, indépendamment de
- * tout composant.
- */
-
-/**
- * CARTE 2 — LA RIVALITÉ. « Ta zone peut être reprise. »
- *
- * Même grammaire, même durée, même cadre que la carte 1 — c'est volontaire :
- * deux visuels qui se lisent pareil enseignent une suite, deux visuels
- * différents enseignent deux objets. Ici, ma zone est DÉJÀ tenue (l'acquis de
- * la carte 1) ; la zone d'à côté monte en pression (orange) ; puis la mienne
- * bascule en CONTESTÉE — violet + double contour §C (contour extérieur rival,
- * contour intérieur mon crew : deux crews sur la même zone).
- *
- * Couleurs par RÔLE, jamais par identité : aucun crew n'est nommé, aucun rival
- * n'existe (l'app n'a ni joueur ni classement à montrer). C'est une règle qui
- * est illustrée, pas un état du monde.
- */
-export function RivalryDemo({
-  exampleLabel,
-  label,
-  replayA11y,
-}: {
-  exampleLabel?: string;
-  label?: string;
-  replayA11y?: string;
-}) {
-  const { key, replay } = useReplay();
-  const { ms, reduce } = useDemoElapsed(key);
-  const p = rivalryPhases(ms);
-  const minePath = RIVALRY_PROJ.path(CAPTURE_LOOP, true);
-  const rivalPath = RIVALRY_PROJ.path(RIVAL_LOOP, true);
-  return (
-    <DemoFrame
-      exampleLabel={exampleLabel}
-      label={label}
-      labelOpacity={p.label}
-      replayA11y={reduce ? undefined : replayA11y}
-      onReplay={reduce ? undefined : replay}
-    >
-      {/* FONDU « ink-radial » (workflow design + juge charte, 26/07) — chaque aplat
-          devient une TACHE D'ENCRE dense au centre de sa zone et diffusée vers les
-          bords, comme « la surface se remplit comme une encre cartographique » de la
-          planche E08 : plus d'aplat franc. Couleurs 100 % tokens (stopColor = token,
-          stopOpacity = alpha ; jamais un hex). cx/cy/r en coords du viewBox 320×300,
-          centrés sur chaque zone PROJETÉE (userSpaceOnUse — un objectBoundingBox
-          recalerait mal ces Path allongées). Le fill fond, le CONTOUR reste NET :
-          c'est lui qui tient le rôle là où l'encre s'estompe (§A, lu en < 3 s).
-          ⚠️ Les opacités de calque (p.mine/p.threat/p.contested) restent ANIMÉES :
-          le dégradé est un fill statique, tout le crossfade vit sur ces opacités.
-          ⚠️ r ≥ demi-diagonale de chaque zone → aucun anneau « pad » terne aux coins ;
-          si les anchors/pad de RIVALRY_PROJ changent, recalculer cx/cy/r. */}
-      <Defs>
-        <RadialGradient id="ink-mine" cx={192} cy={168} r={155} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={colors.chartreuse} stopOpacity={0.46} />
-          <Stop offset="0.55" stopColor={colors.chartreuse} stopOpacity={0.28} />
-          <Stop offset="1" stopColor={colors.chartreuse} stopOpacity={0.05} />
-        </RadialGradient>
-        <RadialGradient id="ink-rival" cx={51} cy={75} r={58} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={gameColors.rival} stopOpacity={0.42} />
-          <Stop offset="0.55" stopColor={gameColors.rival} stopOpacity={0.24} />
-          <Stop offset="1" stopColor={gameColors.rival} stopOpacity={0.05} />
-        </RadialGradient>
-        <RadialGradient id="ink-contested" cx={192} cy={168} r={155} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={gameColors.contested} stopOpacity={0.42} />
-          <Stop offset="0.55" stopColor={gameColors.contested} stopOpacity={0.26} />
-          <Stop offset="1" stopColor={gameColors.contested} stopOpacity={0.06} />
-        </RadialGradient>
-      </Defs>
-      <RealStreets proj={RIVALRY_PROJ} streets={DEMO_STREETS} opacity={0.1} />
-      {/* MA ZONE — encre chartreuse diffusée ; contour NET (il porte le rôle « moi »). */}
-      <Path
-        d={minePath}
-        fill="url(#ink-mine)"
-        stroke={territoryStyle.crewStroke}
-        strokeWidth={2}
-        strokeLinejoin="round"
-        opacity={p.mine * (1 - p.contested)}
-      />
-      {/* LA ZONE D'À CÔTÉ — rôle « rival » : encre orange diffusée, contour orange NET. */}
-      <Path
-        d={rivalPath}
-        fill="url(#ink-rival)"
-        stroke={territoryStyle.rivalStroke}
-        strokeWidth={2}
-        strokeLinejoin="round"
-        opacity={p.threat}
-      />
-      {/* CONTESTÉE §C — encre violette diffusée + double contour décalé NET (jamais un
-          trait bicolore), JAMAIS de pulsation (A-37 §5). Les DEUX contours nets
-          garantissent la lecture « contesté » sur toute la frontière. */}
-      <G opacity={p.contested}>
-        <Path
-          d={minePath}
-          fill="url(#ink-contested)"
-          stroke={territoryStyle.contestedOuterStroke}
-          strokeWidth={5}
-          strokeLinejoin="round"
-        />
-        <Path
-          d={minePath}
-          fill="none"
-          stroke={territoryStyle.contestedInnerStroke}
-          strokeWidth={2}
-          strokeLinejoin="round"
-        />
-      </G>
-    </DemoFrame>
-  );
-}
-
 
 const styles = StyleSheet.create({
-  board: {
-    width: '100%',
-    aspectRatio: DEMO_BOARD_W / DEMO_BOARD_H,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: withAlpha(colors.blanc, 0.12),
-    backgroundColor: gameColors.carbon,
-    overflow: 'hidden',
-  },
+  // Le plateau : une FENÊTRE au ratio du viewBox, sans cadre ni fond (cf. le
+  // docblock de `PlancheStage`) — la grille de l'écran passe dessous.
+  stage: { width: '100%', aspectRatio: BOARD_W / BOARD_H },
   // POSITION de la chip « Exemple » (sa forme vit dans `./ExampleTag`) : coin
   // haut-droit du plateau, toujours le même — on la cherche au même endroit.
-  exampleTag: { position: 'absolute', top: spacing.xs, right: spacing.xs },
-  // Label bref du 4e temps (2,1-3 s) : posé en bas à gauche du plateau, sur
-  // fond noir opaque pour rester lisible par-dessus la zone remplie. BLANC —
-  // nommer n'est pas célébrer (la chartreuse dirait « gain »). Jamais < 12 px.
-  demoLabel: {
-    position: 'absolute',
-    left: spacing.xs,
-    bottom: spacing.xs,
-    borderRadius: radii.pill,
-    backgroundColor: withAlpha(colors.noir, 0.82),
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-  },
-  demoLabelText: {
-    color: colors.blanc,
-    fontFamily: fonts.textBold, // la famille porte la graisse (jamais de fontWeight par-dessus)
-    fontSize: fontSizes.xs,
-    letterSpacing: 0.6,
-  },
+  exampleTag: { position: 'absolute', top: 0, right: 0 },
+  privacy: { width: PRIVACY_BOX, height: PRIVACY_BOX, alignSelf: 'center' },
 });
-

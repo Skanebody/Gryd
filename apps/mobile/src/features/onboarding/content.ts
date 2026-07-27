@@ -1,97 +1,95 @@
 /**
- * GRYD — contenu des étapes de l'onboarding (AMENDEMENT-30, refondu le
- * 21/07/2026). Copy CENTRALISÉE (l'écran reste du rendu) : titres géants courts,
- * sous-titres, CTA courts jamais tronqués.
+ * GRYD — contenu des étapes de l'onboarding. Copy CENTRALISÉE (l'écran reste du
+ * rendu) : titres géants courts, sous-titres, CTA courts jamais tronqués.
  *
- * ⚠️ RÈGLE DE CTA RÉVISÉE LE 22/07/2026 (arbitrage fondateur). Ce fichier
- * imposait « CTA à VERBES CONTEXTUELS — jamais “GO”/“Continuer” (§A4) ». Elle
- * tient toujours partout où le CTA porte une DÉCISION (« Choisir ma ville »,
- * « Continuer avec {city} », « Entrer sur la carte »), mais elle est LEVÉE pour
- * les cartes pédagogiques 1 et 2, qui ne décident de rien : trois cartes qui
- * s'enchaînent sont UN parcours, et trois verbes différents y feraient croire à
- * trois décisions distinctes. Le fondateur a tranché « CONTINUER » / « CHOISIR
- * MA VILLE ». Ne pas « recorriger » ce point au prochain audit §A — et ne pas le
- * confondre avec l'override AMENDEMENT-38, qui ne concerne QUE le bouton
- * d'action central de l'app (« GO »), jamais l'onboarding.
+ * ═══ REFONTE 27/07/2026 — LES PLANCHES E01b ═════════════════════════════════
+ * Le fondateur a re-fourni les planches E01b et demandé que l'onboarding y
+ * corresponde. La SPEC PRODUIT (`docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md`,
+ * décision D-19 « prends le dernier ») définit explicitement E01→E06 et
+ * l'emporte sur AMENDEMENT-30, dont l'arbitrage « garder 4 cartes » lui est
+ * ANTÉRIEUR. Ce renversement est VOULU et daté ; ne pas le « recorriger » au
+ * prochain audit en invoquant A-30.
  *
- * Zéro nom de lieu tant qu'aucun GPS n'est obtenu (le plateau est « le terrain
- * de jeu », jamais « ton quartier »). Aucune valeur de jeu ici : des Entries
- * i18n (5 langues, parité forcée par le type — les textes vivent dans
+ * ⚠️ RÈGLE DE CTA (arbitrage fondateur 22/07/2026, toujours valide). « CONTINUER »
+ * est admis sur les écrans PÉDAGOGIQUES, qui ne décident de rien : des écrans qui
+ * s'enchaînent sont UN parcours, et un verbe différent à chaque fois y ferait
+ * croire à autant de décisions. Le CTA NOMME la suite dès qu'il y a une décision
+ * — et le seul de ce flow est celui de E05 (« Autoriser la localisation »). Ne
+ * pas confondre avec l'override AMENDEMENT-38 (« GO »), qui ne concerne QUE le
+ * bouton d'action central de l'app, jamais l'onboarding.
+ *
+ * Zéro nom de lieu tant qu'aucun GPS n'est obtenu (le plateau est « le terrain de
+ * jeu », jamais « ton quartier »). Aucune valeur de jeu ici : des Entries i18n
+ * (5 langues, parité forcée par le type — les textes vivent dans
  * i18n/catalog/onboarding, l'écran résout via t()).
+ *
+ * ⚠️ REGISTRE : LE DÉPÔT TUTOIE PARTOUT, et les planches VOUVOIENT (« votre
+ * tracé », « vos zones »). Le tutoiement est CONSERVÉ — c'est une décision
+ * fondateur verrouillée par des tests (`explain/copyDiscipline.test.ts` refuse
+ * « votre/vos/vous » dans ce catalogue). Basculer cinq catalogues pour cinq
+ * écrans créerait DEUX registres dans la même app, ce qui est pire que l'écart.
+ * L'écart est donc assumé et signalé, pas corrigé en douce.
  */
 import { C } from '../../i18n/catalog/onboarding';
 
 /**
  * Ordre du flow. Le stepper (app/onboarding/index) rend l'étape courante.
  *
- * ═══ TROIS CARTES, PUIS NOM + ENTRÉE (refonte fondateur 22-23/07/2026) ══════
- *     mechanic → rivalry → city → account
+ * ═══ LA SÉQUENCE DES PLANCHES E01b ══════════════════════════════════════════
+ *   mechanic (E01) → loop (E02) → rivalry (E03) → crew (E04) → location (E05)
+ *                                                                     ↓
+ *                                                            (auth)/sign-in (E06)
  *
- * Le diagnostic était sans appel : le premier écran ressemblait à une landing
- * page, il parlait de CREW à quelqu'un qui ne sait pas encore ce qu'est un crew,
- * et son CTA (« Découvrir ma ville ») promettait une ville qu'aucun écran ne
- * demandait. L'onboarding ne fait que trois choses — comprendre le concept,
- * personnaliser un peu, entrer dans l'app — et la PREMIÈRE COURSE VIENT APRÈS,
- * jamais pendant.
+ *   1. `mechanic` — E01, LA PROMESSE. Photo plein cadre + « COURS. / PRENDS TA
+ *      VILLE. » (`E01Hero`). Rendu inchangé par ce chantier.
+ *      ⚠️ Le nom `mechanic` est l'IDENTIFIANT HISTORIQUE de cet écran. Il est
+ *      CONSERVÉ pour la continuité du funnel (son n=14 a une population) alors
+ *      que la MÉCANIQUE proprement dite est désormais enseignée par `loop`.
+ *      Le renommer coûterait la lisibilité de l'entonnoir sans rien apporter.
+ *   2. `loop`     — E02, LE GESTE : ferme la boucle, la zone à l'intérieur
+ *      devient la tienne. C'est ici que la mécanique s'enseigne, sur la boucle
+ *      RÉCUPÉRÉE de la planche (`E02Loop`).
+ *   3. `rivalry`  — E03, POURQUOI TU REVIENS : ta zone reste en jeu.
+ *   4. `crew`     — E04, PLUS FORTS EN CREW. Il ENSEIGNE, il ne demande RIEN :
+ *      la création/adhésion au crew reste post-onboarding (note de planche).
+ *   5. `location` — E05, LA PRÉ-PERMISSION. Le dialogue SYSTÈME ne s'ouvre
+ *      QU'AU TAP sur le CTA, jamais à froid ; « Plus tard » mène à la suite sans
+ *      la moindre culpabilisation.
+ *   puis E06, l'AUTHENTIFICATION, qui n'est PAS une étape de ce stepper : c'est
+ *   un écran à lui (`app/(auth)/sign-in.tsx`), déjà recalé, qui porte le gate
+ *   d'âge 16+ au point de création du compte.
  *
- * QUATRE ÉCRANS, et ce sont exactement les quatre demandés :
- *   1. `mechanic` — le geste : ferme une boucle, prends la zone. Rien d'autre :
- *      ni rival, ni crew, ni ville. Rendu par le hero plein cadre `E01Hero` : une
- *      PHOTO propre + la copie ; la mécanique loop→zone se montre ensuite (carte
- *      rivalité), pas par une boucle animée sur E01.
- *   2. `rivalry`  — pourquoi revenir : ta zone peut être reprise. C'est ICI que
- *      le crew entre, parce qu'il répond enfin à une question posée.
- *   3. `city`     — la première DÉCISION : choisir sa ville, À LA MAIN, sans
- *      GPS. Assis, dans le métro, en vacances : ça doit marcher.
- *   4. `account`  — NOM + ENTRÉE, fondus (23/07/2026). Le pseudo (une
- *      personnalisation optionnelle : ni niveau sportif, ni poids, ni photo
- *      imposée — ouvrir la photothèque est une permission, l'onboarding n'en
- *      demande aucune) et l'entrée (créer/connecter un compte, ou « plus tard »
- *      quand aucun backend n'exige de session). Deux écrans pour une seule
- *      arrivée, c'était l'écran de trop que ce chantier retire.
+ * ─── CE QUI A QUITTÉ L'ONBOARDING, ET OÙ ÇA VIT MAINTENANT ──────────────────
+ * La planche 06 le dit noir sur blanc : « Aucune création de profil ici — pseudo
+ * et ville arrivent au premier usage réel. » Les deux écrans sortent donc du
+ * flow. Ils ne deviennent inatteignables NI l'un NI l'autre, et ce n'est pas une
+ * promesse : c'est vérifiable —
+ *   · LE GATE D'ÂGE 16+ (obligation Apple 5.1.1) était DÉJÀ tenu là où il a un
+ *     sens légal, au point de création du compte : `app/(auth)/sign-in.tsx`
+ *     (question en place + blocage terminal) et son jumeau `.web.tsx`. Rien
+ *     n'est perdu en le retirant du stepper — il y était un doublon.
+ *   · LE CHOIX DE VILLE et LE PSEUDO vivent dans `app/profil-edit.tsx`, qui
+ *     consomme le sélecteur PARTAGÉ `features/city/CityPicker` (les 7 870 villes
+ *     réelles) et `DISPLAY_NAME_MAX`. Même liste, même recherche, mêmes états.
+ * ⚠️ CE QUI RESTE À FAIRE (dit, pas caché) : `profil-edit` écrit le profil
+ * LOCAL, pas `onboarding.cityId`. Or `MapScreen` s'en sert comme repli de
+ * cadrage quand aucun fix GPS n'est disponible. Le repli n'est donc plus
+ * alimenté — la carte garde alors sa vue monde, qui DIT la vérité (« je ne sais
+ * pas encore où tu es ») au lieu de poser le joueur quelque part. Aucun mensonge
+ * n'est introduit ; c'est un confort en moins, à recâbler avec l'écran E08
+ * (`/setup/profile`) du premier usage réel.
  *
- * DEUX ÉCRANS QUI NE SONT PAS DES ÉCRANS DE PRODUIT, et qu'on ne peut pas
- * supprimer sans mentir :
- *   · `age` — gate LÉGAL (Apple 5.1.1, mineurs RGPD). Il doit précéder toute
- *     COLLECTE, et la carte `city` en est une : elle porte un raccourci qui LIT
- *     LA POSITION. Il descend donc derrière les deux cartes pédagogiques (elles
- *     ne collectent rien) mais reste devant la ville. Le fondre en case à cocher
- *     en ferait un gate passif et donnerait deux décisions à un écran (§A1).
- *   · `account` — la carte EXIGE une session dès qu'un backend existe
- *     ((tabs)/_layout). Tant que ce n'est pas le cas, promettre « explore
- *     d'abord, crée ton compte ensuite » peindrait un chemin mort (§A4). Ouvrir
- *     une lecture anonyme est un chantier backend, pas une décision d'écran.
- *
- * ─── CE QUI A ÉTÉ SUPPRIMÉ, ET POURQUOI ─────────────────────────────────────
- *   · `hook` — le splash. Son fond de carte décoratif (rues grises traversant
- *     l'écran, polygone, point chartreuse isolé) et son logo couru figurent mot
- *     pour mot dans la liste « à supprimer » du fondateur ; son titre parlait de
- *     crew ; son CTA promettait une ville. Ce qu'il portait d'utile — l'entrée
- *     « J'ai déjà un compte » — n'est pas perdue : elle vit sur l'écran d'AUTH
- *     (E06), en fin de séquence, atteint aussi par « Passer ». Elle n'est PAS une
- *     porte posée sur la carte 1 (retour fondateur 26/07 : E01 reste une photo
- *     propre, sans lien de connexion).
- *   · `learn` — remplacé par les cartes 1 et 2, qui enseignent SÉPARÉMENT ce
- *     qu'il montrait en bloc (le geste, puis la menace). Sa note honnête sur le
- *     GPS n'a PAS disparu avec lui : c'est tout ce qui restait de l'écran
- *     `permission` supprimé, elle vit maintenant dans `PROFILE.gpsNote`, sur le
- *     dernier écran avant la carte — au plus près du premier GO.
- * Rappel des suppressions antérieures, toujours valides : `permission` (la vraie
- * demande vit au premier GO, en contexte) et `crew` (§7 : proposé APRÈS la 1re
- * capture ; l'app a déjà un onglet Crew permanent).
+ * Rappel des suppressions antérieures, toujours valides : `hook` (le splash),
+ * `learn`, `permission` (la vraie demande vit au premier GO), `crew` version
+ * 2026-07-21 (rendue à l'onglet Crew — l'étape `crew` d'aujourd'hui est un écran
+ * PÉDAGOGIQUE, il ne demande rien et porte un n NEUF).
  */
 export const ONBOARDING_STEPS = [
-  'mechanic', // 1 — le geste, sur une PHOTO plein cadre propre (E01Hero)
-  'rivalry', // 2 — la reprise, et le crew qui la défend
-  'city', // 3 — choix MANUEL de la ville (sans GPS), CTA qui la nomme
-  // 4 — NOM + ENTRÉE, fondus (arbitrage fondateur 23/07/2026). Le pseudo (une
-  //     personnalisation, pas une décision) et le compte (création OU connexion,
-  //     OU « plus tard » sans backend) tenaient DEUX écrans pour la même arrivée.
-  //     Les fondre ramène le parcours configuré de 5 à 4 écrans, la doctrine
-  //     fondateur l'emportant sur le « 1 écran = 1 décision » de §A ici : le nom
-  //     est optionnel (le CTA passe sans lui), la seule VRAIE décision reste
-  //     l'entrée. Voir AccountStep dans app/onboarding.
-  'account',
+  'mechanic', // E01 — la promesse (photo plein cadre, E01Hero)
+  'loop', // E02 — ferme la boucle
+  'rivalry', // E03 — on peut te la reprendre
+  'crew', // E04 — plus forts en crew
+  'location', // E05 — ta position crée le tracé (pré-permission)
 ] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
@@ -102,75 +100,67 @@ export function isOnboardingStep(value: unknown): value is OnboardingStep {
 }
 
 /**
- * L'AGE-GATE N'EST PLUS UNE ÉTAPE DU PARCOURS (23/07/2026), et ce n'est pas un
- * relâchement : il est tenu là où il a un SENS LÉGAL, au point de création du
- * compte (`app/(auth)/sign-in.tsx`), où un refus ne peint AUCUNE voie d'auth —
- * il n'y a rien à créer. Le redemander en écran 3 du flow était un doublon.
- *
- * Ce doublon coûtait deux choses, toutes deux relevées en revue :
- *  · il portait le parcours à SIX écrans obligatoires, contre QUATRE fixés par
- *    la doctrine ;
- *  · il rendait MENTEUR le CTA de la carte 2. Celle-ci annonce « Choisir ma
- *    ville » ; l'écran suivant était en réalité « Tu as 16 ans ou plus ? ».
- *    C'est exactement le reproche fait à l'ancien « Découvrir ma ville » — un
- *    CTA doit annoncer l'étape qui vient, pas une autre.
- * Le retirer d'ici corrige les deux d'un seul geste, sans rien céder sur l'âge.
+ * Étape précédente (flèche retour discrète, §A : rattraper un mistap sans
+ * quitter le flow). DÉRIVÉE du flow — une table écrite à la main a déjà divergé
+ * de `ONBOARDING_STEPS` ici. La première étape n'a pas de précédent.
  */
-export const stepAfterRivalry = (): OnboardingStep => 'city';
-
-/** Symétrique en marche arrière — le parcours est désormais linéaire. */
-export const stepBeforeCity = (): OnboardingStep => 'rivalry';
+export function stepBefore(step: OnboardingStep): OnboardingStep | undefined {
+  const i = ONBOARDING_STEPS.indexOf(step);
+  return i > 0 ? ONBOARDING_STEPS[i - 1] : undefined;
+}
 
 /**
- * n de l'event `onboarding_step` (§8) pour le funnel A-30. Les n sont des
+ * Étape suivante. `undefined` sur la dernière : le flow SORT alors vers E06
+ * (l'authentification), qui n'est pas une étape de ce stepper.
+ */
+export function stepAfter(step: OnboardingStep): OnboardingStep | undefined {
+  const i = ONBOARDING_STEPS.indexOf(step);
+  return i >= 0 && i < ONBOARDING_STEPS.length - 1 ? ONBOARDING_STEPS[i + 1] : undefined;
+}
+
+/**
+ * n de l'event `onboarding_step` (§8) pour le funnel. Les n sont des
  * IDENTIFIANTS STABLES d'étape (continuité PostHog), pas des positions.
  *
  * RÉSERVÉS, jamais réattribués — chacun a eu une population, les mélanger
  * fausserait l'entonnoir historique :
- *   1  `hook`        — splash supprimé le 22/07/2026 (refonte 3 cartes) ;
+ *   1  `hook`        — splash supprimé le 22/07/2026 ;
  *   2  `city` (v1)   — fondue dans `learn` le 21/07/2026 ;
- *   3  `permission`  — écran supprimé (la demande vit au 1er GO) ;
+ *   3  `permission`  — écran supprimé (la demande vivait au 1er GO) ;
  *   4/5/6/7 `choose`/`sync`/`run`/`capture` — supprimés avec le mode vitrine ;
- *   10 `crew`        — rendue à l'onglet Crew le 21/07/2026 ;
- *   13 `learn`       — remplacé par les cartes `mechanic` + `rivalry` ;
- *   17 `profile`     — fondu dans `account` le 23/07/2026 (nom + entrée sur un
- *                      seul écran). Le pseudo se pose désormais SUR l'écran 9 ;
- *                      recoller sa population à celle de `account` fausserait le
- *                      pas « a atteint le compte » — on le laisse RÉSERVÉ.
+ *   9  `account`     — écran d'arrivée (pseudo + création de compte) SORTI du
+ *                      flow le 27/07/2026 : la planche 06 place le profil au
+ *                      premier usage réel, et l'auth est E06 ;
+ *   10 `crew` (v1)   — rendue à l'onglet Crew le 21/07/2026. ⚠️ L'étape `crew`
+ *                      d'aujourd'hui (E04) est un écran PÉDAGOGIQUE qui ne
+ *                      demande rien : elle prend un n NEUF (19), pas ce 10 ;
+ *   12 `age`         — gate sorti du flow le 23/07/2026 (il vit sur /sign-in) ;
+ *   13 `learn`       — remplacé par des cartes séparées ;
+ *   16 `city` (v2)   — l'écran de choix de ville, SORTI du flow le 27/07/2026 ;
+ *   17 `profile`     — fondu dans `account` le 23/07/2026.
  *
- * ⚠️ LE NOUVEL ÉCRAN VILLE PREND 16, PAS 2. Reprendre le 2 recollerait la
- * population d'un écran de 2026 avec celle d'un écran supprimé qui enseignait
- * autre chose (il MONTRAIT une ville, celui-ci en fait CHOISIR une). Idem pour
- * les cartes : 14/15 neufs, pas le 13 de `learn`.
- *
- * ⚠️ LE 1 A ÉTÉ RÉATTRIBUÉ EN SILENCE, ET C'EST CORRIGÉ (25/07/2026). Les deux
- * écrans de connexion émettaient `onboarding_step { n: 1 }` à leur montage — le n
- * du splash `hook` supprimé. Deux populations sans rapport (les curieux de 2026
- * qui voyaient un splash, et ceux qui viennent chercher leur session) se
- * retrouvaient recollées dans le même pas d'entonnoir, sans que personne ne le
- * voie. L'event a été RETIRÉ de ces écrans plutôt que renuméroté : /sign-in n'est
- * pas une étape de l'onboarding — il n'est même pas dans `ONBOARDING_STEPS` — et
- * son entrée est déjà mesurée par le `screen()` automatique du routeur
- * (`app/_layout.tsx`). Inventer un n pour un écran hors flow aurait produit un
- * entonnoir aussi faux, mais plus difficile à démonter.
+ * `mechanic` GARDE son 14 : c'est le MÊME écran (E01Hero, même copie, même
+ * photo), seule sa place dans une séquence plus longue a changé. `rivalry` garde
+ * son 15 pour la même raison — l'écran change de visuel, pas d'objet.
  */
 export const STEP_EVENT_N: Record<OnboardingStep, number> = {
   mechanic: 14,
+  loop: 18,
   rivalry: 15,
-  city: 16,
-  account: 9,
+  crew: 19,
+  location: 20,
 };
 
 /**
  * OÙ EN EST LE JOUEUR — la seule source de la frise de points.
  *
  * ⚠️ CE QUE CETTE FONCTION RÉPARE. La frise annonçait CINQ étapes (`stepCount={5}`
- * écrit en dur dans l'écran) pour un parcours qui en compte QUATRE : une promesse
- * chiffrée fausse, affichée sous le tout premier CTA de l'app, dont le cinquième
- * point ne s'allumait jamais. Un nombre d'étapes ne se décrète pas dans un JSX :
- * il se DÉRIVE du flow, sinon les deux divergent au premier écran ajouté ou
- * retiré — et c'est arrivé deux fois en un mois ici (fusion nom+entrée, sortie de
- * l'age-gate).
+ * écrit en dur dans l'écran) pour un parcours qui en comptait QUATRE : une
+ * promesse chiffrée fausse, dont le cinquième point ne s'allumait jamais. Le
+ * parcours en compte CINQ aujourd'hui — et c'est exactement pour ça que le
+ * nombre ne se décrète pas dans un JSX : il se DÉRIVE du flow, sinon les deux
+ * divergent au premier écran ajouté ou retiré. C'est arrivé trois fois en un mois
+ * ici (fusion nom+entrée, sortie de l'age-gate, planches E01b).
  *
  * `index` est 0-indexé (position dans `ONBOARDING_STEPS`), `count` est le total.
  * Pure et testée (`flow.test.ts`) : la frise ne peut plus mentir sans faire
@@ -189,8 +179,8 @@ export function stepProgress(step: OnboardingStep): StepProgress {
 
 /**
  * Navigation du stepper : flèche retour discrète (a11y uniquement) et libellé de
- * la frise de progression, LUE par les lecteurs d'écran (des points ne s'entendent
- * pas — « Étape 2 sur 4 », si).
+ * la frise de progression, LUE par les lecteurs d'écran (des points ne
+ * s'entendent pas — « Étape 2 sur 5 », si).
  */
 export const NAV = {
   back: C.navBack,
@@ -198,36 +188,113 @@ export const NAV = {
 } as const;
 
 /**
- * Marque posée DISCRÈTEMENT en haut de chaque écran du flow (demande fondateur :
- * « logo GRYD discret en haut à gauche, il ne concurrence pas le titre »).
- * Invariant — jamais traduit.
+ * Marque GRYD. Invariant — jamais traduit. Elle n'est PLUS peinte dans le
+ * stepper : les planches E01b ne montrent aucune signature en haut des écrans
+ * pédagogiques (photo/plateau plein cadre + bloc bas). Elle reste exportée parce
+ * que la constante est la source du mot pour les écrans qui la posent.
  */
 export const BRAND = 'GRYD';
 
-/**
- * LA PORTE DE CONNEXION, sur le tout premier écran du flow (le hero E01). Lien
- * gris, jamais un 2e CTA chartreuse (§A4) : la majorité des arrivants sont
- * nouveaux, mais celui qui réinstalle doit trouver son chemin du premier coup
- * d'œil au lieu de traverser tout le flow pédagogique.
- *
- * ⚠️ ELLE A ÉTÉ IMPORTÉE SANS ÊTRE RENDUE (jusqu'au 25/07/2026). Trois docblocks
- * — celui-ci, `(auth)/sign-in.tsx` et `sign-in.web.tsx` — bâtissaient tout leur
- * raisonnement sur une porte que PLUS AUCUN écran ne peignait depuis le passage à
- * `E01Hero` : la seule sortie de E01 était « Passer », qui n'annonce pas la
- * connexion. Trois documents décrivaient une porte, zéro pixel la montrait.
- * Elle est rebranchée, et les deux sorties de E01 disent désormais deux choses
- * DIFFÉRENTES : « Passer » entre dans l'app (l'app décide ensuite si une session
- * lui est nécessaire), la porte va se connecter.
- */
-export const SIGN_IN_DOOR = C.hookSignIn;
+/** « Passer » de l'onboarding (planches, haut à droite). */
+export const ONB_SKIP = C.onbSkip;
 
 /**
- * 2 — Age-gate 16+ (Apple Guideline 5.1.1 / protection des mineurs RGPD). Vient
- * APRÈS le splash mais AVANT toute collecte (GPS, compte) — et avant la
- * connexion, car l'OTP e-mail CRÉE le compte quand l'adresse est inconnue
- * (`shouldCreateUser: true`) : laisser passer un raccourci « déjà un compte »
- * sans gate ouvrirait une porte de création sans vérification d'âge.
- * Auto-déclaration : « 16+ » (CTA) vs « moins de 16 » (lien → blocage terminal).
+ * E01 — LA PROMESSE, rendue par le hero plein cadre `E01Hero`. Une PHOTO propre
+ * (aucune boucle par-dessus) + la copie ; la mécanique loop→zone s'enseigne à
+ * l'écran suivant.
+ *
+ * ⚠️ `kicker` N'EST PAS RENDU (E01Hero n'en peint pas — retour fondateur : « la
+ * photo + le titre suffisent à ouvrir »), et `exampleTag` non plus (aucune
+ * démonstration sur cet écran). Les deux sont CONSERVÉS ici : le premier comme
+ * source du sur-titre si la planche le réintroduit, le second comme source unique
+ * du libellé « Exemple » (= `C.exampleTag`) partagé par les plateaux.
+ */
+export const MECHANIC = {
+  kicker: C.mechanicKicker,
+  title: C.mechanicTitle,
+  tagline: C.mechanicTagline,
+  exampleTag: C.exampleTag,
+  cta: C.ctaContinue,
+} as const;
+
+/**
+ * E02 — FERME LA BOUCLE. Le geste, et rien d'autre : ni rival, ni crew, ni
+ * ville. La boucle se dessine (900 ms) PUIS la surface se remplit — l'ordre est
+ * la règle, il est verrouillé dans `plancheMotion.ts`.
+ */
+export const LOOP = {
+  title: C.loopTitle,
+  tagline: C.loopTagline,
+  exampleTag: C.exampleTag,
+  cta: C.ctaContinue,
+} as const;
+
+/**
+ * E03 — ON PEUT TE LA REPRENDRE. Ton FACTUEL, jamais menaçant (note de planche) :
+ * la phrase constate une règle du jeu et propose les deux rôles (défendre,
+ * reprendre). `takenLabel` est le mot posé DANS la moitié reprise du visuel.
+ */
+export const RIVALRY = {
+  title: C.rivalryTitle,
+  tagline: C.rivalryTagline,
+  exampleTag: C.exampleTag,
+  takenLabel: C.rivalryTakenLabel,
+  cta: C.ctaContinue,
+} as const;
+
+/**
+ * E04 — PLUS FORTS EN CREW. C'est ICI que le mot CREW entre, et pas avant : il
+ * répond à une question que le joueur vient de se poser (« on peut me la
+ * reprendre ? ») au lieu d'être un mot qu'il ne connaît pas.
+ *
+ * ⚠️ AUCUNE ADHÉSION N'EST DEMANDÉE ICI (note de planche). Pas de champ, pas de
+ * bouton « créer un crew », pas de liste : l'écran enseigne, l'onglet Crew fait
+ * le reste, après.
+ */
+export const CREW = {
+  title: C.crewTitle,
+  tagline: C.crewTagline,
+  exampleTag: C.exampleTag,
+  cta: C.ctaContinue,
+} as const;
+
+/**
+ * E05 — LA PRÉ-PERMISSION DE LOCALISATION.
+ *
+ * ⚠️ RÈGLE CAPITALE (planche + spec E05) : le dialogue SYSTÈME ne s'ouvre QU'AU
+ * TAP sur le CTA. Les trois garanties sont donc lues AVANT — la boîte système ne
+ * tombe jamais de nulle part. « Plus tard » mène à la suite, et la carte
+ * fonctionnera en lecture seule, SANS la moindre culpabilisation : le libellé est
+ * neutre (`C.later`), et aucune phrase ne dit au joueur ce qu'il « rate ».
+ *
+ * `unavailable` n'est pas une variante cosmétique : là où aucun capteur ne peut
+ * répondre (web sans `navigator.geolocation`), le CTA d'autorisation n'est PAS
+ * peint — un bouton qui échoue à coup sûr est un bouton mort (§A4) — et l'écran
+ * DIT pourquoi au lieu de se taire.
+ */
+export const LOCATION = {
+  title: C.locationTitle,
+  /** Les TROIS garanties de la planche, une par ligne, avec coche et filet. */
+  guarantees: [C.locationGuaranteeRuns, C.locationGuaranteeLive, C.locationGuaranteeBlur] as const,
+  /** L'unique CTA chartreuse du flow qui DÉCIDE (il ouvre la boîte système). */
+  cta: C.locationAllow,
+  /** Sortie douce — jamais un 2e CTA, jamais un reproche. */
+  later: C.later,
+  /** Aucun capteur sur cette plateforme : on le dit, on ne peint pas le bouton. */
+  unavailable: C.locationUnavailable,
+  /** …et le parcours continue quand même (le CTA redevient neutre). */
+  continueCta: C.ctaContinue,
+} as const;
+
+/**
+ * 1b — Age-gate 16+ (Apple Guideline 5.1.1 / protection des mineurs RGPD).
+ *
+ * ⚠️ CE GROUPE N'EST PLUS LU PAR L'ONBOARDING, et ce n'est pas un oubli : le gate
+ * vit au POINT DE CRÉATION DU COMPTE, `app/(auth)/sign-in.tsx` (+ `.web.tsx`),
+ * qui l'importe d'ici. C'est le seul endroit où il a un sens légal — un refus n'y
+ * peint AUCUNE voie d'auth, il n'y a rien à créer. Ne pas le remettre dans le
+ * stepper : il y était un doublon, et il y rendait menteur le CTA de l'écran
+ * précédent.
  */
 export const AGE = {
   kicker: C.ageKicker,
@@ -241,123 +308,30 @@ export const AGE = {
   /** Écran de blocage si &lt; 16 (pas de chemin vers l'avant). */
   blockedTitle: C.ageBlockedTitle,
   blockedTagline: C.ageBlockedTagline,
-  /**
-   * SORTIE de la question posée EN PLACE devant l'écran ville. Sans elle, répondre
-   * « moins de 16 » depuis le raccourci de position rendait un écran TERMINAL sans
-   * pied : la seule issue était la flèche du header, qui pointe sur la rivalité —
-   * donc le joueur perdait l'écran ville sans jamais avoir décidé d'en sortir.
-   * Une auto-déclaration ne ferme pas le choix MANUEL d'une ville : elle ne ferme
-   * que le geste qui lit un capteur.
-   */
-  backToCity: C.ageBackToCity,
-} as const;
-
-/**
- * 4 — Entrée : CRÉER **OU** SE CONNECTER (§6), en pied de l'écran fusionné.
- * `emailHint` dit ce que fait réellement le code e-mail — il connecte si
- * l'adresse existe, il crée sinon. Un joueur qui se trompe de porte arrive donc
- * quand même au bon endroit, et il le sait avant de taper.
- *
- * ⚠️ Depuis la fusion nom+entrée (23/07/2026), l'écran MÈNE par l'identité
- * (`PROFILE.kicker`/`title`) : `accountKicker`/`accountTitle`/`accountTagline`
- * ne sont plus lus par aucun écran et ont été retirés du catalogue — une Entry
- * sans surface est une promesse sans écran. Seul `taglineRequired` subsiste, en
- * NOTE de contexte quand un backend exige une session.
- */
-export const ACCOUNT = {
-  /** Backend configuré : la carte exige une session — on le DIT (21/07/2026). */
-  taglineRequired: C.accountTaglineRequired,
-  apple: C.accountApple,
-  google: C.accountGoogle,
-  /** Voie e-mail (code OTP) — sortie vers (auth)/sign-in. */
-  email: C.accountEmail,
-  emailHint: C.accountEmailHint,
-  /** Échec honnête : on reste sur l'écran (jamais un faux succès). */
-  error: C.accountError,
-  /**
-   * Différer — proposé UNIQUEMENT quand aucune garde d'auth n'attend en aval
-   * (Supabase non configuré). Avec backend, ce lien menait à /sign-in sans
-   * sortie : la promesse était fausse, elle a été retirée plutôt que répétée.
-   */
-  skip: C.later,
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// REFONTE « 3 CARTES + COMPTE » (demande fondateur 22/07/2026) — COPY PRÊTE
+// COPY EN ATTENTE DE SURFACE — le PREMIER USAGE RÉEL (spec E08/E09)
 //
-//   1. MÉCANIQUE  → CONTINUER          2. RIVALITÉ → CONTINUER
-//   3. VILLE      → CHOISIR MA VILLE / CONTINUER AVEC {city}
-//   puis PROFIL MINIMAL → ENTRER SUR LA CARTE
+// ⚠️ CES TROIS GROUPES NE SONT RENDUS PAR AUCUN ÉCRAN DEPUIS LE 27/07/2026, et
+// c'est une exception ASSUMÉE à la règle du dossier (« une Entry que plus aucun
+// écran ne lit est une promesse de texte sans écran derrière »).
 //
-// Ces quatre groupes sont la copy du parcours cible. Ils sont posés ICI pour que
-// le lot d'écrans n'ait qu'à les rendre : la structure et les 5 langues sont
-// déjà tenues par le typage. `ONBOARDING_STEPS` / `STEP_EVENT_N` ci-dessus
-// sont la vérité du flow EN PLACE, déjà à jour, avec des `n` NEUFS (2 `city`, 3 `permission`, 4-7, 10 `crew`, 12 `age`
-// sont RÉSERVÉS et ne se réattribuent jamais — 12 rejoint la liste le 23/07 :
-// l'age-gate a quitté le flow, son numéro reste gelé pour ne pas recoller deux
-// populations distinctes dans le funnel).
+// La règle vise les Entries ORPHELINES — la copie d'un écran mort. Ici, l'écran
+// n'est pas mort : la planche 06 le DÉPLACE (« pseudo et ville arrivent au
+// premier usage réel »), et la spec produit lui donne déjà une route (E08,
+// `/setup/profile`). Supprimer cette copie obligerait le chantier suivant à la
+// réécrire — donc à la retraduire en cinq langues — pour un écran que le
+// fondateur a explicitement demandé de conserver atteignable.
 //
-// L'utilisable est le critère : assis · sans GPS · sans courir · sans crew ·
-// sans donner de permission · à une main · en moins de 45 s.
+// ⚠️ CE QUI EST VRAI AUJOURD'HUI, SANS EMBELLISSEMENT : le choix de ville et le
+// pseudo restent atteignables par `app/profil-edit.tsx` (sélecteur partagé
+// `CityPicker` + champ pseudo), pas par un écran de premier usage dédié. Cette
+// copie-ci attend CET écran. Si le chantier E08 n'arrive pas, la bonne action
+// n'est pas de garder ces Entries indéfiniment : c'est de les supprimer.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Carte 1 — LA MÉCANIQUE, rendue par le hero plein cadre `E01Hero` (planche E01).
- * Un seul objet enseigné : le geste qui prend une zone. Ni crew, ni rival, ni
- * ville : chacun a sa carte. E01 est une PHOTO propre (aucune boucle animée
- * par-dessus) ; la mécanique loop→zone se montre sur la carte rivalité.
- *
- * ⚠️ `exampleTag` N'EST PAS RENDUE SUR E01 : depuis que la carte 1 est une PHOTO
- * propre (`E01Hero`, aucune boucle par-dessus), aucune surface d'E01 ne pose la
- * chip. Le champ est CONSERVÉ ici pour la parité de copie (tests copyFit/flow) et
- * comme source unique du libellé « Exemple » (= `C.exampleTag`), mais c'est la
- * carte RIVALITÉ (`RIVALRY.exampleTag`, rendue par `RivalryDemo`) qui l'AFFICHE —
- * là où une boucle se ferme puis se remplit, et où la chip dit « exemple ».
- *
- * ─── CE QUI A ÉTÉ RETIRÉ ICI, ET POURQUOI ───────────────────────────────────
- * `demoLabel` / `demoReplay` / `street` : plus AUCUN écran ne les lisait depuis le
- * passage de `CaptureDemo` à `E01Hero` (le hero n'a ni 4e temps étiqueté, ni
- * visuel tapable, et « VOTRE RUE » a simplement été retiré — E01 est une photo
- * propre, sans boucle par-dessus). Une Entry que plus aucune surface ne rend est
- * une promesse de texte sans écran derrière — elle est RETIRÉE, pas commentée.
- */
-export const MECHANIC = {
-  kicker: C.mechanicKicker,
-  title: C.mechanicTitle,
-  tagline: C.mechanicTagline,
-  /** Libellé « Exemple » (source unique = `C.exampleTag`) — NON rendu sur E01
-   *  (photo propre) ; c'est `RivalryDemo` qui l'affiche. Retenu pour la parité de
-   *  copie (tests). Cf. l'avertissement ci-dessus. */
-  exampleTag: C.exampleTag,
-  cta: C.ctaContinue,
-} as const;
-
-/** « Passer » de l'onboarding (planche E01, haut à droite). */
-export const ONB_SKIP = C.onbSkip;
-
-/**
- * Carte 2 — LA RIVALITÉ : la réponse à « pourquoi revenir ? ». C'est ICI que le
- * CREW entre, et pas avant : il répond à une question que le joueur vient de se
- * poser (« on peut me la reprendre ? ») au lieu d'un mot qu'il ne connaît pas.
- */
-export const RIVALRY = {
-  kicker: C.rivalryKicker,
-  title: C.rivalryTitle,
-  tagline: C.rivalryTagline,
-  exampleTag: C.exampleTag,
-  demoLabel: C.rivalryDemoLabel,
-  demoReplay: C.demoReplay,
-  cta: C.ctaChooseCity,
-} as const;
-
-/**
- * Carte 3 — LA VILLE, choisie À LA MAIN. Jamais « autorise ta localisation pour
- * continuer » : on peut être dans un train, en vacances, loin de chez soi. La
- * position est un RACCOURCI secondaire, et elle porte sa phrase d'explication
- * AVANT la boîte système (`locationWhy`). Aucune ville n'est inventée : la liste
- * vient de `city_zones` (repli game-rules CITIES), et une recherche sans
- * résultat le DIT (`noMatch`) au lieu de proposer un ersatz.
- */
+/** Choix MANUEL de la ville (spec E08) — sans GPS, aucune ville inventée. */
 export const CITY = {
   kicker: C.cityKicker,
   title: C.cityTitle,
@@ -368,51 +342,18 @@ export const CITY = {
   locationWhy: C.cityLocationWhy,
   /** Position hors de toute ville ouverte — jamais un repli inventé. */
   locationOutside: C.cityLocationOutside,
-  /**
-   * Position REFUSÉE — distincte de « indisponible ». C'est la même règle que
-   * les cinq états de la carte (`map/locationState.ts`) : appeler « refus » un
-   * capteur muet, ou « indisponible » un refus, met sur le dos du joueur ce
-   * qu'il n'a pas fait. Deux causes, deux phrases.
-   */
+  /** Position REFUSÉE — distincte de « indisponible » (deux causes, deux phrases). */
   locationDenied: C.cityLocationDenied,
-  /** Position indisponible (GPS coupé, capteur muet, timeout) — jamais un écran muet. */
+  /** Position indisponible (GPS coupé, capteur muet, timeout). */
   locationFailed: C.cityLocationFailed,
   noMatch: C.cityNoMatch,
-  /** La liste est bornée (pas de ScrollView) : on dit qu'il y en a d'autres. */
   more: C.cityMore,
-  /** CTA sans sélection… */
   cta: C.ctaChooseCity,
-  /** …et CTA qui NOMME la ville choisie (format({ city })). */
+  /** CTA qui NOMME la ville choisie (format({ city })). */
   ctaWithCity: C.cityContinueWith,
 } as const;
 
-/**
- * IDENTITÉ MINIMALE, désormais posée SUR l'écran d'arrivée (`account`) et plus
- * sur un écran à elle : pseudo + rappel de la ville (déjà choisie, non
- * redemandée). Rien d'autre. Ce qui reste EXCLU : photo obligatoire, niveau
- * sportif, poids, taille, objectif kilométrique, fréquence, contacts,
- * notifications, HealthKit, Strava, crew. `privacyNote` ne PROMET rien que le
- * code ne tienne : elle dit ce qui est vrai (rien n'est publié depuis cet écran)
- * et où le réglage vit.
- *
- * ⚠️ AUCUN CHOIX D'AVATAR ICI, ET C'EST VOLONTAIRE. Ouvrir la photothèque est
- * une PERMISSION, et l'onboarding n'en demande aucune — « facultatif » ne veut
- * pas dire « proposé quand même ». L'avatar (photo ou initiales) vit dans
- * l'écran Profil, après. L'Entry `profileAvatarOptional` a donc été retirée du
- * catalogue avec cette décision : une Entry que plus aucun écran ne lit est une
- * promesse de texte sans écran derrière.
- *
- * `gpsNote` est le SEUL héritage de l'écran `permission` supprimé, et il reste
- * sur le dernier écran du flow, donc au plus près du premier GO : la boîte
- * système ne tombera pas de nulle part.
- *
- * L'écran fusionné MÈNE par l'identité (`kicker`/`title` : « ton nom », vrai dans
- * TOUS les cas), pose les champs, puis présente l'entrée en pied. La nécessité
- * du compte n'est qu'une NOTE de contexte (côté ACCOUNT, `taglineRequired`),
- * affichée seulement quand un backend l'exige — jamais un titre qui promettrait
- * un compte là où l'écran ne propose que « plus tard ». `tagline`/`cta` de
- * l'ancien écran profil ne sont plus lus (le pied porte la décision).
- */
+/** Identité minimale (spec E08) : pseudo + rappel de la ville. Rien d'autre. */
 export const PROFILE = {
   kicker: C.profileKicker,
   title: C.profileTitle,
@@ -422,10 +363,28 @@ export const PROFILE = {
   gpsNote: C.firstRunGpsNote,
 } as const;
 
+/** Entrée : créer **OU** se connecter — aujourd'hui portée par E06 (/sign-in). */
+export const ACCOUNT = {
+  taglineRequired: C.accountTaglineRequired,
+  apple: C.accountApple,
+  google: C.accountGoogle,
+  email: C.accountEmail,
+  emailHint: C.accountEmailHint,
+  error: C.accountError,
+  skip: C.later,
+} as const;
+
+/**
+ * LA PORTE DE CONNEXION (« J'ai déjà un compte »). Elle n'est PAS peinte sur E01
+ * : la planche ne la montre pas, et l'authentification E06 clôt la séquence — le
+ * joueur qui réinstalle y arrive par « Passer » comme par le CTA. Conservée pour
+ * l'écran qui la reprendra.
+ */
+export const SIGN_IN_DOOR = C.hookSignIn;
+
 /**
  * Notifications — HORS onboarding : l'opt-in se fait au 1er contexte utile
- * (push contextuel §35), plus jamais dans le stepper. Copy conservée pour cet
- * écran contextuel à venir.
+ * (push contextuel §35), jamais dans le stepper.
  */
 export const NOTIFICATIONS = {
   kicker: C.notifKicker,
@@ -436,23 +395,14 @@ export const NOTIFICATIONS = {
 } as const;
 
 /**
- * BUDGET DE CARACTÈRES DU CTA « Continuer avec {ville} » (écran VILLE).
+ * BUDGET DE CARACTÈRES DU CTA « Continuer avec {ville} » (écran VILLE, spec E08).
  *
- * ─── POURQUOI CE PLAFOND EXISTE ────────────────────────────────────────────
- * Le CTA de l'onboarding est une pill de hauteur FIXE (56 px) dont le libellé
- * n'a pas de `numberOfLines` : au-delà d'une ligne, le texte passe à la ligne
- * DANS une boîte qui ne grandit pas — il est rogné. Tant que la liste des villes
- * se limitait à Paris et Lille, la question ne se posait pas. Depuis le
- * 23/07/2026, l'écran propose 7 870 villes d'Europe, dont « Villeneuve-d'Ascq »,
- * « Sankt Pölten » et « Alcalá de Henares ».
- *
- * La valeur est celle DÉJÀ mesurée par `copyFit.test.ts` pour ce CTA : 327 px
- * utiles (375 − 2×24), libellé en 16 px gras, ~34 caractères par ligne, borné à
- * 26 pour garder de l'air dans les 5 langues.
- *
- * ─── CE QUE FAIT L'ÉCRAN QUAND ÇA DÉPASSE ──────────────────────────────────
- * Il n'abrège PAS la ville en « Villeneuve-d'A… » (§A : aucun texte d'action
- * coupé). Il repasse au CTA neutre — la ville choisie reste nommée EN ENTIER
- * juste au-dessus, dans le sélecteur. Une information déplacée, jamais tronquée.
+ * Le CTA est une pill de hauteur FIXE (56 px) dont le libellé n'a pas de
+ * `numberOfLines` : au-delà d'une ligne, le texte passe à la ligne DANS une boîte
+ * qui ne grandit pas — il est rogné. La valeur est celle mesurée par
+ * `copyFit.test.ts` : 327 px utiles (375 − 2×24), libellé en 16 px gras, ~34
+ * caractères par ligne, borné à 26 pour garder de l'air dans les 5 langues.
+ * Au-delà, l'écran repasse au CTA neutre — il n'abrège JAMAIS la ville en
+ * « Villeneuve-d'A… » (§A : aucun texte d'action coupé).
  */
 export const CITY_CTA_LABEL_MAX = 26;
