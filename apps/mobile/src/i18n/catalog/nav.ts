@@ -296,6 +296,26 @@ export const C = defineCatalog({
     de: 'Mein Profil',
     pt: 'Meu perfil',
   },
+  // ── La CLOCHE du header (planche E02/E03 ①, → /activite) ──
+  // Elle n'est peinte QUE quand au moins une zone est réellement à défendre
+  // (`bell.ts`), donc son libellé n'a jamais à couvrir le cas « 0 » : le
+  // singulier et le pluriel suffisent. `{n}` porte le compte EXACT, jamais le
+  // texte plafonné « 99+ » de la pastille — un lecteur d'écran n'a pas de
+  // contrainte de largeur, il n'a aucune raison d'hériter d'un arrondi.
+  headerBellA11yOne: {
+    fr: 'Activité — {n} zone à défendre',
+    en: 'Activity — {n} zone to defend',
+    es: 'Actividad — {n} zona que defender',
+    de: 'Aktivität — {n} Zone zu verteidigen',
+    pt: 'Atividade — {n} zona a defender',
+  },
+  headerBellA11yMany: {
+    fr: 'Activité — {n} zones à défendre',
+    en: 'Activity — {n} zones to defend',
+    es: 'Actividad — {n} zonas que defender',
+    de: 'Aktivität — {n} Zonen zu verteidigen',
+    pt: 'Atividade — {n} zonas a defender',
+  },
   planRoute: {
     fr: 'Planifier un parcours',
     en: 'Plan a route',

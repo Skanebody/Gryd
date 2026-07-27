@@ -39,6 +39,7 @@ import { GO_BUTTON_GAP, NAV_BAR_HEIGHT } from '../../src/features/nav/metrics';
 import { C } from '../../src/i18n/catalog/nav';
 import { C as M } from '../../src/i18n/catalog/mission';
 import { useRealMission } from '../../src/features/mission/useRealMission';
+import { useActivityBell } from '../../src/features/notifications/useActivityBell';
 import { useLocale, useT } from '../../src/i18n/store';
 import type { Locale } from '../../src/i18n/types';
 import { screen } from '../../src/lib/analytics';
@@ -170,11 +171,23 @@ function ActivitySwitchRow() {
  * VRAIE ville de jeu (onboarding.cityId → nom réel) et DISPARAÎT si aucune ville
  * n'est connue (jamais un lieu inventé, §47).
  *
- * DORMANTS (planche, mais O1) : la cloche de notifications + son badge orange
- * (« événement territorial ») et le sous-label secteur (« · Centre ») ne sont
- * PAS peints — aucun événement territorial réel n'existe avant O1, et une cloche
- * qui n'ouvre rien / un badge qui ne compte rien seraient des boutons morts (§A).
- * Ils reviendront alimentés serveur. « Carte nue » (HUD masqué) → header retiré.
+ * ─── LA CLOCHE (27/07/2026) : ALLUMÉE PAR DES ÉVÉNEMENTS RÉELS ──────────────
+ * Elle était VOLONTAIREMENT éteinte, et c'était juste : son badge aurait compté
+ * des événements tactiques qui n'existaient pas, et elle aurait ouvert un écran
+ * vide — un bouton mort (§A). Ce qui a changé : `territory_contests` (0078)
+ * existe et `ingest_run` OUVRE des contestations. Une zone contestée est un
+ * événement réel, daté, qui appelle une décision.
+ * Elle n'est donc PAS revenue « par principe » : `useActivityBell` la rend
+ * VISIBLE seulement quand au moins une zone est réellement à défendre, et
+ * ABSENTE sinon (pas grisée, pas de badge « 0 »). Lecture non aboutie —
+ * déconnecté, en vol, ÉCHOUÉE — ⇒ absente aussi : une cloche est une assertion,
+ * et on n'assure pas ce qu'on n'a pas lu (la justification complète vit dans
+ * `features/notifications/bell.ts`). Elle s'éteindra d'elle-même à l'échéance de
+ * la dernière fenêtre de défense, sans qu'on ait à y revenir.
+ *
+ * DORMANT (planche, mais O1) : le sous-label secteur (« · Centre ») n'est
+ * toujours PAS peint — il n'a pas de source réelle. « Carte nue » (HUD masqué)
+ * → header retiré.
  */
 function HomeHeader() {
   const insets = useSafeAreaInsets();
@@ -183,6 +196,8 @@ function HomeHeader() {
   const { profile } = useMyProfile();
   const { state: onboarding } = useOnboardingState();
   const hudHidden = useMapHudHidden();
+  // AVANT le `return null` : l'ordre des hooks doit rester inconditionnel.
+  const bell = useActivityBell();
   if (hudHidden) return null;
 
   const initials = effectiveInitials(profile);
@@ -224,6 +239,35 @@ function HomeHeader() {
             {city}
           </Text>
         </View>
+      ) : null}
+      {/* La cloche vit à l'OPPOSÉ de l'avatar : un poussoir vide s'intercale
+          plutôt qu'une largeur codée en dur (le nom de ville varie). */}
+      <View style={styles.headerSpacer} pointerEvents="none" />
+      {bell.kind === 'visible' ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(bell.count === 1 ? C.headerBellA11yOne : C.headerBellA11yMany, {
+            // Le compte EXACT, jamais le texte plafonné de la pastille.
+            n: bell.count,
+          })}
+          onPress={() => {
+            haptics.light();
+            router.push('/activite');
+          }}
+          hitSlop={8}
+          style={({ pressed }) => [styles.headerBell, pressed && styles.pressed]}
+          testID="home-header-bell"
+        >
+          <Icon name="cloche" size={18} color={colors.blanc} />
+          {/* Pastille ORANGE = rôle « rival / attaque subie » (§C : la couleur
+              dit le RÔLE, jamais une identité). Texte NOIR dessus — jamais de
+              chartreuse sur clair, et jamais de blanc sur orange. */}
+          <View style={styles.headerBellBadge} pointerEvents="none">
+            <Text style={styles.headerBellBadgeText} numberOfLines={1}>
+              {bell.badgeLabel}
+            </Text>
+          </View>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -613,6 +657,43 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   headerPillPin: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.chartreuse },
+  // Pousse la cloche à l'opposé de l'avatar sans largeur codée en dur.
+  headerSpacer: { flex: 1 },
+  // CLOCHE : un rond NEUTRE (pas de liseré chartreuse — le seul CTA de l'écran
+  // reste GO, §A4). C'est la pastille, pas le rond, qui porte l'alerte.
+  headerBell: {
+    width: HEADER_HEIGHT,
+    height: HEADER_HEIGHT,
+    borderRadius: HEADER_HEIGHT / 2,
+    backgroundColor: colors.carbone,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBellBadge: {
+    position: 'absolute',
+    top: -1,
+    right: -1,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: gameColors.rival,
+    // Liseré du fond : la pastille reste lisible par-dessus n'importe quelle
+    // tuile de carte, claire comme sombre.
+    borderWidth: 2,
+    borderColor: colors.noir,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBellBadgeText: {
+    color: colors.noir,
+    fontFamily: fonts.textSemi,
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
+  },
   headerPillText: {
     color: colors.blanc,
     fontFamily: fonts.textSemi,

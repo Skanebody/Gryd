@@ -19,8 +19,10 @@
  * (`activityFeed.test.ts`). Le moteur est GÉNÉRIQUE sur la source des
  * événements : il ne fabrique aucune ligne. Tant qu'aucun événement réel
  * n'existe pour un groupe, ce groupe est ABSENT — pas peint « à venir ». C'est
- * l'écran qui branche les vraies sources (badges aujourd'hui ; contestation /
- * rivalité / crew le jour où le cross-joueur existe, O1).
+ * `useActivityEvents` qui branche les vraies sources : les badges décernés
+ * (PROGRESSION) et, depuis le 27/07/2026, les contestations ACTIVES visant mes
+ * territoires (À DÉFENDRE — `contestEvents.ts`, table `territory_contests`).
+ * RIVALITÉ et CREW attendent encore une source réelle.
  */
 
 /**
@@ -78,7 +80,8 @@ export function liveEvents<T extends ActivityEvent>(events: readonly T[], nowMs:
  * Le compte du BADGE de la cloche : les seules lignes ACTIONNABLES encore
  * vivantes. Un badge qui compterait des lignes à chevron (ou des alertes
  * périmées) serait un mensonge — c'est exactement pourquoi la cloche du Home
- * reste éteinte tant qu'aucune ligne actionnable réelle n'existe (O1).
+ * n'est PAS PEINTE tant que ce compte vaut 0 (`bell.ts`, 27/07/2026 : elle est
+ * absente, pas grisée et pas à « 0 »).
  */
 export function actionableCount(events: readonly ActivityEvent[], nowMs: number): number {
   return liveEvents(events, nowMs).filter((e) => e.actionable).length;

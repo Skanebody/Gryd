@@ -13,6 +13,7 @@ import type {
   CrewChestTier,
   CrewRecruitmentStatus,
   CrewRole,
+  CrewTag,
 } from '@klaim/shared';
 import { defineCatalog, type Entry } from '../types';
 import type { CrewSignalKey } from '../../features/crew/engine/crewSignals';
@@ -3133,118 +3134,324 @@ export const C = defineCatalog({
     pt: 'Nenhum sinal mostra posição ao vivo. As tags vêm da atividade agregada do crew (§37.3).',
   },
 
-  // ── Édition du crew (founder) ──────────────────────────────────────────────
+  // ══ ÉDITION DU CREW (route /crew-edit, RPC crew_edit — migration 0084) ══════
+  //
+  // Ce bloc REMPLACE la copie de l'écran d'édition de DÉMO (supprimé avec la
+  // vitrine, A-47). Les clés retirées décrivaient des champs qui n'existent pas
+  // côté serveur : `tagField` (l'abréviation, dont le changement exige une
+  // redirection 30 j non écrite), `crestArsenalLink` / `arsenalCrestA11y` (le
+  // blason — aucune colonne dans le schéma, seulement des objets d'inventaire).
+  // Une clé de traduction qui nomme un champ inexistant est une promesse
+  // d'écran : on ne la garde pas « au cas où ».
+  editTitle: {
+    fr: 'Modifier le crew',
+    en: 'Edit crew',
+    es: 'Editar el crew',
+    de: 'Crew bearbeiten',
+    pt: 'Editar o crew',
+  },
   editKicker: {
-    fr: 'FONDATEUR · IDENTITÉ DU CREW',
-    en: 'FOUNDER · CREW IDENTITY',
-    es: 'FUNDADOR · IDENTIDAD DEL CREW',
-    de: 'GRÜNDER · CREW-IDENTITÄT',
-    pt: 'FUNDADOR · IDENTIDADE DO CREW',
+    fr: 'IDENTITÉ ET RECRUTEMENT',
+    en: 'IDENTITY AND RECRUITMENT',
+    es: 'IDENTIDAD Y RECLUTAMIENTO',
+    de: 'IDENTITÄT UND RECRUITING',
+    pt: 'IDENTIDADE E RECRUTAMENTO',
   },
-  founderOnlyGate: {
-    fr: 'Seul le fondateur peut modifier le nom, le blason et le recrutement du crew.',
-    en: 'Only the founder can edit the crew name, crest and recruitment.',
-    es: 'Solo el fundador puede editar el nombre, el escudo y el reclutamiento del crew.',
-    de: 'Nur der Gründer kann Name, Wappen und Recruiting des Crews ändern.',
-    pt: 'Só o fundador pode editar o nome, o brasão e o recrutamento do crew.',
+  editSignedOut: {
+    fr: 'Connecte-toi pour modifier ton crew.',
+    en: 'Sign in to edit your crew.',
+    es: 'Inicia sesión para editar tu crew.',
+    de: 'Melde dich an, um dein Crew zu bearbeiten.',
+    pt: 'Entre para editar o seu crew.',
   },
-  identityKicker: {
-    fr: 'IDENTITÉ',
-    en: 'IDENTITY',
-    es: 'IDENTIDAD',
-    de: 'IDENTITÄT',
-    pt: 'IDENTIDADE',
+  // « Lu, et tu n'es dans aucun crew » — une AFFIRMATION, distincte de l'échec.
+  editNoCrewTitle: {
+    fr: 'Tu n’es dans aucun crew',
+    en: 'You’re not in a crew',
+    es: 'No estás en ningún crew',
+    de: 'Du bist in keinem Crew',
+    pt: 'Você não está em nenhum crew',
   },
-  crewNameField: {
+  editNoCrewBody: {
+    fr: 'Il n’y a donc rien à modifier ici. Rejoins-en un ou fonde le tien.',
+    en: 'So there’s nothing to edit here. Join one or start your own.',
+    es: 'Así que no hay nada que editar aquí. Únete a uno o funda el tuyo.',
+    de: 'Hier gibt es also nichts zu bearbeiten. Tritt einem bei oder gründe deins.',
+    pt: 'Então não há nada para editar aqui. Entre em um ou funde o seu.',
+  },
+  // « Je n'ai PAS PU lire » — n'affirme rien sur le crew, surtout pas son absence.
+  editFailedTitle: {
+    fr: 'Impossible de lire ton crew',
+    en: 'Couldn’t load your crew',
+    es: 'No se pudo leer tu crew',
+    de: 'Dein Crew konnte nicht geladen werden',
+    pt: 'Não foi possível ler o seu crew',
+  },
+  editFailedBody: {
+    fr: 'La lecture a échoué. Rien n’a été modifié.',
+    en: 'The read failed. Nothing was changed.',
+    es: 'La lectura falló. No se cambió nada.',
+    de: 'Das Laden ist fehlgeschlagen. Es wurde nichts geändert.',
+    pt: 'A leitura falhou. Nada foi alterado.',
+  },
+  editRetry: {
+    fr: 'RÉESSAYER',
+    en: 'RETRY',
+    es: 'REINTENTAR',
+    de: 'ERNEUT VERSUCHEN',
+    pt: 'TENTAR DE NOVO',
+  },
+  // Un membre sans droit : on ne peint AUCUN champ, on explique. L'entrée vers
+  // cet écran n'existe déjà pas pour lui — ce texte couvre l'arrivée par lien.
+  editForbiddenTitle: {
+    fr: 'Seul le fondateur modifie le crew',
+    en: 'Only the founder can edit the crew',
+    es: 'Solo el fundador edita el crew',
+    de: 'Nur der Gründer bearbeitet das Crew',
+    pt: 'Só o fundador edita o crew',
+  },
+  editForbiddenBody: {
+    fr: 'Ton rôle actuel : {role}. Le nom, la description et le recrutement restent au fondateur.',
+    en: 'Your current role: {role}. Name, description and recruitment stay with the founder.',
+    es: 'Tu rol actual: {role}. Nombre, descripción y reclutamiento son del fundador.',
+    de: 'Deine aktuelle Rolle: {role}. Name, Beschreibung und Recruiting bleiben beim Gründer.',
+    pt: 'Sua função atual: {role}. Nome, descrição e recrutamento ficam com o fundador.',
+  },
+
+  // ── Le nom, et son PRIX ────────────────────────────────────────────────────
+  editNameLabel: {
     fr: 'Nom du crew',
     en: 'Crew name',
     es: 'Nombre del crew',
     de: 'Crew-Name',
     pt: 'Nome do crew',
   },
-  nameEmpty: {
+  // Le prix s'annonce AVANT le geste : c'est ce qui évite un CTA condamné.
+  editNameCost: {
+    fr: 'Changer le nom coûte {n} foulées.',
+    en: 'Changing the name costs {n} strides.',
+    es: 'Cambiar el nombre cuesta {n} zancadas.',
+    de: 'Den Namen zu ändern kostet {n} Schritte.',
+    pt: 'Mudar o nome custa {n} passadas.',
+  },
+  editNameCostFree: {
+    fr: 'Nom inchangé — rien ne sera débité.',
+    en: 'Name unchanged — nothing will be charged.',
+    es: 'Nombre sin cambios — no se cobrará nada.',
+    de: 'Name unverändert — es wird nichts abgebucht.',
+    pt: 'Nome inalterado — nada será cobrado.',
+  },
+  editNameEmpty: {
     fr: 'Le nom ne peut pas être vide.',
     en: 'The name can’t be empty.',
     es: 'El nombre no puede estar vacío.',
     de: 'Der Name darf nicht leer sein.',
     pt: 'O nome não pode ficar vazio.',
   },
-  tagField: {
-    fr: 'Tag (abréviation)',
-    en: 'Tag (short code)',
-    es: 'Tag (abreviatura)',
-    de: 'Tag (Kürzel)',
-    pt: 'Tag (abreviação)',
+  editNameTooLong: {
+    fr: 'Le nom dépasse {n} caractères.',
+    en: 'The name is over {n} characters.',
+    es: 'El nombre supera {n} caracteres.',
+    de: 'Der Name überschreitet {n} Zeichen.',
+    pt: 'O nome passa de {n} caracteres.',
   },
-  tagEmpty: {
-    fr: 'Le tag ne peut pas être vide.',
-    en: 'The tag can’t be empty.',
-    es: 'El tag no puede estar vacío.',
-    de: 'Der Tag darf nicht leer sein.',
-    pt: 'A tag não pode ficar vazia.',
+  // Le serveur ne dit JAMAIS quelle règle a mordu (ce serait un mode d'emploi
+  // du contournement) : la copie non plus.
+  editNameUnavailable: {
+    fr: 'Ce nom n’est pas disponible. Essaie autre chose.',
+    en: 'That name isn’t available. Try another one.',
+    es: 'Ese nombre no está disponible. Prueba otro.',
+    de: 'Dieser Name ist nicht verfügbar. Versuch einen anderen.',
+    pt: 'Esse nome não está disponível. Tente outro.',
   },
-  arsenalCrestA11y: {
-    fr: "Ouvrir l'Arsenal pour le blason du crew",
-    en: 'Open the Arsenal for the crew crest',
-    es: 'Abrir el Arsenal para el escudo del crew',
-    de: 'Arsenal für das Crew-Wappen öffnen',
-    pt: 'Abrir o Arsenal para o brasão do crew',
+  editNotEnough: {
+    fr: 'Il te manque des foulées : {need} nécessaires, tu en as {have}.',
+    en: 'Not enough strides: {need} needed, you have {have}.',
+    es: 'Te faltan zancadas: {need} necesarias, tienes {have}.',
+    de: 'Zu wenig Schritte: {need} nötig, du hast {have}.',
+    pt: 'Faltam passadas: {need} necessárias, você tem {have}.',
   },
-  crestArsenalLink: {
-    fr: 'Blason & cosmétiques — Arsenal',
-    en: 'Crest & cosmetics — Arsenal',
-    es: 'Escudo y cosméticos — Arsenal',
-    de: 'Wappen & Kosmetik — Arsenal',
-    pt: 'Brasão e cosméticos — Arsenal',
+  editNotEnoughShort: {
+    fr: 'Foulées insuffisantes pour renommer.',
+    en: 'Not enough strides to rename.',
+    es: 'Zancadas insuficientes para renombrar.',
+    de: 'Zu wenig Schritte zum Umbenennen.',
+    pt: 'Passadas insuficientes para renomear.',
   },
-  descriptionKicker: {
-    fr: 'DESCRIPTION',
-    en: 'DESCRIPTION',
-    es: 'DESCRIPCIÓN',
-    de: 'BESCHREIBUNG',
-    pt: 'DESCRIÇÃO',
+
+  // ── La description ─────────────────────────────────────────────────────────
+  editDescLabel: {
+    fr: 'Description',
+    en: 'Description',
+    es: 'Descripción',
+    de: 'Beschreibung',
+    pt: 'Descrição',
   },
-  descriptionPh: {
-    fr: 'Présente ton crew en une phrase (visible en découverte).',
-    en: 'Introduce your crew in one sentence (shown in discovery).',
-    es: 'Presenta tu crew en una frase (visible en descubrimiento).',
-    de: 'Stell dein Crew in einem Satz vor (sichtbar in der Entdeckung).',
-    pt: 'Apresente seu crew em uma frase (visível na descoberta).',
+  // Copie DÉLIBÉRÉMENT sans discipline : un crew peut être un crew de vélo, et
+  // le sous-titre du champ ne doit pas décider à sa place (garde-fou
+  // `disciplineVocabulary` — la première rédaction disait « Eure Läufe »).
+  editDescPh: {
+    fr: 'Vos habitudes, vos règles, ce qu’il faut savoir avant de venir.',
+    en: 'Your habits, your rules, what to know before joining.',
+    es: 'Vuestros hábitos, vuestras reglas, lo que hay que saber antes de venir.',
+    de: 'Eure Gewohnheiten, eure Regeln, was man vorher wissen sollte.',
+    pt: 'Seus hábitos, suas regras, o que saber antes de vir.',
   },
-  styleKicker: {
-    fr: 'STYLE DU CREW · {n}',
-    en: 'CREW STYLE · {n}',
-    es: 'ESTILO DEL CREW · {n}',
-    de: 'CREW-STIL · {n}',
-    pt: 'ESTILO DO CREW · {n}',
+  editDescCount: {
+    fr: '{n} / {max}',
+    en: '{n} / {max}',
+    es: '{n} / {max}',
+    de: '{n} / {max}',
+    pt: '{n} / {max}',
   },
-  savedNotice: {
-    fr: 'Enregistré — le crew est à jour.',
-    en: 'Saved — the crew is up to date.',
-    es: 'Guardado — el crew está al día.',
-    de: 'Gespeichert — das Crew ist aktuell.',
-    pt: 'Salvo — o crew está atualizado.',
+  editDescTooLong: {
+    fr: 'La description dépasse {n} caractères.',
+    en: 'The description is over {n} characters.',
+    es: 'La descripción supera {n} caracteres.',
+    de: 'Die Beschreibung überschreitet {n} Zeichen.',
+    pt: 'A descrição passa de {n} caracteres.',
   },
-  saveCta: {
+  editDescUnavailable: {
+    fr: 'Cette description ne passe pas la modération. Reformule-la.',
+    en: 'That description doesn’t pass moderation. Rephrase it.',
+    es: 'Esa descripción no pasa la moderación. Reformúlala.',
+    de: 'Diese Beschreibung besteht die Moderation nicht. Formuliere sie um.',
+    pt: 'Essa descrição não passa na moderação. Reformule-a.',
+  },
+
+  // ── Le recrutement ─────────────────────────────────────────────────────────
+  editAccessLabel: {
+    fr: 'Qui peut entrer',
+    en: 'Who can join',
+    es: 'Quién puede entrar',
+    de: 'Wer beitreten darf',
+    pt: 'Quem pode entrar',
+  },
+  editTagsLabel: {
+    fr: 'Style du crew',
+    en: 'Crew style',
+    es: 'Estilo del crew',
+    de: 'Crew-Stil',
+    pt: 'Estilo do crew',
+  },
+  // Même règle : c'est LE QUARTIER qui te trouve, pas « les runners » — un crew
+  // de cyclistes lit cet écran exactement comme un crew de coureurs.
+  editTagsHint: {
+    fr: 'Ces mots-clés aident ton quartier à te trouver.',
+    en: 'These keywords help your neighborhood find you.',
+    es: 'Estas palabras clave ayudan a tu barrio a encontrarte.',
+    de: 'Diese Schlagwörter helfen deinem Viertel, dich zu finden.',
+    pt: 'Essas palavras-chave ajudam seu bairro a te encontrar.',
+  },
+
+  // ── Les 9 tags de style (clés CREW_TAGS, §10) ──────────────────────────────
+  tagCasual: { fr: 'Casual', en: 'Casual', es: 'Casual', de: 'Casual', pt: 'Casual' },
+  tagCompetitif: {
+    fr: 'Compétitif',
+    en: 'Competitive',
+    es: 'Competitivo',
+    de: 'Wettkampf',
+    pt: 'Competitivo',
+  },
+  tagDefense: {
+    fr: 'Défense',
+    en: 'Defense',
+    es: 'Defensa',
+    de: 'Verteidigung',
+    pt: 'Defesa',
+  },
+  tagRaid: { fr: 'Raid', en: 'Raid', es: 'Raid', de: 'Raid', pt: 'Raid' },
+  tagExploration: {
+    fr: 'Exploration',
+    en: 'Exploration',
+    es: 'Exploración',
+    de: 'Erkundung',
+    pt: 'Exploração',
+  },
+  tagPerformance: {
+    fr: 'Performance',
+    en: 'Performance',
+    es: 'Rendimiento',
+    de: 'Leistung',
+    pt: 'Performance',
+  },
+  /**
+   * Clé DB `run_club`, libellé DÉ-DISCIPLINÉ.
+   *
+   * `CREW_TAGS` l'écrit « Run Club réel » en français. Ce qu'il distingue n'est
+   * pas la course : c'est un club qui EXISTE HORS DE L'APP (on s'y retrouve
+   * vraiment) par opposition à un crew né en ligne. Nommer la course dans le
+   * libellé exclurait un club de cyclistes qui coche exactement la même case —
+   * et le garde-fou `disciplineVocabulary` l'attrape, à raison. La clé stockée
+   * reste `run_club` (elle est contrainte par `crews_tags_check`, 0013) : c'est
+   * l'AFFICHAGE qui se corrige, pas la donnée.
+   */
+  tagRunClub: {
+    fr: 'Club réel',
+    en: 'Real-world club',
+    es: 'Club real',
+    de: 'Echter Club',
+    pt: 'Clube real',
+  },
+  tagDebutantsOk: {
+    fr: 'Débutants acceptés',
+    en: 'Beginners welcome',
+    es: 'Principiantes bienvenidos',
+    de: 'Anfänger willkommen',
+    pt: 'Iniciantes aceitos',
+  },
+  tagPionnier: {
+    fr: 'Pionnier',
+    en: 'Pioneer',
+    es: 'Pionero',
+    de: 'Pionier',
+    pt: 'Pioneiro',
+  },
+
+  // ── Enregistrer ────────────────────────────────────────────────────────────
+  editSave: {
     fr: 'ENREGISTRER',
     en: 'SAVE',
     es: 'GUARDAR',
     de: 'SPEICHERN',
     pt: 'SALVAR',
   },
-  resetA11y: {
-    fr: 'Réinitialiser les modifications',
-    en: 'Reset changes',
-    es: 'Restablecer los cambios',
-    de: 'Änderungen zurücksetzen',
-    pt: 'Redefinir as alterações',
+  editSaved: {
+    fr: 'Enregistré.',
+    en: 'Saved.',
+    es: 'Guardado.',
+    de: 'Gespeichert.',
+    pt: 'Salvo.',
   },
-  reset: {
-    fr: 'Réinitialiser',
-    en: 'Reset',
-    es: 'Restablecer',
-    de: 'Zurücksetzen',
-    pt: 'Redefinir',
+  editSavedRenamed: {
+    fr: 'Enregistré — {n} foulées débitées pour le nouveau nom.',
+    en: 'Saved — {n} strides charged for the new name.',
+    es: 'Guardado — {n} zancadas cobradas por el nuevo nombre.',
+    de: 'Gespeichert — {n} Schritte für den neuen Namen abgebucht.',
+    pt: 'Salvo — {n} passadas cobradas pelo novo nome.',
+  },
+  // Un échec réseau ne dit PAS « ça n'a pas marché » : on ne SAIT pas si le
+  // serveur a écrit. On dit ce qu'on sait, et on invite à relire.
+  editSaveFailed: {
+    fr: 'Envoi impossible. Rouvre l’écran pour voir l’état réel de ton crew.',
+    en: 'Couldn’t send. Reopen the screen to see your crew’s real state.',
+    es: 'No se pudo enviar. Vuelve a abrir la pantalla para ver el estado real.',
+    de: 'Senden fehlgeschlagen. Öffne den Screen neu, um den echten Stand zu sehen.',
+    pt: 'Não foi possível enviar. Reabra a tela para ver o estado real do crew.',
+  },
+  editRefusedGeneric: {
+    fr: 'Le serveur a refusé cette modification.',
+    en: 'The server refused this change.',
+    es: 'El servidor rechazó este cambio.',
+    de: 'Der Server hat diese Änderung abgelehnt.',
+    pt: 'O servidor recusou esta alteração.',
+  },
+  editDiscard: {
+    fr: 'Annuler mes modifications',
+    en: 'Discard my changes',
+    es: 'Descartar mis cambios',
+    de: 'Meine Änderungen verwerfen',
+    pt: 'Descartar minhas alterações',
   },
 
   // ── Écran INVITER (QR de recrutement — demande fondateur 21/07) ─────────────
@@ -3824,6 +4031,27 @@ export const RECRUITMENT_E: Readonly<Record<CrewRecruitmentStatus, Entry>> = {
   on_request: C.recruitOnRequest,
   invite_only: C.recruitInviteOnly,
   closed: C.recruitClosed,
+};
+
+/**
+ * Tag de style (§10) → Entry localisée.
+ *
+ * `CREW_TAGS` de game-rules porte des libellés FR en dur — ils font autorité sur
+ * les CLÉS (stockées en base, contraintes par `crews_tags_check`), pas sur ce
+ * qui s'affiche dans une UI traduite en cinq langues. Ce Record est le seul
+ * endroit où un tag devient du texte lisible ; le typage `Record<CrewTag, …>`
+ * fait échouer la compilation si un tag apparaît en base sans traduction.
+ */
+export const CREW_TAG_E: Readonly<Record<CrewTag, Entry>> = {
+  casual: C.tagCasual,
+  competitif: C.tagCompetitif,
+  defense: C.tagDefense,
+  raid: C.tagRaid,
+  exploration: C.tagExploration,
+  performance: C.tagPerformance,
+  run_club: C.tagRunClub,
+  debutants_ok: C.tagDebutantsOk,
+  pionnier: C.tagPionnier,
 };
 
 /** Palier de coffre (§39.2) → Entry localisée. */
