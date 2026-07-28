@@ -7,6 +7,9 @@
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "mobile:eas:ios:dev": "npm run eas:build:ios:dev --workspace=@klaim/mobile",
+    "mobile:eas:ios:preview": "npm run eas:build:ios:preview --workspace=@klaim/mobile",
+    "mobile:eas:android:preview": "npm run eas:build:android:preview --workspace=@klaim/mobile",
     "sync:rules": "node scripts/sync-game-rules.mjs",
     "test:functions": "deno test --allow-read supabase/functions/",
     "test:map": "cd apps/mobile && deno test --allow-read --allow-env --no-lock src/features/map/ src/features/widget/ src/features/mission/ src/features/run/gps/engine/ src/features/onboarding/ src/features/city/",
