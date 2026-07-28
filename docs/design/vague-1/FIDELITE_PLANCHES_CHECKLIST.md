@@ -3,6 +3,10 @@
 **Méthode** : pour chaque écran, statut **✅ / 🔄 / 🆕 / ❌**, preuve (commit ou capture), écarts restants.
 **Règle** : données réelles ou vides — jamais les placeholders des maquettes (Nina M., km² inventés…).
 
+**Vérif machine (utile / branché)** : `npm run verify:planches` → rapport
+`VERIFY_ELEMENTS_REPORT.md`. Chaque élément du registre dit s’il est **requis /
+utile / maquette seule / différé O1 / à retirer**, et s’il est **branché** dans le code.
+
 | # | Écran | Statut | Preuve / critères | Écarts restants |
 |---|-------|--------|-------------------|-----------------|
 | E01 | Onboarding promesse | ✅ | Boucle + copy E01 | Photo asset `e01-crew.png` à déposer |
