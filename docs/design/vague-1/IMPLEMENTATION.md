@@ -22,7 +22,7 @@ contre la planche. (Cf. transcript.)
 | # | Écran | Statut | Deltas / à faire (fidèle planche) |
 |---|-------|--------|-----------------------------------|
 | E01 | Onboarding promesse | ✅ fidèle (`1d30f55`/`e6c3798`) | Photo à déposer (`assets/onboarding/e01-crew.png`). Boucle anguleuse qui se remplit ✓ |
-| E02 | Home Map — nouveau joueur | 🔄 header ✓, RUN rond ✓, **capsule FABs ✓** (`9be934c`), **nav « Profil » VISIBLE ✓** (`495ff47` — le label vivait EN DUR dans GrydNavBar, `9f79397` ne touchait que la barre Tabs masquée) | RESTE : sheet TIRABLE « PREMIÈRE MISSION » (poignée déjà là ; 900 m·6 min = O1/vraie suggestion de boucle, sinon absents) + boucle 900 m pointillée + pin joueur (O1) |
+| E02 | Home Map — nouveau joueur | 🔄 **sheet PREMIÈRE MISSION ✓** (`FirstMissionPeek`, 900 m·6 min depuis `game-rules`), **boucle pointillée + label ✓**, header ✓, RUN rond ✓, capsule FABs ✓, nav Profil ✓ | RESTE : sous-label quartier header (O1) ; cadrage ego 44 % ; tracé OSRM (indicatif = carré autour du fix) |
 | E03 | Home Map — joueur actif | 🔄 recalage | Mon territoire chartreuse 15 % + halo + label ; 1 rival orange (K.RUNNER=démo→réel) ; crews voisins bleu désaturé ; pill contexte « 1 zone à reprendre » (réelle, 5 s) ; sheet « VOTRE TERRITOIRE km² » (réel) |
 | E04 | Zone rivale — REPRENDRE | 🔄 (fait `4b3ca10`, à recaler) | Sheet 52 % : propriétaire (avatar+handle+crew RÉELS), « tenu depuis », 3 métriques séparateurs, historique 1 ligne, REPRENDRE + « Planifier pour plus tard ». Zone cadrée au-dessus |
 | E05 | Briefing mission | 🔄 (bloc métriques `059ac09`) | Sheet 58 %, mini-carte tracé recommandé, 4 métriques 1 bloc (gain km²/difficulté=O1→absents), « Ajuster », COMMENCER LA MISSION + microtexte GPS |

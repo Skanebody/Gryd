@@ -92,6 +92,8 @@ import {
   typography,
   withAlpha,
   DEFAULT_ACTIVITY,
+  referenceLoopDurationMin,
+  referenceLoopPerimeterM,
 } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { C as N } from '../../i18n/catalog/nav';
@@ -1088,11 +1090,8 @@ export function BattleMapOverlays({
     ) : widget ? (
       <TerritoryWidgetPeek view={widget} onAction={() => onWidgetAction?.(widget)} />
     ) : (
-      // `first-capture` sans widget : le joueur n'a rien capturé DANS CETTE
-      // DISCIPLINE et la lecture n'a rien produit d'autre à dire. Sortir EST
-      // l'action — GO la porte (§A4). La lentille choisit seulement les mots :
-      // un monde vélo neuf est un DÉBUT, pas l'absence d'une fonctionnalité.
-      <EmptyPeek state="empty" activity={activity} onAction={onEmptyAction} />
+      // `first-capture` sans widget : sheet planche E02 « PREMIÈRE MISSION ».
+      <FirstMissionPeek activity={activity} />
     );
 
   return (
@@ -1346,15 +1345,49 @@ function TerritoryWidgetPeek({
 }
 
 /**
- * ÉTAT VIDE du peek (O1) — ce que voit un téléphone neuf, sans compte, quand
- * plus aucune démo ne remplit l'écran. Il DIT ce qu'il n'y a pas encore, sans
- * culpabiliser, et propose au plus UNE action :
- *   • 'signed-out' → « Se connecter » (lien : le CTA chartreuse reste GO) ;
- *   • 'empty'      → aucune action ici — courir EST l'action, et le bouton GO
- *                    flottant la porte déjà (§A.4 : un seul CTA à l'écran) ;
- *   • 'failed'     → « Réessayer » : un échec réseau se dit et se rejoue, il ne
- *                    se déguise jamais en « tu n'as rien capturé ».
+ * Sheet « PREMIÈRE MISSION » (planche E02 / E14) — joueur connecté sans zone
+ * dans la lentille courante. Métriques depuis `game-rules` ; pas de second CTA
+ * (GO porte l'action, §A.4).
  */
+function FirstMissionPeek({ activity = DEFAULT_ACTIVITY }: { activity?: MapActivity }) {
+  const t = useT();
+  const distanceM = referenceLoopPerimeterM(activity);
+  const durationMin = referenceLoopDurationMin(activity);
+  const bike = activity === 'bike';
+  const kicker = bike ? C.firstMissionBikeKicker : C.firstMissionKicker;
+  const title = bike ? C.firstMissionBikeTitle : C.firstMissionTitle;
+  const line = bike ? C.firstMissionBikeLine : C.firstMissionLine;
+  return (
+    <View style={styles.info}>
+      <Text style={styles.firstMissionKicker} numberOfLines={1}>
+        {t(kicker)}
+      </Text>
+      <View style={styles.peekHead}>
+        <View style={styles.firstMissionBar} />
+        <View style={styles.rowBody}>
+          <Text style={styles.peekTitle} numberOfLines={2}>
+            {t(title)}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.peekMeta} numberOfLines={2}>
+        {t(line)}
+      </Text>
+      <View style={styles.firstMissionMetrics} accessibilityRole="text">
+        <Text style={styles.metricBlock}>
+          <Text style={styles.metricValue}>{distanceM}</Text>
+          <Text style={styles.metricUnit}> m</Text>
+        </Text>
+        <Text style={styles.metricBlock}>
+          <Text style={styles.metricApprox}>≈ </Text>
+          <Text style={styles.metricValue}>{durationMin}</Text>
+          <Text style={styles.metricUnit}> min</Text>
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function EmptyPeek({
   state,
   activity = DEFAULT_ACTIVITY,
@@ -2002,6 +2035,29 @@ const styles = StyleSheet.create({
   // ── PEEK MISSION ──
   peekHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   missionBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: gameColors.crew },
+  firstMissionBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: colors.chartreuse },
+  firstMissionKicker: {
+    color: colors.chartreuse,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  firstMissionMetrics: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 20,
+    marginTop: 8,
+  },
+  metricBlock: { flexDirection: 'row', alignItems: 'baseline' },
+  metricValue: {
+    color: colors.blanc,
+    fontSize: 24,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  metricUnit: { color: colors.gris, fontSize: 13, fontWeight: '600' },
+  metricApprox: { color: colors.gris, fontSize: 13, fontWeight: '600' },
   // État vide : barre GRISE — la chartreuse dit « à moi », et rien ne l'est encore.
   emptyBar: { width: 4, height: 34, borderRadius: 2, backgroundColor: colors.grisLigne },
   // Position à régler : barre AMBRE (planche E02 « barre ambre non bloquante ») —

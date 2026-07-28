@@ -26,7 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii } from '@klaim/shared';
+import { colors, fontSizes, radii, referenceLoopLabelPoint, referenceLoopPerimeterM } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import {
   RealMap,
@@ -69,6 +69,7 @@ import {
 } from './mapStyle';
 import { useBasemapStyle, useMap3d, useMapActivity } from './mapPref';
 import { CITY_SCALE_ZOOM, EGO_CAMERA, type LatLngPoint } from './realAnchors';
+import { firstMissionLoopLayer } from './firstMissionMapLayer';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
 import {
@@ -126,6 +127,19 @@ const DATA_NOTE_ABOVE_SHEET = 22;
 function buildMarkers(ego: LatLngPoint | null): RealMapMarker[] {
   if (!ego) return [];
   return [{ id: 'ego', lng: ego.lng, lat: ego.lat, children: <EgoMarker /> }];
+}
+
+/** Label carte planche E02 (« 900 M ») — lisible sans couleur grâce au texte. */
+function FirstMissionLoopLabel({ meters }: { meters: number }) {
+  return (
+    <Text
+      style={styles.firstMissionMapLabel}
+      accessibilityRole="text"
+      accessibilityLabel={`${meters} m`}
+    >
+      {meters} M
+    </Text>
+  );
 }
 
 export function MapScreen() {
@@ -442,21 +456,37 @@ export function MapScreen() {
    * la carte et la démo : ne pas le retirer.
    */
   const paintedTerritories = territories ?? [];
+  const showFirstMissionLoop =
+    !loading &&
+    !failed &&
+    !signedOut &&
+    paintedTerritories.length === 0 &&
+    territories !== null &&
+    egoPos !== null;
   const layers = useMemo(
-    () =>
-      // ROUVERT LE 26/07/2026 : les couches de jeu existent dans les DEUX
-      // mondes. `paintedTerritories` vient d'une lecture bornée à la lentille,
-      // et `sectorViews` est déjà vide hors lentille par défaut — donc aucune
-      // couche ne peut porter la donnée de l'autre discipline.
-      battleGameLayers(
+    () => {
+      const base = battleGameLayers(
         emph,
         selectedParcours,
         basemap,
         selectedZoneId,
         paintedTerritories,
         sectorViews,
-      ),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      );
+      if (!showFirstMissionLoop || !egoPos) return base;
+      return [...base, firstMissionLoopLayer(egoPos, activity)];
+    },
+    [
+      emph,
+      selectedParcours,
+      basemap,
+      selectedZoneId,
+      paintedTerritories,
+      sectorViews,
+      showFirstMissionLoop,
+      egoPos,
+      activity,
+    ],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
@@ -481,7 +511,20 @@ export function MapScreen() {
   // (`city_id` est NULL sur toute capture — cf. hexClaims.ts), donc rien à peindre
   // au dézoom : la carte montre le monde nu plutôt qu'un palmarès inventé.
 
-  const markers = useMemo(() => buildMarkers(egoPos), [egoPos]);
+  const markers = useMemo(() => {
+    const out = buildMarkers(egoPos);
+    if (showFirstMissionLoop && egoPos) {
+      const perimeterM = referenceLoopPerimeterM(activity);
+      const labelPt = referenceLoopLabelPoint(egoPos, perimeterM);
+      out.push({
+        id: 'first-mission-label',
+        lng: labelPt.lng,
+        lat: labelPt.lat,
+        children: <FirstMissionLoopLabel meters={perimeterM} />,
+      });
+    }
+    return out;
+  }, [egoPos, showFirstMissionLoop, activity]);
 
   // map_load_ms (§8 santé produit) — du montage au premier rendu (parité web).
   const mountedAtRef = useRef<number>(Date.now());
@@ -868,6 +911,12 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontSize: fontSizes.xs,
     fontWeight: '600',
+  },
+  firstMissionMapLabel: {
+    color: colors.chartreuse,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.6,
   },
 });
 

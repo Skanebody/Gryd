@@ -64,7 +64,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { colors } from '@klaim/shared';
+import { colors, referenceLoopLabelPoint, referenceLoopPerimeterM } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import {
   RealMap,
@@ -106,6 +106,7 @@ import {
 } from './mapStyle';
 import { useBasemapStyle, useMap3d, useMapActivity } from './mapPref';
 import { CITY_SCALE_ZOOM, EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
+import { firstMissionLoopLayer } from './firstMissionMapLayer';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
 import { C } from '../../i18n/catalog/map';
@@ -180,6 +181,14 @@ const SCALE_STEPS_M: readonly number[] = [
 function buildMarkers(ego: LatLngPoint | null): RealMapMarker[] {
   if (!ego) return [];
   return [{ id: 'ego', lng: ego.lng, lat: ego.lat, children: <EgoMarker /> }];
+}
+
+function FirstMissionLoopLabel({ meters }: { meters: number }) {
+  return (
+    <Text style={styles.firstMissionMapLabel} accessibilityRole="text" accessibilityLabel={`${meters} m`}>
+      {meters} M
+    </Text>
+  );
 }
 
 export function MapScreen() {
@@ -490,19 +499,37 @@ export function MapScreen() {
    * `fakeHexes` : ne pas le retirer. Parité stricte avec la variante native.
    */
   const paintedTerritories = territories ?? [];
+  const showFirstMissionLoop =
+    !loading &&
+    !failed &&
+    !signedOut &&
+    paintedTerritories.length === 0 &&
+    territories !== null &&
+    egoPos !== null;
   const layers = useMemo(
-    () =>
-      // ROUVERT LE 26/07/2026 : couches de jeu dans les DEUX mondes, chacune
-      // alimentée par une lecture bornée à sa discipline. Parité stricte natif ↔ web.
-      battleGameLayers(
+    () => {
+      const base = battleGameLayers(
         emph,
         selectedParcours,
         basemap,
         selectedZoneId,
         paintedTerritories,
         sectorViews,
-      ),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      );
+      if (!showFirstMissionLoop || !egoPos) return base;
+      return [...base, firstMissionLoopLayer(egoPos, activity)];
+    },
+    [
+      emph,
+      selectedParcours,
+      basemap,
+      selectedZoneId,
+      paintedTerritories,
+      sectorViews,
+      showFirstMissionLoop,
+      egoPos,
+      activity,
+    ],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
@@ -526,7 +553,20 @@ export function MapScreen() {
   // retirés. Aucune agrégation RÉELLE par ville n'existe (`city_id` est NULL sur
   // toute capture — cf. hexClaims.ts), donc rien à peindre au dézoom.
 
-  const markers = useMemo(() => buildMarkers(egoPos), [egoPos]);
+  const markers = useMemo(() => {
+    const out = buildMarkers(egoPos);
+    if (showFirstMissionLoop && egoPos) {
+      const perimeterM = referenceLoopPerimeterM(activity);
+      const labelPt = referenceLoopLabelPoint(egoPos, perimeterM);
+      out.push({
+        id: 'first-mission-label',
+        lng: labelPt.lng,
+        lat: labelPt.lat,
+        children: <FirstMissionLoopLabel meters={perimeterM} />,
+      });
+    }
+    return out;
+  }, [egoPos, showFirstMissionLoop, activity]);
 
   /**
    * O1 — ÉTAT VIDE du HUD (mêmes trois cas que `dataNote`, même ordre de priorité
@@ -932,6 +972,12 @@ const styles = StyleSheet.create({
   attribution: { color: colors.gris, opacity: 0.7, fontSize: 9, marginTop: 2 },
   // Jamais chartreuse : réservée à l'action, et illisible sur fond clair (charte).
   dataNote: { position: 'absolute', left: 14, right: 14, color: colors.gris, fontSize: 11 },
+  firstMissionMapLabel: {
+    color: colors.chartreuse,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+  },
 });
 
 export default MapScreen;
