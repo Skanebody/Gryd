@@ -66,6 +66,24 @@ Un artefact HTML unique : par écran, **planche | rendu actuel | écarts restant
 retirés-utiles | statut de vérif**. Le fondateur le parcourt d'un coup d'œil quand il
 veut, et ne tranche que sur les `demander au fondateur` (rares). Republié à chaque lot.
 
+## Vérification machine : utile ? branché ?
+
+En plus du diagnostic agent / captures, un **inventaire exécutable** répond aux
+deux questions pour chaque élément de planche :
+
+```bash
+npm run verify:planches
+# ou : node scripts/verify-planche-elements.mjs --screen E02
+```
+
+- Registre : `scripts/lib/planche-element-registry.mjs` (usefulness + preuves code).
+- Rapport : `docs/design/vague-1/VERIFY_ELEMENTS_REPORT.md` (régénéré à chaque run).
+- Exit 1 si un élément **requis/utile** n’est pas branché, ou si un placeholder
+  maquette / démo retirée est encore présent.
+
+Complète `npm run audit:routes` (portes d’écran) : ici on vérifie les **pièces
+d’UI** et leur source (`game-rules`, i18n, hooks), pas seulement la navigation.
+
 ## Contraintes qui PRIMENT sur le pixel (rappel)
 
 Autorité : `SOURCE_OF_TRUTH_REGISTER.md` → Spéc Unifiée → `GRYD_REGLES_NON_NEGOCIABLES.md`

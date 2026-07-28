@@ -3472,6 +3472,19 @@ export const DEFAULT_ACTIVITY: Activity = 'run';
 export const ACTIVITY_REFERENCE_SPEED_KMH = { run: 10, bike: 20 } as const;
 
 /**
+ * Périmètre de la boucle SUGGÉRÉE sur la carte (planches E02 / E14) — indicatif
+ * pour la première mission, pas une obligation de claim. Valeurs lues sur la
+ * planche : 900 m course, 4 800 m vélo (rapport ×5 avec le périmètre minimal).
+ */
+export const ACTIVITY_REFERENCE_LOOP_PERIMETER_M = { run: 900, bike: 4_800 } as const;
+
+/**
+ * Durées AFFICHÉES avec cette boucle (planche E02 « ≈ 6 min », E14 vélo « ≈ 15 min »).
+ * Cohérentes avec `ACTIVITY_REFERENCE_SPEED_KMH` à ±1 min près (arrondi UX).
+ */
+export const ACTIVITY_REFERENCE_LOOP_DURATION_MIN = { run: 6, bike: 15 } as const;
+
+/**
  * Jeu COMPLET des bornes qu'une discipline impose au moteur pur. Une seule
  * table indexée par discipline : aucune fonction du moteur n'a le droit de lire
  * une borne §3.2 « en dur » — elle lit `activityRules(activity)`.

@@ -40,9 +40,12 @@ import {
   GPS_READY_ACCURACY_M,
   GPS_USABLE_ACCURACY_M,
   POINT_MAX_ACCURACY_M,
+  ACTIVITY_REFERENCE_LOOP_DURATION_MIN,
+  ACTIVITY_REFERENCE_LOOP_PERIMETER_M,
   activityProducesResult,
   gpsAccuracyGrade,
 } from './game-rules';
+import { referenceLoopDurationMin, referenceLoopPerimeterM, referenceSquareLoopRing } from './firstMissionPresentation';
 
 // Voir le docblock : le runner Deno, typé localement (tsc ET Deno satisfaits).
 declare const Deno: { test(nom: string, fn: () => void | Promise<void>): void };
@@ -308,4 +311,21 @@ Deno.test('EMERGENCY_NUMBER_EUROPE est le 112 et rien d’autre', () => {
   // Un numéro de secours faux coûte plus cher que n'importe quel bug de jeu :
   // ce test est là pour qu'aucune « localisation » ne le remplace en douce.
   assertEquals(EMERGENCY_NUMBER_EUROPE, '112');
+});
+
+// ─── E02 — boucle indicative première mission (planche) ─────────────────────
+
+Deno.test('ACTIVITY_REFERENCE_LOOP_* aligné planche E02 / E14', () => {
+  assertEquals(ACTIVITY_REFERENCE_LOOP_PERIMETER_M.run, 900);
+  assertEquals(ACTIVITY_REFERENCE_LOOP_DURATION_MIN.run, 6);
+  assertEquals(ACTIVITY_REFERENCE_LOOP_PERIMETER_M.bike, 4_800);
+  assertEquals(ACTIVITY_REFERENCE_LOOP_DURATION_MIN.bike, 15);
+  assertEquals(referenceLoopPerimeterM('run'), 900);
+  assertEquals(referenceLoopDurationMin('bike'), 15);
+});
+
+Deno.test('referenceSquareLoopRing : anneau GeoJSON fermé', () => {
+  const ring = referenceSquareLoopRing({ lat: 48.867, lng: 2.3641 }, 900);
+  assertEquals(ring.length, 5);
+  assertEquals(ring[0], ring[4]);
 });

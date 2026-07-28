@@ -7,19 +7,23 @@
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "mobile:eas:ios:dev": "npm run eas:build:ios:dev --workspace=@klaim/mobile",
+    "mobile:eas:ios:preview": "npm run eas:build:ios:preview --workspace=@klaim/mobile",
+    "mobile:eas:android:preview": "npm run eas:build:android:preview --workspace=@klaim/mobile",
     "sync:rules": "node scripts/sync-game-rules.mjs",
     "test:functions": "deno test --allow-read supabase/functions/",
     "test:map": "cd apps/mobile && deno test --allow-read --allow-env --no-lock src/features/map/ src/features/widget/ src/features/mission/ src/features/run/gps/engine/ src/features/onboarding/ src/features/city/",
     "test:mobile": "deno test --allow-read --allow-env apps/mobile/src",
     "test:sql": "node scripts/run-sql-tests.mjs",
-    "gate": "npm run typecheck && npm run sync:rules && npm run audit:migrations && npm run test:packages && npm run test:mobile && npm run test:functions && npm run test:sql",
+    "gate": "npm run typecheck && npm run sync:rules && npm run audit:migrations && npm run verify:planches && npm run test:packages && npm run test:mobile && npm run test:functions && npm run test:sql",
     "test:e2e": "playwright test",
     "test:e2e:web": "playwright test --project=web",
     "test:e2e:mobile": "playwright test --project=mobile",
     "test:packages": "deno test --allow-read --allow-env packages/",
     "audit:routes": "node scripts/audit-routes.mjs",
     "audit:migrations": "node scripts/audit-migrations.mjs",
-    "verify:rls": "node scripts/verify-rls-remote.mjs"
+    "verify:rls": "node scripts/verify-rls-remote.mjs",
+    "verify:planches": "node scripts/verify-planche-elements.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

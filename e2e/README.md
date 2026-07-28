@@ -69,3 +69,17 @@ Le premier lancement compile le bundle Expo web : compter quelques minutes.
 
 **Ces tests ne sont PAS dans `npm run gate`** — ils démarrent des serveurs et prennent des minutes,
 là où le gate doit rester une boucle courte. Ils tournent avant un push de lot, et en CI.
+
+---
+
+## Exécution Vague 10.3 (a11y + preuve appareil + observabilité)
+
+Le plan opérationnel qui complète ce README est ici:
+
+- `docs/qa/VAGUE10_2_PREUVE_APPAREIL.md` (preuve réelle sur téléphone)
+- `docs/qa/VAGUE10_3_A11Y_E2E_OBSERVABILITE.md` (balayage a11y + matrice E2E + contrôle events)
+
+Règle de lecture:
+- `e2e/` prouve l'intégration web + montage de flux.
+- les scénarios produit natifs (GPS réel, AppState réel, offline/drain) sont
+  validés par la preuve appareil, avec artefacts.

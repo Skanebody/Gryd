@@ -386,6 +386,7 @@ Deno.test('mergeTerritorySources : polygone + capture non couverte = 2 territoir
   });
   assertEquals(merged.polygonCount, 1);
   assertEquals(merged.hexFallbackCount, 1, 'la capture sans polygone reste visible, en hexagones');
+  assertEquals(merged.hiddenWithoutGeometryCount, 0);
   assertEquals(merged.territories.length, 2);
   assertEquals(merged.territories[0]?.geometrySource, 'polygon');
   assertEquals(merged.territories[1]?.geometrySource, 'h3cells');
@@ -400,6 +401,7 @@ Deno.test('mergeTerritorySources : table VIDE ⇒ tout reste hexagonal, RIEN n�
   });
   assertEquals(merged.polygonCount, 0);
   assertEquals(merged.hexFallbackCount, 1, 'les 2 cellules du même propriétaire font 1 territoire');
+  assertEquals(merged.hiddenWithoutGeometryCount, 0);
   assertEquals(merged.territories[0]?.zoneCount, 2);
 });
 
@@ -408,6 +410,22 @@ Deno.test('mergeTerritorySources : deux lectures vides ⇒ liste vide (état hon
   assertEquals(merged.territories.length, 0);
   assertEquals(merged.polygonCount, 0);
   assertEquals(merged.hexFallbackCount, 0);
+  assertEquals(merged.hiddenWithoutGeometryCount, 0);
+});
+
+Deno.test('mergeTerritorySources : mode strict (sans fallback) masque les cellules sans polygone et les COMPTE', () => {
+  const merged = mergeTerritorySources({
+    territoryRows: [row()],
+    claimRows: [claim(insideCell, ME), claim(outsideCell, ME)],
+    meId: ME,
+    now: NOW,
+    allowHexFallback: false,
+  });
+  assertEquals(merged.polygonCount, 1);
+  assertEquals(merged.hexFallbackCount, 0);
+  assertEquals(merged.hiddenWithoutGeometryCount, 1);
+  assertEquals(merged.territories.length, 1);
+  assertEquals(merged.territories[0]?.geometrySource, 'polygon');
 });
 
 Deno.test('mergeTerritorySources : le decay repris alimente bien le territoire polygonal', () => {

@@ -26,7 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, radii } from '@klaim/shared';
+import { colors, fontSizes, radii, referenceLoopLabelPoint, referenceLoopPerimeterM } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import {
   RealMap,
@@ -69,6 +69,7 @@ import {
 } from './mapStyle';
 import { useBasemapStyle, useMap3d, useMapActivity } from './mapPref';
 import { CITY_SCALE_ZOOM, EGO_CAMERA, type LatLngPoint } from './realAnchors';
+import { firstMissionLoopLayer } from './firstMissionMapLayer';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
 import {
@@ -126,6 +127,19 @@ const DATA_NOTE_ABOVE_SHEET = 22;
 function buildMarkers(ego: LatLngPoint | null): RealMapMarker[] {
   if (!ego) return [];
   return [{ id: 'ego', lng: ego.lng, lat: ego.lat, children: <EgoMarker /> }];
+}
+
+/** Label carte planche E02 (« 900 M ») — lisible sans couleur grâce au texte. */
+function FirstMissionLoopLabel({ meters }: { meters: number }) {
+  return (
+    <Text
+      style={styles.firstMissionMapLabel}
+      accessibilityRole="text"
+      accessibilityLabel={`${meters} m`}
+    >
+      {meters} M
+    </Text>
+  );
 }
 
 export function MapScreen() {
@@ -376,8 +390,8 @@ export function MapScreen() {
         : [],
     [sectorRows, viewerUserId, viewerCrewId, viewerResolved, sectorsReadable],
   );
-  const { territories, isReal, failed, signedOut, loading, reload } =
-    useRealTerritories(crewIds, activity);
+  const { territories, isReal, failed, signedOut, loading, reload, hiddenWithoutGeometryCount } =
+    useRealTerritories(crewIds, activity, { allowHexFallback: false });
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
@@ -442,21 +456,37 @@ export function MapScreen() {
    * la carte et la démo : ne pas le retirer.
    */
   const paintedTerritories = territories ?? [];
+  const showFirstMissionLoop =
+    !loading &&
+    !failed &&
+    !signedOut &&
+    paintedTerritories.length === 0 &&
+    territories !== null &&
+    egoPos !== null;
   const layers = useMemo(
-    () =>
-      // ROUVERT LE 26/07/2026 : les couches de jeu existent dans les DEUX
-      // mondes. `paintedTerritories` vient d'une lecture bornée à la lentille,
-      // et `sectorViews` est déjà vide hors lentille par défaut — donc aucune
-      // couche ne peut porter la donnée de l'autre discipline.
-      battleGameLayers(
+    () => {
+      const base = battleGameLayers(
         emph,
         selectedParcours,
         basemap,
         selectedZoneId,
         paintedTerritories,
         sectorViews,
-      ),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      );
+      if (!showFirstMissionLoop || !egoPos) return base;
+      return [...base, firstMissionLoopLayer(egoPos, activity)];
+    },
+    [
+      emph,
+      selectedParcours,
+      basemap,
+      selectedZoneId,
+      paintedTerritories,
+      sectorViews,
+      showFirstMissionLoop,
+      egoPos,
+      activity,
+    ],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
@@ -481,7 +511,20 @@ export function MapScreen() {
   // (`city_id` est NULL sur toute capture — cf. hexClaims.ts), donc rien à peindre
   // au dézoom : la carte montre le monde nu plutôt qu'un palmarès inventé.
 
-  const markers = useMemo(() => buildMarkers(egoPos), [egoPos]);
+  const markers = useMemo(() => {
+    const out = buildMarkers(egoPos);
+    if (showFirstMissionLoop && egoPos) {
+      const perimeterM = referenceLoopPerimeterM(activity);
+      const labelPt = referenceLoopLabelPoint(egoPos, perimeterM);
+      out.push({
+        id: 'first-mission-label',
+        lng: labelPt.lng,
+        lat: labelPt.lat,
+        children: <FirstMissionLoopLabel meters={perimeterM} />,
+      });
+    }
+    return out;
+  }, [egoPos, showFirstMissionLoop, activity]);
 
   // map_load_ms (§8 santé produit) — du montage au premier rendu (parité web).
   const mountedAtRef = useRef<number>(Date.now());
@@ -556,6 +599,7 @@ export function MapScreen() {
     () => selectZoneView(territories, sectorViews, selectedZoneId, zoneViewer),
     [selectedZoneId, territories, sectorViews, zoneViewer],
   );
+  const hasApproxContours = (territories ?? []).some((t) => t.geometrySource === 'h3cells');
 
   /**
    * §A — 1 écran = 1 décision : quand le peek du HUD porte DÉJÀ l'état vide (sa
@@ -600,6 +644,11 @@ export function MapScreen() {
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
         dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
+    // Vague 10 : quand le repli hexagonal est coupé, des captures restent
+    // potentiellement sans géométrie tracée ; on le dit explicitement.
+    (hiddenWithoutGeometryCount > 0 ? resolve(C.dataNoteMissingTraceGeometry, locale) : null) ??
+    // Compat arrière : si le repli h3 est actif ailleurs, la phrase reste vraie.
+    (hasApproxContours ? resolve(C.dataNoteApproxContours, locale) : null) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS. Il ne parle que si la localisation et les
     // territoires n'ont rien à dire, mais il parle : « secteurs non chargés »
@@ -862,6 +911,12 @@ const styles = StyleSheet.create({
     color: colors.blanc,
     fontSize: fontSizes.xs,
     fontWeight: '600',
+  },
+  firstMissionMapLabel: {
+    color: colors.chartreuse,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.6,
   },
 });
 

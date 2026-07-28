@@ -64,7 +64,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { colors } from '@klaim/shared';
+import { colors, referenceLoopLabelPoint, referenceLoopPerimeterM } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
 import {
   RealMap,
@@ -106,6 +106,7 @@ import {
 } from './mapStyle';
 import { useBasemapStyle, useMap3d, useMapActivity } from './mapPref';
 import { CITY_SCALE_ZOOM, EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
+import { firstMissionLoopLayer } from './firstMissionMapLayer';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
 import { C } from '../../i18n/catalog/map';
@@ -180,6 +181,14 @@ const SCALE_STEPS_M: readonly number[] = [
 function buildMarkers(ego: LatLngPoint | null): RealMapMarker[] {
   if (!ego) return [];
   return [{ id: 'ego', lng: ego.lng, lat: ego.lat, children: <EgoMarker /> }];
+}
+
+function FirstMissionLoopLabel({ meters }: { meters: number }) {
+  return (
+    <Text style={styles.firstMissionMapLabel} accessibilityRole="text" accessibilityLabel={`${meters} m`}>
+      {meters} M
+    </Text>
+  );
 }
 
 export function MapScreen() {
@@ -427,8 +436,8 @@ export function MapScreen() {
         : [],
     [sectorRows, viewerUserId, viewerCrewId, viewerResolved, sectorsReadable],
   );
-  const { territories, isReal, failed, signedOut, loading, reload } =
-    useRealTerritories(crewIds, activity);
+  const { territories, isReal, failed, signedOut, loading, reload, hiddenWithoutGeometryCount } =
+    useRealTerritories(crewIds, activity, { allowHexFallback: false });
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
@@ -490,19 +499,37 @@ export function MapScreen() {
    * `fakeHexes` : ne pas le retirer. Parité stricte avec la variante native.
    */
   const paintedTerritories = territories ?? [];
+  const showFirstMissionLoop =
+    !loading &&
+    !failed &&
+    !signedOut &&
+    paintedTerritories.length === 0 &&
+    territories !== null &&
+    egoPos !== null;
   const layers = useMemo(
-    () =>
-      // ROUVERT LE 26/07/2026 : couches de jeu dans les DEUX mondes, chacune
-      // alimentée par une lecture bornée à sa discipline. Parité stricte natif ↔ web.
-      battleGameLayers(
+    () => {
+      const base = battleGameLayers(
         emph,
         selectedParcours,
         basemap,
         selectedZoneId,
         paintedTerritories,
         sectorViews,
-      ),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+      );
+      if (!showFirstMissionLoop || !egoPos) return base;
+      return [...base, firstMissionLoopLayer(egoPos, activity)];
+    },
+    [
+      emph,
+      selectedParcours,
+      basemap,
+      selectedZoneId,
+      paintedTerritories,
+      sectorViews,
+      showFirstMissionLoop,
+      egoPos,
+      activity,
+    ],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
@@ -526,7 +553,20 @@ export function MapScreen() {
   // retirés. Aucune agrégation RÉELLE par ville n'existe (`city_id` est NULL sur
   // toute capture — cf. hexClaims.ts), donc rien à peindre au dézoom.
 
-  const markers = useMemo(() => buildMarkers(egoPos), [egoPos]);
+  const markers = useMemo(() => {
+    const out = buildMarkers(egoPos);
+    if (showFirstMissionLoop && egoPos) {
+      const perimeterM = referenceLoopPerimeterM(activity);
+      const labelPt = referenceLoopLabelPoint(egoPos, perimeterM);
+      out.push({
+        id: 'first-mission-label',
+        lng: labelPt.lng,
+        lat: labelPt.lat,
+        children: <FirstMissionLoopLabel meters={perimeterM} />,
+      });
+    }
+    return out;
+  }, [egoPos, showFirstMissionLoop, activity]);
 
   /**
    * O1 — ÉTAT VIDE du HUD (mêmes trois cas que `dataNote`, même ordre de priorité
@@ -578,6 +618,7 @@ export function MapScreen() {
     () => selectZoneView(territories, sectorViews, selectedZoneId, zoneViewer),
     [selectedZoneId, territories, sectorViews, zoneViewer],
   );
+  const hasApproxContours = (territories ?? []).some((t) => t.geometrySource === 'h3cells');
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
@@ -625,6 +666,11 @@ export function MapScreen() {
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
         dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
+    // Vague 10 : pas de fallback h3 ici ; les captures sans trace restent
+    // invisibles et l'écran doit l'annoncer.
+    (hiddenWithoutGeometryCount > 0 ? resolve(C.dataNoteMissingTraceGeometry, locale) : null) ??
+    // Compat arrière : phrase conservée si un autre écran garde le fallback.
+    (hasApproxContours ? resolve(C.dataNoteApproxContours, locale) : null) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS, qui n'est PAS « aucun secteur ». Parité native.
     (sectorsReadable && sectorStatus === 'error'
@@ -926,6 +972,12 @@ const styles = StyleSheet.create({
   attribution: { color: colors.gris, opacity: 0.7, fontSize: 9, marginTop: 2 },
   // Jamais chartreuse : réservée à l'action, et illisible sur fond clair (charte).
   dataNote: { position: 'absolute', left: 14, right: 14, color: colors.gris, fontSize: 11 },
+  firstMissionMapLabel: {
+    color: colors.chartreuse,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+  },
 });
 
 export default MapScreen;

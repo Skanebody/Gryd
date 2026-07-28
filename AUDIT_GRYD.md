@@ -1,4 +1,15 @@
-# AUDIT_GRYD — état réel du dépôt face à la spec produit v1.0
+# AUDIT_GRYD — ARCHIVE figée (26/07/2026)
+
+> ⚠️ **Statut**
+> Ce document est un **instantané daté** (26/07/2026), utile pour l'historique
+> des écarts, mais **pas une source active de pilotage** après les vagues 7-10.
+>
+> Pour l'exécution en cours, utiliser les audits roulants et protocoles QA:
+> - `docs/qa/VAGUE10_2_PREUVE_APPAREIL.md`
+> - `docs/qa/VAGUE10_3_A11Y_E2E_OBSERVABILITE.md`
+>
+> Règle d'honnêteté: si un constat ici n'est plus vrai dans le code, le code
+> fait foi; cet archive ne doit pas être relu comme un état temps réel.
 
 **Daté du 26/07/2026.** Référence : `docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md` (3419 lignes),
 déclarée **source de vérité unique** par le fondateur.

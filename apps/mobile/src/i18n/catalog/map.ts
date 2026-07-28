@@ -509,6 +509,30 @@ export const C = defineCatalog({
     de: 'Fahr los, hol dir deine erste Zone',
     pt: 'Pedale para tomar sua primeira zona',
   },
+  /**
+   * Point de vigilance Vague 8/10 : tant que toutes les captures ne portent pas
+   * encore un polygone de trace, une partie de la carte reste lue depuis la
+   * grille de capture interne (`geometrySource = h3cells`). On le dit
+   * explicitement pour éviter de faire passer ce contour pour une trace exacte.
+   */
+  dataNoteApproxContours: {
+    fr: 'Certains contours restent approximatifs',
+    en: 'Some borders are still approximate',
+    es: 'Algunos contornos siguen siendo aproximados',
+    de: 'Einige Grenzen sind noch angenähert',
+    pt: 'Alguns contornos ainda são aproximados',
+  },
+  /**
+   * Vague 10 : mode strict sans fallback h3. Les captures sans trace exploitable
+   * ne sont pas rendues en contour approximatif ; on le dit explicitement.
+   */
+  dataNoteMissingTraceGeometry: {
+    fr: 'Certaines captures restent sans tracé exploitable',
+    en: 'Some captures still have no usable route shape',
+    es: 'Algunas capturas siguen sin trazado utilizable',
+    de: 'Einige Eroberungen haben noch keine nutzbare Streckenform',
+    pt: 'Algumas capturas ainda não têm traçado utilizável',
+  },
 
   /**
    * Natif sans compte : on ne peint AUCUNE démo, donc « démonstration » serait
@@ -656,6 +680,57 @@ export const C = defineCatalog({
     es: 'Ninguna zona capturada',
     de: 'Noch keine Zone erobert',
     pt: 'Nenhuma zona capturada',
+  },
+  /** Planche E02 — kicker sheet « PREMIÈRE MISSION » (chartreuse, caps). */
+  firstMissionKicker: {
+    fr: 'PREMIÈRE MISSION',
+    en: 'FIRST MISSION',
+    es: 'PRIMERA MISIÓN',
+    de: 'ERSTE MISSION',
+    pt: 'PRIMEIRA MISSÃO',
+  },
+  firstMissionTitle: {
+    fr: 'Votre première zone vous attend',
+    en: 'Your first zone is waiting',
+    es: 'Tu primera zona te espera',
+    de: 'Deine erste Zone wartet',
+    pt: 'Sua primeira zona espera por você',
+  },
+  firstMissionLine: {
+    fr: 'Fermez une boucle autour de votre rue.',
+    en: 'Close a loop around your street.',
+    es: 'Cierra un bucle alrededor de tu calle.',
+    de: 'Schließe eine Schleife um deine Straße.',
+    pt: 'Feche um circuito em volta da sua rua.',
+  },
+  firstMissionDurationApprox: {
+    fr: '≈ {min} min',
+    en: '≈ {min} min',
+    es: '≈ {min} min',
+    de: '≈ {min} Min.',
+    pt: '≈ {min} min',
+  },
+  /** Planche E14 — variante vélo de la sheet première mission. */
+  firstMissionBikeKicker: {
+    fr: 'PREMIÈRE MISSION BIKE',
+    en: 'FIRST BIKE MISSION',
+    es: 'PRIMERA MISIÓN BIKE',
+    de: 'ERSTE BIKE-MISSION',
+    pt: 'PRIMEIRA MISSÃO BIKE',
+  },
+  firstMissionBikeTitle: {
+    fr: 'Votre carte Bike commence ici',
+    en: 'Your Bike map starts here',
+    es: 'Tu mapa Bike empieza aquí',
+    de: 'Deine Bike-Karte beginnt hier',
+    pt: 'Seu mapa Bike começa aqui',
+  },
+  firstMissionBikeLine: {
+    fr: 'Fermez une boucle à vélo autour de votre quartier.',
+    en: 'Close a loop on your bike around your neighborhood.',
+    es: 'Cierra un bucle en bici alrededor de tu barrio.',
+    de: 'Schließe eine Rad-Schleife um dein Viertel.',
+    pt: 'Feche um circuito de bike em volta do seu bairro.',
   },
   /**
    * NEUTRALISÉE (26/07/2026) — elle disait « EN COURANT ».
