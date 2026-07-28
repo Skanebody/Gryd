@@ -5,6 +5,9 @@ Objectif: fermer la dette de démontrabilité sans inventer de preuve.
 Ce document définit **quoi vérifier**, **comment le vérifier**, et **quelles
 preuves conserver**.
 
+Protocole terrain extrême complémentaire:
+- `docs/qa/VAGUE10_4_STRESS_TERRAIN_EXTREME.md`
+
 ---
 
 ## 1) Accessibilité — balayage exécutable

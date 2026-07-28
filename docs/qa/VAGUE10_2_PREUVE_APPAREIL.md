@@ -7,6 +7,9 @@ Objectif: prouver, sur un vrai téléphone, que la chaîne complète tient sans 
 
 Ce document ne promet rien au-delà de ce qu'on peut observer.
 
+Extension stress terrain:
+- `docs/qa/VAGUE10_4_STRESS_TERRAIN_EXTREME.md`
+
 ## 0) Pré-requis
 
 - Compte Expo/EAS connecté (`eas whoami`).
