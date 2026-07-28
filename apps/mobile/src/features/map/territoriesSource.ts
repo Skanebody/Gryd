@@ -609,6 +609,11 @@ export interface MergedTerritories {
   polygonCount: number;
   /** Combien restent HEXAGONAUX. > 0 ⇒ des contours d'hexagones sont à l'écran. */
   hexFallbackCount: number;
+  /**
+   * Cellules réelles NON rendues quand le repli hexagonal est coupé.
+   * 0 en mode historique (repli actif).
+   */
+  hiddenWithoutGeometryCount: number;
   /** Lignes `territories` lues mais non peintes, par raison. */
   skipped: Readonly<Record<TerritorySkipReason, number>>;
 }
@@ -627,6 +632,11 @@ export function mergeTerritorySources(input: {
   readonly meId: string | null;
   readonly now: string;
   readonly crewIds?: ReadonlySet<string> | null;
+  /**
+   * Vague 10 : quand false, on N'AFFICHE PLUS les contours dérivés des cellules.
+   * Les captures sans polygone restent comptées (`hiddenWithoutGeometryCount`).
+   */
+  readonly allowHexFallback?: boolean;
 }): MergedTerritories {
   const { territories: polygons, skipped } = buildPolygonTerritories(
     input.territoryRows,
@@ -651,17 +661,21 @@ export function mergeTerritorySources(input: {
       : { ...t, props: { ...t.props, earliestDecayAt: decay }, sectorIds };
   });
 
-  const hexagonal = buildTerritories(
-    complement.remaining,
-    input.meId,
-    () => input.now,
-    input.crewIds,
-  );
+  const allowHexFallback = input.allowHexFallback ?? true;
+  const hexagonal = allowHexFallback
+    ? buildTerritories(
+        complement.remaining,
+        input.meId,
+        () => input.now,
+        input.crewIds,
+      )
+    : [];
 
   return {
     territories: [...enriched, ...hexagonal],
     polygonCount: enriched.length,
     hexFallbackCount: hexagonal.length,
+    hiddenWithoutGeometryCount: allowHexFallback ? 0 : complement.remaining.length,
     skipped,
   };
 }
