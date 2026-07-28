@@ -1333,6 +1333,17 @@ export const CREW_PERMISSIONS = {
   acceptApplications: ['co_captain', 'founder'],
   kick: ['co_captain', 'founder'], // périmètre co_captain : CO_CAPTAIN_KICKABLE_ROLES
   promote: ['co_captain', 'founder'], // co_captain jusqu'à CO_CAPTAIN_PROMOTE_MAX_ROLE
+  /**
+   * §8 « rétrograder » — E47 (spéc l.1687). MANQUAIT à la matrice le 28/07/2026
+   * alors que son symétrique `promote` y était depuis AMENDEMENT-16 : sans elle,
+   * la feuille d'actions d'E47 aurait dû inventer son propre gating pour la
+   * moitié descendante du geste. Même périmètre que `promote` — un co_captain
+   * ne descend personne au-delà de ce qu'il peut monter
+   * (CO_CAPTAIN_PROMOTE_MAX_ROLE) ni au-dessus de ce qu'il peut exclure
+   * (CO_CAPTAIN_KICKABLE_ROLES), et JAMAIS un founder : le transfert de
+   * propriété passe par `transferFoundership`, pas par une rétrogradation.
+   */
+  demote: ['co_captain', 'founder'],
   assignObjectives: ['co_captain', 'founder'],
   pinMessage: ['co_captain', 'founder'],
   manageWarRoom: ['co_captain', 'founder'],
@@ -1370,6 +1381,107 @@ export type CrewPermissionAction = keyof typeof CREW_PERMISSIONS;
 export const CO_CAPTAIN_KICKABLE_ROLES: readonly CrewRole[] = ['rookie', 'runner', 'scout'];
 /** §8.2 : rôle MAXIMAL qu'un co_captain peut attribuer en promotion. */
 export const CO_CAPTAIN_PROMOTE_MAX_ROLE: CrewRole = 'strategist';
+
+// ─── E46 §« Groupes » — les 7 rôles internes ↔ les 3 GROUPES affichés ────────
+/**
+ * E46 « Membres et rôles » (spéc l.1652-1657) range le roster en TROIS groupes :
+ * chef, officiers, membres. GRYD, lui, a SEPT rôles (`CREW_ROLES`, §8.1-§8.7).
+ * La correspondance manquait : chaque écran l'aurait donc réinventée, et deux
+ * écrans auraient fini par ne pas appeler « officier » les mêmes personnes.
+ *
+ * ELLE NE CRÉE AUCUN POUVOIR — elle en LIT un. La frontière officier/membre est
+ * exactement celle que `CREW_PERMISSIONS` trace déjà : un officier est un rôle
+ * qui peut décider POUR LES AUTRES (kick / promote / demote / invite pour le
+ * co_captain, createOuting / assignDefense / pingZone pour le captain). En
+ * dessous, `strategist` / `scout` / `runner` / `rookie` ne font que PROPOSER
+ * (proposeTargets, createScoutReport…) : ce sont des membres.
+ *
+ * ⚠ ANTI PAY-TO-WIN, et c'est la ligne la plus importante du bloc : un groupe
+ * ne donne AUCUN avantage de capture (spéc l.1677, doc §52). Il ordonne une
+ * LISTE et ouvre des actions de GESTION — jamais un mètre carré, jamais un
+ * point, jamais une protection. Aucun achat ne fait changer de groupe : il
+ * n'existe aucun SKU de rôle dans `IAP_SKUS` / `ECLAT_PRICES`.
+ *
+ * Ordre du tableau = ordre d'AFFICHAGE (le chef d'abord), et l'ordre des rôles
+ * DANS chaque groupe est décroissant, cohérent avec `crewRoleRank`.
+ */
+export type CrewRoleGroup = 'lead' | 'officers' | 'members';
+export const CREW_ROLE_GROUPS = {
+  /** §8.1 — le propriétaire. Toujours exactement UN par crew. */
+  lead: ['founder'],
+  /** §8.2-§8.3 — ceux qui décident pour les autres (gestion + terrain). */
+  officers: ['co_captain', 'captain'],
+  /** §8.4-§8.7 — ceux qui proposent et contribuent. Le rookie EN FAIT PARTIE. */
+  members: ['strategist', 'scout', 'runner', 'rookie'],
+} as const satisfies Record<CrewRoleGroup, readonly CrewRole[]>;
+/** Ordre d'affichage des groupes (E46 : chef, officiers, membres). */
+export const CREW_ROLE_GROUP_ORDER: readonly CrewRoleGroup[] = ['lead', 'officers', 'members'];
+
+// ─── E47 §« Actions sur un membre » — le catalogue FERMÉ de la feuille ───────
+/**
+ * E47 (spéc l.1679-1696) : la feuille d'actions ouverte depuis une ligne de
+ * membre. Ce tableau COMPOSE, il ne recopie pas : chaque action pointe vers la
+ * clé de `CREW_PERMISSIONS` qui la gouverne (`null` = aucune permission de crew
+ * requise — signaler et bloquer sont des droits de PERSONNE, pas de rôle, et la
+ * Guideline App Store 1.2 les veut ouverts à tout le monde). Les rôles restent
+ * écrits UNE SEULE FOIS, dans la matrice.
+ *
+ * `onSelf` : l'action a-t-elle un sens sur SA PROPRE ligne ? Non partout — on ne
+ * se signale pas, on ne se bloque pas, on ne se promeut pas. Quitter le crew est
+ * une action de l'écran, pas de cette feuille (`leave_crew`, `canLeaveCrew`).
+ *
+ * ⚠ LES QUATRE PREMIERS ONT LEUR CHEMIN SERVEUR DEPUIS LA MIGRATION 0093
+ * (28/07/2026), ET IL FAUT LIRE CE PARAGRAPHE PLUTÔT QUE LE PRÉCÉDENT.
+ *
+ * Quelques heures plus tôt, ce bloc constatait — à raison — qu'un
+ * `grep 'function public.'` sur `supabase/migrations` ne rendait AUCUNE RPC de
+ * promotion, de rétrogradation, d'exclusion ni de transfert : `crew_members.role`
+ * n'avait strictement aucune voie d'écriture ouverte au client (insert/update
+ * révoqués depuis 0042, `crew_edit` (0084) ne touchant que
+ * nom/description/recrutement/tags). Il en tirait la conséquence juste : ne pas
+ * peindre quatre boutons morts.
+ *
+ * 0093 a ouvert les trois RPC qui manquaient, chacune BORNÉE SERVEUR et testée
+ * en PGlite (`supabase/tests/crew_member_roles.pglite.test.mjs`) :
+ *   · `crew_set_member_role(uuid, text)` → `promote` ET `demote` ;
+ *   · `crew_remove_member(uuid)`         → `remove` ;
+ *   · `crew_transfer_lead(uuid)`         → `transfer_lead`.
+ * Les DEUX dernières actions du catalogue écrivaient déjà, elles, depuis 0029
+ * (`user_blocks` / `content_reports`, via features/crew/moderation.ts).
+ *
+ * Conséquence INCHANGÉE pour l'écran (constitution §2, aucun bouton mort) :
+ * `requires` dit qui AURAIT le droit, il ne dit pas que le geste aboutit. Le
+ * gating d'écran vit dans `features/crew/memberRoles.ts` (`roleActionsFor`),
+ * miroir borne pour borne du SQL — et le serveur rejuge TOUT : rôle de
+ * l'appelant lu en base, interdiction de s'auto-promouvoir, intouchabilité du
+ * propriétaire, périmètre du co_captain.
+ */
+export type CrewMemberAction =
+  | 'promote'
+  | 'demote'
+  | 'remove'
+  | 'transfer_lead'
+  | 'report'
+  | 'block';
+export interface CrewMemberActionDef {
+  readonly key: CrewMemberAction;
+  /** Permission de crew exigée, ou `null` si l'action n'en dépend pas. */
+  readonly requires: CrewPermissionAction | null;
+  /** L'action a-t-elle un sens appliquée à soi-même ? */
+  readonly onSelf: boolean;
+  /** Conséquence irréversible ou visible par le membre visé (§« conséquence claire »). */
+  readonly sensitive: boolean;
+}
+export const CREW_MEMBER_ACTIONS: readonly CrewMemberActionDef[] = [
+  { key: 'promote', requires: 'promote', onSelf: false, sensitive: false },
+  { key: 'demote', requires: 'demote', onSelf: false, sensitive: true },
+  { key: 'remove', requires: 'kick', onSelf: false, sensitive: true },
+  { key: 'transfer_lead', requires: 'transferFoundership', onSelf: false, sensitive: true },
+  // Droits de personne : aucun rôle requis, jamais sur soi. Bloquer est
+  // SILENCIEUX (l'autre n'est pas notifié) — d'où `sensitive: false`.
+  { key: 'report', requires: null, onSelf: false, sensitive: false },
+  { key: 'block', requires: null, onSelf: false, sensitive: false },
+];
 
 // ─── §37.2 Disponibilité de guerre (colonne crew_members) ────────────────────
 export type WarAvailability = 'war' | 'defense' | 'exploration' | 'casual' | 'absent';
@@ -1413,6 +1525,24 @@ export const CREW_RECRUITMENT_STATUSES: readonly CrewRecruitmentStatus[] = [
 ];
 /** Défaut recommandé (§9 : « Sur demande, mode recommandé par défaut »). */
 export const CREW_RECRUITMENT_DEFAULT: CrewRecruitmentStatus = 'on_request';
+/**
+ * SOUS-ENSEMBLE proposé À LA CRÉATION (spéc E41 « accès : public, sur demande,
+ * privé »). Trois choix, pas quatre : `closed` veut dire « je ne recrute plus »,
+ * ce qui n'a aucun sens pour un crew d'UN membre qui vient de naître — le
+ * proposer serait offrir au fondateur de se murer dans la seconde. Il reste
+ * atteignable plus tard par `crew_edit` (0084, CREW_PERMISSIONS.manageRecruitment).
+ *
+ * L'ORDRE FAIT FOI À L'ÉCRAN (RealCrewScreen, mode `create`) : du plus ouvert au
+ * plus fermé, `CREW_RECRUITMENT_DEFAULT` au milieu. Chacun de ces trois statuts
+ * est HONORÉ par le serveur — `crew_join_intent` (0083) fait entrer directement
+ * sur `open`, ouvre une candidature sur `on_request`, et refuse `invite_only`
+ * (dont la seule porte reste le code / le QR). Aucun n'est décoratif.
+ */
+export const CREW_RECRUITMENT_AT_CREATION: readonly CrewRecruitmentStatus[] = [
+  'open',
+  'on_request',
+  'invite_only',
+];
 
 /**
  * Les 9 tags de style de crew (§10) : discovery, matching, recommandations,
@@ -4222,6 +4352,133 @@ export const CREW_OUTING_HORIZON_DAYS = 90;
  * capitaine unique peut l'inonder à lui seul. TUNABLE.
  */
 export const CREW_OUTING_MAX_UPCOMING_PER_CREW = 20;
+
+// ─── E48 · Activité et annonces crew (spec l.1698) ───────────────────────────
+/**
+ * ═══ CE QUE E48 EST, ET CE QU'IL N'EST PAS ══════════════════════════════════
+ * La spéc range l'écran en quatre sections : annonces épinglées · propositions
+ * de sortie · captures et défenses · demandes d'aide. Elle ajoute, en toutes
+ * lettres : « Le chat temps réel complet peut être un module ultérieur. La V1
+ * privilégie les objets structurés. » AMENDEMENT-43 §9 dit la même chose par
+ * l'autre bout (le chat libre est déconseillé au MVP : modération, sécurité des
+ * mineurs, charge juridique).
+ *
+ * UNE ANNONCE ÉPINGLÉE N'EST DONC PAS UN MESSAGE DE CHAT. C'est un objet RARE,
+ * COURT, écrit par la direction du crew, qui reste affiché jusqu'à ce qu'on le
+ * retire. Les trois bornes ci-dessous encodent exactement cette différence :
+ * une par crew et non par membre, un plafond de 3, et un corps court.
+ *
+ * ⚠️ CE QUI EST DE L'UGC ET CE QUI NE L'EST PAS. Le corps d'une annonce est
+ * ÉCRIT PAR UN HUMAIN et LU PAR D'AUTRES — c'est le premier champ libre
+ * inter-joueurs du produit après le nom et la description d'un crew. Il tombe
+ * donc sous Apple 1.2 : filtrage, signalement, blocage, RETRAIT. Les quatre
+ * existent (0093 pour le filtrage et le retrait, `features/crew/moderation.ts`
+ * et `blocklist.ts` pour le signalement et le blocage).
+ */
+export const CREW_ANNOUNCEMENT_BODY_MIN = 1;
+
+/**
+ * DÉLAI DE REVUE D'UN SIGNALEMENT, EN HEURES — l'engagement Apple 1.2 (« agir
+ * sous 24 h sur un contenu signalé »), affiché au joueur et écrit dans les CGU.
+ *
+ * IL VIT ICI DEPUIS LE 28/07/2026, et pas dans `features/crew/moderation.ts`
+ * comme auparavant : il est lu par QUATRE surfaces (la feuille de modération, la
+ * page Confidentialité, les CGU, et le catalogue i18n qui l'interpole) et une
+ * constante partagée entre plusieurs écrans n'a rien à faire dans le module d'un
+ * seul d'entre eux. Aucun nombre magique : les écrans l'interpolent, ils
+ * n'écrivent jamais « 24 ».
+ *
+ * ⚠ CE N'EST PAS UNE GARANTIE TENUE PAR DU CODE, et il ne faut pas le laisser
+ * croire : c'est un ENGAGEMENT HUMAIN. Aucun consommateur applicatif ne vide
+ * `admin_reports_queue` (0046) à ce jour — la file existe, la revue est faite à
+ * la main. Le suspens est inscrit dans `moderation.ts`. TUNABLE.
+ */
+export const REPORT_REVIEW_HOURS = 24;
+/**
+ * 280 caractères — la longueur d'un post court, pas d'un paragraphe.
+ *
+ * PAS ALIGNÉ SUR `crew_messages.body` (500, migration 0019) : cette table est
+ * celle d'un chat qui n'a jamais eu d'écran ni de chemin d'écriture, et copier
+ * sa borne importerait le format qu'on refuse. Une annonce qui a besoin de
+ * 500 signes est une conversation — elle relève du module ultérieur, pas de
+ * l'épingle. TUNABLE.
+ */
+export const CREW_ANNOUNCEMENT_BODY_MAX = 280;
+
+/**
+ * Plafond d'annonces VIVANTES par crew (miroir SERVEUR, `crew_announcement_post`
+ * le relit d'une fonction SQL).
+ *
+ * TROIS, et par CREW : « épinglée » perd tout sens au-delà d'une poignée — un
+ * mur de vingt épingles est un fil, c'est-à-dire le chat que la spéc écarte.
+ * Le plafond est aussi la garde anti-inondation de la surface (même raison que
+ * `CREW_OUTING_MAX_UPCOMING_PER_CREW` et `CREW_PING_MAX_ACTIVE_PER_MEMBER` :
+ * une surface sociale inondable est un vecteur de harcèlement). Retirer une
+ * annonce libère une place — le plafond ne compte que les vivantes. TUNABLE.
+ */
+export const CREW_ANNOUNCEMENT_MAX_ACTIVE_PER_CREW = 3;
+
+/**
+ * LE CHEMIN D'ÉCRITURE D'UNE ANNONCE EXISTE-T-IL DANS LE DÉPÔT ?
+ *
+ * Même rôle que `CREW_OUTING_WRITE_PATH_EXISTS` : il a valu `false` tant que
+ * `CREW_PERMISSIONS.pinMessage` décrivait un droit sur un objet SANS TABLE
+ * (constat écrit dans `events.ts`, relevé du 28/07/2026). La migration 0093
+ * crée la table `crew_announcements` et ses trois RPC ; le drapeau passe à
+ * `true` AVEC elle, jamais avant.
+ *
+ * ⚠️ IL DIT « LE DÉPÔT SAIT PUBLIER », PAS « CETTE BASE LE SAIT ». Un
+ * environnement dont la base n'a pas reçu 0093 rend `PGRST202` — le câblage le
+ * distingue d'une panne réseau (état `unsupported`, patron `crewOutingData.ts`).
+ */
+export const CREW_ANNOUNCEMENT_WRITE_PATH_EXISTS: boolean = true;
+
+/**
+ * Plafond de lignes « captures et défenses » rendues par `crew_activity_feed`.
+ *
+ * C'est un plafond de LECTURE, appliqué SERVEUR. Il ne tronque aucune
+ * affirmation chiffrée : l'écran ne dit jamais « 7 captures cette semaine », il
+ * montre des lignes récentes. Tronquer une LISTE qu'on ne compte pas est
+ * honnête ; tronquer un COMPTE ne le serait pas (c'est pourquoi
+ * `useActivityEvents` refuse tout `.limit()` sur les contestations). TUNABLE.
+ */
+export const CREW_ACTIVITY_CONQUEST_MAX = 10;
+
+/**
+ * Fenêtre de récence des lignes de conquête du fil crew, en jours.
+ *
+ * ⚠️ CE N'EST PAS UNE RÈGLE DE JEU — aucune mécanique n'en dépend, rien ne
+ * périme au bout de 14 jours. C'est une borne d'AFFICHAGE, placée ici et non
+ * dans l'écran pour UNE raison précise : elle est appliquée dans le `where` de
+ * `crew_activity_feed` (SQL), donc elle doit exister à un seul endroit que le
+ * SQL et le client citent tous les deux. `useActivityEvents` garde la sienne en
+ * local (30 j) parce qu'elle n'est appliquée QUE côté client.
+ *
+ * 14 jours : deux semaines de course. Au-delà, une capture n'est plus une
+ * « activité », c'est de l'historique — et l'historique a son écran. TUNABLE.
+ */
+export const CREW_ACTIVITY_WINDOW_DAYS = 14;
+
+/**
+ * ⚠️ CE QUE E48 NE LIVRE PAS, ÉCRIT ICI PLUTÔT QUE LAISSÉ CROIRE (28/07/2026).
+ *
+ * · LES « DEMANDES D'AIDE » N'ONT TOUJOURS PAS DE CHEMIN D'ÉCRITURE PROPRE.
+ *   `crew_requests` (0019) existe, son `insert` est révoqué (0019:167) et
+ *   AUCUNE RPC ne l'écrit. La section n'est donc pas peinte depuis cette table.
+ *   Ce que l'écran rend à la place est RÉEL et déjà écrit : les PINGS DE ZONE
+ *   (`crew_pings`, 0051) — « je demande du monde sur ce secteur » EST une
+ *   demande d'aide, et c'est la seule qui existe. Le libellé de la section le
+ *   dit ; il ne promet pas un formulaire qui n'existe pas.
+ * · AUCUNE RÉACTION N'EST PERSISTÉE SUR UNE LIGNE D'ACTIVITÉ.
+ *   `features/crew/conquestReactions.ts` persiste en AsyncStorage, sur le seul
+ *   téléphone de celui qui tape : afficher son compteur à côté d'une ligne lue
+ *   par tout le crew ferait croire à un geste collectif qui n'a jamais quitté
+ *   l'appareil. E48 ne rend donc PAS de barre de réactions tant que
+ *   `crew_feed_event_reactions` n'existe pas.
+ * · AUCUN RSVP. « Participer » à une sortie reste impossible (0085 le dit) :
+ *   l'action d'une proposition de sortie est donc « voir », jamais « je viens ».
+ */
+export const CREW_ACTIVITY_HELP_REQUESTS_HAVE_WRITE_PATH: boolean = false;
 
 // ─── E50 · Statistiques du crew (spec l.1738) ────────────────────────────────
 /**

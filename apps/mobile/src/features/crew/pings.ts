@@ -140,8 +140,26 @@ export interface UseCrewPingsResult {
   /**
    * Pings VIVANTS du crew, ou `null` quand on n'a pas pu lire. `null` ⇒ l'écran
    * n'affiche aucun bloc ; `[]` ⇒ il dit « aucun signal » (le serveur l'a dit).
+   *
+   * ⚠ `pings === null` NE SUFFIT PAS à savoir pourquoi : hors session, en cours
+   * de lecture, ou après un échec, il vaut `null` dans les trois cas. C'est
+   * `loading` et `failed` ci-dessous qui séparent ces états — sans eux, un écran
+   * qui compose ce flux avec d'autres (E48) rendait « rien à afficher » sur un
+   * `crew_pings_feed` TOMBÉ, c'est-à-dire un échec de lecture peint en calme.
    */
   pings: CrewPing[] | null;
+  /**
+   * Lecture EN COURS. N'affirme RIEN sur le crew — un écran qui l'ignore affiche
+   * « aucun signal » pendant que la réponse arrive.
+   */
+  loading: boolean;
+  /**
+   * Je n'ai PAS PU lire (erreur RPC, contrat illisible, exception réseau).
+   * Distinct de « lu et vide » : `failed` n'affirme rien, `pings: []` affirme
+   * qu'il n'y a aucun signal. Faux hors session : ne pas être connecté n'est pas
+   * une panne.
+   */
+  failed: boolean;
   /** Mon état (pings actifs, dernier envoi) — `null` tant qu'on n'a rien lu. */
   mine: MyPingState | null;
   /** Recharge (après un envoi, ou au retour sur l'onglet). */
@@ -154,6 +172,8 @@ export function useCrewPings(): UseCrewPingsResult {
   const { session } = useSession();
   const [pings, setPings] = useState<CrewPing[] | null>(null);
   const [mine, setMine] = useState<MyPingState | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
 
   const ready = !!supabase && !!session;
@@ -163,10 +183,15 @@ export function useCrewPings(): UseCrewPingsResult {
     if (!ready || !supabase) {
       setPings(null);
       setMine(null);
+      setLoading(false);
+      // Hors session, il n'y a pas eu d'échec : il n'y a pas eu de lecture.
+      setFailed(false);
       return;
     }
     const client = supabase;
     let cancelled = false;
+    setLoading(true);
+    setFailed(false);
     void (async () => {
       try {
         const { data, error } = await client.rpc('crew_pings_feed', {
@@ -177,18 +202,26 @@ export function useCrewPings(): UseCrewPingsResult {
         if (cancelled) return;
         const parsed = error ? null : parseCrewPingsFeed(data);
         if (parsed === null) {
+          // Erreur RPC OU contrat illisible : dans les deux cas on n'a rien lu,
+          // et on le DIT. Le dire est le seul moyen qu'un écran ne rende pas
+          // cette absence comme « aucun signal ».
           setPings(null);
           setMine(null);
+          setFailed(true);
           return;
         }
         // Re-filtré à l'affichage : entre la réponse serveur et le rendu, un
         // ping a pu expirer (écran laissé ouvert, retour d'arrière-plan).
         setPings([...visibleCrewPings(parsed.pings, Date.now())]);
         setMine(parsed.mine);
+        setFailed(false);
       } catch {
         if (cancelled) return;
         setPings(null);
         setMine(null);
+        setFailed(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -239,5 +272,5 @@ export function useCrewPings(): UseCrewPingsResult {
     [ready],
   );
 
-  return { ready, pings, mine, reload, send };
+  return { ready, pings, loading, failed, mine, reload, send };
 }

@@ -22,7 +22,9 @@
  */
 import {
   CREW_MAX_MEMBERS,
+  CREW_RECRUITMENT_AT_CREATION,
   CREW_SWITCH_COOLDOWN_DAYS,
+  type CrewRecruitmentStatus,
 } from '../game-rules.ts';
 
 // ─── Contexte & verdicts ─────────────────────────────────────────────────────
@@ -108,4 +110,27 @@ export function crewCreateDecision(ctx: CrewCreateContext): CrewCreateVerdict {
   const daysLeft = cooldownDaysLeft(ctx.now, ctx.lastLeftAt);
   if (daysLeft > 0) return { ok: false, reason: 'cooldown', daysLeft };
   return { ok: true };
+}
+
+// ─── L'ACCÈS choisi à la création (E41, migration 0097) ──────────────────────
+
+/**
+ * `value` est-il un accès proposable À LA CRÉATION d'un crew ? PURE, miroir de
+ * la liste blanche de `create_crew` (0097).
+ *
+ * Le sous-ensemble vient de `CREW_RECRUITMENT_AT_CREATION` — il n'est PAS
+ * recopié ici, sinon ajouter un statut d'un seul côté ferait diverger le client
+ * du serveur sans que rien ne rougisse. `closed` est donc rejeté par
+ * construction : il existe (`CREW_RECRUITMENT_STATUSES`) mais n'a pas de sens
+ * pour un crew d'un membre qui vient de naître, et le serveur le refuse.
+ *
+ * `null` / `undefined` = « le joueur ne s'est pas prononcé » et vaut `true` : la
+ * RPC accepte l'omission et applique alors le défaut de la colonne. Refuser ici
+ * bloquerait un appel que le serveur honore.
+ */
+export function isCrewRecruitmentAtCreation(
+  value: string | null | undefined,
+): value is CrewRecruitmentStatus | null | undefined {
+  if (value === null || value === undefined) return true;
+  return (CREW_RECRUITMENT_AT_CREATION as readonly string[]).includes(value);
 }

@@ -12,10 +12,21 @@
  * · EMBLÈME EN CERCLE POINTILLÉ : omis. Le crew existe, son blason RÉEL est
  *   déjà dans le hero juste au-dessus — le répéter ici serait un doublon (§A).
  * · ÉTAPE 2 « Choisissez votre emblème et couleur » → « Éditer › » : OMISE.
- *   `/crew-edit` est un `<Redirect href="/crew"/>` et aucune RPC d'édition
- *   rôle-gatée n'existe (RPC crew disponibles : create_crew, join_crew_by_code,
- *   leave_crew, my_crew_code, crew_overview, crew_mission_inputs,
- *   crew_ping_zone, crew_pings_feed). Peindre l'action serait un bouton mort.
+ *   ⚠ LE MOTIF A CHANGÉ LE 28/07/2026 — le relire, ne pas le recopier.
+ *   ANCIEN motif (PÉRIMÉ) : « `/crew-edit` est un `<Redirect href="/crew"/>` et
+ *   aucune RPC d'édition rôle-gatée n'existe ». Les deux sont FAUX depuis la
+ *   migration 0084 : `crew_edit` / `crew_edit_context` existent, rôle-gatées par
+ *   CREW_PERMISSIONS, et `app/crew-edit.tsx` est un vrai écran.
+ *   MOTIF ACTUEL, et il tient toujours : ce que la planche demande à cette étape
+ *   — l'EMBLÈME et la COULEUR — reste précisément ce que `crew_edit` ne touche
+ *   PAS, et pour des raisons inscrites dans l'en-tête de 0084 : aucune colonne
+ *   d'emblème n'existe (il n'y a qu'un inventaire d'objets, 0014), et
+ *   `crews.color` n'est RENDUE par aucune surface du dépôt (le rendu carte va
+ *   par RÔLE, §C ; le blason de `CrewHero` est en tokens). Renvoyer ici vers
+ *   « Éditer » sous ce libellé promettrait deux réglages introuvables une fois
+ *   l'écran ouvert : l'étape serait vivante, sa promesse morte.
+ *   Ce que le fondateur PEUT régler — qui a le droit d'entrer — ne s'échoue plus
+ *   ici non plus : il le choisit désormais À LA CRÉATION (E41, migration 0097).
  * · COMPTEUR « 0 / 3 » de l'étape « fermez 3 boucles » : SUPPRIMÉ. `3` n'est
  *   dans aucune constante de `game-rules.ts` (nombre magique) et aucun compteur
  *   de boucles fermées par crew n'est lu. La règle reste, en texte.

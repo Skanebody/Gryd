@@ -130,6 +130,14 @@ function refusalMsg(reason: CrewRefusal, daysLeft?: number): Msg {
       return { entry: C.rlErrBadCode };
     case 'already_in_crew':
       return { entry: C.rlErrAlreadyInCrew };
+    // 0098 : consommer une invitation, c'est PARTIR de son crew actuel. Le
+    // dernier chef ne le fait pas par un lien non plus.
+    case 'must_transfer_lead':
+      return { entry: C.rlErrMustTransferLead };
+    case 'dead_crew':
+      return { entry: C.rlErrDeadCrew };
+    case 'unsupported_server':
+      return { entry: C.rlErrUnsupportedServer };
     default:
       return { entry: C.rlErrGeneric };
   }

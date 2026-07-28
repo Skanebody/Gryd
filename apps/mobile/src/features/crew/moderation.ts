@@ -22,6 +22,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { REPORT_REVIEW_HOURS } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { C as CMod } from '../../i18n/catalog/reglages';
 import type { Entry } from '../../i18n/types';
@@ -68,8 +69,20 @@ export interface ContentReport {
   at: number;
 }
 
-/** Délai de traitement affiché à l'utilisateur (heures) — §1 : sous 24 h. */
-export const REPORT_REVIEW_HOURS = 24;
+/**
+ * Délai de traitement affiché à l'utilisateur (heures) — engagement Apple 1.2.
+ *
+ * DÉPLACÉ dans `packages/shared/src/game-rules.ts` le 28/07/2026 : quatre
+ * surfaces le lisaient depuis ce module de crew alors qu'aucune n'en dépend.
+ * Ré-exporté ici pour ne casser aucun import existant, et pour que la remarque
+ * ci-dessous reste au contact du code qui envoie les signalements.
+ *
+ * ⚠ CE DÉLAI EST UN ENGAGEMENT HUMAIN, PAS UNE GARANTIE DE CODE. Aucun
+ * consommateur applicatif ne vide `admin_reports_queue` (0046:330) : la revue se
+ * fait à la main. Le dire ici plutôt que laisser un lecteur croire qu'une file
+ * automatique existe. SUSPENS OUVERT : outil de revue des signalements.
+ */
+export { REPORT_REVIEW_HOURS };
 
 /**
  * Filtre de mots objectionnables (liste COURTE, démo). Un message qui en
@@ -245,16 +258,44 @@ async function hydrateRemote(): Promise<void> {
 }
 
 /**
- * Enregistre un signalement (message ou membre) avec son motif. Retourne le
- * signalement créé. Un même contenu peut être re-signalé sans erreur — le
- * traitement (dédup, action) reste côté humain/serveur (démo).
+ * Ce que l'écran a le droit d'AFFIRMER après un signalement.
+ *
+ *   · `recorded`  — le serveur a ACCEPTÉ l'insertion. C'est le seul cas où l'on
+ *     peut dire « ton signalement est enregistré ».
+ *   · `failed`    — session absente, refus RLS, réseau, table absente. On n'a
+ *     RIEN enregistré côté serveur, et il faut le dire : la trace locale ne
+ *     protège personne, et l'obligation Apple 1.2 porte sur un signalement qui
+ *     ARRIVE.
+ * Il n'y a volontairement pas de troisième cas « enregistré localement » : le
+ * joueur ne signale pas pour remplir son propre téléphone.
  */
-export function reportContent(input: {
+export type ReportOutcome = { state: 'recorded'; report: ContentReport } | { state: 'failed' };
+
+/**
+ * Enregistre un signalement (message ou membre) avec son motif.
+ *
+ * ═══ POURQUOI ELLE EST DEVENUE `async` (28/07/2026) ═════════════════════════
+ * Elle écrivait dans `content_reports` en FIRE-AND-FORGET, avec les deux
+ * callbacks avalés (`.then(() => {}, () => {})`), et rendait immédiatement. Son
+ * appelant enchaînait `setStep('sent')` sans rien attendre : l'écran affichait
+ * « Signalement envoyé · Ton signalement est enregistré et transmis à la
+ * modération GRYD » alors qu'un échec réseau, une session absente ou un refus
+ * RLS n'avaient laissé AUCUNE trace serveur. C'est une affirmation non fondée
+ * (constitution §1) — et sur le chemin de SIGNALEMENT que la 1.2 exige, donc
+ * celui où elle coûte le plus cher.
+ *
+ * La trace LOCALE est conservée (elle alimente `moderationActionsFor`), mais
+ * elle n'est plus ce que l'écran annonce : seul le verdict serveur l'est.
+ *
+ * Un même contenu peut être re-signalé sans erreur — la déduplication et
+ * l'action restent côté humain (voir `REPORT_REVIEW_HOURS`).
+ */
+export async function reportContent(input: {
   kind: ReportTargetKind;
   targetId: string;
   author: string;
   reason: ReportReason;
-}): ContentReport {
+}): Promise<ReportOutcome> {
   const report: ContentReport = {
     id: `rep_${Date.now()}`,
     kind: input.kind,
@@ -266,22 +307,25 @@ export function reportContent(input: {
   state = { ...state, reports: [...state.reports, report] };
   persist();
   emit();
-  // Enregistrement serveur (RLS reporter_id = moi) si session — fire-and-forget.
-  void currentUserId().then((uid) => {
-    if (uid && supabase) {
-      void supabase
-        .from('content_reports')
-        .insert({
-          reporter_id: uid,
-          kind: input.kind,
-          target_id: input.targetId,
-          author: input.author,
-          reason: input.reason,
-        })
-        .then(() => {}, () => {});
-    }
-  });
-  return report;
+
+  // Enregistrement SERVEUR (RLS reporter_id = moi). ATTENDU, et son verdict est
+  // rendu : sans session ou sans client, rien n'est parti — ce n'est pas un
+  // succès silencieux.
+  const uid = await currentUserId();
+  if (!uid || !supabase) return { state: 'failed' };
+  try {
+    const { error } = await supabase.from('content_reports').insert({
+      reporter_id: uid,
+      kind: input.kind,
+      target_id: input.targetId,
+      author: input.author,
+      reason: input.reason,
+    });
+    if (error) return { state: 'failed' };
+    return { state: 'recorded', report };
+  } catch {
+    return { state: 'failed' };
+  }
 }
 
 /** Bloque un membre (masque ses messages). Idempotent : pas de doublon. */

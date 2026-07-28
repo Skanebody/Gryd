@@ -26,6 +26,8 @@ import {
   CREW_CODE_LENGTH,
   CREW_COLORS_COUNT,
   CREW_MAX_MEMBERS,
+  CREW_RECRUITMENT_AT_CREATION,
+  type CrewRecruitmentStatus,
 } from '@klaim/shared';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
@@ -121,12 +123,58 @@ export type CrewRefusal =
   | 'name_unavailable'
   | 'bad_color'
   | 'bad_city'
+  // L'accès envoyé ne fait pas partie du sous-ensemble proposable à la création
+  // (0097). En pratique l'écran ne peut pas le produire — les segments sont
+  // construits DEPUIS `CREW_RECRUITMENT_AT_CREATION` — mais un contrat de refus
+  // qu'on ne saurait pas traduire redeviendrait un « réessaie » opaque.
+  | 'bad_recruitment_status'
   | 'bad_code'
   | 'full'
-  | 'no_crew';
+  | 'no_crew'
+  /**
+   * Le DERNIER CHEF ne quitte pas un crew peuplé — par `leave_crew` (0093), par
+   * `join_crew_by_code` ou par `redeem_crew_invite` (0098). Le refus porte aussi
+   * `membersLeftBehind`, et il NOMME le geste manquant (transférer la
+   * direction), qui existe : `crew_transfer_lead`.
+   */
+  | 'must_transfer_lead'
+  /** Le crew visé n'a plus aucun membre actif (0093) : il n'est plus joignable. */
+  | 'dead_crew'
+  /**
+   * LE SERVEUR NE CONNAÎT PAS LA FONCTION appelée, ou pas avec ces arguments —
+   * PostgREST `PGRST202`, Postgres `42883`. C'est un fait sur le SERVEUR (base
+   * en retard d'une migration), pas sur le joueur, et réessayer n'y changera
+   * rien. Sans ce motif, l'appel écrasait TOUTE erreur en `signed_out`, que
+   * l'écran rendait en « Action impossible pour le moment » — un « réessaie »
+   * opaque devant un mur permanent. Même distinction que `crewActivityData.ts`
+   * et `memberRolesData.ts`, qui la faisaient déjà.
+   */
+  | 'unsupported_server';
+
+/**
+ * Charge utile de `create_crew`, aux clés EXACTES du jsonb serveur.
+ *
+ * ⚠ `city_id` / `recruitment_status` sont en snake_case parce que la RPC les
+ * émet ainsi (0097). Le type disait auparavant `RealCrew & { code }`, donc
+ * `cityId` — une clé qui n'a jamais existé dans cette réponse. Personne ne l'a
+ * vu parce que l'écran ne lit que `name` ; un type qui décrit une donnée
+ * inexistante reste un piège posé pour le prochain lecteur.
+ */
+export interface CreatedCrewPayload {
+  id: string;
+  name: string;
+  color: number;
+  city_id: string;
+  code: string;
+  /**
+   * L'accès RÉELLEMENT écrit par le serveur (0097). L'écran confirme CELUI-CI,
+   * jamais celui que le joueur croit avoir tapé.
+   */
+  recruitment_status: CrewRecruitmentStatus;
+}
 
 export type CreateResult =
-  | { ok: true; crew: RealCrew & { code: string } }
+  | { ok: true; crew: CreatedCrewPayload }
   | { ok: false; reason: CrewRefusal; daysLeft?: number };
 
 export type JoinResult =
@@ -142,21 +190,43 @@ export type CodeResult = { ok: true; code: string } | { ok: false; reason: CrewR
 /** Bornes du nom crew = contrainte DB (0002_schema.sql : char_length 1..40). */
 const CREW_NAME_MAX_LENGTH = 40;
 
-export type PreflightDecision = { ok: true } | { ok: false; reason: 'bad_name' | 'bad_color' | 'bad_city' };
+export type PreflightDecision =
+  | { ok: true }
+  | { ok: false; reason: 'bad_name' | 'bad_color' | 'bad_city' | 'bad_recruitment_status' };
 
 /** Le nom crew nettoyé (trim) pour l'envoi — jamais d'espaces parasites en DB. */
 export function normalizeCrewName(raw: string): string {
   return raw.trim().slice(0, CREW_NAME_MAX_LENGTH);
 }
 
-/** Pré-vol création : nom non vide (≤40) + couleur 0..CREW_COLORS_COUNT-1 + ville. */
-export function crewCreateDecision(name: string, color: number, cityId: string): PreflightDecision {
+/**
+ * Pré-vol création : nom non vide (≤40) + couleur 0..CREW_COLORS_COUNT-1 +
+ * ville + ACCÈS proposable à la création (0097).
+ *
+ * `recruitment` accepte `null` = « le joueur ne s'est pas prononcé » : la RPC
+ * omet alors le paramètre et le serveur applique le défaut de la colonne.
+ * MIROIR de `isCrewRecruitmentAtCreation` (packages/engine/src/crewJoin.ts, où
+ * il est testé) — la liste n'est jamais recopiée, elle est LUE dans
+ * `CREW_RECRUITMENT_AT_CREATION`.
+ */
+export function crewCreateDecision(
+  name: string,
+  color: number,
+  cityId: string,
+  recruitment: CrewRecruitmentStatus | null = null,
+): PreflightDecision {
   const clean = normalizeCrewName(name);
   if (clean.length < 1) return { ok: false, reason: 'bad_name' };
   if (!Number.isInteger(color) || color < 0 || color >= CREW_COLORS_COUNT) {
     return { ok: false, reason: 'bad_color' };
   }
   if (cityId.trim().length < 1) return { ok: false, reason: 'bad_city' };
+  if (
+    recruitment !== null &&
+    !(CREW_RECRUITMENT_AT_CREATION as readonly string[]).includes(recruitment)
+  ) {
+    return { ok: false, reason: 'bad_recruitment_status' };
+  }
   return { ok: true };
 }
 
@@ -306,6 +376,30 @@ export function parseCrewMissionInputs(
 }
 
 /** Couleur d'identité auto (0..CREW_COLORS_COUNT-1) — pas de picker à la création. */
+/**
+ * Le serveur ne connaît pas cette RPC, ou pas avec CES arguments.
+ *
+ * ⚠ POURQUOI « ces arguments » COMPTE : PostgREST résout une fonction par
+ * l'ENSEMBLE EXACT des noms d'arguments fournis. Contre une base qui ne connaît
+ * que `create_crew(text, smallint, text)`, un appel à QUATRE arguments nommés ne
+ * trouve aucune surcharge et rend `PGRST202` — pas une erreur de session, pas
+ * une panne réseau. Au 28/07/2026, 0097 n'est PAS appliquée en production : ce
+ * cas n'est pas théorique.
+ *
+ * On teste les deux codes plutôt que de deviner lequel remonte (ils dépendent
+ * de la version du proxy), plus le message en dernier recours. Patron repris tel
+ * quel de `crewActivityData.ts` et `memberRolesData.ts`.
+ */
+export function isUnsupportedRpc(
+  error: { code?: string | null; message?: string | null } | null | undefined,
+): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  const msg = error.message ?? '';
+  return /does not exist|could not find|no function matches/i.test(msg);
+}
+
 export function randomCrewColor(): number {
   return Math.floor(Math.random() * CREW_COLORS_COUNT);
 }
@@ -389,7 +483,13 @@ export interface UseRealCrewResult {
   maxMembers: number;
   /** Recharge (après une mutation ou au retour d'onglet). */
   reload: () => void;
-  createCrew: (name: string, color: number, cityId: string) => Promise<CreateResult>;
+  createCrew: (
+    name: string,
+    color: number,
+    cityId: string,
+    /** Accès choisi (E41/0097) ; `null` = laisser le serveur appliquer son défaut. */
+    recruitment?: CrewRecruitmentStatus | null,
+  ) => Promise<CreateResult>;
   joinByCode: (code: string) => Promise<JoinResult>;
   leaveCrew: () => Promise<LeaveResult>;
   fetchMyCode: () => Promise<CodeResult>;
@@ -642,17 +742,44 @@ export function useRealCrew(options: UseRealCrewOptions = {}): UseRealCrewResult
   // ── Actions (chacune décidée serveur ; le pré-vol évite un aller-retour) ────
 
   const createCrew = useCallback(
-    async (name: string, color: number, cityId: string): Promise<CreateResult> => {
+    async (
+      name: string,
+      color: number,
+      cityId: string,
+      recruitment: CrewRecruitmentStatus | null = null,
+    ): Promise<CreateResult> => {
       if (!ready || !supabase) return { ok: false, reason: 'signed_out' };
-      const pre = crewCreateDecision(name, color, cityId);
+      const pre = crewCreateDecision(name, color, cityId, recruitment);
       if (!pre.ok) return { ok: false, reason: pre.reason };
       try {
-        const { data, error } = await supabase.rpc('create_crew', {
+        // ⚠ `p_recruitment_status` N'EST ENVOYÉ QUE S'IL EST CHOISI (correctif
+        // 28/07/2026). PostgREST résout une RPC par l'ENSEMBLE EXACT des noms
+        // d'arguments : envoyer la clé « même à null » faisait chercher une
+        // surcharge à QUATRE arguments, absente de toute base sans 0097 — et
+        // 0097 n'est pas appliquée en production. Résultat : `PGRST202` sur la
+        // création de crew la plus banale, celle où l'on ne choisit rien.
+        // Omettre la clé laisse la RPC appliquer son défaut serveur, ce qui est
+        // exactement ce que `null` demandait, et fonctionne des DEUX côtés de la
+        // migration. Le paramètre n'est envoyé que quand il porte une décision
+        // réelle — auquel cas un serveur sans 0097 le dit, ci-dessous.
+        const args: Record<string, unknown> = {
           p_name: normalizeCrewName(name),
           p_color: color,
           p_city_id: cityId,
-        });
-        if (error) return { ok: false, reason: 'signed_out' };
+        };
+        if (recruitment !== null) args.p_recruitment_status = recruitment;
+
+        const { data, error } = await supabase.rpc('create_crew', args);
+        if (error) {
+          // « Ce serveur ne connaît pas cette option » n'est NI une session
+          // expirée NI une panne : réessayer n'y changera rien, et le dire est
+          // la seule façon que l'écran ne peigne pas un « réessaie » devant un
+          // mur permanent.
+          return {
+            ok: false,
+            reason: isUnsupportedRpc(error) ? 'unsupported_server' : 'signed_out',
+          };
+        }
         return data as CreateResult;
       } catch {
         return { ok: false, reason: 'signed_out' };

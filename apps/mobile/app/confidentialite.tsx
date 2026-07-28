@@ -215,14 +215,28 @@ export default function ConfidentialiteScreen() {
    * n'écrit dans `content_reports` que si un compte existe. Le bouton n'est donc
    * jamais peint hors session (cf. le rendu plus bas).
    */
-  const submitReport = () => {
+  const submitReport = async () => {
     const pseudo = targetPseudo.trim();
     if (pseudo.length === 0) {
       Alert.alert(t(C.pseudoManquantTitle), t(C.reportMissingBody));
       return;
     }
     haptics.medium();
-    reportContent({ kind: 'member', targetId: pseudo, author: pseudo, reason: reportReason });
+    // ON ATTEND LE VERDICT SERVEUR (28/07/2026). `reportContent` partait
+    // auparavant en fire-and-forget et cet écran annonçait « Signalement
+    // envoyé · une personne l'examine sous 24 h » même quand rien n'avait été
+    // enregistré. Un accusé de réception sur un échec est un mensonge sur le
+    // chemin de signalement lui-même.
+    const res = await reportContent({
+      kind: 'member',
+      targetId: pseudo,
+      author: pseudo,
+      reason: reportReason,
+    });
+    if (res.state !== 'recorded') {
+      Alert.alert(t(C.reportFailedTitle), t(C.reportFailedBody));
+      return;
+    }
     setTargetPseudo('');
     Alert.alert(t(C.reportSentTitle), t(C.reportSentBody, { h: REPORT_REVIEW_HOURS }));
   };
@@ -476,7 +490,7 @@ export default function ConfidentialiteScreen() {
                 size="md"
                 label={t(C.signalerJoueur)}
                 icon="alerte"
-                onPress={submitReport}
+                onPress={() => void submitReport()}
               />
             </View>
           </>

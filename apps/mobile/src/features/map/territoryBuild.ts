@@ -101,6 +101,43 @@ export function dbToH3(value: string | number): string {
 }
 
 /**
+ * CE TERRITOIRE EST-IL TENU PAR MON CREW ? Question DIFFÉRENTE de « quelle
+ * couleur ? », et c'est tout le sujet.
+ *
+ * ─── LA FAUTE QUE CETTE FONCTION CORRIGE (28/07/2026) ──────────────────────
+ * `territoryRole` (territoriesSource.ts) rend `'contested'` AVANT tout test de
+ * propriété — délibérément : « une zone disputée se lit comme disputée, quel
+ * qu'en soit le tenant ». La couleur est donc juste. Mais `CrewMap` s'en servait
+ * pour compter l'emprise du crew (`status === 'crew'`), et une zone TENUE PAR LE
+ * CREW mais disputée en sortait. Résultat : la carte peignait le terrain du crew
+ * en violet pendant que la phrase posée dessus affirmait « Ton crew ne tient
+ * encore aucune zone. La première sortie en dessine une. » — une affirmation
+ * absolue démentie par les pixels qu'elle recouvre (constitution §1).
+ *
+ * La PROPRIÉTÉ survit à la couleur : `props.ownerId` est recopié tel quel de la
+ * ligne `territories` (territoriesSource.ts §4), y compris pour un contesté.
+ * C'est cette donnée-là qu'on lit — aucune n'est déduite ni inventée.
+ *
+ * `crewIds` = ids des membres ACTIFS du crew, MOI COMPRIS (même ensemble que
+ * celui passé à `useRealTerritories`, qui s'en sert pour `territoryRole`). Les
+ * deux lectures partagent donc exactement la même définition de « nous ».
+ * `null` = roster inconnu ⇒ `false` : sans savoir qui est « nous », on
+ * n'affirme rien.
+ */
+export function heldByCrew(
+  territory: RealTerritory,
+  crewIds: ReadonlySet<string> | null,
+): boolean {
+  // Le rôle `crew` est déjà le verdict de propriété : chartreuse = moi/mon crew.
+  if (territory.props.status === 'crew') return true;
+  // Sinon on ne rattrape QUE le cas où la couleur a écrasé la propriété.
+  if (territory.props.status !== 'contested') return false;
+  const owner = territory.props.ownerId;
+  if (owner === null || crewIds === null) return false;
+  return crewIds.has(owner);
+}
+
+/**
  * État de rendu d'une capture, du point de vue du joueur courant.
  * MVP volontairement minimal : 'crew' (à moi OU à un membre de MON crew — §C :
  * « moi/mon crew = chartreuse », la couleur suit le RÔLE, pas l'identité) /

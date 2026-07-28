@@ -35,11 +35,22 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSizes, radii, sizes, spacing, typography, withAlpha } from '@klaim/shared';
-import { C } from '../../i18n/catalog/crew';
+import {
+  CREW_MEMBER_ACTIONS,
+  colors,
+  fontSizes,
+  radii,
+  sizes,
+  spacing,
+  typography,
+  withAlpha,
+  type CrewRole,
+} from '@klaim/shared';
+import { C, CREW_ROLE_E } from '../../i18n/catalog/crew';
 import { C as CReg } from '../../i18n/catalog/reglages';
 import { useT } from '../../i18n/store';
 import { useSession } from '../../lib/session';
+import { EVENTS, track } from '../../lib/analytics';
 import { Button } from '../../ui/Button';
 import {
   REPORT_REASONS,
@@ -56,6 +67,44 @@ import {
   memberReportInput,
   moderationActionsFor,
 } from './blocklist';
+import { nextRoleDown, nextRoleUp, roleActionsFor } from './memberRoles';
+import {
+  removeMember,
+  setMemberRole,
+  transferLead,
+  type MemberActionOutcome,
+  type MemberActionRefusal,
+} from './memberRolesData';
+
+/**
+ * Un geste de rôle EN ATTENTE DE CONFIRMATION. Le rôle visé est capturé AU
+ * MOMENT DU TAP et transporté jusqu'à l'appel : la confirmation affiche donc
+ * exactement le rôle qui sera demandé, et non un rôle recalculé entre-temps.
+ */
+type PendingRoleAction =
+  | { key: 'promote' | 'demote'; role: CrewRole }
+  | { key: 'remove' }
+  | { key: 'transfer_lead' };
+
+/**
+ * Motif de refus serveur → phrase. On NE DIT PAS mieux que le serveur, et on ne
+ * transforme jamais un refus en « réessaie » : `forbidden` est une information,
+ * pas une panne. Les motifs qui ne devraient pas atteindre l'écran (le gating
+ * client les a déjà écartés) retombent sur la formulation la plus honnête :
+ * « ton rôle ne permet pas ce geste ».
+ */
+function refusalEntry(reason: MemberActionRefusal) {
+  switch (reason) {
+    case 'out_of_scope':
+      return C.maRefusedScope;
+    case 'not_member':
+      return C.maRefusedNotMember;
+    case 'cannot_target_lead':
+      return C.maRefusedLead;
+    default:
+      return C.maRefusedForbidden;
+  }
+}
 
 /**
  * Pseudos bloqués sous leur forme de COMPARAISON, mémoïsée. C'est le pont entre
@@ -88,21 +137,60 @@ export function PlayerActionsButton({ name, onPress }: { name: string; onPress: 
   );
 }
 
-/** Les trois états de la feuille — jamais deux questions à la fois. */
-type SheetStep = 'choice' | 'reason' | 'sent';
+/**
+ * Les états de la feuille — jamais deux questions à la fois.
+ * `confirm` et `result` sont venus avec E47 (28/07/2026) : une action sensible
+ * se confirme DANS la feuille (jamais un `Alert`, invisible sur Expo Web), et
+ * ce que le serveur a répondu s'affiche là où le geste a été fait.
+ */
+/**
+ * `sent` = le SERVEUR a accepté le signalement. `reportFailed` = il n'a RIEN
+ * enregistré, et on le dit — l'étape n'existait pas avant le 28/07/2026, ce qui
+ * obligeait l'écran à afficher « Signalement envoyé » dans les deux cas.
+ */
+type SheetStep = 'choice' | 'reason' | 'sent' | 'reportFailed' | 'confirm' | 'result';
+
+/**
+ * E47 — LE CONTEXTE DE CREW, OPTIONNEL PAR CONSTRUCTION.
+ *
+ * Sans lui, la feuille reste exactement ce qu'elle était : { Signaler ·
+ * Bloquer }, deux droits de PERSONNE ouverts à tout le monde (Guideline 1.2).
+ * Le classement de saison l'ouvre ainsi, et c'est juste — on n'y a aucun rôle.
+ *
+ * Avec lui, et SEULEMENT si mon rôle réel le permet, s'ajoutent les quatre
+ * gestes de la spéc E47. Ils n'ont de sens que dans un crew : promouvoir
+ * quelqu'un depuis un classement de ville ne veut rien dire.
+ */
+export interface MemberRoleContext {
+  /** L'identifiant de la personne visée — la RPC ne travaille pas au pseudo. */
+  userId: string;
+  /** MON rôle, lu en base (`crew_overview.role`). Jamais choisi par le client. */
+  actorRole: string;
+  /** Le rôle de la personne visée, tel que le serveur l'a rendu. */
+  targetRole: string;
+  /** Relit le roster après un geste ABOUTI : on ne réécrit jamais la ligne ici. */
+  onChanged: () => void;
+}
 
 export interface PlayerModerationSheetProps {
   /** Joueur de la ligne tapée, ou `null` : la feuille est fermée. */
   pseudo: string | null;
   onClose: () => void;
+  /** E47 : présent uniquement sur le roster d'un crew. */
+  crew?: MemberRoleContext | null;
 }
 
-export function PlayerModerationSheet({ pseudo, onClose }: PlayerModerationSheetProps) {
+export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModerationSheetProps) {
   const t = useT();
   const { session, configured } = useSession();
   const blocked = useBlockedPseudos();
   const [step, setStep] = useState<SheetStep>('choice');
   const [reason, setReason] = useState<ReportReason>('spam');
+  /** Le geste de rôle en cours de confirmation, ou `null`. */
+  const [pending, setPending] = useState<PendingRoleAction | null>(null);
+  /** Ce que le serveur a répondu — jamais ce qu'on espérait qu'il réponde. */
+  const [outcome, setOutcome] = useState<MemberActionOutcome | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // Chaque ouverture repart de la question 1 : sans ça, rouvrir la feuille sur
   // un AUTRE joueur la rouvrirait sur l'accusé de réception du précédent.
@@ -110,6 +198,9 @@ export function PlayerModerationSheet({ pseudo, onClose }: PlayerModerationSheet
     if (pseudo !== null) {
       setStep('choice');
       setReason('spam');
+      setPending(null);
+      setOutcome(null);
+      setBusy(false);
     }
   }, [pseudo]);
 
@@ -121,16 +212,30 @@ export function PlayerModerationSheet({ pseudo, onClose }: PlayerModerationSheet
     blocked,
   });
 
-  const send = () => {
+  const send = async () => {
     const input = pseudo === null ? null : memberReportInput(pseudo, reason);
     if (input === null) return;
-    reportContent(input);
-    setStep('sent');
+    setBusy(true);
+    // ON ATTEND LE VERDICT SERVEUR. Avant, `reportContent` partait en
+    // fire-and-forget et l'écran enchaînait `setStep('sent')` : il affirmait
+    // « ton signalement est enregistré » sans l'avoir vérifié une seule fois.
+    const res = await reportContent(input);
+    setBusy(false);
+    // ⚠ AUCUNE CIBLE, AUCUN MOTIF (events.ts) : un identifiant de cible dirait
+    // « qui signale qui » — le graphe social, la donnée la plus ré-identifiante
+    // que GRYD manipule. Le motif, lui, est déjà dans `content_reports.reason`.
+    // `effect` dit ce qui S'EST PASSÉ, pas ce qu'on espérait.
+    track(EVENTS.crewMemberAction, {
+      action: 'report',
+      effect: res.state === 'recorded' ? 'done' : 'error',
+    });
+    setStep(res.state === 'recorded' ? 'sent' : 'reportFailed');
   };
 
   const doBlock = () => {
     if (target === null) return;
     blockMember(target);
+    track(EVENTS.crewMemberAction, { action: 'block', effect: 'done' });
     // Aucun accusé : la ligne d'où l'on vient devient « Joueur bloqué ».
     onClose();
   };
@@ -138,7 +243,84 @@ export function PlayerModerationSheet({ pseudo, onClose }: PlayerModerationSheet
   const doUnblock = () => {
     if (target === null) return;
     unblockMember(target);
+    track(EVENTS.crewMemberAction, { action: 'unblock', effect: 'done' });
     onClose();
+  };
+
+  // ── E47 · LES QUATRE GESTES DE RÔLE ─────────────────────────────────────────
+  /**
+   * Ce que je peux RÉELLEMENT faire sur cette personne. `roleActionsFor` est le
+   * miroir client des bornes de 0093 : sans contexte de crew, la liste est vide
+   * et rien ne se peint — pas parce qu'on cache, mais parce qu'il n'y a rien à
+   * proposer hors d'un crew.
+   */
+  const roleActions = useMemo(
+    () =>
+      crew
+        ? roleActionsFor({
+            actorRole: crew.actorRole,
+            targetRole: crew.targetRole,
+            // La feuille n'est jamais ouverte sur MA ligne (les deux surfaces
+            // ne peignent pas l'affordance) — on le redit ici plutôt que de le
+            // supposer, car `roleActionsFor` en fait sa toute première borne.
+            isMe: false,
+          })
+        : [],
+    [crew],
+  );
+
+  /** Le rôle visé par une promotion / rétrogradation d'UN cran, ou `null`. */
+  const upRole = crew ? nextRoleUp(crew.actorRole, crew.targetRole) : null;
+  const downRole = crew ? nextRoleDown(crew.actorRole, crew.targetRole) : null;
+
+  /**
+   * Lance un geste : direct s'il n'est pas sensible (`promote`), via l'étape de
+   * confirmation sinon. La sensibilité vient de `CREW_MEMBER_ACTIONS`
+   * (game-rules) — jamais d'un `if` écrit à la main ici, sans quoi ajouter une
+   * action au catalogue laisserait sa confirmation à la charge du prochain.
+   */
+  const startRoleAction = (action: PendingRoleAction) => {
+    const def = CREW_MEMBER_ACTIONS.find((a) => a.key === action.key);
+    if (def?.sensitive) {
+      setPending(action);
+      setStep('confirm');
+      return;
+    }
+    void runRoleAction(action);
+  };
+
+  const runRoleAction = async (action: PendingRoleAction) => {
+    if (!crew || busy) return;
+    setBusy(true);
+    const res =
+      action.key === 'remove'
+        ? await removeMember(crew.userId)
+        : action.key === 'transfer_lead'
+          ? await transferLead(crew.userId)
+          : await setMemberRole(crew.userId, action.role);
+    setBusy(false);
+    setOutcome(res);
+    setStep('result');
+    /*
+      L'EFFET MESURÉ EST CELUI DU SERVEUR, jamais l'intention. Un fondateur qui
+      tente dix exclusions refusées ne doit pas produire la même série que dix
+      exclusions abouties — sans `effect`, l'event ne compterait que des taps.
+      `failed`/`unsupported` n'émettent RIEN : on ne sait pas ce qui s'est
+      passé, et un event est une affirmation.
+      Toujours AUCUNE cible : `distinct_id` de l'émetteur, et rien d'autre.
+    */
+    if (res.kind === 'ok') {
+      track(EVENTS.crewMemberAction, {
+        action: action.key,
+        effect:
+          res.effect === 'unchanged' || res.effect === 'already_removed' ? 'unchanged' : 'done',
+      });
+    } else if (res.kind === 'refusal') {
+      track(EVENTS.crewMemberAction, { action: action.key, effect: 'refused' });
+    }
+    // On ne réécrit JAMAIS la ligne de notre côté : c'est le serveur qui sait.
+    // La relecture n'a lieu que si quelque chose a réellement changé.
+    if (res.kind === 'ok') crew.onChanged();
   };
 
   return (
@@ -184,6 +366,55 @@ export function PlayerModerationSheet({ pseudo, onClose }: PlayerModerationSheet
 
           {step === 'choice' ? (
             <>
+              {/* ── E47 · LES GESTES DE RÔLE, EN PREMIER ────────────────────
+                  Ils ne sont peints QUE si mon rôle réel les autorise
+                  (`roleActionsFor`, miroir de 0093) : un membre simple ne voit
+                  rien ici, et c'est normal — pas un manque. Tous en `ghost` :
+                  le CTA chartreuse de l'écran reste ailleurs (§A4). */}
+              {roleActions.includes('promote') && upRole !== null ? (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="crest"
+                  label={`${t(C.maPromote)} ${t(C.maToRole, { role: t(CREW_ROLE_E[upRole]) })}`}
+                  onPress={() => startRoleAction({ key: 'promote', role: upRole })}
+                />
+              ) : null}
+              {roleActions.includes('demote') && downRole !== null ? (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="chevron"
+                  label={`${t(C.maDemote)} ${t(C.maToRole, { role: t(CREW_ROLE_E[downRole]) })}`}
+                  onPress={() => startRoleAction({ key: 'demote', role: downRole })}
+                />
+              ) : null}
+              {roleActions.includes('remove') ? (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="alerte"
+                  label={t(C.maRemove)}
+                  onPress={() => startRoleAction({ key: 'remove' })}
+                />
+              ) : null}
+              {roleActions.includes('transfer_lead') ? (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="crest"
+                  label={t(C.maTransferLead)}
+                  onPress={() => startRoleAction({ key: 'transfer_lead' })}
+                />
+              ) : null}
+              {/* ANTI PAY-TO-WIN, dit à l'écran et pas seulement en commentaire
+                  (spéc l.1677). Ne s'affiche que pour qui a un geste de rôle
+                  sous la main : pour les autres, ce serait une réponse à une
+                  question qu'ils ne se posent pas. */}
+              {roleActions.length > 0 ? (
+                <Text style={styles.note}>{t(C.maPromoteNote)}</Text>
+              ) : null}
+
               {actions.includes('report') ? (
                 <Button
                   variant="ghost"
@@ -262,7 +493,9 @@ export function PlayerModerationSheet({ pseudo, onClose }: PlayerModerationSheet
                 size="md"
                 icon="alerte"
                 label={t(C.reportSendCta)}
-                onPress={send}
+                onPress={() => void send()}
+                disabled={busy}
+                loading={busy}
               />
             </>
           ) : null}
@@ -276,11 +509,111 @@ export function PlayerModerationSheet({ pseudo, onClose }: PlayerModerationSheet
             </View>
           ) : null}
 
+          {/* LE SIGNALEMENT N'EST PAS PARTI, et on le DIT. Un accusé de réception
+              donné sur un échec laisserait quelqu'un croire qu'un humain va
+              regarder un contenu qui n'a jamais atteint le serveur — la pire
+              version du mensonge, sur le chemin exigé par Apple 1.2. Le geste
+              reste possible : le bouton « Signaler » réarme l'étape motif. */}
+          {step === 'reportFailed' ? (
+            <View style={styles.stateCard}>
+              <Text style={styles.stateTitle}>{t(CReg.reportFailedTitle)}</Text>
+              <Text style={styles.stateBody}>{t(CReg.reportFailedBody)}</Text>
+              <Button
+                variant="ghost"
+                size="md"
+                icon="alerte"
+                label={t(C.reportSendCta)}
+                onPress={() => void send()}
+                disabled={busy}
+                loading={busy}
+              />
+            </View>
+          ) : null}
+
+          {/* ── E47 · CONFIRMATION D'UNE ACTION SENSIBLE ───────────────────────
+              « Toute action sensible affiche une conséquence claire » (spéc
+              l.1695). La conséquence est écrite AVANT le tap, et elle dit aussi
+              ce qui NE change PAS — un rôle n'a jamais porté de territoire.
+              Le bouton de confirmation reste `ghost` : §A4 n'est pas entamé. */}
+          {step === 'confirm' && pending !== null ? (
+            <>
+              <View style={styles.stateCard}>
+                <Text style={styles.stateTitle}>
+                  {pending.key === 'remove'
+                    ? t(C.maRemoveConfirmTitle, { name: pseudo ?? '' })
+                    : pending.key === 'transfer_lead'
+                      ? t(C.maTransferConfirmTitle, { name: pseudo ?? '' })
+                      : t(C.maDemoteConfirmTitle, {
+                          name: pseudo ?? '',
+                          role: t(CREW_ROLE_E[pending.role]),
+                        })}
+                </Text>
+                <Text style={styles.stateBody}>
+                  {pending.key === 'remove'
+                    ? t(C.maRemoveConfirmBody)
+                    : pending.key === 'transfer_lead'
+                      ? t(C.maTransferConfirmBody)
+                      : t(C.maDemoteConfirmBody)}
+                </Text>
+              </View>
+              <Button
+                variant="ghost"
+                size="md"
+                label={t(C.maConfirmCta)}
+                disabled={busy}
+                onPress={() => void runRoleAction(pending)}
+              />
+            </>
+          ) : null}
+
+          {/* ── E47 · CE QUE LE SERVEUR A RÉPONDU ──────────────────────────────
+              Quatre issues DISTINCTES, jamais confondues : fait / refusé /
+              serveur sans la fonction / injoignable. Un refus n'est pas une
+              panne, et une panne n'affirme rien sur le geste. */}
+          {step === 'result' && outcome !== null ? (
+            <View style={styles.stateCard}>
+              <Text style={styles.stateBody}>
+                {outcome.kind === 'failed'
+                  ? t(C.maFailed)
+                  : outcome.kind === 'unsupported'
+                    ? t(C.maUnsupported)
+                    : outcome.kind === 'refusal'
+                      ? t(refusalEntry(outcome.reason))
+                      : outcome.effect === 'unchanged' || outcome.effect === 'already_removed'
+                        ? t(C.maDoneAlready)
+                        : outcome.effect === 'removed'
+                          ? t(C.maDoneRemoved, { name: pseudo ?? '' })
+                          : outcome.effect === 'transferred'
+                            ? t(C.maDoneTransferred, { name: pseudo ?? '' })
+                            : t(C.maDonePromoted, {
+                                name: pseudo ?? '',
+                                role: outcome.role ? t(CREW_ROLE_E[outcome.role]) : '',
+                              })}
+              </Text>
+              {/* Le serveur décide — dit une fois, à l'endroit où ça compte. */}
+              <Text style={styles.stateBody}>{t(C.maRoleServerSide)}</Text>
+            </View>
+          ) : null}
+
           <Button
             variant="ghost"
             size="md"
-            label={t(step === 'sent' ? C.sheetCloseA11y : C.sheetCancel)}
-            onPress={onClose}
+            label={t(
+              step === 'sent' || step === 'result' || step === 'reportFailed'
+                ? C.sheetCloseA11y
+                : C.sheetCancel,
+            )}
+            // Depuis une CONFIRMATION, « Annuler » revient à la liste des
+            // gestes — il ne ferme pas la feuille. Reculer d'un pas ne doit pas
+            // coûter de rouvrir la ligne, sans quoi on confirme par lassitude.
+            onPress={() => {
+              if (step === 'confirm') {
+                setPending(null);
+                setStep('choice');
+                return;
+              }
+              onClose();
+            }}
           />
         </View>
       </View>

@@ -47,7 +47,15 @@ import {
   type ActivityScoreInput,
   type CrewXpRunInput,
 } from '../_shared/engine/crew.ts';
-import { CREW_SCORE_TOP_ACTIVE } from '../_shared/game-rules.ts';
+import {
+  CREW_MEMBER_ACTIONS,
+  CREW_ROLE_GROUP_ORDER,
+  CREW_ROLE_GROUPS,
+  CREW_SCORE_TOP_ACTIVE,
+  SKU_GRANTED_ITEM_KEYS,
+  SKU_PRICES_EUR,
+  SKUS,
+} from '../_shared/game-rules.ts';
 
 // ─── §34.3 crewLevelForXp : bornes exactes de la table ───────────────────────
 
@@ -410,4 +418,88 @@ Deno.test('crewSeasonScore : contributions négatives ignorées (plancher 0/memb
 Deno.test('crewSeasonScore : topN ≤ 0 → 0 (aucun membre ne compte)', () => {
   assertEquals(crewSeasonScore([10, 20, 30], 0), 0);
   assertEquals(crewSeasonScore([10, 20, 30], -1), 0);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E46 / E47 (28/07/2026) — CREW_ROLE_GROUPS et CREW_MEMBER_ACTIONS.
+// Ce sont des DONNÉES, pas des fonctions : ce qui peut casser n'est donc pas un
+// calcul mais une INCOHÉRENCE avec la matrice qu'elles prétendent lire. Les
+// quatre tests ci-dessous verrouillent exactement ça — un rôle ajouté sans
+// groupe, un groupe qui invente un rôle, une action qui pointe une permission
+// disparue, ou un « officier » qui n'aurait aucun pouvoir de gestion.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Deno.test('CREW_ROLE_GROUPS : partition EXACTE des 7 rôles (aucun oubli, aucun doublon)', () => {
+  const groupes = CREW_ROLE_GROUP_ORDER.flatMap((g) => [...CREW_ROLE_GROUPS[g]]);
+  assertEquals(groupes.length, CREW_ROLES.length, 'un rôle est en trop ou en double');
+  assertEquals(new Set(groupes).size, groupes.length, 'un rôle apparaît dans deux groupes');
+  for (const role of CREW_ROLES) {
+    assert(groupes.includes(role), `le rôle ${role} n'appartient à aucun groupe E46`);
+  }
+});
+
+Deno.test('CREW_ROLE_GROUPS : « chef » est un rôle unique, et c\'est le founder', () => {
+  assertEquals([...CREW_ROLE_GROUPS.lead], ['founder']);
+});
+
+Deno.test('CREW_ROLE_GROUPS : un officier peut décider POUR LES AUTRES, un membre non', () => {
+  // La frontière officier/membre n'est pas décorative : elle lit CREW_PERMISSIONS.
+  // Gestion d'autrui = pouvoir exclure OU promouvoir OU organiser une sortie.
+  const gereAutrui = (role: (typeof CREW_ROLES)[number]) =>
+    hasCrewPermission(role, 'kick') ||
+    hasCrewPermission(role, 'promote') ||
+    hasCrewPermission(role, 'createOuting');
+  for (const role of CREW_ROLE_GROUPS.officers) {
+    assert(gereAutrui(role), `${role} est classé officier sans aucun pouvoir de gestion`);
+  }
+  for (const role of CREW_ROLE_GROUPS.members) {
+    assert(!gereAutrui(role), `${role} est classé membre mais gère les autres`);
+  }
+});
+
+Deno.test('CREW_MEMBER_ACTIONS : catalogue fermé, cohérent avec CREW_PERMISSIONS', () => {
+  const cles = CREW_MEMBER_ACTIONS.map((a) => a.key);
+  assertEquals(new Set(cles).size, cles.length, 'une action E47 est déclarée deux fois');
+  for (const action of CREW_MEMBER_ACTIONS) {
+    if (action.requires !== null) {
+      assert(
+        action.requires in CREW_PERMISSIONS,
+        `${action.key} exige « ${action.requires} », absente de CREW_PERMISSIONS`,
+      );
+    }
+    // Aucune action de la feuille n'a de sens sur sa propre ligne (on ne se
+    // signale pas, on ne se bloque pas, on ne se promeut pas). Quitter le crew
+    // est une action d'écran, pas de cette feuille.
+    assertEquals(action.onSelf, false, `${action.key} prétend s'appliquer à soi-même`);
+  }
+  // Signaler et bloquer sont des droits de PERSONNE : jamais gatés par un rôle
+  // (Guideline App Store 1.2 — ils doivent rester ouverts à tout le monde).
+  for (const key of ['report', 'block'] as const) {
+    const def = CREW_MEMBER_ACTIONS.find((a) => a.key === key);
+    assert(def !== undefined, `${key} a disparu du catalogue E47`);
+    assertEquals(def.requires, null, `${key} ne doit dépendre d'aucun rôle de crew`);
+  }
+});
+
+Deno.test('E46/E47 : ni un rôle ni une action de gestion n\'est achetable (anti pay-to-win)', () => {
+  // Le rôle et le groupe ouvrent des actions de GESTION — jamais du territoire,
+  // des points, de la vitesse ni de la protection. La boutique ne doit donc
+  // vendre AUCUN des deux. Comparaison par ÉGALITÉ, jamais par sous-chaîne : le
+  // `founder_pack` est un pack de cosmétiques d'early adopter (badge, cadre,
+  // titre), il ne confère pas le rôle `founder` d'un crew — un test par
+  // `includes` le condamnerait à tort et le vrai risque passerait inaperçu.
+  const vendus = new Set<string>([
+    ...Object.keys(SKU_PRICES_EUR),
+    ...Object.values(SKUS),
+    ...Object.values(SKU_GRANTED_ITEM_KEYS).flat(),
+  ]);
+  for (const role of CREW_ROLES) {
+    assert(!vendus.has(role), `le rôle « ${role} » est vendu — pay-to-win`);
+  }
+  for (const groupe of CREW_ROLE_GROUP_ORDER) {
+    assert(!vendus.has(groupe), `le groupe « ${groupe} » est vendu — pay-to-win`);
+  }
+  for (const action of CREW_MEMBER_ACTIONS) {
+    assert(!vendus.has(action.key), `l'action « ${action.key} » est vendue — pay-to-win`);
+  }
 });

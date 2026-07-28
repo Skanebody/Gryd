@@ -1161,6 +1161,27 @@ export const C = defineCatalog({
     de: 'Deine Meldung wird gespeichert und an die GRYD-Moderation übermittelt. Ein Mensch prüft sie innerhalb von {h} Std.',
     pt: 'Sua denúncia é registrada e enviada à moderação do GRYD. Uma pessoa analisa em até {h} h.',
   },
+  /**
+   * LE SIGNALEMENT N'EST PAS PARTI (28/07/2026). Avant, `reportContent` écrivait
+   * en fire-and-forget et l'écran affichait `reportSentTitle` quoi qu'il arrive :
+   * il affirmait un enregistrement serveur qu'il n'avait jamais vérifié. Ces deux
+   * entrées existent pour que l'échec ait SA phrase, distincte du succès.
+   * Elles ne promettent aucune revue : rien n'a été reçu, donc rien ne sera lu.
+   */
+  reportFailedTitle: {
+    fr: 'Signalement non envoyé',
+    en: 'Report not sent',
+    es: 'Reporte no enviado',
+    de: 'Meldung nicht gesendet',
+    pt: 'Denúncia não enviada',
+  },
+  reportFailedBody: {
+    fr: 'Rien n’a été enregistré : personne ne le verra. Vérifie ta connexion et réessaie.',
+    en: 'Nothing was recorded — no one will see it. Check your connection and try again.',
+    es: 'No se registró nada: nadie lo verá. Revisa tu conexión e inténtalo de nuevo.',
+    de: 'Es wurde nichts gespeichert — niemand wird sie sehen. Prüfe deine Verbindung und versuch es erneut.',
+    pt: 'Nada foi registrado: ninguém vai ver. Confira sua conexão e tente de novo.',
+  },
   playerBlockedTitle: {
     fr: 'Joueur bloqué',
     en: 'Player blocked',

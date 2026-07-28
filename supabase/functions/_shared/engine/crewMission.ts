@@ -356,3 +356,198 @@ export const CREW_MISSION_WINDOWS = {
   defendWindowH: ZONE_DEFEND_WINDOW_HOURS,
   reclaimWindowH: CREW_MISSION_RECLAIM_WINDOW_H,
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E45 — CE QUE L'ÉCRAN « MISSION CREW » A LE DROIT D'AFFIRMER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Un membre du crew et la part du TERRITOIRE qu'il tient (`crew_overview()`,
+ * migration 0044). C'est la seule mesure d'engagement que la base possède.
+ */
+export interface CrewHolder {
+  userId: string;
+  pseudo: string;
+  /** Part ENTIÈRE (plancher serveur) du territoire du crew, 0-100. */
+  contributionPct: number;
+}
+
+/** Une mission qui EXISTE (le cas `none` sort par la branche `view: 'none'`). */
+export type CrewMissionBrief = Exclude<CrewMission, { kind: 'none' }>;
+
+/**
+ * Ce que l'écran sait des PARTS DE TERRITOIRE, indépendamment de la mission.
+ *
+ * ⚠ SÉPARÉ DE LA VUE, ET C'EST UN CORRECTIF (28/07/2026). `holders` vivait
+ * auparavant DANS la seule variante `view: 'brief'`, si bien que l'écran écrivait
+ * `brief.view !== 'brief' || brief.holders === null ? « Parts non chargées »`.
+ * Conséquence : dès qu'il n'y avait AUCUNE mission — l'état le plus courant, et
+ * le seul possible sur une base vide — l'écran annonçait un ÉCHEC DE LECTURE des
+ * parts alors que `crew_overview()` avait répondu, et masquait des parts RÉELLES.
+ * Un état « lu » ne doit jamais emprunter la phrase d'un état « pas lu »
+ * (constitution §1).
+ *
+ * Les deux lectures sont distinctes en amont — `crew_mission_inputs` (0049) pour
+ * la mission, `crew_overview()` (0044) pour les parts — donc le verdict les
+ * garde distinctes : chacune porte sa propre incertitude.
+ *
+ * `null` = `crew_overview()` PAS LU (chargement ou échec) — jamais « personne ne
+ * tient rien », qui est `[]`.
+ */
+export type CrewHolders = readonly CrewHolder[] | null;
+
+/**
+ * Verdict de l'écran E45. TROIS vues, jamais confondues — c'est exactement la
+ * doctrine « quatre états » appliquée à une mission :
+ *  · `unread` : la mission n'a PAS été lue (chargement ou échec). L'écran ne
+ *    dit rien du crew — surtout pas « aucune mission ».
+ *  · `none`   : elle a été lue, et il n'y en a pas. On le DIT, avec son motif.
+ *  · `brief`  : il y en a une, et voici tout ce qui peut en être affirmé.
+ *
+ * `holders` est HORS de cette discrimination : il décrit l'autre lecture, et les
+ * trois vues le portent. Voir `CrewHolders`.
+ */
+export type CrewMissionBriefing = { holders: CrewHolders } & (
+  | { view: 'unread' }
+  | { view: 'none'; reason: CrewMissionNoneReason }
+  | {
+      view: 'brief';
+      mission: CrewMissionBrief;
+      /**
+       * Échéance RÉELLE (ms epoch) ou `null`. Seules `defend` (decay en base) et
+       * `close_loop` (expiration de la boucle) en ont une.
+       *
+       * ⚠ `reclaim.lastLostAt` N'EN EST PAS UNE : c'est la date d'un fait PASSÉ.
+       * L'afficher en « échéance » inventerait un compte à rebours que rien ne
+       * fait courir — et la spec E45 demande une échéance, pas une échéance
+       * plausible.
+       */
+      deadlineAtMs: number | null;
+      /** Heures restantes (arrondi SUPÉRIEUR, ≥ 1). `null` = pas d'échéance, ou dépassée. */
+      hoursLeft: number | null;
+      /** L'échéance est passée : le fait se dit, il ne se maquille pas en « 1 h ». */
+      overdue: boolean;
+      /**
+       * TOUJOURS `null`, et c'est une décision, pas un trou. La spec E45 demande
+       * une « progression collective » ; AUCUNE mission n'a de dénominateur —
+       * `defend` a un compte et une échéance, `reclaim` un compte, `close_loop`
+       * des mètres manquants sans longueur totale, `capture` une BORNE
+       * SUPÉRIEURE de zones libres. Un pourcentage serait un chiffre inventé.
+       * Le champ existe pour que ce refus soit LISIBLE et testé, au lieu d'être
+       * une omission qu'un prochain passage « compléterait ».
+       */
+      progress: null;
+    }
+);
+
+/*
+ * ⚠ `holders` NE SONT PAS « LES PARTICIPANTS À LA MISSION ». Aucune table ne
+ * relie un membre à une mission : la mission est dérivée à la lecture, pas
+ * inscrite. Nommer ces gens « participants » leur prêterait un engagement qu'ils
+ * n'ont pas pris. L'écran les nomme pour ce qu'ils sont — ceux qui tiennent du
+ * terrain aujourd'hui. C'est aussi pourquoi ils survivent à l'absence de
+ * mission : ils ne dépendaient jamais d'elle.
+ */
+
+const MS_PER_HOUR_BRIEF = 3_600_000;
+
+/** Part lisible : entier fini borné 0-100, sinon `null` (la ligne est écartée). */
+function pct(v: unknown): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  const n = Math.floor(v);
+  if (n <= 0) return null;
+  return n > 100 ? 100 : n;
+}
+
+/**
+ * Ce que E45 peut affirmer, à partir de LA mission déjà choisie et de l'agrégat
+ * de territoire. PURE : aucune I/O, aucune horloge interne, aucun aléa.
+ *
+ * Elle n'INVENTE aucune mission et n'en re-choisit aucune — `chooseCrewMission`
+ * reste le seul juge. Son rôle est le refus : elle décide ce que l'écran n'a PAS
+ * le droit de peindre (une échéance sans échéance, un pourcentage sans
+ * dénominateur, une liste de participants sans participation mesurée).
+ */
+export function crewMissionBriefing(input: {
+  nowMs: number;
+  /** `null` = mission non lue (chargement ou échec), JAMAIS « aucune mission ». */
+  mission: CrewMission | null;
+  /** `null` = `crew_overview()` non lu. `[]` = lu, et personne ne tient rien. */
+  contributions: readonly CrewHolder[] | null;
+}): CrewMissionBriefing {
+  const { nowMs, mission, contributions } = input;
+
+  // ── LES PARTS SE LISENT AVANT TOUT ARBITRAGE DE MISSION ───────────────────
+  // Elles viennent d'une AUTRE lecture (`crew_overview()`, 0044) et ne dépendent
+  // d'aucune mission. Les calculer après les sorties anticipées les rendait
+  // absentes dès qu'il n'y avait pas de mission — et l'écran lisait cette
+  // absence comme « parts non chargées », c'est-à-dire un échec de lecture qui
+  // n'avait pas eu lieu (constitution §1).
+  const holders = readHolders(contributions);
+
+  if (mission === null || typeof mission !== 'object' || typeof mission.kind !== 'string') {
+    return { view: 'unread', holders };
+  }
+  if (mission.kind === 'none') {
+    // Motif inconnu (contrat inattendu) ⇒ le plus prudent : « on ne sait rien ».
+    return {
+      view: 'none',
+      reason: mission.reason === 'nothing_urgent' ? 'nothing_urgent' : 'no_data',
+      holders,
+    };
+  }
+
+  const deadlineAtMs =
+    mission.kind === 'defend'
+      ? stamp(mission.deadlineAt)
+      : mission.kind === 'close_loop'
+        ? stamp(mission.expiresAt)
+        : null;
+
+  const remainingMs = deadlineAtMs === null ? null : deadlineAtMs - nowMs;
+  const overdue = remainingMs !== null && remainingMs <= 0;
+  const hoursLeft =
+    remainingMs === null || remainingMs <= 0
+      ? null
+      : Math.max(1, Math.ceil(remainingMs / MS_PER_HOUR_BRIEF));
+
+  return {
+    view: 'brief',
+    mission,
+    deadlineAtMs,
+    hoursLeft,
+    overdue,
+    progress: null,
+    holders,
+  };
+}
+
+/**
+ * Les parts, nettoyées et ORDONNÉES. `null` en entrée ⇒ `null` en sortie : « pas
+ * lu » ne devient jamais « personne ne tient rien ».
+ *
+ * Extrait de `crewMissionBriefing` pour pouvoir être appelé AVANT ses sorties
+ * anticipées ; le corps est inchangé.
+ */
+function readHolders(contributions: readonly CrewHolder[] | null): CrewHolders {
+  if (contributions === null || !Array.isArray(contributions)) return null;
+  return contributions
+    .map((c) => {
+      const p = pct(c?.contributionPct);
+      if (p === null) return null;
+      const pseudo = typeof c.pseudo === 'string' ? c.pseudo : '';
+      const userId = typeof c.userId === 'string' ? c.userId : '';
+      if (userId === '') return null;
+      return { userId, pseudo, contributionPct: p };
+    })
+    .filter((c): c is CrewHolder => c !== null)
+    // Ordre DÉTERMINISTE : part décroissante, puis pseudo, puis id. Deux
+    // lectures de suite donnent la même liste — un ordre instable ferait
+    // croire à un mouvement dans le crew qui n'a pas eu lieu.
+    .sort(
+      (a, b) =>
+        b.contributionPct - a.contributionPct ||
+        (a.pseudo < b.pseudo ? -1 : a.pseudo > b.pseudo ? 1 : 0) ||
+        (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0),
+    );
+}

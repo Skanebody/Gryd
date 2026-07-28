@@ -187,6 +187,16 @@ async function windowOf(relPath: string, start: string, end: string): Promise<st
 }
 
 const ROSTER = './RealCrewScreen.tsx';
+/**
+ * ⚠ LE RENDU DE LIGNE A DÉMÉNAGÉ LE 28/07/2026 (E46). La liste plate de
+ * `RealCrewScreen` est devenue les TROIS GROUPES de la spéc, dans
+ * `CrewRosterGroups.tsx`. Les gardes ci-dessous suivent le code : ce qu'elles
+ * protègent n'a pas changé d'un iota — un membre bloqué reste masqué ligne par
+ * ligne, et l'affordance « … » reste dérivée de l'éligibilité RÉELLE. La
+ * DÉRIVATION (`rosterRows`), elle, est restée dans l'écran, qui la partage avec
+ * la rangée d'aperçu.
+ */
+const ROSTER_ROWS = './CrewRosterGroups.tsx';
 const BOARD_SCREEN = '../../../app/(tabs)/classement.tsx';
 
 Deno.test('le ROSTER de crew masque les membres bloqués, ligne par ligne', async () => {
@@ -197,7 +207,7 @@ Deno.test('le ROSTER de crew masque les membres bloqués, ligne par ligne', asyn
     'le roster doit consommer le prédicat — sinon bloquer n’a AUCUN effet (B3)',
   );
   // 2. …et c'est bien le nom MASQUÉ qui est rendu, pas `m.pseudo`.
-  const render = await windowOf(ROSTER, 'rosterRows.map(', 'crewFull ?');
+  const render = await windowOf(ROSTER_ROWS, 'members.map(', 'const styles =');
   assert(render.includes('{m.displayName}'), 'la ligne doit rendre le nom masqué');
   assert(
     !render.includes('{m.pseudo}'),
@@ -206,6 +216,11 @@ Deno.test('le ROSTER de crew masque les membres bloqués, ligne par ligne', asyn
   // 3. la rangée d'aperçu consomme la MÊME liste (sinon retour par les initiales).
   const strip = await windowOf(ROSTER, '<CrewMembersStrip', '/>');
   assert(strip.includes('members={stripMembers}'), 'la rangée d’aperçu doit être masquée aussi');
+  // 4. …et l'écran passe bien ces lignes-là au composant de groupes : sans ce
+  // fil, `CrewRosterGroups` pourrait masquer parfaitement une liste que
+  // personne ne lui donne.
+  const wiring = await windowOf(ROSTER, '<CrewRosterGroups', '/>');
+  assert(wiring.includes('rows={rosterRows}'), 'les groupes doivent lire les lignes MASQUÉES');
 });
 
 Deno.test('le CLASSEMENT masque le pseudo bloqué dans la LISTE **et** sur le PODIUM', async () => {
@@ -225,7 +240,7 @@ Deno.test('le CLASSEMENT masque le pseudo bloqué dans la LISTE **et** sur le PO
 
 Deno.test('les DEUX surfaces portent l’affordance de signalement, sur la LIGNE (B4)', async () => {
   const windows: readonly (readonly [string, string, string])[] = [
-    [ROSTER, 'rosterRows.map(', 'crewFull ?'],
+    [ROSTER_ROWS, 'members.map(', 'const styles ='],
     [BOARD_SCREEN, 'function BoardRow(', 'function BoardEmpty('],
     [BOARD_SCREEN, 'function Podium(', 'function BoardRow('],
   ];

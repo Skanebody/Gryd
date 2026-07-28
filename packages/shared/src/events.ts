@@ -530,6 +530,122 @@ export const EVENTS = {
    */
   crewJoinRequestDecided: 'crew_join_request_decided', // props: { decision }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // E38 / E42-E48 — LE BLOC CREW (vague du 28/07/2026)
+  //
+  // ⚠ CES TROIS EVENTS N'ONT AUCUN APPELANT À L'INSTANT OÙ ILS SONT ÉCRITS.
+  // Ce fichier interdit normalement exactement ça (« un event émis par personne
+  // serait un KPI qui ment par zéro », bloc E52). L'exception est NOMMÉE et
+  // BORNÉE : ils sont posés pour les quatre agents d'écran de CETTE vague, qui
+  // les câblent dans le même lot. La règle de fin de fichier s'applique sans
+  // adoucissement — un event encore sans appelant à la vague suivante se
+  // supprime ou se câble, et ils sont inscrits à l'inventaire pour ça.
+  //
+  // ⚠ AUCUN DES TROIS NE PORTE DE NOM DE CREW, DE @handle, DE PSEUDO, DE NOM DE
+  // SECTEUR NI DE POSITION. Un nom de crew dans une ville de Saison 0 ne
+  // désigne pas un groupe : il désigne les quatre personnes qui le composent.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── E38 / E42 / E43 / E44 / E46 — l'onglet Crew, quel qu'en soit l'état ───
+  /**
+   * L'onglet Crew s'est composé. UN SEUL event pour les cinq écrans, parce
+   * qu'ils sont la MÊME route (`/crew`) dans cinq situations : la question
+   * produit est « où en sont les gens vis-à-vis d'un crew ? », et cinq noms
+   * rendraient le ratio illisible (même arbitrage que `leaderboard_viewed`
+   * pour ses quatre onglets, et que `profile_view` pour ses deux profils).
+   *
+   * `state` FERMÉ — les quatre états de la constitution, plus les deux
+   * situations de jeu qu'il serait faux de confondre avec un vide de lecture :
+   *   'signed_out'    — pas de session (E38 sans compte) ;
+   *   'loading'       — lecture EN COURS. N'AFFIRME RIEN sur le joueur : ce
+   *                     n'est ni « pas de crew » ni « crew vide » ;
+   *   'failed'        — la lecture a échoué. On ne sait pas s'il a un crew ;
+   *   'no_crew'       — LU : ce joueur n'appartient à aucun crew (E38) ;
+   *   'no_territory'  — LU : il a un crew, qui ne tient AUCUNE zone (E42) ;
+   *   'ready'         — LU : crew avec territoire (E43).
+   * Au 28/07/2026 la base ne contient AUCUN crew : 'no_crew' sera la valeur
+   * dominante, et c'est un fait produit, pas une panne. Le jour où 'failed'
+   * monte, il ne se noiera pas dedans.
+   *
+   * `view` FERMÉ : 'overview' | 'map' | 'members' — le segment E43 §Layout,
+   * qui EST E43 / E44 / E46. `null` quand aucun segment n'est rendu (les trois
+   * premiers états : il n'y a pas d'onglet à choisir).
+   *
+   * ⚠ AUCUN COMPTEUR : ni effectif, ni surface, ni rang de ville. Un effectif
+   * de crew est un quasi-identifiant dans une ville qui en compte trois.
+   */
+  crewHomeViewed: 'crew_home_viewed', // props: { state, view }
+
+  // ── E45 — Mission crew ────────────────────────────────────────────────────
+  /**
+   * La mission prioritaire du crew a été RENDUE, avec le genre que le moteur a
+   * réellement choisi. `kind` FERMÉ, miroir EXACT de `CrewMission`
+   * (packages/engine/src/crewMission.ts) : 'defend' | 'reclaim' | 'close_loop'
+   * | 'capture' | 'none_no_data' | 'none_nothing_urgent' — les deux motifs de
+   * `none` sont SÉPARÉS ici parce qu'ils le sont déjà dans le moteur et qu'ils
+   * ne disent pas la même chose : « on ne sait rien » (crew tout neuf) n'est
+   * pas « on sait, et tout est stable ».
+   *
+   * POURQUOI IL COMPTE : la mission est le maillon 3 de la boucle A-43 (« je
+   * cours pour l'AIDER »). Elle est DÉRIVÉE, jamais écrite : si le moteur rend
+   * 'none_no_data' à tout le monde pendant un mois, la boucle ne tourne pas —
+   * et c'est invisible sans cet event, puisque l'écran, lui, affiche une phrase
+   * parfaitement honnête.
+   *
+   * ⚠ AUCUN NOM DE SECTEUR, AUCUN COMPTE DE ZONES, AUCUNE ÉCHÉANCE. « défendre
+   * République, 3 zones, avant 19 h » raconte où quelqu'un court et quand.
+   * Le sectorName est déjà un lieu ; l'analytique n'en a aucun besoin pour
+   * répondre à « quel genre de mission le moteur choisit-il ? ».
+   *
+   * NE DOUBLE PAS `crew_home_viewed` : celui-là dit dans quel ÉTAT est l'onglet,
+   * celui-ci ce que le moteur a eu à PROPOSER. Un crew 'ready' dont la mission
+   * est 'none_nothing_urgent' est un cas parfaitement normal — et c'est
+   * précisément le croisement qu'on veut pouvoir lire.
+   *
+   * Le CTA `CONTRIBUER` de la spéc ne reçoit PAS d'event propre : c'est un tap
+   * décisif, donc un `cta_tapped`, qui existe déjà pour ça.
+   */
+  crewMissionShown: 'crew_mission_shown', // props: { kind }
+
+  // ── E47 — Actions sur un membre ───────────────────────────────────────────
+  /**
+   * Une action de la feuille E47 a été EXÉCUTÉE sur un autre membre.
+   *
+   * `action` FERMÉ : 'report' | 'block' | 'unblock' | 'promote' | 'demote'
+   * | 'remove' | 'transfer_lead'.
+   *
+   * ⚠ LES QUATRE DERNIÈRES SONT ENTRÉES LE 28/07/2026, AVEC LEUR RPC — et
+   * l'ordre compte. Ce bloc disait, quelques heures plus tôt : « AUCUNE RPC ne
+   * les exécute, les inscrire ici peindrait une mesure d'un geste impossible ».
+   * C'était exact. La migration 0093 (`crew_set_member_role`,
+   * `crew_remove_member`, `crew_transfer_lead`) a ouvert les quatre chemins,
+   * testés en PGlite ; elles entrent donc AVEC eux, exactement comme
+   * `crew_outing_created` est entré avec la migration 0085 — jamais avant.
+   *
+   * `effect` (second champ, FERMÉ) dit ce que le serveur a RÉELLEMENT fait :
+   * 'done' | 'unchanged' | 'refused'. Sans lui, un `crew_member_action` ne
+   * mesurerait que des INTENTIONS : un fondateur qui tente dix exclusions
+   * refusées produirait la même série que dix exclusions abouties. 'unchanged'
+   * (idempotence : même rôle réappliqué, membre déjà sorti) reste distinct de
+   * 'done' — c'est un double tap, pas un geste.
+   *
+   * `block` / `unblock` et `report` écrivent, eux, RÉELLEMENT : `user_blocks` et
+   * `content_reports` (migration 0029), via features/crew/moderation.ts.
+   *
+   * POURQUOI IL COMPTE : c'est la seule mesure de la Guideline App Store 1.2 du
+   * bloc crew. Un taux de blocage qui monte dans un crew est un signal de
+   * modération ; un taux à zéro pendant que les signalements montent dit que le
+   * blocage n'est pas trouvable.
+   *
+   * ⚠ AUCUNE CIBLE, AUCUN MOTIF. Pas de `userId`, pas de pseudo : attaché au
+   * `distinct_id` de l'émetteur, un identifiant de cible dirait « qui bloque
+   * qui » — le graphe social, la donnée la plus ré-identifiante que GRYD
+   * manipule. Le motif de signalement, lui, est OMIS parce que le serveur l'a
+   * déjà (`content_reports.reason`) : l'analytique n'a pas à redire ce que la
+   * table de modération sait mieux qu'elle.
+   */
+  crewMemberAction: 'crew_member_action', // props: { action, effect }
+
   // ── E54 — Classement crews (et les autres onglets de `/classement`) ───────
   /**
    * Un classement s'est composé, avec l'onglet et l'état RÉELLEMENT rendus.
@@ -593,6 +709,29 @@ export const EVENTS = {
    * peut nommer un lieu privé : il ne quitte JAMAIS le couple app↔serveur.
    */
   crewOutingCreated: 'crew_outing_created', // props: { activity, objective, hasZone, hasCapacity, leadH }
+
+  /**
+   * Une ANNONCE ÉPINGLÉE a été ENREGISTRÉE PAR LE SERVEUR
+   * (`crew_announcement_post`, migration 0096). E48 §1.
+   *
+   * MÊME JUSTIFICATION QUE `crew_outing_created`, ET MÊME CALENDRIER : le bloc
+   * « E48 » plus bas dans ce fichier a longtemps constaté que les annonces
+   * n'avaient AUCUNE table (« `CREW_PERMISSIONS.pinMessage` décrit un droit sur
+   * un objet qui n'existe pas »). C'était vrai jusqu'au 28/07/2026. La
+   * migration 0096 crée la table et son unique chemin d'écriture ; l'event
+   * arrive AVEC lui, jamais avant. Émis par `CrewActivityScreen` UNIQUEMENT
+   * après un `ok` du serveur — jamais sur le tap, qui ne prouve rien.
+   *
+   * `duplicate` : le serveur a reconnu un REJEU (même corps normalisé) et rendu
+   * la ligne existante. C'est la seule propriété qui vaille ici — elle mesure
+   * les double-taps et les retries réseau, pas le contenu.
+   *
+   * ⚠ AUCUN corps, AUCUN extrait, AUCUNE longueur, AUCUN identifiant de crew,
+   * d'annonce ou d'auteur. Le corps est écrit par un humain et lu par son crew :
+   * il ne quitte JAMAIS le couple app↔serveur. Même une LONGUEUR serait un
+   * quasi-identifiant du texte pour qui l'a déjà lu.
+   */
+  crewAnnouncementPosted: 'crew_announcement_posted', // props: { duplicate }
 
   // ══════════════════════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════════════════════
@@ -1037,6 +1176,43 @@ export const EVENTS = {
   // ══════════════════════════════════════════════════════════════════════════
 
   // ══════════════════════════════════════════════════════════════════════════
+  // LES ÉCRANS CREW DE CETTE VAGUE QUI N'ONT AUCUN EVENT NEUF, ET POURQUOI
+  //
+  // · E41 — CRÉATION D'UN CREW. `crew_created` existe et est RÉELLEMENT émis
+  //   (apps/mobile/src/features/crew/RealCrewScreen.tsx:421, après la réponse
+  //   de `create_crew`). La spéc lui ajoute quatre champs — handle, emblème,
+  //   couleur, accès — dont TROIS n'ont aucun chemin serveur :
+  //   `create_crew(text, smallint, text)` (0050:433) ne prend que nom, couleur
+  //   et ville ; `crews.slug` et `crews.tag` (0011) n'ont AUCUNE écriture, et
+  //   l'accès n'est modifiable qu'APRÈS coup (`crew_edit`, 0084). Une propriété
+  //   `access` sur `crew_created` mesurerait donc un choix que l'écran ne peut
+  //   pas offrir — une colonne constante qui ferait croire à une décision.
+  //
+  // · E48 — ACTIVITÉ ET ANNONCES CREW. ⚠ CE BLOC A ÉTÉ RÉÉCRIT LE 28/07/2026 :
+  //   il affirmait que les annonces épinglées n'avaient AUCUNE table. C'était
+  //   vrai le matin, ce ne l'est plus — la migration 0096 crée
+  //   `crew_announcements` et son unique chemin d'écriture
+  //   (`crew_announcement_post`). Laisser le constat périmé aurait été la même
+  //   faute à l'envers : une doc qui dit « ça n'existe pas » d'une chose livrée.
+  //   État RÉEL des quatre sections :
+  //     · annonces épinglées   → chemin d'écriture RÉEL (0096) →
+  //       `crew_announcement_posted` ci-dessus, émis après un `ok` serveur ;
+  //     · propositions de sortie → `crew_outing_created` (0085), inchangé ;
+  //     · captures et défenses  → LECTURE d'un fait déjà mesuré à la source
+  //       (`claim_result`, `loop_closed`). Rien à mesurer en plus ;
+  //     · demandes d'aide       → toujours SANS chemin d'écriture propre
+  //       (`crew_requests`, 0019, INSERT révoqué 0019:167, aucune RPC). L'écran
+  //       rend les PINGS (`crew_signal_sent` les mesure déjà).
+  //   Aucun `crew_activity_viewed { section }` n'est ajouté pour autant : il
+  //   compterait surtout des sections vides, et l'ouverture de l'écran est déjà
+  //   portée par `screen`.
+  //
+  // · E43 §« objectif du jour » — c'est la mission, couverte par
+  //   `crew_mission_shown`. Un second nom pour le même bloc rendu au même
+  //   instant dédoublerait la série.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════════════════════════
   // INVENTAIRE — LES EVENTS DÉFINIS QUE PERSONNE N'ÉMET (relevé du 28/07/2026)
   //
   // Ce fichier répète depuis le 27/07 sa règle n°1 : « aucun event sans point
@@ -1061,6 +1237,19 @@ export const EVENTS = {
   //   · performance_bonus_applied → le bonus de performance est calculé
   //                                 SERVEUR (ingest_run) ; le client ne le voit
   //                                 pas s'appliquer.
+  //   · crew_home_viewed          → POSÉS LE 28/07/2026 POUR LES QUATRE AGENTS
+  //   · crew_mission_shown          D'ÉCRAN DE LA MÊME VAGUE (E38/E42-E48), qui
+  //                                 les câblent dans le même lot. Ils sont
+  //                                 inscrits ICI dès leur naissance, et non
+  //                                 après coup : si la vague se termine sans
+  //                                 émetteur, ils tombent sous la règle
+  //                                 ci-dessous comme les autres. Aucun n'a de
+  //                                 dérogation.
+  //     ⚠ `crew_member_action` A QUITTÉ CETTE LISTE le 28/07/2026 : il est
+  //     RÉELLEMENT émis par `features/crew/PlayerModerationSheet.tsx`, à
+  //     l'issue de chaque geste E47 (signalement, blocage, déblocage, et les
+  //     quatre gestes de rôle venus avec la migration 0093). Il ne bénéficie
+  //     d'aucune indulgence — il a simplement trouvé son appelant.
   //
   // RÈGLE POUR LA SUITE : un event qui reste ici sans appelant à la vague
   // suivante se supprime ou se câble. Le laisser indéfiniment redonne au

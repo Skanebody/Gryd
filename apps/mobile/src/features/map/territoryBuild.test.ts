@@ -16,9 +16,11 @@ import {
   buildTerritories,
   dataNote,
   dbToH3,
+  heldByCrew,
   sectorsOf,
   stateFor,
   type HexClaimRow,
+  type RealTerritory,
 } from './territoryBuild.ts';
 import { LOCALES } from '../../i18n/types.ts';
 
@@ -351,4 +353,75 @@ Deno.test('DISCIPLINE — le même hexagone tenu à pied ET à vélo ne casse pl
   assertEquals(built[0].props.areaM2, memeSansDoublon[0].props.areaM2, 'aire non doublée');
   assertEquals(built[0].zoneCount, memeSansDoublon[0].zoneCount, 'zones non doublées');
   assertEquals(built[0].sectorIds, memeSansDoublon[0].sectorIds, 'secteurs non doublés');
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// `heldByCrew` — LA COULEUR N'EST PAS LA PROPRIÉTÉ
+//
+// Régression du 28/07/2026 : `CrewMap` comptait l'emprise du crew avec
+// `props.status === 'crew'`. Or `territoryRole` rend 'contested' AVANT tout test
+// de propriété — délibérément, une zone disputée doit se lire comme disputée.
+// Une zone TENUE PAR LE CREW mais contestée sortait donc du compte tout en
+// restant peinte, et l'écran affichait « Ton crew ne tient encore aucune zone »
+// par-dessus une carte qui montrait ce terrain. Ces tests verrouillent la
+// séparation des deux questions.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Territoire minimal : seules les propriétés que `heldByCrew` lit comptent. */
+function ter(
+  status: RealTerritory['props']['status'],
+  ownerId: string | null,
+): RealTerritory {
+  return {
+    props: {
+      territoryId: 'ter_x' as RealTerritory['props']['territoryId'],
+      displayName: null,
+      ownerId,
+      ownerType: ownerId === null ? 'neutral' : 'user',
+      areaM2: 1000,
+      status,
+      capturedAt: null,
+      earliestDecayAt: null,
+      updatedAt: '2026-07-28T12:00:00.000Z',
+      center: null,
+    },
+    polygons: [],
+    geometrySource: 'polygon',
+    zoneCount: 1,
+    sectorIds: [],
+  };
+}
+
+const CREW = new Set([ME, RIVAL_A]); // « nous » = moi + un coéquipier
+
+Deno.test('heldByCrew : une zone CONTESTÉE tenue par le crew reste NOTRE emprise', () => {
+  // Le cas exact qui faisait mentir E44/E45.
+  assert(heldByCrew(ter('contested', ME), CREW), 'ma zone disputée est à moi');
+  assert(heldByCrew(ter('contested', RIVAL_A), CREW), 'celle d’un coéquipier aussi');
+});
+
+Deno.test('heldByCrew : une zone contestée tenue par un RIVAL n’est pas la nôtre', () => {
+  assertEquals(heldByCrew(ter('contested', RIVAL_B), CREW), false);
+});
+
+Deno.test('heldByCrew : le rôle « crew » suffit, sans regarder le propriétaire', () => {
+  // C'est déjà le verdict de propriété rendu par territoryRole/stateFor.
+  assert(heldByCrew(ter('crew', 'peu-importe'), CREW));
+  assert(heldByCrew(ter('crew', null), null), 'même sans roster connu');
+});
+
+Deno.test('heldByCrew : « rival » n’est jamais rattrapé, et un roster inconnu n’affirme rien', () => {
+  assertEquals(heldByCrew(ter('rival', RIVAL_B), CREW), false, 'un rival reste un rival');
+  assertEquals(heldByCrew(ter('rival', ME), CREW), false, 'on ne recolorie pas le rôle');
+  assertEquals(
+    heldByCrew(ter('contested', ME), null),
+    false,
+    'sans savoir qui est « nous », on n’affirme rien',
+  );
+  assertEquals(
+    heldByCrew(ter('contested', null), CREW),
+    false,
+    'un contesté sans propriétaire lisible n’est à personne',
+  );
 });

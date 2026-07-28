@@ -6,7 +6,9 @@
  * card, textes jamais coupés. Machine à états minimale :
  *   déconnecté → invite à se connecter (aucun mensonge, aucun crew fictif) ;
  *   sans crew  → pitch 1 ligne + « Créer mon crew » (chartreuse) + « J’ai un code » (ghost) ;
- *   création   → nom + ville (si >1) → « Créer le crew » ;
+ *   création   → nom + ville + ACCÈS (E41 / migration 0097 : ouvert · sur demande
+ *                · sur invitation, les trois HONORÉS par crew_join_intent 0083)
+ *                → « Créer le crew » ;
  *   rejoindre  → code {CREW_CODE_LENGTH} caractères → « Rejoindre » ;
  *   avec crew  → nom, X/CREW_MAX_MEMBERS, TERRITOIRE (zones tenues + rang ville),
  *                roster (pseudo + rôle + contribution), « Inviter » (chartreuse,
@@ -61,7 +63,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CREW_CODE_LENGTH,
   CREW_PING_MAX_ACTIVE_PER_MEMBER,
+  CREW_RECRUITMENT_AT_CREATION,
+  CREW_RECRUITMENT_DEFAULT,
   CREW_SWITCH_COOLDOWN_DAYS,
+  type CrewRecruitmentStatus,
   colors,
   fonts,
   elevation,
@@ -78,6 +83,7 @@ import { Button } from '../../ui/Button';
 import { Card, IconPlate } from '../../ui/Card';
 import { Icon } from '../../ui/Icon';
 import { Segmented, type SegmentedOption } from '../../ui/game/Segmented';
+import { ActivitySwitch, useActivityLens } from '../../ui/ActivitySwitch';
 import { TabScreen } from '../../ui/TabScreen';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../nav/metrics';
 import { useLocale, useT } from '../../i18n/store';
@@ -85,6 +91,11 @@ import type { Entry, Locale } from '../../i18n/types';
 import { C, CREW_ROLE_E, CREW_SIGNAL_E } from '../../i18n/catalog/crew';
 import { CrewHero } from './CrewHero';
 import { CrewJoinRequests } from './CrewJoinRequests';
+import { CrewMap } from './CrewMap';
+// SOURCE UNIQUE de la copie de mission — partagée mot pour mot avec l'écran
+// dédié E45 (`app/crew-mission.tsx`). Deux copies auraient divergé au premier
+// correctif d'arrondi appliqué d'un seul côté.
+import { missionCopy, missionIcon } from './missionCopy';
 import { CrewMembersStrip } from './CrewMembersStrip';
 import { CrewStarterPlan } from './CrewStarterPlan';
 import { CrewTerritoryStrip } from './CrewTerritoryStrip';
@@ -109,21 +120,20 @@ import { CityField, type CityEntry } from '../city/CityPicker';
 import { C as CityC } from '../../i18n/catalog/city';
 import type { CrewMission } from './engine/crewMission';
 // ── Guideline 1.2 : bloquer AGIT ici, et signaler part d'ici ────────────────
-import {
-  PlayerActionsButton,
-  PlayerModerationSheet,
-  useBlockedPseudos,
-} from './PlayerModerationSheet';
-import { canModeratePlayer, displayedPseudo, isPseudoBlocked } from './blocklist';
+// `PlayerActionsButton` et `canModeratePlayer` ont suivi le rendu de ligne dans
+// `CrewRosterGroups` (E46, 28/07/2026) : l'écran ne peint plus de membre, il
+// dérive les lignes (`rosterRows`) et monte la feuille.
+import { PlayerModerationSheet, useBlockedPseudos } from './PlayerModerationSheet';
+import { displayedPseudo, isPseudoBlocked } from './blocklist';
+import { CrewRosterGroups } from './CrewRosterGroups';
+import { leaveVerdict } from './memberRoles';
 
-/**
- * Rôle serveur (texte) → libellé localisé, ou null si la valeur est inconnue du
- * catalogue (rôle ajouté côté DB avant l'app) : on n'affiche alors RIEN plutôt
- * qu'une clé technique.
+/*
+ * `roleLabelEntry` A ÉTÉ RETIRÉ le 28/07/2026 : la seule surface qui rendait un
+ * libellé de rôle était la ligne de membre, partie dans `CrewRosterGroups` avec
+ * E46. La même dérivation (rôle serveur inconnu du catalogue → on n'affiche
+ * RIEN plutôt qu'une clé technique) y vit désormais, au contact du rendu.
  */
-function roleLabelEntry(role: string): Entry | null {
-  return (CREW_ROLE_E as Readonly<Record<string, Entry | undefined>>)[role] ?? null;
-}
 
 type Mode = 'home' | 'create' | 'join' | 'invite' | 'signal';
 
@@ -149,10 +159,46 @@ function refusalError(reason: CrewRefusal, daysLeft?: number): ErrView {
       return { entry: C.rlErrNameUnavailable };
     case 'bad_city':
       return { entry: C.rlErrBadCity };
+    case 'bad_recruitment_status':
+      return { entry: C.rlErrBadRecruitment };
+    // Le dernier chef ne part pas (0093 leave / 0098 join + lien). Le message
+    // NOMME le geste manquant : transférer la direction, qui existe (E47).
+    case 'must_transfer_lead':
+      return { entry: C.rlErrMustTransferLead };
+    // Crew sans aucun membre actif (0093). Le motif existait côté serveur sans
+    // phrase côté client : il tombait sur le « réessaie » générique.
+    case 'dead_crew':
+      return { entry: C.rlErrDeadCrew };
+    // Base en retard d'une migration : ce n'est pas une panne, et réessayer n'y
+    // changera rien. On le DIT plutôt que de proposer un geste inutile.
+    case 'unsupported_server':
+      return { entry: C.rlErrUnsupportedServer };
     default:
       return { entry: C.rlErrGeneric };
   }
 }
+
+/**
+ * ACCÈS (0097) → libellé COURT du segment, et → phrase d'explication.
+ *
+ * Deux tables EXHAUSTIVES sur `CrewRecruitmentStatus` : ajouter un statut au
+ * produit sans lui donner de mots fera rougir le typecheck, plutôt que peindre
+ * une clé technique dans un segment. `closed` y figure donc, bien qu'il ne soit
+ * pas proposable à la création (il l'est dans `/crew-edit`).
+ */
+const ACCESS_LABEL: Readonly<Record<CrewRecruitmentStatus, Entry>> = {
+  open: C.rlAccessOpen,
+  on_request: C.rlAccessOnRequest,
+  invite_only: C.rlAccessInviteOnly,
+  closed: C.rlAccessClosed,
+};
+
+const ACCESS_HELP: Readonly<Record<CrewRecruitmentStatus, Entry>> = {
+  open: C.rlAccessOpenHelp,
+  on_request: C.rlAccessOnRequestHelp,
+  invite_only: C.rlAccessInviteOnlyHelp,
+  closed: C.rlAccessClosedHelp,
+};
 
 /**
  * Refus de ping → message honnête. Chaque motif que l'on SAIT expliquer l'est ;
@@ -179,104 +225,6 @@ function pingRefusalMessage(
       return { entry: C.pingErrContext };
     default:
       return { entry: C.pingErrGeneric };
-  }
-}
-
-/**
- * MISSION → copie affichable (A-43 §0 maillon 3, format doctrine : une phrase +
- * le manque CONCRET + une action).
- *
- * Cette fonction ne fait QUE traduire des faits déjà dérivés (moteur pur
- * `chooseCrewMission`) : elle n'ajoute aucun chiffre, aucune urgence, aucun nom
- * de lieu. Les délais sont recalculés depuis les VRAIES échéances de la base et
- * arrondis VERS LE BAS (« dans 5 h » quand il reste 5 h 50 : sous-estimer une
- * marge est honnête, la sur-estimer ment) ; sous une heure, on le dit en toutes
- * lettres plutôt que d'afficher « 0 h ».
- *
- * Le crew adverse n'est jamais nommé : la doctrine bannit les rivaux fabriqués,
- * et exposer un vrai crew ici en ferait une cible.
- */
-function missionCopy(
-  m: CrewMission,
-  nowMs: number,
-): { title: ErrView; gap: ErrView } | { note: Entry } | null {
-  const H = 3_600_000;
-  switch (m.kind) {
-    case 'defend': {
-      const hours = Math.floor(Math.max(0, m.deadlineAt - nowMs) / H);
-      const soon = hours < 1;
-      return {
-        title: m.sectorName
-          ? { entry: C.cmDefendNamed, vars: { sector: m.sectorName } }
-          : { entry: C.cmDefend },
-        gap: {
-          entry: m.zones === 1
-            ? (soon ? C.cmDefendGapSoonOne : C.cmDefendGapOne)
-            : (soon ? C.cmDefendGapSoonN : C.cmDefendGapN),
-          vars: { n: m.zones, h: hours },
-        },
-      };
-    }
-    case 'reclaim': {
-      const hours = Math.floor(Math.max(0, nowMs - m.lastLostAt) / H);
-      // Au-delà d'un jour, « il y a 53 h » ne parle à personne.
-      const useDays = hours >= 24;
-      const days = Math.floor(hours / 24);
-      return {
-        title: m.sectorName
-          ? { entry: C.cmReclaimNamed, vars: { sector: m.sectorName } }
-          : { entry: C.cmReclaim },
-        gap: {
-          entry: m.zones === 1
-            ? (useDays ? C.cmReclaimGapOneD : C.cmReclaimGapOneH)
-            : (useDays ? C.cmReclaimGapND : C.cmReclaimGapNH),
-          vars: { n: m.zones, h: hours, d: days },
-        },
-      };
-    }
-    case 'close_loop':
-      return {
-        title: m.name
-          ? { entry: C.cmLoopNamed, vars: { name: m.name } }
-          : { entry: C.cmLoop },
-        // Mètres arrondis au plus PROCHE : c'est une distance mesurée, pas une
-        // marge de sécurité — et jamais en dessous de 1 m tant qu'il en reste.
-        gap: { entry: C.cmLoopGap, vars: { m: Math.max(1, Math.round(m.missingM)) } },
-      };
-    case 'capture':
-      return {
-        title: m.sectorName
-          ? { entry: C.cmCaptureNamed, vars: { sector: m.sectorName } }
-          : { entry: C.cmCapture },
-        // Plus de {n} : freeZones est une borne supérieure (eau, bâti, privé
-        // inclus), l'annoncer comme un compte serait une promesse fausse.
-        gap: { entry: C.cmCaptureGap },
-      };
-    case 'none':
-      return { note: m.reason === 'no_data' ? C.cmNoneNoData : C.cmNoneStable };
-    default:
-      return null;
-  }
-}
-
-/**
- * PASTILLE D'ÉTAT de la card NOTRE PRIORITÉ — elle REMPLACE la mini-carte de la
- * planche. Aucune géométrie de secteur ne descend jusqu'au client (0015 garde
- * `segments`/`opener_ring` côté serveur ; `missionSectors` ne porte qu'un nom et
- * des compteurs) : une vignette carto ne montrerait qu'un fond générique, donc
- * un décor qui ferait croire à une localisation. Une icône de NATURE de mission
- * dit la même chose sans rien affirmer sur un lieu.
- */
-function missionIcon(kind: CrewMission['kind']): IconName {
-  switch (kind) {
-    case 'defend':
-      return 'bouclier';
-    case 'reclaim':
-      return 'cible';
-    case 'close_loop':
-      return 'boucle_fermee';
-    default:
-      return 'conquete';
   }
 }
 
@@ -309,6 +257,13 @@ type CrewView = 'overview' | 'map' | 'members';
  */
 const ACTIVITY_MAX = 3;
 
+/**
+ * Hauteur du cadre de la carte du crew (pt). Mesure d'ÉCRAN, pas de jeu : assez
+ * haute pour qu'un quartier soit lisible, assez basse pour que la bande des
+ * secteurs nommés et les liens restent au-dessus du pli sur un petit téléphone.
+ */
+const CREW_MAP_HEIGHT = 220;
+
 export function RealCrewScreen() {
   const t = useT();
   const locale = useLocale();
@@ -338,6 +293,20 @@ export function RealCrewScreen() {
     fetchMyCode,
   } = useRealCrew({ withOverview: true });
 
+  /**
+   * LENTILLE Run/Bike de la vue Carte (spéc E44 « filtres Run/Bike »).
+   *
+   * Surface `'map'` À DESSEIN : c'est le même territoire, dans la même
+   * discipline, que l'onglet Carte. Une clé propre au crew aurait donné à un
+   * cycliste un QG en course alors qu'il vient de basculer son monde à côté —
+   * la préférence est « mémorisée par onglet » (planche E14), pas par composant.
+   */
+  const {
+    activity: mapActivity,
+    setActivity: setMapActivity,
+    switchVisible: mapSwitchVisible,
+  } = useActivityLens('map');
+
   const [mode, setMode] = useState<Mode>('home');
   /**
    * Vue active du QG (planche E13). L'onglet Membres n'ouvre AUCUNE route : il
@@ -357,6 +326,15 @@ export function RealCrewScreen() {
    */
   const [city, setCity] = useState<CityEntry | null>(null);
   const cityId = city?.status === 'open' ? city.cityId : null;
+  /**
+   * E41 · L'ACCÈS du crew à créer (migration 0097).
+   *
+   * Pré-sélectionné sur `CREW_RECRUITMENT_DEFAULT` — le DÉFAUT DU SERVEUR, pas
+   * un goût d'écran : tant que 0097 n'existait pas, tout crew naissait ainsi
+   * SANS que son fondateur le sache. Partir d'autre chose changerait en douce le
+   * comportement de ceux qui ne touchent pas au sélecteur.
+   */
+  const [access, setAccess] = useState<CrewRecruitmentStatus>(CREW_RECRUITMENT_DEFAULT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ErrView | null>(null);
   const [flash, setFlash] = useState<ErrView | null>(null);
@@ -368,7 +346,13 @@ export function RealCrewScreen() {
    * surfaces qui affichent le pseudo d'un tiers ; elle n'avait aucune
    * affordance, et le blocage n'y avait aucun effet (audit App Store B3/B4).
    */
-  const [moderationTarget, setModerationTarget] = useState<string | null>(null);
+  const [moderationTarget, setModerationTarget] = useState<{
+    pseudo: string;
+    /** E47 (28/07) : la RPC travaille à l'identifiant, jamais au pseudo. */
+    userId: string;
+    /** Rôle SERVEUR de la personne visée — `''` si l'agrégat n'a pas été lu. */
+    targetRole: string;
+  } | null>(null);
   const blockedPseudos = useBlockedPseudos();
 
   // ── PINGS (A-44 A5) : lecture serveur, jamais de repli local ──────────────
@@ -397,6 +381,7 @@ export function RealCrewScreen() {
   const resetForms = useCallback(() => {
     setName('');
     setCode('');
+    setAccess(CREW_RECRUITMENT_DEFAULT);
     setError(null);
   }, []);
 
@@ -408,25 +393,40 @@ export function RealCrewScreen() {
   const onCreate = useCallback(async () => {
     if (busy || !cityId) return;
     const color = randomCrewColor();
-    const pre = crewCreateDecision(name, color, cityId);
+    const pre = crewCreateDecision(name, color, cityId, access);
     if (!pre.ok) {
       setError(refusalError(pre.reason));
       return;
     }
     setBusy(true);
     setError(null);
-    const res = await createCrew(name, color, cityId);
+    const res = await createCrew(name, color, cityId, access);
     setBusy(false);
     if (res.ok) {
       track(EVENTS.crewCreated);
-      setFlash({ entry: C.rlCreated, vars: { name: res.crew.name } });
+      /*
+        La confirmation cite l'accès RENVOYÉ PAR LE SERVEUR, pas `access`. La
+        nuance n'est pas théorique : si un jour la RPC replie une valeur, ré-
+        afficher le choix du joueur lui ferait croire à un réglage qu'il n'a pas.
+        Un serveur muet sur ce point (contrat plus ancien) ⇒ on retombe sur la
+        confirmation sans accès, jamais sur une supposition.
+      */
+      const written = res.crew.recruitment_status;
+      setFlash(
+        written
+          ? {
+              entry: C.rlCreatedWithAccess,
+              vars: { name: res.crew.name, access: t(ACCESS_LABEL[written]).toLowerCase() },
+            }
+          : { entry: C.rlCreated, vars: { name: res.crew.name } },
+      );
       resetForms();
       setMode('home');
       reload();
     } else {
       setError(refusalError(res.reason, res.daysLeft));
     }
-  }, [busy, cityId, name, createCrew, reload, resetForms]);
+  }, [busy, cityId, name, access, createCrew, reload, resetForms, t]);
 
   const onJoin = useCallback(async () => {
     if (busy) return;
@@ -455,6 +455,24 @@ export function RealCrewScreen() {
   // reste unique — c'est la même porte, elle donne juste sur plus (§A).
 
   const onLeave = useCallback(() => {
+    /*
+      E46/E47 (28/07/2026) — LE DERNIER CHEF NE PART PAS SANS TRANSMETTRE.
+      `leave_crew` (0093) REFUSE ce départ : un crew peuplé sans chef est un
+      état définitivement cassé, plus aucune RPC rôle-gatée n'y fonctionne. On
+      le dit AVANT le tap plutôt que d'ouvrir une confirmation qui finirait sur
+      une erreur — et la phrase NOMME le geste qui débloque (transférer depuis
+      la liste des membres), sans quoi ce serait un cul-de-sac.
+      `overview?.myRole` vaut `''` tant que l'agrégat n'a pas été lu : le
+      verdict est alors `can_leave`, et c'est le SERVEUR qui tranchera. Un
+      chargement n'affirme rien — surtout pas que je suis le chef.
+    */
+    if (leaveVerdict(overview?.myRole ?? '', memberCount) === 'must_transfer_lead') {
+      setFlash({
+        entry: C.maLeaveBlockedBody,
+        vars: { n: Math.max(0, memberCount - 1) },
+      });
+      return;
+    }
     Alert.alert(
       t(C.rlLeaveConfirmTitle),
       t(C.rlLeaveConfirmBody, { days: CREW_SWITCH_COOLDOWN_DAYS }),
@@ -477,7 +495,10 @@ export function RealCrewScreen() {
         },
       ],
     );
-  }, [leaveCrew, reload, t]);
+    // `overview` et `memberCount` entrent dans les dépendances AVEC le garde-fou
+    // du dernier chef : sans eux, la fermeture garderait un rôle et un effectif
+    // périmés et laisserait passer le départ que le serveur refuse.
+  }, [leaveCrew, memberCount, overview, reload, t]);
 
   const kicker = useMemo(() => t(C.kickerSeason), [t]);
 
@@ -585,6 +606,23 @@ export function RealCrewScreen() {
   const stripMembers = useMemo(
     () => rosterRows.map((r) => ({ userId: r.userId, pseudo: r.displayName, isMe: r.isMe })),
     [rosterRows],
+  );
+
+  /**
+   * E44 — LES IDS DU CREW, pour que la carte peigne notre emprise en CHARTREUSE
+   * (rôle « nous », §C) au lieu de la classer « rival ».
+   *
+   * Mémoïsé : c'est une dépendance d'effet dans `useRealTerritories`, et un
+   * `new Set()` reconstruit à chaque rendu relancerait la lecture en boucle.
+   *
+   * `null` tant que le roster n'a pas été LU, et cette nuance est la seule qui
+   * compte ici : un Set VIDE dirait « aucun membre », donc peindrait nos propres
+   * zones en orange rival. `CrewMap` se tait sur `null` (cf. son docblock) —
+   * mieux vaut une carte muette qu'une carte qui nous déclare adversaires.
+   */
+  const crewMemberIds = useMemo(
+    () => (members.length === 0 ? null : new Set(members.map((m) => m.userId))),
+    [members],
   );
 
   // Le crew ne tient RIEN ⇒ aucune contribution affichée : « 0 % » sur toutes
@@ -874,18 +912,22 @@ export function RealCrewScreen() {
                               {t(C.myTerritoryShare, { pct: myShare })}
                             </Text>
                           ) : null}
-                          {/* Action INLINE (§A) : la carte est l'endroit où
-                              l'on agit. Le libellé nomme la DESTINATION —
-                              « Voir la mission › » promettrait un écran de
-                              mission dédié, qui n'existe pas. */}
+                          {/* Action INLINE (§A). Le libellé nomme la
+                              DESTINATION, et cette destination A CHANGÉ le
+                              28/07/2026 : l'écran de mission dédié (E45,
+                              `/crew-mission`) existe désormais, donc « Ouvrir
+                              la mission » ne promet plus rien qui n'existe pas.
+                              Il porte l'objectif, l'échéance RÉELLE, la carte de
+                              l'emprise et l'unique CTA « CONTRIBUER ». C'est
+                              aussi la PORTE de cette route (audit-routes). */}
                           <Pressable
-                            onPress={() => router.push('/')}
+                            onPress={() => router.push('/crew-mission')}
                             accessibilityRole="link"
-                            accessibilityLabel={t(C.cmSeeOnMap)}
+                            accessibilityLabel={t(C.msOpen)}
                             hitSlop={8}
                             style={styles.inlineLink}
                           >
-                            <Text style={styles.priorityAction}>{t(C.cmSeeOnMap)}</Text>
+                            <Text style={styles.priorityAction}>{t(C.msOpen)}</Text>
                             <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
                           </Pressable>
                         </>
@@ -969,6 +1011,21 @@ export function RealCrewScreen() {
                   </View>
                 ) : null}
 
+                {/* PORTE D'ENTRÉE D'E48 (`/crew-activite`) — une ligne, hors du
+                    gate `pings` : le fil complet reste atteignable même quand la
+                    lecture des signaux a échoué (elle n'en est qu'une source
+                    sur quatre). Lien discret, pas un 2ᵉ CTA chartreuse (§A4). */}
+                <Pressable
+                  onPress={() => router.push('/crew-activite')}
+                  accessibilityRole="link"
+                  accessibilityLabel={t(C.activityOpenAll)}
+                  hitSlop={8}
+                  style={styles.inlineLink}
+                >
+                  <Text style={styles.priorityAction}>{t(C.activityOpenAll)}</Text>
+                  <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
+                </Pressable>
+
                 {/* Rangée de membres + accès à la vue Membres (planche). */}
                 {/* `stripMembers` et non `members` : les initiales sont dérivées
                     du pseudo, donc un membre bloqué serait revenu ici sous ses
@@ -994,9 +1051,49 @@ export function RealCrewScreen() {
               conserve les pertes agrégées, donc aucun solde n'est calculable, et
               une flèche « ▲ » affirmerait précisément ce solde. */}
           {view === 'map' ? (
-            overview ? (
-              <View style={styles.territory}>
+            <>
+              {/* ── L'EN-TÊTE DE LA VUE : le libellé + la LENTILLE Run/Bike
+                  (« filtres Run/Bike », spéc E44 l.1621). Le commutateur est le
+                  contrôle global de l'app (`ActivitySwitch`), pas un filtre
+                  maison : la préférence est celle de la Carte (`'map'`), donc un
+                  cycliste qui a basculé son monde là-bas retrouve le sien ici.
+                  Les deux mondes ne sont JAMAIS sommés — `hex_claims` a une clé
+                  primaire composite `(h3index, activity)` (0070). §A : ce n'est
+                  pas un CTA (fond carbone), le seul accent chartreuse fort de
+                  l'écran reste « Inviter ». */}
+              <View style={styles.mapHead}>
                 <Text style={styles.sectionLabel}>{t(C.rlTerritoryLabel)}</Text>
+                {mapSwitchVisible ? (
+                  <ActivitySwitch
+                    activity={mapActivity}
+                    onChange={setMapActivity}
+                    runLabel={t(C.sActivityRunA11y)}
+                    bikeLabel={t(C.sActivityBikeA11y)}
+                  />
+                ) : null}
+              </View>
+
+              {/* ── E44 — L'EMPRISE, EN POLYGONES. Aucun hexagone (constitution
+                  6) : `CrewMap` consomme les mêmes `RealTerritory` que la Battle
+                  Map. Couleurs par RÔLE, jamais par crew (§C). Aucun tap, aucun
+                  marqueur de membre, aucune position live (constitution 7 —
+                  détail dans le docblock de `CrewMap`). */}
+              <CrewMap
+                memberIds={crewMemberIds}
+                activity={mapActivity}
+                height={CREW_MAP_HEIGHT}
+                style={styles.crewMap}
+                testID="crew-map"
+              />
+
+              {/* La garantie de confidentialité de la spéc (l.1625), écrite à
+                  l'écran et pas seulement dans une politique : appartenir au
+                  même crew ne donne accès ni au domicile ni au tracé de
+                  personne. */}
+              <Text style={styles.mapNote}>{t(C.mapAggregatedNote)}</Text>
+
+              {overview ? (
+              <View style={styles.territory}>
                 {overview.territory.hexesHeld > 0 ? (
                   <>
                     <Text style={styles.territoryValue}>
@@ -1075,7 +1172,6 @@ export function RealCrewScreen() {
                 pas pu lire », et aucun des deux n'est « 0 zone ».
               */
               <View style={styles.territory}>
-                <Text style={styles.sectionLabel}>{t(C.rlTerritoryLabel)}</Text>
                 <Text style={styles.territoryEmpty}>
                   {t(overviewLoading ? C.territoryReading : C.territoryUnavailable)}
                 </Text>
@@ -1091,76 +1187,34 @@ export function RealCrewScreen() {
                   </Pressable>
                 ) : null}
               </View>
-            )
+              )}
+            </>
           ) : null}
 
-          {/* ── VUE MEMBRES ─────────────────────────────────────────────── */}
+          {/* ── VUE MEMBRES — E46 (28/07/2026) ───────────────────────────────
+              La liste PLATE d'avant est devenue les TROIS GROUPES de la spéc
+              (chef / officiers / membres) dans `CrewRosterGroups`, qui reprend
+              le rendu de ligne à l'identique (pseudo `clip`, bloqué en gris,
+              « toi », part masquée à zéro) et n'ajoute que les en-têtes,
+              l'état « aucun officier » et la phrase anti-pay-to-win.
+              `ready` = client Supabase + session (real.ts:418), la condition
+              exacte sous laquelle `reportContent` écrit vraiment. */}
           {view === 'members' ? (
-            <View style={styles.roster}>
-              {rosterRows.map((m, i) => {
-                const detail = detailByUser.get(m.userId);
-                const roleEntry = detail ? roleLabelEntry(detail.role) : null;
-                // Guideline 1.2 — l'affordance « … » n'est peinte que si un
-                // geste est réellement possible : jamais sur MA ligne, jamais
-                // sur une ligne sans identité lisible (repli « — »).
-                const canModerate = canModeratePlayer({
-                  // `ready` = client Supabase + session (real.ts:418) : c'est
-                  // exactement la condition sous laquelle `reportContent` écrit
-                  // vraiment dans `content_reports`.
-                  pseudo: m.pseudo,
-                  isMe: m.isMe,
-                  canReport: ready,
-                  blocked: blockedPseudos,
-                });
-                return (
-                  <View
-                    key={m.userId}
-                    style={[styles.memberRow, i < rosterRows.length - 1 && styles.memberDivider]}
-                  >
-                    <View style={styles.memberIdentity}>
-                      <View style={styles.memberNameRow}>
-                        {/* `clip` et non « … » (§A.9) — et un membre bloqué est
-                            rendu en GRIS : c'est un état, pas un pseudo. */}
-                        <Text
-                          style={[styles.memberName, m.blocked && styles.memberNameBlocked]}
-                          numberOfLines={1}
-                          ellipsizeMode="clip"
-                        >
-                          {m.displayName}
-                        </Text>
-                        {m.isMe ? <Text style={styles.youTag}>{t(C.rlYouTag)}</Text> : null}
-                      </View>
-                      {/* Le RÔLE rend le fondateur identifiable (correctif
-                          A-43). Il reste de l'AFFICHAGE : aucune action de
-                          gestion (promouvoir, exclure, assigner) n'est peinte —
-                          aucune RPC rôle-gatée n'existe (0010 : « endpoints
-                          rôle-gated = TODO V1 »). */}
-                      {roleEntry ? <Text style={styles.memberRole}>{t(roleEntry)}</Text> : null}
-                    </View>
-                    {/* MEMBRE INACTIF JAMAIS HUMILIÉ (planche) : un « 0 % »
-                        collé en face d'un pseudo est un classement de la
-                        paresse. Tant qu'un membre ne tient aucune zone, sa
-                        ligne ne porte simplement pas de chiffre. */}
-                    {showContributions && detail && detail.hexesHeld > 0 ? (
-                      <Text style={styles.memberPct}>
-                        {t(C.rlContributionPct, { pct: detail.contributionPct })}
-                      </Text>
-                    ) : null}
-                    {/* SIGNALER / BLOQUER AU CONTACT DU JOUEUR (audit B4) : la
-                        ligne était une `View` sans le moindre `onPress`, et le
-                        seul chemin de signalement exigeait de retaper à la main
-                        un identifiant machine. Le « … » reste GRIS — le CTA
-                        chartreuse de l'écran demeure « Inviter » (§A4). */}
-                    {canModerate ? (
-                      <PlayerActionsButton
-                        name={m.displayName}
-                        onPress={() => setModerationTarget(m.pseudo)}
-                      />
-                    ) : null}
-                  </View>
-                );
-              })}
-            </View>
+            <CrewRosterGroups
+              rows={rosterRows}
+              detailByUser={detailByUser}
+              showContributions={showContributions}
+              myRole={overview?.myRole ?? ''}
+              canReport={ready}
+              blockedPseudos={blockedPseudos}
+              onOpenActions={(row, targetRole) =>
+                setModerationTarget({
+                  pseudo: row.pseudo,
+                  userId: row.userId,
+                  targetRole,
+                })
+              }
+            />
           ) : null}
 
           {/*
@@ -1198,8 +1252,23 @@ export function RealCrewScreen() {
             ligne tapée. Montée une seule fois : c'est `moderationTarget` qui
             l'ouvre, jamais un composant par ligne. */}
         <PlayerModerationSheet
-          pseudo={moderationTarget}
+          pseudo={moderationTarget?.pseudo ?? null}
           onClose={() => setModerationTarget(null)}
+          /* E47 — le contexte de crew ouvre les quatre gestes de rôle, et
+             SEULEMENT si mon rôle réel les autorise (la feuille rejoue
+             `roleActionsFor`, le serveur rejuge tout). `reload` relit le
+             roster après un geste abouti : la ligne n'est jamais réécrite
+             côté client. */
+          crew={
+            moderationTarget === null
+              ? null
+              : {
+                  userId: moderationTarget.userId,
+                  actorRole: overview?.myRole ?? '',
+                  targetRole: moderationTarget.targetRole,
+                  onChanged: reload,
+                }
+          }
         />
       </View>
     );
@@ -1241,6 +1310,37 @@ export function RealCrewScreen() {
           {!cityId ? (
             <Text style={styles.cityNote}>{t(CityC.crewNeedsOpenCity)}</Text>
           ) : null}
+
+          {/*
+            ── E41 · L’ACCÈS (migration 0097) ──────────────────────────────────
+            La planche E41 demande « accès : public, sur demande, privé ». Le
+            champ manquait, pas la règle : jusqu'ici tout crew naissait
+            `on_request` par le défaut de la colonne, sans que son fondateur le
+            sache — et dans une base vide, cela condamnait le premier arrivant à
+            attendre une validation avant de pouvoir courir avec quelqu'un.
+
+            Les trois segments sont CONSTRUITS depuis CREW_RECRUITMENT_AT_CREATION
+            (game-rules), pas listés à la main : la liste blanche du serveur et
+            celle de l'écran ne peuvent pas diverger. `closed` n'y est pas — il
+            se règle plus tard dans `/crew-edit`.
+
+            `tone="surface"` : le seul focus chartreuse de l'écran reste le CTA
+            « Créer le crew » (§A4). Et UNE SEULE phrase d'aide — celle du
+            segment sélectionné : afficher les trois ferait un pavé que personne
+            ne lit en moins de 3 s.
+          */}
+          <Text style={styles.accessKicker}>{t(C.rlAccessKicker)}</Text>
+          <Segmented
+            options={CREW_RECRUITMENT_AT_CREATION.map((id) => ({
+              id,
+              label: t(ACCESS_LABEL[id]),
+            }))}
+            value={access}
+            onChange={setAccess}
+            tone="surface"
+            accessibilityLabel={t(C.rlAccessA11y)}
+          />
+          <Text style={styles.accessHelp}>{t(ACCESS_HELP[access])}</Text>
 
           {error ? <Text style={styles.error}>{t(error.entry, error.vars)}</Text> : null}
 
@@ -1482,8 +1582,24 @@ const styles = StyleSheet.create({
   },
   signalRowText: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: 22 },
 
-  territory: { marginTop: spacing.xl, gap: spacing.xs },
+  territory: { marginTop: spacing.lg, gap: spacing.xs },
   sectionLabel: { color: colors.gris, fontSize: fontSizes.xs, letterSpacing: 1.5 },
+  /** En-tête de la vue Carte : libellé à gauche, lentille Run/Bike à droite. */
+  mapHead: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  crewMap: { marginTop: 0 },
+  mapNote: {
+    color: colors.gris,
+    fontFamily: fonts.text,
+    fontSize: fontSizes.xs,
+    marginTop: spacing.sm,
+  },
   territoryValue: { color: colors.blanc, fontSize: fontSizes.xl, fontWeight: '700' },
   territoryHint: { color: colors.gris, fontSize: fontSizes.sm },
   territoryEmpty: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22 },
@@ -1524,6 +1640,18 @@ const styles = StyleSheet.create({
   fieldLabel: { color: colors.gris, fontSize: fontSizes.sm, letterSpacing: 1 },
   /** Note de refus sous le sélecteur : gris, jamais tronquée. */
   cityNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18 },
+
+  // E41 · accès. Kicker mono comme partout ailleurs dans l'écran ; l'aide reste
+  // une phrase grise SANS numberOfLines — elle s'enroule, elle ne se coupe pas
+  // (§A.9 : aucun texte d'action tronqué).
+  accessKicker: {
+    color: colors.gris,
+    fontFamily: fonts.mono,
+    fontSize: fontSizes.xs,
+    letterSpacing: 1.5,
+    marginTop: spacing.sm,
+  },
+  accessHelp: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 18 },
 
   error: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20 },
   flash: { color: colors.chartreuse, fontSize: fontSizes.sm, marginTop: spacing.lg },

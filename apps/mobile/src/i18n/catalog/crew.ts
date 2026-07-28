@@ -194,6 +194,105 @@ export const C = defineCatalog({
     de: 'Crew erstellen',
     pt: 'Criar crew',
   },
+
+  // ─── E41 · L'ACCÈS, choisi à la création (migration 0097) ──────────────────
+  // Trois libellés COURTS (segments à largeur égale, jamais tronqués §A.9), et
+  // UNE phrase d'explication pour celui qui est sélectionné — jamais les trois
+  // à la fois : l'écran doit se comprendre en moins de 3 s.
+  rlAccessKicker: {
+    fr: 'QUI PEUT ENTRER',
+    en: 'WHO CAN JOIN',
+    es: 'QUIÉN PUEDE ENTRAR',
+    de: 'WER BEITRETEN KANN',
+    pt: 'QUEM PODE ENTRAR',
+  },
+  rlAccessA11y: {
+    fr: 'Qui peut rejoindre le crew',
+    en: 'Who can join the crew',
+    es: 'Quién puede unirse al crew',
+    de: 'Wer dem Crew beitreten kann',
+    pt: 'Quem pode entrar no crew',
+  },
+  rlAccessOpen: {
+    fr: 'Ouvert',
+    en: 'Open',
+    es: 'Abierto',
+    de: 'Offen',
+    pt: 'Aberto',
+  },
+  rlAccessOnRequest: {
+    fr: 'Sur demande',
+    en: 'On request',
+    es: 'Con solicitud',
+    de: 'Auf Anfrage',
+    pt: 'Sob solicitação',
+  },
+  rlAccessInviteOnly: {
+    fr: 'Sur invitation',
+    en: 'Invite only',
+    es: 'Por invitación',
+    de: 'Nur mit Einladung',
+    pt: 'Só com convite',
+  },
+  rlAccessOpenHelp: {
+    fr: 'On te trouve dans la découverte et on entre en un tap.',
+    en: 'People find you in discovery and join in one tap.',
+    es: 'Te encuentran en descubrimiento y entran con un toque.',
+    de: 'Man findet dich in der Entdeckung und tritt mit einem Tipp bei.',
+    pt: 'Encontram você na descoberta e entram com um toque.',
+  },
+  rlAccessOnRequestHelp: {
+    fr: 'On te trouve dans la découverte, mais tu valides chaque arrivée.',
+    en: 'People find you in discovery, but you approve every arrival.',
+    es: 'Te encuentran en descubrimiento, pero tú apruebas cada llegada.',
+    de: 'Man findet dich in der Entdeckung, aber du bestätigst jeden Beitritt.',
+    pt: 'Encontram você na descoberta, mas você aprova cada entrada.',
+  },
+  rlAccessInviteOnlyHelp: {
+    fr: 'On n’entre qu’avec ton code ou ton QR.',
+    en: 'The only way in is your code or your QR.',
+    es: 'Solo se entra con tu código o tu QR.',
+    de: 'Der einzige Weg hinein ist dein Code oder dein QR.',
+    pt: 'Só dá para entrar com seu código ou seu QR.',
+  },
+  /**
+   * `closed` n'est PAS proposable à la création (0097) : ces deux entrées ne
+   * servent qu'à rendre les tables d'accès EXHAUSTIVES sur `CrewRecruitmentStatus`
+   * — un statut sans mots ferait rougir le typecheck plutôt qu'afficher une clé.
+   * Le libellé reste vrai partout ailleurs (`/crew-edit`, 0084) : `closed` coupe
+   * les candidatures, mais `join_crew_by_code` (0043) ne le consulte pas — le
+   * code continue donc d'ouvrir la porte, et la phrase le dit.
+   */
+  rlAccessClosed: {
+    fr: 'Fermé',
+    en: 'Closed',
+    es: 'Cerrado',
+    de: 'Geschlossen',
+    pt: 'Fechado',
+  },
+  rlAccessClosedHelp: {
+    fr: 'Aucune candidature. Seul ton code fait encore entrer.',
+    en: 'No applications. Only your code still lets people in.',
+    es: 'Sin solicitudes. Solo tu código deja entrar.',
+    de: 'Keine Bewerbungen. Nur dein Code lässt noch jemanden herein.',
+    pt: 'Sem solicitações. Só o seu código ainda deixa entrar.',
+  },
+  /** Refus `bad_recruitment_status` (0097) — l'écran ne devrait pas le produire. */
+  rlErrBadRecruitment: {
+    fr: 'Cet accès n’existe pas. Choisis-en un dans la liste.',
+    en: 'That access setting doesn’t exist. Pick one from the list.',
+    es: 'Ese acceso no existe. Elige uno de la lista.',
+    de: 'Diesen Zugang gibt es nicht. Wähle einen aus der Liste.',
+    pt: 'Esse acesso não existe. Escolha um da lista.',
+  },
+  /** Confirmation APRÈS écriture : `{access}` est ce que le SERVEUR a écrit. */
+  rlCreatedWithAccess: {
+    fr: '{name} est né. Accès : {access}.',
+    en: '{name} is born. Access: {access}.',
+    es: '{name} ha nacido. Acceso: {access}.',
+    de: '{name} ist geboren. Zugang: {access}.',
+    pt: '{name} nasceu. Acesso: {access}.',
+  },
   rlJoinTitle: {
     fr: 'Rejoindre un crew',
     en: 'Join a crew',
@@ -613,6 +712,21 @@ export const C = defineCatalog({
     de: 'Signal senden',
     pt: 'Enviar um sinal',
   },
+  /**
+   * PORTE D'ENTRÉE D'E48 (`/crew-activite`) depuis l'onglet Crew — action
+   * discrète, jamais un 2ᵉ CTA chartreuse (§A4). L'onglet résume les signaux ;
+   * E48 y ajoute les annonces épinglées, les sorties proposées et les faits du
+   * crew, avec le geste de publication. Le libellé dit « tout », parce que
+   * l'onglet en montre déjà une partie : « Activité du crew » tout court
+   * laisserait croire à un doublon.
+   */
+  activityOpenAll: {
+    fr: 'Voir toute l’activité',
+    en: 'See all activity',
+    es: 'Ver toda la actividad',
+    de: 'Ganze Aktivität ansehen',
+    pt: 'Ver toda a atividade',
+  },
   pingChooseSignal: {
     fr: 'Choisis ton signal',
     en: 'Choose your signal',
@@ -827,6 +941,44 @@ export const C = defineCatalog({
     es: 'No se pudo — inténtalo de nuevo.',
     de: 'Hat nicht geklappt — versuch es erneut.',
     pt: 'Não deu certo — tente de novo.',
+  },
+
+  /**
+   * `must_transfer_lead` (0093 pour `leave_crew`, 0098 pour rejoindre par code
+   * ou par lien). Le message NOMME le geste manquant : un refus sans chemin est
+   * un cul-de-sac, et `crew_transfer_lead` existe et est peinte dans E47.
+   */
+  rlErrMustTransferLead: {
+    fr: 'Tu diriges ce crew. Transmets d’abord la direction à quelqu’un, sinon il resterait sans chef.',
+    en: 'You lead this crew. Hand the lead to someone first, or it would be left with no one in charge.',
+    es: 'Diriges este crew. Traspasa primero el mando a alguien, o se quedaría sin líder.',
+    de: 'Du führst diese Crew. Übergib zuerst die Leitung, sonst bliebe sie ohne Kopf.',
+    pt: 'Você lidera este crew. Passe a liderança para alguém antes, senão ele ficaria sem chefe.',
+  },
+  /**
+   * `dead_crew` (0093) : le crew visé n'a plus aucun membre actif. Y entrer
+   * créerait un crew que personne ne peut administrer. Le motif existait côté
+   * serveur depuis 0093 sans phrase côté client — il tombait sur `rlErrGeneric`.
+   */
+  rlErrDeadCrew: {
+    fr: 'Ce crew n’a plus aucun membre actif. On ne peut plus le rejoindre.',
+    en: 'This crew has no active members left. It can’t be joined.',
+    es: 'Este crew ya no tiene miembros activos. No se puede unir.',
+    de: 'Diese Crew hat keine aktiven Mitglieder mehr. Ein Beitritt ist nicht möglich.',
+    pt: 'Este crew não tem mais membros ativos. Não dá para entrar.',
+  },
+  /**
+   * LE SERVEUR N'A PAS LA MIGRATION. Distinct d'une panne : réessayer n'y
+   * changera rien tant que la base n'a pas reçu 0097. Même grammaire que
+   * `crewActivite.unsupportedBody` — on ne fait pas croire à un incident
+   * passager, et on ne laisse pas non plus un « réessaie » opaque.
+   */
+  rlErrUnsupportedServer: {
+    fr: 'Cette version du serveur ne connaît pas encore cette option. Réessayer n’y changera rien.',
+    en: 'This server version doesn’t know this option yet. Retrying won’t help.',
+    es: 'Esta versión del servidor aún no conoce esta opción. Reintentar no servirá.',
+    de: 'Diese Serverversion kennt diese Option noch nicht. Erneut versuchen hilft nicht.',
+    pt: 'Esta versão do servidor ainda não conhece essa opção. Tentar de novo não vai adiantar.',
   },
 
   // ════ E13 CREW HOME — recalage planche « quartier général visuel » ═════════
@@ -4807,6 +4959,686 @@ export const C = defineCatalog({
     es: 'Estadísticas del crew en bici',
     de: 'Crew-Statistiken Rad',
     pt: 'Estatísticas do crew de bike',
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E38 / E42-E48 — LES TROUS RESTANTS DU BLOC CREW (28/07/2026)
+  //
+  // Ce catalogue couvrait DÉJÀ l'essentiel des neuf écrans : E38 et E42 (bloc
+  // LOT 7 + « crew sans territoire »), E43 (hero, tuiles, mission), E45
+  // (`urgentDefense` / `hoursLeft` / `defendCta`), E46 (`membersCount`, les 7
+  // `role*`), E47 (`reportMemberLabel` / `blockMemberLabel` / `blockSheetNote`
+  // — la conséquence claire y est déjà écrite), E48 (chat actionnable, sorties,
+  // War Log). Ce bloc n'ajoute QUE ce qui manquait vraiment, et rien pour ce
+  // qui n'a pas de source : il n'y a ici aucune annonce épinglée (aucune table),
+  // aucune demande d'aide (INSERT révoqué sur `crew_requests`, 0019:167), aucun
+  // filtre Run/Bike de carte crew (`crew_overview` (0044) et
+  // `crew_mission_inputs` (0049) ne portent AUCUNE colonne d'activité — un
+  // segment Run/Bike n'y changerait rigoureusement rien), et aucune liste de
+  // participants à une mission (personne ne déclare sa présence à l'avance).
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── LE 4ᵉ ÉTAT DE `/crew` : LA LECTURE EN COURS (il manquait) ──────────────
+  // L'onglet distinguait déjà « pas connecté » (`rlSignedOut*`), « aucun crew »
+  // (`empty*`) et « échec » (`rlLoadFailed*`). Pendant la lecture, il ne disait
+  // RIEN — et un écran muet devant quelqu'un qui a un crew ressemble beaucoup à
+  // « tu n'en as pas ». Un chargement n'affirme rien sur le joueur : il le dit.
+  homeLoadingTitle: {
+    fr: 'On lit ton crew…',
+    en: 'Loading your crew…',
+    es: 'Leyendo tu crew…',
+    de: 'Dein Crew wird geladen …',
+    pt: 'Lendo seu crew…',
+  },
+  homeLoadingBody: {
+    fr: 'Rien n’est encore affirmé : on ne sait pas si tu as un crew tant que la lecture n’a pas abouti.',
+    en: 'Nothing is claimed yet: we don’t know whether you have a crew until the read completes.',
+    es: 'Todavía no se afirma nada: no sabemos si tienes un crew hasta que termine la lectura.',
+    de: 'Noch keine Aussage: Ob du einen Crew hast, wissen wir erst, wenn der Abruf fertig ist.',
+    pt: 'Nada foi afirmado ainda: não sabemos se você tem um crew até a leitura terminar.',
+  },
+
+  // ── E46 — LES TROIS GROUPES (spéc l.1652-1657 ↔ CREW_ROLE_GROUPS) ──────────
+  // La spéc range le roster en chef / officiers / membres ; GRYD a 7 rôles. La
+  // correspondance vit dans `CREW_ROLE_GROUPS` (game-rules) — ici, juste ses
+  // trois en-têtes, en majuscules comme les autres kickers de l'écran.
+  grpLead: { fr: 'CHEF', en: 'LEAD', es: 'JEFE', de: 'CHEF', pt: 'CHEFE' },
+  grpOfficers: {
+    fr: 'OFFICIERS',
+    en: 'OFFICERS',
+    es: 'OFICIALES',
+    de: 'OFFIZIERE',
+    pt: 'OFICIAIS',
+  },
+  grpMembers: {
+    fr: 'MEMBRES',
+    en: 'MEMBERS',
+    es: 'MIEMBROS',
+    de: 'MITGLIEDER',
+    pt: 'MEMBROS',
+  },
+  /**
+   * ÉTAT RÉEL, pas un vide de lecture : un crew peut parfaitement n'avoir aucun
+   * officier (c'est même le cas de tout crew neuf, où le fondateur est seul).
+   * On le DIT, au lieu de masquer le groupe — sinon la hiérarchie a l'air
+   * cassée. Ne s'affiche évidemment que lorsque le roster a été LU.
+   */
+  grpOfficersNone: {
+    fr: 'Aucun officier pour l’instant.',
+    en: 'No officers yet.',
+    es: 'Ningún oficial por ahora.',
+    de: 'Noch keine Offiziere.',
+    pt: 'Nenhum oficial por enquanto.',
+  },
+  /**
+   * ANTI PAY-TO-WIN, dit à l'écran et pas seulement en commentaire de code
+   * (spéc l.1677 : « aucun rôle ne donne d'avantage de capture »). C'est la
+   * phrase qui empêche de lire la hiérarchie comme un classement de puissance.
+   */
+  grpNoAdvantage: {
+    fr: 'Un rôle ouvre des actions de gestion. Il ne donne aucun avantage de capture.',
+    en: 'A role unlocks management actions. It grants no capture advantage.',
+    es: 'Un rol abre acciones de gestión. No da ninguna ventaja de captura.',
+    de: 'Eine Rolle öffnet Verwaltungsaktionen. Sie bringt keinen Eroberungsvorteil.',
+    pt: 'Um cargo abre ações de gestão. Ele não dá nenhuma vantagem de captura.',
+  },
+  /**
+   * Le crew d'UNE personne — l'état de très loin le plus probable au
+   * 28/07/2026, et il n'est ni un vide de lecture ni un échec. Distinct de
+   * `emptySubtitle` (qui parle de quelqu'un SANS crew).
+   */
+  grpAloneBody: {
+    fr: 'Tu es seul dans ce crew. Invite quelqu’un de ton quartier : le territoire se compte à plusieurs.',
+    en: 'You’re alone in this crew. Invite someone from your neighborhood — territory adds up across members.',
+    es: 'Estás solo en este crew. Invita a alguien de tu barrio: el territorio se suma entre miembros.',
+    de: 'Du bist allein in diesem Crew. Lade jemanden aus deinem Viertel ein – Revier zählt gemeinsam.',
+    pt: 'Você está sozinho neste crew. Convide alguém do seu bairro: o território soma entre os membros.',
+  },
+
+  // ── E47 — CE QUE LA FEUILLE D'ACTIONS NE PEUT PAS FAIRE, DIT UNE FOIS ──────
+  /**
+   * ⚠ CETTE CLÉ NE S'AFFICHE QUE POUR QUI AURAIT LE DROIT (founder /
+   * co_captain, cf. `CREW_MEMBER_ACTIONS[].requires`). Pour tous les autres,
+   * l'absence des actions de rôle n'est pas une information : c'est normal.
+   *
+   * POURQUOI ELLE EXISTE. La spéc E47 liste promouvoir / rétrograder / retirer
+   * / transférer le rôle de chef. AUCUNE RPC ne les exécute au 28/07/2026 :
+   * `crew_members.role` n'a aucune voie d'écriture ouverte au client
+   * (insert/update révoqués depuis 0010 ; `crew_edit` (0084) ne touche que
+   * nom/description/recrutement/tags). Peindre ces quatre boutons serait quatre
+   * boutons morts. Les retirer sans un mot laisserait un fondateur chercher un
+   * réglage qui n'existe nulle part — d'où cette phrase, qui constate, ne
+   * promet aucune date, et ne prétend pas que le geste existe ailleurs.
+   */
+  /**
+   * ⚠ CETTE CLÉ A ÉTÉ RÉÉCRITE LE 28/07/2026, ET C'EST LE POINT IMPORTANT.
+   *
+   * Elle disait : « Aucun changement de rôle n'est possible depuis l'app
+   * aujourd'hui. » C'était VRAI à l'heure où elle a été écrite — aucune RPC
+   * n'écrivait `crew_members.role`. La migration 0093 a ouvert les quatre
+   * chemins (`crew_set_member_role`, `crew_remove_member`,
+   * `crew_transfer_lead`), et une phrase qui décrit un manque disparu est
+   * exactement le même mensonge qu'une promesse en avance : elle ferait
+   * chercher ailleurs un réglage qui est là, sous le doigt.
+   *
+   * Ce qui reste VRAI, et qui mérite d'être dit : le serveur décide. L'app
+   * n'attribue rien — elle demande, et un refus est une réponse, pas un bug.
+   */
+  maRoleServerSide: {
+    fr: 'Le serveur décide : l’app demande le changement, elle ne l’applique pas.',
+    en: 'The server decides: the app requests the change, it doesn’t apply it.',
+    es: 'El servidor decide: la app pide el cambio, no lo aplica.',
+    de: 'Der Server entscheidet: Die App fragt die Änderung an, sie führt sie nicht aus.',
+    pt: 'O servidor decide: o app pede a mudança, ele não a aplica.',
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E47 — LES QUATRE GESTES DE POUVOIR (28/07/2026, avec la migration 0093)
+  //
+  // Ils n'entrent QU'AVEC leur chemin serveur, comme `crew_outing_created` est
+  // entré avec 0085 — jamais avant. Chaque action sensible DIT sa conséquence
+  // AVANT le geste (spéc l.1695), et la confirmation reste une étape de la
+  // feuille : elle ne crée pas un deuxième CTA chartreuse (§A4).
+  // ══════════════════════════════════════════════════════════════════════════
+
+  maPromote: {
+    fr: 'Promouvoir',
+    en: 'Promote',
+    es: 'Promover',
+    de: 'Befördern',
+    pt: 'Promover',
+  },
+  maDemote: {
+    fr: 'Rétrograder',
+    en: 'Demote',
+    es: 'Degradar',
+    de: 'Zurückstufen',
+    pt: 'Rebaixar',
+  },
+  maRemove: {
+    fr: 'Retirer du crew',
+    en: 'Remove from crew',
+    es: 'Sacar del crew',
+    de: 'Aus dem Crew entfernen',
+    pt: 'Remover do crew',
+  },
+  maTransferLead: {
+    fr: 'Transférer le rôle de chef',
+    en: 'Transfer lead role',
+    es: 'Transferir el rol de jefe',
+    de: 'Chef-Rolle übertragen',
+    pt: 'Transferir o papel de chefe',
+  },
+
+  /** Le rôle VISÉ est nommé : « Promouvoir » seul ne dit pas vers quoi. */
+  maToRole: {
+    fr: '→ {role}',
+    en: '→ {role}',
+    es: '→ {role}',
+    de: '→ {role}',
+    pt: '→ {role}',
+  },
+
+  // ── Les conséquences, dites AVANT le tap ──────────────────────────────────
+  maPromoteNote: {
+    fr: 'Un rôle ouvre des actions de gestion. Il ne donne aucun avantage de capture.',
+    en: 'A role unlocks management actions. It grants no capture advantage.',
+    es: 'Un rol abre acciones de gestión. No da ninguna ventaja de captura.',
+    de: 'Eine Rolle öffnet Verwaltungsaktionen. Sie bringt keinen Eroberungsvorteil.',
+    pt: 'Um cargo abre ações de gestão. Ele não dá nenhuma vantagem de captura.',
+  },
+  /**
+   * `CREW_MEMBER_ACTIONS` marque `demote` comme SENSIBLE (et `promote` non) :
+   * une rétrogradation est visible par la personne visée et lui retire quelque
+   * chose. Elle se confirme donc, et sa conséquence dit surtout ce qu'elle NE
+   * touche PAS — un rôle n'a jamais porté de territoire ni de points (§E46).
+   */
+  maDemoteConfirmTitle: {
+    fr: 'Rétrograder {name} en {role} ?',
+    en: 'Demote {name} to {role}?',
+    es: '¿Degradar a {name} a {role}?',
+    de: '{name} auf {role} zurückstufen?',
+    pt: 'Rebaixar {name} para {role}?',
+  },
+  maDemoteConfirmBody: {
+    fr: 'Cette personne perd les actions de gestion de son rôle. Son territoire, ses points et sa place dans le crew ne changent pas.',
+    en: 'They lose the management actions tied to their role. Their territory, points and place in the crew don’t change.',
+    es: 'Esa persona pierde las acciones de gestión de su rol. Su territorio, sus puntos y su lugar en el crew no cambian.',
+    de: 'Diese Person verliert die Verwaltungsaktionen ihrer Rolle. Revier, Punkte und Platz im Crew bleiben unverändert.',
+    pt: 'Essa pessoa perde as ações de gestão do cargo. O território, os pontos e o lugar dela no crew não mudam.',
+  },
+  maRemoveConfirmTitle: {
+    fr: 'Retirer {name} du crew ?',
+    en: 'Remove {name} from the crew?',
+    es: '¿Sacar a {name} del crew?',
+    de: '{name} aus dem Crew entfernen?',
+    pt: 'Remover {name} do crew?',
+  },
+  /**
+   * TROIS FAITS, et pas un de plus : ce qui part, ce qui reste, ce qui n'est pas
+   * puni. Le troisième est une garantie RÉELLE du serveur (0093 : `removed_by`
+   * exclut le départ subi du cooldown de changement de crew) — sans lui, la
+   * personne retirée croirait être bloquée 7 jours.
+   */
+  maRemoveConfirmBody: {
+    fr: 'Cette personne perd l’accès au crew. Les zones qu’elle a prises restent les siennes, et elle peut rejoindre un autre crew immédiatement.',
+    en: 'They lose access to the crew. The zones they took stay theirs, and they can join another crew right away.',
+    es: 'Esa persona pierde el acceso al crew. Las zonas que tomó siguen siendo suyas y puede unirse a otro crew de inmediato.',
+    de: 'Diese Person verliert den Zugang zum Crew. Ihre eroberten Zonen bleiben ihr, und sie kann sofort einem anderen Crew beitreten.',
+    pt: 'Essa pessoa perde o acesso ao crew. As zonas que ela tomou continuam sendo dela, e ela pode entrar em outro crew na hora.',
+  },
+  maTransferConfirmTitle: {
+    fr: 'Donner le rôle de chef à {name} ?',
+    en: 'Give the lead role to {name}?',
+    es: '¿Dar el rol de jefe a {name}?',
+    de: 'Die Chef-Rolle an {name} geben?',
+    pt: 'Dar o papel de chefe para {name}?',
+  },
+  /** L'IRRÉVERSIBILITÉ est dite en toutes lettres : après, c'est l'autre qui décide. */
+  maTransferConfirmBody: {
+    fr: 'Tu deviens co-capitaine. Tu ne pourras pas reprendre le rôle toi-même : seul le nouveau chef pourra te le rendre.',
+    en: 'You become co-captain. You won’t be able to take the role back yourself — only the new lead can hand it over.',
+    es: 'Pasas a ser co-capitán. No podrás recuperar el rol por tu cuenta: solo el nuevo jefe podrá devolvértelo.',
+    de: 'Du wirst Co-Kapitän. Du kannst die Rolle nicht selbst zurückholen – nur der neue Chef kann sie dir geben.',
+    pt: 'Você passa a ser co-capitão. Você não vai poder retomar o papel sozinho: só o novo chefe pode devolvê-lo.',
+  },
+  maConfirmCta: {
+    fr: 'Confirmer',
+    en: 'Confirm',
+    es: 'Confirmar',
+    de: 'Bestätigen',
+    pt: 'Confirmar',
+  },
+
+  // ── Ce que le serveur a répondu — jamais supposé ──────────────────────────
+  maDonePromoted: {
+    fr: '{name} est maintenant {role}.',
+    en: '{name} is now {role}.',
+    es: '{name} ahora es {role}.',
+    de: '{name} ist jetzt {role}.',
+    pt: '{name} agora é {role}.',
+  },
+  maDoneRemoved: {
+    fr: '{name} ne fait plus partie du crew.',
+    en: '{name} is no longer in the crew.',
+    es: '{name} ya no está en el crew.',
+    de: '{name} gehört nicht mehr zum Crew.',
+    pt: '{name} não faz mais parte do crew.',
+  },
+  maDoneTransferred: {
+    fr: '{name} est le chef du crew. Tu es co-capitaine.',
+    en: '{name} is the crew lead. You’re co-captain.',
+    es: '{name} es el jefe del crew. Tú eres co-capitán.',
+    de: '{name} ist Crew-Chef. Du bist Co-Kapitän.',
+    pt: '{name} é o chefe do crew. Você é co-capitão.',
+  },
+  /** IDEMPOTENCE : le geste avait déjà abouti. Ni erreur, ni faux succès. */
+  maDoneAlready: {
+    fr: 'C’était déjà fait — rien n’a changé.',
+    en: 'Already done — nothing changed.',
+    es: 'Ya estaba hecho: nada cambió.',
+    de: 'War schon erledigt – nichts hat sich geändert.',
+    pt: 'Já estava feito — nada mudou.',
+  },
+
+  // ── Les refus, dits par ce qu'ils SONT ────────────────────────────────────
+  /**
+   * Le serveur a répondu NON. On ne devine pas mieux que lui, et on ne
+   * transforme pas un refus en « réessaie » : un refus est une information.
+   */
+  maRefusedForbidden: {
+    fr: 'Ton rôle ne permet pas ce geste.',
+    en: 'Your role doesn’t allow this.',
+    es: 'Tu rol no permite esta acción.',
+    de: 'Deine Rolle erlaubt das nicht.',
+    pt: 'Seu cargo não permite essa ação.',
+  },
+  maRefusedScope: {
+    fr: 'Cette personne est hors de ton périmètre.',
+    en: 'This person is outside your scope.',
+    es: 'Esta persona está fuera de tu alcance.',
+    de: 'Diese Person liegt außerhalb deines Bereichs.',
+    pt: 'Essa pessoa está fora do seu alcance.',
+  },
+  maRefusedNotMember: {
+    fr: 'Cette personne n’est plus dans le crew.',
+    en: 'This person is no longer in the crew.',
+    es: 'Esta persona ya no está en el crew.',
+    de: 'Diese Person ist nicht mehr im Crew.',
+    pt: 'Essa pessoa não está mais no crew.',
+  },
+  maRefusedLead: {
+    fr: 'Le chef du crew ne peut pas être visé. Le rôle se transfère, il ne se retire pas.',
+    en: 'The crew lead can’t be targeted. The role is transferred, never taken.',
+    es: 'No se puede actuar sobre el jefe del crew. El rol se transfiere, no se quita.',
+    de: 'Der Crew-Chef kann nicht Ziel sein. Die Rolle wird übertragen, nicht entzogen.',
+    pt: 'O chefe do crew não pode ser alvo. O papel se transfere, não se tira.',
+  },
+  /** Le serveur a RÉPONDU, et il n'a pas cette fonction. Ce n'est pas un réseau. */
+  maUnsupported: {
+    fr: 'Ce serveur ne connaît pas encore cette action. Rien n’a été tenté.',
+    en: 'This server doesn’t know this action yet. Nothing was attempted.',
+    es: 'Este servidor todavía no conoce esta acción. No se intentó nada.',
+    de: 'Dieser Server kennt diese Aktion noch nicht. Es wurde nichts versucht.',
+    pt: 'Este servidor ainda não conhece essa ação. Nada foi tentado.',
+  },
+  maFailed: {
+    fr: 'On n’a pas pu joindre le serveur. On ne sait pas si le geste est passé — rouvre la liste pour voir.',
+    en: 'We couldn’t reach the server. We don’t know whether it went through — reopen the list to check.',
+    es: 'No pudimos contactar con el servidor. No sabemos si la acción pasó: vuelve a abrir la lista para verlo.',
+    de: 'Der Server war nicht erreichbar. Ob die Aktion durchging, wissen wir nicht – öffne die Liste erneut.',
+    pt: 'Não conseguimos falar com o servidor. Não sabemos se a ação passou — reabra a lista para ver.',
+  },
+
+  // ── E46 §départ — le dernier chef ne part pas sans transmettre ────────────
+  /**
+   * Le serveur REFUSE ce départ (`must_transfer_lead`, 0093) : un crew sans chef
+   * est un état définitivement cassé. On le dit AVANT le tap, et on nomme le
+   * geste qui débloque — un « impossible » sans chemin serait un cul-de-sac.
+   */
+  maLeaveBlockedTitle: {
+    fr: 'Transmets d’abord le rôle de chef',
+    en: 'Hand over the lead role first',
+    es: 'Primero transfiere el rol de jefe',
+    de: 'Gib zuerst die Chef-Rolle ab',
+    pt: 'Primeiro transfira o papel de chefe',
+  },
+  maLeaveBlockedBody: {
+    fr: 'Tu es le chef, et {n} autres personnes comptent sur ce crew. Un crew sans chef ne peut plus être administré : choisis quelqu’un dans la liste, puis pars.',
+    // ⚠ « can no longer be run » a été écarté : le détecteur de vocabulaire de
+    // discipline (disciplineVocabulary.ts) y lit le verbe COURIR, et il a
+    // raison de s'en méfier — cette phrase peut s'afficher pour un crew vélo.
+    // « managed » dit exactement la même chose sans nommer une discipline.
+    en: 'You’re the lead, and {n} other people rely on this crew. A crew without a lead can no longer be managed: pick someone in the list, then leave.',
+    es: 'Eres el jefe y otras {n} personas cuentan con este crew. Un crew sin jefe ya no se puede administrar: elige a alguien de la lista y luego vete.',
+    de: 'Du bist der Chef, und {n} weitere Personen verlassen sich auf diesen Crew. Ein Crew ohne Chef lässt sich nicht mehr verwalten: Wähle jemanden aus der Liste, dann geh.',
+    pt: 'Você é o chefe, e outras {n} pessoas contam com este crew. Um crew sem chefe não pode mais ser administrado: escolha alguém da lista e depois saia.',
+  },
+
+  // ── E44 — CARTE DU CREW : la légende LIMITÉE, et la confidentialité ────────
+  // §C : la couleur lit un RÔLE, jamais une identité de crew. Deux entrées, pas
+  // douze — « légende limitée » est un mot de la spéc (l.1622), pas une licence
+  // à peindre un nuancier.
+  mapLegendTitle: {
+    fr: 'LÉGENDE',
+    en: 'LEGEND',
+    es: 'LEYENDA',
+    de: 'LEGENDE',
+    pt: 'LEGENDA',
+  },
+  mapLegendOurs: {
+    fr: 'Nos zones',
+    en: 'Our zones',
+    es: 'Nuestras zonas',
+    de: 'Unsere Zonen',
+    pt: 'Nossas zonas',
+  },
+  /**
+   * L'ambre pointillé lit un ÉTAT (échéance proche), jamais un rival : l'orange
+   * rival est réservé à un autre crew (§C). `CrewTerritoryStrip` rend déjà
+   * exactement ça — la légende le nomme, elle n'invente pas une couleur.
+   */
+  mapLegendExpiring: {
+    fr: 'Échéance proche',
+    en: 'Expiring soon',
+    es: 'Vence pronto',
+    de: 'Läuft bald ab',
+    pt: 'Vence em breve',
+  },
+  /**
+   * CONFIDENTIALITÉ (spéc l.1625, constitution §7) : le crew voit un AGRÉGAT.
+   * Appartenir au même crew ne donne accès ni au domicile ni au tracé de
+   * personne — et c'est le genre de garantie qui doit se lire à l'écran, pas
+   * seulement dans une politique de confidentialité.
+   */
+  mapAggregatedNote: {
+    fr: 'Les contributions sont agrégées. Être du même crew ne montre ni le domicile ni le tracé de qui que ce soit.',
+    en: 'Contributions are aggregated. Sharing a crew never reveals anyone’s home or full route.',
+    es: 'Las contribuciones se agregan. Estar en el mismo crew no muestra el domicilio ni el recorrido de nadie.',
+    de: 'Beiträge werden aggregiert. Derselbe Crew zeigt weder Zuhause noch Strecke von irgendwem.',
+    pt: 'As contribuições são agregadas. Estar no mesmo crew não mostra a casa nem o trajeto de ninguém.',
+  },
+
+  /**
+   * Les DEUX autres rôles de la légende (§C). Ils complètent `mapLegendOurs`, et
+   * la légende s'arrête là : trois rôles, jamais un nuancier d'équipes. Un crew
+   * rival ne se distingue PAS d'un autre crew rival — c'est la règle, pas une
+   * approximation : peindre une teinte par crew ferait de la carte un annuaire
+   * d'adversaires.
+   */
+  mapLegendRival: {
+    fr: 'Rival',
+    en: 'Rival',
+    es: 'Rival',
+    de: 'Rivale',
+    pt: 'Rival',
+  },
+  mapLegendContested: {
+    fr: 'Contesté',
+    en: 'Contested',
+    es: 'Disputado',
+    de: 'Umkämpft',
+    pt: 'Disputado',
+  },
+
+  // ── E44 — LES QUATRE ÉTATS DE LA CARTE DU CREW, JAMAIS CONFONDUS ───────────
+  /**
+   * Le roster n'est pas encore connu. C'est un état à PART, et il passe avant
+   * tous les autres : sans la liste des membres, les zones du crew seraient
+   * classées « rival » et peintes en ORANGE (`stateFor`, territoryBuild.ts:116).
+   * Aucune phrase ne rattrape une couleur fausse — la carte se tait donc.
+   */
+  mapRosterUnknown: {
+    fr: 'On lit la composition du crew…',
+    en: 'Loading crew roster…',
+    es: 'Leyendo la composición del crew…',
+    de: 'Crew-Aufstellung wird geladen …',
+    pt: 'Lendo a composição do crew…',
+  },
+  /** LECTURE EN COURS — n'affirme rien sur l'emprise (constitution : 4 états). */
+  mapReading: {
+    fr: 'On lit l’emprise du crew…',
+    en: 'Loading crew ground…',
+    es: 'Leyendo el territorio del crew…',
+    de: 'Crew-Revier wird geladen …',
+    pt: 'Lendo o território do crew…',
+  },
+  /** ÉCHEC DE LECTURE — surtout pas « le crew ne tient rien ». */
+  mapFailed: {
+    fr: 'Emprise non chargée. Ce n’est pas un territoire vide : c’est une lecture qui n’a pas abouti.',
+    en: 'Ground not loaded. That doesn’t mean empty territory — the read simply failed.',
+    es: 'Territorio no cargado. No significa que esté vacío: la lectura no se completó.',
+    de: 'Revier nicht geladen. Das heißt nicht „leer“ – der Abruf ist fehlgeschlagen.',
+    pt: 'Território não carregado. Isso não significa vazio: a leitura não foi concluída.',
+  },
+  /** PAS CONNECTÉ — un fait, distinct des trois autres. */
+  mapSignedOut: {
+    fr: 'Connecte-toi pour voir l’emprise de ton crew.',
+    en: 'Sign in to see your crew’s ground.',
+    es: 'Inicia sesión para ver el territorio de tu crew.',
+    de: 'Melde dich an, um das Revier deines Crews zu sehen.',
+    pt: 'Entre para ver o território do seu crew.',
+  },
+  /**
+   * LU, ET VIDE — l'état honnête du 28/07/2026 (aucune course en base). Ce n'est
+   * ni un chargement, ni un échec, et ça ne s'écrit surtout pas « 0 ».
+   */
+  mapNoGround: {
+    // NEUTRE des deux mondes (« sortie », jamais « course ») : un crew de
+    // cyclistes lit le même écran, et la carte est bornée à SA lentille.
+    fr: 'Ton crew ne tient encore aucune zone. La première sortie en dessine une.',
+    en: 'Your crew doesn’t hold any zone yet. The first outing draws one.',
+    es: 'Tu crew aún no tiene ninguna zona. La primera salida dibuja una.',
+    de: 'Euer Crew hält noch keine Zone. Die erste Tour zeichnet eine.',
+    pt: 'Seu crew ainda não tem nenhuma zona. A primeira saída desenha uma.',
+  },
+
+  // ── E45 — MISSION CREW : le CTA générique + ce que « collectif » veut dire ─
+  /**
+   * `defendCta` couvre la mission `defend`. Les trois autres genres rendus par
+   * `chooseCrewMission` (`reclaim`, `close_loop`, `capture`) n'avaient AUCUN
+   * libellé de CTA : c'est le « CONTRIBUER » de la spéc (l.1649). Il mène à la
+   * carte — l'écran mission (A-21) — comme `firstMissionCta`.
+   */
+  msContributeCta: {
+    fr: 'CONTRIBUER',
+    en: 'CONTRIBUTE',
+    es: 'CONTRIBUIR',
+    de: 'BEITRAGEN',
+    pt: 'CONTRIBUIR',
+  },
+  /**
+   * LA « progression collective » de la spéc, dite en une phrase VRAIE plutôt
+   * qu'en jauge : aucune table ne porte un pourcentage d'avancement de mission,
+   * et une barre à 0 % affirmerait une paresse là où il n'y a pas de mesure.
+   * Ce qui EST vrai, et que `crew_overview` (0044) garantit : le territoire du
+   * crew est la somme de ce que tiennent ses membres.
+   */
+  msCollectiveNote: {
+    fr: 'Chaque zone reprise par un membre compte pour le crew entier.',
+    en: 'Every zone one member takes back counts for the whole crew.',
+    es: 'Cada zona que recupera un miembro cuenta para todo el crew.',
+    de: 'Jede Zone, die ein Mitglied zurückholt, zählt für den ganzen Crew.',
+    pt: 'Cada zona retomada por um membro conta para o crew inteiro.',
+  },
+
+  // ── E45 — L'ÉCRAN DÉDIÉ (`/crew-mission`) ─────────────────────────────────
+  msTitle: {
+    fr: 'Mission du crew',
+    en: 'Crew mission',
+    es: 'Misión del crew',
+    de: 'Crew-Mission',
+    pt: 'Missão do crew',
+  },
+  /** Porte d'entrée depuis le QG. Nomme la DESTINATION, ne promet rien de plus. */
+  msOpen: {
+    fr: 'Ouvrir la mission',
+    en: 'Open the mission',
+    es: 'Abrir la misión',
+    de: 'Mission öffnen',
+    pt: 'Abrir a missão',
+  },
+  msObjectiveLabel: {
+    fr: 'OBJECTIF',
+    en: 'OBJECTIVE',
+    es: 'OBJETIVO',
+    de: 'ZIEL',
+    pt: 'OBJETIVO',
+  },
+  msDeadlineLabel: {
+    fr: 'ÉCHÉANCE',
+    en: 'DEADLINE',
+    es: 'PLAZO',
+    de: 'FRIST',
+    pt: 'PRAZO',
+  },
+  msDeadlineHours: {
+    fr: 'Dans {h} h',
+    en: 'In {h} h',
+    es: 'En {h} h',
+    de: 'In {h} Std.',
+    pt: 'Em {h} h',
+  },
+  /**
+   * L'échéance est PASSÉE. On le dit : la maquiller en « dans 1 h » donnerait un
+   * délai qui n'existe plus, et la zone peut déjà être tombée.
+   */
+  msDeadlineOverdue: {
+    fr: 'Échéance dépassée',
+    en: 'Deadline passed',
+    es: 'Plazo vencido',
+    de: 'Frist abgelaufen',
+    pt: 'Prazo vencido',
+  },
+  /**
+   * Reprendre du terrain perdu et capturer du libre n'ont AUCUNE échéance en
+   * base — `lastLostAt` est la date d'un fait passé, pas un compte à rebours
+   * (`crewMissionBriefing`, engine/crewMission.ts). On l'écrit plutôt que de
+   * laisser un champ vide, qui se lirait « on n'a pas pu lire ».
+   */
+  msNoDeadline: {
+    // Formulée SANS verbe de course (« court », « corre », « läuft ») : ce sont
+    // des mots de discipline, et cette mission peut être une sortie vélo.
+    fr: 'Aucune échéance : aucune horloge ne tourne sur cette mission.',
+    en: 'No deadline: no clock is ticking on this mission.',
+    es: 'Sin plazo: ningún reloj avanza para esta misión.',
+    de: 'Keine Frist: Für diese Mission tickt keine Uhr.',
+    pt: 'Sem prazo: nenhum relógio avança nesta missão.',
+  },
+  /**
+   * ⚠ LE TITRE DIT « QUI TIENT DU TERRAIN », PAS « PARTICIPANTS ».
+   *
+   * La spéc E45 (l.1647) demande « participants ». Aucune table ne relie un
+   * membre à une mission : la mission est DÉRIVÉE à la lecture, jamais inscrite
+   * (`chooseCrewMission`). Écrire « participants » prêterait à ces gens un
+   * engagement qu'ils n'ont pas pris — et le premier membre à voir son nom sous
+   * une mission qu'il n'a jamais acceptée saurait que l'app raconte.
+   */
+  msHoldersLabel: {
+    fr: 'QUI TIENT DU TERRAIN',
+    en: 'WHO HOLDS GROUND',
+    es: 'QUIÉN TIENE TERRENO',
+    de: 'WER REVIER HÄLT',
+    pt: 'QUEM SEGURA TERRENO',
+  },
+  msHoldersUnread: {
+    fr: 'Parts non chargées.',
+    en: 'Shares not loaded.',
+    es: 'Cuotas no cargadas.',
+    de: 'Anteile nicht geladen.',
+    pt: 'Cotas não carregadas.',
+  },
+  msHoldersEmpty: {
+    fr: 'Personne ne tient encore de zone dans ce crew.',
+    en: 'Nobody in this crew holds a zone yet.',
+    es: 'Nadie en este crew tiene todavía una zona.',
+    de: 'Noch hält niemand in diesem Crew eine Zone.',
+    pt: 'Ninguém neste crew tem uma zona ainda.',
+  },
+  /**
+   * Ce que la liste MESURE vraiment — dit sous la liste, une fois. Elle vient de
+   * `crew_overview()` (0044) : c'est la part du TERRITOIRE, jamais une part de
+   * la mission, qui n'est mesurée nulle part.
+   */
+  msHoldersNote: {
+    fr: 'Part du territoire du crew. Personne n’est inscrit à une mission : rien ne mesure ça.',
+    en: 'Share of the crew’s territory. Nobody is signed up to a mission — nothing measures that.',
+    es: 'Parte del territorio del crew. Nadie está inscrito en una misión: nada mide eso.',
+    de: 'Anteil am Crew-Revier. Niemand ist zu einer Mission angemeldet – das misst nichts.',
+    pt: 'Parte do território do crew. Ninguém está inscrito numa missão: nada mede isso.',
+  },
+  /**
+   * LE REFUS DE LA JAUGE, DIT À L'ÉCRAN. La spéc demande une « progression
+   * collective » ; aucune mission n'a de dénominateur (`progress: null`, testé).
+   * Plutôt qu'une barre inventée, on nomme le manque exact — il est déjà affiché
+   * juste au-dessus — et on explique pourquoi il n'y a pas de pourcentage.
+   */
+  msNoProgressNote: {
+    fr: 'Pas de pourcentage : il n’existe pas de total à atteindre, seulement ce qui manque.',
+    en: 'No percentage: there’s no total to reach, only what’s missing.',
+    es: 'Sin porcentaje: no hay un total que alcanzar, solo lo que falta.',
+    de: 'Kein Prozentwert: Es gibt kein Ziel-Total, nur das, was fehlt.',
+    pt: 'Sem porcentagem: não há um total a atingir, apenas o que falta.',
+  },
+  /** Mission NON LUE — l'écran ne dit rien du crew, et le dit. */
+  msUnread: {
+    fr: 'Mission non chargée. On n’a pas pu lire l’état du crew — ça ne veut pas dire qu’il n’y a rien à faire.',
+    en: 'Mission not loaded. We couldn’t read the crew’s state — that doesn’t mean there’s nothing to do.',
+    es: 'Misión no cargada. No pudimos leer el estado del crew: no significa que no haya nada que hacer.',
+    de: 'Mission nicht geladen. Der Crew-Status ließ sich nicht lesen – das heißt nicht, dass nichts ansteht.',
+    pt: 'Missão não carregada. Não deu para ler o estado do crew — isso não significa que não há nada a fazer.',
+  },
+  /**
+   * AUCUNE RECOMMANDATION — et c'est l'état RÉEL au 28/07/2026 (base vide de
+   * jeu). L'écran ne tire pas une mission au hasard pour avoir l'air vivant :
+   * c'est la ligne que deux écrans de frontière crew ont déjà coûtée au dépôt.
+   */
+  msNoneTitle: {
+    fr: 'Aucune mission à recommander',
+    en: 'No mission to recommend',
+    es: 'Ninguna misión que recomendar',
+    de: 'Keine Mission zu empfehlen',
+    pt: 'Nenhuma missão a recomendar',
+  },
+  msSignedOut: {
+    fr: 'Connecte-toi pour voir la mission de ton crew.',
+    en: 'Sign in to see your crew’s mission.',
+    es: 'Inicia sesión para ver la misión de tu crew.',
+    de: 'Melde dich an, um die Mission deines Crews zu sehen.',
+    pt: 'Entre para ver a missão do seu crew.',
+  },
+  msNoCrew: {
+    fr: 'Sans crew, il n’y a pas de mission de crew.',
+    en: 'No crew, no crew mission.',
+    es: 'Sin crew no hay misión de crew.',
+    de: 'Ohne Crew gibt es keine Crew-Mission.',
+    pt: 'Sem crew, não há missão de crew.',
+  },
+
+  // ── E48 — ACTIVITÉ CREW : les trois états non nominaux, jamais confondus ───
+  // Le fil existe (chat actionnable, sorties, War Log) mais il n'avait ni
+  // chargement, ni vide, ni échec propres — les trois se ressemblaient à
+  // l'écran, et avec ZÉRO crew en base c'est l'état dominant qui manquait.
+  actLoading: {
+    fr: 'On lit l’activité du crew…',
+    en: 'Loading crew activity…',
+    es: 'Leyendo la actividad del crew…',
+    de: 'Crew-Aktivität wird geladen …',
+    pt: 'Lendo a atividade do crew…',
+  },
+  actEmpty: {
+    fr: 'Rien ne s’est encore passé ici. La première capture ouvrira le fil.',
+    en: 'Nothing has happened here yet. The first capture opens the feed.',
+    es: 'Aquí todavía no ha pasado nada. La primera captura abrirá el hilo.',
+    de: 'Hier ist noch nichts passiert. Die erste Eroberung öffnet den Verlauf.',
+    pt: 'Nada aconteceu aqui ainda. A primeira captura abre o histórico.',
+  },
+  actFailed: {
+    fr: 'On n’a pas pu lire l’activité. Ce n’est pas un crew silencieux — c’est l’affichage qui manque.',
+    en: 'We couldn’t load the activity. This isn’t a quiet crew — only the display is missing.',
+    es: 'No pudimos leer la actividad. No es un crew silencioso: solo falta mostrarla.',
+    de: 'Die Aktivität konnte nicht geladen werden. Der Crew ist nicht still – nur die Anzeige fehlt.',
+    pt: 'Não conseguimos ler a atividade. O crew não está calado — falta só a exibição.',
   },
 });
 
