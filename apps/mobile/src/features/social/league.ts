@@ -38,8 +38,26 @@ export interface LeagueRow {
   name: string;
   /** Sous-ligne (crew d'appartenance, ville, région…). */
   sub?: string;
-  /** Valeur classée (pts, hexes, score) — l'unité vient du board. */
+  /** Valeur classée (m², pts, hexes…) — l'unité vient du board. */
   value: number;
+  /**
+   * Valeur PRÉ-FORMATÉE pour l'affichage, quand la valeur brute ne se lit pas
+   * telle quelle. Le classement joueurs est en m² : un tableau basculé en km²
+   * doit montrer « 0,04 », pas l'arrondi « 0 » qui ferait disparaître une
+   * surface réelle — et, sous le seuil où l'arrondi écrirait « 0,00 »,
+   * `formatSurface` rend « < 0,01 » (`features/social/surfaceBoard.ts`).
+   * Ce plancher a été POSÉ le 28/07/2026 : jusque-là ce commentaire promettait
+   * une garantie que deux décimales ne tenaient pas sous 5 000 m².
+   * Absent ⇒ l'écran formate `value` en entier, comme avant.
+   */
+  valueText?: string;
+  /**
+   * CLÉ D'ÉGALITÉ (E53 §10.2). Deux lignes ne sont ex æquo que si TOUS les
+   * critères de départage coïncident, pas seulement la valeur affichée : deux
+   * joueurs à surface égale que leurs défenses séparent ne sont PAS ex æquo.
+   * Absent ⇒ `withTiedRanks` retombe sur `value`, l'ancien comportement.
+   */
+  tieKey?: string;
   /** MA ligne (ou mon crew / ma ville) — ancre chartreuse. */
   me?: boolean;
   /** Seed de blason (boards crew) — mêmes seeds que features/crew/demo. */

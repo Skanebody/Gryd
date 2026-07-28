@@ -16,7 +16,9 @@ import {
   BADGE_TIER_RANK,
   BADGE_TIER_LABEL,
   BADGE_TIER_STYLE,
+  badgeGauge,
   badgeProgress,
+  isBadgeProgressMeasured,
   familyLevels as sharedFamilyLevels,
   nextLevelOf as sharedNextLevelOf,
   type BadgeDef as SharedBadgeDef,
@@ -205,5 +207,17 @@ export function badgeRewardLabel(def: BadgeDef): string | undefined {
   return isRareBadge(def) ? `Titre « ${def.name} »` : undefined;
 }
 
-/** Progression d'un badge pour une valeur de stat (jauge + « proches »). */
+/** Progression BRUTE d'un badge (calcul seul — ne peint jamais une jauge). */
 export { badgeProgress };
+
+/**
+ * ─── LA SEULE PORTE VERS UNE JAUGE (E62/E63, 28/07/2026) ────────────────────
+ * `badgeGauge` renvoie `null` quand rien ne compte cette métrique aujourd'hui :
+ * l'écran montre alors la CONDITION seule. Un « 0 / 25 » sur un compteur
+ * qu'aucun code n'incrémente dirait au joueur « tu en es à zéro, avance » alors
+ * que la barre ne bougerait jamais — c'est la confusion entre « vide » et « pas
+ * mesuré » que la constitution interdit. La liste et sa preuve vivent dans
+ * @klaim/shared (`UNMEASURED_BADGE_METRICS`), revérifiée par
+ * supabase/functions/ingest_run/badges_measured_test.ts.
+ */
+export { badgeGauge, isBadgeProgressMeasured };

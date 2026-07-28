@@ -5,11 +5,30 @@
  * existe. Même pattern que features/social/economy.ts : session → remote, et
  * AUCUNE ligne inventée quand la lecture ne donne rien.
  *
- * Source réelle = la VUE `public.player_leaderboard` (season_scores ⋈ seasons ⋈
- * users), explicitement `grant select to authenticated` (0003_rls.sql) — elle
- * contourne le RLS owner-only de `users` et porte déjà `pseudo`. On cible la
- * saison `status='active'` de la ville du joueur, triée par points desc. Le client
- * n'écrit jamais un score (season_scores = service_role via season_close/ingest).
+ * ─── L'AXE EST LA SURFACE, PLUS LES POINTS (E53 §10.1, 28/07/2026) ───────────
+ * Ce fichier lisait `player_leaderboard` (donc `season_scores.points`). §10.1
+ * dit « surface contrôlée validée » : le point est l'axe de PROGRESSION (§10.5,
+ * il « ne modifie jamais la puissance territoriale »), pas celui du classement,
+ * et un rang en points est OPAQUE — impossible à relier à ce que le joueur voit
+ * sur la carte. C'était le suspens n°2 de la migration 0082, nommément ouvert.
+ *
+ * Source réelle = la RPC `public.city_player_surface_board` (migration 0091),
+ * `security definer` + `grant execute to authenticated`. Elle rend les MESURES
+ * de §10.2 (surface tenue en m² dérivée de `territories.area_m2`, défenses
+ * réussies, surface conquise) pour MA ville, MA discipline et la période de la
+ * saison active — et AUCUN rang : le départage est appliqué ici par
+ * `surfaceBoard.ts` (module pur, testé en Deno), pour qu'il n'existe qu'une
+ * seule définition de l'ordre §10.2. Elle ne lit aucune table d'achat : aucun
+ * achat ne peut déplacer une ligne (anti-pay-to-win, constitution §3).
+ *
+ * CE QUE LA BASCULE NE RÉSOUT PAS, dit plutôt que laissé croire : personne ne
+ * prend de SNAPSHOT (§10.3, suspens 1 de 0082). Donc pas de 4ᵉ départage, pas
+ * de variation « ▲2 / ▼1 », pas de sélecteur « Semaine / Saison » — tout cela
+ * reste ABSENT de l'écran, jamais simulé. `season_scores` est intacte et
+ * continue de porter la progression ; le client n'y écrit toujours rien.
+ *
+ * `city_zones` reste lue pour NOMMER la ville, et le RLS owner-only de `users`
+ * est contourné par la RPC elle-même (elle rend le `pseudo` avec la mesure).
  *
  * ─── LE CLASSEMENT D'UNE AUTRE VILLE (23/07/2026) ────────────────────────────
  * AVANT : on rapatriait TOUTES les saisons actives (`eq('status','active')`,
@@ -32,30 +51,28 @@
  * `empty` (la lecture a RÉUSSI et il n'y a personne). `city_unknown` s'ajoute :
  * c'est ni un vide ni une panne, c'est une ville pas encore rattachée.
  *
- * Périmètre : SEUL le board Joueurs (ville du joueur) est câblé au serveur. Joueurs·France /
- * Crews / Ville n'ont aucune source réelle au MVP — c'est à l'écran Saison de
- * dire ce qui n'est pas encore mesuré, pas à ce hook d'inventer des lignes. Le rang est dérivé de l'ordre
- * (index+1) — robuste que `rank_cache` soit calculé ou non.
+ * Périmètre : SEUL le board Joueurs (ville du joueur) est câblé au serveur.
+ * Joueurs·France / Ville n'ont aucune source réelle — c'est à l'écran Saison de
+ * dire ce qui n'est pas encore mesuré, pas à ce hook d'inventer des lignes. Le
+ * `rank` posé ici n'est qu'une POSITION dans la liste triée : l'écran le
+ * recalcule en rang 1224 (`withTiedRanks`), en s'appuyant sur la `tieKey` — donc
+ * sur les trois critères de §10.2, jamais sur la seule valeur affichée.
  *
  * ─── UN CLASSEMENT = UNE DISCIPLINE (E14/E12, 25/07/2026) ────────────────────
- * La migration 0070 change la CARDINALITÉ de `player_leaderboard` : une ligne
- * par (saison, joueur, DISCIPLINE). Sans filtre, un joueur hybride apparaîtrait
- * DEUX FOIS, avec deux totaux, et tout le monde en dessous verrait son rang
- * décalé — puisque le rang est dérivé de l'ordre (index+1). C'est la violation
- * la plus directe d'E12 « rangs SÉPARÉS », sur la seule surface qui affiche un
- * classement.
+ * Run et Bike ne se somment JAMAIS (§1.2). C'est désormais garanti côté serveur
+ * par construction : `city_player_surface_board` prend `p_activity` et filtre
+ * `territories.activity` (colonne posée en 0074). Il n'existe aucune réponse où
+ * les deux mondes se rencontrent — ce n'est pas une consigne d'appelant.
  *
- * La lecture est donc BORNÉE à UNE discipline, choisie par l'appelant et
- * remontée dans `activity` pour que l'écran puisse la NOMMER. Défaut `run` : la
- * seule discipline que GRYD chronomètre à ce jour (`flags.bike` dit
- * explicitement que le commutateur E14 n'est PAS encore propagé au Classement).
- * Un board Bike ne serait pas « vide en attendant » : il serait VIDE, et vrai.
+ * La discipline est remontée dans `activity` pour que l'écran puisse la NOMMER :
+ * un podium sans monde déclaré laisserait croire qu'il couvre les deux. Un board
+ * Bike n'est pas « vide en attendant » : il est VIDE, et vrai.
  *
- * DÉPENDANCE DE DÉPLOIEMENT, dite plutôt que promise : ce filtre suppose la
- * colonne `activity` sur la vue (migration 0070). Tant qu'elle n'est pas
- * appliquée, la lecture ÉCHOUE et l'écran affiche `unavailable` — un état
- * honnête, distinct du vide (même contrat que `specialty_leaderboard` face à la
- * migration 0069, plus bas). Client et schéma se déploient ensemble.
+ * DÉPENDANCE DE DÉPLOIEMENT, dite plutôt que promise : la lecture suppose la
+ * migration 0091 appliquée. Tant qu'elle ne l'est pas, la RPC est introuvable,
+ * la lecture ÉCHOUE et l'écran affiche `unavailable` — un état honnête, distinct
+ * du vide (même contrat que `specialty_leaderboard` face à 0069, plus bas).
+ * Client et schéma se déploient ensemble.
  *
  * ─── LA FUITE COLMATÉE (21/07/2026) ──────────────────────────────────────────
  * AVANT : sans session, classement réel vide, ou lecture en échec, on servait le
@@ -72,8 +89,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { type Activity, DEFAULT_ACTIVITY } from '@klaim/shared';
 import { useSession } from '../../lib/session';
+import { useLocale } from '../../i18n/store';
 import { supabase } from '../../lib/supabase';
 import { LEAGUE_BOARDS, type LeagueBoard, type LeagueRow } from './league';
+import {
+  formatSurface,
+  sortSurfaceEntries,
+  surfaceTieKey,
+  surfaceUnitFor,
+  surfaceUnitLabel,
+  type SurfaceEntry,
+  type SurfaceUnit,
+} from './surfaceBoard';
 
 /** Nombre max de lignes lues (podium + liste + « Voir tout »). */
 const LEADERBOARD_LIMIT = 50;
@@ -123,6 +150,13 @@ export interface SeasonLeaderboard {
    * deux, ce que la séparation stricte d'E14 interdit.
    */
   activity: Activity;
+  /**
+   * UNITÉ du tableau (E53 §10.1) — m² ou km², décidée sur la plus grande valeur
+   * réellement lue, jamais fixée d'avance. L'écran en a besoin pour formater
+   * l'ÉCART vers la place au-dessus dans la même unité que les lignes : deux
+   * unités dans une même scène rendraient l'écart incomparable au total.
+   */
+  surfaceUnit: SurfaceUnit;
 }
 
 function asInt(value: unknown): number {
@@ -130,14 +164,26 @@ function asInt(value: unknown): number {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
 }
 
-type BoardRow = { user_id?: unknown; pseudo?: unknown; points?: unknown };
+/** Une surface est un DOUBLE (m² géodésiques) : la tronquer perdrait le terrain. */
+function asNumber(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+type BoardRow = {
+  user_id?: unknown;
+  pseudo?: unknown;
+  controlled_area_m2?: unknown;
+  successful_defenses?: unknown;
+  conquered_area_m2?: unknown;
+};
 
 /** Résultat de lecture — porte l'état ET ce qui a été lu, jamais l'un sans l'autre. */
 type RemoteBoard =
   | { status: 'city_unknown' }
   | { status: 'unavailable' }
   | { status: 'empty'; cityName: string | null }
-  | { status: 'ready'; cityName: string | null; rows: LeagueRow[] };
+  | { status: 'ready'; cityName: string | null; rows: LeagueRow[]; unit?: SurfaceUnit };
 
 function asName(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
@@ -150,7 +196,11 @@ function asName(value: unknown): string | null {
  *
  * Ne lève JAMAIS : chaque échec devient l'état `unavailable`, distinct du vide.
  */
-async function fetchRemoteJoueurs(userId: string, activity: Activity): Promise<RemoteBoard> {
+async function fetchRemoteJoueurs(
+  userId: string,
+  activity: Activity,
+  locale: string,
+): Promise<RemoteBoard> {
   if (!supabase) return { status: 'unavailable' };
 
   const meResult = await supabase.from('users').select('city_id').eq('id', userId).maybeSingle();
@@ -165,9 +215,11 @@ async function fetchRemoteJoueurs(userId: string, activity: Activity): Promise<R
     // BORNÉE : une seule ville, un seul statut, un ordre déterministe, une ligne.
     // (L'index partiel `seasons_one_active_per_city` garantit déjà l'unicité —
     // l'ordre et la limite rendent la requête stable même si l'index changeait.)
+    // `starts_at`/`ends_at` sont lus parce que les critères 2 et 3 de §10.2
+    // (défenses, conquête) sont bornés par une PÉRIODE : celle de la saison.
     supabase
       .from('seasons')
-      .select('id')
+      .select('id, starts_at, ends_at')
       .eq('city_id', myCity)
       .eq('status', 'active')
       .order('starts_at', { ascending: false })
@@ -182,33 +234,61 @@ async function fetchRemoteJoueurs(userId: string, activity: Activity): Promise<R
   // sans nommer. (`cityResult.error` → `null`, jamais un nom inventé.)
   const cityName = cityResult.error ? null : asName((cityResult.data as { name?: unknown } | null)?.name);
 
-  const seasonId = (seasonResult.data as { id?: unknown } | null)?.id;
+  const season = seasonResult.data as { id?: unknown; starts_at?: unknown; ends_at?: unknown } | null;
   // Ville rattachée mais sans saison active : rien à classer, et c'est vrai.
-  if (typeof seasonId !== 'string') return { status: 'empty', cityName };
+  if (typeof season?.id !== 'string') return { status: 'empty', cityName };
+  // Une saison sans bornes lisibles ne permet pas de borner les départages : la
+  // lecture ÉCHOUE plutôt que d'inventer une fenêtre (un « depuis toujours »
+  // silencieux fausserait les critères 2 et 3 sans que personne ne le voie).
+  if (typeof season.starts_at !== 'string' || typeof season.ends_at !== 'string') {
+    return { status: 'unavailable' };
+  }
 
-  const boardResult = await supabase
-    .from('player_leaderboard')
-    // ── E12/E14 : UNE SEULE DISCIPLINE. La vue rend une ligne par (saison,
-    // joueur, discipline) depuis 0070 ; sans ce filtre, un joueur hybride
-    // occuperait deux places et décalerait le rang de tous les suivants.
-    .select('user_id, pseudo, points')
-    .eq('season_id', seasonId)
-    .eq('activity', activity)
-    .order('points', { ascending: false })
-    .limit(LEADERBOARD_LIMIT);
+  // ── §10.1 : L'AXE EST LA SURFACE. La RPC `city_player_surface_board`
+  // (migration 0091) rend les MESURES de §10.2, jamais un rang — le départage
+  // est appliqué juste après par `surfaceBoard.ts` (module pur, testé en Deno).
+  // Elle borne déjà : une seule ville, UNE SEULE DISCIPLINE (§1.2, Run et Bike
+  // ne se somment jamais), et les seuls territoires PUBLIÉS (§1.5).
+  const boardResult = await supabase.rpc('city_player_surface_board', {
+    p_city_id: myCity,
+    p_activity: activity,
+    p_period_start: season.starts_at,
+    p_period_end: season.ends_at,
+    p_limit: LEADERBOARD_LIMIT,
+  });
   if (boardResult.error) return { status: 'unavailable' };
 
-  const rows = (boardResult.data ?? []) as BoardRow[];
-  if (rows.length === 0) return { status: 'empty', cityName };
+  const raw = (boardResult.data ?? []) as BoardRow[];
+  if (raw.length === 0) return { status: 'empty', cityName };
+
+  const entries: SurfaceEntry[] = raw.map((r) => ({
+    userId: typeof r.user_id === 'string' ? r.user_id : '',
+    pseudo: typeof r.pseudo === 'string' ? r.pseudo : '—',
+    controlledAreaM2: asNumber(r.controlled_area_m2),
+    successfulDefenses: asInt(r.successful_defenses),
+    conqueredAreaM2: asNumber(r.conquered_area_m2),
+  }));
+
+  // Départage §10.2 côté moteur (3 critères ; le 4ᵉ exige des snapshots que
+  // personne ne prend encore — une égalité parfaite RESTE une égalité), puis
+  // une unité UNIQUE pour tout le tableau, choisie sur la plus grande valeur.
+  const sorted = sortSurfaceEntries(entries);
+  const unit = surfaceUnitFor(sorted);
 
   return {
     status: 'ready',
     cityName,
-    rows: rows.map((r, i) => ({
+    unit,
+    // `rank` est provisoire (position) : l'écran le recalcule en 1224 via
+    // `withTiedRanks`, qui s'appuie sur `tieKey` — donc sur les TROIS critères,
+    // et non sur la seule surface affichée.
+    rows: sorted.map((e, i) => ({
       rank: i + 1,
-      name: typeof r.pseudo === 'string' ? r.pseudo : '—',
-      value: asInt(r.points),
-      me: r.user_id === userId,
+      name: e.pseudo,
+      value: e.controlledAreaM2,
+      valueText: formatSurface(e.controlledAreaM2, unit, locale),
+      tieKey: surfaceTieKey(e),
+      me: e.userId === userId,
     })),
   };
 }
@@ -220,6 +300,9 @@ async function fetchRemoteJoueurs(userId: string, activity: Activity): Promise<R
  */
 export function useSeasonLeaderboard(activity: Activity = DEFAULT_ACTIVITY): SeasonLeaderboard {
   const { session, configured, loading: sessionLoading } = useSession();
+  // La LANGUE décide du séparateur décimal des km² (« 0,04 » / « 0.04 »). Elle
+  // est passée au module pur plutôt que devinée par lui.
+  const locale = useLocale();
   const [remote, setRemote] = useState<RemoteBoard | null>(null);
   const [remoteLoading, setRemoteLoading] = useState(false);
 
@@ -237,7 +320,7 @@ export function useSeasonLeaderboard(activity: Activity = DEFAULT_ACTIVITY): Sea
     // aller-retour — une autre variante du classement de quelqu'un d'autre.
     setRemote(null);
     setRemoteLoading(true);
-    void fetchRemoteJoueurs(userId, activity)
+    void fetchRemoteJoueurs(userId, activity, locale)
       .then((result) => {
         if (alive) setRemote(result);
       })
@@ -252,31 +335,45 @@ export function useSeasonLeaderboard(activity: Activity = DEFAULT_ACTIVITY): Sea
     return () => {
       alive = false;
     };
-  }, [configured, userId, activity]);
+  }, [configured, userId, activity, locale]);
 
   return useMemo<SeasonLeaderboard>(() => {
     const loading = sessionLoading || remoteLoading;
-    const empty = { ...JOUEURS_BOARD_TEMPLATE, rows: [] as readonly LeagueRow[] };
+    // Board VIDE : le gabarit sans ses lignes. Son unité est celle de l'axe RÉEL
+    // (la surface), jamais le « pts » historique — un tableau vide ne doit pas
+    // annoncer une unité que ses lignes n'auront pas.
+    const empty = {
+      ...JOUEURS_BOARD_TEMPLATE,
+      valueLabel: surfaceUnitLabel('m2'),
+      rows: [] as readonly LeagueRow[],
+    };
     // Un chargement n'affirme RIEN : il ne dit ni « vide », ni « pas de ville ».
     if (loading) {
-      return { joueursBoard: empty, source: 'local', loading, status: 'loading', cityName: null, activity };
+      return { joueursBoard: empty, source: 'local', loading, status: 'loading', cityName: null, activity, surfaceUnit: 'm2' };
     }
     if (!configured || !userId) {
-      return { joueursBoard: empty, source: 'local', loading, status: 'signed_out', cityName: null, activity };
+      return { joueursBoard: empty, source: 'local', loading, status: 'signed_out', cityName: null, activity, surfaceUnit: 'm2' };
     }
     // Session posée, lecture terminée, mais rien n'est encore revenu de l'effet :
     // on ne conclut pas — on reste en lecture (jamais un vide affirmé à tort).
     if (!remote) {
-      return { joueursBoard: empty, source: 'local', loading: true, status: 'loading', cityName: null, activity };
+      return { joueursBoard: empty, source: 'local', loading: true, status: 'loading', cityName: null, activity, surfaceUnit: 'm2' };
     }
     if (remote.status === 'ready') {
       return {
-        joueursBoard: { ...JOUEURS_BOARD_TEMPLATE, rows: remote.rows },
+        joueursBoard: {
+          ...JOUEURS_BOARD_TEMPLATE,
+          // L'unité EST celle du tableau réellement rendu (m² ou km²), décidée
+          // sur la plus grande valeur — jamais une unité fixée d'avance.
+          valueLabel: surfaceUnitLabel(remote.unit ?? 'm2'),
+          rows: remote.rows,
+        },
         source: 'server',
         loading,
         status: 'ready',
         cityName: remote.cityName,
         activity,
+        surfaceUnit: remote.unit ?? 'm2',
       };
     }
     // Aucune ligne inventée : le gabarit du board (titre/unité) sans ses lignes.
@@ -287,6 +384,7 @@ export function useSeasonLeaderboard(activity: Activity = DEFAULT_ACTIVITY): Sea
       status: remote.status,
       cityName: remote.status === 'empty' ? remote.cityName : null,
       activity,
+      surfaceUnit: 'm2',
     };
   }, [remote, sessionLoading, remoteLoading, configured, userId, activity]);
 }

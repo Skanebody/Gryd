@@ -27,12 +27,15 @@
  * déguise jamais en panne. §A : un seul CTA chartreuse — et il n'existe que
  * quand il peut aboutir (jamais de bouton mort).
  *
- * L'écran E75 (gestion d'abonnement détaillée) n'existe pas encore : on ne peint
- * donc pas d'écran de gestion. Quand le SDK fournit une `managementURL`, le
- * bouton ouvre la gestion NATIVE du Store ; sans elle, aucun bouton.
+ * ══ LA GESTION VIT DANS E75, PAS ICI (28/07/2026) ═════════════════════════
+ * Cet écran VEND. La gestion (statut, prochaine échéance, ouverture du Store,
+ * restauration, historique minimal, support) est l'écran E75 `/abonnement`,
+ * créé le 28/07/2026 — le docblock disait jusque-là « E75 n'existe pas
+ * encore », ce qui n'est plus vrai. Le bouton « Gérer » y mène ; c'est E75 qui
+ * décide s'il peut ouvrir le Store (il lui faut une `managementURL`).
  */
 import { useEffect } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   colors,
@@ -52,7 +55,7 @@ import { Icon } from '../src/ui/Icon';
 import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
 import { isPurchasable, offerLabelEntry, trialUnitEntry, usePremium } from '../src/features/premium';
-import type { PremiumOffer, ProStatus } from '../src/features/premium';
+import type { PremiumActionResult, PremiumOffer, ProStatus } from '../src/features/premium';
 import type { Locale } from '../src/i18n/types';
 import type { PurchaseBlockedReason } from '../src/features/premium';
 
@@ -77,6 +80,10 @@ export default function PremiumScreen() {
     if (!selectedOffer) return;
     track(EVENTS.purchaseInitiated, { sku: selectedOffer.productId });
     const result = await premium.purchaseSelected();
+    // `purchaseCompleted` n'est émis que sur un droit RELU actif — pas sur le
+    // simple fait que `purchasePackage()` n'a pas jeté (28/07/2026). Un achat
+    // différé ('purchase_pending') n'est pas un achat complété : le compter
+    // comme tel fausserait la conversion autant que la phrase d'écran.
     if (result?.kind === 'purchased') {
       track(EVENTS.purchaseCompleted, { sku: selectedOffer.productId });
     }
@@ -202,18 +209,26 @@ export default function PremiumScreen() {
             loading={busy === 'restore'}
             analyticsId="premium_restore"
           />
-          {/* Gestion : le bouton n'existe QUE si le Store a donné une URL. */}
-          {premium.managementUrl ? (
-            <Button
-              label={t(C.ctaManage)}
-              variant="ghost"
-              onPress={() => {
-                const url = premium.managementUrl;
-                if (url) void Linking.openURL(url).catch(() => undefined);
-              }}
-              analyticsId="premium_manage"
-            />
-          ) : null}
+          {/* ── GESTION : E75 EXISTE DEPUIS LE 28/07/2026 ──────────────────────
+              Ce bouton ouvrait directement `managementURL` avec `Linking`, et
+              n'était donc peint que quand le Store en donnait une. Il mène
+              maintenant à l'écran E75 `/abonnement`, qui porte le statut, la
+              prochaine échéance, l'historique minimal et le support — et qui
+              décide LUI-MÊME s'il peut peindre « Gérer dans le Store » selon
+              qu'une `managementURL` existe. La route est toujours atteignable
+              ici : E75 gère ses propres états vides, ce n'est pas un bouton
+              mort.
+              SON LIBELLÉ A ÉTÉ CORRIGÉ LE MÊME JOUR : il disait « Gérer dans le
+              Store » alors qu'il ne va PLUS au Store — il navigue vers E75, qui
+              peut très bien n'avoir aucun lien Store à offrir. Un libellé
+              annonçait donc une destination que le bouton ne tenait pas, dans
+              les 5 langues (cf. `catalog/premium.ts`, `ctaManage`). */}
+          <Button
+            label={t(C.ctaManage)}
+            variant="ghost"
+            onPress={() => router.push('/abonnement')}
+            analyticsId="premium_manage"
+          />
         </View>
       ) : null}
 
@@ -354,10 +369,14 @@ function blockedEntry(reason: PurchaseBlockedReason | null) {
   }
 }
 
-function resultEntry(kind: 'purchased' | 'restored' | 'nothing_to_restore' | 'failed') {
+function resultEntry(kind: PremiumActionResult['kind']) {
   switch (kind) {
     case 'purchased':
       return C.resultPurchased;
+    // Le Store a accepté, le droit n'est pas (encore) actif : deux faits
+    // distincts, jamais confondus (cf. `PremiumActionResult`).
+    case 'purchase_pending':
+      return C.resultPurchasePending;
     case 'restored':
       return C.resultRestored;
     case 'nothing_to_restore':

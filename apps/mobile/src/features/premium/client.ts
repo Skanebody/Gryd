@@ -38,7 +38,7 @@ import {
   type PurchaseCapability,
 } from './capability';
 import { DEFAULT_PRO_ENTITLEMENT_ID, type CustomerInfoLike } from './entitlement';
-import type { OfferingLike, PackageLike } from './offerings';
+import type { OfferingLike, PackageLike, StoreProductLike } from './offerings';
 
 /** Sous-ensemble STRUCTUREL du SDK réellement appelé (aucun type importé de lui). */
 interface PurchasesModuleLike {
@@ -46,6 +46,12 @@ interface PurchasesModuleLike {
   logIn(appUserId: string): Promise<{ customerInfo: CustomerInfoLike }>;
   getCustomerInfo(): Promise<CustomerInfoLike>;
   getOfferings(): Promise<{ current?: OfferingLike | null }>;
+  /**
+   * Produits store lus PAR IDENTIFIANT — ce qui donne un prix aux objets de la
+   * boutique (E72/E73) qui ne sont pas des packages d'abonnement. Absent des
+   * SDK très anciens : l'appelant vérifie que c'est bien une fonction.
+   */
+  getProducts?(productIds: readonly string[]): Promise<readonly StoreProductLike[]>;
   purchasePackage(pkg: PackageLike): Promise<{ customerInfo: CustomerInfoLike }>;
   restorePurchases(): Promise<CustomerInfoLike>;
 }
@@ -133,6 +139,26 @@ export async function fetchCurrentOffering(): Promise<OfferingLike | null> {
   if (!sdk) return null;
   const offerings = await sdk.getOfferings();
   return offerings?.current ?? null;
+}
+
+/**
+ * Produits store correspondant à des SKUs de catalogue (E72/E73), ou `null` si
+ * rien n'a pu être lu. `null` veut dire « ON NE SAIT PAS », jamais « pas de
+ * prix » : c'est l'appelant qui distingue l'échec de lecture (état 'error') du
+ * store qui répond une liste VIDE parce qu'aucun produit n'est publié
+ * (état 'empty'). Confondre les deux ferait dire « la boutique n'a pas de
+ * prix » là où la vraie phrase est « on n'a pas réussi à les lire ».
+ *
+ * Un SDK sans `getProducts` rend `null` de la même façon — une capacité absente
+ * n'est pas une réponse.
+ */
+export async function fetchStoreProducts(
+  productIds: readonly string[],
+): Promise<readonly StoreProductLike[] | null> {
+  const sdk = purchasesModule();
+  if (!sdk || typeof sdk.getProducts !== 'function') return null;
+  if (productIds.length === 0) return [];
+  return await sdk.getProducts(productIds);
 }
 
 export async function fetchCustomerInfo(): Promise<CustomerInfoLike | null> {

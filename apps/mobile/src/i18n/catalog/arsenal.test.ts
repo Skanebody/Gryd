@@ -107,9 +107,10 @@ Deno.test('E17 : les libellés porteurs de valeur exposent bien leur placeholder
   assert(SHOP_C.kickerSeason.fr.includes('{season}'));
   assert(SHOP_C.seasonHeroTitle.fr.includes('{season}'));
   assert(SHOP_C.seasonHeroDays.fr.includes('{days}'));
-  assert(SHOP_C.premiumMonthlyPrice.fr.includes('{price}'));
-  assert(SHOP_C.premiumAnnualPrice.fr.includes('{price}'));
-  assert(SHOP_C.premiumAnnualPerMonth.fr.includes('{price}'));
+  // Les trois gabarits de prix Premium ont été retirés le 28/07/2026 : ce bloc
+  // ne vend plus (constitution §9 — cf. `SHOP_C.premiumPriceFromStore`). Les
+  // gabarits `{price}` vivent désormais dans le catalogue `premium.ts` (E74),
+  // où ils sont remplis par `product.priceString` du Store.
   assert(SHOP_C.priceDual.fr.includes('{eclats}') && SHOP_C.priceDual.fr.includes('{eur}'));
 });
 
@@ -130,5 +131,42 @@ Deno.test('E17 : la copie ne promet ni essai, ni restauration, ni rabais', () =>
     for (const locale of LOCALES) {
       assert(!FORBIDDEN.test(entry[locale]), `SHOP_C.${key} (${locale}) : promesse sans code derrière`);
     }
+  }
+});
+
+// ─── E17 · LE PANNEAU « PAS ENCORE OUVERTE » NE PEUT PLUS SE CONTREDIRE ──────
+//
+// Ajouté le 28/07/2026 après un audit. `notOpenBody` affirmait « Les prix
+// ci-dessous sont ceux du catalogue » ALORS QUE le catalogue n'est plus rendu
+// (les prix EUR ont été retirés de la grille au nom de la constitution §9), et
+// « le paiement n'est pas branché » ALORS QUE E74 achète réellement via
+// RevenueCat depuis un CTA du même écran. Deux affirmations fausses, dont l'une
+// contredisait `storePricesUnavailable` 36 lignes plus bas sur la même page.
+// Ce test empêche l'une comme l'autre de revenir.
+
+Deno.test('E17 : le panneau « pas encore ouverte » n’affirme RIEN sur les prix', () => {
+  // Un panneau qui parle de prix rouvre la contradiction avec
+  // `storePricesLoading/Unavailable/SignedOut/Error/Empty`, seule copie
+  // autorisée à en parler (elle dit qu'ils viennent du Store).
+  const PRIX = /(prix|precio|preis|preço|price)/i;
+  for (const locale of LOCALES) {
+    assert(
+      !PRIX.test(SHOP_C.notOpenBody[locale]),
+      `SHOP_C.notOpenBody (${locale}) parle de prix — c’est le rôle de StorePricesNote, et les deux se contrediraient`,
+    );
+  }
+});
+
+Deno.test('E17 : le panneau ne nie plus le paiement — E74 encaisse vraiment', () => {
+  // « aucun paiement n'est branché » / « payment isn't wired up » est FAUX
+  // depuis E74 (`app/premium.tsx` → `purchasePremiumPackage`). La copie n'a le
+  // droit de parler que de CETTE grille, pas du paiement en général.
+  const NIE_LE_PAIEMENT =
+    /(paiement n[’']est pas|payment isn[’']t|pago no está|Zahlung ist nicht|pagamento não está)/i;
+  for (const locale of LOCALES) {
+    assert(
+      !NIE_LE_PAIEMENT.test(SHOP_C.notOpenBody[locale]),
+      `SHOP_C.notOpenBody (${locale}) nie le paiement alors que E74 achète réellement`,
+    );
   }
 });

@@ -31,13 +31,20 @@ export interface RankedLeagueRow extends LeagueRow {
 export function withTiedRanks(rows: readonly LeagueRow[]): RankedLeagueRow[] {
   const ranked: RankedLeagueRow[] = [];
   let rank = 0;
-  let previousValue: number | null = null;
+  let previousKey: string | null = null;
 
   rows.forEach((row, index) => {
-    // Valeur identique à la précédente ⇒ même rang ; sinon le rang « rattrape »
+    // CE QUI FAIT UNE ÉGALITÉ n'est pas toujours la valeur AFFICHÉE. Sur le
+    // classement de surface (E53 §10.2), deux joueurs à surface égale peuvent
+    // être départagés par leurs défenses puis leur conquête : ils occupent deux
+    // rangs distincts et ne doivent pas porter la mention « ex æquo ». La ligne
+    // porte alors une `tieKey` qui encode TOUS les critères ; à défaut (boards
+    // en points, en hexes…) on retombe sur la valeur, comportement d'origine.
+    const key = row.tieKey ?? String(row.value);
+    // Clé identique à la précédente ⇒ même rang ; sinon le rang « rattrape »
     // la position (c'est le saut du 1224 après une égalité).
-    if (previousValue === null || row.value !== previousValue) rank = index + 1;
-    previousValue = row.value;
+    if (previousKey === null || key !== previousKey) rank = index + 1;
+    previousKey = key;
     ranked.push({ ...row, rank, tied: false });
   });
 

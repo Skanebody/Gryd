@@ -7,7 +7,7 @@
  * ORDRE DE LECTURE (E11 haut → E12 bas) :
  *   1. EN-TÊTE — « SAISON {n} » RÉEL (season_current) + décompte RÉEL « Se termine
  *      dans {n} j ». Aucun numéro figé, aucune échéance devinée.
- *   2. MA LIGNE ANCRÉE (sticky) — « #{rang} · [avatar] {pseudo} · {pts} » + barre
+ *   2. MA LIGNE ANCRÉE (sticky) — « #{rang} · [avatar] {pseudo} · {surface} » + barre
  *      de progression + écart EXPLICITE vers la place au-dessus. Elle reste
  *      visible pendant le scroll : l'objectif affiché est TOUJOURS le joueur juste
  *      au-dessus, jamais le #1 inatteignable.
@@ -20,6 +20,21 @@
  *   6. E12 — card RANG (palier de fin de saison RÉEL), frise VERTICALE des paliers,
  *      règles du reset en 2 lignes.
  *
+ * ─── L'AXE EST LA SURFACE, PLUS LES POINTS (E53 §10.1, 28/07/2026) ───────────
+ * Cet écran classait en POINTS (`season_scores` via `player_leaderboard`). La
+ * spec §10.1 dit « surface contrôlée validée » ; le point est l'axe de
+ * PROGRESSION (§10.5) et un rang en points est OPAQUE — le joueur ne peut pas
+ * le relier à ce qu'il voit sur la carte. Les valeurs affichées (lignes, podium,
+ * ma ligne ancrée, écart) sont désormais des SURFACES, dans une unité UNIQUE
+ * pour tout le tableau (m² ou km², choisie sur la plus grande valeur, jamais un
+ * arrondi qui ferait disparaître une surface réelle derrière « 0 » — sous ce
+ * seuil, `formatSurface` écrit « < 0,01 ». Ce plancher a été POSÉ le
+ * 28/07/2026 : la garantie était écrite ici avant que le code la tienne).
+ * L'égalité suit les TROIS critères de §10.2 disponibles, pas la seule valeur
+ * affichée : deux joueurs à surface égale que leurs défenses séparent ne portent
+ * pas la mention « ex æquo ». Le 4ᵉ critère (snapshot précédent) n'existe pas —
+ * une égalité parfaite RESTE une égalité, et l'écran la nomme.
+ *
  * ─── CE QUE LA PLANCHE MONTRE ET QUE LE CODE NE TIENT PAS (donc OMIS) ─────────
  * Un contrôle sans backing réel est un bouton mort ; une valeur sans source est
  * un mensonge. Sont volontairement ABSENTS, chacun commenté à son emplacement :
@@ -27,11 +42,17 @@
  *    n'existe (season_scores est cumulatif sur la saison) ;
  *  · les chips « Autour de moi », « Quartier », « Amis » — aucune vue de
  *    classement par secteur/quartier, aucun board d'amis ;
- *  · les photos rondes du podium et les km² par joueur — player_leaderboard ne
- *    rend que user_id/pseudo/points, et les photos de profil ne quittent JAMAIS
- *    le téléphone (avatarPhoto.ts) ;
- *  · la colonne « crew » et la variation « ▲2 / ▼1 » — aucune jointure crew, aucun
- *    rang antérieur persisté côté client ;
+ *  · les photos rondes du podium — la source du classement ne rend qu'un pseudo
+ *    et des mesures, et les photos de profil ne quittent JAMAIS le téléphone
+ *    (avatarPhoto.ts). Les km² par joueur, EUX, EXISTENT DEPUIS LE 28/07/2026 :
+ *    ils SONT l'axe du classement (§10.1, migration 0091) ;
+ *  · la colonne « crew » et la variation « ▲2 / ▼1 » — aucune jointure crew, et
+ *    aucun SNAPSHOT de classement n'est pris (§10.3, suspens 1 de la migration
+ *    0082) : un « ▲2 » sans rang antérieur réel serait une flèche inventée ;
+ *  · le sélecteur « Semaine / Saison » — les bornes de période existent côté
+ *    serveur, mais elles ne bornent que les DÉPARTAGES (défenses, conquête) ;
+ *    la métrique principale est la surface tenue MAINTENANT. Un contrôle dont
+ *    l'effet serait invisible est un contrôle qui ment ;
  *  · le fond carto derrière le podium — aucune carte n'est rendue ici, et un fond
  *    générique qui ne serait pas la vraie ville serait une fabrication de plus ;
  *  · le rang nommé « Argent II » + « 2 340/3 000 XP » + le moment « PASSAGE DE
@@ -114,7 +135,6 @@ import { router, Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BADGE_TIER_STYLE,
-  POINTS_NEUTRAL_HEX,
   colors,
   fonts,
   elevation,
@@ -129,7 +149,7 @@ import {
 } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/flagged';
 import { C as S } from '../../src/i18n/catalog/saison';
-import { useT } from '../../src/i18n/store';
+import { useLocale, useT } from '../../src/i18n/store';
 import type { Entry } from '../../src/i18n/types';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { TAB_CONTENT_BOTTOM_CLEARANCE } from '../../src/features/nav/metrics';
@@ -169,6 +189,10 @@ import { tierCondition, tierLabel } from '../../src/features/season/SeasonTierLi
 import { useCrewBoard } from '../../src/features/crew/statsData';
 import { useMyProfile } from '../../src/features/social/profileStore';
 import type { LeagueBoard } from '../../src/features/social/league';
+// E53 §10.1 — l'axe du classement est la SURFACE. Le formatage (unité unique du
+// tableau, séparateur décimal localisé) vit dans un module PUR testé en Deno :
+// l'écran n'invente ni arrondi ni unité.
+import { formatSurface, surfaceUnitLabel } from '../../src/features/social/surfaceBoard';
 import { ToastHost, useToast } from '../../src/features/social/Toast';
 import { screen } from '../../src/lib/analytics';
 import { useSession } from '../../src/lib/session';
@@ -347,7 +371,10 @@ function Podium({
               {shown}
               {row.me === true ? t(meSuffix(board)) : ''}
             </Text>
-            <Text style={styles.podiumValue}>{formatInt(row.value)}</Text>
+            {/* `valueText` = valeur déjà formatée dans l'unité du tableau (E53 :
+                m² ou km², séparateur décimal localisé). Absent sur les boards qui
+                comptent des entiers (spécialités) : on retombe sur `formatInt`. */}
+            <Text style={styles.podiumValue}>{row.valueText ?? formatInt(row.value)}</Text>
             {/* Hauteur RÉSERVÉE, occupée ou non : sans elle, la colonne qui ne
                 porte pas l'action (la mienne) ferait remonter sa marche, et le
                 podium ne serait plus aligné. */}
@@ -410,7 +437,7 @@ function BoardRow({
             {row.me === true ? t(meSuffix(board)) : ''}
           </Text>
           {/* ÉGALITÉ dite en TEXTE (jamais une nuance de couleur) : deux joueurs à
-              points égaux partagent le rang, comme à la clôture serveur. La
+              mesures égales (§10.2) partagent le rang, comme à la clôture serveur. La
               colonne « crew » de la planche reste vide — aucune source ne la
               remplit (player_leaderboard ne joint pas crew_members). */}
           {row.tied ? (
@@ -420,7 +447,7 @@ function BoardRow({
           ) : null}
         </View>
         <View style={styles.rowValueWrap}>
-          <Text style={styles.rowValue}>{formatInt(row.value)}</Text>
+          <Text style={styles.rowValue}>{row.valueText ?? formatInt(row.value)}</Text>
           <Text style={styles.rowValueLabel}>{board.valueLabel}</Text>
         </View>
         {/* B4 — l'affordance qui manquait : « … » gris, jamais chartreuse (le
@@ -627,8 +654,8 @@ function asOfLabel(iso: string): string {
  * « Spécialités » — un seul rendu, donc une seule règle de podium.
  *
  * `showPodium` porte la règle psychologique de la planche : un joueur NON classé
- * ne doit JAMAIS voir un podium géant au-dessus de lui (« 22 000 pts / toi :
- * rien »). Dans ce cas les 3 premiers redescendent en lignes ordinaires.
+ * ne doit JAMAIS voir un podium géant au-dessus de lui (« 12 km² / toi : rien »).
+ * Dans ce cas les 3 premiers redescendent en lignes ordinaires.
  */
 function BoardBody({
   rows,
@@ -853,7 +880,9 @@ function LeagueScreen() {
   /**
    * Board de MA ville (saison active) — jamais celui d'une autre ville, et
    * jamais deux disciplines mélangées : la lecture est bornée à la lentille
-   * courante (`.eq('activity', …)` sur `player_leaderboard`, cf. leagueBoard.ts).
+   * courante (`p_activity` de la RPC `city_player_surface_board`, migration
+   * 0091 — cf. leagueBoard.ts). Les VALEURS sont des SURFACES en m² (§10.1),
+   * plus des points ; `surfaceUnit` dit dans quelle unité le tableau les rend.
    * `boardStatus` porte l'état EXACT de la lecture (chargement / pas de compte /
    * ville non rattachée / échec / vide / prêt).
    */
@@ -863,7 +892,9 @@ function LeagueScreen() {
     loading: boardLoading,
     status: boardStatus,
     cityName: boardCityName,
+    surfaceUnit,
   } = useSeasonLeaderboard(activity);
+  const locale = useLocale();
   const { session, configured } = useSession();
   const signedIn = configured && session !== null;
 
@@ -927,14 +958,42 @@ function LeagueScreen() {
   // de la barre (mes points rapportés à ceux du dessus, aucune échelle inventée,
   // rien du tout si personne n'est devant) et « suis-je en tête ». Un seul contrat
   // pour l'écran et son test, plus d'arithmétique dispersée dans le rendu.
-  const { gapPoints, gapHexes, gapRatio, isLeader } = leagueGap(meRow, aboveRow, POINTS_NEUTRAL_HEX);
+  // `gapPoints` porte ici un écart de SURFACE (m²) : depuis E53 la valeur d'une
+  // ligne EST la surface contrôlée. Le 3ᵉ argument (points par zone neutre) ne
+  // sert qu'à la conversion « écart → zones », qui n'a plus de sens sur des m² —
+  // estimer un nombre de zones exigerait une aire de zone MOYENNE que rien ne
+  // mesure. On passe donc 0, `gapHexes` vaut 0 et n'est plus lu : l'écart est dit
+  // dans l'unité du tableau, jamais habillé en une estimation inventée.
+  const { gapPoints: gapAreaM2, gapRatio, isLeader } = leagueGap(meRow, aboveRow, 0);
+  // Écart affiché : même unité que les lignes, séparateur décimal de la langue.
+  const gapSurfaceText = `${formatSurface(gapAreaM2, surfaceUnit, locale)} ${surfaceUnitLabel(surfaceUnit)}`;
+  /**
+   * ── ÉCART NUL : LA PHRASE GÉNÉRIQUE Y ÉTAIT ABSURDE (28/07/2026) ──────────
+   * §10.2 départage sur trois critères, et `surfaceTieKey` en tire la
+   * conséquence : deux joueurs à surface ÉGALE que leurs défenses séparent ont
+   * DEUX rangs distincts (ils ne sont pas ex æquo). `leagueGap` rend alors
+   * `gapPoints = 0`, et l'écran écrivait « 0,00 km² pour passer #3 » — un
+   * objectif inatteignable par construction, pas un cas limite improbable.
+   * Ce booléen aiguille vers la phrase qui dit la vérité de la situation.
+   */
+  const gapIsTie = aboveRow !== undefined && gapAreaM2 === 0;
 
   const onJoueurs = activeTab === 'joueurs';
   // Ma ligne ancrée est DÉRIVÉE du board de ma ville : elle n'apparaît que sur cet
   // onglet (jamais figée au-dessus d'un podium Crew) et jamais en mode discret.
   const showMine = !discreet && onJoueurs && meRow !== undefined;
 
-  // Mode discret §10.3 : je n'apparais JAMAIS dans un leaderboard global.
+  // ── MODE DISCRET §10.3 — CE FILTRE N'EST QUE LA MOITIÉ VISIBLE ────────────
+  // Ce commentaire affirmait « je n'apparais JAMAIS dans un leaderboard global »
+  // au-dessus d'un filtre CLIENT portant sur MA seule ligne, sur MON seul écran.
+  // C'était faux dans le sens qui compte : ma ligne partait quand même à tous
+  // les autres clients. Depuis le 28/07/2026, la RPC `city_player_surface_board`
+  // lit `user_profiles.discreet_mode` et retire la ligne pour TOUT LE MONDE
+  // (migration 0092), et l'interrupteur écrit réellement cette colonne
+  // (`features/motivation/discreetSync.ts`, qui DIT quand l'écriture échoue).
+  // Ce filtre-ci reste utile et n'est plus un mensonge : il couvre l'instant où
+  // le serveur n'a pas encore vu le réglage (écriture en vol, cache de lecture,
+  // ou compte sans ligne `user_profiles`). Il ne PROMET plus rien à lui seul.
   const rows = discreet ? rankedRows.filter((r) => r.me !== true) : rankedRows;
   const showBoardRows = onJoueurs && joueursIsReal;
 
@@ -1016,9 +1075,11 @@ function LeagueScreen() {
               accessible
               // Une seule annonce COMPLÈTE (le regroupement a11y masquerait sinon
               // les valeurs des enfants) : rôle, rang, pseudo, points, puis l'écart.
-              accessibilityLabel={`${t(S.maLigneA11y)} : #${meRow.rank} ${meRow.name}, ${formatInt(meRow.value)} ${joueursBoard.valueLabel}. ${
+              accessibilityLabel={`${t(S.maLigneA11y)} : #${meRow.rank} ${meRow.name}, ${meRow.valueText ?? formatInt(meRow.value)} ${joueursBoard.valueLabel}. ${
                 aboveRow
-                  ? t(S.gapPourPasser, { pts: formatInt(gapPoints), rank: aboveRow.rank })
+                  ? gapIsTie
+                    ? t(S.gapSurfaceEgalite, { rank: aboveRow.rank })
+                    : t(S.gapSurfacePourPasser, { surface: gapSurfaceText, rank: aboveRow.rank })
                   : t(C.enTete)
               }`}
             >
@@ -1030,17 +1091,20 @@ function LeagueScreen() {
                   {t(C.suffixMoi)}
                 </Text>
                 <View style={styles.mineValueWrap}>
-                  <Text style={styles.mineValue}>{formatInt(meRow.value)}</Text>
+                  <Text style={styles.mineValue}>{meRow.valueText ?? formatInt(meRow.value)}</Text>
                   <Text style={styles.mineUnit}>{joueursBoard.valueLabel}</Text>
                 </View>
               </View>
               {aboveRow ? (
                 <>
                   <ProgressBar value={gapRatio} height={6} />
-                  {/* L'unité RÉELLE du board est le POINT (les km² par joueur
-                      n'existent nulle part) : on ne convertit jamais l'un en l'autre. */}
+                  {/* L'unité RÉELLE du board est la SURFACE (§10.1) : l'écart est
+                      dit en m²/km², dans la MÊME unité que les lignes — jamais
+                      converti en points, ni en un nombre de zones estimé. */}
                   <Text style={styles.mineGap}>
-                    {t(S.gapPourPasser, { pts: formatInt(gapPoints), rank: aboveRow.rank })}
+                    {gapIsTie
+                      ? t(S.gapSurfaceEgalite, { rank: aboveRow.rank })
+                      : t(S.gapSurfacePourPasser, { surface: gapSurfaceText, rank: aboveRow.rank })}
                   </Text>
                 </>
               ) : (
@@ -1069,18 +1133,19 @@ function LeagueScreen() {
              et la cible porte désormais la discipline — `plannerHref(activity)`
              au lieu d'un `/route-planner` nu, qui retombait sur la course.
              L'écart affiché est celui de LA lentille courante : le board est lu
-             par `useSeasonLeaderboard(activity)`, jamais sommé entre les mondes,
-             et la conversion points → zones utilise POINTS_NEUTRAL_HEX, qui ne
-             dépend pas de la discipline. La phrase-objectif reste donc vraie au
-             mot près pour un cycliste. */
+             par `useSeasonLeaderboard(activity)`, jamais sommé entre les mondes.
+             La phrase-objectif dit l'écart en SURFACE — une unité qui ne dépend
+             d'aucune discipline : elle reste vraie au mot près pour un cycliste. */
           <View style={styles.goalWrap}>
             <Text style={styles.goalText}>
               {isLeader
                 ? t(C.toiHintLeader)
-                : t(C.toiHintChase, {
-                    n: formatInt(Math.max(1, gapHexes)),
-                    name: aboveRow ? aboveRow.name : '',
-                  })}
+                : gapIsTie && aboveRow
+                  ? t(S.goalSurfaceEgalite, { name: aboveRow.name })
+                  : t(S.goalSurfaceChase, {
+                      surface: gapSurfaceText,
+                      name: aboveRow ? aboveRow.name : '',
+                    })}
             </Text>
             <InlineRunCTA
               label={t(isLeader ? C.ctaDefendre : C.ctaMaRoute)}
@@ -1131,7 +1196,7 @@ function LeagueScreen() {
                   {t(C.boardCityCaption, { ville: boardCityName })}
                 </Text>
               ) : null}
-              {/* Jamais « 22 000 pts » face à « toi : rien » : sans ligne à moi, le
+              {/* Jamais « 12 km² » face à « toi : rien » : sans ligne à moi, le
                   podium géant disparaît (les 3 premiers redeviennent des lignes). */}
               {!discreet && meRow === undefined ? (
                 <Text style={styles.boardCaption}>{t(S.pasClasse)}</Text>

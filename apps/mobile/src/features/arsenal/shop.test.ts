@@ -8,10 +8,9 @@
  *  1. un objet FONCTIONNEL (Bouclier, Streak Gel, Scout Ping) ne s'annonce
  *     jamais comme achetable — « ne s'achète pas » n'est pas « pas encore » ;
  *  2. la boutique ne peut pas afficher un objet NON LANCÉ dans son rayon ;
- *  3. le prix mensuel équivalent de l'annuel est CALCULÉ et jamais optimiste
- *     (annoncer moins que ce qui sera payé = faux rabais) ;
- *  4. les prix affichés sont exactement ceux de game-rules (la planche disait
- *     « 39,99 €/an » : un placeholder de maquette, faux) ;
+ *  3. AUCUNE surface de la boutique ne rend un montant en ARGENT RÉEL écrit
+ *     dans le code (constitution §9 — le prix vient du Store) ;
+ *  4. le montant de maquette « 39,99 » ne revient pas par le catalogue ;
  *  5. un abonnement n'apparaît PAS dans la grille (il vit dans le bloc Premium,
  *     une seule décision par surface) ;
  *  6. aucun objet du catalogue ne vend un avantage de jeu (garde anti-p2w).
@@ -20,10 +19,8 @@ import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.t
 import { isFunctionalItemKey, SKU_PRICES_EUR, SKUS } from '@klaim/shared';
 import { ARSENAL_CATALOG, itemByKey } from './catalog.ts';
 import {
-  monthlyEquivalentEur,
   ownershipKindOf,
   premiumItem,
-  premiumPrices,
   PREMIUM_MAX_BENEFITS,
   shopCategoryKeys,
   shopItems,
@@ -114,35 +111,42 @@ Deno.test('catégories : « Tout » = l’union exacte des catégories', () => {
   assertEquals(union, all);
 });
 
-// ─── 3. Prix Premium ─────────────────────────────────────────────────────────
+// ─── 3. AUCUN PRIX EN ARGENT RÉEL N'EST ÉCRIT DANS L'APP (constitution §9) ──
+//
+// Ce bloc a REMPLACÉ, le 28/07/2026, trois tests qui vérifiaient l'inverse :
+// ils garantissaient que la boutique affichait bien `SKU_PRICES_EUR`. C'était
+// verrouiller une violation — la constitution dit « LES PRIX VIENNENT DU STORE
+// OU D'UNE REMOTE CONFIG — jamais codés en dur dans l'app ». Les tests
+// garantissent maintenant le contraire : qu'aucune surface de la boutique ne
+// peut RÉGRESSER vers un montant du code.
 
-Deno.test('premium : les deux prix affichés sont EXACTEMENT ceux de game-rules', () => {
-  const p = premiumPrices();
-  assertEquals(p.monthlyEur, SKU_PRICES_EUR.club_monthly);
-  assertEquals(p.annualEur, SKU_PRICES_EUR.club_annual);
-  // Le « 39,99 €/an » de la planche est un placeholder de maquette : il ne doit
-  // JAMAIS réapparaître dans le code.
-  assert(p.annualEur !== 39.99, 'le prix annuel de la maquette a été recopié');
+Deno.test('§9 : aucune surface de boutique ne rend un montant en argent réel', async () => {
+  const surfaces = [
+    '../../../app/arsenal.tsx',
+    './ShopGridCard.tsx',
+    './shop.ts',
+  ];
+  // `formatEur` a été supprimé ; `SKU_PRICES_EUR` n'a plus rien à faire dans une
+  // surface de RENDU (le catalogue, lui, le référence pour le seed serveur).
+  const banned = [/\bformatEur\b/, /\bSKU_PRICES_EUR\b/, /\bpremiumPrices\b/];
+  for (const rel of surfaces) {
+    const src = await Deno.readTextFile(new URL(rel, import.meta.url));
+    // On ignore les commentaires qui EXPLIQUENT la suppression : la garde vise
+    // le code, pas la mémoire de la décision.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const re of banned) {
+      assert(!re.test(code), `${rel} : ${re} réintroduit — prix codé en dur (§9)`);
+    }
+  }
 });
 
-Deno.test('premium : l’équivalent mensuel est calculé, jamais optimiste', () => {
-  const p = premiumPrices();
-  // Recalcul indépendant : jamais moins cher que la réalité mensualisée.
-  assert(p.annualPerMonthEur >= p.annualEur / 12, 'mensuel annoncé sous la réalité');
-  assert(p.annualPerMonthEur < p.annualEur / 12 + 0.01, 'arrondi trop large');
-  // Deux décimales exactement (un prix ne s'affiche pas au millième).
-  assertEquals(Math.round(p.annualPerMonthEur * 100), p.annualPerMonthEur * 100);
-  // Et l'annuel reste réellement plus avantageux que le mensuel : sinon le
-  // simple fait d'afficher les deux côte à côte induirait en erreur.
-  assert(p.annualPerMonthEur < p.monthlyEur, 'annuel non avantageux');
-});
-
-Deno.test('premium : monthlyEquivalentEur est défensif et arrondi au centime supérieur', () => {
-  assertEquals(monthlyEquivalentEur(34.99), 2.92);
-  assertEquals(monthlyEquivalentEur(12), 1);
-  assertEquals(monthlyEquivalentEur(0), 0);
-  assertEquals(monthlyEquivalentEur(-5), 0);
-  assertEquals(monthlyEquivalentEur(Number.NaN), 0);
+Deno.test('§9 : le montant catalogue n’est plus la source d’un prix affiché', () => {
+  // `SKU_PRICES_EUR` reste (seed serveur, site web) : ce test ne le supprime
+  // pas, il constate qu'il n'est plus l'entrée d'un rendu mobile. Le filet
+  // ci-dessus est le vrai gardien ; celui-ci épingle la valeur de maquette pour
+  // qu'un « 39,99 » ne revienne pas par la porte du catalogue.
+  const annual: number = SKU_PRICES_EUR.club_annual;
+  assert(annual !== 39.99, 'le prix annuel de la maquette a été recopié dans game-rules');
 });
 
 Deno.test('premium : 3 bénéfices MAXIMUM, et ils existent dans le catalogue', () => {

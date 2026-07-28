@@ -609,3 +609,97 @@ export function badgeProgress(key: string, statValue: number): BadgeProgress | n
   const ratio = b.threshold > 0 ? Math.min(1, value / b.threshold) : value >= b.threshold ? 1 : 0;
   return { value, threshold: b.threshold, ratio, unlocked: value >= b.threshold };
 }
+
+// ─── Ce qui est RÉELLEMENT compté aujourd'hui (E62/E63, 28/07/2026) ──────────
+
+/**
+ * ═══ UNE JAUGE EST UNE AFFIRMATION, PAS UNE DÉCORATION ══════════════════════
+ *
+ * `badgeProgress` répond toujours : pour une stat absente elle renvoie
+ * « 0 / 25 ». Peint tel quel, ce « 0 » DIT au joueur « tu en es à zéro, avance
+ * et la barre montera ». Pour les métriques ci-dessous, c'est faux : rien au
+ * monde ne les incrémente aujourd'hui — la barre resterait à zéro quoi que le
+ * joueur fasse. C'est exactement la confusion que la constitution interdit
+ * entre « vide » et « pas mesuré ».
+ *
+ * L'en-tête de `BadgeMetric` annonçait déjà ces métriques comme « alimentées par
+ * les JOBS » — sauf que les jobs en question n'existent pas dans le dépôt. Cette
+ * liste n'ajoute donc AUCUNE règle de jeu : elle inscrit un FAIT vérifiable sur
+ * l'instrumentation, et `badges_measured_test.ts` le revérifie à chaque run.
+ *
+ * PREUVE, relue le 28/07/2026 :
+ *  · `applyRunToStats` (packages/engine/src/badges.ts:281) — le seul écrivain
+ *    de `user_stats` sur le chemin de la course — ne touche aucune de ces
+ *    colonnes (le test le rejoue avec une course « tout à la fois ») ;
+ *  · aucune autre écriture n'existe : `grep` des colonnes snake_case dans
+ *    supabase/migrations + supabase/functions ne rend que les `add column` de
+ *    0007/0009/0012 ;
+ *  · SEULE exception connue, et c'est pourquoi elle n'est PAS listée ici :
+ *    `offensivesJoined`, incrémentée en SQL par `finalize_offensive`
+ *    (supabase/migrations/0064_offensive_lifecycle.sql:402).
+ *
+ * Les badges concernés RESTENT dans la collection, avec leur condition intacte :
+ * on ne cache rien, on cesse seulement de chiffrer un progrès qu'on ne mesure
+ * pas. Le jour où un job alimente une colonne, on retire sa métrique d'ici et
+ * la jauge réapparaît — c'est un changement d'une ligne.
+ *
+ * ⚠️ Les badges « saison » (seasonRank/nationalRank/crewSeasonRank) sont bien
+ * DÉCERNABLES malgré tout : `season_close` écrit directement dans `user_badges`
+ * (supabase/functions/season_close/index.ts:184) sans passer par `user_stats`.
+ * Non mesuré ≠ inatteignable : d'où une formulation d'UI qui ne parle que de la
+ * PROGRESSION, jamais de la possibilité d'obtenir le badge.
+ */
+export const UNMEASURED_BADGE_METRICS: ReadonlySet<BadgeMetric> = new Set<BadgeMetric>([
+  // Territoire / attaque / défense — attendaient un job « secteurs » inexistant.
+  'sectorsControlled',
+  'bestSectorControlPct',
+  'sectorsContested',
+  'holdDays',
+  'clustersProtected',
+  // Exploration — aucune détection « zone rurale » côté ingestion.
+  'ruralZonesOpened',
+  // Routes — la maintenance 7 j n'est calculée nulle part.
+  'supplyLines',
+  // Crew — paliers capitaine et membres actifs de la semaine : aucun écrivain.
+  'crewCaptainScore',
+  'activeMembersWeek',
+  // Social — les endpoints invite/parrainage/réactions n'écrivent pas ces colonnes.
+  'invitesSent',
+  'referralsActivated',
+  'reactionsSent',
+  // Performance — perf V1 (allure/forme) non branchée.
+  'paceImprovementSKm',
+  'formeScore',
+  // Rollups hebdomadaires — aucun job hebdo n'existe.
+  'cleanWeeks',
+  'balancedWeeks',
+  'noPressureWeeks',
+  // Saison — décernés par season_close en écrivant user_badges, pas user_stats.
+  'seasonRank',
+  'nationalRank',
+  'crewSeasonRank',
+]);
+
+/** La progression vers cette métrique est-elle RÉELLEMENT comptée aujourd'hui ? */
+export function isMetricMeasured(metric: BadgeMetric): boolean {
+  return !UNMEASURED_BADGE_METRICS.has(metric);
+}
+
+/**
+ * Peut-on afficher une jauge honnête pour ce badge ? `false` → l'UI montre la
+ * CONDITION seule (jamais un « 0 / N » qui n'avancerait jamais). Une clé
+ * inconnue vaut `false` : on ne chiffre pas ce qu'on ne connaît pas.
+ */
+export function isBadgeProgressMeasured(key: string): boolean {
+  const b = BADGES_BY_KEY.get(key);
+  return b ? isMetricMeasured(b.metric) : false;
+}
+
+/**
+ * Progression AFFICHABLE d'un badge : `badgeProgress` filtrée par ce qui est
+ * réellement compté. C'est la seule porte que l'UI doit emprunter pour peindre
+ * une jauge.
+ */
+export function badgeGauge(key: string, statValue: number): BadgeProgress | null {
+  return isBadgeProgressMeasured(key) ? badgeProgress(key, statValue) : null;
+}

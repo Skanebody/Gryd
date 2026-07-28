@@ -57,15 +57,19 @@ import {
   COLLECTION_BADGES,
   SECRET_BADGE_COLOR,
   badgeColor,
-  badgeProgress,
+  badgeGauge,
   badgeRewardLabel,
   familyBadges,
+  isBadgeProgressMeasured,
   maxTierLabel,
   nextLevelOf,
   secretBadges,
   type BadgeDef,
   type BadgeFamilyId,
 } from '../src/features/badges/catalog';
+import { addToFeatured } from '../src/features/badges/unlockMoment';
+import { FEATURED_BADGE_COUNT, useMyProfile } from '../src/features/social/profileStore';
+import { Button } from '../src/ui/Button';
 import { useMyBadges, type MyBadges } from '../src/features/badges/myBadges';
 import { formatInt } from '../src/ui/format';
 import { BadgeUnlockMoment } from '../src/features/badges/BadgeUnlockMoment';
@@ -102,8 +106,10 @@ function BadgeCardCell({ def, onSelect, unlockedIds, stat, personal }: {
 }) {
   const t = useT();
   const state = badgeState(def, unlockedIds);
+  // `badgeGauge` (et non `badgeProgress`) : une métrique que rien n'incrémente
+  // ne reçoit AUCUNE barre — la carte n'affiche alors que la condition.
   const prog = personal && def.familySlug && !def.secret
-    ? badgeProgress(def.id, stat(def.metric))
+    ? badgeGauge(def.id, stat(def.metric))
     : null;
   return (
     <View style={styles.gridCell}>
@@ -225,6 +231,23 @@ const SHEET_REDUCED_FADE_MS = 120;
  * faits du catalogue (nom + condition), jamais une stat inventée ; un appareil
  * sans partage le DIT, ce n'est pas un bouton mort. Le « template story » vers
  * E10 de la planche reste un chantier partage/E10 à part — non promis ici.
+ *
+ * ─── E63 · « CTA AJOUTER AU PROFIL SI OBTENU » (28/07/2026) ──────────────────
+ * La spéc produit demande ce CTA sur le DÉTAIL, pas seulement sur le moment de
+ * déblocage — et il n'y était pas : un joueur qui redécouvrait un vieux badge
+ * n'avait aucun moyen de le mettre en vitrine depuis ici. Le mécanisme n'est pas
+ * réinventé : `addToFeatured` (pur, testé) + `profileStore.featuredBadgeIds`,
+ * exactement comme `BadgeUnlockMoment`. Les trois issues sont peintes :
+ * ajouté · déjà là · vitrine pleine (→ /profil-edit, la seule action qui
+ * débloque). Unique CTA chartreuse de la couche (§A4), et il agit toujours.
+ *
+ * ─── E63 · LA JAUGE NE S'INVENTE PAS (28/07/2026) ───────────────────────────
+ * `badgeGauge` remplace `badgeProgress` : pour une métrique que RIEN
+ * n'incrémente aujourd'hui (secteurs, rollups hebdo, rangs de saison…), aucune
+ * barre n'est peinte — la condition parle seule, sous une ligne qui dit que la
+ * progression n'est pas comptée. Un « 0 / 25 » y aurait promis une barre qui
+ * n'aurait jamais bougé. Preuve + liste : `UNMEASURED_BADGE_METRICS`
+ * (@klaim/shared/badges), revérifiée par ingest_run/badges_measured_test.ts.
  */
 function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal }: {
   def: BadgeDef;
@@ -241,6 +264,9 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
   // Retour honnête du partage : ce qui s'est réellement passé, ou rien (un
   // « annulé » n'est pas une erreur et reste muet).
   const [shareNote, setShareNote] = useState<'none' | 'copied' | 'unavailable'>('none');
+  // Vitrine du profil (E63) — même store et même décision pure que E64.
+  const { profile, save } = useMyProfile();
+  const [featuredNote, setFeaturedNote] = useState(false);
 
   useEffect(() => {
     Animated.timing(progress, {
@@ -273,6 +299,26 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
     });
   }, [t, def.name, def.requirement]);
 
+  // E63 · mise en vitrine. La décision est PURE (`addToFeatured`) : cet écran
+  // l'exécute et la dit, il ne la ré-invente pas.
+  const featured = addToFeatured(profile.featuredBadgeIds, def.id, FEATURED_BADGE_COUNT);
+  const addToProfile = useCallback(() => {
+    haptics.medium();
+    setShareNote('none');
+    const result = addToFeatured(profile.featuredBadgeIds, def.id, FEATURED_BADGE_COUNT);
+    if (result.kind === 'added') {
+      void save({ featuredBadgeIds: result.next });
+      setFeaturedNote(true);
+    }
+    // 'already' / 'full' : déjà dits en permanence au-dessus du CTA.
+  }, [profile.featuredBadgeIds, def.id, save]);
+
+  const goReplace = useCallback(() => {
+    haptics.medium();
+    onDismiss();
+    router.push('/profil-edit');
+  }, [onDismiss]);
+
   const state = badgeState(def, unlockedIds);
   const unlocked = state === 'unlocked';
   const hidden = def.secret && !unlocked;
@@ -281,10 +327,18 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
 
   // Progression : uniquement pour les badges progressifs non secrets non pleins,
   // et SEULEMENT quand une source personnelle existe (sinon la jauge « 0 / 500 »
-  // décrirait un joueur qu'on ne connaît pas).
-  const prog = personal && def.familySlug ? badgeProgress(def.id, stat(def.metric)) : null;
+  // décrirait un joueur qu'on ne connaît pas). `badgeGauge` ajoute la troisième
+  // condition : que la métrique soit RÉELLEMENT comptée quelque part.
+  const prog = personal && def.familySlug ? badgeGauge(def.id, stat(def.metric)) : null;
   const next = nextLevelOf(def.id);
   const showGauge = prog !== null && !hidden && !prog.unlocked;
+  /**
+   * Rien ne compte cette condition aujourd'hui → on le DIT, à la place de la
+   * jauge. Réservé aux badges qu'on n'a pas encore : sur un badge obtenu, la
+   * progression n'a plus d'objet. Un secret n'en parle pas non plus (sa
+   * condition elle-même est masquée).
+   */
+  const sayNotMeasured = personal && !unlocked && !hidden && !isBadgeProgressMeasured(def.id);
   // Récompense (titre à afficher) — dérivée du catalogue, jamais inventée.
   const reward = badgeRewardLabel(def);
 
@@ -338,6 +392,15 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
         ]}
       >
         <View style={styles.sheetHandle} />
+        {/* Le détail a gagné une action (E63) : sur un petit écran, le contenu
+            peut dépasser. Il défile DANS le panneau (plafonné à 86 % de la
+            hauteur) — jamais un bouton poussé hors de l'écran, jamais un texte
+            coupé (§A). */}
+        <ScrollView
+          style={styles.sheetScroll}
+          contentContainerStyle={styles.sheetScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
         <BadgeHex
           family={def.family}
           familyColor={accent}
@@ -368,12 +431,43 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
             accent={accent}
             nextLabel={next ? next.name : null}
           />
+        ) : sayNotMeasured ? (
+          <Text style={styles.sheetNotMeasured}>{t(C.progressNotMeasured)}</Text>
         ) : null}
         {/* État teinté famille : surface badge = exception polychrome §1 */}
         {stateLine ? (
           <Text style={[styles.sheetState, unlocked ? { color: accent } : null]}>
             {stateLine}
           </Text>
+        ) : null}
+        {/* ── E63 · « CTA ajouter au profil si obtenu » ──────────────────────
+            Badge possédé seulement, et il AGIT toujours : ajouté · déjà là ·
+            vitrine pleine → l'écran qui permet de choisir le remplaçant. */}
+        {unlocked && !hidden ? (
+          <>
+            {featuredNote || featured.kind !== 'added' ? (
+              <Text style={[styles.sheetFeaturedNote, featuredNote && styles.sheetFeaturedDone]}>
+                {featuredNote
+                  ? t(C.unlockAdded)
+                  : featured.kind === 'already'
+                    ? t(C.unlockAlready)
+                    : t(C.unlockFull, { max: FEATURED_BADGE_COUNT })}
+              </Text>
+            ) : null}
+            {featured.kind === 'already' ? null : (
+              <View style={styles.sheetCta}>
+                <Button
+                  label={featured.kind === 'full'
+                    ? t(C.unlockChooseReplace)
+                    : t(C.unlockAddToProfile)}
+                  onPress={featured.kind === 'full' ? goReplace : addToProfile}
+                  analyticsId={featured.kind === 'full'
+                    ? 'badge_detail_replace'
+                    : 'badge_detail_feature'}
+                />
+              </View>
+            )}
+          </>
         ) : null}
         {/* Partage — badge possédé seulement (on ne partage pas ce qu'on n'a
             pas). Action tertiaire, jamais chartreuse ; l'indisponibilité se DIT. */}
@@ -392,6 +486,7 @@ function BadgeSheet({ def, onDismiss, unlockedIds, unlockedDates, stat, personal
             {t(shareNote === 'copied' ? C.unlockShareCopied : C.unlockShareUnavailable)}
           </Text>
         ) : null}
+        </ScrollView>
       </Animated.View>
     </View>
   );
@@ -521,11 +616,13 @@ export default function BadgesScreen() {
   // « Proches du déblocage » : top 3 badges verrouillés, non secrets, par ratio.
   // Sans source personnelle, toutes les stats valent 0 → la liste est vide et la
   // section disparaît d'elle-même ; le garde `personal` le rend explicite.
+  // `badgeGauge` écarte en plus les métriques que rien ne compte : un badge dont
+  // le compteur ne bougera jamais n'est « proche » de rien.
   const nearlyUnlocked = useMemo(() => {
     if (!personal) return [];
     return COLLECTION_BADGES
       .filter((b) => !unlockedIds.has(b.id) && !b.secret)
-      .map((b) => ({ def: b, prog: badgeProgress(b.id, stat(b.metric)) }))
+      .map((b) => ({ def: b, prog: badgeGauge(b.id, stat(b.metric)) }))
       .filter((x) => x.prog !== null && x.prog.ratio > 0 && !x.prog.unlocked)
       .sort((a, b) => (b.prog!.ratio - a.prog!.ratio))
       .slice(0, 3);
@@ -924,6 +1021,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    // Plafond : au-delà, le contenu défile dans le panneau (voir sheetScroll).
+    maxHeight: '86%',
     alignItems: 'center',
     backgroundColor: colors.carbone,
     borderTopLeftRadius: radii.card,
@@ -940,6 +1039,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.grisLigne,
     marginBottom: 18,
   },
+  // `flexShrink` : le panneau reste dimensionné par son contenu tant qu'il tient,
+  // et c'est la zone défilante qui cède quand le plafond est atteint.
+  sheetScroll: { alignSelf: 'stretch', flexShrink: 1 },
+  sheetScrollContent: { alignItems: 'center' },
   sheetName: {
     color: colors.blanc,
     fontSize: fontSizes.lg,
@@ -1005,6 +1108,27 @@ const styles = StyleSheet.create({
     marginTop: 14,
     textAlign: 'center',
   },
+  // Remplace la jauge quand rien ne compte la condition (E63) : même place,
+  // même discrétion — c'est une information, pas une alerte.
+  sheetNotMeasured: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+
+  // ── Vitrine du profil (E63) ──
+  sheetFeaturedNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    lineHeight: fontSizes.xs * 1.5,
+    marginTop: 14,
+    textAlign: 'center',
+  },
+  // Chartreuse sur fond SOMBRE uniquement (jamais l'inverse).
+  sheetFeaturedDone: { color: colors.chartreuse },
+  sheetCta: { alignSelf: 'stretch', marginTop: spacing.sm },
 
   // ── Partage (badge possédé) — tertiaire, jamais chartreuse ──
   sheetShare: {

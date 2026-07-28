@@ -62,6 +62,14 @@ export interface CustomerInfoLike {
   /** URL de gestion de l'abonnement (Store) — absente si rien à gérer. */
   readonly managementURL?: string | null;
   readonly originalAppUserId?: string;
+  /**
+   * Dates d'achat ISO par identifiant de produit — la SEULE mémoire d'achat
+   * dont GRYD dispose (aucune table serveur ne les rejoue). Alimente
+   * l'« historique minimal » de E75 (`purchaseHistory.ts`). Une valeur `null`
+   * existe pour un produit connu du SDK mais jamais acheté : elle ne fait pas
+   * de ligne.
+   */
+  readonly allPurchaseDatesByProduct?: Readonly<Record<string, string | null>> | null;
 }
 
 export type ProStatus =

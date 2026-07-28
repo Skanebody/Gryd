@@ -166,6 +166,22 @@ export const C = defineCatalog({
     de: 'Belohnung: {reward}',
     pt: 'Recompensa: {reward}',
   },
+  /**
+   * ─── E63 · LA JAUGE QUI N'EXISTE PAS (28/07/2026) ──────────────────────────
+   * Certaines conditions ne sont comptées NULLE PART aujourd'hui (liste et
+   * preuve : `UNMEASURED_BADGE_METRICS`, @klaim/shared/badges). Afficher pour
+   * elles un « 0 / 25 » promettrait une barre qui n'avancerait jamais. On dit
+   * donc l'exact état de fait — et rien de plus : la phrase parle de la
+   * PROGRESSION, jamais de la possibilité d'obtenir le badge (les badges de
+   * saison, par exemple, sont bel et bien décernés par `season_close`).
+   */
+  progressNotMeasured: {
+    fr: 'Progression pas encore comptée. La condition, elle, ne change pas.',
+    en: 'Progress isn’t tracked yet. The condition itself stands.',
+    es: 'El progreso aún no se mide. La condición no cambia.',
+    de: 'Der Fortschritt wird noch nicht gezählt. Die Bedingung bleibt.',
+    pt: 'O progresso ainda não é contado. A condição continua valendo.',
+  },
   nextLevel: {
     fr: 'Prochain niveau : {name}',
     en: 'Next level: {name}',

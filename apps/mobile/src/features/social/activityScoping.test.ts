@@ -111,11 +111,35 @@ async function queryChain(relPath: string, table: string): Promise<string> {
   return src.slice(from, end);
 }
 
-Deno.test('leagueBoard lit player_leaderboard AVEC la discipline', async () => {
-  const chain = await queryChain('./leagueBoard.ts', 'player_leaderboard');
+/**
+ * LA SOURCE A CHANGÉ, PAS LA RÈGLE (E53, 28/07/2026). Le classement Joueurs ne
+ * lit plus `player_leaderboard` (les points) mais la RPC
+ * `city_player_surface_board` (la SURFACE, §10.1). Le garde-fou suit la source :
+ * ce qu'il protège est identique — un joueur hybride ne doit jamais occuper deux
+ * places, ni voir une surface Run s'additionner à une surface Bike (§1.2).
+ * Ici la discipline voyage par un PARAMÈTRE (`p_activity`) et non par un
+ * `.eq('activity')`, parce que le filtre est appliqué SERVEUR.
+ */
+Deno.test('leagueBoard lit le classement de surface AVEC la discipline', async () => {
+  const src = (await Deno.readTextFile(new URL('./leagueBoard.ts', import.meta.url)))
+    .replace(/^\s*\/\/.*$/gm, '');
+  const at = src.indexOf("supabase.rpc('city_player_surface_board'");
+  assert(at >= 0, 'leagueBoard doit lire la RPC de surface (migration 0091)');
+  const end = src.indexOf('});', at);
+  assert(end > at, 'appel RPC non terminé');
+  const call = src.slice(at, end);
   assert(
-    chain.includes(".eq('activity'"),
-    'la lecture du classement doit être bornée à UNE discipline (E12/E14)',
+    /p_activity:\s*activity/.test(call),
+    'la lecture du classement doit être bornée à UNE discipline (E12/E14/§1.2)',
+  );
+  assert(
+    /p_city_id:\s*myCity/.test(call),
+    'et à MA ville — jamais le classement de quelqu’un d’autre',
+  );
+  // CONTRE-ÉPREUVE : plus aucune lecture de points ne subsiste sur cet écran.
+  assert(
+    !src.includes("'player_leaderboard'"),
+    'l’axe du classement est la SURFACE (§10.1) : plus aucune lecture de points ici',
   );
 });
 

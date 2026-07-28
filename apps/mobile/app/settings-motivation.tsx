@@ -55,12 +55,13 @@
  *   est local (AsyncStorage) et affiche ses défauts immédiatement — il n'y a ni
  *   « échec » ni « lecture en cours » à distinguer, donc aucun n'est peint.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   borderState,
   colors,
+  gameColors,
   radii,
   spacing,
   typography,
@@ -74,6 +75,12 @@ import { OptionCard, SwitchRow } from '../src/features/motivation/ui';
 import { LEADERBOARD_LABELS, PLAY_STYLE_LABELS } from '../src/features/motivation/labels';
 import { splitLeaderboardLevels } from '../src/features/motivation/leaderboardView';
 import { useMotivationPrefs } from '../src/features/motivation/store';
+import {
+  discreetSyncNeedsWarning,
+  type DiscreetSyncOutcome,
+} from '../src/features/motivation/discreetSync';
+import { syncDiscreetMode } from '../src/features/motivation/discreetSyncClient';
+import { useSession } from '../src/lib/session';
 import { C } from '../src/i18n/catalog/motivation';
 import { useT } from '../src/i18n/store';
 
@@ -96,6 +103,26 @@ const LEVEL_DOT_PX = 6;
 export default function SettingsMotivationScreen() {
   const t = useT();
   const { prefs, update } = useMotivationPrefs();
+  const { session } = useSession();
+  /**
+   * Résultat de la DERNIÈRE écriture serveur du mode discret. `null` = rien
+   * n'a encore été tenté sur cet écran — on n'affiche donc rien, un état non
+   * tenté n'affirme pas plus qu'un chargement.
+   */
+  const [discreetSync, setDiscreetSync] = useState<DiscreetSyncOutcome | null>(null);
+
+  /**
+   * Le mode discret n'est PAS une préférence d'affichage : c'est ce qui décide
+   * si ma ligne part vers les autres joueurs. Il doit donc atteindre
+   * `user_profiles.discreet_mode`, que la RPC de classement respecte (0092).
+   * On écrit local d'abord (l'interrupteur ne doit jamais « coller »), puis on
+   * pousse — et on garde l'issue pour la DIRE si elle a échoué.
+   */
+  async function onDiscreetChange(value: boolean): Promise<void> {
+    setDiscreetSync(null);
+    await update({ discreetMode: value });
+    setDiscreetSync(await syncDiscreetMode(value, session?.user.id ?? null));
+  }
 
   useEffect(() => {
     screen('motivation_settings');
@@ -150,8 +177,13 @@ export default function SettingsMotivationScreen() {
           subtitle={t(C.discreetSubtitle)}
           icon="discret"
           value={prefs.discreetMode}
-          onValueChange={(v) => void update({ discreetMode: v })}
+          onValueChange={(v) => void onDiscreetChange(v)}
         />
+        {/* Peint UNIQUEMENT sur l'échec réel : le joueur croirait sinon être
+            retiré des classements alors qu'il n'y est plus retiré de rien. */}
+        {discreetSync !== null && discreetSyncNeedsWarning(discreetSync) ? (
+          <Text style={styles.syncFailed}>{t(C.discreetSyncFailed)}</Text>
+        ) : null}
       </View>
 
       {/* 4. La visibilité n'est PAS réglée ici — elle a un seul écran (E21). */}
@@ -170,6 +202,8 @@ export default function SettingsMotivationScreen() {
 
 const styles = StyleSheet.create({
   kicker: { marginBottom: spacing.sm },
+  // Rouge d'erreur du système de tokens — jamais une couleur ad hoc.
+  syncFailed: { ...typography.meta, color: gameColors.danger, marginTop: spacing.sm, lineHeight: 18 },
   section: { marginTop: SECTION_GAP },
   // Le rôle typo R4 (corps) porté tel quel : gris = note d'état, jamais un
   // second niveau de titre. Aucune valeur de police recodée ici.

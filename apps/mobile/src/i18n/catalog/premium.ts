@@ -213,12 +213,27 @@ export const C = defineCatalog({
     de: 'Käufe wiederherstellen',
     pt: 'Restaurar compras',
   },
+  /**
+   * ── CE BOUTON NE VA PAS AU STORE, ET NE LE DIT DONC PLUS (28/07/2026) ─────
+   * Il a dit « Gérer dans le Store » / « Manage in the Store » pendant tout le
+   * temps où son `onPress` était `Linking.openURL(managementUrl)` — c'était
+   * exact, et il n'était peint que quand cette URL existait. Depuis E75 il fait
+   * `router.push('/abonnement')` : une navigation INTERNE, qui n'ouvre le Store
+   * que si E75 y trouve une `managementURL` (sinon E75 rend `manageUnavailable`
+   * : « Le Store n'a fourni aucun lien de gestion… »). Un joueur qui tape
+   * « Gérer dans le Store » pouvait donc n'atteindre jamais le Store.
+   * Le libellé dit maintenant la destination RÉELLE. Le texte « Gérer dans le
+   * Store » survit là où il est vrai : `catalog/abonnement.ts` (`C.ctaManage`),
+   * sur le seul bouton du dépôt qui appelle réellement `Linking.openURL`.
+   * « Gerir » est la forme portugaise d'Europe ; le Brésil dit « Gerenciar »
+   * (CLAUDE.md : le portugais vise le BRÉSILIEN).
+   */
   ctaManage: {
-    fr: 'Gérer dans le Store',
-    en: 'Manage in the Store',
-    es: 'Gestionar en la tienda',
-    de: 'Im Store verwalten',
-    pt: 'Gerir na loja',
+    fr: 'Gérer mon abonnement',
+    en: 'Manage my subscription',
+    es: 'Gestionar mi suscripción',
+    de: 'Mein Abo verwalten',
+    pt: 'Gerenciar minha assinatura',
   },
   ctaSignIn: {
     fr: 'Se connecter',
@@ -379,6 +394,25 @@ export const C = defineCatalog({
     es: 'Está activo. Gracias.',
     de: 'Es ist aktiv. Danke.',
     pt: 'Está ativo. Obrigado.',
+  },
+  /**
+   * ── LE TROISIÈME RÉSULTAT D'ACHAT (28/07/2026) ────────────────────────────
+   * Le Store a accepté, mais le droit `gryd_pro` n'est PAS actif dans le
+   * CustomerInfo rendu — achat différé (« Demander à acheter », SCA) ou
+   * entitlement mal nommé côté RevenueCat. Dire « C'est actif » ici serait un
+   * achat AFFIRMÉ que le Store n'a pas confirmé, pendant que le bandeau Pro du
+   * même écran resterait absent. On dit donc exactement les deux faits, dans
+   * l'ordre : ce qui est certain (le Store a pris la demande), et ce qui ne
+   * l'est pas (le droit). Aucune promesse de délai : on n'en connaît aucun.
+   * Aucune mention de débit : l'app ne peut pas le prouver (même doctrine que
+   * `resultFailed`).
+   */
+  resultPurchasePending: {
+    fr: 'Le Store a pris ta demande, mais l’accès n’est pas encore actif ici. Utilise « Restaurer mes achats » dans un instant.',
+    en: 'The Store took your request, but access isn’t active here yet. Use “Restore purchases” in a moment.',
+    es: 'La tienda aceptó tu solicitud, pero el acceso todavía no está activo aquí. Usa «Restaurar mis compras» en un momento.',
+    de: 'Der Store hat deine Anfrage angenommen, der Zugang ist hier aber noch nicht aktiv. Nutze gleich „Käufe wiederherstellen“.',
+    pt: 'A loja aceitou seu pedido, mas o acesso ainda não está ativo aqui. Use “Restaurar minhas compras” daqui a pouco.',
   },
   resultRestored: {
     fr: 'Achats restaurés.',

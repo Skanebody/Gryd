@@ -465,6 +465,24 @@ export const C = defineCatalog({
     de: 'Raus aus globalen Rankings, begrenztes Profil, Teilen nach Wahl. Ein Recht, kein Rückzug.',
     pt: 'Fora dos rankings globais, perfil limitado, compartilhamento do seu jeito. Um direito, não um recuo.',
   },
+  /**
+   * ── LE RÉGLAGE PART MAINTENANT AU SERVEUR, ET ON DIT QUAND ÇA ÉCHOUE ──────
+   * Jusqu'au 28/07/2026, `discreetMode` ne quittait pas AsyncStorage : la ligne
+   * du joueur continuait d'être servie à tous les autres clients, et lui seul ne
+   * la voyait pas. `features/motivation/discreetSync.ts` l'écrit désormais sur
+   * `user_profiles.discreet_mode`, que la RPC de classement respecte (0092).
+   * Une écriture peut échouer (réseau, RLS) : le taire ferait croire à une
+   * protection inexistante — exactement la faute qu'on vient de corriger. Cette
+   * phrase n'est peinte QUE sur l'échec RÉEL ('failed'), jamais sur « il n'y a
+   * pas de profil à mettre à jour », qui ne met personne en danger.
+   */
+  discreetSyncFailed: {
+    fr: 'Ce réglage n’a pas pu être envoyé au serveur : tu peux encore apparaître dans les classements des autres. Retente-le.',
+    en: 'This setting couldn’t be sent to the server: you may still appear in other people’s leaderboards. Try again.',
+    es: 'Este ajuste no se pudo enviar al servidor: todavía puedes aparecer en las clasificaciones de los demás. Inténtalo otra vez.',
+    de: 'Diese Einstellung konnte nicht an den Server gesendet werden: Du kannst noch in den Ranglisten anderer auftauchen. Versuch es erneut.',
+    pt: 'Não foi possível enviar esta configuração ao servidor: você ainda pode aparecer nas classificações dos outros. Tente de novo.',
+  },
 
   // ─── Labels — style de jeu (§2, titres de style = noms propres GRYD) ──────
   playStyleFocusSoloTitle: {

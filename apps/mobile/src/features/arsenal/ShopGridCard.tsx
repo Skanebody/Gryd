@@ -73,13 +73,20 @@ const OWNERSHIP_ENTRY: Record<ShopOwnership, Entry> = {
   permanent: SHOP_C.permanentLabel,
 };
 
-/** Prix EUR formaté (2 décimales) — la valeur vient de game-rules, jamais d'ici. */
-export function formatEur(amount: number): string {
-  return `${amount.toLocaleString('fr-FR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} €`;
-}
+/**
+ * ── `formatEur` A ÉTÉ SUPPRIMÉ LE 28/07/2026 (constitution §9) ──────────────
+ * Il formatait `SKU_PRICES_EUR` — des montants ÉCRITS DANS LE CODE. La règle du
+ * projet est sans exception : « LES PRIX VIENNENT DU STORE OU D'UNE REMOTE
+ * CONFIG — jamais codés en dur dans l'app ». Le montant réellement débité dépend
+ * de la boutique du joueur (devise, TVA, palier régional) : « 4,99 € » est faux
+ * dès le premier joueur hors zone euro, et afficher un prix qu'on ne fera pas
+ * payer est exactement le mensonge que CLAUDE.md interdit — Apple le refuse pour
+ * la même raison.
+ * Le prix d'argent réel arrive désormais d'`features/premium/useStorePrices`
+ * (`product.priceString`, déjà localisé par le Store) via la prop `storePrice`,
+ * et vaut `null` quand le store ne l'a pas donné : alors AUCUN montant.
+ * Ne pas réintroduire de formateur de devise ici : le store formate déjà.
+ */
 
 /** Prix Éclats formaté (séparateur de milliers). */
 export function formatEclats(amount: number): string {
@@ -92,10 +99,15 @@ export interface ShopGridCardProps {
   owned: boolean;
   /** Équipé pour sa portée (un skin actif, un cadre porté…). */
   equipped: boolean;
+  /**
+   * Prix d'argent réel TEL QUE LE STORE l'a formaté, ou `null` quand il n'a pas
+   * été lu. `null` ⇒ aucun montant n'est peint : jamais de repli catalogue.
+   */
+  storePrice: string | null;
   onPress: () => void;
 }
 
-export function ShopGridCard({ item, owned, equipped, onPress }: ShopGridCardProps) {
+export function ShopGridCard({ item, owned, equipped, storePrice, onPress }: ShopGridCardProps) {
   const t = useT();
   const kind = ownershipKindOf(item, owned);
   const name = arsenalName(item, t);
@@ -108,17 +120,18 @@ export function ShopGridCard({ item, owned, equipped, onPress }: ShopGridCardPro
   // sur un objet possédé, jamais vendu, exclusif de pack ou non lancé, un montant
   // laisserait croire à une transaction possible.
   const showPrice = kind === 'season' || kind === 'consumable' || kind === 'permanent';
+  // Les Éclats sont une monnaie DE JEU (une règle, `game-rules.ts`) : leur
+  // montant est une constante légitime. L'ARGENT RÉEL, lui, n'existe ici que
+  // s'il vient du Store — sinon la carte n'en dit rien.
   const eclats = item.priceShards;
-  const eur = item.priceEur;
+  const money = showPrice ? storePrice : null;
   const priceText = !showPrice
     ? null
-    : eclats !== undefined && eur !== undefined
-      ? t(SHOP_C.priceDual, { eclats: formatEclats(eclats), eur: formatEur(eur) })
+    : eclats !== undefined && money !== null
+      ? t(SHOP_C.priceDual, { eclats: formatEclats(eclats), eur: money })
       : eclats !== undefined
         ? formatEclats(eclats)
-        : eur !== undefined
-          ? formatEur(eur)
-          : null;
+        : money;
 
   return (
     <Pressable

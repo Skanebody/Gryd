@@ -113,12 +113,30 @@ export const SHOP_C = defineCatalog({
     de: 'Der Shop ist noch nicht geöffnet.',
     pt: 'A loja ainda não está aberta.',
   },
+  /**
+   * ── RÉÉCRITE LE 28/07/2026 : ELLE DISAIT DEUX CHOSES FAUSSES ──────────────
+   * L'ancienne phrase était « Les prix ci-dessous sont ceux du catalogue. Le
+   * paiement n'est pas branché : aucun achat n'est possible… ». Les deux
+   * moitiés sont devenues fausses le même jour :
+   *  1. AUCUN prix de catalogue n'est plus affiché — `formatEur(item.priceEur)`
+   *     a été retiré de `ShopGridCard` et d'`ItemDetail` (constitution §9).
+   *     Le seul montant en argent réel possible vient du Store
+   *     (`useStorePrices`), et `StorePricesNote` le dit 36 lignes plus bas :
+   *     « Les prix en argent réel viennent du Store ». Les deux phrases se
+   *     contredisaient sur la même page.
+   *  2. « Le paiement n'est pas branché » ne vaut plus depuis E74 : le même
+   *     écran mène à `/premium`, qui achète RÉELLEMENT via RevenueCat
+   *     (`purchasePremiumPackage`). C'était vrai avant, ça ne l'est plus.
+   * La phrase ne parle donc plus QUE de ce qu'elle constate : cette grille-ci
+   * ne vend rien. Elle ne dit plus un mot des prix (`StorePricesNote` en a la
+   * charge), ni du paiement en général (E74 en a la charge).
+   */
   notOpenBody: {
-    fr: 'Les prix ci-dessous sont ceux du catalogue. Le paiement n’est pas branché : aucun achat n’est possible, rien ne t’est débité et aucun objet ne t’est attribué.',
-    en: 'The prices below are the catalog prices. Payment isn’t wired up: no purchase is possible, nothing is charged to you and no item is granted.',
-    es: 'Los precios de abajo son los del catálogo. El pago no está conectado: ninguna compra es posible, no se te cobra nada y no se te concede ningún objeto.',
-    de: 'Die Preise unten sind die Katalogpreise. Die Zahlung ist nicht angebunden: Kein Kauf ist möglich, dir wird nichts abgebucht und kein Gegenstand gutgeschrieben.',
-    pt: 'Os preços abaixo são os do catálogo. O pagamento não está ligado: nenhuma compra é possível, nada te é debitado e nenhum item te é atribuído.',
+    fr: 'Ces objets ne sont pas encore achetables : aucun achat ne part de cette grille, rien ne t’est débité et aucun objet ne t’est attribué. L’abonnement a son propre écran.',
+    en: 'These items can’t be bought yet: no purchase starts from this grid, nothing is charged to you and no item is granted. The subscription has its own screen.',
+    es: 'Estos objetos todavía no se pueden comprar: ninguna compra sale de esta cuadrícula, no se te cobra nada y no se te concede ningún objeto. La suscripción tiene su propia pantalla.',
+    de: 'Diese Gegenstände sind noch nicht kaufbar: Aus diesem Raster geht kein Kauf hervor, dir wird nichts abgebucht und kein Gegenstand gutgeschrieben. Das Abo hat einen eigenen Bildschirm.',
+    pt: 'Estes itens ainda não podem ser comprados: nenhuma compra sai desta grade, nada é debitado de você e nenhum item é atribuído. A assinatura tem a própria tela.',
   },
 
   // ── Note PERMANENTE (libellé exact de la planche E17) ──────────────────────
@@ -152,13 +170,57 @@ export const SHOP_C = defineCatalog({
     de: 'Kein Gegenstand in dieser Kategorie.',
     pt: 'Nenhum item nesta categoria.',
   },
-  /** Item à double prix : les DEUX montants sont des faits, pas un choix. */
+  /**
+   * Item à double prix. `{eur}` n'est PAS un montant du code : c'est la chaîne
+   * rendue par le Store (`product.priceString`), déjà localisée — elle peut
+   * valoir « R$ 14,90 » ou « $2.99 ». Le nom du trou est historique.
+   */
   priceDual: {
     fr: '{eclats} ou {eur}',
     en: '{eclats} or {eur}',
     es: '{eclats} o {eur}',
     de: '{eclats} oder {eur}',
     pt: '{eclats} ou {eur}',
+  },
+
+  // ── POURQUOI AUCUN MONTANT EN ARGENT RÉEL N'EST AFFICHÉ (constitution §9) ──
+  // Cinq raisons DISTINCTES, jamais confondues. Se taire ferait croire que les
+  // objets sont gratuits ou que l'app est cassée ; un montant de repli serait
+  // un prix inventé. On dit donc laquelle des cinq s'applique.
+  storePricesLoading: {
+    fr: 'Lecture des prix auprès du Store…',
+    en: 'Reading prices from the Store…',
+    es: 'Leyendo los precios en la tienda…',
+    de: 'Preise werden beim Store gelesen…',
+    pt: 'Lendo os preços na loja…',
+  },
+  storePricesUnavailable: {
+    fr: 'Les prix en argent réel viennent du Store, et il n’y en a pas ici. Ouvre GRYD sur ton téléphone pour les voir.',
+    en: 'Real-money prices come from the Store, and there is none here. Open GRYD on your phone to see them.',
+    es: 'Los precios en dinero real vienen de la tienda, y aquí no hay ninguna. Abre GRYD en tu teléfono para verlos.',
+    de: 'Echtgeld-Preise kommen vom Store, und hier gibt es keinen. Öffne GRYD auf deinem Handy, um sie zu sehen.',
+    pt: 'Os preços em dinheiro real vêm da loja, e aqui não existe nenhuma. Abra o GRYD no seu celular para vê-los.',
+  },
+  storePricesSignedOut: {
+    fr: 'Connecte-toi pour que le Store affiche les prix dans ta devise.',
+    en: 'Sign in so the Store can show prices in your currency.',
+    es: 'Inicia sesión para que la tienda muestre los precios en tu moneda.',
+    de: 'Melde dich an, damit der Store die Preise in deiner Währung zeigt.',
+    pt: 'Entre na sua conta para a loja mostrar os preços na sua moeda.',
+  },
+  storePricesError: {
+    fr: 'Les prix n’ont pas pu être lus auprès du Store. Aucun montant n’est affiché tant que ce n’est pas le cas.',
+    en: 'Prices couldn’t be read from the Store. No amount is shown until they can be.',
+    es: 'No se pudieron leer los precios en la tienda. No se muestra ningún importe hasta entonces.',
+    de: 'Die Preise konnten nicht beim Store gelesen werden. Bis dahin wird kein Betrag angezeigt.',
+    pt: 'Não foi possível ler os preços na loja. Nenhum valor é exibido até lá.',
+  },
+  storePricesEmpty: {
+    fr: 'Aucun de ces objets n’est encore publié sur le Store : il n’existe donc aucun prix à afficher.',
+    en: 'None of these items is published on the Store yet, so there is no price to show.',
+    es: 'Ninguno de estos objetos está publicado todavía en la tienda: no hay ningún precio que mostrar.',
+    de: 'Keiner dieser Gegenstände ist bisher im Store veröffentlicht — es gibt also keinen Preis zu zeigen.',
+    pt: 'Nenhum destes itens está publicado na loja ainda: não há preço para mostrar.',
   },
 
   // ── Propriété CLAIRE (planche : Permanent / Saison / Possédé) ──────────────
@@ -299,62 +361,30 @@ export const SHOP_C = defineCatalog({
     de: 'WAS DU BEKOMMST',
     pt: 'O QUE TRAZ',
   },
-  premiumMonthlyLabel: {
-    fr: 'Mensuel',
-    en: 'Monthly',
-    es: 'Mensual',
-    de: 'Monatlich',
-    pt: 'Mensal',
+  /**
+   * ── LES SIX CLÉS DE PRIX PREMIUM ONT ÉTÉ RETIRÉES LE 28/07/2026 ──────────
+   * `premiumMonthlyLabel/Price/Note`, `premiumAnnualLabel/Price/PerMonth` et
+   * `premiumTerms` servaient un bloc qui peignait « 34,99 € / an » et
+   * « 4,99 € / mois » depuis `SKU_PRICES_EUR` — des montants du CODE, interdits
+   * par la constitution §9. Ce bloc ne vend plus : il renvoie à E74
+   * (`app/premium.tsx`), qui affiche les prix DU STORE et porte ses propres
+   * gabarits de prix (catalogue `premium.ts`, sans un seul montant).
+   * `premiumNotOpen` disait en outre « aucun paiement n'est branché » : c'était
+   * vrai avant E74, ce ne l'est plus.
+   */
+  premiumPriceFromStore: {
+    fr: 'Les prix, l’essai éventuel et les conditions sont ceux de ton Store — GRYD ne les écrit jamais lui-même.',
+    en: 'Prices, any trial and the terms come from your Store — GRYD never writes them itself.',
+    es: 'Los precios, la prueba si la hay y las condiciones vienen de tu tienda: GRYD nunca los escribe.',
+    de: 'Preise, eine mögliche Testphase und die Bedingungen kommen von deinem Store — GRYD schreibt sie nie selbst.',
+    pt: 'Os preços, o teste (se houver) e as condições vêm da sua loja — o GRYD nunca os escreve.',
   },
-  premiumMonthlyPrice: {
-    fr: '{price} / mois',
-    en: '{price} / month',
-    es: '{price} / mes',
-    de: '{price} / Monat',
-    pt: '{price} / mês',
-  },
-  premiumMonthlyNote: {
-    fr: 'Sans engagement',
-    en: 'No commitment',
-    es: 'Sin compromiso',
-    de: 'Ohne Bindung',
-    pt: 'Sem compromisso',
-  },
-  premiumAnnualLabel: {
-    fr: 'Annuel',
-    en: 'Annual',
-    es: 'Anual',
-    de: 'Jährlich',
-    pt: 'Anual',
-  },
-  premiumAnnualPrice: {
-    fr: '{price} / an',
-    en: '{price} / year',
-    es: '{price} / año',
-    de: '{price} / Jahr',
-    pt: '{price} / ano',
-  },
-  /** Équivalent mensuel CALCULÉ (annuel ÷ 12) — jamais un rabais annoncé. */
-  premiumAnnualPerMonth: {
-    fr: 'soit {price} par mois',
-    en: 'that is {price} per month',
-    es: 'es decir {price} al mes',
-    de: 'also {price} pro Monat',
-    pt: 'ou seja {price} por mês',
-  },
-  premiumNotOpen: {
-    fr: 'L’abonnement n’est pas encore ouvert : aucun paiement n’est branché. Ni essai, ni restauration d’achat tant que ce n’est pas le cas.',
-    en: 'The subscription isn’t open yet: no payment is wired up. No trial and no purchase restore until it is.',
-    es: 'La suscripción todavía no está abierta: ningún pago está conectado. Ni prueba ni restauración de compras hasta entonces.',
-    de: 'Das Abo ist noch nicht offen: Es ist keine Zahlung angebunden. Bis dahin weder Testphase noch Kaufwiederherstellung.',
-    pt: 'A assinatura ainda não está aberta: nenhum pagamento está ligado. Nem teste, nem restauro de compras até lá.',
-  },
-  premiumTerms: {
-    fr: 'Conditions',
-    en: 'Terms',
-    es: 'Condiciones',
-    de: 'Bedingungen',
-    pt: 'Condições',
+  premiumSeeOffers: {
+    fr: 'Voir GRYD Premium',
+    en: 'See GRYD Premium',
+    es: 'Ver GRYD Premium',
+    de: 'GRYD Premium ansehen',
+    pt: 'Ver o GRYD Premium',
   },
 
   // ── Portée d'un cosmétique équipé (migré depuis inventory.ts, FR en dur) ───

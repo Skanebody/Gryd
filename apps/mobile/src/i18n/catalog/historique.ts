@@ -281,25 +281,17 @@ export const C = defineCatalog({
     pt: 'Entrar para ver seus pedais',
   },
   /**
-   * CE QUI N'EXISTE PAS, DIT À SA PLACE (patron /qr) : en bas, en gris, APRÈS
-   * la liste. Aucune card n'est cliquable — le joueur tapait une course et
-   * rien ne se passait, sans que l'écran l'ait jamais annoncé.
+   * ⚠️ `detailPendingNote` / `detailPendingNoteBike` ONT ÉTÉ RETIRÉS le
+   * 28/07/2026. Ils disaient, en pied de liste : « Le détail d'une course n'est
+   * pas encore disponible : ces lignes ne s'ouvrent pas. » C'était l'aveu juste
+   * tant qu'aucune ligne n'était tapable ; les lignes s'ouvrent maintenant
+   * (E68, `app/course/[id].tsx`), et servir cet aveu serait devenu le mensonge
+   * symétrique — annoncer mort un écran qui répond.
+   *
+   * Ils ne sont pas « laissés au cas où » : une entrée qu'aucun écran ne rend
+   * est du code mort en cinq exemplaires, qui divergera sans que rien ne le
+   * signale (doctrine de nettoyage de ce catalogue, 25/07/2026).
    */
-  detailPendingNote: {
-    fr: 'Le détail d’une course n’est pas encore disponible : ces lignes ne s’ouvrent pas.',
-    en: 'Run details aren’t available yet: these entries don’t open.',
-    es: 'El detalle de una carrera aún no está disponible: estas líneas no se abren.',
-    de: 'Die Detailansicht eines Laufs gibt es noch nicht: Diese Einträge öffnen sich nicht.',
-    pt: 'O detalhe de uma corrida ainda não está disponível: estas linhas não abrem.',
-  },
-  /** Même aveu, sous la liste de l'autre monde (rendue, elle aussi, peuplée). */
-  detailPendingNoteBike: {
-    fr: 'Le détail d’une sortie n’est pas encore disponible : ces lignes ne s’ouvrent pas.',
-    en: 'Ride details aren’t available yet: these entries don’t open.',
-    es: 'El detalle de una salida aún no está disponible: estas líneas no se abren.',
-    de: 'Die Detailansicht einer Ausfahrt gibt es noch nicht: Diese Einträge öffnen sich nicht.',
-    pt: 'O detalhe de um pedal ainda não está disponível: estas linhas não abrem.',
-  },
 
   // ─── Statuts GRYD Verify (pastilles de RealRunCard) ────────────────────────
   /** « GRYD Verified » = invariant de marque : identique dans les 5 langues. */
@@ -356,45 +348,290 @@ export const C = defineCatalog({
     pt: 'Pedal de {when} — {effort}',
   },
 
-  // ─── /course/[id] : la page d'état, seule chose que l'écran sait rendre ────
+  // ─── /course/[id] — E68 « DÉTAIL HISTORIQUE » ─────────────────────────────
   /**
-   * NEUTRALISÉS le 26/07/2026, PAS jumelés — et c'est une décision, pas un
-   * raccourci. `/course/[id]` ne porte AUCUNE lentille : il n'existe aucune
-   * lecture d'une course par identifiant (O1), l'écran n'est atteignable que par
-   * deep link, et il ne peut donc RIEN savoir de la discipline dont on lui parle.
-   * Un jumeau vélo y serait un texte que rien ne saurait choisir : on tirerait à
-   * pile ou face (même arbitrage que les états vides de `features/share/copy.ts`).
-   * Le vocabulaire y devient donc NEUTRE aux deux mondes — un cycliste qui ouvre
-   * le lien de sa sortie ne lit plus « Détail de course indisponible ».
+   * ─── CE BLOC A CHANGÉ DE NATURE LE 28/07/2026 ─────────────────────────────
+   * Il portait la PAGE D'ÉTAT d'un écran qui ne savait rien rendre (« GRYD ne
+   * sait pas encore ouvrir une sortie une par une »), et le commentaire au
+   * dessus expliquait pourquoi ses libellés étaient NEUTRALISÉS plutôt que
+   * jumelés : « `/course/[id]` ne porte AUCUNE lentille : il n'existe aucune
+   * lecture d'une course par identifiant (O1) […] il ne peut donc RIEN savoir
+   * de la discipline dont on lui parle ».
+   *
+   * LA PRÉMISSE EST TOMBÉE. La lecture existe (`features/history/detailRead.ts`,
+   * policy `runs_select_own` — aucun droit neuf n'a été ouvert), et elle lit
+   * `runs.activity` : l'écran SAIT désormais de quelle discipline on lui parle,
+   * pour chaque sortie, sans rien deviner. Les libellés qui NOMMENT l'effort
+   * reçoivent donc leur jumeau `Bike`, comme partout ailleurs dans ce fichier.
+   *
+   * Ce qui reste NEUTRE l'est pour la bonne raison, pas par défaut : « Détail »,
+   * « Effort », « Impact territorial », les noms de compteurs de zones et les
+   * pastilles Verify nomment l'ACTE DE JEU, pas le sport. En dupliquer un à
+   * l'identique ferait deux vérités à maintenir.
    */
   runFallbackTitle: { fr: 'Sortie', en: 'Activity', es: 'Salida', de: 'Aktivität', pt: 'Saída' },
+  detailTitle: { fr: 'Détail', en: 'Details', es: 'Detalle', de: 'Details', pt: 'Detalhe' },
+  detailKicker: {
+    fr: 'TA COURSE',
+    en: 'YOUR RUN',
+    es: 'TU CARRERA',
+    de: 'DEIN LAUF',
+    pt: 'SUA CORRIDA',
+  },
+  detailKickerBike: {
+    fr: 'TA SORTIE VÉLO',
+    en: 'YOUR RIDE',
+    es: 'TU SALIDA EN BICI',
+    de: 'DEINE AUSFAHRT',
+    pt: 'SEU PEDAL',
+  },
   /**
-   * ANCIEN TEXTE : « Cette course n'est pas dans ton historique. Tes courses
-   * apparaîtront ici après ta première sortie enregistrée. » Servi tel quel à
-   * un joueur qui a des dizaines de courses, il NIAIT son historique — alors
-   * que la seule chose vraie est que GRYD ne sait pas encore ouvrir le détail
-   * d'une sortie. On dit ça, et rien d'autre.
+   * ⚠️ LES QUATRE ÉTATS D'AVANT LA LECTURE SONT NEUTRES, ET C'EST UNE RÈGLE, PAS
+   * UN OUBLI DE JUMELAGE. Chargement, pas connecté, sans serveur, échec : dans
+   * ces quatre cas la ligne n'a PAS été lue, donc `runs.activity` est inconnue —
+   * l'écran ne sait pas de quelle discipline on lui parle. Un jumeau vélo y
+   * serait un texte que rien ne saurait choisir, et le libellé coureur y serait
+   * une supposition sur le sport de quelqu'un.
+   *
+   * C'est l'écart EXACT avec `/performance` et `/historique`, où le commutateur
+   * E14 vit dans la barre : là, le monde regardé est AFFICHÉ pendant ces mêmes
+   * états, donc la copie doit le suivre. Ici, rien à l'écran ne revendique un
+   * monde — le silence est la seule chose vraie.
+   *
+   * Vocabulaire neutre du fichier : fr « sortie » · en « activity » · es
+   * « salida » · de « Aktivität » · pt « saída ».
    */
-  runDetailPendingTitle: {
-    fr: 'Détail indisponible',
-    en: 'Details unavailable',
-    es: 'Detalle no disponible',
-    de: 'Details nicht verfügbar',
-    pt: 'Detalhe indisponível',
+  detailLoading: {
+    fr: 'Lecture de ta sortie…',
+    en: 'Loading your activity…',
+    es: 'Leyendo tu salida…',
+    de: 'Deine Aktivität wird geladen…',
+    pt: 'Carregando sua saída…',
   },
-  runDetailPendingBody: {
-    fr: 'GRYD ne sait pas encore ouvrir une sortie une par une. Les tiennes sont bien là : retrouve-les dans l’historique.',
-    en: 'GRYD can’t open a single activity yet. Yours are safe: find them in your history.',
-    es: 'GRYD todavía no puede abrir una salida concreta. Las tuyas siguen ahí: búscalas en el historial.',
-    de: 'GRYD kann eine einzelne Aktivität noch nicht öffnen. Deine sind da: Du findest sie im Verlauf.',
-    pt: 'A GRYD ainda não abre uma saída específica. As suas continuam lá: veja no histórico.',
+  detailSignedOutBody: {
+    fr: 'Une sortie est rattachée à ton compte : connecte-toi pour l’ouvrir.',
+    en: 'An activity belongs to your account: sign in to open it.',
+    es: 'Una salida está vinculada a tu cuenta: inicia sesión para abrirla.',
+    de: 'Eine Aktivität gehört zu deinem Konto: Melde dich an, um sie zu öffnen.',
+    pt: 'Uma saída pertence à sua conta: entre para abri-la.',
   },
+  detailNoBackendTitle: {
+    fr: 'Tes sorties arrivent avec ton compte.',
+    en: 'Your activities come with your account.',
+    es: 'Tus salidas llegan con tu cuenta.',
+    de: 'Deine Aktivitäten kommen mit deinem Konto.',
+    pt: 'Suas saídas vêm com sua conta.',
+  },
+  detailFailedTitle: {
+    fr: 'On n’a pas pu charger cette sortie.',
+    en: 'We couldn’t load this activity.',
+    es: 'No pudimos cargar esta salida.',
+    de: 'Wir konnten diese Aktivität nicht laden.',
+    pt: 'Não conseguimos carregar esta saída.',
+  },
+  /**
+   * LU, ET AUCUNE LIGNE. C'est un FAIT sur SON historique — et l'énoncé vaut
+   * pour les DEUX causes possibles (identifiant inconnu / sortie d'autrui), que
+   * la RLS rend volontairement indistinguables : dire « elle existe mais elle
+   * n'est pas à toi » serait un oracle d'existence sur la donnée d'autrui (§12).
+   *
+   * ⚠ Il ne se sert JAMAIS pendant un échec de lecture : là, ses sorties
+   * existent et c'est GRYD qui n'a pas su lire. Deux états, deux textes.
+   */
+  detailNotFoundTitle: {
+    fr: 'Sortie introuvable',
+    en: 'Activity not found',
+    es: 'Salida no encontrada',
+    de: 'Aktivität nicht gefunden',
+    pt: 'Saída não encontrada',
+  },
+  detailNotFoundBody: {
+    fr: 'Cette sortie n’est pas dans ton historique. Le lien vient peut-être d’un autre compte, ou la sortie a été supprimée.',
+    en: 'This activity isn’t in your history. The link may come from another account, or the activity was deleted.',
+    es: 'Esta salida no está en tu historial. El enlace puede ser de otra cuenta, o la salida se borró.',
+    de: 'Diese Aktivität ist nicht in deinem Verlauf. Der Link gehört vielleicht zu einem anderen Konto, oder die Aktivität wurde gelöscht.',
+    pt: 'Esta saída não está no seu histórico. O link pode ser de outra conta, ou a saída foi apagada.',
+  },
+  /** Retour vers l'endroit où ses sorties SONT réellement. */
   runDetailPendingCta: {
     fr: 'Voir l’historique',
     en: 'See history',
     es: 'Ver historial',
     de: 'Verlauf öffnen',
     pt: 'Ver histórico',
+  },
+  /** LU À VOIX HAUTE sur une ligne d'historique : elle S'OUVRE, dis-le. */
+  a11yOpenRun: {
+    fr: '{line}. Ouvrir le détail',
+    en: '{line}. Open details',
+    es: '{line}. Abrir el detalle',
+    de: '{line}. Details öffnen',
+    pt: '{line}. Abrir o detalhe',
+  },
+
+  // ─── E68 : les trois sections du corps ────────────────────────────────────
+  detailEffortLabel: { fr: 'Effort', en: 'Effort', es: 'Esfuerzo', de: 'Aufwand', pt: 'Esforço' },
+  detailImpactLabel: {
+    fr: 'Impact territorial',
+    en: 'Territory impact',
+    es: 'Impacto territorial',
+    de: 'Gebiets-Wirkung',
+    pt: 'Impacto territorial',
+  },
+  detailVerdictLabel: {
+    fr: 'Ce que GRYD a retenu',
+    en: 'What GRYD kept',
+    es: 'Lo que GRYD contabilizó',
+    de: 'Was GRYD gewertet hat',
+    pt: 'O que a GRYD considerou',
+  },
+  /** Libellés de métriques — neutres aux deux mondes (ils nomment la mesure). */
+  detailDistance: {
+    fr: 'Distance',
+    en: 'Distance',
+    es: 'Distancia',
+    de: 'Distanz',
+    pt: 'Distância',
+  },
+  detailDuration: { fr: 'Durée', en: 'Duration', es: 'Duración', de: 'Dauer', pt: 'Duração' },
+  detailPace: { fr: 'Allure', en: 'Pace', es: 'Ritmo', de: 'Pace', pt: 'Ritmo' },
+  /**
+   * Les six compteurs de zones du payload serveur. Chacun n'est RENDU que s'il
+   * est lisible : un compteur absent disparaît, il ne devient jamais « 0 ».
+   */
+  detailZonesNew: { fr: 'Neuves', en: 'New', es: 'Nuevas', de: 'Neu', pt: 'Novas' },
+  detailZonesStolen: {
+    fr: 'Arrachées',
+    en: 'Taken',
+    es: 'Arrebatadas',
+    de: 'Abgenommen',
+    pt: 'Tomadas',
+  },
+  detailZonesPioneer: {
+    fr: 'Pionnier',
+    en: 'Pioneer',
+    es: 'Pionero',
+    de: 'Pionier',
+    pt: 'Pioneiro',
+  },
+  detailZonesDefended: {
+    fr: 'Défendues',
+    en: 'Defended',
+    es: 'Defendidas',
+    de: 'Verteidigt',
+    pt: 'Defendidas',
+  },
+  detailZonesBlocked: {
+    fr: 'Bloquées',
+    en: 'Blocked',
+    es: 'Bloqueadas',
+    de: 'Blockiert',
+    pt: 'Bloqueadas',
+  },
+  /** A-41 « LE RELAIS » : zones co-courues, payées 1/rang. */
+  detailZonesRelay: { fr: 'Relais', en: 'Relay', es: 'Relevo', de: 'Staffel', pt: 'Revezamento' },
+  detailZonesTotal: {
+    fr: 'Zones prises',
+    en: 'Zones taken',
+    es: 'Zonas tomadas',
+    de: 'Zonen genommen',
+    pt: 'Zonas tomadas',
+  },
+  detailPoints: { fr: 'Points', en: 'Points', es: 'Puntos', de: 'Punkte', pt: 'Pontos' },
+  /** « XP » est un invariant de jeu : identique dans les 5 langues. */
+  detailXp: { fr: 'XP', en: 'XP', es: 'XP', de: 'XP', pt: 'XP' },
+  /**
+   * PAYLOAD ILLISIBLE. On ne rend alors AUCUN compteur — et on dit pourquoi,
+   * plutôt que de laisser une section vide qui se lirait comme un échec sportif.
+   */
+  detailImpactUnknown: {
+    fr: 'GRYD n’a pas gardé le détail de ce que cette sortie a pris. Les points ci-dessus, eux, sont ceux que le serveur a crédités.',
+    en: 'GRYD didn’t keep the breakdown of what this activity took. The points above are the ones the server credited.',
+    es: 'GRYD no guardó el desglose de lo que tomó esta salida. Los puntos de arriba sí son los que acreditó el servidor.',
+    de: 'GRYD hat die Aufschlüsselung dieser Aktivität nicht behalten. Die Punkte oben sind die, die der Server gutgeschrieben hat.',
+    pt: 'A GRYD não guardou o detalhe do que esta saída tomou. Os pontos acima são os que o servidor creditou.',
+  },
+  /** Zone traversée mais non créditée : la raison est PLURIELLE, on l'énonce. */
+  detailBlockedNote: {
+    fr: 'Une zone bloquée a été traversée sans être créditée : verrou de 24 h, protection d’une capture fraîche, bouclier, zone privée ou non capturable.',
+    en: 'A blocked zone was crossed without being credited: 24 h lock, fresh-capture protection, shield, private or non-capturable area.',
+    es: 'Una zona bloqueada se cruzó sin acreditarse: bloqueo de 24 h, protección de captura reciente, escudo, zona privada o no capturable.',
+    de: 'Eine blockierte Zone wurde durchquert, ohne gewertet zu werden: 24-h-Sperre, Schutz einer frischen Eroberung, Schild, private oder nicht eroberbare Zone.',
+    pt: 'Uma zona bloqueada foi atravessada sem ser creditada: bloqueio de 24 h, proteção de captura recente, escudo, zona privada ou não capturável.',
+  },
+
+  // ─── E68 : « explication d'une invalidation » (spec) ──────────────────────
+  /** `partial` — une PARTIE de la trace écartée, le reste a capturé. */
+  detailVerdictPartial: {
+    fr: 'Une partie de ta trace a été écartée (signal GPS douteux). Le reste a compté normalement.',
+    en: 'Part of your trace was set aside (unreliable GPS). The rest counted normally.',
+    es: 'Una parte de tu trazado se descartó (GPS dudoso). El resto contó con normalidad.',
+    de: 'Ein Teil deiner Aufzeichnung wurde verworfen (unsicheres GPS). Der Rest zählte normal.',
+    pt: 'Uma parte do seu traçado foi descartada (GPS duvidoso). O resto contou normalmente.',
+  },
+  /** `flagged` — l'effort compte, la capture non. Anti-shame : factuel. */
+  detailVerdictFlagged: {
+    fr: 'Cette course compte comme effort, pas comme capture : aucune zone ne t’a été attribuée.',
+    en: 'This run counts as effort, not as a capture: no zone was credited to you.',
+    es: 'Esta carrera cuenta como esfuerzo, no como captura: no se te atribuyó ninguna zona.',
+    de: 'Dieser Lauf zählt als Aufwand, nicht als Eroberung: Dir wurde keine Zone gutgeschrieben.',
+    pt: 'Esta corrida conta como esforço, não como captura: nenhuma zona foi creditada a você.',
+  },
+  detailVerdictFlaggedBike: {
+    fr: 'Cette sortie compte comme effort, pas comme capture : aucune zone ne t’a été attribuée.',
+    en: 'This ride counts as effort, not as a capture: no zone was credited to you.',
+    es: 'Esta salida cuenta como esfuerzo, no como captura: no se te atribuyó ninguna zona.',
+    de: 'Diese Ausfahrt zählt als Aufwand, nicht als Eroberung: Dir wurde keine Zone gutgeschrieben.',
+    pt: 'Este pedal conta como esforço, não como captura: nenhuma zona foi creditada a você.',
+  },
+  /** `rejected` — l'en-tête ; la CAUSE vient de `REJECT_REASON_COPY_BY_ACTIVITY`. */
+  detailVerdictRejected: {
+    fr: 'Cette course n’a pas été retenue.',
+    en: 'This run wasn’t counted.',
+    es: 'Esta carrera no se contabilizó.',
+    de: 'Dieser Lauf wurde nicht gewertet.',
+    pt: 'Esta corrida não foi considerada.',
+  },
+  detailVerdictRejectedBike: {
+    fr: 'Cette sortie n’a pas été retenue.',
+    en: 'This ride wasn’t counted.',
+    es: 'Esta salida no se contabilizó.',
+    de: 'Diese Ausfahrt wurde nicht gewertet.',
+    pt: 'Este pedal não foi considerado.',
+  },
+  /**
+   * MOTIF ABSENT OU INCONNU. On ne déduit RIEN : une explication fausse est pire
+   * qu'une explication manquante, parce qu'elle se défend toute seule.
+   */
+  detailVerdictRejectedNoReason: {
+    fr: 'GRYD n’a pas gardé la raison de ce refus.',
+    en: 'GRYD didn’t keep the reason for this rejection.',
+    es: 'GRYD no guardó el motivo de este rechazo.',
+    de: 'GRYD hat den Grund für diese Ablehnung nicht behalten.',
+    pt: 'A GRYD não guardou o motivo desta recusa.',
+  },
+
+  // ─── E68 : ce que l'écran NE MONTRE PAS, dit à sa place ───────────────────
+  /**
+   * LE TRACÉ. La spec E68 demande « carte · trace protégée » ; GRYD n'archive
+   * AUCUN tracé : `ingest_run` n'écrit jamais `runs.polyline_masked` (il ne
+   * garde qu'un SHA-256, irréversible), et la seule trace côté client meurt au
+   * départ de la sortie suivante. Une polyligne générique serait un FAUX tracé.
+   */
+  detailTraceNote: {
+    fr: 'Pas de carte ici : GRYD ne conserve pas le tracé d’une sortie passée. Seule la sortie en cours a le sien.',
+    en: 'No map here: GRYD doesn’t keep the route of a past activity. Only the one in progress has its own.',
+    es: 'Aquí no hay mapa: GRYD no conserva el trazado de una salida pasada. Solo la salida en curso tiene el suyo.',
+    de: 'Keine Karte hier: GRYD speichert die Route einer vergangenen Aktivität nicht. Nur die aktuelle Aktivität hat ihre eigene.',
+    pt: 'Sem mapa aqui: a GRYD não guarda o traçado de uma saída passada. Só a saída em andamento tem o dela.',
+  },
+  /** Le partage rétroactif attend ce tracé — on le dit, on ne peint pas le bouton. */
+  detailShareNote: {
+    fr: 'Le partage rétroactif attend ce tracé : sans lui, la carte de partage n’aurait rien à montrer.',
+    en: 'Sharing after the fact is waiting on that route: without it, the share card would have nothing to show.',
+    es: 'El compartir a posteriori espera ese trazado: sin él, la tarjeta de compartir no tendría nada que mostrar.',
+    de: 'Das nachträgliche Teilen wartet auf diese Route: ohne sie hätte die Share-Karte nichts zu zeigen.',
+    pt: 'O compartilhamento retroativo espera esse traçado: sem ele, o card de compartilhar não teria o que mostrar.',
   },
 
   // ─── /territoire (cohérent profil : territoire → Gebiet) ───────────────────
@@ -753,7 +990,6 @@ export interface HistoryActivityCopy {
   emptySignedOut: Entry;
   /** LU À VOIX HAUTE (bouton « Se connecter »). */
   a11ySignIn: Entry;
-  detailPendingNote: Entry;
   /**
    * LU À VOIX HAUTE, une ligne de course. Sa surface (`RealRunCard`) appartient
    * à un autre périmètre : la dérivation existe, le câblage reste EN SUSPENS.
@@ -771,7 +1007,6 @@ export const HISTORY_COPY: Readonly<Record<Activity, HistoryActivityCopy>> = {
     emptyFilter: C.emptyFilter,
     emptySignedOut: C.emptySignedOut,
     a11ySignIn: C.a11ySignIn,
-    detailPendingNote: C.detailPendingNote,
     a11yEffort: C.a11yRunEffort,
   },
   bike: {
@@ -783,10 +1018,58 @@ export const HISTORY_COPY: Readonly<Record<Activity, HistoryActivityCopy>> = {
     emptyFilter: C.emptyFilterBike,
     emptySignedOut: C.emptySignedOutBike,
     a11ySignIn: C.a11ySignInBike,
-    detailPendingNote: C.detailPendingNoteBike,
     a11yEffort: C.a11yRunEffortBike,
   },
 };
+
+/**
+ * E68 « DÉTAIL HISTORIQUE » — les libellés du monde de LA SORTIE OUVERTE.
+ *
+ * Un `Record<Activity, …>` séparé de `HISTORY_COPY`, et ce n'est pas une
+ * commodité : la LISTE choisit son monde par la LENTILLE (ce que le joueur a
+ * demandé de voir), le DÉTAIL le lit dans `runs.activity` (ce que la sortie EST).
+ * Les deux sources coïncident quand on ouvre une ligne depuis l'historique, et
+ * PAS quand on arrive par lien profond — les fondre laisserait un cycliste lire
+ * « TA COURSE » au-dessus d'une sortie vélo ouverte depuis un lien.
+ *
+ * ⚠️ IL NE CONTIENT QUE DES LIBELLÉS SERVIS *APRÈS* LA LECTURE. Les états qui
+ * précèdent (chargement, pas connecté, sans serveur, échec) sont NEUTRES et ne
+ * passent pas par ici : la discipline y est inconnue, et un `Record<Activity>`
+ * les forcerait à choisir un monde qu'on n'a pas lu (cf. le bloc E68 plus haut).
+ */
+export interface RunDetailActivityCopy {
+  /** Sur-titre de l'écran — il NOMME la sortie ouverte. */
+  kicker: Entry;
+  /** `flagged` — l'effort compte, la capture non. */
+  verdictFlagged: Entry;
+  /** `rejected` — l'en-tête ; la CAUSE vient de `REJECT_REASON_COPY_BY_ACTIVITY`. */
+  verdictRejected: Entry;
+}
+
+export const RUN_DETAIL_COPY: Readonly<Record<Activity, RunDetailActivityCopy>> = {
+  run: {
+    kicker: C.detailKicker,
+    verdictFlagged: C.detailVerdictFlagged,
+    verdictRejected: C.detailVerdictRejected,
+  },
+  bike: {
+    kicker: C.detailKickerBike,
+    verdictFlagged: C.detailVerdictFlaggedBike,
+    verdictRejected: C.detailVerdictRejectedBike,
+  },
+};
+
+/**
+ * Le jeu de libellés de la sortie OUVERTE. Le défaut est `DEFAULT_ACTIVITY`,
+ * comme partout : une discipline illisible retombe sur le monde d'avant le vélo,
+ * jamais sur une troisième discipline inventée.
+ *
+ * ⚠️ N'APPELER QUE SUR UNE SORTIE RÉELLEMENT LUE. Avant la lecture, il n'y a
+ * aucune discipline à passer, et le défaut deviendrait une affirmation.
+ */
+export function runDetailCopy(activity: Activity = DEFAULT_ACTIVITY): RunDetailActivityCopy {
+  return RUN_DETAIL_COPY[activity];
+}
 
 /**
  * Le jeu de libellés du monde regardé. Le DÉFAUT est `DEFAULT_ACTIVITY` : un

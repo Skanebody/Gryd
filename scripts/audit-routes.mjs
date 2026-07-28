@@ -63,12 +63,14 @@ const KNOWN_ORPHANS = new Map([
   // un fichier `.test.ts`. Le script comptait donc un test comme une porte, et
   // affichait vert deux écrans morts. Les deux docblocks disaient déjà la
   // vérité — c'est l'audit qui ne la lisait pas.
-  [
-    '/course/[id]',
-    'aucune lecture d’une course PAR IDENTIFIANT n’existe (O1) : ni requête ni ' +
-      'RPC. L’écran le DIT et renvoie à l’historique ; aucune ligne d’historique ' +
-      'n’est tapable tant que la lecture n’est pas écrite (docblock de l’écran).',
-  ],
+  // ⚠️ `/course/[id]` A ÉTÉ RETIRÉ DE CETTE LISTE le 28/07/2026. Sa raison
+  // (« aucune lecture d'une course PAR IDENTIFIANT n'existe (O1) : ni requête ni
+  // RPC ») décrivait le CODE, pas le DROIT : la policy `runs_select_own` ouvrait
+  // déjà la lecture. La requête est écrite (`features/history/detailRead.ts`),
+  // E68 la rend, et CHAQUE ligne de `/historique` y mène (`RealRunCard`, forme
+  // objet `{ pathname: '/course/[id]' }` — reconnue comme une porte par ce
+  // script). L'écran n'est donc plus orphelin, et le laisser exempté aurait
+  // masqué sa prochaine vraie régression.
   [
     '/challenges/[id]',
     'à DEUX portes d’un écran qui n’en a aucune (/aujourdhui, orpheline ' +

@@ -24,11 +24,17 @@ export const PRICES_EUR = {
 export const FOUNDER_PACK_EUR = SKU_PRICES_EUR[SKUS.founderPack];
 
 /**
- * GRYD Pass — v1.1 « Saison 1 » (SPEC §12, arbitrage A2 AMENDEMENT-02 §12) :
- * catalogué INACTIF (status draft, aucun SKU actif). Annoncé « à venir »,
- * jamais achetable au MVP.
+ * ── LE PRIX DU GRYD PASS A ÉTÉ RETIRÉ DU SITE LE 28/07/2026 ────────────────
+ * `SEASON_PASS_PRICE_EUR` exportait `SKU_PRICES_EUR.gryd_pass` (7,99 €) et
+ * `PricingSection` l'affichait tel quel. Or la source de vérité elle-même
+ * catalogue ce produit INACTIF (game-rules.ts : « status draft, pas de SKU
+ * actif ») : le site annonçait donc un montant pour un produit qui n'existe
+ * dans AUCUN store. Ce n'est pas un prix annoncé, c'est un prix inventé — la
+ * faute que la constitution §9 nomme en premier.
+ * La carte du Pass dit maintenant « Prix fixé à l'ouverture » et ne cite aucun
+ * montant. L'export est supprimé plutôt que laissé inutilisé : un prix qui
+ * traîne finit par être réaffiché.
  */
-export const SEASON_PASS_PRICE_EUR = SKU_PRICES_EUR.gryd_pass;
 
 /** Économie du plan annuel vs 12 × mensuel, en % entier (affichage toggle pricing). */
 export const CLUB_ANNUAL_SAVINGS_PCT = Math.round(

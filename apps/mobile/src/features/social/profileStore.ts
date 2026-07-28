@@ -128,8 +128,21 @@ export const AVATAR_COLORS: readonly { key: string; value: string; label: Entry 
 /** Couleur d'avatar par défaut (1re de la palette — accent chartreuse charte). */
 const DEFAULT_AVATAR_COLOR = AVATAR_COLORS[0]?.value ?? colors.chartreuse;
 
-/** Nombre exact de badges mis en avant sur la card (AMENDEMENT-17 : 3, pas plus). */
-export const FEATURED_BADGE_COUNT = 3;
+/**
+ * Nombre exact de badges mis en avant sur la card (AMENDEMENT-17 : 3, pas plus).
+ *
+ * ⚠ LA VALEUR N'EST PLUS ICI (28/07/2026). Ce plafond décide d'une ISSUE
+ * D'ÉCRAN — la troisième branche de `AJOUTER AU PROFIL` sur E63/E64, « vitrine
+ * pleine » — donc c'est une règle de jeu, et « aucun nombre magique hors
+ * game-rules » s'applique. Elle vit désormais dans
+ * `packages/shared/src/game-rules.ts` (`FEATURED_BADGE_COUNT`), d'où le web et
+ * les Edge Functions peuvent la lire aussi.
+ *
+ * La ré-exportation est délibérée : les dix appelants existants
+ * (`app/profil-edit.tsx`, `features/badges/BadgeUnlockMoment.tsx`) importent ce
+ * module et n'ont pas à être touchés. Il n'existe qu'UNE valeur, pas deux.
+ */
+export { FEATURED_BADGE_COUNT } from '@klaim/shared';
 
 /** Longueurs douces (anti-friction) — le serveur (O1) fera foi côté base. */
 export const DISPLAY_NAME_MAX = 24;

@@ -41,6 +41,7 @@ import {
   PRO_ENTITLEMENT_ID,
 } from './client';
 import { managementUrlOf, readProStatus, type CustomerInfoLike, type ProStatus } from './entitlement';
+import { readPurchaseHistory, type PurchaseRecord } from './purchaseHistory';
 import {
   defaultOfferPeriod,
   isPurchasable,
@@ -56,7 +57,23 @@ export type PremiumStatus = 'loading' | 'signedOut' | 'unavailable' | 'error' | 
 
 /** Résultat de la DERNIÈRE action, pour le message d'écran. Jamais persistant. */
 export type PremiumActionResult =
+  /** Le Store a accepté ET le droit `gryd_pro` est ACTIF dans le CustomerInfo rendu. */
   | { readonly kind: 'purchased' }
+  /**
+   * ── AJOUTÉ LE 28/07/2026 : L'ACHAT NON VÉRIFIÉ AVAIT SON PROPRE MENSONGE ──
+   * `purchasePackage()` qui ne jette pas ne prouve QUE ceci : la feuille du
+   * Store s'est fermée sans erreur. Il ne prouve pas que le droit est ouvert.
+   * Deux cas RÉELS le séparent :
+   *  · achat DIFFÉRÉ — « Demander à acheter » (contrôle parental iOS) ou une
+   *    authentification forte (SCA) : la transaction reste en attente ;
+   *  · identifiant d'entitlement DIVERGENT entre le tableau de bord RevenueCat
+   *    et `PRO_ENTITLEMENT_ID` : le paiement passe, le droit ne s'allume pas.
+   * Dans ces deux cas l'ancien code imprimait « C'est actif. Merci. » pendant
+   * que `ProBanner` — piloté par le MÊME CustomerInfo relu par `readProStatus`
+   * — restait absent et que les offres restaient peintes. Le même écran
+   * affirmait et infirmait. On distingue donc désormais les deux faits.
+   */
+  | { readonly kind: 'purchase_pending' }
   | { readonly kind: 'restored' }
   /** Restauration honnête : lue, et il n'y avait aucun achat à rendre. */
   | { readonly kind: 'nothing_to_restore' }
@@ -79,6 +96,13 @@ export interface UsePremiumResult {
   readonly savingsPercent: number | null;
   /** `null` = aucun CustomerInfo lu (≠ « pas abonné »). */
   readonly pro: ProStatus | null;
+  /**
+   * E75 — achats lisibles du CustomerInfo, du plus récent au plus ancien.
+   * `null` = AUCUN CustomerInfo lu, ou le SDK n'a pas fourni le champ : dans
+   * les deux cas on ne sait pas, et l'écran le dit au lieu d'écrire « aucun
+   * achat ». Un tableau VIDE, lui, est un fait : ce compte n'a rien acheté.
+   */
+  readonly purchases: readonly PurchaseRecord[] | null;
   /** URL de gestion Store, ou null : sans elle, aucun bouton « Gérer ». */
   readonly managementUrl: string | null;
   readonly busy: 'purchase' | 'restore' | null;
@@ -172,6 +196,16 @@ export function usePremium(): UsePremiumResult {
     [info],
   );
 
+  /**
+   * E75. On distingue « pas lu » de « lu et vide » à la source : sans
+   * `allPurchaseDatesByProduct`, le SDK n'a rien dit — `null`. Avec le champ,
+   * même vide, il a répondu — tableau (éventuellement vide).
+   */
+  const purchases = useMemo<readonly PurchaseRecord[] | null>(() => {
+    if (!info || info.allPurchaseDatesByProduct == null) return null;
+    return readPurchaseHistory(info);
+  }, [info]);
+
   const selectedOffer = useMemo(
     () => offers.find((o) => o.period === selected) ?? null,
     [offers, selected],
@@ -194,7 +228,14 @@ export function usePremium(): UsePremiumResult {
     setBusy(null);
     if (outcome.kind === 'purchased') {
       setInfo(outcome.customerInfo);
-      const result: PremiumActionResult = { kind: 'purchased' };
+      // ── ON RELIT LE DROIT, ON NE LE DÉDUIT PAS DU SILENCE DU SDK ─────────
+      // Exactement le contrôle que `restore` faisait déjà 30 lignes plus bas
+      // (`readProStatus(...)`) : le module savait vérifier, et ne vérifiait pas
+      // sur le seul chemin où de l'argent est engagé. C'est la MÊME lecture que
+      // celle qui pilote `ProBanner` — les deux ne peuvent donc plus diverger.
+      const granted = readProStatus(outcome.customerInfo, PRO_ENTITLEMENT_ID, Date.now());
+      const result: PremiumActionResult =
+        granted.kind === 'active' ? { kind: 'purchased' } : { kind: 'purchase_pending' };
       setLastResult(result);
       return result;
     }
@@ -240,6 +281,7 @@ export function usePremium(): UsePremiumResult {
     selectedOffer,
     savingsPercent: yearlySavingsPercent(offers),
     pro,
+    purchases,
     managementUrl: info ? managementUrlOf(info) : null,
     busy,
     lastResult,

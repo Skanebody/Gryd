@@ -107,7 +107,6 @@ import {
   explainArsenalItem,
   ownershipKindOf,
   premiumItem,
-  premiumPrices,
   shopCategoryKeys,
   shopItems,
   useArsenalInventory,
@@ -117,7 +116,9 @@ import {
   type ArsenalPlayerSignals,
   type ShopCategoryKey,
 } from '../src/features/arsenal';
-import { formatEclats, formatEur } from '../src/features/arsenal/ShopGridCard';
+import { useStorePrices, type StorePricesStatus } from '../src/features/premium';
+import { formatEclats } from '../src/features/arsenal/ShopGridCard';
+import { Button } from '../src/ui/Button';
 import {
   arsenalContents,
   arsenalDescription,
@@ -238,6 +239,20 @@ function ArsenalBody() {
   const categories = useMemo(() => shopCategoryKeys(), []);
   const items = useMemo(() => shopItems(category), [category]);
 
+  /**
+   * ── LES PRIX EN ARGENT RÉEL VIENNENT DU STORE (constitution §9) ───────────
+   * On demande les clés de TOUT le catalogue vendable, pas seulement celles de
+   * la catégorie affichée : changer de chip ne doit pas relancer une lecture
+   * store (et donc faire clignoter des montants). La liste est stable.
+   * `labelOf` rend `null` tant que rien n'a été lu — et alors AUCUN montant
+   * n'est peint : ni « — € », ni le prix catalogue.
+   */
+  const pricedKeys = useMemo(
+    () => shopItems('all').filter((i) => i.priceEur !== undefined).map((i) => i.key),
+    [],
+  );
+  const storePrices = useStorePrices(pricedKeys);
+
   // Course en cours = AUCUN chemin d'achat (planche E17). Tant que la lecture du
   // buffer n'a pas abouti, on n'affirme rien : on ne peint ni la boutique ni le
   // blocage — un chargement ne conclut jamais à la place du joueur.
@@ -343,13 +358,17 @@ function ArsenalBody() {
                   item={item}
                   owned={owned.has(item.key)}
                   equipped={isEquipped(item)}
+                  storePrice={storePrices.labelOf(item.key)}
                   onPress={() => setDetail(item)}
                 />
               ))}
             </View>
           )}
 
-          {/* ══ 7. PAYWALL PREMIUM ════════════════════════════════════════ */}
+          {/* ══ 6b. POURQUOI AUCUN PRIX EN EURO N'EST AFFICHÉ ══════════════ */}
+          <StorePricesNote status={storePrices.status} />
+
+          {/* ══ 7. PREMIUM — l'écran E74 est le SEUL qui vende ═════════════ */}
           <PremiumBlock />
         </>
       ) : null}
@@ -374,6 +393,7 @@ function ArsenalBody() {
                 signals={arsenalSignals}
                 owned={owned.has(detail.key)}
                 equipped={isEquipped(detail)}
+                storePrice={storePrices.labelOf(detail.key)}
                 onEquip={() => equip(detail)}
                 onClose={() => setDetail(null)}
               />
@@ -424,34 +444,62 @@ function SeasonHero({
   );
 }
 
-// ─── Paywall Premium ─────────────────────────────────────────────────────────
+// ─── Prix store : DIRE pourquoi aucun montant n'est affiché ──────────────────
 
 /**
- * Bloc Premium de la planche : titre · promesse · 3 bénéfices MAX · 2 prix
- * visibles avec l'équivalent mensuel · Conditions.
+ * La boutique n'affiche un montant en argent réel que si le STORE l'a donné
+ * (constitution §9). Quand il ne l'a pas donné, l'écran ne se tait pas : il dit
+ * LAQUELLE des cinq raisons s'applique. Se taire laisserait croire que les
+ * objets sont gratuits ou que l'app a un bug.
  *
- * CE QUI N'Y EST PAS, ET POURQUOI :
- *  · pas de HEATMAP en hero — il n'en existe aucune dans l'app, et une
- *    illustration serait prise pour les données du joueur (cf. en-tête) ;
- *  · pas d'« ESSAYER 7 JOURS » — aucun essai, aucun entitlement, aucun webhook
- *    côté client : ce serait un bouton mort sur l'accent le plus fort de la
- *    scène (§A4) ;
- *  · pas de « Restaurer les achats » — aucune API de restauration n'existe.
- * « Conditions » est le SEUL lien vivant du bloc (`/legal/cgv` existe).
+ * En 'ready', rien n'est rendu : les montants sont sur les cartes, une phrase
+ * de plus serait du bruit (§A).
+ */
+function StorePricesNote({ status }: { status: StorePricesStatus }) {
+  const t = useT();
+  if (status === 'ready') return null;
+  const entry =
+    status === 'loading'
+      ? SHOP_C.storePricesLoading
+      : status === 'unavailable'
+        ? SHOP_C.storePricesUnavailable
+        : status === 'signedOut'
+          ? SHOP_C.storePricesSignedOut
+          : status === 'error'
+            ? SHOP_C.storePricesError
+            : SHOP_C.storePricesEmpty;
+  return <Text style={styles.mutedNote}>{t(entry)}</Text>;
+}
+
+// ─── Renvoi vers Premium (E74) ───────────────────────────────────────────────
+
+/**
+ * ══ CE BLOC N'EST PLUS UN PAYWALL (28/07/2026) ════════════════════════════
+ * Il affichait « 34,99 € / an · soit 2,92 € par mois » et « 4,99 € / mois »,
+ * lus dans `SKU_PRICES_EUR` — c'est-à-dire ÉCRITS DANS LE CODE. La constitution
+ * §9 l'interdit sans exception : le prix vient du Store ou d'une remote config.
+ * Un montant du code diverge du Store dès la première devise étrangère, et
+ * afficher un prix qu'on ne fera pas payer est un mensonge d'interface (Apple
+ * le refuse pour la même raison).
  *
- * `paywall_view` est émis ICI, au rendu réel du paywall. Avant, il partait au
- * montage de l'écran alors qu'aucun paywall n'y était rendu : l'analytique
- * mentait aussi.
+ * Il affichait AUSSI « L'abonnement n'est pas encore ouvert : aucun paiement
+ * n'est branché » — une phrase devenue FAUSSE : `app/premium.tsx` (E74) achète
+ * réellement via RevenueCat depuis lors. Une doc qui promet moins que le code
+ * est la même faute qu'une doc qui promet plus : elle décrit un état qui n'est
+ * pas.
+ *
+ * Ce qui reste ici est ce qui est VRAI sans prix : le nom, la promesse, les
+ * bénéfices, et une porte vers l'écran qui sait vendre — avec les prix du
+ * Store, l'essai réel s'il est configuré, la restauration et les conditions.
+ * §A : c'est l'unique CTA chartreuse de l'écran, et il aboutit toujours (la
+ * route existe et gère elle-même ses six états).
+ *
+ * `paywall_view` n'est plus émis ici : aucun paywall n'y est rendu. E74 l'émet
+ * à son ouverture, avec `trigger: 'e74_screen'`.
  */
 function PremiumBlock() {
   const t = useT();
   const club = premiumItem();
-  const prices = premiumPrices();
-
-  useEffect(() => {
-    track(EVENTS.paywallView, { trigger: 'arsenal' });
-  }, []);
-
   if (!club) return null;
   const benefits = (arsenalContents(club, t) ?? []).slice(0, PREMIUM_MAX_BENEFITS);
 
@@ -470,40 +518,15 @@ function PremiumBlock() {
         ))}
       </View>
 
-      {/* Deux prix RÉELS (game-rules). L'équivalent mensuel est une DIVISION
-          vérifiable, jamais un rabais annoncé : ni prix barré, ni pourcentage. */}
-      <View style={styles.premiumPrices}>
-        <View style={styles.premiumPrice}>
-          <Text style={styles.premiumPriceLabel}>{t(SHOP_C.premiumAnnualLabel)}</Text>
-          <Text style={styles.premiumPriceValue}>
-            {t(SHOP_C.premiumAnnualPrice, { price: formatEur(prices.annualEur) })}
-          </Text>
-          <Text style={styles.premiumPriceNote}>
-            {t(SHOP_C.premiumAnnualPerMonth, { price: formatEur(prices.annualPerMonthEur) })}
-          </Text>
-        </View>
-        <View style={styles.premiumPrice}>
-          <Text style={styles.premiumPriceLabel}>{t(SHOP_C.premiumMonthlyLabel)}</Text>
-          <Text style={styles.premiumPriceValue}>
-            {t(SHOP_C.premiumMonthlyPrice, { price: formatEur(prices.monthlyEur) })}
-          </Text>
-          <Text style={styles.premiumPriceNote}>{t(SHOP_C.premiumMonthlyNote)}</Text>
-        </View>
+      <Text style={styles.premiumNotOpen}>{t(SHOP_C.premiumPriceFromStore)}</Text>
+
+      <View style={styles.premiumCta}>
+        <Button
+          label={t(SHOP_C.premiumSeeOffers)}
+          onPress={() => router.push('/premium')}
+          analyticsId="arsenal_premium"
+        />
       </View>
-
-      <Text style={styles.premiumNotOpen}>{t(SHOP_C.premiumNotOpen)}</Text>
-
-      <Pressable
-        accessibilityRole="link"
-        onPress={() => {
-          track(EVENTS.ctaTapped, { cta: 'premium_terms' });
-          router.push('/legal/cgv');
-        }}
-        style={({ pressed }) => [styles.premiumTerms, pressed && styles.pressed]}
-      >
-        <Text style={styles.premiumTermsText}>{t(SHOP_C.premiumTerms)}</Text>
-        <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
-      </Pressable>
     </View>
   );
 }
@@ -515,6 +538,7 @@ function ItemDetail({
   signals,
   owned,
   equipped,
+  storePrice,
   onEquip,
   onClose,
 }: {
@@ -522,6 +546,8 @@ function ItemDetail({
   signals: ArsenalPlayerSignals;
   owned: boolean;
   equipped: boolean;
+  /** Prix d'argent réel LU DU STORE, ou `null` (alors aucun montant). */
+  storePrice: string | null;
   onEquip: () => void;
   onClose: () => void;
 }) {
@@ -536,17 +562,21 @@ function ItemDetail({
   // Les prix sont des FAITS affichés, plus un choix de devise : sans achat
   // possible, un segmented « Éclats / € » demanderait de choisir comment payer
   // une chose qui ne se paie pas.
+  //
+  // ÉCLATS vs ARGENT RÉEL (constitution §9, 28/07/2026) : le prix en Éclats est
+  // une RÈGLE DE JEU (`game-rules.ts`) et reste affiché ; le montant en argent
+  // réel n'existe que si le STORE l'a donné. Avant ce chantier, cette ligne
+  // rendait `formatEur(item.priceEur)` — un montant écrit dans le code, faux
+  // hors zone euro et jamais celui qui serait débité.
   const priceText =
-    item.priceShards !== undefined && item.priceEur !== undefined
+    item.priceShards !== undefined && storePrice !== null
       ? t(SHOP_C.priceDual, {
           eclats: formatEclats(item.priceShards),
-          eur: formatEur(item.priceEur),
+          eur: storePrice,
         })
       : item.priceShards !== undefined
         ? formatEclats(item.priceShards)
-        : item.priceEur !== undefined
-          ? formatEur(item.priceEur)
-          : null;
+        : storePrice;
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
@@ -785,42 +815,15 @@ const styles = StyleSheet.create({
   premiumBenefits: { gap: 8, marginTop: 4 },
   premiumBenefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   premiumBenefitText: { flex: 1, color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 19 },
-  premiumPrices: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  premiumPrice: {
-    flex: 1,
-    backgroundColor: elevation.surface,
-    borderRadius: radii.card,
-    padding: 14,
-    gap: 3,
-  },
-  premiumPriceLabel: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  premiumPriceValue: {
-    color: colors.blanc,
-    fontSize: fontSizes.md,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  premiumPriceNote: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: 16 },
+  // Les six styles de PRIX (cartes annuel/mensuel) ont disparu avec les montants
+  // qu'ils mettaient en scène — constitution §9 (cf. `PremiumBlock`).
   premiumNotOpen: {
     color: colors.gris,
     fontSize: fontSizes.xs,
     lineHeight: fontSizes.xs * 1.6,
     marginTop: 14,
   },
-  premiumTerms: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 44,
-    marginTop: 4,
-  },
-  premiumTermsText: { color: colors.blanc, fontSize: fontSizes.sm, fontFamily: fonts.textSemi, fontWeight: '700' },
+  premiumCta: { marginTop: spacing.md },
 
   pressed: { opacity: 0.85 },
   packLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },

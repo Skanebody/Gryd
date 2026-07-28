@@ -321,6 +321,29 @@ export default function AbonnementPage() {
             </Reveal>
           </div>
 
+          {/* ── D'OÙ VIENNENT CES MONTANTS — constitution §9 (28/07/2026) ────
+              La constitution dit : « LES PRIX VIENNENT DU STORE OU D'UNE REMOTE
+              CONFIG, jamais codés en dur. » Sur ce site il n'y a NI Store NI
+              remote config : les montants ci-dessus sont lus dans `game-rules.ts`
+              via `lib/pricing`, c'est-à-dire écrits dans le code. On ne peut pas
+              les faire venir d'ailleurs ici — on peut, et on doit, dire ce
+              qu'ils valent réellement : un ordre de grandeur, pas un prix. Le
+              prix qui sera débité est celui que l'App Store ou le Play Store
+              affichera dans l'application, dans la devise du compte.
+              La page a longtemps affirmé « les prix affichés sont ceux de
+              GRYD » par son silence : ce paragraphe referme ce silence. */}
+          <Reveal delayMs={140}>
+            <p className={styles.upsellNote}>
+              <Icon name="info" size={16} />
+              <span>
+                Les montants ci-dessus sont des <b>ordres de grandeur annoncés</b>, pas des
+                prix définitifs. Le prix réel, sa devise et sa TVA seront ceux de l&rsquo;App
+                Store ou du Play Store, affichés dans l&rsquo;application au moment de
+                souscrire — GRYD ne les écrit jamais lui-même.
+              </span>
+            </p>
+          </Reveal>
+
           {/* Objets FONCTIONNELS : jamais vendus, dans aucune monnaie (A-40 §2 / A-45 §2). */}
           <Reveal delayMs={160}>
             <p className={styles.upsellNote}>

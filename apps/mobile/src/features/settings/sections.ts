@@ -28,9 +28,11 @@
  *   `app/parametres/[section].tsx`).
  *
  * ─── ÉCARTS ASSUMÉS ───────────────────────────────────────────────────────────
- * · La ligne « Abonnement & achats » reste derrière `flags.arsenal` : la route
- *   `/arsenal` est masquée hors MVP (D8) et une ligne vers une route absente
- *   serait un bouton mort.
+ * · La ligne « Arsenal » reste derrière `flags.arsenal` : la route `/arsenal`
+ *   est masquée hors MVP (D8) et une ligne vers une route absente serait un
+ *   bouton mort. La ligne « Abonnement et achats » (E75, `/abonnement`), elle,
+ *   n'est PAS gardée : voir le commentaire posé sur la ligne le 28/07/2026 —
+ *   la garder derrière ce drapeau fermait l'écran de gestion aux abonnés.
  * · Aucun nombre, aucune constante de jeu ici : ce module ne fait que de la
  *   navigation et du texte.
  */
@@ -38,6 +40,7 @@ import type { IconName } from '@klaim/shared';
 import { flags } from '../../lib/flags';
 import { C } from '../../i18n/catalog/reglages';
 import { C as CParcours } from '../../i18n/catalog/parcours';
+import { C as CAbo } from '../../i18n/catalog/abonnement';
 import type { Entry } from '../../i18n/types';
 
 /** Slug d'une sous-page interne rendue par app/parametres/[section].tsx. */
@@ -113,6 +116,21 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       },
       { section: 'carte', label: C.rowCarte, detail: C.rowCarteDetail, icon: 'calques' },
       { href: '/sources', label: C.rowSources, detail: C.rowSourcesDetail, icon: 'lien' },
+      // ── E75 « ABONNEMENT ET ACHATS » — LA PORTE QUI MANQUAIT (28/07/2026) ──
+      // NON gardée par `flags.arsenal`, DÉLIBÉRÉMENT. Avant cette ligne, la
+      // route `/abonnement` n'était atteignable que depuis `/premium`, qui
+      // n'était atteignable que depuis `/arsenal` (masqué hors MVP) ou depuis
+      // la branche `locked` de `/premium-analytics` — branche qui DISPARAÎT dès
+      // que le joueur est abonné (`read.ts` : statut 'locked' ⟺ is_club ≠ true).
+      // Autrement dit, dans le build par défaut, l'écran qui porte le statut, la
+      // prochaine échéance, la restauration et l'accès au Store était fermé à
+      // exactement les gens qu'il sert. `audit-routes.mjs` sortait en 0 parce
+      // qu'il fait de l'analyse de liens STATIQUE : il ne modélise ni `flags` ni
+      // les branches d'état — un vert qui ne prouvait pas la porte.
+      // CE N'EST PAS UN BOUTON MORT : E75 gère lui-même ses quatre états de
+      // lecture (chargement / pas connecté / pas de Store ici / échec) et ne
+      // peint « Gérer dans le Store » que s'il a une `managementURL`.
+      { href: '/abonnement', label: CAbo.title, detail: CAbo.rowDetail, icon: 'couronne' },
       // D8 : Arsenal masqué hors MVP — la ligne disparaît avec la route.
       ...(flags.arsenal
         ? [

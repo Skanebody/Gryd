@@ -11,8 +11,11 @@
  *   3. le BANDEAU DE SYNTHÈSE (`SheetMetrics`) : sorties · distance · captures ·
  *      défenses — QUE des faits serveur ;
  *   4. les GROUPES PAR SEMAINE (« Cette semaine », « Semaine dernière »,
- *      « Semaine du … ») : un `SectionLabel` puis les lignes (`RealRunCard`) ;
- *   5. en gris, en bas, APRÈS la liste : ce qui n'existe pas encore.
+ *      « Semaine du … ») : un `SectionLabel` puis les lignes (`RealRunCard`),
+ *      chacune TAPABLE — elle ouvre E68 `/course/[id]` (28/07/2026 : la lecture
+ *      d'une sortie par identifiant existe, cf. `features/history/detailRead.ts`,
+ *      et la note de pied « ces lignes ne s'ouvrent pas » a donc été RETIRÉE —
+ *      la garder aurait été le mensonge symétrique).
  *
  * ─── CE QUI A CHANGÉ POUR COLLER À LA PLANCHE E24 (26/07/2026) ───────────────
  * L'écran groupait par FILTRE (Tout / Conquêtes / Défenses / Stats) — une barre
@@ -28,12 +31,11 @@
  *     `captured > 0`, défenses = `defended > 0`, distance = somme réelle).
  *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE (inchangés — honnêteté au-dessus du pixel) ──
- * · PAS DE VIGNETTE DE TRACÉ (`runs.polyline_masked` non décodé) : la tuile de
- *   ligne porte le PICTO DE TYPE coloré, pas une géométrie inventée
- *   (cf. `RealRunCard`).
- * · AUCUNE LIGNE N'EST TAPABLE : `/course/[id]` ne résout aucun identifiant (O1).
- *   On ne peint pas un chevron qui échouerait ; l'absence est ÉCRITE en pied de
- *   page, en gris, après la liste (patron `qr.tsx`).
+ * · PAS DE VIGNETTE DE TRACÉ : `runs.polyline_masked` existe en base mais
+ *   `ingest_run` ne l'écrit JAMAIS (il ne garde qu'un SHA-256 irréversible —
+ *   `anticheat_wiring.ts:178`). Il n'y a donc aucun tracé à décoder : la tuile
+ *   de ligne porte le PICTO DE TYPE coloré, pas une géométrie inventée. Le
+ *   détail E68 dit la même chose, à sa place (cf. `app/course/[id].tsx`).
  * · PAS DE « repris à X » : le nom d'un adversaire exige une identité
  *   cross-joueur (O1). Une reprise reste neutre (« Reprise · {n} zones »).
  * · LECTURE bornée à 200 sorties (`HISTORY_LIMIT`) : au-delà, un vrai « plus
@@ -262,9 +264,6 @@ export default function HistoriqueScreen() {
               </View>
             </View>
           ))}
-          {/* Ce qui n'existe pas encore, dit à sa place : en bas, en gris,
-              APRÈS la liste — jamais en travers de l'écran. */}
-          <Text style={styles.footnote}>{t(H.detailPendingNote)}</Text>
         </>
       ) : null}
     </StackScreen>
@@ -294,11 +293,5 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.5,
     marginTop: spacing.md,
-  },
-  footnote: {
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.6,
-    marginTop: spacing.xl,
   },
 });

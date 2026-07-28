@@ -25,7 +25,7 @@ import {
   STARTER_PACK_ECLATS,
   STREAK_FREEZE_FREE_PER_MONTH,
 } from '@klaim/shared';
-import { CLUB_ANNUAL_SAVINGS_PCT, PRICES_EUR, SEASON_PASS_PRICE_EUR } from '../../../lib/pricing';
+import { CLUB_ANNUAL_SAVINGS_PCT, PRICES_EUR } from '../../../lib/pricing';
 import { BannerIcon, GelIcon, ScoutIcon, ShieldIcon, SkinIcon } from './ArsenalItems';
 import { useLang } from './LangProvider';
 import { Reveal } from './Reveal';
@@ -368,8 +368,13 @@ export function PricingSection() {
                 <h3 className={styles.planName}>{copy.pricing.passName}</h3>
                 <span className={styles.badge}>{copy.pricing.passBadge}</span>
               </header>
+              {/* AUCUN MONTANT — 28/07/2026. Le GRYD Pass est catalogué INACTIF
+                  dans la source de vérité elle-même (game-rules.ts : « status
+                  draft, pas de SKU actif »). Afficher « 7,99 € » annonçait donc
+                  un prix pour un produit qui n'existe dans aucun store : ce
+                  n'est pas un prix annoncé, c'est un prix inventé. */}
               <p className={styles.price}>
-                <span className={styles.priceValue}>{formatEur(SEASON_PASS_PRICE_EUR)}</span>
+                <span className={styles.priceSuffix}>{copy.pricing.passPriceUnset}</span>
               </p>
               <ul className={styles.features}>
                 {copy.pricing.passFeatures.map((feature) => (

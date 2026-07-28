@@ -163,13 +163,14 @@ export const C = defineCatalog({
     de: 'Verteidige deinen Titel bis zum Saisonende.',
     pt: 'Defenda seu título até o fim da temporada.',
   },
-  toiHintChase: {
-    fr: '≈ {n} zones pour passer {name}.',
-    en: '≈ {n} zones to pass {name}.',
-    es: '≈ {n} zonas para superar a {name}.',
-    de: '≈ {n} Zonen, um {name} zu überholen.',
-    pt: '≈ {n} zonas para passar {name}.',
-  },
+  // `toiHintChase` (« ≈ {n} zones pour passer {name} ») A ÉTÉ RETIRÉE le
+  // 28/07/2026 avec la bascule d'E53 sur la SURFACE (§10.1). Elle traduisait un
+  // écart de POINTS divisé par POINTS_NEUTRAL_HEX ; sur un écart en m², cette
+  // arithmétique n'existe plus, et estimer un nombre de zones depuis une
+  // surface exigerait une aire de zone MOYENNE que rien ne mesure. Sa
+  // remplaçante est `saison.goalSurfaceChase`, qui dit l'écart tel qu'il est.
+  // Ne pas la rétablir pour « habiller » une surface : ce serait un chiffre
+  // inventé sous une phrase qui a l'air précise.
   ctaDefendre: {
     fr: 'DÉFENDRE',
     en: 'DEFEND',

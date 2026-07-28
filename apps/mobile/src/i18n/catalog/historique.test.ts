@@ -52,10 +52,13 @@ import { clesQuiNommentUneDiscipline, porteeDuTexte } from './disciplineVocabula
 import {
   C,
   HISTORY_COPY,
+  RUN_DETAIL_COPY,
   RUN_EFFORT_A11Y,
   TERRITORY_SHARE_NOTE,
   historyCopy,
+  runDetailCopy,
   type HistoryActivityCopy,
+  type RunDetailActivityCopy,
 } from './historique.ts';
 
 const FIELDS = [
@@ -67,9 +70,41 @@ const FIELDS = [
   'emptyFilter',
   'emptySignedOut',
   'a11ySignIn',
-  'detailPendingNote',
   'a11yEffort',
 ] as const satisfies readonly (keyof HistoryActivityCopy)[];
+
+/**
+ * E68 « DÉTAIL HISTORIQUE » — les libellés qui NOMMENT la sortie ouverte. Ils
+ * subissent EXACTEMENT les mêmes gardes que ceux de la liste : pas de
+ * copier-coller entre les deux mondes, pas de vocabulaire coureur sous une
+ * sortie vélo, pas de jeton perdu, pas de chaîne vide.
+ *
+ * ⚠️ `detailPendingNote` A DISPARU DE `FIELDS` ci-dessus, et ce n'est pas un
+ * oubli : la note « ces lignes ne s'ouvrent pas » a été retirée du catalogue le
+ * 28/07/2026 parce que les lignes S'OUVRENT (E68). La garder aurait été le
+ * mensonge symétrique de celui qu'elle corrigeait.
+ */
+const DETAIL_FIELDS = [
+  'kicker',
+  'verdictFlagged',
+  'verdictRejected',
+] as const satisfies readonly (keyof RunDetailActivityCopy)[];
+
+/**
+ * LES ÉTATS D'AVANT LA LECTURE, qui doivent rester NEUTRES aux deux mondes.
+ * Tant que `runs.activity` n'est pas lue, l'écran ne sait pas de quel sport on
+ * lui parle : un libellé coureur y serait une supposition, un libellé vélo
+ * aussi. Ils n'ont donc PAS de jumeau — et ce test échoue si l'un d'eux se met
+ * à nommer une discipline.
+ */
+const DETAIL_NEUTRAL: readonly (keyof typeof C)[] = [
+  'detailLoading',
+  'detailSignedOutBody',
+  'detailNoBackendTitle',
+  'detailFailedTitle',
+  'detailNotFoundTitle',
+  'detailNotFoundBody',
+];
 
 /** Les `{jetons}` d'une chaîne, triés — l'ordre d'écriture n'est pas un contrat. */
 function placeholders(text: string): string[] {
@@ -83,6 +118,62 @@ Deno.test('exhaustif : chaque discipline du jeu a ses libellés d’historique',
   assertEquals(Object.keys(HISTORY_COPY).sort(), [...ACTIVITIES].sort());
   assertEquals(Object.keys(TERRITORY_SHARE_NOTE).sort(), [...ACTIVITIES].sort());
   assertEquals(Object.keys(RUN_EFFORT_A11Y).sort(), [...ACTIVITIES].sort());
+  assertEquals(Object.keys(RUN_DETAIL_COPY).sort(), [...ACTIVITIES].sort());
+});
+
+Deno.test('E68 : le détail d’une sortie a ses libellés dans les deux mondes', () => {
+  // Le détail lit `runs.activity` : la discipline y est un FAIT, pas une
+  // préférence. Les quatre libellés qui la nomment doivent donc exister des DEUX
+  // côtés, différer, garder leurs jetons et n'être vides dans aucune langue.
+  for (const field of DETAIL_FIELDS) {
+    const run: Entry = RUN_DETAIL_COPY.run[field];
+    const bike: Entry = RUN_DETAIL_COPY.bike[field];
+    for (const locale of LOCALES) {
+      assertNotEquals(
+        bike[locale],
+        run[locale],
+        `detail.${field}.${locale} : le texte vélo est celui de la course (copier-coller ?)`,
+      );
+      assertNotEquals(
+        porteeDuTexte(bike[locale]),
+        'course',
+        `detail.${field}.${locale} nomme la course à pied dans le monde vélo : « ${bike[locale]} »`,
+      );
+      assertEquals(
+        placeholders(bike[locale]),
+        placeholders(run[locale]),
+        `detail.${field}.${locale} : les jetons diffèrent entre les deux mondes`,
+      );
+      for (const activity of ACTIVITIES) {
+        assert(
+          RUN_DETAIL_COPY[activity][field][locale].trim().length > 0,
+          `detail.${activity}.${field}.${locale} est vide`,
+        );
+      }
+    }
+  }
+  // Le défaut est le monde d'avant le vélo — jamais une troisième discipline.
+  assertEquals(runDetailCopy(), RUN_DETAIL_COPY[DEFAULT_ACTIVITY]);
+  assertEquals(runDetailCopy(undefined), RUN_DETAIL_COPY[DEFAULT_ACTIVITY]);
+});
+
+Deno.test('E68 : les états d’AVANT la lecture ne nomment aucune discipline', () => {
+  // C'est le défaut que ce lot a failli introduire : servir « Lecture de ta
+  // course… » avant d'avoir lu `runs.activity`, c'est-à-dire supposer le sport
+  // de quelqu'un pendant les quatre secondes où on ne sait rien de lui.
+  for (const clef of DETAIL_NEUTRAL) {
+    const entry = C[clef] as Entry;
+    for (const locale of LOCALES) {
+      assertEquals(
+        porteeDuTexte(entry[locale]),
+        'neutre',
+        `${String(clef)}.${locale} nomme une discipline avant que la sortie soit lue : « ${entry[locale]} »`,
+      );
+    }
+  }
+  // Et l'écran ne les remplace pas en douce par la copie mono-monde d'un autre
+  // catalogue : `statsCopy` (indexée par lentille) n'a rien à faire ici.
+  // (garde de câblage : voir le test « la ligne d’historique OUVRE le détail »)
 });
 
 Deno.test('aucune fuite : pas un libellé du coureur ne survit dans le monde vélo', () => {
@@ -183,8 +274,6 @@ const NOMMENT_UN_MONDE_LEGITIMEMENT: readonly string[] = [
   'countRunsManyBike',
   'countRunsOne',
   'countRunsOneBike',
-  'detailPendingNote',
-  'detailPendingNoteBike',
   'emptyFilter',
   'emptyFilterBike',
   'emptySignedOut',
@@ -212,15 +301,31 @@ const NOMMENT_UN_MONDE_LEGITIMEMENT: readonly string[] = [
   // ── Les deux segments du commutateur : leur rôle EST de nommer le monde.
   'activityRunA11y',
   'activityBikeA11y',
+  // ── E68 « DÉTAIL HISTORIQUE » (28/07/2026). Servis par `RUN_DETAIL_COPY`,
+  //    indexé sur `runs.activity` — la discipline de la sortie OUVERTE, lue en
+  //    base. Ce n'est plus une préférence d'affichage qu'il faudrait deviner :
+  //    c'est un fait, donc l'écran a le droit de le nommer.
+  //    ⚠ `detailLoading` n'y est PAS : la lecture n'a pas encore abouti quand il
+  //    s'affiche, donc il reste NEUTRE (cf. `DETAIL_NEUTRAL` en haut de fichier).
+  'detailKicker',
+  'detailKickerBike',
+  'detailVerdictFlagged',
+  'detailVerdictFlaggedBike',
+  'detailVerdictRejected',
+  'detailVerdictRejectedBike',
 ];
 
 Deno.test('balayage : aucune entrée du catalogue Historique ne nomme un monde hors liste revue', () => {
   // Ce test attrape ce que quatre tours successifs avaient manqué : une clé
   // ajoutée demain qui dirait « course » sur une surface servie aux deux mondes.
-  // Il verrouille aussi la NEUTRALISATION de `/course/[id]` (`runFallbackTitle`,
-  // `runDetailPendingTitle`, `runDetailPendingBody`) : leur retour dans cette
-  // liste signalerait qu'on a re-nommé un sport sur un écran qui, faute de
-  // lecture par identifiant (O1), ne peut PAS savoir duquel il s'agit.
+  // Il verrouille aussi la NEUTRALITÉ des libellés de `/course/[id]` qui ne
+  // sont PAS servis par `RUN_DETAIL_COPY` (`runFallbackTitle`, `detailTitle`,
+  // les noms de compteurs de zones, les notes de tracé et de partage) : leur
+  // apparition dans cette liste signalerait qu'on a nommé un sport là où
+  // l'écran sert les deux mondes avec un seul texte.
+  // (Les QUATRE qui nomment légitimement la sortie ouverte sont, eux, listés
+  // ci-dessus : depuis le 28/07/2026 l'écran LIT `runs.activity`, il ne devine
+  // plus rien.)
   assertEquals(
     clesQuiNommentUneDiscipline(C),
     [...NOMMENT_UN_MONDE_LEGITIMEMENT].sort(),
@@ -256,7 +361,6 @@ Deno.test('/historique rend la copie de SA lentille (et plus celle du coureur)',
     'C.emptyFilter',
     't(C.emptySignedOut)',
     'C.a11ySignIn',
-    'C.detailPendingNote',
     'PC.loading',
     'PC.failedTitle',
     'PC.noBackendTitle',
@@ -267,6 +371,37 @@ Deno.test('/historique rend la copie de SA lentille (et plus celle du coureur)',
       `/historique rend « ${clef} » en dur : ce libellé nomme un sport, il doit venir de la dérivation`,
     );
   }
+});
+
+Deno.test('E68 : la ligne d’historique OUVRE le détail, et l’aveu inverse a disparu', async () => {
+  // Deux moitiés d'un même correctif, et aucune ne vaut sans l'autre :
+  //  · la ligne mène quelque part (sinon le chevron serait un bouton mort) ;
+  //  · l'aveu « ces lignes ne s'ouvrent pas » n'est plus servi (sinon l'écran
+  //    déclarerait mort un chemin qui répond — le mensonge symétrique).
+  const ligne = await source('../../features/history/RealRunCard.tsx');
+  assert(
+    ligne.includes("pathname: '/course/[id]'"),
+    'RealRunCard n’ouvre pas E68 en FORME OBJET : sans le patron littéral, l’audit de routes compte /course/[id] orphelin',
+  );
+  const liste = await source('../../../app/historique.tsx');
+  assert(
+    !liste.includes('detailPendingNote'),
+    '/historique sert encore « ces lignes ne s’ouvrent pas » alors qu’elles s’ouvrent',
+  );
+  // Et l'écran de détail LIT vraiment une sortie, au lieu d'annoncer qu'il ne
+  // sait pas le faire (l'état d'avant ce lot).
+  const detail = await source('../../../app/course/[id].tsx');
+  assert(
+    detail.includes('useRunDetail('),
+    'E68 ne lit aucune sortie : l’écran est redevenu une page d’état',
+  );
+  // Les états d'avant la lecture ne doivent PAS emprunter la copie indexée par
+  // LENTILLE de /performance : elle nomme un sport, et E68 n'en connaît aucun
+  // tant qu'il n'a pas lu la ligne.
+  assert(
+    !detail.includes('statsCopy'),
+    'E68 sert la copie mono-monde de /performance dans ses états de lecture : il suppose une discipline qu’il n’a pas lue',
+  );
 });
 
 Deno.test('/territoire nomme la discipline JUSQU’À sa note de bas de page', async () => {

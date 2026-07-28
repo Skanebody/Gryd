@@ -95,6 +95,59 @@ export const C = defineCatalog({
     de: '{pts} Pkt. bis #{rank}',
     pt: '{pts} pts para passar #{rank}',
   },
+  /**
+   * E53 §10.1 — LE MÊME ÉCART, mais dans l'unité de l'axe RÉEL : la SURFACE.
+   * `{surface}` arrive déjà formaté ET suffixé de son unité (« 0,04 km² ») par
+   * `surfaceBoard.ts` : l'unité n'est pas écrite dans la phrase, sinon un
+   * tableau en m² afficherait un libellé en km². Symbole SI, identique partout.
+   */
+  gapSurfacePourPasser: {
+    fr: '{surface} pour passer #{rank}',
+    en: '{surface} to pass #{rank}',
+    es: '{surface} para pasar a #{rank}',
+    de: '{surface} bis #{rank}',
+    pt: '{surface} para passar #{rank}',
+  },
+  /**
+   * ── L'ÉCART NUL A SA PROPRE PHRASE (28/07/2026) ───────────────────────────
+   * §10.2 départage en TROIS temps : surface tenue, puis défenses gagnées, puis
+   * surface conquise. `surfaceTieKey` en tire la conséquence — deux joueurs à
+   * surface ÉGALE que leurs défenses séparent ne sont PAS ex æquo, ils ont deux
+   * rangs. L'écart de surface entre eux vaut alors exactement 0, et la phrase
+   * générique donnait « 0,00 km² pour passer #3 » : un objectif littéralement
+   * inatteignable, garanti par construction et non hypothétique. On dit donc ce
+   * qui est vrai — la surface ne les sépare pas, un autre critère le fait.
+   */
+  gapSurfaceEgalite: {
+    fr: 'Même surface que #{rank} : ce sont les défenses et la conquête qui départagent',
+    en: 'Same area as #{rank}: defenses and conquest break the tie',
+    es: 'Misma superficie que #{rank}: las defensas y la conquista deciden',
+    de: 'Gleiche Fläche wie #{rank}: Verteidigungen und Eroberung entscheiden',
+    pt: 'Mesma área que #{rank}: as defesas e a conquista decidem',
+  },
+  /**
+   * Phrase-objectif du CTA, en SURFACE. Elle a remplacé « ≈ n zones pour passer
+   * X » : cette conversion divisait un écart de POINTS par POINTS_NEUTRAL_HEX,
+   * arithmétique qui n'a plus de sens sur un écart en m² — et estimer un nombre
+   * de zones depuis une surface exigerait une aire de zone MOYENNE que rien ne
+   * mesure. On dit l'écart tel qu'il est plutôt que de l'habiller.
+   */
+  goalSurfaceChase: {
+    fr: '{surface} pour passer {name}.',
+    en: '{surface} to pass {name}.',
+    es: '{surface} para superar a {name}.',
+    de: '{surface} bis {name}.',
+    // pt = BRÉSILIEN (CLAUDE.md) : formulation neutre, aucun « teu/tua ».
+    pt: '{surface} para passar {name}.',
+  },
+  /** Même cas que `gapSurfaceEgalite`, côté phrase-objectif du CTA. */
+  goalSurfaceEgalite: {
+    fr: 'Même surface que {name} : ce sont les défenses et la conquête qui départagent.',
+    en: 'Same area as {name}: defenses and conquest break the tie.',
+    es: 'Misma superficie que {name}: las defensas y la conquista deciden.',
+    de: 'Gleiche Fläche wie {name}: Verteidigungen und Eroberung entscheiden.',
+    pt: 'Mesma área que {name}: as defesas e a conquista decidem.',
+  },
 
   // ══════════════════════════ E11-12 · Égalité (rang 1224) ═════════════════════
   /** Deux lignes à points égaux partagent le rang — comme le moteur serveur. */

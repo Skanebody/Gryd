@@ -279,11 +279,6 @@ const DISCIPLINED_READS: readonly { path: string; table: string; why: string }[]
     why: 'lecture sans appelant aujourd’hui : sans filtre, elle piège le prochain écran',
   },
   {
-    path: '../features/social/leagueBoard.ts',
-    table: 'player_leaderboard',
-    why: 'un joueur hybride occuperait DEUX places et décalerait les autres',
-  },
-  {
     path: '../features/social/economy.ts',
     table: 'season_scores',
     why: '« tes points » deviendrait le MEILLEUR des deux mondes, sans dire lequel',
@@ -296,6 +291,37 @@ Deno.test('toute lecture d’une source DISCIPLINÉE porte .eq(activity)', async
     assert(
       chain.includes(".eq('activity'"),
       `${read.path} → ${read.table} : filtre de discipline MANQUANT (${read.why})`,
+    );
+  }
+});
+
+/**
+ * LE MÊME TRIPWIRE, POUR LES SOURCES QUI FILTRENT CÔTÉ SERVEUR (E53,
+ * 28/07/2026). Le classement Joueurs a quitté `player_leaderboard` (les points)
+ * pour la RPC de SURFACE (§10.1, migration 0091) : la discipline n'y voyage plus
+ * par `.eq('activity')` mais par un PARAMÈTRE. Retirer l'entrée de la liste
+ * ci-dessus sans reposer le garde-fou ici aurait supprimé la protection en même
+ * temps que la requête — exactement ce qu'un tripwire est censé empêcher.
+ */
+const DISCIPLINED_RPCS: readonly { path: string; fn: string; param: string; why: string }[] = [
+  {
+    path: '../features/social/leagueBoard.ts',
+    fn: 'city_player_surface_board',
+    param: 'p_activity',
+    why: 'sans lui, une surface Run s’additionnerait à une surface Bike (§1.2)',
+  },
+];
+
+Deno.test('toute RPC de lecture DISCIPLINÉE porte son paramètre de discipline', async () => {
+  for (const read of DISCIPLINED_RPCS) {
+    const src = await source(read.path);
+    const at = src.indexOf(`supabase.rpc('${read.fn}'`);
+    assert(at >= 0, `${read.path} : appel à ${read.fn} introuvable`);
+    const end = src.indexOf('});', at);
+    assert(end > at, `${read.path} : appel ${read.fn} non terminé`);
+    assert(
+      src.slice(at, end).includes(`${read.param}:`),
+      `${read.path} → ${read.fn} : ${read.param} MANQUANT (${read.why})`,
     );
   }
 });

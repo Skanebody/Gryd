@@ -57,14 +57,11 @@ export {
 // ─── Planche E17 « Boutique & Premium » ──────────────────────────────────────
 export {
   PREMIUM_MAX_BENEFITS,
-  monthlyEquivalentEur,
   ownershipKindOf,
   premiumItem,
-  premiumPrices,
   shopCategoryKeys,
   shopItems,
   shopSectionKeys,
-  type PremiumPrices,
   type ShopCategoryKey,
   type ShopOwnership,
 } from './shop';

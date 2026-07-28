@@ -11,16 +11,16 @@
  * c'est le filet qui manquait — `features/arsenal/**` n'avait AUCUN test avant
  * ce chantier.
  *
- * AUCUN NOMBRE MAGIQUE : les prix viennent de `SKU_PRICES_EUR` (game-rules) ;
- * l'équivalent mensuel se calcule, il ne se recopie pas (la planche affichait
- * « 39,99 €/an » et « 3,33 €/mois » : deux placeholders de maquette, faux tous
- * les deux — le prix annuel réel est `SKU_PRICES_EUR.club_annual`).
+ * ── LES PRIX EN ARGENT RÉEL NE VIVENT PLUS ICI (28/07/2026) ───────────────
+ * Constitution §9 : ils viennent du STORE (`features/premium/storePrices.ts`,
+ * `product.priceString`) ou d'une remote config, jamais du code. Ce fichier ne
+ * connaît plus que les prix en ÉCLATS — une monnaie DE JEU, donc une règle, et
+ * à ce titre une constante légitime de `game-rules.ts`.
  *
  * ANTI FAUX RABAIS (interdit absolu E17) : on n'expose ni prix barré, ni
- * pourcentage d'économie. L'équivalent mensuel est une DIVISION vérifiable, pas
- * une promotion.
+ * pourcentage d'économie fabriqué.
  */
-import { isFunctionalItemKey, SKU_PRICES_EUR, SKUS } from '@klaim/shared';
+import { isFunctionalItemKey, SKUS } from '@klaim/shared';
 import {
   ARSENAL_CATALOG,
   ARSENAL_SECTIONS,
@@ -128,36 +128,29 @@ export function shopItems(category: ShopCategoryKey): ArsenalCatalogItem[] {
   );
 }
 
-// ─── 3. Prix Premium (2 prix visibles + équivalent mensuel CALCULÉ) ──────────
-
-export interface PremiumPrices {
-  /** Prix mensuel EUR (game-rules). */
-  monthlyEur: number;
-  /** Prix annuel EUR (game-rules). */
-  annualEur: number;
-  /** Annuel ÷ 12, arrondi au centime — jamais une valeur recopiée. */
-  annualPerMonthEur: number;
-}
+// ─── 3. Premium ─────────────────────────────────────────────────────────────
 
 /**
- * Équivalent mensuel d'un prix annuel, arrondi au centime.
+ * ── `premiumPrices()` ET `monthlyEquivalentEur()` ONT ÉTÉ SUPPRIMÉS ────────
+ * (28/07/2026, constitution §9 : « LES PRIX VIENNENT DU STORE OU D'UNE REMOTE
+ * CONFIG — jamais codés en dur dans l'app ».)
  *
- * Arrondi au SUPÉRIEUR (`ceil`) : 34,99 ÷ 12 = 2,9158… → 2,92 €. Arrondir au
- * plus près donnerait 2,92 également ici, mais l'arrondi supérieur garantit
- * dans TOUS les cas qu'on n'annonce jamais un mensuel plus bas que la réalité
- * — annoncer moins que ce qui sera payé serait un faux rabais déguisé.
+ * Ces deux fonctions lisaient `SKU_PRICES_EUR` (4,99 € / 34,99 €) et le bloc
+ * Premium de `app/arsenal.tsx` les PEIGNAIT. C'étaient des montants du CODE :
+ * une référence de catalogue utile au seed serveur et au site web, mais pas le
+ * prix que le Store facturera (devise, TVA, palier régional, promotion). Les
+ * afficher sur un écran de vente, c'était afficher un montant qu'on ne ferait
+ * pas payer.
+ *
+ * L'écran E74 `/premium` lit désormais les VRAIS prix (`offerings.ts`,
+ * `product.priceString`) et le bloc d'`arsenal.tsx` y renvoie au lieu de
+ * recopier deux nombres. Le calcul d'équivalent mensuel n'a pas disparu : il
+ * vit dans `yearlySavingsPercent` (offerings.ts), qui ne compare QUE des
+ * montants réellement lus au store, et se tait si l'un manque.
+ *
+ * Ne pas les réintroduire ici : ce fichier n'a plus aucune raison de connaître
+ * un montant en argent réel.
  */
-export function monthlyEquivalentEur(annualEur: number): number {
-  if (!Number.isFinite(annualEur) || annualEur <= 0) return 0;
-  return Math.ceil((annualEur / 12) * 100) / 100;
-}
-
-/** Les deux prix visibles du paywall + l'équivalent mensuel, depuis game-rules. */
-export function premiumPrices(): PremiumPrices {
-  const monthlyEur = SKU_PRICES_EUR.club_monthly;
-  const annualEur = SKU_PRICES_EUR.club_annual;
-  return { monthlyEur, annualEur, annualPerMonthEur: monthlyEquivalentEur(annualEur) };
-}
 
 /** L'item catalogue qui porte la copie et les 3 bénéfices du Club (traduits). */
 export function premiumItem(): ArsenalCatalogItem | undefined {

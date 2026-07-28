@@ -28,7 +28,20 @@ export {
   yearlySavingsPercent,
 } from './offerings';
 export type { FreeTrial, OfferPeriod, OfferingLike, PackageLike, PremiumOffer } from './offerings';
+export type { StoreProductLike } from './offerings';
 export { offerLabelEntry, trialUnitEntry } from './labels';
 export { PRO_ENTITLEMENT_ID, purchasesCapability } from './client';
 export { usePremium } from './usePremium';
 export type { PremiumActionResult, PremiumStatus, UsePremiumResult } from './usePremium';
+// ── E72/E73 : les prix d'argent réel de la BOUTIQUE (constitution §9) ────────
+export { catalogKeyOfProductId, readStorePrices, storePriceOf } from './storePrices';
+export type { StorePriceMap } from './storePrices';
+export { useStorePrices } from './useStorePrices';
+export type { StorePricesStatus, UseStorePricesResult } from './useStorePrices';
+// ── E75 : historique minimal d'achats ───────────────────────────────────────
+export {
+  PURCHASE_HISTORY_MAX_ROWS,
+  readPurchaseHistory,
+  recentPurchases,
+} from './purchaseHistory';
+export type { PurchaseRecord } from './purchaseHistory';

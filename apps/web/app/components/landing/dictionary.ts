@@ -171,7 +171,15 @@ const fr = {
     cta: 'Rejoindre la waitlist',
     // AMENDEMENT-47 : rien n'est encaissable aujourd'hui. Le seul bouton de la
     // section mène à la waitlist (réelle) — jamais à un checkout inexistant.
-    notOnSale: 'Aucune de ces offres n’est encore en vente : les prix affichés sont annoncés, jamais débités.',
+    // 28/07/2026 — la phrase disait « annoncés, jamais débités », ce qui était
+    // vrai mais taisait le principal : ces montants viennent du CODE, alors que
+    // la constitution §9 veut qu'un prix vienne du Store ou d'une remote config.
+    // Sur ce site il n'y a NI Store NI remote config : la seule sortie honnête
+    // est de nommer les montants pour ce qu'ils sont — un ordre de grandeur —
+    // et de dire qui décidera vraiment.
+    notOnSale: 'Aucune de ces offres n’est encore en vente. Les montants ci-dessous sont des ordres de grandeur annoncés : le prix réel, sa devise et sa TVA seront ceux de l’App Store ou du Play Store, dans l’application.',
+    /** Le GRYD Pass n'a AUCUN SKU actif : afficher un montant serait l'inventer. */
+    passPriceUnset: 'Prix fixé à l’ouverture',
     footnote: 'Les Éclats et le Club n’achètent jamais de zones, de points ou de stats. Bouclier, gel de série, scout et alerte d’attaque ne se vendent dans aucune monnaie. Le seul moyen de prendre une rue, c’est d’y aller — en courant ou en roulant.',
     toggleAria: 'Période de facturation',
   },
@@ -372,7 +380,9 @@ const en: Dict = {
     passBadge: 'Season 1 · coming',
     passFeatures: ['Dual reward track', 'Retroactive track purchase', 'Ships with Season 1'],
     cta: 'Join the waitlist',
-    notOnSale: 'None of these offers is on sale yet: the prices shown are announced, never charged.',
+    notOnSale: 'None of these offers is on sale yet. The amounts below are announced ballparks: the real price, its currency and its VAT will be the App Store’s or the Play Store’s, inside the app.',
+    /** The GRYD Pass has NO active SKU: showing an amount would be inventing it. */
+    passPriceUnset: 'Price set at launch',
     footnote: 'Éclats and the Club never buy zones, points or stats. Shield, streak gel, scout and attack alert are sold in no currency at all. The only way to take a street is to go out and cover it — running or riding.',
     toggleAria: 'Billing period',
   },
