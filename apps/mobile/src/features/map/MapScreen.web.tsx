@@ -578,6 +578,7 @@ export function MapScreen() {
     () => selectZoneView(territories, sectorViews, selectedZoneId, zoneViewer),
     [selectedZoneId, territories, sectorViews, zoneViewer],
   );
+  const hasApproxContours = (territories ?? []).some((t) => t.geometrySource === 'h3cells');
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
@@ -625,6 +626,8 @@ export function MapScreen() {
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
         dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
+    // Point de vigilance explicite : fallback géométrique encore présent.
+    (hasApproxContours ? resolve(C.dataNoteApproxContours, locale) : null) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS, qui n'est PAS « aucun secteur ». Parité native.
     (sectorsReadable && sectorStatus === 'error'

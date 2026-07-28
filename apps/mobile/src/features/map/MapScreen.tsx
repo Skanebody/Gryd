@@ -556,6 +556,7 @@ export function MapScreen() {
     () => selectZoneView(territories, sectorViews, selectedZoneId, zoneViewer),
     [selectedZoneId, territories, sectorViews, zoneViewer],
   );
+  const hasApproxContours = (territories ?? []).some((t) => t.geometrySource === 'h3cells');
 
   /**
    * §A — 1 écran = 1 décision : quand le peek du HUD porte DÉJÀ l'état vide (sa
@@ -600,6 +601,9 @@ export function MapScreen() {
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
         dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
+    // Point de vigilance explicite : si des captures sont encore rendues via le
+    // fallback `h3cells`, on le dit plutôt que de laisser croire à un contour exact.
+    (hasApproxContours ? resolve(C.dataNoteApproxContours, locale) : null) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS. Il ne parle que si la localisation et les
     // territoires n'ont rien à dire, mais il parle : « secteurs non chargés »

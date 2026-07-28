@@ -509,6 +509,19 @@ export const C = defineCatalog({
     de: 'Fahr los, hol dir deine erste Zone',
     pt: 'Pedale para tomar sua primeira zona',
   },
+  /**
+   * Point de vigilance Vague 8/10 : tant que toutes les captures ne portent pas
+   * encore un polygone de trace, une partie de la carte reste lue depuis la
+   * grille de capture interne (`geometrySource = h3cells`). On le dit
+   * explicitement pour éviter de faire passer ce contour pour une trace exacte.
+   */
+  dataNoteApproxContours: {
+    fr: 'Certains contours restent approximatifs',
+    en: 'Some borders are still approximate',
+    es: 'Algunos contornos siguen siendo aproximados',
+    de: 'Einige Grenzen sind noch angenähert',
+    pt: 'Alguns contornos ainda são aproximados',
+  },
 
   /**
    * Natif sans compte : on ne peint AUCUNE démo, donc « démonstration » serait
