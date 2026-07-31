@@ -105,6 +105,14 @@ import {
   type BasemapKey,
 } from './mapStyle';
 import { useBasemapStyle, useMap3d, useMapActivity } from './mapPref';
+import { useMapLayers } from './useMapLayers';
+import {
+  DEFAULT_MAP_LAYERS,
+  filterTerritoriesByLayers,
+  withLayer,
+} from './mapLayers';
+import { mapViewState, zoneTapRole } from './mapAnalytics';
+import { zoneOwnership } from './zoneDetail';
 import { CITY_SCALE_ZOOM, EGO_CAMERA, REAL_M_PER_DEG_LAT, type LatLngPoint } from './realAnchors';
 import { DEFAULT_MAP_MODE, MODE_EMPHASIS, type MapMode } from './territory';
 import { type MapLocationState, resolveLocation } from './locationState';
@@ -336,6 +344,7 @@ export function MapScreen() {
    * règle dérivée de `competitiveReadAllowed`, pas écrite ici à la main.
    */
   const { activity } = useMapActivity();
+  const { layers: layerVisibility, setLayers } = useMapLayers(activity);
   /** Les secteurs sont-ils lisibles sous CETTE lentille ? (source mono-pot) */
   const sectorsReadable = competitiveReadAllowed(activity, false);
 
@@ -490,6 +499,26 @@ export function MapScreen() {
    * `fakeHexes` : ne pas le retirer. Parité stricte avec la variante native.
    */
   const paintedTerritories = territories ?? [];
+  const layerViewer = useMemo(
+    () => ({ meId: mapSession?.user.id ?? null, crewIds }),
+    [mapSession?.user.id, crewIds],
+  );
+  const { painted: filteredTerritories, urgentMarkers } = useMemo(
+    () =>
+      filterTerritoriesByLayers(
+        paintedTerritories,
+        (t) => ({
+          status: t.props.status,
+          ownerId: t.props.ownerId,
+          ownerType: t.props.ownerType,
+          earliestDecayAt: t.props.earliestDecayAt,
+        }),
+        layerVisibility,
+        layerViewer,
+        Date.now(),
+      ),
+    [paintedTerritories, layerVisibility, layerViewer],
+  );
   const layers = useMemo(
     () =>
       // ROUVERT LE 26/07/2026 : couches de jeu dans les DEUX mondes, chacune
@@ -499,10 +528,10 @@ export function MapScreen() {
         selectedParcours,
         basemap,
         selectedZoneId,
-        paintedTerritories,
+        filteredTerritories,
         sectorViews,
       ),
-    [emph, selectedParcours, basemap, selectedZoneId, paintedTerritories, sectorViews],
+    [emph, selectedParcours, basemap, selectedZoneId, filteredTerritories, sectorViews],
   );
   /**
    * Calques-points des secteurs (% de contrôle + badge de statut), bornés par
@@ -516,9 +545,22 @@ export function MapScreen() {
 
   /** Tap carte → zone tapée (null sur le vide = désélection). Actif dans les
    *  DEUX lentilles : chacune peint ses propres zones (26/07/2026). */
-  const onMapPress = useCallback((e: RealMapPressEvent) => {
-    setSelectedZoneId(e.zoneId ?? null);
-  }, []);
+  const onMapPress = useCallback(
+    (e: RealMapPressEvent) => {
+      const id = e.zoneId ?? null;
+      setSelectedZoneId(id);
+      if (id === null) return;
+      const found = paintedTerritories.find((t) => t.props.territoryId === id);
+      if (!found) return;
+      const ownership = zoneOwnership(found.props, {
+        meId: mapSession?.user.id ?? null,
+        crewIds,
+      });
+      const role = zoneTapRole(found.props.status, ownership);
+      if (role !== null) track(EVENTS.mapZoneTap, { role });
+    },
+    [paintedTerritories, mapSession?.user.id, crewIds],
+  );
   /** Fermer la sheet de zone → carte nue (retour au peek mission). */
   const closeZone = useCallback(() => setSelectedZoneId(null), []);
 
@@ -526,7 +568,20 @@ export function MapScreen() {
   // retirés. Aucune agrégation RÉELLE par ville n'existe (`city_id` est NULL sur
   // toute capture — cf. hexClaims.ts), donc rien à peindre au dézoom.
 
-  const markers = useMemo(() => buildMarkers(egoPos), [egoPos]);
+  const markers = useMemo(() => {
+    const out = buildMarkers(egoPos);
+    for (const t of urgentMarkers) {
+      const c = t.props.center;
+      if (!c) continue;
+      out.push({
+        id: `urgent-${t.props.territoryId}`,
+        lng: c.lng,
+        lat: c.lat,
+        children: <UrgentThreatMarker />,
+      });
+    }
+    return out;
+  }, [egoPos, urgentMarkers]);
 
   /**
    * O1 — ÉTAT VIDE du HUD (mêmes trois cas que `dataNote`, même ordre de priorité
@@ -582,6 +637,21 @@ export function MapScreen() {
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
+
+  // map_view (§18) — une fois par état composé, jamais à chaque tick.
+  const viewState = mapViewState({
+    signedOut,
+    loading,
+    failed,
+    hasLocation: egoPos !== null,
+    territoryCount: territories === null ? null : territories.length,
+  });
+  const lastViewRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastViewRef.current === viewState) return;
+    lastViewRef.current = viewState;
+    track(EVENTS.mapView, { state: viewState, activity });
+  }, [viewState, activity]);
 
   // map_load_ms (§8) — du montage au premier rendu de la carte (parité native).
   const mountedAtRef = useRef<number>(Date.now());
@@ -800,6 +870,9 @@ export function MapScreen() {
         map3d={map3d}
         onSetMap3d={setMap3d}
         activity={activity}
+        layerVisibility={layerVisibility}
+        onToggleLayer={(layer, visible) => setLayers(withLayer(layerVisibility, layer, visible))}
+        onResetLayers={() => setLayers(DEFAULT_MAP_LAYERS)}
       />
     </View>
   );
@@ -818,6 +891,13 @@ function EgoMarker() {
       />
       <View style={styles.egoDot} />
     </View>
+  );
+}
+
+/** Marqueur E12 — menace urgente filtrée : visible SANS rallumer le calque. */
+function UrgentThreatMarker() {
+  return (
+    <View pointerEvents="none" style={styles.urgentDot} accessibilityRole="image" />
   );
 }
 
@@ -910,6 +990,14 @@ const styles = StyleSheet.create({
     width: EGO_DOT_SIZE,
     height: EGO_DOT_SIZE,
     borderRadius: EGO_DOT_SIZE / 2,
+    backgroundColor: colors.chartreuse,
+    borderWidth: 2,
+    borderColor: colors.blanc,
+  },
+  urgentDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: colors.chartreuse,
     borderWidth: 2,
     borderColor: colors.blanc,
