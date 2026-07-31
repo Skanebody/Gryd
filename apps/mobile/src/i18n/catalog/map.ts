@@ -1601,4 +1601,190 @@ export const C = defineCatalog({
     de: 'Kein Start, kein Ziel, keine Zeiten: nur die öffentliche Zone wird gezeigt.',
     pt: 'Sem partida, sem chegada, sem horários: só a zona pública é mostrada.',
   },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E12 — COUCHES ET FILTRES DE CARTE (spec produit l.902-930), 28/07/2026.
+  //
+  // Le dépôt avait déjà un menu « CALQUES » (`headingLayers`), mais il choisit
+  // une LENTILLE parmi six (Territoire / Route / Défense / Rival / Exploration
+  // / Crew — les `MapMode`). E12 demande autre chose : SEPT INTERRUPTEURS
+  // indépendants, mémorisés PAR DISCIPLINE. Les deux cohabitent sans se
+  // remplacer — la lentille dit CE QU'ON REGARDE, le filtre CE QU'ON MASQUE —
+  // et les libellés ci-dessous sont donc NEUFS, jamais des synonymes des
+  // `mode*` du haut de ce fichier (`modeCrew` = la lentille Crew ;
+  // `layerCrew` = l'interrupteur du territoire de mon crew).
+  //
+  // §A CONTRAIGNANT : sept rangées lues d'un coup d'œil ⇒ un ou deux mots par
+  // libellé, dans les CINQ langues. L'allemand est reformulé court (« Rivalen »
+  // et pas « Rivalisierende Gebiete »).
+  // ══════════════════════════════════════════════════════════════════════════
+  /** Titre de la feuille (jamais un écran plein — spec l.906-908). */
+  filtersTitle: {
+    fr: 'COUCHES ET FILTRES',
+    en: 'LAYERS AND FILTERS',
+    es: 'CAPAS Y FILTROS',
+    de: 'EBENEN UND FILTER',
+    pt: 'CAMADAS E FILTROS',
+  },
+  /** Couche `mine` — mes territoires (spec l.912). */
+  layerMine: {
+    fr: 'Mes territoires',
+    en: 'My territory',
+    es: 'Mis territorios',
+    de: 'Mein Gebiet',
+    pt: 'Meus territórios',
+  },
+  /** Couche `crew` — le territoire du crew (spec l.913). */
+  layerCrew: {
+    fr: 'Crew',
+    en: 'Crew',
+    es: 'Crew',
+    de: 'Crew',
+    pt: 'Crew',
+  },
+  /** Couche `rivals` — les territoires rivaux (spec l.914). */
+  layerRivals: {
+    fr: 'Rivaux',
+    en: 'Rivals',
+    es: 'Rivales',
+    de: 'Rivalen',
+    pt: 'Rivais',
+  },
+  /** Couche `contested` — les zones contestées (spec l.915). */
+  layerContested: {
+    fr: 'Contestées',
+    en: 'Contested',
+    es: 'Disputadas',
+    de: 'Umkämpft',
+    pt: 'Disputadas',
+  },
+  /** Couche `missions` — les missions posées sur la carte (spec l.916). */
+  layerMissions: {
+    fr: 'Missions',
+    en: 'Missions',
+    es: 'Misiones',
+    de: 'Missionen',
+    pt: 'Missões',
+  },
+  /** Couche `private_zones` — MES zones privées (spec l.917). */
+  layerPrivateZones: {
+    fr: 'Zones privées',
+    en: 'Private zones',
+    es: 'Zonas privadas',
+    de: 'Private Zonen',
+    pt: 'Zonas privadas',
+  },
+  /** Couche `labels` — les étiquettes de secteur (spec l.918). */
+  layerLabels: {
+    fr: 'Étiquettes',
+    en: 'Labels',
+    es: 'Etiquetas',
+    de: 'Beschriftungen',
+    pt: 'Rótulos',
+  },
+  /**
+   * LA PHRASE QUI DIT QUE LE FILTRE A UNE LIMITE (spec l.922 : « Le filtre ne
+   * peut pas masquer une menace urgente concernant l'utilisateur »). Elle est
+   * écrite AVANT qu'on éteigne quoi que ce soit : découvrir un marqueur qu'on
+   * croyait avoir masqué ressemblerait sinon à un bug.
+   */
+  filtersUrgentNote: {
+    fr: 'Une menace urgente sur tes zones reste visible, même filtrée.',
+    en: 'An urgent threat on your zones stays visible, even when filtered out.',
+    es: 'Una amenaza urgente en tus zonas sigue visible, aunque la filtres.',
+    de: 'Eine dringende Bedrohung deiner Zonen bleibt sichtbar, auch gefiltert.',
+    pt: 'Uma ameaça urgente nas suas zonas continua visível, mesmo filtrada.',
+  },
+  /**
+   * Portée du réglage, DISCIPLINE PAR DISCIPLINE (spec l.922 : « Les réglages
+   * persistent par activité » ; `ACTIVITY_SCOPE.mapLayers`). Deux clés plutôt
+   * qu'une avec un jeton `{activity}` : le nom de la discipline se traduit, et
+   * l'injecter en clair produirait « mémorisés pour Run » en allemand.
+   */
+  filtersScopeRun: {
+    fr: 'Ces filtres sont mémorisés pour la course.',
+    en: 'These filters are saved for running.',
+    es: 'Estos filtros se guardan para carrera.',
+    de: 'Diese Filter gelten fürs Laufen.',
+    pt: 'Estes filtros ficam salvos para corrida.',
+  },
+  filtersScopeBike: {
+    fr: 'Ces filtres sont mémorisés pour le vélo.',
+    en: 'These filters are saved for cycling.',
+    es: 'Estos filtros se guardan para bici.',
+    de: 'Diese Filter gelten fürs Radfahren.',
+    pt: 'Estes filtros ficam salvos para bike.',
+  },
+  /** Remise à l'état par défaut (`MAP_LAYER_DEFAULT_VISIBLE` : tout visible). */
+  filtersResetAll: {
+    fr: 'Tout réafficher',
+    en: 'Show everything',
+    es: 'Mostrar todo',
+    de: 'Alles anzeigen',
+    pt: 'Mostrar tudo',
+  },
+  /** a11y — état d'un interrupteur, lu APRÈS le libellé de la couche. */
+  filterOnA11y: {
+    fr: 'affiché',
+    en: 'shown',
+    es: 'visible',
+    de: 'sichtbar',
+    pt: 'visível',
+  },
+  filterOffA11y: {
+    fr: 'masqué',
+    en: 'hidden',
+    es: 'oculto',
+    de: 'ausgeblendet',
+    pt: 'oculto',
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E11 — LES DEUX ÉTATS DE CARTE QUI N'AVAIENT AUCUNE COPIE (spec l.889-894),
+  // 28/07/2026. Les autres états de la spec sont DÉJÀ écrits plus haut :
+  // localisation refusée (`dataNoteLocationDenied`), GPS faible/imprécis
+  // (`dataNoteLocationStale`), aucune zone (`emptyNone*`), échec de lecture
+  // (`emptyFailed*`). Il en manquait deux, et pas des moindres : les deux qui
+  // parlent quand le produit ne peut PLUS rien affirmer.
+  // ══════════════════════════════════════════════════════════════════════════
+  /**
+   * HORS LIGNE (spec l.892). Dit exactement deux choses vraies : ce qu'on voit
+   * date d'avant, et courir reste possible — le GPS n'a jamais eu besoin du
+   * réseau. Ne promet PAS que la capture sera validée : c'est le serveur qui
+   * tranche, et il le fera au retour du réseau (`activity_upload_queued`).
+   */
+  offlineNote: {
+    fr: 'Hors ligne — carte en mémoire. Tu peux courir : ta sortie partira au retour du réseau.',
+    en: 'Offline — cached map. You can still run: your activity uploads when the network is back.',
+    es: 'Sin conexión: mapa en caché. Puedes correr, tu salida se enviará al volver la red.',
+    de: 'Offline — Karte aus dem Cache. Du kannst laufen: Deine Aktivität geht raus, sobald das Netz da ist.',
+    pt: 'Offline — mapa em cache. Você pode correr: sua atividade sobe quando a rede voltar.',
+  },
+  /**
+   * ACTIVITÉ INTERROMPUE retrouvée (spec l.894 : bandeau « Reprendre
+   * l'activité »). Le bandeau de la CARTE, pas la feuille de reprise de l'écran
+   * de course (`runGps.restoreTitle`) : ici on ne sait rien de plus que « il y
+   * en a une », et on ne l'affirme pas autrement.
+   */
+  resumeActivityBanner: {
+    fr: 'Une sortie est restée en cours',
+    en: 'An activity is still running',
+    es: 'Una salida sigue en curso',
+    de: 'Eine Aktivität läuft noch',
+    pt: 'Uma atividade continua em andamento',
+  },
+  resumeActivityCta: {
+    fr: 'Reprendre',
+    en: 'Resume',
+    es: 'Reanudar',
+    de: 'Fortsetzen',
+    pt: 'Retomar',
+  },
+  resumeActivityA11y: {
+    fr: 'Reprendre la sortie restée en cours',
+    en: 'Resume the activity still running',
+    es: 'Reanudar la salida que sigue en curso',
+    de: 'Die noch laufende Aktivität fortsetzen',
+    pt: 'Retomar a atividade que continua em andamento',
+  },
 });

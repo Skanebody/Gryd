@@ -42,6 +42,16 @@ import {
   POINT_MAX_ACCURACY_M,
   activityProducesResult,
   gpsAccuracyGrade,
+  // ── Vague E11/E12/E18/E20/E21/E23/E24 (28/07/2026) ───────────────────────
+  ACTIVITY_SCOPE,
+  MAP_LAYER_DEFAULT_VISIBLE,
+  MAP_LAYER_KEYS,
+  MAP_LAYERS_URGENCY_OVERRIDE,
+  MAP_RECOMMENDATION_PRIORITY,
+  MAP_URGENT_DEFENSE_WINDOW_H,
+  MISSION_DEFEND_WINDOW_H,
+  ZONE_DEFEND_WINDOW_HOURS,
+  mapFeatureVisible,
 } from './game-rules';
 
 // Voir le docblock : le runner Deno, typé localement (tsc ET Deno satisfaits).
@@ -308,4 +318,84 @@ Deno.test('EMERGENCY_NUMBER_EUROPE est le 112 et rien d’autre', () => {
   // Un numéro de secours faux coûte plus cher que n'importe quel bug de jeu :
   // ce test est là pour qu'aucune « localisation » ne le remplace en douce.
   assertEquals(EMERGENCY_NUMBER_EUROPE, '112');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E11 · E12 — CARTE PRINCIPALE ET COUCHES (vague du 28/07/2026)
+// ═══════════════════════════════════════════════════════════════════════════
+
+Deno.test('E11 — « urgent » est PLUS COURT que « à défendre » et que la mission', () => {
+  // Si l'une de ces inégalités tombait, la première priorité de la feuille basse
+  // remonterait une zone parfaitement tranquille tous les jours — et le mot
+  // « urgent » ne voudrait plus rien dire. C'est LA raison d'être de la
+  // constante : les trois fenêtres répondent à trois questions différentes.
+  assertEquals(MAP_URGENT_DEFENSE_WINDOW_H < ZONE_DEFEND_WINDOW_HOURS, true);
+  assertEquals(MAP_URGENT_DEFENSE_WINDOW_H < MISSION_DEFEND_WINDOW_H, true);
+  // Valeur SPÉCIFIÉE (spec produit l.881, « moins de 6 h ») — pas un réglage
+  // qu'on ajuste au feeling.
+  assertEquals(MAP_URGENT_DEFENSE_WINDOW_H, 6);
+});
+
+Deno.test('E11 — l’ordre de recommandation est celui de la spec, défense en tête', () => {
+  assertEquals(MAP_RECOMMENDATION_PRIORITY[0], 'defense_urgent');
+  assertEquals(MAP_RECOMMENDATION_PRIORITY[MAP_RECOMMENDATION_PRIORITY.length - 1], 'free_conquest');
+  assertEquals(MAP_RECOMMENDATION_PRIORITY.length, 4);
+  // Aucune entrée « par défaut » : l'absence de recommandation est un état
+  // légitime, pas une cinquième priorité qui fabriquerait une mission.
+  assertEquals(
+    (MAP_RECOMMENDATION_PRIORITY as readonly string[]).includes('none'),
+    false,
+  );
+});
+
+Deno.test('E12 — les sept couches ont toutes un défaut, et ce défaut est VISIBLE', () => {
+  assertEquals(MAP_LAYER_KEYS.length, 7);
+  for (const key of MAP_LAYER_KEYS) {
+    // Une couche sans défaut serait un interrupteur `undefined` : la carte
+    // choisirait au hasard selon le lecteur.
+    assertEquals(typeof MAP_LAYER_DEFAULT_VISIBLE[key], 'boolean', `« ${key} » n’a pas de défaut.`);
+    assertEquals(
+      MAP_LAYER_DEFAULT_VISIBLE[key],
+      true,
+      `« ${key} » démarre éteinte : l’écran cacherait un fait réel à quelqu’un ` +
+        `qui n’a rien demandé.`,
+    );
+  }
+});
+
+Deno.test('E12 — le filtre ne masque JAMAIS une menace urgente qui me concerne', () => {
+  // Couche allumée : tout est rendu, urgence ou pas.
+  assertEquals(mapFeatureVisible('rivals', true), true);
+  assertEquals(mapFeatureVisible('mine', true, true), true);
+  // Couche éteinte, rien d'urgent : le filtre fait son travail.
+  assertEquals(mapFeatureVisible('mine', false), false);
+  assertEquals(mapFeatureVisible('contested', false, false), false);
+  // Couche éteinte MAIS menace urgente sur une zone qui me concerne : la spec
+  // (l.928) impose que le marqueur reste.
+  assertEquals(mapFeatureVisible('mine', false, true), true);
+  assertEquals(mapFeatureVisible('contested', false, true), true);
+});
+
+Deno.test('E12 — l’exception d’urgence ne rallume pas tout le reste', () => {
+  // La faute symétrique de celle que la spec corrige : si « urgent » rallumait
+  // les sept couches, le filtre n'aurait plus aucun effet. Un territoire rival,
+  // une mission ou une étiquette ne menacent personne.
+  for (const key of MAP_LAYER_KEYS) {
+    const overridable = MAP_LAYERS_URGENCY_OVERRIDE.includes(key);
+    assertEquals(
+      mapFeatureVisible(key, false, true),
+      overridable,
+      `« ${key} » ne devrait ${overridable ? '' : 'PAS '}survivre au filtre éteint.`,
+    );
+  }
+  assertEquals(MAP_LAYERS_URGENCY_OVERRIDE.length, 2);
+});
+
+Deno.test('E12 — les couches de carte persistent PAR DISCIPLINE', () => {
+  // Spec l.928 : « Les réglages persistent par activité. » Un filtre commun
+  // ferait qu'éteindre « rivaux » à vélo l'éteindrait à pied.
+  assertEquals(ACTIVITY_SCOPE.mapLayers, 'per_activity');
+  // …et il suit le camp du TERRITOIRE, qu'il filtre : les séparer produirait un
+  // filtre qui ne correspond à aucun des deux mondes affichés.
+  assertEquals(ACTIVITY_SCOPE.mapLayers, ACTIVITY_SCOPE.territory);
 });

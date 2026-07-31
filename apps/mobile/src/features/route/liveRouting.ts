@@ -7,7 +7,10 @@
  *
  * Réseau AU RUNTIME (assumé — décision fondateur) : le calcul temps réel se fait
  * via l'internet de l'utilisateur, gratuitement (serveurs communautaires, sans
- * clé). Échec / hors ligne → renvoie null (l'appelant garde le tracé courant).
+ * clé). Échec / hors ligne → `routeLoop` renvoie null (l'appelant garde le tracé
+ * courant) ; `routeLoopOutcome` renvoie EN PLUS la cause observée, parce qu'un
+ * routeur muet et un terrain sans boucle n'appellent pas le même geste (E18,
+ * 28/07/2026 — cf. `routingOutcome.ts`).
  *
  * ─── LE PROFIL SUIT LA DISCIPLINE (E14, 26/07/2026) ───────────────────────────
  * Ce module codait `foot` EN DUR, dans son URL et dans son nom. C'était juste
@@ -38,6 +41,7 @@
 import { type Activity } from '@klaim/shared';
 import { REAL_M_PER_DEG_LAT, type LatLngPoint } from '../map/realAnchors';
 import { plannerRoutingProfile } from './activityPlanning';
+import { classifyRoutingFailure, type RoutingFailure } from './routingOutcome';
 import type { PlannedLoop, PlannerIntention } from './types';
 
 /**
@@ -157,23 +161,43 @@ interface OsrmResult {
   coords: [number, number][];
 }
 
+/**
+ * Ce qu'une passe de routage a réellement produit. `answered` est le fait que
+ * l'écran ne pouvait PAS deviner avant le 28/07/2026 : sans lui, une coupure
+ * réseau et un « il n'y a pas de boucle ici » rendaient exactement la même
+ * chose (`null`), et l'écran servait le même message et le même bouton aux deux
+ * — dont un qui ne pouvait pas aboutir (cf. `routingOutcome.ts`).
+ */
+interface OsrmAttempt {
+  /** Une réponse HTTP est revenue et a pu être lue (quel que soit son verdict). */
+  answered: boolean;
+  /** L'itinéraire, si le routeur en a trouvé un. */
+  result: OsrmResult | null;
+}
+
 async function routeOsrm(
   activity: Activity,
   wps: readonly LatLngPoint[],
   signal?: AbortSignal,
-): Promise<OsrmResult | null> {
+): Promise<OsrmAttempt> {
   const coords = wps.map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
   const url = `${osrmEndpoint(activity)}/${coords}?overview=full&geometries=geojson`;
   try {
     const res = await fetch(url, signal ? { signal } : undefined);
     const json = await res.json();
     if (json.code === 'Ok' && json.routes?.[0]) {
-      return { distanceM: json.routes[0].distance, coords: json.routes[0].geometry.coordinates };
+      return {
+        answered: true,
+        result: { distanceM: json.routes[0].distance, coords: json.routes[0].geometry.coordinates },
+      };
     }
+    // Le routeur a PARLÉ (`NoRoute`, `NoSegment`, un 4xx lisible…) : il n'y a
+    // pas de boucle jouable ici, et ce n'est pas une panne de transport.
+    return { answered: true, result: null };
   } catch {
-    // réseau / CORS / abort → repli côté appelant
+    // réseau / CORS / abort / JSON illisible → on n'a rien appris du terrain.
+    return { answered: false, result: null };
   }
-  return null;
 }
 
 /** Décime la polyligne : garde un point tous les >= minGapM (mètres). */
@@ -195,9 +219,22 @@ function decimate(coords: readonly [number, number][], lat: number, minGapM: num
 }
 
 /**
+ * Le résultat COMPLET d'une tentative : la boucle, ou la RAISON de son absence.
+ * C'est ce que consomme le planificateur (E18) — un écran qui doit choisir un
+ * message et un geste, et qui ne peut pas le faire à partir d'un `null` nu.
+ */
+export type RouteLoopOutcome =
+  | { ok: true; loop: PlannedLoop }
+  | { ok: false; failure: RoutingFailure };
+
+/**
  * Route en direct une boucle autour de `origin` (n'importe où), à la distance
  * cible (km), AU PROFIL DE `activity`. `zoneLabel` nomme le secteur affiché
  * (lieu de départ). Renvoie null en cas d'échec réseau. 2 passes de calage.
+ *
+ * ⚠ Conserve la signature historique (`PlannedLoop | null`) pour ses appelants
+ * qui n'affichent PAS de cause (aperçus E16/E17). Un écran qui doit expliquer
+ * l'absence utilise `routeLoopOutcome` — même calcul, même arrondi §12.
  */
 export async function routeLoop(
   /**
@@ -213,6 +250,34 @@ export async function routeLoop(
   activity: Activity,
   signal?: AbortSignal,
 ): Promise<PlannedLoop | null> {
+  const outcome = await routeLoopOutcome(
+    rawOrigin,
+    zoneLabel,
+    targetKm,
+    intention,
+    seed,
+    activity,
+    signal,
+  );
+  return outcome.ok ? outcome.loop : null;
+}
+
+/**
+ * Même routage que `routeLoop`, mais il DIT pourquoi quand il échoue.
+ * Deux causes seulement, et toutes deux observées (jamais devinées) :
+ * `unreachable` (le routeur n'a pas répondu) et `noRoute` (il a répondu, il n'y
+ * a pas de boucle jouable ici) — cf. `routingOutcome.ts`.
+ */
+export async function routeLoopOutcome(
+  /** ⚠ ARRONDI (`coarseRoutingOrigin`) avant tout appel réseau, comme ci-dessus (§12). */
+  rawOrigin: LatLngPoint,
+  zoneLabel: string,
+  targetKm: number,
+  intention: PlannerIntention,
+  seed: number,
+  activity: Activity,
+  signal?: AbortSignal,
+): Promise<RouteLoopOutcome> {
   // §12 — L'ARRONDI EST LA PREMIÈRE LIGNE DE CETTE FONCTION, avant tout calcul
   // géométrique : ainsi AUCUN chemin ne peut rejoindre le réseau avec le fix
   // exact, pas même une passe de calage ajoutée plus tard.
@@ -226,31 +291,41 @@ export async function routeLoop(
   let radius = (targetKm * 1000) / (2 * Math.PI);
   let result: OsrmResult | null = null;
   for (let pass = 0; pass < 2; pass += 1) {
-    result = await routeOsrm(
+    const attempt = await routeOsrm(
       activity,
       waypoints(origin, INTENTION_BEARING[intention], radius, jitter, n),
       signal,
     );
-    if (!result || result.distanceM <= 0) return null;
+    result = attempt.result;
+    // Une distance nulle vient d'un routeur qui a PARLÉ : c'est un terrain sans
+    // boucle, pas une panne — d'où la classification par le fait observé.
+    if (!result || result.distanceM <= 0) {
+      return { ok: false, failure: classifyRoutingFailure({ routerAnswered: attempt.answered }) };
+    }
     radius *= (targetKm * 1000) / result.distanceM;
   }
-  if (!result) return null;
+  if (!result) return { ok: false, failure: 'unreachable' };
 
   const line = decimate(result.coords, origin.lat, gapFor(result.distanceM));
-  if (line.length < 4) return null;
+  // Géométrie dégénérée (moins de 4 points) : le routeur a répondu, mais ce
+  // qu'il rend n'est pas une boucle qu'on peut peindre ni courir.
+  if (line.length < 4) return { ok: false, failure: 'noRoute' };
 
   // La SEULE métrique que ce module a le droit de produire : la longueur que
   // le routeur a réellement mesurée sur les rues (pas la distance demandée).
   const km = Math.round((result.distanceM / 1000) * 10) / 10;
   return {
-    // La discipline entre dans l'identité : deux lentilles peuvent proposer la
-    // même distance au même endroit, ce ne sont pas les mêmes boucles (profils
-    // différents), et une clé de rendu commune les confondrait.
-    id: `live_${activity}_${intention}_${Math.round(targetKm * 10)}_${seed}`,
-    zone: zoneLabel,
-    distanceKm: km,
-    intention,
-    activity,
-    line,
+    ok: true,
+    loop: {
+      // La discipline entre dans l'identité : deux lentilles peuvent proposer la
+      // même distance au même endroit, ce ne sont pas les mêmes boucles (profils
+      // différents), et une clé de rendu commune les confondrait.
+      id: `live_${activity}_${intention}_${Math.round(targetKm * 10)}_${seed}`,
+      zone: zoneLabel,
+      distanceKm: km,
+      intention,
+      activity,
+      line,
+    },
   };
 }

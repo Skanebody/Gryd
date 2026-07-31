@@ -867,6 +867,139 @@ export const C = defineCatalog({
     de: 'Aktiviere „Genauer Standort“ (sonst ist das GPS absichtlich ungenau).',
     pt: 'Ative “Localização Exata” (senão o GPS fica impreciso de propósito).',
   },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E23 — « ANNULER L'ACTIVITÉ » (spec produit l.1189-1197), 28/07/2026.
+  //
+  // CE QUI EXISTAIT DÉJÀ, ET N'EST PAS REFAIT : « Reprendre » (`ctrlResume`,
+  // `btnResume`) et « Terminer » (`ctrlFinish`) sont là depuis E07 ; la
+  // confirmation « trop courte pour produire un résultat » est la feuille E26
+  // (`catalog/finActivite.ts` : `tooShortTitle` / `tooShortBody` /
+  // `tooShortConfirm` / `tooShortCancel`), qui lit déjà
+  // `activityProducesResult()`. La spec le dit d'ailleurs mot pour mot :
+  // « TERMINER demande confirmation UNIQUEMENT si l'activité est trop courte ».
+  //
+  // NE MANQUAIT QUE LA TROISIÈME ACTION, et c'est la seule IRRÉVERSIBLE : elle
+  // supprime la trace locale. La spec exige que la copie le PRÉCISE (l.1197) —
+  // c'est le seul endroit du produit où un geste détruit une mesure d'effort.
+  //
+  // VOCABULAIRE NEUTRE, ASSUMÉ (pas de jumelle vélo) : ces phrases ne nomment
+  // aucun effort — même arbitrage que « EN PAUSE », « RECHERCHE GPS… » et
+  // « TERMINER », qui sont partagés (cf. le docblock de RUN_GPS_COPY plus bas).
+  // Fabriquer quatre jumelles identiques créerait deux vérités à maintenir.
+  // ══════════════════════════════════════════════════════════════════════════
+  /** Libellé du 3ᵉ geste, visible seulement en PAUSE. §A : deux mots max. */
+  ctrlCancel: {
+    fr: 'Annuler',
+    en: 'Discard',
+    es: 'Descartar',
+    de: 'Verwerfen',
+    pt: 'Descartar',
+  },
+  /** Titre de la confirmation. Une question, jamais un ordre. */
+  cancelTitle: {
+    fr: 'Supprimer cette sortie ?',
+    en: 'Delete this activity?',
+    es: '¿Eliminar esta salida?',
+    de: 'Diese Aktivität löschen?',
+    pt: 'Excluir esta atividade?',
+  },
+  /**
+   * LA PHRASE QUE LA SPEC EXIGE (l.1197). Elle dit ce qui disparaît (la trace
+   * enregistrée sur l'appareil) et ce que ça implique (rien ne partira au
+   * serveur, donc aucun territoire). « Définitivement » est le mot juste :
+   * `discardStored` efface le tampon, il n'y a pas de corbeille.
+   */
+  cancelBody: {
+    fr: 'La trace enregistrée sur ton téléphone sera supprimée définitivement. Rien ne sera envoyé, aucun territoire ne sera compté.',
+    en: 'The trace recorded on your phone will be deleted for good. Nothing will be sent, and no territory will count.',
+    es: 'El recorrido guardado en tu teléfono se eliminará definitivamente. No se enviará nada y ningún territorio contará.',
+    de: 'Die auf deinem Handy gespeicherte Spur wird endgültig gelöscht. Es wird nichts gesendet, kein Gebiet zählt.',
+    pt: 'O trajeto gravado no seu telefone será excluído para sempre. Nada será enviado e nenhum território vai contar.',
+  },
+  /**
+   * MÊME QUESTION, QUAND LA SORTIE COMPTE DÉJÀ (`activityProducesResult()` vaut
+   * `true`). Ce n'est pas la même décision : jeter une sortie de 40 s et jeter
+   * une sortie qui aurait pris du territoire ne se valent pas, et l'écran doit
+   * dire laquelle des deux on est en train de faire.
+   */
+  cancelBodyWouldCount: {
+    fr: 'Cette sortie compte déjà : elle pourrait prendre du territoire. Sa trace sera supprimée définitivement.',
+    en: 'This activity already counts: it could take territory. Its trace will be deleted for good.',
+    es: 'Esta salida ya cuenta: podría tomar territorio. Su recorrido se eliminará definitivamente.',
+    de: 'Diese Aktivität zählt bereits: Sie könnte Gebiet erobern. Ihre Spur wird endgültig gelöscht.',
+    pt: 'Esta atividade já conta: ela poderia tomar território. O trajeto será excluído para sempre.',
+  },
+  /** Le geste destructeur, NOMMÉ (jamais « OK » — on n'accepte pas un vide). */
+  cancelConfirm: {
+    fr: 'Supprimer',
+    en: 'Delete',
+    es: 'Eliminar',
+    de: 'Löschen',
+    pt: 'Excluir',
+  },
+  /** La sortie de secours, et c'est elle qui doit être la plus facile à taper. */
+  cancelKeep: {
+    fr: 'Garder ma sortie',
+    en: 'Keep my activity',
+    es: 'Conservar mi salida',
+    de: 'Aktivität behalten',
+    pt: 'Manter minha atividade',
+  },
+  a11yCancelActivity: {
+    fr: 'Annuler et supprimer la sortie en cours',
+    en: 'Discard and delete the current activity',
+    es: 'Descartar y eliminar la salida en curso',
+    de: 'Laufende Aktivität verwerfen und löschen',
+    pt: 'Descartar e excluir a atividade em andamento',
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E24 — GPS FAIBLE / ACTIVITÉ EN RÉCUPÉRATION (spec produit l.1201-1215),
+  // 28/07/2026. « Aucune perte silencieuse » (l.1215) : chaque cas de la spec
+  // doit avoir une PHRASE, sans quoi le silence EST la perte.
+  //
+  // TROIS DES CINQ CAS ÉTAIENT DÉJÀ ÉCRITS, et ne sont pas refaits :
+  //   · GPS faible          → `signalWeak` (« continue, le signal revient ») ;
+  //   · permission révoquée → `signalRevoked` (« GPS coupé — réactive… ») ;
+  //   · app tuée            → `restoreTitle` / `restoreQuestion` / `btnResume` /
+  //                           `btnSave`, plus la branche « autre discipline »
+  //                           (`restoreTitleOtherActivity`).
+  // Les DEUX qui manquaient sont ci-dessous. Ce sont exactement les deux où
+  // l'app continue de fonctionner alors que quelque chose a échoué — donc les
+  // deux où le silence serait le plus facile, et le plus coûteux.
+  // ══════════════════════════════════════════════════════════════════════════
+  /**
+   * RÉSEAU ABSENT (spec l.1212 : « file d'attente locale »). Dit la seule chose
+   * qui inquiète vraiment — « est-ce que je perds ma sortie ? » — et rien de
+   * plus. Ne promet AUCUN délai d'envoi : personne ne sait quand le réseau
+   * revient, et une promesse de minutes serait invérifiable.
+   *
+   * NE PROMET PAS NON PLUS LE TERRITOIRE : l'envoi n'est pas le verdict. Le
+   * serveur reste seul juge, et il jugera quand la sortie lui parviendra.
+   */
+  offlineQueuedNote: {
+    fr: 'Hors ligne — ta sortie est gardée sur le téléphone et partira au retour du réseau.',
+    en: 'Offline — your activity is kept on the phone and will upload when the network is back.',
+    es: 'Sin conexión: tu salida se guarda en el teléfono y se enviará al volver la red.',
+    de: 'Offline — deine Aktivität bleibt auf dem Handy und geht raus, sobald das Netz da ist.',
+    pt: 'Offline — sua atividade fica guardada no telefone e sobe quando a rede voltar.',
+  },
+  /**
+   * CAPTEUR INCOHÉRENT (spec l.1213 : « activité continue mais passe en
+   * analyse »). La phrase la plus délicate du lot : elle doit prévenir sans
+   * accuser. GRYD ne dit donc PAS « trajet suspect » — le joueur n'a rien fait
+   * de mal dans l'immense majorité des cas (téléphone en poche, tunnel, vélo
+   * dans un train). Elle nomme le FAIT (des points ne collent pas) et la
+   * CONSÉQUENCE (le verdict prendra un peu plus de temps), rien d'autre.
+   */
+  sensorInconsistentNote: {
+    fr: 'Des points ne collent pas au reste — ta sortie continue, le verdict sera vérifié à l’arrivée.',
+    en: 'Some points don’t match the rest — your activity continues, the verdict gets checked at the finish.',
+    es: 'Algunos puntos no encajan con el resto: tu salida continúa, el veredicto se revisará al llegar.',
+    de: 'Einige Punkte passen nicht zum Rest — deine Aktivität läuft weiter, das Urteil wird am Ziel geprüft.',
+    pt: 'Alguns pontos não batem com o resto — sua atividade continua, o veredito será conferido na chegada.',
+  },
 });
 
 /**

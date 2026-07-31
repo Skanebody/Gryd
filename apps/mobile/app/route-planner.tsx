@@ -172,7 +172,12 @@ import { useRouteSuggestion } from '../src/features/route/useRouteSuggestion';
 import { runsBeforeLearning, type RouteSuggestion } from '../src/features/route/suggestion';
 import { estimatedMinutes, plannerMetricKeys } from '../src/features/route/estimation';
 import { ctaStartsRun, plannerCta, type PlannerCtaKind } from '../src/features/route/plannerCta';
-import { routeLoop } from '../src/features/route/liveRouting';
+// Deux entrées, deux besoins : `routeLoopOutcome` pour LE tracé de l'écran (le
+// bouton unique a besoin de la CAUSE d'un échec pour ne pas proposer un
+// recalcul qui ne peut rien changer), `routeLoop` pour la liste « autres
+// boucles », qui n'affiche que ce qui a abouti et n'a donc que faire du motif.
+import { routeLoop, routeLoopOutcome } from '../src/features/route/liveRouting';
+import type { RoutingFailure } from '../src/features/route/routingOutcome';
 import { currentPosition, type OriginPoint } from '../src/features/route/origin';
 import { resolveSectorName } from '../src/features/map/sectorNaming';
 import { PLANNER_INTENTIONS, type PlannedLoop, type PlannerIntention } from '../src/features/route/types';
@@ -329,6 +334,12 @@ export default function RoutePlannerScreen() {
   const [seed, setSeed] = useState(1);
   const [route, setRoute] = useState<PlannedLoop | null>(null);
   const [routing, setRouting] = useState(false);
+  /**
+   * Cause OBSERVEE du dernier echec de routage, `null` si la derniere
+   * tentative a reussi ou si rien n'a encore ete tente. Elle decide si
+   * « Recalculer » a la moindre chance d'aboutir (`sameRequestCanSucceed`).
+   */
+  const [routeFailure, setRouteFailure] = useState<RoutingFailure | null>(null);
   const [nearby, setNearby] = useState<PlannedLoop[]>([]);
   // Distingue « en cours de calcul » de « aucune variante » : sans ce flag, une
   // liste vide (échec réseau) était indistinguable d'un chargement.
@@ -357,25 +368,34 @@ export default function RoutePlannerScreen() {
     setRouting(true);
     // La discipline décide le PROFIL de routage : un cycliste routé au profil
     // piéton reçoit un tracé que personne ne peut suivre (escaliers, passages).
-    void routeLoop(o.point, o.label, c, intent, sd, activity)
-      .then((r) => {
+    // `routeLoopOutcome` DIT pourquoi quand il échoue, là où `routeLoop` rendait
+    // un `null` muet. La cause OBSERVÉE est conservée : sans elle, le bouton
+    // proposait « Recalculer le tracé » même quand le routeur avait répondu
+    // qu'il n'y a pas de boucle ici — refaire la même demande rendrait la même
+    // absence, donc un CTA qui ne peut pas aboutir (§A4, aucun bouton mort).
+    void routeLoopOutcome(o.point, o.label, c, intent, sd, activity)
+      .then((outcome) => {
         if (id !== reqIdRef.current) return;
         setRouting(false);
-        if (r) {
-          setRoute(r);
-          setTargetKm(r.distanceKm);
-          setDistanceDraft(formatKm(r.distanceKm) ?? '');
+        if (outcome.ok) {
+          setRouteFailure(null);
+          setRoute(outcome.loop);
+          setTargetKm(outcome.loop.distanceKm);
+          setDistanceDraft(formatKm(outcome.loop.distanceKm) ?? '');
         } else {
-          // Routage indisponible (OSRM null) : jamais de compteur infini — on
-          // arrête le chargement, le tracé courant reste, message re-tentable.
+          // Jamais de compteur infini : on arrête le chargement, le tracé
+          // courant reste, et la CAUSE est retenue pour le libellé du bouton.
+          setRouteFailure(outcome.failure);
           toast.show(tNow(C.toastRouteUnavailable));
         }
       })
       .catch(() => {
         // Rejet réseau/serveur : même filet honnête (sans ce catch, setRouting
-        // resterait à true → attente sans fin + unhandled rejection).
+        // resterait à true → attente sans fin + unhandled rejection). Le routeur
+        // n'a PAS parlé : réessayer peut donc réussir.
         if (id !== reqIdRef.current) return;
         setRouting(false);
+        setRouteFailure('unreachable');
         toast.show(tNow(C.toastRouteUnavailable));
       });
   };
@@ -411,9 +431,15 @@ export default function RoutePlannerScreen() {
         // Une position est arrivée : la permission est donc accordée pour cette
         // session — les prochaines ouvertures n'ouvriront pas de boîte.
         positionProvenThisSession = true;
-        const key = `${pos.lat.toFixed(2)},${pos.lng.toFixed(2)}`;
-        const label = await resolveSectorName(pos, key, tNow(C.myPosition));
-        const o = { point: pos, label };
+        // `currentPosition()` rend depuis le 28/07/2026 un `PositionFix`
+        // — le point ET sa précision — parce que le planificateur fait de ce
+        // point le DÉPART d'une boucle : un fix à 40 m décale ce départ d'une
+        // rue. Seules les coordonnées servent ici ; `accuracyM` reste
+        // disponible pour l'écran qui voudra la dire.
+        const point = pos.point;
+        const key = `${point.lat.toFixed(2)},${point.lng.toFixed(2)}`;
+        const label = await resolveSectorName(point, key, tNow(C.myPosition));
+        const o = { point, label };
         setGps('ok');
         setOrigin(o);
         applyRoute(o, km, intent, sd);
@@ -657,7 +683,7 @@ export default function RoutePlannerScreen() {
   const whyLine = suggestionLoading ? null : suggestionWhy(suggestion);
 
   // ── LE BOUTON UNIQUE : toujours un geste possible (jamais un CTA mort) ────
-  const cta: PlannerCtaKind = plannerCta({ gps, hasRoute: route !== null, routing });
+  const cta: PlannerCtaKind = plannerCta({ gps, hasRoute: route !== null, routing, failure: routeFailure });
   const ctaLabel =
     cta === 'start'
       ? intentionLabel

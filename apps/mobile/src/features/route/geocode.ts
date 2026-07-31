@@ -11,6 +11,26 @@ export interface OriginPoint {
   label: string;
 }
 
+/**
+ * Un FIX brut du capteur, tel que la plateforme le rend (28/07/2026).
+ *
+ * `accuracyM` existe pour une seule raison : le planificateur fait de ce point
+ * le DÉPART de la boucle. À 40 m de précision, le tracé peut commencer une rue
+ * plus loin — le taire ferait passer une imprécision de capteur pour une erreur
+ * de l'app. `null` quand la plateforme ne dit rien : on ne devine pas une
+ * précision, et « précision inconnue » n'est pas « bonne précision ».
+ *
+ * Le type vit ici (et non dans `origin.ts`) parce que ce module est le seul
+ * fichier partagé par les DEUX implémentations de plateforme (`origin.ts` et
+ * `origin.web.ts` le réexportent tous les deux) : une définition par plateforme
+ * finirait par diverger en silence.
+ */
+export interface PositionFix {
+  point: LatLngPoint;
+  /** Précision horizontale en mètres, ou `null` si la plateforme ne la donne pas. */
+  accuracyM: number | null;
+}
+
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
 
 /** Nom court d'un résultat (ville/village plutôt que l'adresse entière). */

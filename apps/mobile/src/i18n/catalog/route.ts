@@ -700,4 +700,86 @@ export const C = defineCatalog({
     de: 'START · ZIEL',
     pt: 'LARGADA · VOLTA',
   },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // E18 — CE QUI MANQUAIT AU PLANIFICATEUR (spec produit l.1063), 28/07/2026.
+  //
+  // Il couvrait déjà « pas de position » (`hintGpsError`, `summaryGpsError`,
+  // `ctaPositionRequired`, `toastPositionNotFound`) et « routeur muet »
+  // (`toastRouteUnavailable`, `retryRoute`, `loopsUnavailable`). Restaient :
+  // l'absence de boucle DITE par le routeur, la précision du départ, et la
+  // phrase que la spec exige — « les plans ne garantissent jamais une capture ».
+  //
+  // ─── UNE ENTRÉE A ÉTÉ ÉCRITE PUIS RETIRÉE : « Hors ligne — … » ────────────
+  // Elle affirmait une cause que l'app NE PEUT PAS observer : React Native ne
+  // polyfille pas `navigator.onLine` (`Libraries/Core/setUpNavigator.js`) et
+  // aucune dépendance de connectivité n'est dans la stack. Sur le produit réel,
+  // cette phrase aurait donc été soit jamais affichée, soit devinée — c'est-à-
+  // dire une accusation portée au réseau du joueur sans mesure. Ce qu'on sait
+  // vraiment tient en deux faits, et ce sont eux qui sont nommés ci-dessous :
+  // le routeur n'a pas répondu, ou il a répondu qu'il n'y a rien ici.
+  // ══════════════════════════════════════════════════════════════════════════
+  /**
+   * LE ROUTEUR A RÉPONDU, ET IL N'A RIEN. `toastRouteUnavailable` (« réessaie
+   * dans un instant ») serait faux ici : la rosace de waypoints est semée, donc
+   * la même demande rendrait la même absence — on aurait fait taper un bouton
+   * en boucle. On nomme le fait, et le geste qui peut réellement changer la
+   * réponse.
+   */
+  toastRouteNoLoop: {
+    fr: 'Aucune boucle trouvée ici — essaie une autre distance.',
+    en: 'No loop found here — try another distance.',
+    es: 'No se ha encontrado ningún bucle aquí — prueba otra distancia.',
+    de: 'Hier keine Runde gefunden — probiere eine andere Distanz.',
+    pt: 'Nenhuma volta encontrada aqui — tente outra distância.',
+  },
+  /** Bouton unique quand le routeur a dit « rien ici » : une AUTRE demande. §A court. */
+  ctaNewLoop: {
+    fr: 'Autre boucle',
+    en: 'Another loop',
+    es: 'Otro bucle',
+    de: 'Andere Runde',
+    pt: 'Outra volta',
+  },
+  /** Microcopie sous ce bouton : ce qu'il va réellement faire. */
+  ctaMicroNewLoop: {
+    fr: 'Même distance, un autre tracé.',
+    en: 'Same distance, a different route.',
+    es: 'Misma distancia, otro trazado.',
+    de: 'Gleiche Distanz, andere Route.',
+    pt: 'Mesma distância, outro traçado.',
+  },
+  /**
+   * LA RÈGLE DE LA SPEC, DITE À L'ÉCRAN (l.1078 : « les plans ne garantissent
+   * jamais une capture avant validation serveur »). Elle était RESPECTÉE dans
+   * le code depuis le 25/07 — tous les gains fabriqués ont été supprimés — mais
+   * jamais ÉNONCÉE : rien, sur cet écran, ne disait au joueur que la boucle
+   * qu'il regarde ne lui donne aucun territoire. Elle est posée sous les
+   * métriques, c'est-à-dire à l'endroit exact où l'écran chiffre le plan.
+   * Vocabulaire NEUTRE (« sortie ») : cet écran existe aussi en lentille vélo.
+   */
+  planNotAGuarantee: {
+    fr: 'Un tracé prévu ne prend aucun territoire : le serveur décide après ta sortie.',
+    en: 'A planned route takes no territory: the server decides after your outing.',
+    es: 'Un trazado previsto no toma ningún territorio: el servidor decide tras tu salida.',
+    de: 'Eine geplante Route nimmt kein Gebiet: der Server entscheidet nach deiner Aktivität.',
+    pt: 'Um traçado planejado não toma nenhum território: o servidor decide após sua atividade.',
+  },
+  /**
+   * FIX DÉGRADÉ — une position existe, mais imprécise (bande « exploitable » de
+   * E19, `GPS_USABLE_ACCURACY_M`). Le planificateur en fait le POINT DE DÉPART
+   * de la boucle : à cette précision, le tracé peut commencer une rue plus loin.
+   * Le dire coûte une ligne grise ; ne pas le dire fait passer une imprécision
+   * de capteur pour une erreur de l'app.
+   *
+   * NE BLOQUE RIEN : la boucle reste calculable et la sortie reste valide — le
+   * serveur garde la précision réelle de chaque point (spec l.1106).
+   */
+  hintGpsApprox: {
+    fr: 'Position approximative — le départ du tracé peut être décalé.',
+    en: 'Approximate location — the route’s start may be offset.',
+    es: 'Posición aproximada: la salida del trazado puede quedar desplazada.',
+    de: 'Ungefährer Standort — der Routenstart kann verschoben sein.',
+    pt: 'Posição aproximada — a largada do traçado pode ficar deslocada.',
+  },
 });

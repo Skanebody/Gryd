@@ -77,6 +77,10 @@ import { RUN_MODE_LABEL, formatClock, formatKm, type LiveRunMode } from '../simu
 // La 3ᵉ métrique du bandeau est DÉRIVÉE (grandeur de la discipline + absence de
 // mesure), donc pure et testée — jamais un `formatPace` appliqué à un zéro.
 import { liveRateDisplay } from './liveRate';
+// Clé de cache de la trace affichable — PURE et testée (`liveTrace.test.ts`).
+// Elle est ce qui autorise l'écran à NE PAS reconstruire ses couches de carte
+// une fois par seconde pendant 90 minutes de course (cf. le bloc « couches »).
+import { traceRevision } from './liveTrace';
 import type { RealRunApi } from './gateTypes';
 // Le passage de relais vers le Résultat est PUR et TESTÉ (aller-retour de
 // sérialisation prouvé) : c'est le seul moyen qu'une clé oubliée dans l'objet
@@ -145,6 +149,13 @@ const LIVE_ANCHOR_RATIO = 0.62;
 const PAUSE_SIZE = 60;
 /** Diamètre des contrôles secondaires (verrou, aide, terminer). */
 const SMALL_CONTROL_SIZE = 48;
+/**
+ * « Aucune couche » — un tableau PARTAGÉ, jamais un `[]` neuf. Un littéral
+ * rendrait une identité différente à chaque tick et relancerait toute la chaîne
+ * de mémos que ce fichier vient précisément d'établir. Gelé pour que personne
+ * ne puisse y pousser une couche par mégarde.
+ */
+const NO_LAYERS: RealMapGeoJSONLayer[] = Object.freeze([]) as unknown as RealMapGeoJSONLayer[];
 
 /**
  * Libellé de la pill principale selon la phase réelle (toujours visible).
@@ -417,22 +428,56 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     setCapturing(!reduced);
   }, [phase]);
 
-  // ── Couches de carte ──────────────────────────────────────────────────────
-  const layers = useMemo<RealMapGeoJSONLayer[]>(() => {
-    const out: RealMapGeoJSONLayer[] = [];
-    // E22 — LE CONTOUR DE LA ZONE CONTESTÉE, dessiné SOUS la trace : c'est le
-    // décor de la sortie, pas son sujet. Violet = couleur de RÔLE du contesté
-    // (§C), jamais une couleur de crew. Il n'existe que si une contestation
-    // RÉELLE vise le joueur — aucune zone n'est peinte « pour l'exemple ».
-    if (defenseTarget !== null) {
-      out.push({
+  // ══ COUCHES DE CARTE — TROIS MÉMOS, ET C'EST UNE DÉCISION DE BATTERIE ═════
+  //
+  // Avant (jusqu'au 28/07/2026) les trois familles de couches partageaient UN
+  // seul `useMemo` dépendant de `s.traceSegments`. Or `computeSnapshot`
+  // reconstruit ce tableau à chaque tick (`runPipeline.ts:261` — un `.map()`),
+  // donc son identité changeait UNE FOIS PAR SECONDE même à l'arrêt : le mémo
+  // ne mémoïsait rien, les trois FeatureCollections étaient rebâties et
+  // repassées à MapLibre 60 fois par minute, pendant 30 à 90 minutes, écran
+  // allumé. Le cas le plus absurde était le contour de la zone contestée : il
+  // ne change JAMAIS de toute la sortie, et il était réuploadé à chaque
+  // seconde. Séparer les mémos rend à chaque couche sa vraie fréquence de
+  // changement — la source MapLibre ne voit un `shape` neuf que quand la
+  // géométrie qu'elle dessine a bougé pour de vrai.
+  //
+  // RIEN N'EST DESSINÉ DIFFÉREMMENT : mêmes couches, même ordre (contour
+  // contesté SOUS la trace, fermeture PAR-DESSUS), mêmes styles.
+  const traceRev = traceRevision(s);
+
+  /**
+   * E22 — LE CONTOUR DE LA ZONE CONTESTÉE, dessiné SOUS la trace : c'est le
+   * décor de la sortie, pas son sujet. Violet = couleur de RÔLE du contesté
+   * (§C), jamais une couleur de crew. Il n'existe que si une contestation
+   * RÉELLE vise le joueur — aucune zone n'est peinte « pour l'exemple ».
+   * La cible est lue UNE fois par sortie (`useLiveDefense`) : cette couche est
+   * donc construite une fois, puis plus jamais.
+   */
+  const defenseLayers = useMemo<RealMapGeoJSONLayer[]>(() => {
+    if (defenseTarget === null) return NO_LAYERS;
+    return [
+      {
         id: 'live-defense-zone',
         data: lineCollection([defenseTarget.ring]),
         lineColor: gameColors.contested,
         lineWidth: 3,
         lineDash: TRACE_DASH.excluded,
-      });
-    }
+      },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- l'anneau est figé avec la contestation
+  }, [defenseTarget?.contestId]);
+
+  /**
+   * LA TRACE MESURÉE (+ les liens incertains). Reconstruite quand — et
+   * seulement quand — la trace a changé : `traceRevision` est une clé PURE et
+   * TESTÉE (`liveTrace.ts` + `liveTrace.test.ts`, qui rejoue de vrais flux de
+   * fixes et vérifie qu'aucun changement de trace ne peut passer inaperçu).
+   * Sans fix qui arrive (tunnel, signal perdu, onglet en veille), il n'y a rien
+   * de neuf à peindre — et donc rien à dépenser.
+   */
+  const traceLayers = useMemo<RealMapGeoJSONLayer[]>(() => {
+    const out: RealMapGeoJSONLayer[] = [];
     const segments = s.traceSegments;
     if (segments.length > 0) {
       // §B — trace HÉROS : casing sombre + liseré fin + core chartreuse plein,
@@ -457,12 +502,22 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         lineDash: TRACE_DASH.excluded,
       });
     }
-    // La FERMETURE, dessinée : ce qui sépare encore la position du départ. La
-    // planche E07 la veut EXPLICITE — donc au gabarit « segment manquant » (§B,
-    // même largeur que la route restante), pas un filet : à l'échelle rue elle
-    // doit se lire d'un coup d'œil à côté du core héros, jamais s'y perdre.
-    if (phase !== 'idle' && start !== null && here !== null) {
-      out.push({
+    return out.length > 0 ? out : NO_LAYERS;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `traceRev` EST la clé de `s.traceSegments`
+  }, [traceRev]);
+
+  /**
+   * LA FERMETURE, dessinée : ce qui sépare encore la position du départ. La
+   * planche E07 la veut EXPLICITE — donc au gabarit « segment manquant » (§B,
+   * même largeur que la route restante), pas un filet : à l'échelle rue elle
+   * doit se lire d'un coup d'œil à côté du core héros, jamais s'y perdre.
+   * C'est la seule couche qui suit vraiment la position : elle est seule à se
+   * reconstruire à chaque fix.
+   */
+  const closureLayers = useMemo<RealMapGeoJSONLayer[]>(() => {
+    if (phase === 'idle' || start === null || here === null) return NO_LAYERS;
+    return [
+      {
         id: 'live-closure',
         data: lineCollection([[here, start]]),
         // Ambre FACTUEL quand on est revenu à portée sans fermer (nearMiss) ;
@@ -472,10 +527,16 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         lineWidthStops: TRACE_WIDTH_STOPS.missingCore,
         lineWidth: 16,
         lineDash: TRACE_DASH.missing,
-      });
-    }
-    return out;
-  }, [s.traceSegments, phase, start?.lat, start?.lng, here?.lat, here?.lng, defenseTarget?.contestId]);
+      },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- comparaison par VALEUR (lat/lng), pas par identité
+  }, [phase, start?.lat, start?.lng, here?.lat, here?.lng]);
+
+  /** L'ordre de peinture, inchangé : contesté → trace → fermeture. */
+  const layers = useMemo<RealMapGeoJSONLayer[]>(
+    () => [...defenseLayers, ...traceLayers, ...closureLayers],
+    [defenseLayers, traceLayers, closureLayers],
+  );
 
   const markers = useMemo<RealMapMarker[]>(() => {
     const out: RealMapMarker[] = [];

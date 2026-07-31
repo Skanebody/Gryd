@@ -320,8 +320,14 @@ export const EVENTS = {
   activityFinishSheetViewed: 'activity_finish_sheet_viewed', // props: { produces_result }
   /**
    * L'activité REPREND au lieu de se terminer. `from` FERMÉ :
-   * 'finish_sheet' (E26) | 'pause' (E23). Deux hésitations différentes, deux
-   * décisions produit différentes — les confondre effacerait l'information.
+   * 'finish_sheet' (E26) | 'pause' (E23) | 'restore' (E24 — une session
+   * interrompue retrouvée au lancement, cf. `activity_restore_offered`).
+   * Trois hésitations différentes, trois décisions produit différentes — les
+   * confondre effacerait l'information.
+   *
+   * ⚠ 'restore' AJOUTÉ LE 28/07/2026 (vague E24) sur cet event PLUTÔT QU'UN
+   * NOM NEUF : c'est le même fait — « la sortie continue » — et un second nom
+   * couperait la série au moment précis où l'on gagne un troisième chemin.
    */
   activityResumed: 'activity_resumed', // props: { from }
 
@@ -1085,7 +1091,309 @@ export const EVENTS = {
   purchasesRestored: 'purchases_restored', // props: { result }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // LES ÉCRANS DE CETTE VAGUE QUI N'ONT AUCUN EVENT, ET POURQUOI
+  // VAGUE E11 · E12 · E18 · E20 · E21 · E23 · E24 (spec produit UI/UX, l.829 ·
+  // 902 · 1063 · 1110 · 1150 · 1185 · 1201), ajoutée le 28/07/2026.
+  //
+  // LES QUATRE RÈGLES DES BLOCS PRÉCÉDENTS S'APPLIQUENT (émission nommable,
+  // zéro PII, zéro nombre de jeu, l'état vide se mesure), PLUS DEUX que le
+  // contexte impose et qui gouvernent tout ce bloc :
+  //
+  //  5. ZÉRO POSITION, ET ÇA VA PLUS LOIN QU'UN COUPLE DE COORDONNÉES. Ces sept
+  //     écrans sont les seuls du produit qui tournent LA CARTE OUVERTE ou LE GPS
+  //     ALLUMÉ. Ne partent donc JAMAIS : lat/lng même arrondie, `zoneId` /
+  //     `sectorId` / `territoryId` / index H3, niveau de zoom, cap, distance
+  //     restante, terme de recherche, nom de quartier. Un identifiant de zone
+  //     localise au mètre — c'est ce que dit déjà le docblock de
+  //     `zone_detail_viewed`, et cette vague l'étend à la carte entière.
+  //     ⚠ CONSTAT, PAS PROMESSE : trois appels `screen()` du dépôt violent
+  //     aujourd'hui cette règle (`map_zone_open { zone }`
+  //     features/map/BattleMapOverlays.tsx:721, `map_zone_act { zone }` :1013,
+  //     `map_mission_brief { zone }` features/map/MissionBriefingSheet.tsx:154).
+  //     Ce ne sont pas des events §8 — ce sont des `$screen` PostHog avec une
+  //     propriété — mais ils envoient bel et bien l'identifiant. Les events
+  //     ci-dessous sont leur REMPLACEMENT sans identifiant ; le retrait des
+  //     trois appels revient aux agents d'écran E11/E12 de cette vague.
+  //
+  //  6. SUBI ≠ CHOISI. E23 (pause) et E24 (GPS faible / récupération) se
+  //     ressemblent à l'écran et n'ont RIEN à voir : l'un est un geste, l'autre
+  //     un accident. Les mêler ferait une série où « le joueur souffle » et
+  //     « l'app a perdu le signal » se compensent — la mesure ne servirait plus
+  //     à rien. Deux events distincts, `activity_paused` (choisi ou physique) et
+  //     `activity_interrupted` (subi), et une frontière écrite sur chacun.
+
+  // ── E11 — Carte principale (`/map`) ───────────────────────────────────────
+  /**
+   * LA CARTE S'EST COMPOSÉE, avec l'état qu'elle a RÉELLEMENT rendu et la
+   * lentille active. Nom EXIGÉ MOT POUR MOT par la spec (l.897).
+   *
+   * `state` FERMÉ — les quatre états de la constitution, plus les deux que la
+   * carte seule connaît :
+   *   'signed_out' | 'locating' (lecture EN COURS — n'affirme RIEN sur le
+   *   joueur) | 'no_location' | 'empty' (lecture aboutie, aucun territoire dans
+   *   cette discipline) | 'failed' | 'ready'.
+   *
+   * POURQUOI 'no_location' FOND TROIS CAS (refusé / jamais demandé /
+   * indisponible) alors que l'écran, lui, les distingue en copie
+   * (`dataNoteLocationDenied` / `…Unasked` / `…Unavailable`) : `permission_location
+   * { result }` mesure DÉJÀ exactement cette distinction, à la source, depuis
+   * `useRealRun.ts:68`. Les redire ici fabriquerait une seconde vérité sur la
+   * même question, qui divergerait au premier changement de flux.
+   *
+   * `activity` FERMÉ ('run' | 'bike') : la carte est séparée par discipline
+   * (`ACTIVITY_SCOPE.territory`). Sans cette propriété, un monde vélo vide et
+   * une panne côté course se confondraient dans la même barre.
+   *
+   * ⚠ AUCUN zoom, AUCUN centre, AUCUN compte de zones : un nombre de
+   * territoires croisé avec l'heure situe un joueur dans sa ville.
+   */
+  mapView: 'map_view', // props: { state, activity }
+  /**
+   * UNE ZONE A ÉTÉ TAPÉE sur la carte (le geste qui ouvre E14). Nom EXIGÉ par
+   * la spec (l.897).
+   *
+   * `role` FERMÉ — le RÔLE de la zone, jamais son identité : 'free' | 'mine' |
+   * 'crew' | 'rival' | 'contested'. C'est le même vocabulaire que
+   * `zone_detail_viewed { state }`, et ce n'est PAS un doublon : celui-ci
+   * mesure le GESTE sur la carte (combien de taps trouvent une zone), celui-là
+   * la FEUILLE qui s'ouvre ensuite. L'écart entre les deux est le taux de taps
+   * perdus — la mesure de lisibilité de la carte que §A réclame (« comprendre
+   * en moins de 3 s »).
+   *
+   * ⚠ REMPLACE `screen('map_zone_open', { zone })` : cet appel envoie
+   * l'identifiant de la zone, donc la position du joueur à ~100 m près.
+   */
+  mapZoneTap: 'map_zone_tap', // props: { role }
+  /**
+   * LA FEUILLE BASSE A RECOMMANDÉ QUELQUE CHOSE — ou a honnêtement renoncé.
+   * Nom EXIGÉ par la spec (l.897).
+   *
+   * `kind` FERMÉ, miroir EXACT de `MAP_RECOMMENDATION_PRIORITY` (game-rules) :
+   * 'defense_urgent' | 'crew_mission' | 'suggested_loop' | 'free_conquest',
+   * plus 'none' — qui n'est PAS une cinquième priorité mais l'aveu qu'aucun
+   * fait ne permettait de recommander. C'est la valeur la plus importante du
+   * lot : une base vide doit produire 'none', jamais une conquête inventée.
+   *
+   * LE KPI EST INCONFORTABLE, comme celui de `mission_dropped` : si
+   * 'defense_urgent' ne sort jamais alors que des zones meurent, la priorité 1
+   * de la spec n'est pas câblée — et personne ne le verrait autrement.
+   *
+   * ⚠ AUCUN nom de zone, AUCUNE distance estimée : « Défendre Saint-Rémy ·
+   * 3,2 km » se réduit ici à 'defense_urgent'.
+   */
+  mapRecommendationShown: 'map_recommendation_shown', // props: { kind }
+  /**
+   * RECENTRAGE demandé (FAB, ou tap sur l'onglet Carte déjà actif — spec
+   * l.893). Nom EXIGÉ par la spec (l.897).
+   *
+   * `outcome` FERMÉ : 'centered' (une position réelle existait, la caméra a
+   * bougé) | 'no_position' (aucun fix : le bouton a nommé son échec).
+   * Sans `outcome`, ce serait un compteur de taps ; avec lui, c'est la mesure du
+   * « bouton mort » que la constitution interdit — un taux de 'no_position'
+   * élevé dit que l'affordance promet ce que le capteur ne donne pas.
+   *
+   * `source` FERMÉ : 'fab' | 'tab' — deux gestes de coût très différent.
+   */
+  mapRecenter: 'map_recenter', // props: { outcome, source }
+  /**
+   * CHANGEMENT DE LENTILLE Run ↔ Bike. Nom EXIGÉ par la spec (l.897).
+   *
+   * `to` FERMÉ ('run' | 'bike') et `surface` FERMÉ (la surface qui porte le
+   * commutateur : 'map' | 'leaderboard' | 'history' | 'profile'…, cf.
+   * `ui/activityLens.ts` — le réglage est mémorisé PAR surface).
+   *
+   * NE DOUBLE PAS `setup_activity_chosen` (E09), qui est le choix de discipline
+   * à l'inscription : celui-ci est une LENTILLE de lecture, qu'on bascule vingt
+   * fois par semaine. Ni `run_start { activity }`, qui est la discipline d'une
+   * sortie RÉELLE — la seule des trois qui engage le joueur.
+   */
+  activitySwitch: 'activity_switch', // props: { to, surface }
+
+  // ── E12 — Couches et filtres de carte (feuille basse depuis E11) ──────────
+  /** La feuille des couches s'est ouverte. Le seul instant d'entrée d'E12. */
+  mapLayersOpened: 'map_layers_opened',
+  /**
+   * UNE COUCHE A ÉTÉ BASCULÉE. `layer` FERMÉ, miroir EXACT de `MAP_LAYER_KEYS`
+   * (game-rules) : 'mine' | 'crew' | 'rivals' | 'contested' | 'missions' |
+   * 'private_zones' | 'labels'. `visible` = l'état APRÈS le geste.
+   *
+   * `activity` FERMÉ ('run' | 'bike') parce que le réglage est persisté PAR
+   * DISCIPLINE (`ACTIVITY_SCOPE.mapLayers`) : sans elle, on ne saurait pas quel
+   * des deux mondes on vient de filtrer.
+   *
+   * LE KPI : quelles couches les gens ÉTEIGNENT. Une couche que tout le monde
+   * coupe est une couche qui ne devrait pas être allumée par défaut — c'est la
+   * seule façon de le savoir sans demander.
+   *
+   * ⚠ L'EXCEPTION D'URGENCE NE S'ÉMET PAS. Quand un marqueur de menace urgente
+   * survit à un filtre éteint (`mapFeatureVisible`, spec l.928), AUCUN event
+   * n'est envoyé : ce serait un compteur d'affichages automatiques, et il
+   * porterait implicitement l'information « ce joueur a une zone qui expire »,
+   * horodatée. La règle se teste (game-rules.test.ts), elle ne se mesure pas.
+   */
+  mapLayerToggled: 'map_layer_toggled', // props: { layer, visible, activity }
+
+  // ── E18 — Planificateur de boucle (`/map/route-plan`) ─────────────────────
+  /**
+   * UN CALCUL DE BOUCLE A RENDU SON VERDICT — le seul instant de cet écran qui
+   * apprenne quelque chose (le tap `UTILISER CETTE BOUCLE` reste un
+   * `cta_tapped`, et l'ouverture un `$screen`).
+   *
+   * `outcome` FERMÉ, miroir des états que `plannerCta()` distingue déjà
+   * (features/route/plannerCta.ts) : 'ready' (OSRM a répondu, un tracé est
+   * affiché) | 'no_route' (position acquise, routeur muet) | 'no_position'
+   * (aucun fix : rien n'a pu être demandé).
+   *
+   * `preset` FERMÉ : 'recommended' | 'short' | 'long' | 'custom' (la distance
+   * ajustée à la main). La spec (l.1072) veut « trois suggestions » et pas de
+   * formulaire : si 'custom' domine, les trois formats sont mal choisis.
+   *
+   * `activity` FERMÉ : le planificateur route au profil de la discipline
+   * (`ACTIVITY_ROUTING`), et une boucle vélo de 10 km n'est pas une boucle de
+   * course de 10 km. Confondre les deux rendrait le taux de 'no_route'
+   * illisible.
+   *
+   * ⚠ AUCUNE DISTANCE, AUCUN POINT DE DÉPART, AUCUN TRACÉ. Un point de départ
+   * de boucle EST une adresse — c'est très exactement ce que §12 protège, et ce
+   * que `place_search_result_picked` s'interdit déjà.
+   */
+  routePlanComputed: 'route_plan_computed', // props: { outcome, preset, activity }
+
+  // ── E20 / E21 — Activité Run et Bike actives (`/activity/live`) ───────────
+  /**
+   * L'ÉCRAN DE COURSE A ÉTÉ VERROUILLÉ ou DÉVERROUILLÉ (spec l.1145 : « écran
+   * verrouillable »). `locked` = l'état APRÈS le geste.
+   *
+   * POURQUOI IL MÉRITE UN EVENT alors que c'est « juste » un bouton : c'est la
+   * seule affordance de ces deux écrans qui protège À LA FOIS d'un arrêt
+   * accidentel en poche et de la consommation d'un écran qu'on rallume vingt
+   * fois. Savoir si elle est utilisée décide s'il faut la rendre automatique.
+   *
+   * NE PORTE PAS `activity` : la discipline d'une sortie est déjà dans
+   * `run_start { activity }`, émis quelques secondes plus tôt sur la MÊME
+   * session. La répéter ici n'ajouterait qu'une colonne à recouper.
+   */
+  activityScreenLocked: 'activity_screen_locked', // props: { locked }
+
+  // ── E23 — Pause (overlay, jamais une navigation) ──────────────────────────
+  /**
+   * L'ACTIVITÉ S'EST MISE EN PAUSE — le côté CHOISI (ou physique) de la
+   * frontière, jamais le subi.
+   *
+   * `cause` FERMÉ :
+   *   · 'user'       — le bouton PAUSE (E23). Un geste, une décision ;
+   *   · 'auto_still' — la pause AUTOMATIQUE d'immobilité (moteur GPS,
+   *      `GPS_PAUSE_SPEED_MS` / `GPS_PAUSE_AFTER_S`). Ni choisie ni subie : le
+   *      joueur s'est arrêté à un feu, et l'app l'a vu.
+   *
+   * ⚠ 'permission_revoked' N'EST PAS ICI, bien que la spec (l.1205) dise qu'une
+   * permission révoquée déclenche une « pause automatique ». Elle est comptée
+   * dans `activity_interrupted` : c'est un ACCIDENT, et le mêler aux deux
+   * ci-dessus rendrait le taux de pause inexploitable — on ne saurait plus si
+   * les gens soufflent ou si le produit casse.
+   *
+   * LA REPRISE N'A PAS D'EVENT NEUF : `activity_resumed { from: 'pause' }`
+   * existe et couvre exactement ce cas.
+   */
+  activityPaused: 'activity_paused', // props: { cause }
+  /**
+   * L'ACTIVITÉ A ÉTÉ ANNULÉE — la troisième action d'E23 (l.1192), celle qui
+   * SUPPRIME la trace locale. Émis APRÈS la confirmation et la suppression
+   * effective, jamais au tap : une intention d'annuler n'est pas une annulation.
+   *
+   * `produces_result` = verdict de `activityProducesResult()` (les minima §3.2
+   * de la discipline), la même propriété que `activity_finish_sheet_viewed`.
+   * C'est LA question qui compte : combien de sorties DÉTRUITES auraient compté.
+   * Un taux élevé dit qu'on a laissé jeter du territoire gagné.
+   *
+   * NE DOUBLE PAS `run_cancel_attempt { phase: 'preflight' }`, qui mesure
+   * l'abandon AVANT le départ (`useRealRunCore.ts:620`) — rien n'existe encore
+   * à cet instant, il n'y a donc rien à détruire.
+   */
+  activityCancelled: 'activity_cancelled', // props: { produces_result }
+
+  // ── E24 — GPS faible / activité en récupération ───────────────────────────
+  /**
+   * L'ACTIVITÉ A SUBI UN ACCIDENT — le côté SUBI de la frontière. « Aucune perte
+   * silencieuse » (spec l.1211) commence par ne pas perdre la mesure de ce qui
+   * casse.
+   *
+   * `cause` FERMÉ, les quatre cas de la spec qui sont OBSERVABLES par le client :
+   *   · 'signal_lost'         — plus aucun fix frais (`GPS_SIGNAL_LOST_AFTER_S`).
+   *      La distance ne compte jamais un trou de signal ; l'écran le dit, et
+   *      cette valeur dit combien de fois ;
+   *   · 'permission_revoked'  — l'autorisation a été coupée EN COURSE →
+   *      pause automatique. Compté ICI et pas dans `activity_paused` ;
+   *   · 'app_killed'          — une session interrompue a été retrouvée au
+   *      lancement (`shouldProposeCrashRecovery`) ;
+   *   · 'sensor_inconsistent' — capteur incohérent : l'activité continue mais
+   *      part en analyse (spec l.1209).
+   *
+   * ⚠ 'network_lost' N'EXISTE PAS DANS CETTE LISTE, alors que la spec cite
+   * « réseau absent : file d'attente locale ». C'est déjà mesuré, exactement, par
+   * `activity_upload_queued { reason: 'offline' }` — l'ajouter ici compterait
+   * chaque coupure deux fois et gonflerait le taux d'accident d'un incident qui,
+   * lui, ne perd rien.
+   *
+   * ⚠ AUCUNE DURÉE DE TROU, AUCUNE PRÉCISION EN MÈTRES, AUCUN NOMBRE DE POINTS
+   * PERDUS : croisés avec l'heure, ils dessinent où le signal tombe — donc un
+   * itinéraire.
+   */
+  activityInterrupted: 'activity_interrupted', // props: { cause }
+  /**
+   * UNE SESSION INTERROMPUE A ÉTÉ PROPOSÉE À LA REPRISE (spec l.1207 : « app
+   * tuée : session locale restaurée »). Émis quand la feuille s'AFFICHE, donc
+   * quand `shouldProposeCrashRecovery` a dit oui.
+   *
+   * `same_activity` (booléen) : la session retrouvée appartient-elle à la
+   * discipline en cours ? L'écran distingue déjà les deux cas en copie
+   * (`restoreTitle` vs `restoreTitleOtherActivity`, catalogue runGps) — les
+   * mélanger ici cacherait le cas le plus déroutant pour le joueur.
+   *
+   * L'ISSUE N'A PAS D'EVENT NEUF : reprendre est `activity_resumed
+   * { from: 'restore' }`, enregistrer est `run_complete`, et jeter est
+   * `activity_cancelled`. Trois faits déjà nommés.
+   *
+   * ⚠ AUCUN ÂGE DE SESSION, AUCUNE DISTANCE DÉJÀ PARCOURUE.
+   */
+  activityRestoreOffered: 'activity_restore_offered', // props: { same_activity }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LES ÉCRANS DE CETTE VAGUE QUI N'ONT AUCUN EVENT NEUF, ET POURQUOI
+  //
+  // · E21 — ACTIVITÉ BIKE ACTIVE. AUCUN event propre, et c'est la décision la
+  //   plus importante du bloc. E21 est E20 avec une autre discipline (spec
+  //   l.1152 : « Même structure que E20 ») ; toute la chaîne porte déjà
+  //   `activity` — `run_start { activity }`, `run_complete`, `claim_result`,
+  //   `map_view { activity }`, `route_plan_computed { activity }`. Un
+  //   `bike_live_viewed` couperait en deux chaque série de la boucle cœur au
+  //   moment précis où le produit a besoin de comparer les deux mondes. « Run et
+  //   Bike réutilisent les mêmes composants » (l.1157) vaut aussi pour la mesure.
+  //
+  // · E20 — OUVERTURE DE L'ÉCRAN DE COURSE. Pas de `activity_live_viewed` :
+  //   `run_start` est émis à l'instant exact où cet écran prend la main
+  //   (`useRealRunCore.ts:608`), avec la discipline, le mode et la plateforme.
+  //   Un second nom au même instant dédoublerait le haut du funnel de course.
+  //
+  // · E20/E21 — PROJECTION DE FERMETURE DE BOUCLE. Déjà mesurée aux deux bouts :
+  //   `loop_almost_closed { missing_m }` (l'activation ratée) et `loop_closed
+  //   { enclosed_zones }` (le fait, émis depuis la RÉPONSE serveur). Les trois
+  //   bandes d'indication (`LOOP_HINT_DISTANCE_M` → `LOOP_PREVIEW_DISTANCE_M` →
+  //   `LOOP_CLOSE_TOLERANCE_M`) sont un AFFICHAGE continu : les mesurer
+  //   produirait un event par seconde de course, pour rien.
+  //
+  // · E22 — DÉFENSE ACTIVE : `defense_run_viewed` et `defense_coverage_reached`
+  //   existent (bloc E22 plus haut) et sont RÉELLEMENT émis
+  //   (`RealCourseLive.tsx:318` et :328). Rien à ajouter dans cette vague.
+  //
+  // · E11 — GESTES DE CARTE SANS DÉCISION (double tap = zoom, swipe de la
+  //   feuille, long press = point de planification). Aucun n'engage le joueur ni
+  //   ne change d'écran ; les mesurer transformerait l'analytics en journal de
+  //   gestes, et le zoom est une donnée de localisation déguisée (§12).
+  //   L'ouverture de la feuille reste couverte par `screen('map_sheet_open')`.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LES ÉCRANS DE LA VAGUE E38-E75 QUI N'ONT AUCUN EVENT, ET POURQUOI
   //
   // · E52 — INVITATION CREW. `invite_sent` existe et est RÉELLEMENT émis (3
   //   sites), `crew_joined { via }` et `invite_accepted` ferment la boucle.
@@ -1250,6 +1558,20 @@ export const EVENTS = {
   //     l'issue de chaque geste E47 (signalement, blocage, déblocage, et les
   //     quatre gestes de rôle venus avec la migration 0093). Il ne bénéficie
   //     d'aucune indulgence — il a simplement trouvé son appelant.
+  //
+  //   · map_view                  → POSÉS LE 28/07/2026 POUR LES QUATRE AGENTS
+  //   · map_zone_tap                D'ÉCRAN DE LA VAGUE E11/E12/E18/E20/E21/
+  //   · map_recommendation_shown    E23/E24, qui les câblent dans le même lot.
+  //   · map_recenter                Inscrits ICI dès leur naissance, comme
+  //   · activity_switch             `crew_home_viewed` avant eux : si la vague
+  //   · map_layers_opened           se termine sans émetteur, ils tombent sous
+  //   · map_layer_toggled           la règle ci-dessous. Aucune dérogation.
+  //   · route_plan_computed         Point d'émission NOMMÉ pour chacun dans son
+  //   · activity_screen_locked      propre docblock — c'est la condition pour
+  //   · activity_paused             qu'ils aient le droit d'exister.
+  //   · activity_cancelled
+  //   · activity_interrupted
+  //   · activity_restore_offered
   //
   // RÈGLE POUR LA SUITE : un event qui reste ici sans appelant à la vague
   // suivante se supprime ou se câble. Le laisser indéfiniment redonne au

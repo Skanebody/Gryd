@@ -4068,6 +4068,18 @@ export const ACTIVITY_SCOPE = {
   history: 'per_activity',
   /** Missions et objectifs : une mission vélo ne se termine pas en courant. */
   missions: 'per_activity',
+  /**
+   * E12 (spec l.922) : « Les réglages persistent PAR ACTIVITÉ. » Les couches de
+   * carte (`MAP_LAYER_KEYS`) sont un RÉGLAGE D'AFFICHAGE — elles ne donnent ni
+   * point, ni zone, ni avantage — mais elles choisissent leur camp ICI comme
+   * tout le reste, parce que la carte d'un cycliste et celle d'un coureur ne
+   * montrent pas les mêmes mondes (`ACTIVITY_SCOPE.territory` est déjà séparé).
+   * Un filtre commun ferait qu'éteindre « rivaux » à vélo l'éteindrait à pied :
+   * un réglage qu'on n'a pas posé, sur un monde qu'on ne regardait pas.
+   * C'est la même grammaire que la préférence de lentille déjà persistée par
+   * surface (`gryd.activity.<surface>`, features/map/mapPref.ts).
+   */
+  mapLayers: 'per_activity',
   /** OVERRIDE FONDATEUR 26/07/2026 : le joueur progresse, pas sa discipline. */
   xp: 'global',
   /** Idem — `users.level` est dérivé de `users.xp`, il ne peut pas être scindé sans lui. */
@@ -4665,6 +4677,179 @@ export const DUEL_MAX_PENDING_SENT = 5;
 export const DUEL_RETRY_COOLDOWN_HOURS = 168;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// E11 · E12 — CARTE PRINCIPALE ET COUCHES DE CARTE
+// (docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md, l.829 et l.902 —
+//  bloc ajouté le 28/07/2026, vague E11/E12/E18/E20/E21/E23/E24.)
+//
+// ═══ POURQUOI CE BLOC EST SI COURT ═══════════════════════════════════════════
+// Le domaine CARTE est le plus pourvu du dépôt. Avant d'écrire une ligne, les
+// familles suivantes ont été relues et sont RÉUTILISÉES telles quelles — aucune
+// n'est redéfinie ici, et la lecture de ce bloc doit commencer par cette liste :
+//   · LOD par zoom            → `features/map/allTerritories.ts`
+//     (`TERRITORY_DOT_MAX_ZOOM` 10, `SECTOR_MIN_ZOOM` 10,
+//      `TERRITORY_TRACE_MIN_ZOOM` 13, `SECTOR_PCT_MIN/MAX_ZOOM`) et
+//     `features/map/mapStyle.ts` (`FILL_LOD_IN/HOLD/OUT`). Ce sont des seuils de
+//     RENDU MapLibre, pas des règles de jeu : ils décident ce qu'on voit, jamais
+//     ce qu'on gagne. Les rapatrier ici n'ajouterait aucune garantie et casserait
+//     la co-localisation avec les expressions `interpolate` qui les consomment ;
+//   · pression / contestation → `SECTOR_PRESSURE_BANDS`, `SECTOR_STATUS_LEVELS`,
+//     `SECTOR_CONTESTED_RULE`, `SECTOR_ACTIVE_ATTACK_MAX_H`, `SECTOR_PRESSURE_*` ;
+//   · statuts et decay de zone→ `ZONE_STABLE_MAX_DAYS`, `ZONE_FRAGILE_MAX_DAYS`,
+//     `ZONE_DEFEND_WINDOW_HOURS` (48 h), `ZONE_DECAY_DAYS` ;
+//   · missions                → `MISSION_DEFEND_WINDOW_H` (72 h),
+//     `CREW_MISSION_RECLAIM_WINDOW_H`, `CREW_MISSION_CAPTURE_MIN_FREE`,
+//     et `MISSION_REACH_M` (dérivée, features/mission/recommendedMission.ts) ;
+//   · confidentialité         → `TERRITORY_PUBLISH_DELAY_MINUTES`,
+//     `PUBLIC_TIMESTAMP_TRUNC`, `PRIVACY_ZONE_*`, `SHARE_TRIM_M`.
+// Deux idées seulement manquaient VRAIMENT, et les voici.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * E11 — URGENCE D'UNE DÉFENSE, la première priorité de recommandation de la
+ * carte : « défense expirant en moins de 6 h » (spec l.873, mot pour mot).
+ *
+ * POURQUOI CE N'EST PAS UN DOUBLON, alors que le fichier porte déjà TROIS
+ * fenêtres de défense — et la distinction est la raison d'être de la constante :
+ *   · `ZONE_DEFEND_WINDOW_HOURS` = 48 h — la zone entre dans l'état « À
+ *     DÉFENDRE ». C'est un STATUT DE ZONE, dérivé du decay, et il vaut pour
+ *     toutes les zones du joueur en même temps ;
+ *   · `MISSION_DEFEND_WINDOW_H` = 72 h — la fenêtre où une zone menacée devient
+ *     LA mission prioritaire d'E16 ;
+ *   · `DEFENSE_MISSION_DURATION_H` = 48 h — la durée d'une mission de défense
+ *     crew, un objet de jeu qu'on crée.
+ * E11 pose une question différente des trois : « parmi ce qui est déjà à
+ * défendre, qu'est-ce qui ne PEUT PLUS attendre demain ? ». À 48 h, on peut
+ * courir demain ; à 6 h, non. Réutiliser 48 h aurait remonté en tête de la
+ * feuille basse une zone parfaitement tranquille, tous les jours, et vidé le mot
+ * « urgent » de son sens.
+ *
+ * NE DÉPEND PAS DE LA DISCIPLINE : les horloges de decay et de défense sont les
+ * mêmes à pied et à vélo (`ACTIVITY_RULES` ne porte aucune borne temporelle).
+ * Ce sont les ZONES qui sont séparées par discipline (`ACTIVITY_SCOPE.territory`),
+ * pas la vitesse à laquelle elles s'effacent — une constante par discipline
+ * inventerait une règle que le moteur de decay n'applique nulle part.
+ *
+ * NE DÉCIDE AUCUN CLAIM : c'est un seuil de PRÉSENTATION (quel objectif la carte
+ * met en avant). Le serveur reste seul juge de la défense elle-même. TUNABLE.
+ */
+export const MAP_URGENT_DEFENSE_WINDOW_H = 6;
+
+/**
+ * E11 — L'ORDRE de recommandation de la feuille basse, DANS l'ordre de la spec
+ * (l.871-876) : défense urgente, puis mission crew à proximité, puis boucle
+ * suggérée atteignable, puis conquête libre.
+ *
+ * POURQUOI UNE CONSTANTE PLUTÔT QU'UN `if/else` DANS L'ÉCRAN : l'ordre EST la
+ * règle produit. Écrit en cascade dans un composant, il se réordonne à la
+ * première refonte visuelle sans que personne ne s'en aperçoive — et la carte se
+ * met à proposer une conquête pendant qu'une zone meurt. Écrit ici, il est
+ * lisible d'un seul endroit et le même pour les deux forks de l'écran
+ * (`MapScreen.tsx` natif et `MapScreen.web.tsx`), qui divergent déjà sur tout le
+ * reste.
+ *
+ * L'ABSENCE DE RECOMMANDATION EST UN ÉTAT LÉGITIME et ne figure PAS dans cette
+ * liste : quand aucun des quatre faits n'existe (base vide, joueur neuf, aucune
+ * position), la feuille ne recommande RIEN. Une cinquième entrée « par défaut »
+ * fabriquerait une mission — exactement ce que `recommendedMission.ts` refuse
+ * déjà de faire pour E16.
+ */
+export const MAP_RECOMMENDATION_PRIORITY = [
+  /** Une de MES zones expire dans moins de `MAP_URGENT_DEFENSE_WINDOW_H`. */
+  'defense_urgent',
+  /** Mission crew active à proximité (`engine/crewMission.ts`). */
+  'crew_mission',
+  /** Boucle suggérée atteignable (`features/route/suggestion.ts`). */
+  'suggested_loop',
+  /** Conquête libre — le dernier recours, et seulement s'il existe du libre. */
+  'free_conquest',
+] as const;
+export type MapRecommendationKind = (typeof MAP_RECOMMENDATION_PRIORITY)[number];
+
+/**
+ * E12 — LES SEPT COUCHES de la feuille « Couches et filtres » (spec l.912-918),
+ * dans l'ordre où la spec les énumère. Liste FERMÉE : une couche que l'écran
+ * peindrait sans être ici serait un filtre que rien ne persiste, donc un
+ * interrupteur qui se remet tout seul.
+ *
+ * Ce sont des clés INTERNES et STABLES (analytics, stockage) — jamais des
+ * libellés : les libellés vivent dans `i18n/catalog/map.ts` et se traduisent.
+ *
+ * DEUX COUCHES MÉRITENT UN MOT, parce qu'elles ne filtrent pas la même chose :
+ *   · `private_zones` — MES zones de confidentialité (`PRIVACY_ZONES_MAX`), que
+ *     la carte peut montrer pour que je sache où je suis flouté. Le filtre
+ *     décide de leur AFFICHAGE, jamais de leur EFFET : une zone privée masquée à
+ *     l'écran continue d'exclure la capture, sans exception ;
+ *   · `labels` — les étiquettes de secteur (`sectorNaming.ts`). Elle est dans la
+ *     liste parce que la spec l'y met : c'est la seule couche purement
+ *     typographique, et la première qu'on coupe pour lire une carte dense.
+ */
+export const MAP_LAYER_KEYS = [
+  'mine',
+  'crew',
+  'rivals',
+  'contested',
+  'missions',
+  'private_zones',
+  'labels',
+] as const;
+export type MapLayerKey = (typeof MAP_LAYER_KEYS)[number];
+
+/**
+ * État par défaut des sept couches : TOUTES VISIBLES. Un filtre est un geste
+ * de RETRAIT que l'utilisateur pose lui-même ; démarrer avec des couches
+ * éteintes cacherait des faits réels à quelqu'un qui n'a rien demandé, et
+ * l'écran d'un joueur neuf paraîtrait vide sans qu'il sache pourquoi.
+ */
+export const MAP_LAYER_DEFAULT_VISIBLE: Readonly<Record<MapLayerKey, boolean>> = {
+  mine: true,
+  crew: true,
+  rivals: true,
+  contested: true,
+  missions: true,
+  private_zones: true,
+  labels: true,
+};
+
+/**
+ * LES SEULES COUCHES QU'UNE MENACE URGENTE PEUT RALLUMER (spec l.922 : « Le
+ * filtre ne peut pas masquer une menace urgente concernant l'utilisateur ;
+ * celle-ci reste visible sous forme de marqueur »).
+ *
+ * Deux, et pas sept, parce que « concernant l'utilisateur » est une condition
+ * et non une formule de politesse : une menace urgente vit soit sur une zone que
+ * JE tiens (`mine`, elle expire sous `MAP_URGENT_DEFENSE_WINDOW_H`), soit sur
+ * une zone en train de m'être prise (`contested`). Un territoire rival, une
+ * mission ou une étiquette ne menacent personne — les rallumer au nom de
+ * l'urgence viderait le filtre de tout effet, ce qui est la faute symétrique de
+ * celle que la spec corrige.
+ */
+export const MAP_LAYERS_URGENCY_OVERRIDE: readonly MapLayerKey[] = ['mine', 'contested'];
+
+/**
+ * Une entité de carte doit-elle être rendue, sachant l'état du filtre de sa
+ * couche et si elle constitue une menace URGENTE pour l'utilisateur ?
+ *
+ * PURE (aucune horloge, aucun I/O) — l'appelant a déjà comparé l'échéance à
+ * `MAP_URGENT_DEFENSE_WINDOW_H` ; cette fonction ne fait qu'appliquer la règle
+ * d'exception, au même endroit pour les deux forks de l'écran.
+ *
+ * ⚠ CE QU'ELLE NE DIT PAS : COMMENT rendre. La spec impose que l'entité
+ * rallumée reste visible « sous forme de MARQUEUR » — pas que le calque entier
+ * se rallume. Autrement dit : `true` renvoyé avec `layerVisible === false`
+ * signifie « pose le marqueur d'alerte », jamais « repeins tout le calque ».
+ * C'est à l'écran de tenir cette nuance ; la règle, elle, tient ici.
+ */
+export function mapFeatureVisible(
+  layer: MapLayerKey,
+  layerVisible: boolean,
+  urgentThreatForUser = false,
+): boolean {
+  if (layerVisible) return true;
+  if (!urgentThreatForUser) return false;
+  return MAP_LAYERS_URGENCY_OVERRIDE.includes(layer);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CE QUI N'A PAS ÉTÉ AJOUTÉ DANS CETTE VAGUE, ET POURQUOI
 // (un manque documenté vaut mieux qu'un doublon, CLAUDE.md)
 //
@@ -4701,4 +4886,72 @@ export const DUEL_RETRY_COOLDOWN_HOURS = 168;
 //   privée d'autrui — le pire endroit pour en avoir deux.
 //
 // · E49 — CAPACITÉ / DISCIPLINE D'UNE SORTIE : voir CREW_OUTING_WRITE_PATH_EXISTS.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VAGUE E11/E12/E18/E20/E21/E23/E24 (28/07/2026) — CE QUI EXISTAIT DÉJÀ ET N'A
+// DONC RIEN REÇU. Le domaine carte + course est le plus pourvu du dépôt ; un
+// doublon y coûterait plus cher qu'un manque. Chaque ligne ci-dessous a été
+// VÉRIFIÉE par grep avant d'écarter l'ajout, et nomme la constante à RÉUTILISER.
+//
+// · E18 — TROIS SUGGESTIONS DE DISTANCE (« court, moyen, long », spec l.1071).
+//   Déjà bâti, et par discipline : `plannerFormatsKm()` (features/route/
+//   activityPlanning.ts) dérive court/long de `ROUTE_TARGET_DISTANCE_CHOICES_M`
+//   filtrée par `plannerMinKm`, et `route-planner.tsx:241` en fait TROIS
+//   pastilles avec la recommandée au milieu. Les bornes existent aussi en deux
+//   exemplaires assumés — `ROUTE_TARGET_DISTANCE_*` (préférence ÉCRITE, miroir
+//   d'une contrainte SQL en production) et `ROUTE_PLANNER_*_M` / leurs jumelles
+//   `BIKE_ROUTE_PLANNER_*_M` (cible du planificateur, écrite nulle part). Poser
+//   un `PLANNER_SHORT/MEDIUM/LONG_M` ferait un TROISIÈME jeu de bornes, et le
+//   premier écran à le lire divergerait des deux autres.
+//
+// · E18 — « ÉVITER AUTOROUTES ET CHEMINS INCOMPATIBLES » (spec l.1075) :
+//   `ROUTE_FORBIDDEN_HIGHWAY_CLASSES` / `ROUTE_WALKABLE_HIGHWAY_CLASSES` et
+//   leurs jumelles vélo `BIKE_ROUTE_*`, plus `ACTIVITY_ROUTING` (profil OSRM
+//   `foot` / `bike`). Rien à ajouter : router un cycliste au profil piéton est
+//   déjà impossible par typage.
+//
+// · E20/E21 — LES TROIS INDICATIONS DE FERMETURE (« Retour à 180 m » / « Boucle
+//   presque fermée » / « Boucle fermée », spec l.1136-1139). Les trois bandes
+//   existent, PAR DISCIPLINE : `LOOP_HINT_DISTANCE_M` (600 m) puis
+//   `LOOP_PREVIEW_DISTANCE_M` (300 m) puis `LOOP_CLOSE_TOLERANCE_M` (80 m,
+//   raffiné par `maxClosureDistanceM()` selon la précision réelle) — et côté
+//   vélo `BIKE_LOOP_HINT_DISTANCE_M` (3 km) / `BIKE_LOOP_PREVIEW_DISTANCE_M`
+//   (1,5 km) / `BIKE_LOOP_CLOSE_TOLERANCE_M`, servies par `activityRules()`.
+//   Le « 180 m » de la spec est la distance MESURÉE affichée dans la bande, pas
+//   un seuil : en faire une constante figerait un nombre qui doit varier.
+//
+// · E20/E21 — CADENCE, AUTOSAUVEGARDE, BANDES DE SIGNAL. `GPS_SAMPLE_INTERVAL_MS`
+//   (2 s), `RUN_AUTOSAVE_INTERVAL_S` (15 s), `GPS_SIGNAL_WEAK_AFTER_S` (5 s),
+//   `GPS_SIGNAL_LOST_AFTER_S` (15 s), `GPS_PAUSE_SPEED_MS` / `GPS_PAUSE_AFTER_S`
+//   (la pause AUTOMATIQUE, celle qu'on subit) couvrent tout ce que la spec
+//   demande sur « récupération locale permanente » et « statut GPS ».
+//
+// · E23 — « TERMINER demande confirmation uniquement si l'activité est trop
+//   courte » (spec l.1197) : `activityProducesResult()` applique déjà les minima
+//   §3.2 de la DISCIPLINE (`RUN_MIN_*` vs `BIKE_MIN_*`). Aucun seuil neuf.
+//
+// · E23/E24 — DURÉE DU MAINTIEN AVANT ARRÊT : `motion.holdToStopMs` (1,2 s,
+//   design-tokens). C'est une constante de GESTE, pas de jeu — elle reste où
+//   elle est.
+//
+// · E24 — FENÊTRE DE REPRISE D'UNE SESSION TUÉE : `CRASH_RECOVERY_MAX_AGE_MS`
+//   (24 h, features/run/gps/crashRecovery.ts). ⚠ ELLE N'EST PAS RAPATRIÉE ICI,
+//   ET C'EST UN ARBITRAGE ANTÉRIEUR, PAS UN OUBLI : son docblock explique
+//   qu'elle ne décide « ni claim, ni point, ni distance », au même titre que
+//   `RUN_LIVE_MAX_SILENCE_MS` (runGuard.ts). La déplacer aurait défait une
+//   décision documentée pour satisfaire la lettre de « aucun nombre magique »
+//   contre son esprit.
+//
+// · E24 — FILE D'ATTENTE HORS LIGNE : `PENDING_QUEUE_MAX_ENTRIES`
+//   (apps/mobile/src/lib/pendingUpload.ts). Même raisonnement : c'est une borne
+//   de STOCKAGE local, pas une règle de jeu.
+//
+// · E20 — ALLIÉS EN DIRECT (« alliés uniquement en partage crew volontaire et
+//   approximation », spec l.1129). AUCUNE constante posée, parce qu'il n'y a
+//   AUCUNE donnée : rien dans `supabase/migrations/` ne publie une position
+//   vivante, et `features/crew/CrewMap.tsx` le dit déjà (aucune couche par
+//   membre). Poser un rayon d'approximation aujourd'hui décrirait une
+//   fonctionnalité qui n'existe pas — la faute exacte que la constitution
+//   nomme « une doc ne promet jamais au-delà du code ».
 // ═══════════════════════════════════════════════════════════════════════════

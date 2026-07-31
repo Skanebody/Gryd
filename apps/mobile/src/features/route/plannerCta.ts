@@ -21,7 +21,17 @@
  * PUR et testé : c'est la logique la plus facile à casser d'un revers de patch
  * (quatre entrées booléennes, un ordre de priorité), et la plus coûteuse à
  * casser (elle décide si l'écran a une sortie).
+ *
+ * ─── LE CINQUIÈME GESTE (E18, 28/07/2026) ─────────────────────────────────────
+ * « Réessayer le tracé » couvrait DEUX situations, dont une où il ne pouvait pas
+ * aboutir : quand le routeur a RÉPONDU qu'il n'y a pas de boucle ici, refaire la
+ * même demande rend la même absence (la rosace de waypoints est semée, donc
+ * déterministe). Un bouton qui relance à l'identique une requête dont on connaît
+ * déjà le verdict est un bouton mort maquillé en réessai. Il devient alors
+ * « Autre boucle » — une semence différente, donc une requête réellement
+ * différente, qui peut réussir.
  */
+import { sameRequestCanSucceed, type RoutingFailure } from './routingOutcome';
 
 /** Le geste que porte le bouton unique. Un seul à la fois, jamais deux. */
 export type PlannerCtaKind =
@@ -33,6 +43,12 @@ export type PlannerCtaKind =
   | 'routing'
   /** Position acquise, routeur muet : le geste utile est de relancer le calcul. */
   | 'retryRoute'
+  /**
+   * Position acquise, le routeur a RÉPONDU qu'il n'y a pas de boucle ici :
+   * relancer à l'identique rendrait la même absence (rosace semée). Le geste
+   * utile est d'en demander une AUTRE — autre semence, autre requête.
+   */
+  | 'newLoop'
   /** Tout est là : partir. C'est le SEUL état où le bouton lance la course. */
   | 'start';
 
@@ -43,6 +59,13 @@ export interface PlannerCtaInput {
   hasRoute: boolean;
   /** Un calcul d'itinéraire est en vol. */
   routing: boolean;
+  /**
+   * La cause OBSERVÉE du dernier échec de routage, `null` si la dernière
+   * tentative a réussi ou si rien n'a encore été tenté (`routingOutcome.ts`).
+   * Sans elle, le bouton proposait « Recalculer le tracé » là où recalculer ne
+   * pouvait rien changer.
+   */
+  failure: RoutingFailure | null;
 }
 
 /**
@@ -59,7 +82,13 @@ export function plannerCta(input: PlannerCtaInput): PlannerCtaKind {
   if (input.gps === 'error') return 'retryLocation';
   if (input.gps !== 'ok') return 'locate';
   if (input.routing) return 'routing';
-  if (!input.hasRoute) return 'retryRoute';
+  if (!input.hasRoute) {
+    // Le routeur a parlé : refaire la même demande rendrait la même absence.
+    // On ne peint donc pas un « Réessayer » qui ne peut pas aboutir.
+    return input.failure !== null && !sameRequestCanSucceed(input.failure)
+      ? 'newLoop'
+      : 'retryRoute';
+  }
   return 'start';
 }
 
