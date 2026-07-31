@@ -26,7 +26,6 @@ import {
   CITIES,
   CO_CAPTURE_DAILY_POINTS_CAP,
   type ContextCoeffKey,
-  CREW_XP_TABLE,
   DEFAULT_ACTIVITY,
   DEFEND_COOLDOWN_HOURS,
   FRESH_CAPTURE_PROTECT_HOURS,
@@ -155,6 +154,7 @@ import {
   cappedCrewXp,
   chestProgressDelta,
   crewXpForRun,
+  crewXpTableFor,
   type CrewBoostWindow,
   withinOffensiveZone,
   type CrewChestInput,
@@ -1226,7 +1226,7 @@ interface CrewProcessResult {
  * Traite la contribution crew d'une course (§34/§39/§38). Retourne l'XP crew
  * créditée et l'éventuelle montée de niveau, pour IngestRunResponse.
  *   1. XP crew (crewXpForRun) cappée au reste quotidien du membre (§34.1) ;
- *   2. crédit atomique via RPC add_crew_xp (recalcul du niveau depuis CREW_XP_TABLE) ;
+ *   2. crédit atomique via RPC add_crew_xp (barème NORMALISÉ par la taille : crewXpTableFor) ;
  *   3. progression du coffre de la semaine (chestProgressDelta, §39) ;
  *   4. contribution aux offensives ACTIVES du crew dont la zone couvre des
  *      hexes claimés (§38).
@@ -1285,11 +1285,24 @@ async function processCrew(
       });
     if (dailyErr) throw new Error(`crew_xp_daily upsert: ${dailyErr.message}`);
 
-    // Crédit atomique + recalcul du niveau (RPC security definer).
+    // Le barème de niveau est NORMALISÉ par la taille du crew (migration 0107) :
+    // sans ça, un crew de 50 franchirait `CREW_XP_TABLE` dix fois plus vite
+    // qu'un crew de 5 à engagement par tête égal, et le niveau mesurerait la
+    // taille. On compte les membres ACTIFS (`left_at is null` — la table garde
+    // l'historique des adhésions pour le cooldown de changement de crew).
+    const { count: memberCount, error: memberErr } = await supabase
+      .from('crew_members')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('crew_id', crewId)
+      .is('left_at', null);
+    if (memberErr) throw new Error(`crew_members count: ${memberErr.message}`);
+
+    // Crédit atomique + recalcul du niveau (RPC security definer). La table
+    // passée est DÉJÀ normalisée — jamais `CREW_XP_TABLE` brute.
     const { data: lvl, error: rpcErr } = await supabase.rpc('add_crew_xp', {
       p_crew_id: crewId,
       p_xp: xp,
-      p_xp_table: CREW_XP_TABLE,
+      p_xp_table: crewXpTableFor(memberCount ?? 0),
     });
     if (rpcErr) throw new Error(`add_crew_xp rpc: ${rpcErr.message}`);
     result.crewXp = xp;

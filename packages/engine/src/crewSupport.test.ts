@@ -18,7 +18,7 @@
  */
 import {
   CREW_COSMETIC_SLOTS,
-  CREW_SUPPORT_REFERENCE_MEMBERS,
+  CREW_REFERENCE_MEMBERS,
   CREW_SUPPORT_TIER_MAX,
   CREW_SUPPORT_TIERS,
   CREW_SUPPORT_UNITS,
@@ -89,12 +89,12 @@ Deno.test('le gradient récompense l achat pour soi au-dessus du cadeau reçu', 
 
 Deno.test('aucune remise sous la taille de référence', () => {
   const petit = crewSupportRequirement(1, 2);
-  const reference = crewSupportRequirement(1, CREW_SUPPORT_REFERENCE_MEMBERS);
+  const reference = crewSupportRequirement(1, CREW_REFERENCE_MEMBERS);
   assertEquals(petit, reference, 'un crew de 2 ne doit pas atteindre un palier pour presque rien');
 });
 
 Deno.test('un crew deux fois plus grand a besoin de deux fois plus de soutien', () => {
-  const n = CREW_SUPPORT_REFERENCE_MEMBERS;
+  const n = CREW_REFERENCE_MEMBERS;
   for (let tier = 1; tier <= CREW_SUPPORT_TIER_MAX; tier++) {
     assertEquals(crewSupportRequirement(tier, 2 * n), 2 * crewSupportRequirement(tier, n));
   }
@@ -106,8 +106,8 @@ Deno.test('LA PROPRIÉTÉ : à engagement par tête égal, le palier ne dépend 
   // recrutement, et non l'investissement (leçon Telegram).
   const parTete = CREW_SUPPORT_UNITS.self;
   const attendu = crewSupportTier(
-    parTete * CREW_SUPPORT_REFERENCE_MEMBERS,
-    CREW_SUPPORT_REFERENCE_MEMBERS,
+    parTete * CREW_REFERENCE_MEMBERS,
+    CREW_REFERENCE_MEMBERS,
   );
   for (const membres of [10, 15, 25, 50, 200]) {
     assertEquals(
@@ -129,7 +129,7 @@ Deno.test('un palier hors table est inatteignable, jamais « déjà atteint »',
 Deno.test('le palier ne redescend jamais quand le soutien augmente', () => {
   let precedent = 0;
   for (let units = 0; units <= CREW_SUPPORT_TIERS[CREW_SUPPORT_TIER_MAX]! * 2; units += 1) {
-    const tier = crewSupportTier(units, CREW_SUPPORT_REFERENCE_MEMBERS);
+    const tier = crewSupportTier(units, CREW_REFERENCE_MEMBERS);
     assert(tier >= precedent, `redescente à ${units} unités`);
     precedent = tier;
   }
@@ -163,7 +163,7 @@ Deno.test('valeurs aberrantes : jamais de palier offert, jamais de NaN', () => {
 Deno.test('payer sans courir n ouvre RIEN', () => {
   const riche = crewCosmeticState({
     supportUnits: 10_000,
-    memberCount: CREW_SUPPORT_REFERENCE_MEMBERS,
+    memberCount: CREW_REFERENCE_MEMBERS,
     crewLevel: 0,
   });
   assertEquals(riche.supportTier, CREW_SUPPORT_TIER_MAX, 'le palier de soutien est bien au max');
@@ -220,16 +220,41 @@ const MODULES_DE_REGLE = [
   'crew.ts',
 ] as const;
 
+/**
+ * Retire commentaires de bloc et de ligne. Ce qu'on interdit, c'est de DÉPENDRE
+ * du soutien — pas d'en parler : `crew.ts` explique légitimement dans un
+ * docbloc que `crewSupport.ts` partage son facteur de taille. Un garde-fou qui
+ * rougit sur une phrase d'explication finit par se faire désactiver, et c'est
+ * alors la vraie violation qui passe.
+ */
+function sansCommentaires(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 Deno.test('AUCUN module de règle ne connaît le soutien de crew', async () => {
   for (const nom of MODULES_DE_REGLE) {
-    const src = await Deno.readTextFile(`${ICI}/${nom}`);
+    const code = sansCommentaires(await Deno.readTextFile(`${ICI}/${nom}`));
     for (const interdit of ['CREW_SUPPORT_', 'CREW_COSMETIC_', 'crewSupport', 'supportTier']) {
       assert(
-        !src.includes(interdit),
-        `${nom} référence « ${interdit} » : une règle de jeu ne doit JAMAIS dépendre d un palier payé`,
+        !code.includes(interdit),
+        `${nom} référence « ${interdit} » hors commentaire : une règle de jeu ne doit JAMAIS dépendre d un palier payé`,
       );
     }
   }
+});
+
+Deno.test('le garde-fou regarde le CODE, et il regarde vraiment', async () => {
+  // Un garde-fou dont on n'a pas vérifié qu'il attrape quelque chose ne garde
+  // rien. On lui donne les deux formes : une mention en commentaire (tolérée)
+  // et une dépendance réelle (interdite).
+  assert(
+    !sansCommentaires('/* voir crewSupport.ts */\nconst x = 1;').includes('crewSupport'),
+    'une mention en commentaire ne doit pas déclencher le garde-fou',
+  );
+  assert(
+    sansCommentaires("import { crewSupportTier } from './crewSupport.ts';").includes('crewSupport'),
+    'une dépendance réelle DOIT déclencher le garde-fou',
+  );
 });
 
 Deno.test('un emplacement cosmétique ne porte aucune grandeur de jeu', () => {

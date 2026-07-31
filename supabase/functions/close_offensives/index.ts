@@ -42,7 +42,7 @@
  * autres, mais fait tomber `ok` à false et apparaît dans `failures`.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
-import { CREW_XP_TABLE } from '../_shared/game-rules.ts';
+import { crewXpTableFor } from '../_shared/engine/crew.ts';
 import { secretsMatch } from '../_shared/secret.ts';
 import {
   type ContributionRow,
@@ -200,12 +200,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Verdict + récompense : MOTEUR PUR, rien n'est décidé ici ni en SQL.
       const plan = planFinalization(row, contributions, now);
 
+      // Barème de niveau NORMALISÉ par la taille du crew (migration 0107) : la
+      // table brute rétablirait en silence le barème qui récompense le nombre
+      // de membres plutôt que l'engagement. Membres ACTIFS uniquement
+      // (`left_at is null` — la table garde l'historique des adhésions).
+      const { count: memberCount, error: memberErr } = await supabase
+        .from('crew_members')
+        .select('user_id', { count: 'exact', head: true })
+        .eq('crew_id', row.crew_id)
+        .is('left_at', null);
+      if (memberErr) {
+        recordFailure(report, 'finalize', row.id, `crew_members count: ${memberErr.message}`);
+        continue;
+      }
+
       const { data, error } = await supabase.rpc('finalize_offensive', {
         p_offensive_id: plan.offensiveId,
         p_result: plan.result,
         p_crew_xp: plan.crewXp,
         p_chest_delta: plan.chestDelta,
-        p_xp_table: CREW_XP_TABLE,
+        p_xp_table: crewXpTableFor(memberCount ?? 0),
         p_week_start: plan.weekStart,
         p_joined_user_ids: plan.joinedUserIds,
       });

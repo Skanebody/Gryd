@@ -20,6 +20,7 @@ import {
   CREW_FRAME_THRESHOLDS,
   CREW_LEVEL_MAX,
   CREW_PERMISSIONS,
+  CREW_REFERENCE_MEMBERS,
   CREW_XP_TABLE,
   GRIP_RANK_LEVELS,
   PLAYER_LEVEL_MAX,
@@ -41,27 +42,51 @@ import {
 import { C as RANG } from '../../i18n/catalog/rang';
 import type { Entry } from '../../i18n/types';
 
-/** Niveau crew (1..CREW_LEVEL_MAX) atteint pour une XP cumulée (§34.3). */
-export function crewLevelForXp(xp: number): number {
+/**
+ * Multiplicateur de taille — miroir de `engine/crew.ts#crewSizeFactor`.
+ * Jamais sous 1 : aucun crew ne reçoit de remise parce qu'il est petit.
+ */
+function sizeFactor(memberCount: number): number {
+  if (!Number.isFinite(memberCount) || memberCount <= 0) return 1;
+  return Math.max(1, memberCount / CREW_REFERENCE_MEMBERS);
+}
+
+/**
+ * Niveau crew (1..CREW_LEVEL_MAX) atteint pour une XP cumulée dans un crew de
+ * `memberCount` membres actifs (§34.3, normalisé par la migration 0107).
+ *
+ * ⚠️ `memberCount` est REQUIS, et ce n'est pas du zèle : le SERVEUR écrit
+ * `crews.level` avec le barème normalisé (`add_crew_xp` reçoit la table déjà
+ * mise à l'échelle). Un miroir client qui garderait le barème brut afficherait
+ * un niveau que le serveur n'a jamais écrit — l'app mentirait sur l'état du
+ * crew, et l'écart grandirait avec la taille du crew.
+ */
+export function crewLevelForXp(xp: number, memberCount: number): number {
   let level = 1;
   for (let i = 1; i < CREW_XP_TABLE.length; i++) {
-    if (xp >= CREW_XP_TABLE[i]!) level = i + 1;
+    if (xp >= crewXpForLevel(i + 1, memberCount)) level = i + 1;
     else break;
   }
   return Math.min(level, CREW_LEVEL_MAX);
 }
 
 /** XP cumulée pour atteindre un niveau crew (borne du palier), ou dernier palier. */
-export function crewXpForLevel(level: number): number {
+export function crewXpForLevel(level: number, memberCount: number): number {
   const idx = Math.min(Math.max(1, level), CREW_LEVEL_MAX) - 1;
-  return CREW_XP_TABLE[idx]!;
+  // `ceil` comme le moteur : un arrondi ne rend jamais un niveau moins cher.
+  return Math.ceil(CREW_XP_TABLE[idx]! * sizeFactor(memberCount));
 }
 
-/** Progression 0..1 vers le palier de niveau crew suivant. 1 si niveau max. */
-export function crewLevelProgress(xp: number, level: number): number {
+/**
+ * Progression 0..1 vers le palier de niveau crew suivant. 1 si niveau max.
+ * `memberCount` requis pour la même raison que `crewLevelForXp` : une jauge
+ * calculée sur le barème brut se remplirait plus vite que le niveau réel
+ * n'arrive, et promettrait une marche qui ne tombe pas.
+ */
+export function crewLevelProgress(xp: number, level: number, memberCount: number): number {
   if (level >= CREW_LEVEL_MAX) return 1;
-  const floor = crewXpForLevel(level);
-  const next = crewXpForLevel(level + 1);
+  const floor = crewXpForLevel(level, memberCount);
+  const next = crewXpForLevel(level + 1, memberCount);
   if (next <= floor) return 1;
   return Math.min(1, Math.max(0, (xp - floor) / (next - floor)));
 }

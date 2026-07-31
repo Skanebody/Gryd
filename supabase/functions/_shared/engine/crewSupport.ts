@@ -29,24 +29,25 @@
  * pouvoir dire « il vous manque du terrain » plutôt que « il vous manque de
  * l'argent » quand c'est le terrain qui manque.
  *
- * ─── DETTE CONNUE, DÉCLARÉE ICI PARCE QU'ELLE SE PAIE ICI (A-48 §5) ─────────
- * L'axe COURSE n'est PAS normalisé par la taille du crew :
- * `CREW_XP_DAILY_CAP_PER_MEMBER` plafonne PAR MEMBRE, donc un crew de 50 franchit
- * `CREW_XP_TABLE` dix fois plus vite qu'un crew de 5 à engagement par tête égal.
- * L'axe SOUTIEN, lui, EST normalisé (voir `crewSupportRequirement`). Tant que la
- * course ne l'est pas — la correction vit dans la RPC serveur `add_crew_xp`,
- * donc dans une migration — brancher les deux axes en production
- * COMPOUNDERAIT la taille et l'argent. Le moteur est écrit ; le branchement
- * attend. Ne pas retirer cet avertissement avant que la migration existe.
+ * ─── LES DEUX AXES SONT NORMALISÉS (dette payée le 01/08/2026, A-48 §5) ─────
+ * Ce docbloc a porté un avertissement pendant la durée d'un commit : l'axe
+ * COURSE n'était pas normalisé par la taille (`CREW_XP_DAILY_CAP_PER_MEMBER`
+ * plafonne PAR MEMBRE, donc un crew de 50 franchissait `CREW_XP_TABLE` dix fois
+ * plus vite qu'un crew de 5 à engagement par tête égal), et brancher les deux
+ * axes aurait COMPOUNDÉ la taille et l'argent.
+ *
+ * La migration `0107` et `crewLevelForXp(xp, memberCount)` ont corrigé ça : les
+ * DEUX axes partagent désormais `crewSizeFactor` et la même
+ * `CREW_REFERENCE_MEMBERS`. Le branchement est sûr.
  */
 import {
   CREW_COSMETIC_SLOTS,
-  CREW_SUPPORT_REFERENCE_MEMBERS,
   CREW_SUPPORT_TIER_MAX,
   CREW_SUPPORT_TIERS,
   CREW_SUPPORT_UNITS,
   type CrewSupportOrigin,
 } from '../game-rules.ts';
+import { crewSizeFactor } from './crew.ts';
 
 /**
  * Unités de soutien générées par UN achat, selon son origine.
@@ -64,12 +65,6 @@ export function supportUnitsFor(origin: CrewSupportOrigin | string): number {
   return typeof units === 'number' && Number.isFinite(units) && units > 0 ? units : 0;
 }
 
-/** Multiplicateur de normalisation : jamais sous 1 (aucune remise aux petits crews). */
-function sizeFactor(memberCount: number): number {
-  if (!Number.isFinite(memberCount) || memberCount <= 0) return 1;
-  return Math.max(1, memberCount / CREW_SUPPORT_REFERENCE_MEMBERS);
-}
-
 /**
  * Unités cumulées requises pour atteindre `tier` dans un crew de `memberCount`.
  *
@@ -84,7 +79,9 @@ export function crewSupportRequirement(tier: number, memberCount: number): numbe
   if (!Number.isInteger(tier) || tier < 0 || tier > CREW_SUPPORT_TIER_MAX) {
     return Number.POSITIVE_INFINITY;
   }
-  return CREW_SUPPORT_TIERS[tier]! * sizeFactor(memberCount);
+  // `ceil`, comme `crewLevelRequirement` : un arrondi ne rend jamais un palier
+  // MOINS cher, et les deux axes s'arrondissent pareil.
+  return Math.ceil(CREW_SUPPORT_TIERS[tier]! * crewSizeFactor(memberCount));
 }
 
 /**

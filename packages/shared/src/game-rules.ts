@@ -1421,7 +1421,7 @@ export const CREW_SUPPORT_UNITS: Readonly<Record<CrewSupportOrigin, number>> = {
 
 /**
  * PALIERS DE SOUTIEN — unités cumulées requises, AVANT normalisation par la
- * taille du crew (voir `CREW_SUPPORT_REFERENCE_MEMBERS`). Index 0 = palier 0,
+ * taille du crew (voir `CREW_REFERENCE_MEMBERS`). Index 0 = palier 0,
  * que tout crew possède sans rien avoir payé.
  *
  * Le premier palier vaut exactement `CREW_SUPPORT_UNITS.self` : UN membre qui
@@ -1434,12 +1434,20 @@ export const CREW_SUPPORT_TIERS: readonly number[] = [0, 4, 12, 28, 60];
 export const CREW_SUPPORT_TIER_MAX = CREW_SUPPORT_TIERS.length - 1;
 
 /**
- * TAILLE DE RÉFÉRENCE POUR LA NORMALISATION (A-48 §5).
+ * TAILLE DE RÉFÉRENCE D'UN CREW — la maille des DEUX normalisations (A-48 §5).
  *
  * Leçon Telegram : le nombre de boosts requis pour monter croît avec la taille
- * du canal. Sans ça, le palier récompenserait le NOMBRE DE MEMBRES et pas
+ * du canal. Sans ça, un palier récompenserait le NOMBRE DE MEMBRES et pas
  * l'engagement — un crew de 50 le franchirait dix fois plus vite qu'un crew de
  * 5, à investissement par tête identique.
+ *
+ * ─── UNE SEULE CONSTANTE POUR LES DEUX AXES, ET C'EST VOULU ─────────────────
+ * Elle gouverne le SOUTIEN (`crewSupportRequirement`) **et** la COURSE
+ * (`crewLevelRequirement`, depuis le 01/08/2026). « La taille de référence d'un
+ * crew » est UNE notion : en tenir deux exemplaires garantirait qu'un jour l'un
+ * bouge sans l'autre, et que les deux axes cessent de se comparer. Elle
+ * s'appelait `CREW_REFERENCE_MEMBERS` tant qu'elle ne servait qu'au
+ * soutien.
  *
  * Un crew au-dessous de cette taille ne bénéficie d'AUCUNE remise (le
  * multiplicateur est planché à 1) : sinon un crew de deux personnes atteindrait
@@ -1447,7 +1455,7 @@ export const CREW_SUPPORT_TIER_MAX = CREW_SUPPORT_TIERS.length - 1;
  *
  * TUNABLE.
  */
-export const CREW_SUPPORT_REFERENCE_MEMBERS = 10;
+export const CREW_REFERENCE_MEMBERS = 10;
 
 /**
  * EMPLACEMENTS COSMÉTIQUES DE CREW — les DEUX portes, et il faut les deux.

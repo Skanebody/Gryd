@@ -153,15 +153,36 @@ l'investissement.
 un palier plus vite qu'un crew de 5 par le seul effet du nombre. Le temps pour monter doit
 être **indépendant de la taille du crew** ; ce qui varie, c'est l'engagement par membre.
 
-> ⚠️ **DETTE OUVERTE AU 01/08/2026, déclarée plutôt que masquée.** L'axe COURSE n'est PAS
-> encore normalisé : `CREW_XP_DAILY_CAP_PER_MEMBER` plafonne par membre, donc un crew de 50
-> produit dix fois l'XP d'un crew de 5 et franchit `CREW_XP_TABLE` dix fois plus vite. Le
-> niveau de crew mesure donc aujourd'hui **la taille autant que l'engagement**. La
-> correction exige de toucher le calcul du niveau, qui vit dans la RPC serveur
-> `add_crew_xp` (appelée par `ingest_run` et `close_offensives` avec `p_xp_table`) : c'est
-> une migration, donc un chantier distinct. Tant qu'elle n'est pas faite, **ne pas brancher
-> le soutien sur le niveau de course** — on compounderait taille et argent, exactement ce
-> que ce paragraphe interdit.
+**LES DEUX AXES SONT NORMALISÉS DEPUIS LE 01/08/2026** (migration `0107`). Ils partagent
+`crewSizeFactor` et la même `CREW_REFERENCE_MEMBERS` — une seule notion, une seule
+implémentation, parce que deux exemplaires finiraient par diverger et les deux axes
+cesseraient de se comparer.
+
+Propriété obtenue, et c'est elle qu'il faut retenir : **à engagement par tête égal, le temps
+pour monter est le même à 10 comme à 500 membres.**
+
+> ⚠️ **CE PARAGRAPHE A PORTÉ UNE DETTE PENDANT UN COMMIT.** L'axe COURSE ne l'était pas :
+> `CREW_XP_DAILY_CAP_PER_MEMBER` plafonne par membre, donc un crew de 50 produisait dix fois
+> l'XP d'un crew de 5 et franchissait `CREW_XP_TABLE` dix fois plus vite — le niveau mesurait
+> la taille autant que l'engagement. C'était latent tant que le niveau n'ouvrait que des
+> perks, et grave dès qu'un palier cosmétique s'y accroche. La dette est écrite ici plutôt
+> qu'effacée : elle dit pourquoi la normalisation existe.
+
+**Le corollaire qui n'était pas évident** : le barème dépendant maintenant du nombre de
+membres, un crew qui RECRUTE verrait son multiplicateur monter et son niveau **baisser**.
+Accueillir un ami coûterait un niveau, et plus personne ne recruterait — dans un jeu qui
+repose entièrement sur le recrutement. `add_crew_xp` pose donc un **plancher** :
+`level = greatest(ancien, nouveau)`. Un niveau acquis ne se reprend jamais ; ce qui ralentit
+après une croissance, c'est la marche **suivante**, et c'est exactement ce qu'on veut dire —
+à 50, il faut l'engagement de 50.
+
+**Où vit quoi, et pourquoi** : la normalisation est dans le moteur pur (`crewXpTableFor`),
+pas en SQL — `add_crew_xp` recevait déjà la table pour ne pas dupliquer `CREW_XP_TABLE`
+(0010), et sa signature est partagée avec `finalize_offensive` (0064), que changer aurait
+obligé à recréer avec ses droits et ses appelants. Le prix de ce choix est un garde-fou de
+source (`crew_normalization_guard_test.ts`) : passer la table BRUTE rétablirait le défaut en
+silence, et aucun test de niveau ne rougirait (ils tournent tous à la taille de référence,
+où le multiplicateur vaut 1).
 
 ---
 
@@ -206,7 +227,8 @@ zones réelles. On voit ce qu'on achète, sur soi, sans jamais donner sa carte.
 | La règle (ce document) | **écrite** |
 | Moteur du soutien (pur, testé) | **écrit** — `packages/engine/src/crewSupport.ts` |
 | Constantes | **posées** — `packages/shared/src/game-rules.ts` |
-| Normalisation de l'axe course | **NON FAIT** — dette §5, exige une migration |
+| Normalisation de l'axe course | **FAIT** — migration `0107` + `crewLevelForXp(xp, memberCount)` |
+| Plancher « un niveau acquis ne se reprend jamais » | **FAIT** — `add_crew_xp` (0107), prouvé sur PGlite |
 | Surface d'achat | **NON FAITE** — bloquée par O3 (aucune clé RevenueCat ; le SDK est installé) |
 | Écran de crew montrant le palier | **NON FAIT** |
 

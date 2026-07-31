@@ -15,6 +15,7 @@ import {
   CREW_ROLES,
   CREW_XP_DAILY_CAP_PER_MEMBER,
   CREW_XP_SOURCES,
+  CREW_REFERENCE_MEMBERS,
   CREW_XP_TABLE,
   GRIP_RANK_LEVELS,
   PLAYER_LEVEL_MAX,
@@ -58,26 +59,31 @@ import {
 } from '../_shared/game-rules.ts';
 
 // ─── §34.3 crewLevelForXp : bornes exactes de la table ───────────────────────
+// Depuis la migration 0107, le barème est NORMALISÉ par la taille du crew : ces
+// tests-ci fixent le cas de RÉFÉRENCE (`CREW_REFERENCE_MEMBERS`), où le
+// multiplicateur vaut exactement 1 et où la table brute fait donc foi. La
+// normalisation elle-même est éprouvée dans `packages/engine/crewNormalization.test.ts`.
+const REF = CREW_REFERENCE_MEMBERS;
 
 Deno.test('crewLevelForXp : niveau 1 à 0 XP et sous le premier palier', () => {
-  assertEquals(crewLevelForXp(0), 1);
-  assertEquals(crewLevelForXp(-100), 1);
-  assertEquals(crewLevelForXp(999), 1);
+  assertEquals(crewLevelForXp(0, REF), 1);
+  assertEquals(crewLevelForXp(-100, REF), 1);
+  assertEquals(crewLevelForXp(999, REF), 1);
 });
 
 Deno.test('crewLevelForXp : chaque borne de table franchie donne le niveau exact', () => {
   for (let i = 0; i < CREW_XP_TABLE.length; i++) {
-    assertEquals(crewLevelForXp(CREW_XP_TABLE[i]!), i + 1, `borne L${i + 1}`);
+    assertEquals(crewLevelForXp(CREW_XP_TABLE[i]!, REF), i + 1, `borne L${i + 1}`);
     // Juste sous la borne suivante → toujours niveau i+1.
     if (i + 1 < CREW_XP_TABLE.length) {
-      assertEquals(crewLevelForXp(CREW_XP_TABLE[i + 1]! - 1), i + 1);
+      assertEquals(crewLevelForXp(CREW_XP_TABLE[i + 1]! - 1, REF), i + 1);
     }
   }
 });
 
 Deno.test('crewLevelForXp : plafonne à CREW_LEVEL_MAX', () => {
-  assertEquals(crewLevelForXp(CREW_XP_TABLE[CREW_LEVEL_MAX - 1]!), CREW_LEVEL_MAX);
-  assertEquals(crewLevelForXp(10_000_000), CREW_LEVEL_MAX);
+  assertEquals(crewLevelForXp(CREW_XP_TABLE[CREW_LEVEL_MAX - 1]!, REF), CREW_LEVEL_MAX);
+  assertEquals(crewLevelForXp(10_000_000, REF), CREW_LEVEL_MAX);
 });
 
 // ─── §34.1 crewXpForRun + caps ────────────────────────────────────────────────

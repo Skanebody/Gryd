@@ -30,6 +30,7 @@ import {
   CREW_XP_DAILY_CAP_PER_MEMBER,
   CREW_XP_ROUTE_DUP_DIVISOR,
   CREW_XP_SOURCES,
+  CREW_REFERENCE_MEMBERS,
   CREW_XP_TABLE,
   CO_CAPTAIN_KICKABLE_ROLES,
   CO_CAPTAIN_PROMOTE_MAX_ROLE,
@@ -54,14 +55,91 @@ import {
 // ─── §34.3 Niveau crew ↔ XP ───────────────────────────────────────────────────
 
 /**
- * Niveau crew (1..CREW_LEVEL_MAX) atteint pour `xp` d'XP cumulée. PURE.
- * Le niveau L requiert CREW_XP_TABLE[L-1] d'XP cumulée ; on prend le plus haut
- * palier franchi. XP négative → niveau 1 (plancher). Table monotone croissante.
+ * MULTIPLICATEUR DE TAILLE — la maille commune aux DEUX normalisations de crew
+ * (course ici, soutien dans `crewSupport.ts`). PURE.
+ *
+ * Jamais sous 1 : un crew au-dessous de `CREW_REFERENCE_MEMBERS` ne reçoit
+ * AUCUNE remise, sinon un crew de deux atteindrait le sommet pour presque rien.
+ * Une taille illisible (0, négative, NaN) vaut 1 — dans le doute, on exige le
+ * barème plein plutôt que d'offrir un niveau par accident.
+ *
+ * Une seule implémentation pour les deux axes : en tenir deux garantirait qu'un
+ * jour l'une bouge sans l'autre et que les deux cessent de se comparer.
  */
-export function crewLevelForXp(xp: number): number {
+export function crewSizeFactor(memberCount: number): number {
+  if (!Number.isFinite(memberCount) || memberCount <= 0) return 1;
+  return Math.max(1, memberCount / CREW_REFERENCE_MEMBERS);
+}
+
+/**
+ * XP cumulée requise pour atteindre `level` dans un crew de `memberCount`. PURE.
+ *
+ * Hors table → `Infinity` (inatteignable, jamais « déjà atteint »).
+ */
+export function crewLevelRequirement(level: number, memberCount: number): number {
+  if (!Number.isInteger(level) || level < 1 || level > CREW_LEVEL_MAX) {
+    return Number.POSITIVE_INFINITY;
+  }
+  // `ceil` : un arrondi ne doit jamais rendre un niveau MOINS cher. Il rend
+  // aussi le barème entier, donc identique à celui que la RPC `add_crew_xp`
+  // compare en SQL (`crewXpTableFor`) — deux arrondis différents de part et
+  // d'autre du réseau feraient diverger le niveau affiché et le niveau écrit.
+  return Math.ceil(CREW_XP_TABLE[level - 1]! * crewSizeFactor(memberCount));
+}
+
+/**
+ * `CREW_XP_TABLE` NORMALISÉE pour un crew de `memberCount` membres actifs —
+ * exactement ce que la RPC `add_crew_xp` doit recevoir dans `p_xp_table`. PURE.
+ *
+ * ─── POURQUOI LA NORMALISATION VIT ICI ET PAS EN SQL ────────────────────────
+ * `add_crew_xp` reçoit déjà la table pour ne pas dupliquer `CREW_XP_TABLE` en
+ * SQL (migration 0010). On étend la même idée plutôt que de changer sa
+ * signature : la RPC est aussi appelée par `finalize_offensive` (0064), et
+ * propager un paramètre jusque-là aurait obligé à recréer cette fonction, ses
+ * droits, et ses appelants — beaucoup de surface pour une règle qui a sa place
+ * dans le moteur pur, où elle est testable.
+ *
+ * ⚠️ TOUT APPELANT DE `add_crew_xp` DOIT PASSER CE RÉSULTAT, jamais
+ * `CREW_XP_TABLE` brute : la table brute rétablirait le barème non normalisé
+ * en silence. Un garde-fou de source le vérifie (`crewNormalization.test.ts`).
+ */
+export function crewXpTableFor(memberCount: number): number[] {
+  const factor = crewSizeFactor(memberCount);
+  return CREW_XP_TABLE.map((xp) => Math.ceil(xp * factor));
+}
+
+/**
+ * Niveau crew (1..CREW_LEVEL_MAX) atteint pour `xp` d'XP cumulée dans un crew de
+ * `memberCount` membres ACTIFS. PURE.
+ *
+ * ─── POURQUOI `memberCount` EST DEVENU OBLIGATOIRE (01/08/2026, A-48 §5) ────
+ * Cette fonction ne lisait que l'XP. Or `CREW_XP_DAILY_CAP_PER_MEMBER` plafonne
+ * PAR MEMBRE : un crew de 50 produit dix fois l'XP d'un crew de 5 à engagement
+ * par tête identique, et franchissait donc `CREW_XP_TABLE` dix fois plus vite.
+ * Le niveau mesurait LA TAILLE autant que l'engagement — et le jour où un
+ * palier cosmétique s'y accroche (le soutien, A-48), taille et argent se
+ * seraient composés.
+ *
+ * Le barème est donc normalisé, exactement comme le nombre de boosts requis
+ * croît avec la taille d'un canal Telegram. Propriété obtenue : **à engagement
+ * par tête égal, le temps pour monter d'un niveau est le MÊME quelle que soit
+ * la taille du crew.**
+ *
+ * Le paramètre est REQUIS, jamais optionnel avec un défaut : un défaut
+ * silencieux qui change l'équité est précisément le piège que ce dépôt a déjà
+ * payé ailleurs. L'appelant doit dire combien ils sont.
+ *
+ * ⚠️ CETTE FONCTION NE MÉMORISE RIEN. Elle rend le niveau MÉRITÉ par l'état
+ * courant ; si un crew grandit, son multiplicateur monte et cette valeur peut
+ * DESCENDRE. C'est l'écrivain — la RPC `add_crew_xp` (migration 0107) — qui
+ * garantit qu'un niveau acquis n'est jamais repris : `level = greatest(ancien,
+ * nouveau)`. Un crew qui perdrait un niveau parce qu'un ami l'a rejoint serait
+ * un piège social, et personne ne recruterait plus.
+ */
+export function crewLevelForXp(xp: number, memberCount: number): number {
   let level = 1;
   for (let i = 1; i < CREW_XP_TABLE.length; i++) {
-    if (xp >= CREW_XP_TABLE[i]!) level = i + 1;
+    if (xp >= crewLevelRequirement(i + 1, memberCount)) level = i + 1;
     else break;
   }
   return Math.min(level, CREW_LEVEL_MAX);
