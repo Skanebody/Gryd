@@ -766,6 +766,39 @@ export const PRIVACY_ZONE_RADIUS_MAX_M = 500;
 export const PRIVACY_ZONE_DEFAULT_RADIUS_M = 300;
 export const PRIVACY_ZONE_H3_RESOLUTION = 8; // centre stocké grossier, jamais en lat/lng exact
 export const RAW_POLYLINE_RETENTION_DAYS = 90;
+
+/**
+ * NOMBRE MINIMAL DE PROPRIÉTAIRES DISTINCTS dans une commune pour qu'un
+ * territoire y devienne PUBLIC (§12, k-anonymat).
+ *
+ * ═══ LA LEÇON STRAVA, ET POURQUOI GRYD EST PLUS EXPOSÉ ══════════════════════
+ * En 2018, la carte de chaleur mondiale de Strava a révélé des bases militaires :
+ * les soldats déployés y couraient des boucles, et le TRACÉ AGRÉGÉ dessinait le
+ * périmètre. La donnée était pourtant « anonymisée ». La leçon est que
+ * L'AGRÉGATION N'EST PAS UNE ANONYMISATION QUAND LA DENSITÉ EST FAIBLE : à un
+ * seul coureur, un parcours EST une identité et un lieu.
+ *
+ * GRYD est structurellement PLUS exposé qu'une carte de chaleur : un territoire
+ * n'est pas un halo anonyme, il porte un PROPRIÉTAIRE NOMMÉ. Publier la zone
+ * d'un unique joueur dans une région déserte revient à écrire « cette personne
+ * court ici, tous les jours, seule ».
+ *
+ * ═══ LA RÈGLE ══════════════════════════════════════════════════════════════
+ * Un territoire n'est publié que si sa commune compte AU MOINS ce nombre de
+ * propriétaires DISTINCTS. En dessous, la zone existe, elle est capturée, elle
+ * compte pour son propriétaire — elle n'est simplement VISIBLE QUE DE LUI.
+ * Une commune inconnue du référentiel (hors Europe, zone non cartographiée)
+ * n'atteint jamais le seuil : dans le doute, on ne publie pas.
+ *
+ * 3 et pas 2 : à deux, chacun sait que l'autre zone est celle de l'autre.
+ * C'est le plus petit nombre qui rend une déduction non triviale.
+ *
+ * ⚠️ CE SEUIL NE BLOQUE AUCUNE CAPTURE. Le monde entier reste jouable — un
+ * Français en vacances au Cambodge prend son territoire, il le voit, il le
+ * garde. Seule sa PUBLICATION attend qu'il y ait du monde autour.
+ */
+export const TERRITORY_PUBLISH_MIN_DISTINCT_OWNERS = 3;
+
 export const MIN_AGE_YEARS = 16;
 
 // ─── §12.1 Masquage des rendus PUBLICS (spec produit UI/UX complète, D-19) ───
