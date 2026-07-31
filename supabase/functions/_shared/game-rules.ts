@@ -497,6 +497,42 @@ export const SEASON_DURATION_WEEKS = 8;
 export const INTERSEASON_DAYS = 7;
 
 /**
+ * UNE SAISON SE CLÔTURE-T-ELLE TOUTE SEULE ? — NON, DEPUIS LE 28/07/2026.
+ *
+ * ─── LE FAIT, PAS UNE INTENTION ─────────────────────────────────────────────
+ * La migration `0106_seasons_out_of_mvp.sql` a DÉPLANIFIÉ le job
+ * `gryd_season_close` (décision fondateur : « on se complique la vie avec les
+ * saisons, il faut les déployer plus tard et faciliter au max le jeu pour les
+ * utilisateurs »). Plus aucun horaire ne fait passer une saison en `closed` :
+ * `SEASON_DURATION_WEEKS`, `INTERSEASON_DAYS`, `SEASON_FREEZE_HOURS` et
+ * `SEASON_RESULTS_DELAY_DAYS` décrivent donc une horloge que PERSONNE NE
+ * REMONTE. Ils ne sont pas faux — ils sont en attente.
+ *
+ * ─── POURQUOI CETTE CONSTANTE EXISTE PLUTÔT QU'UN COMMENTAIRE ───────────────
+ * Parce qu'un fait aussi structurant doit être GREPPABLE et CONSOMMABLE. Trois
+ * choses en dépendent, et elles doivent bouger ENSEMBLE ou pas du tout :
+ *
+ *   1. `SEASON_RESET_KEEPS` — tant que rien ne clôture, rien ne doit pouvoir
+ *      détruire (`territory`/`shields` à `true`) ;
+ *   2. la SURFACE Saison de l'app — `apps/mobile/src/lib/flags.ts#season` en
+ *      DÉRIVE, il n'est plus un booléen indépendant : une porte vers un
+ *      décompte « Se termine dans {n} j » qui ne se termine jamais est un
+ *      mensonge qui grandit tout seul ;
+ *   3. la COPIE des écrans de saison — aucune ligne ne peut annoncer une
+ *      remise à zéro de la carte que `SEASON_RESET_KEEPS` refuse.
+ *
+ * Les avoir tenus par trois booléens indépendants, c'était garantir qu'un jour
+ * l'un rouvre sans les autres. Ici, replanifier le job et repasser cette
+ * constante à `true` rouvre la surface du même geste.
+ *
+ * ⚠️ CE N'EST PAS « LES SAISONS SONT SUPPRIMÉES ». Ni les tables, ni la
+ * fonction edge, ni le moteur, ni les écrans n'ont été retirés : ils sont
+ * écrits, testés, et resserviront. Quand elles reviendront, elles remettront à
+ * zéro LE TABLEAU (points, rangs), jamais LA CARTE.
+ */
+export const SEASON_CLOSE_SCHEDULED = false;
+
+/**
  * CLÔTURE DE SAISON — les trois bornes du règlement §1, RAPATRIÉES ICI le
  * 27/07/2026 (E59 « reset de rang clair », E61 « règles de remise à zéro »).
  *
@@ -571,22 +607,34 @@ export const SEASON_RANK_TIERS: readonly SeasonRankTier[] = [
  * lisant ce que `season_close` FAIT (index.ts, phases 1 et 2) :
  *   · `seasonPoints` / `seasonRank` — remis à zéro : `season_scores` et
  *     `rank_cache` sont clés par `season_id`, la saison suivante repart vide.
- *   · `territory` — EFFACÉ. `resetSeason()` supprime TOUTES les lignes
- *     `hex_claims` à `reset_at` (« nouvelle saison = nouvelle histoire de la
- *     carte » : le bonus pionnier repart de zéro, contrairement au decay qui
- *     garde la mémoire `everOwned` À L'INTÉRIEUR d'une saison).
- *   · `shields` — effacés eux aussi (`shields` vidée au même moment) ;
- *     l'historique d'achat reste dans `purchases`.
+ *     C'est LE TABLEAU, et c'est la seule chose qu'une saison remet à zéro.
+ *   · `territory` — CONSERVÉ DEPUIS LE 28/07/2026. `resetSeason()` supprimait
+ *     ici TOUTES les lignes `hex_claims` (un `delete` global, non borné à une
+ *     ville) ; il ne supprime plus rien et se contente de passer la saison en
+ *     `reset`. Le DECAY (14 j) fait déjà, continûment et justement, le travail
+ *     qu'on attendait d'une remise à zéro : on perd ce qu'on cesse de défendre,
+ *     jamais ce qu'on défend.
+ *   · `shields` — conservés eux aussi, au même moment et pour la même raison.
  *   · `badges` — conservés : `user_badges` n'a aucune colonne de saison et
  *     aucun job ne les efface.
  *   · `xp` / `level` / `foulees` — conservés : `ACTIVITY_SCOPE` les déclare
  *     'global' et AMENDEMENT-02 §6 les dit permanents, jamais achetés.
  *
- * ⚠ E59 ÉNONCE « territoires et badges acquis ne disparaissent pas ». LE CODE
- * DIT LE CONTRAIRE POUR LE TERRITOIRE, et c'est le code qui gagne : la copie de
- * `saison.ts` (`resetLigne1`) a déjà tranché ainsi en toutes lettres (« la carte
- * repart à zéro »). Aucun écran de cette vague ne doit reprendre la formulation
- * de la spéc sans la corriger — ce serait promettre au-delà du code.
+ * ─── CE QUE CE DOCBLOC A AFFIRMÉ JUSQU'AU 01/08/2026, ET QUI ÉTAIT FAUX ──────
+ * Il énonçait l'inverse en capitales — « `territory` — EFFACÉ », « E59 énonce
+ * […] LE CODE DIT LE CONTRAIRE POUR LE TERRITOIRE, et c'est le code qui gagne ».
+ * C'était exact jusqu'au 28/07 ; la valeur est passée à `true` ce jour-là et
+ * l'avertissement lui a survécu de quatre jours, en désignant comme « le code »
+ * ce que le code ne faisait plus. Un avertissement qui survit à sa cause use la
+ * confiance dans les avertissements vrais — c'est la même faute qu'une donnée
+ * fabriquée, et ce dépôt l'a déjà payée. LA RÈGLE DE LECTURE NE CHANGE PAS,
+ * seulement son résultat : c'est TOUJOURS le code qui gagne sur la planche, et
+ * aujourd'hui le code garde la carte.
+ *
+ * ⚠ RIEN DE TOUT CECI NE S'EXÉCUTE AUJOURD'HUI : `SEASON_CLOSE_SCHEDULED` vaut
+ * `false`, aucune saison ne se clôture toute seule. Cette table est la
+ * CEINTURE (ce qui serait détruit si la fonction était appelée à la main) ; la
+ * déplanification du job en est les bretelles.
  */
 export const SEASON_RESET_KEEPS = {
   seasonPoints: false,

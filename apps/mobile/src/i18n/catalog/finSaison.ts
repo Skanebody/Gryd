@@ -7,12 +7,15 @@
  * il refuse deux affirmations que le code ne tient pas :
  *
  *  1. LE TERRITOIRE « ACQUIS ». La spéc E59 écrit « territoires et badges acquis
- *     ne disparaissent pas ». LE CODE DIT LE CONTRAIRE pour le territoire :
- *     `season_close/index.ts#resetSeason` SUPPRIME toutes les lignes
- *     `hex_claims` (et les boucliers) à `reset_at` — c'est aussi ce que
- *     `SEASON_RESET_KEEPS.territory = false` inscrit dans game-rules, et ce que
- *     `saison.ts#resetLigne1` disait déjà. `reglesCarteRepartAZero` reprend donc
- *     le CODE, pas la planche. Répéter la spéc ici serait promettre au-delà.
+ *     ne disparaissent pas ». LE CODE LE CONFIRME DEPUIS LE 28/07/2026 :
+ *     `season_close/index.ts#resetSeason` ne supprime plus une seule ligne
+ *     `hex_claims` ni un seul bouclier, et `SEASON_RESET_KEEPS.territory` /
+ *     `.shields` valent `true` dans game-rules. `reglesCarteConservee` reprend
+ *     donc le CODE — qui se trouve enfin dire la même chose que la planche.
+ *     Ce paragraphe affirmait l'inverse en capitales jusqu'au 01/08/2026 (« LE
+ *     CODE DIT LE CONTRAIRE ») : il avait raison quatre jours de trop. La règle
+ *     de lecture est inchangée — le code gagne toujours — seul son résultat a
+ *     changé. Ne jamais recopier la planche sans relire `resetSeason`.
  *
  *  2. LA RÉCOMPENSE « RÉCUPÉRÉE ». Les médailles de fin de saison sont décernées
  *     PAR LE SERVEUR (`season_close` → `founderBadges`, paliers
@@ -186,15 +189,23 @@ export const C = defineCatalog({
     pt: 'Emblemas, XP, nível e Passadas ficam: nunca se perdem.',
   },
   /**
-   * LA CARTE EST EFFACÉE — dit d'après le code (`resetSeason`), pas d'après la
-   * planche. Les boucliers partent avec elle. On ne l'adoucit pas.
+   * LA CARTE EST CONSERVÉE — dit d'après le code (`resetSeason`), pas d'après la
+   * planche. Les boucliers restent avec elle.
+   *
+   * Cette entrée s'appelait `reglesCarteRepartAZero` et affirmait le contraire
+   * (« les zones capturées sont libérées, les boucliers aussi »). C'était exact
+   * jusqu'au 28/07/2026 ; `SEASON_RESET_KEEPS.territory`/`.shields` valent `true`
+   * depuis, et `resetSeason` ne supprime plus une seule ligne. LE NOM DE LA CLÉ
+   * A ÉTÉ CHANGÉ AVEC LA PHRASE : une clé qui dit « RepartAZero » sur un texte
+   * qui dit l'inverse se relit de travers au premier coup d'œil, et c'est
+   * exactement comme ça qu'on réintroduit l'ancienne promesse par distraction.
    */
-  reglesCarteRepartAZero: {
-    fr: 'La carte repart à zéro : les zones capturées sont libérées, les boucliers aussi.',
-    en: 'The map starts over: captured zones are released, shields too.',
-    es: 'El mapa vuelve a cero: las zonas capturadas se liberan, y los escudos también.',
-    de: 'Die Karte startet neu: eroberte Zonen werden frei, Schilde ebenso.',
-    pt: 'O mapa recomeça: as zonas capturadas são liberadas, e os escudos também.',
+  reglesCarteConservee: {
+    fr: 'La carte, elle, ne bouge pas : tes zones capturées et tes boucliers restent.',
+    en: 'The map itself does not move: your captured zones and shields stay.',
+    es: 'El mapa no se mueve: tus zonas capturadas y tus escudos se quedan.',
+    de: 'Die Karte selbst bleibt: eroberte Zonen und Schilde behältst du.',
+    pt: 'O mapa não muda: suas zonas capturadas e seus escudos ficam.',
   },
   /** Le gel de 24 h et le J+1 des résultats viennent de game-rules, jamais du texte. */
   reglesGel: {

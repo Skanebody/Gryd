@@ -313,14 +313,19 @@ export const C = defineCatalog({
   },
 
   // ═══════════ E12-5 · Règles du reset — CONFORMES au moteur, pas à la planche ═
-  // La planche promet « vos territoires restent acquis » : c'est FAUX
-  // (season_close phase 2 = wipe des hex_claims + boucliers). On écrit le vrai.
+  // Ces lignes ont dit l'INVERSE jusqu'au 01/08/2026 (« la carte repart à zéro,
+  // les zones capturées sont libérées »), et c'était juste tant que
+  // `resetSeason` supprimait les `hex_claims`. Il ne les supprime plus depuis le
+  // 28/07 (`SEASON_RESET_KEEPS.territory = true`) : la phrase promettait donc au
+  // joueur la PERTE de ce que le serveur lui garde. Elle disait le vrai contre
+  // la planche ; elle disait le faux contre le code — et c'est toujours le code
+  // qui gagne. Une saison remet à zéro LE TABLEAU, jamais LA CARTE.
   resetLigne1: {
-    fr: 'Au reset : la carte repart à zéro (les zones capturées sont libérées). Ton compte, tes badges et tes récompenses restent acquis ; le rang repart de zéro.',
-    en: 'At reset: the map starts over (captured zones are released). Your account, badges and rewards are kept; the rank restarts from zero.',
-    es: 'En el reinicio: el mapa vuelve a cero (las zonas capturadas se liberan). Tu cuenta, tus insignias y tus recompensas se conservan; el rango vuelve a empezar.',
-    de: 'Beim Reset: Die Karte startet neu (eroberte Zonen werden frei). Konto, Abzeichen und Belohnungen bleiben; der Rang beginnt bei null.',
-    pt: 'No reset: o mapa recomeça (as zonas capturadas são libertadas). A conta, os emblemas e as recompensas ficam; o posto recomeça do zero.',
+    fr: 'Au reset : seuls les points et le rang de saison repartent à zéro. Ta carte reste — zones capturées, boucliers, badges et compte sont conservés.',
+    en: 'At reset: only season points and rank go back to zero. Your map stays — captured zones, shields, badges and account are kept.',
+    es: 'En el reinicio: solo los puntos y el rango de temporada vuelven a cero. Tu mapa se queda: zonas capturadas, escudos, insignias y cuenta se conservan.',
+    de: 'Beim Reset: Nur Saisonpunkte und -rang starten bei null. Deine Karte bleibt — eroberte Zonen, Schilde, Abzeichen und Konto bleiben erhalten.',
+    pt: 'No reset: só os pontos e a posição da temporada voltam a zero. Seu mapa fica — zonas capturadas, escudos, emblemas e conta são mantidos.',
   },
   resetLigne2: {
     fr: 'Les récompenses sont cosmétiques — jamais un avantage de capture.',

@@ -207,7 +207,7 @@ function SeasonRecapScreen() {
       <Section icon="info" label={t(C.sectionRemiseAZero)} />
       <Text style={styles.paragraph}>{t(C.reglesRepartAZero)}</Text>
       <Text style={styles.paragraph}>{t(C.reglesConserve)}</Text>
-      <Text style={styles.paragraph}>{t(C.reglesCarteRepartAZero)}</Text>
+      <Text style={styles.paragraph}>{t(C.reglesCarteConservee)}</Text>
       <Text style={styles.paragraph}>
         {t(C.reglesGel, { h: formatInt(SEASON_FREEZE_HOURS) })}
       </Text>

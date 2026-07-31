@@ -366,8 +366,28 @@ export default function ProfilScreen() {
   // ── DONNÉES RÉELLES §12.2/§15.3 : crew · place locale ───────────────────────
   const realCrew = useRealCrew();
   const season = useSeasonLeaderboard();
+  /**
+   * AUCUN RANG SANS UN TABLEAU ATTEIGNABLE (01/08/2026).
+   *
+   * `seasonRankProgress` rend la place locale du joueur, affichée dans la ligne
+   * d'identité (« CREW · ville · #rang ») et sur la ShareCard. Depuis que la
+   * surface Saison est fermée (`flags.season`, dérivé de
+   * `SEASON_CLOSE_SCHEDULED`), le tableau qui PRODUIT ce rang n'est plus
+   * ouvrable : `/classement` redirige vers la carte. Un « #3 » resterait donc
+   * une donnée vraie, mais invérifiable par le joueur — un nombre qui renvoie à
+   * une surface qu'il ne peut pas atteindre est l'équivalent informationnel d'un
+   * bouton mort, et à la densité d'aujourd'hui il écrirait surtout « #1 » à
+   * quelqu'un qui court seul. On le retire avec la porte, pas séparément : il
+   * revient du même flip.
+   *
+   * Le hook reste appelé inconditionnellement — `season.cityName` sert encore
+   * plus bas, et un hook sous condition change l'ordre des hooks (le bug que
+   * `RealCrewScreen` a déjà payé). C'est l'AFFICHAGE qui est gardé.
+   */
   const rankProgress =
-    season.status === 'ready' ? seasonRankProgress(season.joueursBoard.rows) : null;
+    flags.season && season.status === 'ready'
+      ? seasonRankProgress(season.joueursBoard.rows)
+      : null;
 
   // ── LES QUATRE ÉTATS DE CET ÉCRAN ──────────────────────────────────────────
   /** Compte relié → on lit et on affiche du réel (y compris « rien encore »). */
@@ -387,7 +407,14 @@ export default function ProfilScreen() {
    */
   const canSignIn = configured && !session && !sessionLoading;
   const seasonRank = economy.seasonRank ?? profile.seasonRank;
-  const hasSeasonRank = seasonRank != null;
+  /**
+   * MÊME RÈGLE QUE `rankProgress` : la ShareCard met ce rang EN GROS, comme
+   * statistique de tête. Partager « #1 » tiré d'un tableau que l'app n'ouvre
+   * plus serait se vanter d'un classement invérifiable — et le partage sort de
+   * l'app, donc la vérification y est encore plus impossible. Sans lui, la carte
+   * retombe sur le NIVEAU, qui est vrai, permanent et jamais acheté.
+   */
+  const hasSeasonRank = flags.season && seasonRank != null;
   /**
    * Cosmétiques ÉQUIPÉS — frame autour de l'avatar + titre affiché, MAIS
    * seulement s'ils sont réellement POSSÉDÉS (23/07/2026) : un anneau « Founder »
