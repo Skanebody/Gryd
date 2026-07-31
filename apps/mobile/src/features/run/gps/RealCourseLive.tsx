@@ -39,7 +39,7 @@
  *    reste MESURÉ et part au serveur — il n'est simplement plus peint ici.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -62,6 +62,7 @@ import { useT } from '../../../i18n/store';
 import type { Entry } from '../../../i18n/types';
 import { screen, track } from '../../../lib/analytics';
 import { haptics } from '../../../lib/haptics';
+import { clearActiveRun, clearCurrentRun } from '../../../lib/runStore';
 // Table de LIBELLÉS invariants (RUN / BIKE), la même que le commutateur de la
 // Carte : le joueur retrouve ici le mot exact qu'il a validé au préflight.
 // Aucune préférence n'est lue (garde-fou de `runActivity.test.ts`).
@@ -107,6 +108,12 @@ import {
   type ScreenBox,
 } from './engine/liveView';
 import { selectLiveNotice } from './liveNotice';
+import {
+  cancelActivityModel,
+  describePause,
+  stepPauseTelemetry,
+} from '../degraded/pauseModel';
+import { describeSignal, stepInterruptionTelemetry } from '../degraded/signalHealth';
 import {
   BackgroundHelpSheet,
   BackgroundRationaleCard,
@@ -253,7 +260,11 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
    */
   const copy = RUN_GPS_COPY[activity];
   const conquest = mode === 'conquete';
-  const paused = s.phase === 'paused-user';
+  const pauseModel = describePause({
+    phase: s.phase,
+    permissionRevoked: run.permissionRevoked,
+  });
+  const paused = pauseModel.pause === 'user';
   /**
    * LECTURE EN COURS ≠ ÉCHEC. Aucune position n'est encore arrivée : « signal
    * perdu » serait faux (on n'a rien perdu — on n'a jamais rien eu). Passé le
@@ -262,6 +273,19 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
    */
   const awaitingFirstFix = s.totalFixes === 0;
   const firstFixOverdue = awaitingFirstFix && s.activeS > GPS_SIGNAL_LOST_AFTER_S;
+  const signal = describeSignal({
+    pausedByUser: pauseModel.pause === 'user',
+    permissionRevoked: run.permissionRevoked,
+    awaitingFirstFix,
+    firstFixOverdue,
+    signal: s.signal,
+  });
+  const cancelModel = cancelActivityModel({
+    pause: pauseModel.pause,
+    distanceM: s.distanceM,
+    durationS: s.activeS,
+    activity,
+  });
 
   const start = s.tracePoints[0] ?? null;
   const here = s.tracePoints[s.tracePoints.length - 1] ?? null;
@@ -344,7 +368,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   // pill de MODE et la pill de FERMETURE restent en contexte permanent ; tout le
   // reste (signal, reprise, permission, précision) passe par cette priorité unique.
   const notice = selectLiveNotice({
-    pausedByUser: paused,
+    pausedByUser: pauseModel.pause === 'user',
     permissionRevoked: run.permissionRevoked,
     awaitingFirstFix,
     firstFixOverdue,
@@ -354,6 +378,37 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     approxLocation: run.approxLocation,
     foregroundOnlyPlatform: run.foregroundOnlyPlatform,
   });
+
+  // E23/E24 — les moteurs purs décrivent un ÉTAT à chaque snapshot, mais les
+  // events décrivent uniquement son FRANCHISSEMENT. Les refs ne bougent donc
+  // que si leur valeur change. Une permission révoquée change simultanément la
+  // pause ET la santé du signal : le même accident n'est émis qu'une fois.
+  const previousPauseRef = useRef(pauseModel.pause);
+  const previousHealthRef = useRef(signal.health);
+  useEffect(() => {
+    let pauseInterruption: 'permission_revoked' | null = null;
+
+    if (previousPauseRef.current !== pauseModel.pause) {
+      const telemetry = stepPauseTelemetry(previousPauseRef.current, pauseModel.pause);
+      previousPauseRef.current = pauseModel.pause;
+      if (telemetry?.event === 'activity_paused') {
+        track(EVENTS.activityPaused, { cause: telemetry.cause });
+      } else if (telemetry?.event === 'activity_interrupted') {
+        pauseInterruption = telemetry.cause;
+        track(EVENTS.activityInterrupted, { cause: telemetry.cause });
+      } else if (telemetry?.event === 'activity_resumed') {
+        track(EVENTS.activityResumed, { from: telemetry.from });
+      }
+    }
+
+    if (previousHealthRef.current !== signal.health) {
+      const interruption = stepInterruptionTelemetry(previousHealthRef.current, signal.health);
+      previousHealthRef.current = signal.health;
+      if (interruption !== null && interruption !== pauseInterruption) {
+        track(EVENTS.activityInterrupted, { cause: interruption });
+      }
+    }
+  }, [pauseModel.pause, signal.health]);
 
   useEffect(() => {
     // La discipline accompagne la vue : sans elle, la mesure d'usage de l'écran
@@ -370,6 +425,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const prevSignalRef = useRef(s.signal);
   useEffect(() => {
     const prev = prevSignalRef.current;
+    if (prev === s.signal) return;
     prevSignalRef.current = s.signal;
     if (s.phase !== 'tracking') return; // en pause volontaire : pas d'alarme
     if (prev !== 'lost' && s.signal === 'lost') haptics.error();
@@ -593,6 +649,36 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     setFinishSheetVisible(false);
     if (run.snapshot.phase === 'paused-user') run.togglePause();
     track(EVENTS.activityResumed, { from: 'finish_sheet' });
+  };
+
+  const confirmCancel = () => {
+    if (!cancelModel.offered || finishedRef.current) return;
+    Alert.alert(
+      t(C.cancelTitle),
+      t(cancelModel.body === 'would_count' ? C.cancelBodyWouldCount : C.cancelBody),
+      [
+        { text: t(C.cancelKeep), style: 'cancel' },
+        {
+          text: t(C.cancelConfirm),
+          style: 'destructive',
+          onPress: () => {
+            if (finishedRef.current) return;
+            finishedRef.current = true;
+            void (async () => {
+              // Quand une ancienne sortie attend encore une décision, ACTIVE lui
+              // appartient et la sortie courante vit sous CURRENT. L'annulation
+              // ne doit jamais détruire cette autre sortie par ricochet.
+              if (run.restore === null) await clearActiveRun();
+              else await clearCurrentRun();
+              track(EVENTS.activityCancelled, {
+                produces_result: cancelModel.producesResult,
+              });
+              router.back();
+            })();
+          },
+        },
+      ],
+    );
   };
 
   const finish = () => {
@@ -840,7 +926,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
           <>
             {/* En PAUSE seulement : les gestes rares. En course, ils ne sont pas
                 sous le pouce — « Terminer » en particulier (planche E07). */}
-            {paused ? (
+            {pauseModel.offersRareGestures ? (
               <View style={styles.pausedRow}>
                 <SmallControl
                   label={t(C.ctrlFinish)}
@@ -854,6 +940,16 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
                 >
                   <View style={styles.stopSquare} />
                 </SmallControl>
+                {cancelModel.offered ? (
+                  <SmallControl
+                    label={t(C.ctrlCancel)}
+                    accessibilityLabel={t(C.a11yCancelActivity)}
+                    onLongPress={confirmCancel}
+                    danger
+                  >
+                    <Icon name="fermer" size={20} color={colors.blanc} />
+                  </SmallControl>
+                ) : null}
                 {openSettings === null ? null : (
                   <SmallControl
                     label={t(C.ctrlGpsHelp)}
