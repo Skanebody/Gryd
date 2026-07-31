@@ -2396,6 +2396,106 @@ export const C = defineCatalog({
     de: 'Unschärfezone: Zuhause, Arbeit…',
     pt: 'Zona borrada: casa, trabalho…',
   },
+  // ── E77 · ZONES PROTÉGÉES RÉELLES (28/07/2026) ────────────────────────────
+  // La table `privacy_zones` existait depuis 0002 ; il manquait l'écran. Depuis
+  // que `ingest_run` persiste une trace masquée, une zone déclarée est retirée
+  // de ce qui est ÉCRIT EN BASE, plus seulement d'une image de partage.
+  zonesAddTitle: {
+    fr: 'Protéger un endroit',
+    en: 'Protect a place',
+    es: 'Proteger un lugar',
+    de: 'Einen Ort schützen',
+    pt: 'Proteger um lugar',
+  },
+  // « AUTOUR DE », jamais « exactement ici » : le centre est stocké en cellule
+  // H3 res 8 (~0,7 km²), l'écart au point tapé peut atteindre quelques centaines
+  // de mètres. C'est aussi pourquoi le rayon minimal est 200 m.
+  zonesAddSub: {
+    fr: 'Tes tracés seront coupés autour de ta position actuelle. L’endroit exact n’est jamais enregistré.',
+    en: 'Your trails will be cut around your current position. The exact spot is never stored.',
+    es: 'Tus trazados se cortarán alrededor de tu posición actual. El lugar exacto nunca se guarda.',
+    de: 'Deine Spuren werden rund um deinen aktuellen Standort gekappt. Der genaue Ort wird nie gespeichert.',
+    pt: 'Seus traçados serão cortados ao redor da sua posição atual. O lugar exato nunca é guardado.',
+  },
+  zonesCount: {
+    fr: '{n} sur {max} protégés',
+    en: '{n} of {max} protected',
+    es: '{n} de {max} protegidos',
+    de: '{n} von {max} geschützt',
+    pt: '{n} de {max} protegidos',
+  },
+  zonesItem: {
+    fr: 'Endroit protégé · {m} m autour',
+    en: 'Protected place · {m} m around',
+    es: 'Lugar protegido · {m} m alrededor',
+    de: 'Geschützter Ort · {m} m im Umkreis',
+    pt: 'Lugar protegido · {m} m ao redor',
+  },
+  zonesRemove: {
+    fr: 'Retirer',
+    en: 'Remove',
+    es: 'Quitar',
+    de: 'Entfernen',
+    pt: 'Remover',
+  },
+  // Retirer une zone est une PERTE DE PROTECTION, pas un ménage : on le dit.
+  zonesRemoveConfirm: {
+    fr: 'Retirer cette protection ? Tes prochaines sorties cesseront de masquer cet endroit.',
+    en: 'Remove this protection? Your next outings will stop hiding this place.',
+    es: '¿Quitar esta protección? Tus próximas salidas dejarán de ocultar este lugar.',
+    de: 'Diesen Schutz entfernen? Deine nächsten Aktivitäten verbergen diesen Ort nicht mehr.',
+    pt: 'Remover esta proteção? Suas próximas atividades deixarão de ocultar este lugar.',
+  },
+  zonesEmpty: {
+    fr: 'Aucun endroit protégé pour l’instant.',
+    en: 'No protected place yet.',
+    es: 'Ningún lugar protegido por ahora.',
+    de: 'Noch kein geschützter Ort.',
+    pt: 'Nenhum lugar protegido por enquanto.',
+  },
+  zonesLoading: {
+    fr: 'Lecture de tes endroits protégés…',
+    en: 'Reading your protected places…',
+    es: 'Leyendo tus lugares protegidos…',
+    de: 'Deine geschützten Orte werden gelesen…',
+    pt: 'Lendo seus lugares protegidos…',
+  },
+  // ÉCHEC ≠ VIDE : on ne dit jamais « aucun » quand on n'a pas pu lire.
+  zonesFailed: {
+    fr: 'Tes endroits protégés n’ont pas pu être lus. Rien n’est affirmé ici : réessaie.',
+    en: 'Your protected places could not be read. Nothing is claimed here: try again.',
+    es: 'No se han podido leer tus lugares protegidos. No se afirma nada aquí: inténtalo de nuevo.',
+    de: 'Deine geschützten Orte konnten nicht gelesen werden. Hier wird nichts behauptet: versuche es erneut.',
+    pt: 'Não foi possível ler seus lugares protegidos. Nada é afirmado aqui: tente de novo.',
+  },
+  zonesFull: {
+    fr: 'Trois endroits protégés au maximum. Retires-en un pour en ajouter un autre.',
+    en: 'Three protected places maximum. Remove one to add another.',
+    es: 'Tres lugares protegidos como máximo. Quita uno para añadir otro.',
+    de: 'Höchstens drei geschützte Orte. Entferne einen, um einen weiteren hinzuzufügen.',
+    pt: 'No máximo três lugares protegidos. Remova um para adicionar outro.',
+  },
+  zonesNoPosition: {
+    fr: 'Position indisponible : impossible de protéger un endroit qu’on ne sait pas situer.',
+    en: 'Position unavailable: we can’t protect a place we can’t locate.',
+    es: 'Posición no disponible: no se puede proteger un lugar que no se sabe ubicar.',
+    de: 'Position nicht verfügbar: Ein Ort, den wir nicht orten können, lässt sich nicht schützen.',
+    pt: 'Posição indisponível: não dá para proteger um lugar que não se sabe localizar.',
+  },
+  zonesSaveFailed: {
+    fr: 'Rien n’a été enregistré : cet endroit n’est pas protégé.',
+    en: 'Nothing was saved: this place is not protected.',
+    es: 'No se ha guardado nada: este lugar no está protegido.',
+    de: 'Nichts wurde gespeichert: dieser Ort ist nicht geschützt.',
+    pt: 'Nada foi guardado: este lugar não está protegido.',
+  },
+  zonesSaved: {
+    fr: 'Endroit protégé. Tes prochaines sorties le masqueront.',
+    en: 'Place protected. Your next outings will hide it.',
+    es: 'Lugar protegido. Tus próximas salidas lo ocultarán.',
+    de: 'Ort geschützt. Deine nächsten Aktivitäten verbergen ihn.',
+    pt: 'Lugar protegido. Suas próximas atividades vão ocultá-lo.',
+  },
   namedZonesSoonNote: {
     fr: 'Bientôt : masquer tes tracés autour d’une adresse que tu déclares. En attendant, le départ et l’arrivée de tout partage sont déjà coupés (ci-dessus).',
     en: 'Soon: blur your trails around an address you set. Meanwhile, the start and end of every share are already trimmed (above).',

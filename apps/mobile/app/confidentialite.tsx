@@ -118,6 +118,12 @@ import { DisclosureCard, Note, SelectPills, SwitchRow } from '../src/features/pr
 // donc plus annoncer une distance différente de celle qui est réellement
 // retirée (c'était le cœur du mensonge « rayon de flou »).
 import { SHARE_TRIM_M } from '../src/features/share/sharePrivacy';
+import { usePrivacyZones } from '../src/features/privacy/zonesStore';
+import { slotsLeft, zoneEditPlan } from '../src/features/privacy/zoneEdit';
+import { removeZone, saveZone } from '../src/features/privacy/zonesWrite';
+import { resolveLocation } from '../src/features/map/locationState';
+import { LOCATION_PROVIDER } from '../src/features/onboarding/locate';
+import { PRIVACY_ZONE_DEFAULT_RADIUS_M, PRIVACY_ZONES_MAX } from '@klaim/shared';
 import {
   REPORT_REASONS,
   REPORT_REVIEW_HOURS,
@@ -209,6 +215,93 @@ export default function ConfidentialiteScreen() {
   }, [signedIn, sessionLoading, readTick]);
 
   const toggle = (k: SectionKey) => setOpenKey((cur) => (cur === k ? null : k));
+
+  // ── ENDROITS PROTÉGÉS (E77) ────────────────────────────────────────────────
+  // La lecture porte ses quatre états ; on ne les fond jamais. `reloadKey` force
+  // une relecture après écriture : sans elle, l'écran afficherait encore l'état
+  // d'avant et le joueur croirait son geste perdu.
+  const zonesRead = usePrivacyZones();
+  const [zoneReloadKey, setZoneReloadKey] = useState(0);
+  const [zoneBusy, setZoneBusy] = useState(false);
+  const [zoneFlash, setZoneFlash] = useState<Entry | null>(null);
+
+  const takenIndexes =
+    zonesRead.status === 'ready' ? zonesRead.zones.map((_, i) => i) : null;
+  const zoneSlotsLeft = slotsLeft(takenIndexes);
+
+  /**
+   * Pose une zone AUTOUR DE LA POSITION ACTUELLE.
+   *
+   * La position n'est demandée QU'ICI, sur geste explicite — jamais au montage
+   * de l'écran : une page de confidentialité qui réveille le GPS à l'ouverture
+   * serait la dernière à pouvoir se le permettre.
+   */
+  const addZoneAtCurrentPosition = async (): Promise<void> => {
+    if (zoneBusy) return;
+    setZoneFlash(null);
+    setZoneBusy(true);
+    try {
+      // `resolveLocation` ne rend JAMAIS « rien » : chacune de ses issues a son
+      // état. Seul un `point` non nul est exploitable ici — un refus de
+      // permission ou un capteur muet tombent tous deux sur `no-position`.
+      const outcome = await resolveLocation(LOCATION_PROVIDER);
+      const here = outcome.point;
+      const plan = zoneEditPlan(
+        here === null
+          ? null
+          : { lat: here.lat, lng: here.lng, radiusM: PRIVACY_ZONE_DEFAULT_RADIUS_M },
+        takenIndexes,
+      );
+      if (plan.kind !== 'write') {
+        // Chaque refus a SA phrase : « pas de position » et « c'est plein » ne
+        // demandent pas la même chose au joueur.
+        setZoneFlash(
+          plan.kind === 'full'
+            ? C.zonesFull
+            : plan.kind === 'no-position'
+              ? C.zonesNoPosition
+              : C.zonesLoading,
+        );
+        return;
+      }
+      const uid = session?.user?.id ?? null;
+      if (uid === null || here === null) {
+        setZoneFlash(C.zonesNoPosition);
+        return;
+      }
+      const out = await saveZone(uid, plan.index, here.lat, here.lng, plan.radiusM);
+      // On n'annonce « protégé » que sur un acquittement RÉEL de la base.
+      setZoneFlash(out.kind === 'saved' ? C.zonesSaved : C.zonesSaveFailed);
+      if (out.kind === 'saved') {
+        haptics.success();
+        setZoneReloadKey((k) => k + 1);
+      }
+    } finally {
+      setZoneBusy(false);
+    }
+  };
+
+  /** Retirer une zone est une PERTE de protection : on la fait confirmer. */
+  const confirmRemoveZone = async (index: number): Promise<void> => {
+    if (zoneBusy) return;
+    const uid = session?.user?.id ?? null;
+    if (uid === null) return;
+    const ok = await new Promise<boolean>((resolve) => {
+      Alert.alert(t(C.zonesRemove), t(C.zonesRemoveConfirm), [
+        { text: t(C.annulerGarder), style: 'cancel', onPress: () => resolve(false) },
+        { text: t(C.zonesRemove), style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
+    if (!ok) return;
+    setZoneBusy(true);
+    try {
+      const out = await removeZone(uid, index);
+      setZoneFlash(out.kind === 'saved' ? null : C.zonesSaveFailed);
+      if (out.kind === 'saved') setZoneReloadKey((k) => k + 1);
+    } finally {
+      setZoneBusy(false);
+    }
+  };
 
   /**
    * Signale le pseudo saisi. RÉEL uniquement sous session : `reportContent`
@@ -433,12 +526,57 @@ export default function ConfidentialiteScreen() {
         <Note>{t(C.maskScopeNote, { m: SHARE_TRIM_M })}</Note>
       </DisclosureCard>
 
-      {/* Zones floutées NOMMÉES (domicile, travail) : la planche les montre, mais
-          aucun écran ne permet encore de déclarer une adresse — « Bientôt », non
-          interactive. La protection qui EXISTE (coupe départ/arrivée) est la card
-          juste au-dessus ; la note le rappelle pour ne pas laisser un trou. */}
-      <PendingRow icon="pin" title={t(C.namedZonesTitle)} soonLabel={t(C.soonPill)} />
-      <Note>{t(C.namedZonesSoonNote)}</Note>
+      {/* ENDROITS PROTÉGÉS — RÉELS depuis le 28/07/2026. Ils remplacent un
+          `PendingRow` « Bientôt » : la table `privacy_zones` existait depuis 0002
+          avec sa RLS owner-only, le pipeline de masquage la lisait, mais aucun
+          écran ne permettait d'en déclarer une — la liste était donc vide pour
+          tout le monde et toute la chaîne tournait à vide.
+          L'ENJEU A CHANGÉ : depuis qu'`ingest_run` persiste une trace masquée
+          dans `runs.polyline_masked`, une zone déclarée n'est plus seulement
+          retirée d'une image de partage — elle est retirée de ce qui est ÉCRIT
+          EN BASE. C'est la seule protection qui couvre le MILIEU d'une sortie ;
+          la coupe départ/arrivée (card ci-dessus) ne couvre que les bouts.
+          LES QUATRE ÉTATS SONT DISTINCTS : chargement, pas de compte, échec de
+          lecture, et liste lue (vide ou non). On ne dit JAMAIS « aucun endroit »
+          quand on n'a pas pu lire. */}
+      {zonesRead.status === 'loading' ? (
+        <Note>{t(C.zonesLoading)}</Note>
+      ) : zonesRead.status === 'error' ? (
+        <Note>{t(C.zonesFailed)}</Note>
+      ) : zonesRead.status === 'no-account' ? (
+        <Note>{t(C.namedZonesSoonNote)}</Note>
+      ) : (
+        <>
+          {zonesRead.zones.map((z, i) => (
+            <ListRow
+              key={`zone-${i}`}
+              icon="pin"
+              label={t(C.zonesItem, { m: z.radiusM })}
+              value={t(C.zonesRemove)}
+              onPress={() => {
+                void confirmRemoveZone(i);
+              }}
+            />
+          ))}
+          {zonesRead.zones.length === 0 ? <Note>{t(C.zonesEmpty)}</Note> : null}
+          {/* Le CTA n'est peint que si un emplacement est libre : un bouton qui
+              échouerait toujours (trois zones déjà posées) est un bouton mort.
+              Le refus est DIT à sa place, jamais un bouton grisé sans motif. */}
+          {zoneSlotsLeft !== null && zoneSlotsLeft > 0 ? (
+            <>
+              <Button
+                label={t(C.zonesAddTitle)}
+                onPress={() => void addZoneAtCurrentPosition()}
+                loading={zoneBusy}
+              />
+              <Note>{t(C.zonesAddSub)}</Note>
+            </>
+          ) : (
+            <Note>{t(C.zonesFull)}</Note>
+          )}
+          {zoneFlash !== null ? <Note>{t(zoneFlash)}</Note> : null}
+        </>
+      )}
 
       <SectionLabel style={styles.kicker}>{t(C.secSecurite)}</SectionLabel>
 
