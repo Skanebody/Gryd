@@ -1375,6 +1375,114 @@ export const CREW_PERKS: readonly CrewPerk[] = [
   { level: 10, key: 'war_banner', name: 'War Banner', desc: '1 offensive majeure par saison (récompenses capées, pas d\'achat de victoire).' },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SOUTIEN DE CREW (AMENDEMENT-48, 01/08/2026) — « la course ouvre, l'argent
+// habille ». Personne ne paie POUR le groupe : chacun achète POUR SOI (une
+// apparence, une marque datée) et ORIENTE le surplus vers un crew. Le bénéfice
+// collectif est l'échappement d'un achat égoïste, jamais son motif — c'est ce
+// qui empêche la dette sociale envers ceux qui n'ont pas payé.
+//
+// ⚠️ CES CONSTANTES N'OUVRENT QUE DE L'EXPRESSION. Aucune ne peut être lue par
+// le moteur de capture, de défense, de decay ou de classement. Un `if` qui
+// ferait dépendre une règle de jeu d'un palier de soutien serait un défaut de
+// conformité, pas une feature.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** D'où vient l'achat qui génère le soutien (A-48 §3.1). */
+export const CREW_SUPPORT_ORIGINS = ['self', 'gifted', 'received', 'crewFunded'] as const;
+export type CrewSupportOrigin = (typeof CREW_SUPPORT_ORIGINS)[number];
+
+/**
+ * UNITÉS DE SOUTIEN PAR ORIGINE — le gradient encode l'INTENTION.
+ *
+ * Barème repris de Telegram (4 / 3 / 1 / 0), dont la forme n'est pas arbitraire :
+ *  · `self`     — j'achète pour moi : plein, c'est le cas nominal ;
+ *  · `gifted`   — j'offre à quelqu'un : légèrement moins, mais j'ai aussi créé
+ *                 un joueur équipé de plus ;
+ *  · `received` — on m'a offert : je n'ai rien payé, le jeton reste symbolique ;
+ *  · `crewFunded` — **ZÉRO, ET CE N'EST PAS TUNABLE.**
+ *
+ * ─── POURQUOI LE ZÉRO EST LA LIGNE LA PLUS IMPORTANTE DU SYSTÈME ────────────
+ * Sans lui, il suffirait qu'un crew offre des cosmétiques à ses membres pour
+ * BLANCHIR de l'argent en palier : le crew financerait son propre niveau, et
+ * « la course ouvre, l'argent habille » deviendrait « l'argent ouvre tout ».
+ * Conséquences opérationnelles : aucune cagnotte de crew, aucun portefeuille
+ * collectif, aucun achat au nom du crew — seul un individu achète, pour lui.
+ *
+ * Les trois premières valeurs sont TUNABLE (c'est leur RATIO qui compte, pas
+ * leur valeur absolue). La quatrième ne l'est pas.
+ */
+export const CREW_SUPPORT_UNITS: Readonly<Record<CrewSupportOrigin, number>> = {
+  self: 4,
+  gifted: 3,
+  received: 1,
+  crewFunded: 0,
+};
+
+/**
+ * PALIERS DE SOUTIEN — unités cumulées requises, AVANT normalisation par la
+ * taille du crew (voir `CREW_SUPPORT_REFERENCE_MEMBERS`). Index 0 = palier 0,
+ * que tout crew possède sans rien avoir payé.
+ *
+ * Le premier palier vaut exactement `CREW_SUPPORT_UNITS.self` : UN membre qui
+ * s'équipe suffit à le franchir. C'est voulu — la première marche doit être
+ * atteignable par un crew réel, pas par une collecte.
+ *
+ * TUNABLE.
+ */
+export const CREW_SUPPORT_TIERS: readonly number[] = [0, 4, 12, 28, 60];
+export const CREW_SUPPORT_TIER_MAX = CREW_SUPPORT_TIERS.length - 1;
+
+/**
+ * TAILLE DE RÉFÉRENCE POUR LA NORMALISATION (A-48 §5).
+ *
+ * Leçon Telegram : le nombre de boosts requis pour monter croît avec la taille
+ * du canal. Sans ça, le palier récompenserait le NOMBRE DE MEMBRES et pas
+ * l'engagement — un crew de 50 le franchirait dix fois plus vite qu'un crew de
+ * 5, à investissement par tête identique.
+ *
+ * Un crew au-dessous de cette taille ne bénéficie d'AUCUNE remise (le
+ * multiplicateur est planché à 1) : sinon un crew de deux personnes atteindrait
+ * le palier maximal pour presque rien, et le palier ne dirait plus rien du tout.
+ *
+ * TUNABLE.
+ */
+export const CREW_SUPPORT_REFERENCE_MEMBERS = 10;
+
+/**
+ * EMPLACEMENTS COSMÉTIQUES DE CREW — les DEUX portes, et il faut les deux.
+ *
+ * `crewLevel` (gagné en COURANT, `CREW_XP_TABLE`) ouvre le DROIT d'avoir
+ * l'emplacement. `supportTier` (soutien) ouvre sa variante DISTINCTIVE. Un crew
+ * qui paie sans courir n'a rien de plus qu'un crew qui court sans payer : il a
+ * la même chose, en plus beau.
+ *
+ * ⚠️ Ce que cette table ne contient PAS, et ne contiendra jamais : territoire,
+ * points, surface, protection, défense automatique, priorité de classement,
+ * notification plus précoce, position d'un rival, plafond de membres,
+ * multiplicateur. Voir A-48 §4 — GRYD a un classement, contrairement à
+ * Telegram : ce qu'ils obtiennent gratuitement, nous devons l'imposer.
+ */
+export interface CrewCosmeticSlot {
+  readonly key: string;
+  /** Niveau de crew (COURSE) qui ouvre le droit à cet emplacement. */
+  readonly crewLevel: number;
+  /** Palier de SOUTIEN qui ouvre sa variante distinctive. */
+  readonly supportTier: number;
+}
+
+export const CREW_COSMETIC_SLOTS: readonly CrewCosmeticSlot[] = [
+  { key: 'crest', crewLevel: 1, supportTier: 1 },
+  { key: 'colors', crewLevel: 2, supportTier: 1 },
+  { key: 'banner', crewLevel: 3, supportTier: 2 },
+  { key: 'member_frame', crewLevel: 4, supportTier: 2 },
+  { key: 'share_template', crewLevel: 5, supportTier: 3 },
+  /** Nommer une zone TENUE — visible des membres et sur les partages, jamais
+   *  sur la carte d'un inconnu (surface à modérer gardée petite). */
+  { key: 'zone_name', crewLevel: 6, supportTier: 3 },
+  { key: 'victory_animation', crewLevel: 8, supportTier: 4 },
+];
+
 // ─── §36 Rôles crew + permissions (RÉALIGNÉS AMENDEMENT-16 §3, doc crews §8) ─
 /**
  * Rôles façon clan (doc §8.1-§8.7). `defender`/`raider` ne sont PLUS des rôles

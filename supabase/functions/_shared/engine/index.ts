@@ -17,6 +17,10 @@ export * from './hexing.ts';
 // spatial interne. Aucune dépendance : ni h3-js, ni game-rules.
 export * from './polygon.ts';
 export * from './boundary.ts';
+// Soutien de crew (A-48) : « la course ouvre, l'argent habille ». N'ouvre QUE
+// des emplacements cosmétiques — aucune sortie de ce module n'entre jamais dans
+// la capture, la défense, le decay, le scoring ou le classement.
+export * from './crewSupport.ts';
 export * from './coverage.ts';
 export * from './zone.ts';
 export * from './sectors.ts';
