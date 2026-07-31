@@ -109,6 +109,18 @@ const MOBILE_ENGINE_TARGETS = [
     files: ['dailyZone.ts', 'welcomeChallenge.ts'],
     dir: ['apps', 'mobile', 'src', 'features', 'daily', 'engine'],
   },
+  // MASQUAGE PRIVACY (28/07/2026) : le pipeline §12.1 a quitté l'app pour le
+  // moteur, parce qu'`ingest_run` doit l'exécuter CÔTÉ SERVEUR avant d'écrire
+  // `runs.polyline_masked` — un masquage appliqué côté client ne protège
+  // personne. Le mobile en tire une copie plutôt qu'un import profond :
+  // `tracePrivacy.ts` a un import de VALEUR (`./polygon.ts`), que le tsconfig
+  // Expo refuse avec son extension. `polygon.ts` suit donc, et lui n'importe
+  // rien (son unique import est un `import type`, effacé) : aucun h3-js ni
+  // game-rules ne tombe dans le bundle mobile.
+  {
+    files: ['tracePrivacy.ts', 'polygon.ts'],
+    dir: ['apps', 'mobile', 'src', 'features', 'share', 'engine'],
+  },
 ];
 
 const mobileHeader = (name) =>

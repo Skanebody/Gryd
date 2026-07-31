@@ -18,6 +18,13 @@ const MOBILE_ENGINE_TARGETS = [
     files: ['dailyZone.ts', 'welcomeChallenge.ts'],
     dir: 'apps/mobile/src/features/daily/engine/',
   },
+  // Masquage privacy §12.1 : le pipeline a quitté l'app pour le moteur le
+  // 28/07/2026, pour qu'`ingest_run` puisse l'exécuter AVANT d'écrire
+  // `runs.polyline_masked`. Le mobile en consomme une copie générée.
+  {
+    files: ['tracePrivacy.ts', 'polygon.ts'],
+    dir: 'apps/mobile/src/features/share/engine/',
+  },
 ] as const;
 
 const mobileHeader = (name: string): string =>

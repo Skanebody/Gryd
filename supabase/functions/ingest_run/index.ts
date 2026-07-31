@@ -146,6 +146,8 @@ import {
   findDuplicateRun,
   traceShape,
 } from './dedup.ts';
+// Masquage §12.1 AVANT ecriture de `runs.polyline_masked` (voir tracePersist.ts).
+import { maskedPolylineFor } from './tracePersist.ts';
 import { BADGES_BY_KEY } from '../_shared/badges.ts';
 import {
   boostChestMultiplier,
@@ -449,6 +451,25 @@ async function loadOwnersCreatedAt(
 }
 
 /** Hexes de la course situés dans une zone privée du coureur (§7 : centre res 8 + rayon). */
+/**
+ * Zones floutees du joueur, dans la forme geometrique attendue par le moteur.
+ * MEME lecture que `loadPrivacyHexes` (table `privacy_zones`, RLS owner-only) :
+ * une seule source, deux usages — exclure des hexes, et masquer la trace.
+ */
+async function loadPrivacyZones(
+  userId: string,
+): Promise<readonly { center: { lat: number; lng: number }; radiusM: number }[]> {
+  const { data, error } = await supabase
+    .from('privacy_zones')
+    .select('center_h3_res8, radius_m')
+    .eq('user_id', userId);
+  if (error) throw new Error(`privacy_zones read: ${error.message}`);
+  return (data ?? []).map((z) => {
+    const [lat, lng] = cellToLatLng(dbToH3(z.center_h3_res8));
+    return { center: { lat, lng }, radiusM: z.radius_m as number };
+  });
+}
+
 async function loadPrivacyHexes(
   userId: string,
   hexes: readonly string[],
@@ -3087,12 +3108,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const interiorSet = new Set(interiorCells);
 
     // ── Insert runs PUIS RPC (claim_hexes vérifie l'existence du run) ────────
+    // TRACE MASQUEE (§12.1) — uniquement sur une course RETENUE : une course
+    // `rejected` ou `flagged` n'ecrit aucune geometrie. Le masquage tourne ICI,
+    // cote serveur, avec le meme code que le partage mobile ; il ne peut pas
+    // faire echouer l'insertion (voir tracePersist.ts).
+    const maskedPolyline = maskedPolylineFor(request.points, await loadPrivacyZones(userId));
     const inserted = await insertRun({
       ...baseRow,
       status: validation.status,
       reject_reason: null,
       points_awarded: score.points,
       xp_awarded: score.xp,
+      polyline_masked: maskedPolyline,
     }, userId, request.clientRunId, profile.streak_weeks);
     if (inserted.replayed) return json(inserted.payload);
     const runId = inserted.runId;
