@@ -74,13 +74,15 @@ export type MapLayerVisibility = Readonly<Record<MapLayerKey, boolean>>;
  * L'ORDRE EST CELUI DE LA SPEC (l.912-918), amputé des deux non peintes : la
  * feuille doit se lire dans l'ordre où le produit l'a écrite.
  */
-export const WIRED_MAP_LAYERS: readonly MapLayerKey[] = [
+export const WIRED_MAP_LAYERS = [
   'mine',
   'crew',
   'rivals',
   'contested',
   'labels',
-];
+] as const satisfies readonly MapLayerKey[];
+
+export type WiredMapLayerKey = (typeof WIRED_MAP_LAYERS)[number];
 
 /** État par défaut — délégué à game-rules (aucune seconde vérité ici). */
 export const DEFAULT_MAP_LAYERS: MapLayerVisibility = MAP_LAYER_DEFAULT_VISIBLE;

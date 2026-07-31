@@ -118,8 +118,8 @@ Deno.test('WIRED_MAP_LAYERS — sous-ensemble STRICT des clés de la spec', () =
   }
   // Les deux couches sans rendu ne sont pas proposées (constitution §2 : aucun
   // bouton mort) — mais elles restent dans le type et le stockage.
-  assertFalse(WIRED_MAP_LAYERS.includes('missions' as MapLayerKey));
-  assertFalse(WIRED_MAP_LAYERS.includes('private_zones' as MapLayerKey));
+  assertFalse((WIRED_MAP_LAYERS as readonly MapLayerKey[]).includes('missions'));
+  assertFalse((WIRED_MAP_LAYERS as readonly MapLayerKey[]).includes('private_zones'));
 });
 
 // ─── 3/4. À quelle couche appartient un territoire ──────────────────────────

@@ -92,6 +92,7 @@ import {
   typography,
   withAlpha,
   DEFAULT_ACTIVITY,
+  type MapLayerKey,
 } from '@klaim/shared';
 import { C } from '../../i18n/catalog/map';
 import { C as N } from '../../i18n/catalog/nav';
@@ -121,6 +122,14 @@ import {
 import { BASEMAP_KEYS, type BasemapKey } from './mapStyle';
 import type { TerritoryWidgetView } from '../widget/territoryWidget';
 import { MAP_MODE_ICON, MAP_MODE_ORDER, type MapMode } from './territory';
+import {
+  DEFAULT_MAP_LAYERS,
+  WIRED_MAP_LAYERS,
+  allLayersVisible,
+  withLayer,
+  type MapLayerVisibility,
+  type WiredMapLayerKey,
+} from './mapLayers';
 import { SheetMetrics, type SheetMetric } from './SheetMetrics';
 import { MissionBriefingSheet } from './MissionBriefingSheet';
 import { DefenseZoneSheet } from './DefenseZoneSheet';
@@ -173,6 +182,15 @@ const MODE_CHIP_ENTRIES: Record<MapMode, Entry> = {
   raid: C.modeRival,
   exploration: C.modeExploration,
   crew: C.modeCrew,
+};
+
+/** Libellés des interrupteurs E12 — uniquement les couches WIRED (pas de bouton mort). */
+const FILTER_CHIP_ENTRIES: Record<WiredMapLayerKey, Entry> = {
+  mine: C.layerMine,
+  crew: C.layerCrew,
+  rivals: C.layerRivals,
+  contested: C.layerContested,
+  labels: C.layerLabels,
 };
 
 /**
@@ -558,6 +576,13 @@ export interface BattleMapOverlaysProps {
    * veut dire.
    */
   activity?: MapActivity;
+  /**
+   * E12 — interrupteurs INDÉPENDANTS (persistés par activité côté MapScreen).
+   * Omis ⇒ défaut tout visible (aucune régression si un appelant omet).
+   */
+  layerVisibility?: MapLayerVisibility;
+  onToggleLayer?: (layer: MapLayerKey, visible: boolean) => void;
+  onResetLayers?: () => void;
 }
 
 export function BattleMapOverlays({
@@ -578,6 +603,9 @@ export function BattleMapOverlays({
   map3d,
   onSetMap3d,
   activity = 'run',
+  layerVisibility = DEFAULT_MAP_LAYERS,
+  onToggleLayer,
+  onResetLayers,
 }: BattleMapOverlaysProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -938,7 +966,11 @@ export function BattleMapOverlays({
 
   /** FAB Calques : ouvre/ferme le menu Calques EN 1 TAP (haptic géré par le FAB). */
   const toggleLayers = () => {
-    setLayersOpen((v) => !v);
+    setLayersOpen((v) => {
+      const next = !v;
+      if (next) track(EVENTS.mapLayersOpened, { activity });
+      return next;
+    });
   };
 
   /** Ferme le menu Calques (re-tap FAB ou tap « ailleurs » sur le backdrop). */
@@ -1137,9 +1169,11 @@ export function BattleMapOverlays({
             onSetMap3d={onSetMap3d}
             hudHidden={hudHidden}
             onToggleHud={toggleHud}
-            /* ROUVERT : les calques de lecture existent dans les deux mondes —
-               ils décrivent la carte, pas la discipline. */
             showReadingLayers
+            layerVisibility={layerVisibility}
+            onToggleLayer={onToggleLayer}
+            onResetLayers={onResetLayers}
+            activity={activity}
           />
         ) : null}
         {/* CAPSULE (planche E02/E03) : les 2 FABs permanents groupés dans une
@@ -1803,8 +1837,11 @@ function LayerMenu({
   hudHidden,
   onToggleHud,
   showReadingLayers = true,
+  layerVisibility = DEFAULT_MAP_LAYERS,
+  onToggleLayer,
+  onResetLayers,
+  activity = 'run',
 }: {
-  /** Plafond de hauteur : au-delà, le menu défile (ne recouvre pas le HUD haut). */
   maxHeight?: number;
   active: MapMode;
   onSelect: (mode: MapMode) => void;
@@ -1812,20 +1849,16 @@ function LayerMenu({
   onSelectBasemap?: (key: BasemapKey) => void;
   map3d?: boolean;
   onSetMap3d?: (value: boolean) => void;
-  /** « Carte nue » actif = tout le HUD est masqué (la rangée est en surbrillance). */
   hudHidden: boolean;
-  /** Bascule « Carte nue » (masque/affiche le HUD) — referme le menu pour la voir. */
   onToggleHud: () => void;
-  /**
-   * Section « CALQUES » (territoire, défense, rival…) — masquée en mode Bike :
-   * ces calques lisent des territoires de COURSE À PIED, qui ne sont pas peints
-   * dans cette lentille. Les proposer là serait offrir six bascules sans effet,
-   * c'est-à-dire six boutons morts. Le FOND et la VUE, eux, sont neutres vis-à-vis
-   * de l'activité : ils restent.
-   */
   showReadingLayers?: boolean;
+  layerVisibility?: MapLayerVisibility;
+  onToggleLayer?: (layer: MapLayerKey, visible: boolean) => void;
+  onResetLayers?: () => void;
+  activity?: MapActivity;
 }) {
   const t = useT();
+  const showFilters = showReadingLayers && onToggleLayer !== undefined;
   return (
     <ScrollView
       style={[styles.layerMenu, maxHeight != null ? { maxHeight } : null]}
@@ -1868,9 +1901,6 @@ function LayerMenu({
           <View style={styles.layerDivider} />
         </>
       ) : null}
-      {/* VUE — options d'AFFICHAGE de la carte. Toujours présent car « Carte nue »
-          (masquer tout le HUD) y vit désormais : elle reste accessible même sans
-          toggle 3D. Le 2D/3D n'apparaît que si le parent le pilote (onSetMap3d). */}
       <Text style={styles.layerHeading}>{t(C.headingView)}</Text>
       {onSetMap3d ? (
         <Map3DToggle
@@ -1880,8 +1910,6 @@ function LayerMenu({
           testID="battle-map-3d-toggle"
         />
       ) : null}
-      {/* « Carte nue » — bascule d'affichage (masque/affiche tout le HUD). Icône
-          « discret » (masquer). Actif = HUD masqué ; l'a11y décrit l'action du tap. */}
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ selected: hudHidden }}
@@ -1898,6 +1926,66 @@ function LayerMenu({
           {t(C.hudRowLabel)}
         </Text>
       </Pressable>
+      {showFilters ? (
+        <>
+          <View style={styles.layerDivider} />
+          <Text style={styles.layerHeading}>{t(C.filtersTitle)}</Text>
+          <Text style={styles.layerScopeNote} numberOfLines={2}>
+            {t(activity === 'bike' ? C.filtersScopeBike : C.filtersScopeRun)}
+          </Text>
+          <Text style={styles.layerScopeNote} numberOfLines={2}>
+            {t(C.filtersUrgentNote)}
+          </Text>
+          {WIRED_MAP_LAYERS.map((key) => {
+            const on = layerVisibility[key];
+            return (
+              <Pressable
+                key={key}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: on }}
+                accessibilityLabel={t(C.layerA11y, { label: t(FILTER_CHIP_ENTRIES[key]) })}
+                onPress={() => {
+                  haptics.light();
+                  onToggleLayer(key, !on);
+                  track(EVENTS.mapLayerToggled, { layer: key, visible: !on, activity });
+                }}
+                style={({ pressed }) => [
+                  styles.layerItem,
+                  on && styles.layerItemActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Icon
+                  name="calques"
+                  size={15}
+                  color={on ? gameColors.crew : colors.blanc}
+                />
+                <Text
+                  style={[styles.layerLabel, on && styles.layerLabelActive]}
+                  numberOfLines={1}
+                >
+                  {t(FILTER_CHIP_ENTRIES[key])}
+                </Text>
+              </Pressable>
+            );
+          })}
+          {onResetLayers && !allLayersVisible(layerVisibility) ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.filtersResetAll)}
+              onPress={() => {
+                haptics.light();
+                onResetLayers();
+              }}
+              style={({ pressed }) => [styles.layerItem, pressed && styles.pressed]}
+            >
+              <Text style={styles.layerLabel} numberOfLines={1}>
+                {t(C.filtersResetAll)}
+              </Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
       {showReadingLayers ? (
         <>
           <View style={styles.layerDivider} />
@@ -1971,6 +2059,13 @@ const styles = StyleSheet.create({
     marginLeft: 2,
     marginTop: 2,
     marginBottom: 2,
+  },
+  layerScopeNote: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    fontWeight: '600',
+    marginHorizontal: 4,
+    marginBottom: 4,
   },
   layerDivider: { height: 1, backgroundColor: colors.grisLigne, marginVertical: 4 },
   layerItem: {

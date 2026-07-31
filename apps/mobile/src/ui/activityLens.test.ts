@@ -418,8 +418,10 @@ Deno.test('la Carte peint ses couches dans les DEUX lentilles', async () => {
   ]) {
     const src = (await source(path)).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     assert(!/bike\s*\?\s*\[\]/.test(src), `${path} : une couche de jeu est encore vidée en Bike`);
+    // Garde le COMPORTEMENT (filtre par discipline), pas la signature exacte :
+    // un 3ᵉ argument d’options (`{ allowHexFallback }`) ne doit pas faire rougir.
     assert(
-      src.includes('useRealTerritories(crewIds, activity)'),
+      /useRealTerritories\(\s*crewIds\s*,\s*activity\b/.test(src),
       `${path} : la lecture des captures n’est pas bornée à la lentille`,
     );
   }
