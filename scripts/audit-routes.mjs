@@ -77,7 +77,6 @@ const KNOWN_ORPHANS = new Map([
       'ci-dessus) : la liste /challenges n’est elle-même atteinte de nulle part ' +
       '(docblock de l’écran).',
   ],
-  ['/crew-edit', 'redirect stub vers /crew tant que la RPC d’édition n’existe pas (docblock)'],
 ]);
 
 /** Ces chaînes ressemblent à des chemins mais n'en sont pas (préfixes, fixtures). */

@@ -1152,6 +1152,30 @@ export function RealCrewScreen() {
                     dériver ici le droit `createOuting` recopierait côté client
                     une matrice dont le serveur est seul juge (crew_outing_context).
                     Lien discret, jamais un second accent chartreuse fort (§A.4). */}
+                {/* E51 — PORTE D'ENTRÉE DES PARAMÈTRES DU CREW (`/crew-edit`).
+                    Elle manquait : la route existait, l'écran était réel depuis
+                    la migration 0084 (RPC `crew_edit`, SECURITY DEFINER,
+                    réservée au propriétaire), mais AUCUN lien n'y menait — le
+                    gate `audit-routes` la listait en orpheline avec une raison
+                    devenue fausse (« redirect stub tant que la RPC n'existe
+                    pas »).
+                    PAS DE DROIT RECOPIÉ ICI, pour la même raison que le lien
+                    « sortie » juste en dessous : dériver `editCrew` côté client
+                    dupliquerait une matrice dont le serveur est seul juge.
+                    L'écran affiche son propre refus si l'appelant n'a pas le
+                    droit (`editForbiddenTitle`), et la RPC le rejetterait de
+                    toute façon. Lien discret, jamais un second accent
+                    chartreuse fort (§A.4). */}
+                <Pressable
+                  onPress={() => router.push('/crew-edit')}
+                  accessibilityRole="link"
+                  accessibilityLabel={t(C.editTitle)}
+                  hitSlop={8}
+                  style={styles.inlineLink}
+                >
+                  <Text style={styles.priorityAction}>{t(C.editTitle)}</Text>
+                  <Icon name="chevron" size={iconSizes.sm} color={colors.chartreuse} />
+                </Pressable>
                 <Pressable
                   onPress={() => router.push('/crew-sortie')}
                   accessibilityRole="link"
