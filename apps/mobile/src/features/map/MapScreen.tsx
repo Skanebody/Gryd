@@ -376,8 +376,8 @@ export function MapScreen() {
         : [],
     [sectorRows, viewerUserId, viewerCrewId, viewerResolved, sectorsReadable],
   );
-  const { territories, isReal, failed, signedOut, loading, reload } =
-    useRealTerritories(crewIds, activity);
+  const { territories, isReal, failed, signedOut, loading, reload, hiddenWithoutGeometryCount } =
+    useRealTerritories(crewIds, activity, { allowHexFallback: false });
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
@@ -556,6 +556,7 @@ export function MapScreen() {
     () => selectZoneView(territories, sectorViews, selectedZoneId, zoneViewer),
     [selectedZoneId, territories, sectorViews, zoneViewer],
   );
+  const hasApproxContours = (territories ?? []).some((t) => t.geometrySource === 'h3cells');
 
   /**
    * §A — 1 écran = 1 décision : quand le peek du HUD porte DÉJÀ l'état vide (sa
@@ -600,6 +601,11 @@ export function MapScreen() {
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
         dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
+    // Vague 10 : quand le repli hexagonal est coupé, des captures restent
+    // potentiellement sans géométrie tracée ; on le dit explicitement.
+    (hiddenWithoutGeometryCount > 0 ? resolve(C.dataNoteMissingTraceGeometry, locale) : null) ??
+    // Compat arrière : si le repli h3 est actif ailleurs, la phrase reste vraie.
+    (hasApproxContours ? resolve(C.dataNoteApproxContours, locale) : null) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS. Il ne parle que si la localisation et les
     // territoires n'ont rien à dire, mais il parle : « secteurs non chargés »

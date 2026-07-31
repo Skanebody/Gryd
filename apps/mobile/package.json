@@ -7,6 +7,9 @@
     "start": "expo start",
     "ios": "expo run:ios",
     "android": "expo run:android",
+    "eas:build:ios:dev": "eas build --profile development --platform ios",
+    "eas:build:ios:preview": "eas build --profile preview --platform ios",
+    "eas:build:android:preview": "eas build --profile preview --platform android",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

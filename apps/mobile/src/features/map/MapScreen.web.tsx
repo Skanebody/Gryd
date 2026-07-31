@@ -427,8 +427,8 @@ export function MapScreen() {
         : [],
     [sectorRows, viewerUserId, viewerCrewId, viewerResolved, sectorsReadable],
   );
-  const { territories, isReal, failed, signedOut, loading, reload } =
-    useRealTerritories(crewIds, activity);
+  const { territories, isReal, failed, signedOut, loading, reload, hiddenWithoutGeometryCount } =
+    useRealTerritories(crewIds, activity, { allowHexFallback: false });
   // P0 C5 (MVP_CHANGESET) — reload() n'était consommé par PERSONNE : après une
   // course qui capture, la carte ne montrait la zone qu'au redémarrage (le
   // refetch ne tenait qu'au remontage accidentel de la navigation). Ici : refetch
@@ -578,6 +578,7 @@ export function MapScreen() {
     () => selectZoneView(territories, sectorViews, selectedZoneId, zoneViewer),
     [selectedZoneId, territories, sectorViews, zoneViewer],
   );
+  const hasApproxContours = (territories ?? []).some((t) => t.geometrySource === 'h3cells');
 
   /** Instance maplibre-gl de CETTE carte (échelle scopée — §6). */
   const [glMap, setGlMap] = useState<MapLibreMap | null>(null);
@@ -625,6 +626,11 @@ export function MapScreen() {
       : // Plus aucune démo n'est peinte : la note dit « pas connecté », jamais
         // « démonstration » (le paramètre `demoPainted` a disparu avec la vitrine).
         dataNote(isReal, failed, territories?.length ?? 0, locale, activity)) ??
+    // Vague 10 : pas de fallback h3 ici ; les captures sans trace restent
+    // invisibles et l'écran doit l'annoncer.
+    (hiddenWithoutGeometryCount > 0 ? resolve(C.dataNoteMissingTraceGeometry, locale) : null) ??
+    // Compat arrière : phrase conservée si un autre écran garde le fallback.
+    (hasApproxContours ? resolve(C.dataNoteApproxContours, locale) : null) ??
     // DERNIÈRE priorité (§A : la pill ne porte qu'UNE phrase) — l'échec de
     // lecture des SECTEURS, qui n'est PAS « aucun secteur ». Parité native.
     (sectorsReadable && sectorStatus === 'error'

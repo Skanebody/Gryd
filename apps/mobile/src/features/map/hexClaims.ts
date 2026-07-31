@@ -153,7 +153,17 @@ export interface UseRealTerritoriesResult {
    * chargement n'est pas un état vide ».
    */
   loading: boolean;
+  /**
+   * Captures réelles sans polygone rendu (mode strict sans repli hexagonal).
+   * 0 quand le repli est actif.
+   */
+  hiddenWithoutGeometryCount: number;
   reload: () => void;
+}
+
+export interface UseRealTerritoriesOptions {
+  /** Vague 10 : coupe le repli hexagonal quand false. */
+  allowHexFallback?: boolean;
 }
 
 /**
@@ -230,6 +240,7 @@ export interface UseRealTerritoriesResult {
 export function useRealTerritories(
   crewIds?: ReadonlySet<string> | null,
   activity: Activity = DEFAULT_ACTIVITY,
+  options?: UseRealTerritoriesOptions,
 ): UseRealTerritoriesResult {
   const { session, loading: sessionLoading } = useSession();
   /**
@@ -244,6 +255,7 @@ export function useRealTerritories(
    */
   const [read, setRead] = useState<{ activity: Activity; rows: RealTerritory[] } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [hiddenWithoutGeometryCount, setHiddenWithoutGeometryCount] = useState(0);
   const [tick, setTick] = useState(0);
   const territories = read !== null && read.activity === activity ? read.rows : null;
 
@@ -256,6 +268,7 @@ export function useRealTerritories(
     if (!supabase || !session) {
       setRead(null);
       setFailed(false);
+      setHiddenWithoutGeometryCount(0);
       return;
     }
     let cancelled = false;
@@ -300,26 +313,30 @@ export function useRealTerritories(
         console.error('[hexClaims] lecture territoire échouée :', error.message);
         setRead(null);
         setFailed(true);
+        setHiddenWithoutGeometryCount(0);
         return;
       }
+      const merged = mergeTerritorySources({
+        territoryRows: (territoryRows.data ?? []) as unknown as TerritoryRow[],
+        // CONCATÉNATION, PAS FUSION : la vue EXCLUT les cellules du lecteur
+        // (0079 §2), les deux ensembles sont donc disjoints par construction.
+        // Aucune déduplication n'est nécessaire — et surtout aucune n'est
+        // SIMULÉE : si les deux sources se recouvraient un jour, il faudrait
+        // le corriger côté vue, pas le masquer ici.
+        claimRows: [
+          ...((claims.data ?? []) as HexClaimRow[]),
+          ...fromPublicClaims((others.data ?? []) as PublicHexClaimRow[]),
+        ],
+        meId: session.user.id,
+        now: new Date().toISOString(),
+        crewIds,
+        allowHexFallback: options?.allowHexFallback,
+      });
       setRead({
         activity,
-        rows: mergeTerritorySources({
-          territoryRows: (territoryRows.data ?? []) as unknown as TerritoryRow[],
-          // CONCATÉNATION, PAS FUSION : la vue EXCLUT les cellules du lecteur
-          // (0079 §2), les deux ensembles sont donc disjoints par construction.
-          // Aucune déduplication n'est nécessaire — et surtout aucune n'est
-          // SIMULÉE : si les deux sources se recouvraient un jour, il faudrait
-          // le corriger côté vue, pas le masquer ici.
-          claimRows: [
-            ...((claims.data ?? []) as HexClaimRow[]),
-            ...fromPublicClaims((others.data ?? []) as PublicHexClaimRow[]),
-          ],
-          meId: session.user.id,
-          now: new Date().toISOString(),
-          crewIds,
-        }).territories,
+        rows: merged.territories,
       });
+      setHiddenWithoutGeometryCount(merged.hiddenWithoutGeometryCount);
     })().catch((e: unknown) => {
       // Symétrie avec features/performance/real.ts. supabase-js convertit
       // normalement les erreurs de fetch en `{ error }` plutôt qu'en rejet ; si
@@ -330,6 +347,7 @@ export function useRealTerritories(
       console.error('[hexClaims] lecture hex_claims rejetée :', e);
       setRead(null);
       setFailed(true);
+      setHiddenWithoutGeometryCount(0);
     });
     return () => {
       cancelled = true;
@@ -337,7 +355,7 @@ export function useRealTerritories(
     // `activity` EST une dépendance : basculer la lentille doit relancer la
     // lecture, sinon l'écran garderait les zones de l'autre monde jusqu'au
     // prochain focus — c'est-à-dire mentirait le temps d'un écran entier.
-  }, [session, sessionLoading, tick, crewIds, activity]);
+  }, [session, sessionLoading, tick, crewIds, activity, options?.allowHexFallback]);
 
   // Pendant `sessionLoading`, on ne SAIT pas encore s'il y a une session :
   // répondre `true` reviendrait à traiter « je vérifie » comme « pas de compte ».
@@ -354,6 +372,7 @@ export function useRealTerritories(
     // qui lit `loading` ne peut donc jamais affirmer « pas connecté » ni
     // « aucune zone » avant que la réponse existe.
     loading: !(signedOutNow || failed || territories !== null),
+    hiddenWithoutGeometryCount,
     reload,
   };
 }
