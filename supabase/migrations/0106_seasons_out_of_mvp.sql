@@ -1,0 +1,45 @@
+-- 0106_seasons_out_of_mvp.sql
+-- GRYD — Les saisons SORTENT du MVP (décision fondateur, 28/07/2026).
+--
+-- ═══ LA DÉCISION ═══════════════════════════════════════════════════════════
+-- « On se complique la vie avec les saisons, il faut les déployer plus tard et
+-- faciliter au max le jeu pour les utilisateurs. »
+--
+-- Et avant cela : « on ne peut pas repartir à zéro en changement de saison ».
+--
+-- ═══ POURQUOI C'ÉTAIT URGENT, ET PAS SEULEMENT UN CHOIX DE PRODUIT ═════════
+-- Le job `gryd_season_close` tournait TOUS LES JOURS à 03:20 (0039), et sa
+-- phase 2 `resetSeason` (season_close/index.ts) SUPPRIME toutes les lignes
+-- `hex_claims` puis tous les `shields` — un `delete` global, non borné à une
+-- ville. Le jour où une saison serait passée en `closed`, la carte des comptes
+-- RÉELS aurait été effacée en une nuit, sans que personne ne l'ait demandé.
+--
+-- Ce n'est donc pas seulement « on remet la fonctionnalité à plus tard » : on
+-- désarme une suppression destructrice qui pouvait partir toute seule.
+--
+-- ═══ CE QUE ÇA FAIT ═══════════════════════════════════════════════════════
+-- On DÉPLANIFIE le job. On ne supprime NI la fonction edge, NI les tables, NI
+-- le moteur de saison : ils sont écrits, testés, et resserviront. Une saison ne
+-- se clôturera simplement plus toute seule.
+--
+-- ⚠️ CE N'EST PAS UNE PROTECTION SUFFISANTE À ELLE SEULE. La fonction edge
+-- reste appelable manuellement. La vraie garantie est côté code : à partir de
+-- ce jour, `SEASON_RESET_KEEPS.territory` et `.shields` valent `true`
+-- (packages/shared/src/game-rules.ts) et `resetSeason` n'efface plus rien.
+-- Cette migration est la ceinture ; le code est les bretelles.
+--
+-- ═══ POURQUOI LES SAISONS REVIENDRONT AUTREMENT ════════════════════════════
+-- Le jeu a déjà le DECAY (14 j) : une zone qu'on cesse de défendre se perd
+-- toute seule, continûment et justement. C'est LUI qui empêche le monopole du
+-- premier arrivé — le rôle qu'on prête d'habitude à une remise à zéro. La
+-- saison faisait donc double emploi sur l'équité, tout en détruisant ce qui
+-- donne son sens à un jeu de territoire : la DURÉE. « Ce quartier est à moi
+-- depuis mars » est la phrase que le produit doit rendre possible.
+-- Quand elles reviendront, elles remettront à zéro LE TABLEAU (points, rangs,
+-- classements), jamais LA CARTE.
+--
+-- ADDITIVE : aucune table, aucune colonne, aucune donnée touchée.
+-- Rollback = replanifier le job (mais lire d'abord `resetSeason`).
+
+select cron.unschedule('gryd_season_close')
+where exists (select 1 from cron.job where jobname = 'gryd_season_close');

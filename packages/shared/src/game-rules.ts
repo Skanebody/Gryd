@@ -591,8 +591,14 @@ export const SEASON_RANK_TIERS: readonly SeasonRankTier[] = [
 export const SEASON_RESET_KEEPS = {
   seasonPoints: false,
   seasonRank: false,
-  territory: false,
-  shields: false,
+  // ⚠️ PASSÉ À `true` LE 28/07/2026 (décision fondateur : « on ne peut pas
+  // repartir à zéro en changement de saison »). Le DECAY (14 j) empêche déjà
+  // le monopole du premier arrivé, continûment et justement — la saison
+  // faisait double emploi sur l'équité tout en détruisant ce qui donne son
+  // sens à un jeu de territoire : la DURÉE. Quand les saisons reviendront,
+  // elles remettront à zéro LE TABLEAU (points, rangs), jamais LA CARTE.
+  territory: true,
+  shields: true,
   badges: true,
   xp: true,
   level: true,

@@ -284,23 +284,27 @@ async function loadScoreInputs(season: SeasonRow): Promise<Map<Activity, SeasonS
 // ─── Phase 2 : reset (règlement §2) ──────────────────────────────────────────
 
 async function resetSeason(season: SeasonRow): Promise<void> {
-  // Reset total de la carte (SPEC §3.6 — fresh start assumé). Les lignes
-  // hex_claims sont SUPPRIMÉES : nouvelle saison = nouvelle histoire de la
-  // carte, le bonus pionnier repart de zéro (contrairement au decay, qui
-  // conserve la mémoire everOwned à l'intérieur d'une saison).
-  // Saison 0 France entière : le wipe est global, pas borné à la city_zone.
-  const { error: hexError } = await supabase
-    .from('hex_claims')
-    .delete()
-    .gte('h3index', 0); // delete all — PostgREST exige un filtre
-  if (hexError) throw new Error(`hex_claims wipe: ${hexError.message}`);
-
-  // Boucliers : reset (règlement §2). L'historique d'achat reste dans purchases.
-  const { error: shieldError } = await supabase
-    .from('shields')
-    .delete()
-    .gte('activated_at', '1970-01-01');
-  if (shieldError) throw new Error(`shields wipe: ${shieldError.message}`);
+  // ⚠️ LE RESET N'EFFACE PLUS RIEN (28/07/2026, décision fondateur).
+  //
+  // Il supprimait ici TOUTES les lignes `hex_claims` puis tous les `shields` —
+  // un `delete` global, non borné à une ville. La carte de chaque joueur était
+  // rasée en une nuit, y compris celle qu'il avait parfaitement défendue.
+  //
+  // POURQUOI C'ÉTAIT FAUX, et pas seulement dur : le DECAY (14 j) fait déjà le
+  // travail qu'on attend d'une remise à zéro — il empêche le monopole du
+  // premier arrivé, mais CONTINÛMENT et JUSTEMENT (on perd ce qu'on cesse de
+  // défendre, jamais ce qu'on défend). La saison faisait donc double emploi sur
+  // l'équité, tout en détruisant ce qui donne son sens à un jeu de territoire :
+  // la DURÉE. « Ce quartier est à moi depuis mars » est la phrase que le
+  // produit doit rendre possible ; un reset à huit semaines la rend impossible.
+  //
+  // La règle vit dans `SEASON_RESET_KEEPS` (game-rules) : `territory: true`,
+  // `shields: true`, `badges: true`. Ce qui se remet à zéro, ce sont les
+  // POINTS et les RANGS — le tableau, jamais la carte.
+  //
+  // Le job planifié est par ailleurs DÉPLANIFIÉ (migration 0106) : une saison
+  // ne se clôture plus toute seule. Cette fonction reste appelable à la main,
+  // et c'est pourquoi la garantie est ICI et pas seulement dans le cron.
 
   const { error } = await supabase
     .from('seasons')
