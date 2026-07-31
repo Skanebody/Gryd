@@ -102,12 +102,35 @@ export interface CrewContribution {
   contributionPct: number;
 }
 
+/**
+ * TRAJECTOIRE DU CREW — niveau gagné en COURANT (migration 0108).
+ *
+ * ⚠ `memberCount` n'est pas décoratif. Depuis la migration `0107` le barème de
+ * niveau est NORMALISÉ par la taille du crew : sans lui, la marche suivante ne
+ * peut pas être calculée, et une jauge tracée sur le barème BRUT se remplirait
+ * plus vite que le niveau n'arrive — elle promettrait une marche qui ne tombe
+ * pas. C'est pourquoi ce bloc est `null` DÈS QU'UNE des trois valeurs manque :
+ * un niveau sans sa taille est un chiffre qu'on ne sait pas situer.
+ */
+export interface CrewProgress {
+  level: number;
+  xp: number;
+  /** Membres ACTIFS (le serveur exclut ceux qui sont partis). */
+  memberCount: number;
+}
+
 /** Retour utile de `crew_overview()` (les refus retombent sur `null`). */
 export interface CrewOverview {
   territory: CrewTerritory;
   /** Mon rôle dans le crew, ou null si le serveur ne le renseigne pas. */
   myRole: string | null;
   contributions: CrewContribution[];
+  /**
+   * `null` = le serveur n'a pas (encore) rendu la trajectoire — backend
+   * antérieur à 0108, ou payload amputé. L'écran n'affiche alors AUCUN bloc de
+   * progression, plutôt qu'un « niveau 1 » inventé.
+   */
+  progress: CrewProgress | null;
 }
 
 /** Motifs de refus renvoyés par les RPC (contrat figé). */
@@ -304,7 +327,30 @@ export function parseCrewOverview(raw: unknown): CrewOverview | null {
     },
     myRole: asText(root.role),
     contributions,
+    progress: parseCrewProgress(root),
   };
+}
+
+/**
+ * Trajectoire, ou `null` — jamais un repli. Les trois valeurs sont exigées
+ * ENSEMBLE : un niveau sans sa taille de crew ne peut pas être situé sur le
+ * barème normalisé (0107), donc l'afficher seul reviendrait à promettre une
+ * marche qu'on ne sait pas calculer.
+ *
+ * `xp` peut arriver en chaîne : `crews.xp` est un `bigint`, et PostgREST rend
+ * les bigints en JSON sous forme de texte pour ne pas perdre de précision.
+ */
+function parseCrewProgress(root: Record<string, unknown>): CrewProgress | null {
+  const level = asFiniteInt(root.level);
+  const memberCount = asFiniteInt(root.memberCount);
+  // `Number('')` vaut 0 : une chaîne vide passerait donc pour « 0 XP » alors
+  // qu'elle veut dire « je n'ai rien reçu ». On l'écarte avant la conversion.
+  const rawXp =
+    typeof root.xp === 'string' ? (root.xp.trim().length > 0 ? Number(root.xp) : null) : root.xp;
+  const xp = asFiniteInt(rawXp);
+  if (level === null || xp === null || memberCount === null) return null;
+  if (level < 1 || xp < 0 || memberCount < 0) return null;
+  return { level, xp, memberCount };
 }
 
 // ─── Mission prioritaire du crew (A-43 §0 maillon 3) — lecture + dérivation ──
