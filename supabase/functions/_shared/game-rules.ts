@@ -1491,6 +1491,104 @@ export const CREW_COSMETIC_SLOTS: readonly CrewCosmeticSlot[] = [
   { key: 'victory_animation', crewLevel: 8, supportTier: 4 },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// LES TROIS OFFRES — GRYD · GRYD+ · GRYD Pro (01/08/2026)
+//
+// UN SEUL PRINCIPE, et il tranche tous les cas :
+//   LES FAITS SONT GRATUITS. L'INTERPRÉTATION EST PAYANTE.
+// Un fait, c'est ce que le JOUEUR a produit (sa distance, ses zones, sa durée
+// de contrôle). Une interprétation, c'est ce que GRYD calcule par-dessus
+// (tendances, vulnérabilités, mémoire, planification). On ne fait jamais payer
+// quelqu'un pour accéder à ce que son corps a fabriqué.
+//
+// ⚠️ AUCUN PRIX ICI. La spec E74 est catégorique : les montants sont de la
+// CONFIGURATION, le Store fait foi. Un prix en dur exigerait un rebuild pour
+// être corrigé, et divergerait du montant réellement débité.
+//
+// ⚠️ AUCUNE CAPACITÉ DE CETTE TABLE N'EST LUE PAR LE MOTEUR. Ni capture, ni
+// défense, ni decay, ni scoring, ni classement. Un `if` qui ferait dépendre une
+// règle de jeu d'un palier serait un défaut de conformité, pas une feature.
+// `offer.test.ts` monte la garde.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Les trois offres, du plus ouvert au plus complet. L'ORDRE fait le rang. */
+export const GRYD_TIERS = ['free', 'plus', 'pro'] as const;
+export type GrydTier = (typeof GRYD_TIERS)[number];
+
+export interface GrydCapability {
+  readonly key: string;
+  /** Palier MINIMAL qui l'ouvre. */
+  readonly tier: GrydTier;
+  /**
+   * Le code la tient-il AUJOURD'HUI ? Une capacité non construite n'est JAMAIS
+   * présentée ni vendue — une offre qui promet ce qui n'existe pas est la même
+   * faute qu'une donnée fabriquée. Ce drapeau passe à `true` le jour où la
+   * capacité marche, pas le jour où elle est décidée.
+   */
+  readonly built: boolean;
+  /**
+   * GRATUITE POUR TOUJOURS, par constitution — jamais par tolérance.
+   *
+   * C'est la garantie anti-reprise : Strava a fait payer pour RÉCUPÉRER ce qui
+   * était gratuit (segments, itinéraires), et ça a été vécu comme un vol.
+   * Déplacer l'une de ces clés vers un palier payant est interdit, et un test
+   * l'empêche. Deux familles y sont : ce que le JOUEUR a produit, et tout ce
+   * qui touche à la DÉFENSE (être prévenu plus tôt d'une attaque, c'est acheter
+   * un avantage compétitif).
+   */
+  readonly freeForever?: true;
+}
+
+/**
+ * LA TABLE DES CAPACITÉS. Trois verbes, un par palier :
+ *   free → VOIR ce que j'ai fait · plus → COMPRENDRE · pro → DÉCIDER.
+ *
+ * ⚠️ RIEN DE DÉJÀ DONNÉ NE PEUT MONTER D'UN PALIER. `/route-planner` est
+ * gratuit et atteignable aujourd'hui : il n'apparaît donc PAS dans `pro`.
+ * GRYD Pro ne peut contenir que du NEUF — sinon c'est une reprise, pas une
+ * offre.
+ */
+export const GRYD_CAPABILITIES: readonly GrydCapability[] = [
+  // ── GRATUIT, ET DÉFINITIVEMENT ────────────────────────────────────────────
+  { key: 'own_activities', tier: 'free', built: true, freeForever: true },
+  { key: 'own_territory', tier: 'free', built: true, freeForever: true },
+  { key: 'defense_alerts', tier: 'free', built: true, freeForever: true },
+  { key: 'local_leaderboard', tier: 'free', built: true, freeForever: true },
+  { key: 'crew', tier: 'free', built: true, freeForever: true },
+  { key: 'crew_trajectory', tier: 'free', built: true, freeForever: true },
+  { key: 'route_planner', tier: 'free', built: true, freeForever: true },
+  { key: 'share_basic', tier: 'free', built: true, freeForever: true },
+
+  // ── GRYD+ — COMPRENDRE ────────────────────────────────────────────────────
+  /** Heatmap de durée de contrôle (E66, construit). */
+  { key: 'control_heatmap', tier: 'plus', built: true },
+  /** Tendances sur fenêtre : zones prises, surface gagnée, défenses (E66). */
+  { key: 'window_trends', tier: 'plus', built: true },
+  /** Frontières sous contestation, la plus urgente d'abord (E66). */
+  { key: 'vulnerable_zones', tier: 'plus', built: true },
+  /**
+   * « Ce quartier était à toi de mars à septembre. »
+   * PAS ENCORE CONSTRUIT : aucune table n'historise la propriété — c'est
+   * pourquoi « tu as perdu N zones » est aujourd'hui déclaré intenable. C'est
+   * une MÉMOIRE que GRYD fabrique et que le joueur n'a pas produite : le
+   * meilleur candidat de tout le catalogue, et une migration.
+   */
+  { key: 'ownership_history', tier: 'plus', built: false },
+
+  // ── GRYD Pro — DÉCIDER ────────────────────────────────────────────────────
+  // AUCUNE n'est construite au 01/08/2026. Le palier existe donc comme
+  // CONTRAT (ce qu'il faudra tenir), pas comme produit vendable : `built:false`
+  // le rend invendable par construction, et l'écran de vente ne le peint pas.
+  /** Rejouer une conquête — l'animation de ce qui s'est passé. */
+  { key: 'replay', tier: 'pro', built: false },
+  /** Export de ses données et de ses cartes en haute définition. */
+  { key: 'export_hd', tier: 'pro', built: false },
+  /** Lecture avancée de l'activité du crew (au-delà du HQ gratuit). */
+  { key: 'crew_analytics', tier: 'pro', built: false },
+  /** Comparer plusieurs saisons entre elles. */
+  { key: 'multi_season_compare', tier: 'pro', built: false },
+];
+
 // ─── §36 Rôles crew + permissions (RÉALIGNÉS AMENDEMENT-16 §3, doc crews §8) ─
 /**
  * Rôles façon clan (doc §8.1-§8.7). `defender`/`raider` ne sont PLUS des rôles

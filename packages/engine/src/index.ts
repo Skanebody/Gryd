@@ -18,6 +18,10 @@ export * from './boundary.ts';
 // des emplacements cosmétiques — aucune sortie de ce module n'entre jamais dans
 // la capture, la défense, le decay, le scoring ou le classement.
 export * from './crewSupport.ts';
+// Les TROIS OFFRES (free · plus · pro) : « les faits sont gratuits,
+// l'interprétation est payante ». N'ouvre QUE de la lecture et des outils —
+// aucune sortie n'entre jamais dans la capture, la défense ou le classement.
+export * from './offer.ts';
 export * from './coverage.ts';
 export * from './zone.ts';
 export * from './sectors.ts';
