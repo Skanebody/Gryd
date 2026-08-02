@@ -1,51 +1,69 @@
-# GRYD — monorepo
+# GRYD
 
-Jeu de conquête de territoire par la course à pied. Nom public : **GRYD** (« Cours pour ton crew. Conquiers ta ville. » — le jeu de guerre territoriale entre crews de running, AMENDEMENT-42). **Clearance INPI à faire avant usage public.** **Europe entière capturable** (`AMENDEMENT-35-EUROPE.md` — remplace « France entière »), Saison 0 focalisée Paris + Lille. L'élargissement Europe est une VISION : ne jamais fabriquer de données européennes factices (villes/classements/rivaux) tant qu'aucun vrai utilisateur ne les peuple — la vision se surface en copie + docs, pas en inventant des rankings.
+Jeu mobile : courir → fermer une boucle → territoire sur la carte. MVP Saison 0 **Rouen**.
 
-## Autorité documentaire (ordre strict)
-0. **`SOURCE_OF_TRUTH_REGISTER.md`** (racine) — arbitre l'autorité entre docs. À lire EN PREMIER en cas de doute. La constitution NON NÉGOCIABLE (l'app ne ment jamais, anti-p2w, claim serveur, game-rules source unique, zéro donnée EU factice, migration jamais réécrite) reste AU-DESSUS de toute spec produit.
-0b. **`docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md`** (v1.0, **26/07/2026**) — **SOURCE DE VÉRITÉ PRODUIT UNIQUE** (décision fondateur du 26/07 : « prends le dernier »). Elle **REMPLACE** `GRYD_SPEC_MAITRE_UNIFIEE_2026.md` (24/07), qui devient un document ANTÉRIEUR à ne plus consulter pour décider. Écrans **E00-E79** (numérotation qui fait foi partout : code, tickets, tests E2E, analytics — voir `ARBITRAGES_SPEC_2026.md` A4, les anciens `E01-E26` des planches Vague 1 se citent `V1-*`). Elle porte : navigation 3 onglets, design system, pipeline de capture §8, contestation/défense §9, classements §10, anti-triche §11, confidentialité géospatiale §12, analytics §18, contrats API §20.
-   · État réel du dépôt face à elle : **`AUDIT_GRYD.md`** (cité fichier:ligne). Séquencement : **`PLAN_IMPLEMENTATION_GRYD.md`**. Conflits tranchés : **`ARBITRAGES_SPEC_2026.md`**.
-   · La constitution (§0 registre : l'app ne ment jamais, anti-p2w, claim serveur, couleurs par RÔLE, zéro donnée EU factice) reste **AU-DESSUS** d'elle — la spec §0 admet la primauté d'une « contrainte démontrée ».
-   · Règle conservée de la spec antérieure : « l'existant n'est jamais une preuve de conformité » — jamais « déjà fait » sans preuve (fichier:ligne + comportement).
-1. `docs/product/GRYD_MASTER_SPEC.md` + les 17 autres `docs/product/GRYD_*.md` — source de vérité produit (antérieure ; cède à la Spéc Unifiée sur les points UI/UX qu'elle rouvre).
-2. `AMENDEMENT-02-GRYD.md` — réconciliation GRYD ↔ SPEC v0.1 : deltas actifs (France entière, secteurs, `partial`, 5 onglets, pionnier par densité…) et arbitrages A1-A4.
-3. `SPEC-MVP-territoire-running-v0.md` — règles de jeu gelées §3, architecture, périmètre (là où l'amendement ne dit rien).
-4. `ADDENDUM-DESIGN-v0.1.md` — charte noir/blanc/chartreuse #B4FF0D, AMENDEMENT-01 (carte égocentrée). Toute couleur hors tokens = bug.
-5. `GRYD_REGLES_NON_NEGOCIABLES.md` — **constitution UI + carte (CONTRAIGNANT)** : §A 20 règles de simplification (1 écran = 1 action, pas de card-in-card, 1 CTA, textes jamais coupés, filtres dans Couches, live minimal, post-run 2 niveaux…), §B trace GPS héros façon Strava (casing+core, round caps, largeur par zoom, types de segments), §C couleurs par RÔLE (pas par identité) + scalabilité 200k (LOD par zoom, contesté 5 niveaux + pressure_score, jamais 200k runners, rival approximatif). Toute revue d'écran passe la checklist §A.
-6. `AMENDEMENT-47-FIN-DU-MODE-DEMO.md` — **fin du mode vitrine (CONTRAIGNANT, 21/07/2026)** : `isShowcasePlatform` / `EXPO_PUBLIC_SHOWCASE` n'existent plus, une étiquette « démonstration » ne rend PAS une donnée honnête, le lien public sert `apps/web` et le bundle mobile-web redevient l'instrument de preview du fondateur sur localhost. Sa section **« Ce qui reste EN SUSPENS »** est la seule liste qui fasse foi sur ce qui n'est pas fait — la lire avant d'affirmer qu'une surface est propre.
-7. `.claude/orchestration-klaim/` — PRD, DISCOVERY (décisions D1-D18), PHASES, PROGRESS.
-8. `maquette-ui-klaim.html` — référence visuelle des 4 écrans clés.
+## Constitution (ordre strict — §1 du MASTER)
+1. **`GRYD_MASTER_PROMPT.md`** (racine) — la constitution. Ne jamais contredire.
+2. **`docs/DECISIONS.md`** — ADR datés. **ADR-001 (hybride)** : UI mobile reconstruite à neuf ;
+   `packages/engine` + `packages/shared` + `supabase/` CONSERVÉS mais rien n'est « fait »
+   sans re-preuve (`docs/STATUS.md` démarre 100 % ABSENT).
+3. `docs/SPEC-CORE / SPEC-UX / SPEC-GEO / SPEC-SHARE .md` — specs par domaine.
+4. Tout le reste (AMENDEMENT-*, anciennes specs, REPRISE_SESSION) = **ARCHIVES** : documentation
+   du code conservé, jamais une source de décision nouvelle. Branche d'archive complète :
+   `archive/pre-master-2026-08`.
+
+## Interdits hérités qui restent constitutionnels (repris par le MASTER §12)
+- **L'app ne ment jamais** : données réelles ou VIDES ; 4 états distincts (pas connecté / vide /
+  échec / en cours) ; jamais un « 0 » nu, un spinner infini ni un repli inventé (L8, L14, L19).
+- **Tout claim est décidé serveur** ; écriture client interdite sur les tables de jeu ; RLS partout.
+- **Anti-pay-to-win strict** (règle 10) ; **zéro donnée factice** (aucune ville/classement inventé).
+- **Aucun bouton mort** : l'affichage se dérive de la capacité RÉELLE de la plateforme.
+- Une doc ne promet jamais au-delà du code ; migration jamais réécrite.
 
 ## Structure
 ```
-apps/mobile      Expo (dev builds) TS strict — expo-location, @maplibre/maplibre-react-native, h3-js
-apps/web         Next.js — site waitlist par code postal
-packages/shared  game-rules.ts (TOUTES les constantes §3), design-tokens.ts, types.ts, events.ts
-supabase/        migrations SQL (RLS partout) + Edge Functions Deno (ingest_run, …)
-scripts/         sync-game-rules.mjs (copie shared → functions/_shared, drift testé)
+apps/mobile      Expo RN TS strict (expo-router) — UI en reconstruction (ADR-001) ;
+                 écrans legacy = quarantaine logique : ne pas lire/importer hors SALVAGE validé
+apps/web         Next.js — landing + pages publiques zones/crews + OG (Phase 3)
+packages/shared  game-rules.ts (TOUTES les constantes — ADR-003), design-tokens, events
+packages/engine  moteur PUR (pipeline SPEC-GEO), testé sous Deno
+supabase/        migrations (RLS partout) + Edge Functions Deno ; _shared/ = copies GÉNÉRÉES
+scripts/         sync-game-rules.mjs (shared+engine → _shared/ + copies mobile, drift testé)
 ```
 
-## Règles non négociables
-- **Aucun nombre magique** : toute constante de jeu vient de `packages/shared/src/game-rules.ts`. Les Edge Functions consomment la copie générée `supabase/functions/_shared/game-rules.ts` — regénérer avec `node scripts/sync-game-rules.mjs`, ne jamais l'éditer à la main.
-- **Tout claim est décidé serveur** — le client n'attribue jamais un hex.
-- **L'app ne ment jamais** (AMENDEMENT-47) : données RÉELLES ou VIDES, jamais fabriquées — sur l'app installée, sur le web ET sur localhost. Une étiquette « démonstration » ne suffit pas. Quatre états DISTINCTS, jamais confondus : pas connecté / connecté mais vide / échec de chargement / lecture EN COURS — un chargement n'affirme rien sur le joueur. Jamais d'écran blanc, de spinner infini, de « 0 » nu, ni de repli inventé.
-- **Aucun bouton mort** : ne pas peindre une action qui échoue toujours sur la plateforme courante (Apple hors iOS, Google sur web tant qu'O2 est ouvert…). L'affichage se dérive de la capacité RÉELLE, pas de l'apparence ; l'absence d'un bouton n'est pas un mensonge, un bouton qui échoue toujours en est un. A fortiori pour l'unique CTA chartreuse d'un écran (§A4).
-- **Une doc ne promet jamais au-delà du code** : décrire l'état réel et daté, et inscrire le reste en « suspens ». Une garantie écrite avant que le code la tienne est la même faute qu'une donnée fabriquée.
-- Chaque écran logge ses events PostHog du §8 (noms exacts, définis dans `packages/shared/src/events.ts`).
-- Pas de lib hors stack imposée sans justification en une ligne.
-- RLS activé sur toutes les tables ; écriture client interdite sur `runs`/`hex_claims` (service-role via Edge Functions).
-- Jamais de texte/icône chartreuse sur fond clair (contraste 1,2:1).
-- **Épuration (voir `GRYD_REGLES_NON_NEGOCIABLES.md`)** : 1 écran = 1 décision + 1 CTA chartreuse max ; jamais de card dans card ; aucun texte d'action coupé par « … » ; filtres cachés derrière Couches ; détails au tap (jamais imposés) ; comprendre l'écran en < 3 s. Carte = couleurs par RÔLE (chartreuse=moi, orange=rival, violet=contesté), jamais une couleur par crew ; jamais tous les runners — agrégation par zoom.
-
 ## Commandes
-- Tests edge functions : `~/.deno/bin/deno test --allow-read supabase/functions/`
-- Typecheck : `npm run typecheck` (racine → workspaces)
-- Supabase local : `npx supabase start` (Docker requis)
-- Sync constantes : `node scripts/sync-game-rules.mjs`
+- **Gate complet (rien ne se commit sans son vert)** : `npm run gate`
+  (= typecheck 4/4 · sync sans drift · audit:migrations · test:packages · test:mobile ·
+  test:functions · test:sql). CI GitHub Actions = miroir exact.
+- Sync constantes : `node scripts/sync-game-rules.mjs` — ne JAMAIS éditer `_shared/` à la main.
+- Routes : `node scripts/audit-routes.mjs` · RLS réelle (réseau + secret, hors gate) :
+  `set -a && . ./scratchpad-secrets.local && set +a && npm run verify:rls`
+- Deno : `~/.deno/bin/deno` (pas dans le PATH par défaut).
 
-## Pièges monorepo connus
-- **Deux React cohabitent** : racine = React 18 (Expo/mobile), `apps/web` = React 19 (Next 15). `styled-jsx` est volontairement épinglé en **5.1.7 dans les deps de `@klaim/web`** pour forcer son nesting sous `apps/web/node_modules` (sinon npm le hoiste à la racine où il résout React 18 → crash `useContext` au prerender des pages d'erreur). Ne pas « nettoyer » cette dépendance, ne jamais aliaser `react` dans la config webpack de Next (ça casse le React vendored des server components).
+## Conventions
+- TS strict, pas de `any` · commits conventionnels français · aucun texte en dur (L18).
+- Aucun nombre magique : toute constante de jeu vient de `packages/shared/src/game-rules.ts`.
+- UI : `docs/SPEC-UX.md` fait loi (20 lois). Tout écran → gate `ux-gate` avant merge.
+- Toute tâche → preuve `qa-verify` avant « fait » ; STATUS.md est le tableau de vérité.
+- Chartreuse : token `colors.chartreuse` uniquement, jamais un hex en dur (ADR-008 ouvert).
+- PGlite ne prouve PAS la RLS (superutilisateur) ; chaque test SQL commence par l'étape 0
+  « le défaut existait » — sinon rien ne distingue une migration d'un no-op.
 
-## Secrets
-Jamais en dur. `.env.example` par app ; points ouverts O1-O4 dans DISCOVERY.md (projet Supabase, Apple/Google OAuth, RevenueCat, PostHog).
+## Pièges monorepo payés cher (ne pas « nettoyer »)
+- **Deux React cohabitent** : racine = React 18 (Expo), `apps/web` = React 19 (Next 15).
+  `styled-jsx` est épinglé en 5.1.7 dans les deps de `@klaim/web` pour forcer son nesting local
+  (sinon hoist racine → résout React 18 → crash `useContext` au prerender). Ne jamais aliaser
+  `react` dans la config webpack de Next.
+- Preview mobile-web : serveur `mobile-web` port 8081, `preview_list` d'abord (serverId change) ;
+  routage par pathname. La carte MapLibre rend NOIRE en capture headless — c'est normal.
+- Timestamps : l'égalité ISO ms vs microsecondes Postgres rend un UPDATE no-op silencieux —
+  comparer en PLAGE de 1 ms.
+
+## Backend
+Projet Supabase `gryd` (`sydwxwwirinjoheeodcg`) — migrations appliquées jusqu'à `0106` en prod,
+`0107-0111` committées non appliquées. Cursor pousse sur le même projet : toujours
+`supabase migration list` avant un push. Secrets : jamais en dur ; `scratchpad-secrets.local`
+(gitignored). Base réelle : 3 comptes, 0 donnée de jeu.
+
+## Compaction
+En compactant, préserver : décisions prises, fichiers modifiés, tâches ouvertes, commandes de test.
