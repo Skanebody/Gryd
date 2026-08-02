@@ -2483,7 +2483,44 @@ export const BALANCED_WEEK_MAX_RUNS = 6;
  * doc §4.2) : AUTO-INTERSECTION — le tracé se recroise → la partie fermée fait
  * la boucle, un 8 = LA PLUS GRANDE boucle (detectLoop, engine/hexing.ts).
  */
-export const LOOP_CLOSE_TOLERANCE_M = 80;
+export const LOOP_CLOSE_TOLERANCE_M = 40;
+
+/**
+ * FERMETURE ASSISTÉE — la bande où GRYD referme la boucle À TA PLACE
+ * (MASTER Annexe A `CLOSE_GAP_ASSIST_M`, 03/08/2026).
+ *
+ * ─── LE DÉFAUT QUE ÇA CORRIGE ───────────────────────────────────────────────
+ * Une boucle est une TENSION COGNITIVE (effet Zeigarnik, MASTER §4) : le joueur
+ * court les derniers mètres pour la refermer. Un échec sec à 98 % est donc la
+ * pire chose que le produit puisse faire — il transforme le pic émotionnel en
+ * punition. Le MASTER l'écrit noir sur blanc : « jamais d'échec sec à 98 % ».
+ *
+ * ─── LES TROIS BANDES, ET POURQUOI ELLES SONT ORDONNÉES AINSI ──────────────
+ *   · écart ≤ LOOP_CLOSE_TOLERANCE_M (40 m) → la boucle est fermée, point.
+ *   · 40 m < écart ≤ 60 m → FERMETURE ASSISTÉE : un segment DROIT relie
+ *     l'arrivée au départ. Le joueur a fait le tour, il lui manquait un
+ *     trottoir : le produit ne le punit pas pour ça.
+ *   · écart > 60 m → refus, mais JAMAIS muet — le code de raison porte les
+ *     mètres manquants (`GAP_TOO_WIDE {metres_manquants}`), et l'écran dit
+ *     « Il manquait {m} m pour fermer ta boucle » (Annexe C).
+ *
+ * ⚠️ CE COUPLE EST PLUS STRICT QUE LE DÉPÔT NE L'ÉTAIT. `LOOP_CLOSE_TOLERANCE_M`
+ * valait 80 m et fermait tout jusque-là, sans le dire. Désormais 61-80 m est
+ * REFUSÉ — mais refusé en NOMMANT le manque, ce qui est plus honnête qu'une
+ * fermeture silencieuse d'un tour qui n'a pas été fait. La bande assistée
+ * (40-60 m) récupère le cas fréquent du pâté de maisons.
+ *
+ * ⚠️ EN SUSPENS AU 03/08/2026 : la CONSTANTE est posée, le CÂBLAGE ne l'est
+ * pas. `detectClosedLoop` ne connaît encore que `LOOP_CLOSE_TOLERANCE_M` :
+ * un écart de 41-60 m est donc REFUSÉ aujourd'hui, alors que la doctrine veut
+ * qu'il soit refermé d'office par un segment droit. Lot G1b de la Phase 1.
+ * `loop_test.ts` porte le même avertissement, à l'endroit où il basculera.
+ *
+ * INVARIANT : `LOOP_CLOSE_ASSIST_M > LOOP_CLOSE_TOLERANCE_M`. Une bande
+ * assistée plus étroite que la tolérance serait vide — donc morte.
+ * TUNABLE (valeurs à re-régler sur les données réelles de la Saison 0).
+ */
+export const LOOP_CLOSE_ASSIST_M = 60;
 /**
  * ─── §8.2 spec unifiée — MAX_CLOSURE_DISTANCE, tolérance ADAPTATIVE bornée ──
  *
@@ -2526,7 +2563,19 @@ export const MAX_CLOSURE_DISTANCE_ACCURACY_FACTOR = 2.5;
  */
 export function maxClosureDistanceM(accuracyMedianM: number): number {
   const adaptive = MAX_CLOSURE_DISTANCE_ACCURACY_FACTOR * accuracyMedianM;
-  return Math.max(MAX_CLOSURE_DISTANCE_FLOOR_M, Math.min(LOOP_CLOSE_TOLERANCE_M, adaptive));
+  // PLAFOND = la bande ASSISTÉE, pas la tolérance de base (03/08/2026).
+  //
+  // Le dépôt avait une tolérance ADAPTATIVE (D-19) : plus le GPS est mauvais,
+  // plus on pardonne — jusqu'à un plafond anti-abus. Le MASTER (Annexe A) pose
+  // lui une tolérance FIXE de 40 m plus une bande assistée à 60 m. Les deux
+  // mécanismes se réconcilient sans en sacrifier aucun :
+  //   · `LOOP_CLOSE_TOLERANCE_M` (40 m) = la tolérance ANNONCÉE au joueur ;
+  //   · `LOOP_CLOSE_ASSIST_M` (60 m) = le PLAFOND DUR de l'adaptatif, donc
+  //     aussi la limite au-delà de laquelle plus rien ne referme.
+  // Plafonner à 40 aurait écrasé la plage adaptative sur [35, 40] et tué en
+  // silence un mécanisme réfléchi — un GPS urbain dégradé se serait fait
+  // refuser une boucle qu'il avait bel et bien bouclée.
+  return Math.max(MAX_CLOSURE_DISTANCE_FLOOR_M, Math.min(LOOP_CLOSE_ASSIST_M, adaptive));
 }
 /**
  * Périmètre minimal d'une boucle : en deçà, couloir seulement (pas de
@@ -2537,7 +2586,29 @@ export function maxClosureDistanceM(accuracyMedianM: number): number {
  * quotidien MAX_CLAIMS_PER_DAY (appliqué au total couloir + intérieur,
  * intérieur tronqué par distance croissante au tracé) reste la borne dure.
  */
-export const LOOP_MIN_PERIMETER_M = 1_000;
+export const LOOP_MIN_PERIMETER_M = 800;
+
+/**
+ * PÉRIMÈTRE MINIMAL DE LA TOUTE PREMIÈRE BOUCLE (MASTER Annexe A
+ * `LOOP_MIN_DISTANCE_FIRST_M`, 03/08/2026).
+ *
+ * La métrique nord d'ACTIVATION est « 1ʳᵉ capture < 48 h ≥ 40 % » (MASTER
+ * §2.5). Un joueur qui installe, court 600 m et n'obtient RIEN n'a pas vu le
+ * jeu — il a vu une app de course qui l'a refusé. Duolingo place sa première
+ * victoire sous 60 s ; Clash of Clans attache au village en moins de 5 min.
+ * Ici, la première boucle se joue à ~500 m, et elle doit quasiment être
+ * garantie.
+ *
+ * ⚠️ CE N'EST PAS UN PASSE-DROIT PERMANENT : le seuil abaissé ne vaut que pour
+ * la PREMIÈRE capture d'un compte. Ensuite, `LOOP_MIN_PERIMETER_M` reprend.
+ * L'exception est bornée dans le temps du joueur, pas dans le jeu — sinon elle
+ * deviendrait la règle, et une micro-boucle farmée sur place redeviendrait
+ * rentable.
+ *
+ * INVARIANT : `LOOP_MIN_PERIMETER_FIRST_M < LOOP_MIN_PERIMETER_M`.
+ * TUNABLE.
+ */
+export const LOOP_MIN_PERIMETER_FIRST_M = 400;
 /**
  * §8.2 spec unifiée — `MIN_POLYGON_AREA` : aire minimale (m²) d'un polygone de
  * capture pour être RETENU comme zone (27/07/2026, décision D-19). En dessous,
@@ -2555,7 +2626,23 @@ export const LOOP_MIN_PERIMETER_M = 1_000;
  * que ce futur moteur polygonal devra lire, posée ICI pour que la migration ne
  * l'invente pas au dernier moment.
  */
-export const MIN_POLYGON_AREA_M2 = 5_000;
+export const MIN_POLYGON_AREA_M2 = 8_000;
+
+/**
+ * AIRE MINIMALE DE LA TOUTE PREMIÈRE ZONE (MASTER Annexe A `AREA_MIN_FIRST_M2`,
+ * 03/08/2026). Pendant du seuil de périmètre ci-dessus, et pour la même
+ * raison : la première capture doit être quasi garantie (activation ≥ 40 %).
+ *
+ * ⚠️ MÊME BORNE QUE SON JUMEAU : cette valeur ne s'applique qu'à la PREMIÈRE
+ * capture d'un compte. Les deux seuils vont toujours PAR PAIRE — abaisser le
+ * périmètre sans l'aire (ou l'inverse) laisserait passer une forme que l'autre
+ * borne rejetterait, et le joueur lirait un refus incompréhensible sur sa
+ * première course.
+ *
+ * INVARIANT : `MIN_POLYGON_AREA_FIRST_M2 < MIN_POLYGON_AREA_M2`.
+ * TUNABLE.
+ */
+export const MIN_POLYGON_AREA_FIRST_M2 = 2_000;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AMENDEMENT-16 §2 — Durcissement boucle→zone (delta AMENDEMENT-12, doc §4-§6,
@@ -2602,12 +2689,15 @@ export const LOOP_MAX_AREA_CAP_KM2 = 3.0;
 export const LOOP_MIN_GPS_TRUST = 80;
 /**
  * Compacité minimale d'une boucle : 4πA/P² (1 = cercle, 0 = trait). Choix
- * documenté 0,12 dans la plage produit 0,10-0,15 (doc §6 « Boucle trop
- * fine ») : un carré vaut π/4 ≈ 0,785, un rectangle 4:1 ≈ 0,5, un rectangle
- * ~28:1 ≈ 0,12 — on ne rejette que les formes plus étirées, jamais un tour
- * de quartier honnête.
+ * documenté 0,15 — HAUT de la plage produit 0,10-0,15 (doc §6 « Boucle trop
+ * fine »), valeur retenue par le MASTER (Annexe A `COMPACITY_MIN`,
+ * 03/08/2026) : un carré vaut π/4 ≈ 0,785, un rectangle 4:1 ≈ 0,5, un
+ * rectangle ~23:1 ≈ 0,15 — on ne rejette que les formes plus étirées (les
+ * « spaghettis » et les allers-retours), jamais un tour de quartier honnête.
+ * Durci depuis 0,12 : à ce niveau un aller-retour sur deux rues parallèles
+ * passait encore.
  */
-export const LOOP_MIN_COMPACTNESS = 0.12;
+export const LOOP_MIN_COMPACTNESS = 0.15;
 /**
  * Largeur moyenne minimale (m) d'une boucle, ESTIMÉE 2A/P (doc §6 : pas de
  * calcul exotique) : durcie 60 → 80 m (AMENDEMENT-23 §D, doc §5 « largeur

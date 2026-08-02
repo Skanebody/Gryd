@@ -30,6 +30,8 @@ import {
   SHARE_TRIM_M,
   MAX_CLOSURE_DISTANCE_ACCURACY_FACTOR,
   MAX_CLOSURE_DISTANCE_FLOOR_M,
+  LOOP_CLOSE_ASSIST_M,
+  MIN_POLYGON_AREA_FIRST_M2,
   MIN_POLYGON_AREA_M2,
   RUN_MIN_DISTANCE_M,
   RUN_MIN_DURATION_S,
@@ -99,8 +101,17 @@ Deno.test('BIKE_MIN_DURATION_S est aligné §8.2 (MIN_ACTIVE_DURATION_BIKE = 6 m
   assertEquals(BIKE_MIN_DURATION_S === RUN_MIN_DURATION_S, false);
 });
 
-Deno.test('MIN_POLYGON_AREA_M2 est créé et vaut 5 000 m² (§8.2)', () => {
-  assertEquals(MIN_POLYGON_AREA_M2, 5_000);
+Deno.test('MIN_POLYGON_AREA_M2 vaut 8 000 m² (MASTER Annexe A), et son seuil de PREMIÈRE capture est plus bas', () => {
+  // Durci 5 000 → 8 000 le 03/08/2026 (MASTER Annexe A `AREA_MIN_M2`).
+  assertEquals(MIN_POLYGON_AREA_M2, 8_000);
+  // La RÈGLE, elle, ne dépend d'aucune des deux valeurs : le seuil de la toute
+  // première capture doit rester STRICTEMENT plus bas, sinon l'activation
+  // (« 1re capture < 48 h ») retombe sur la borne du jeu établi.
+  assert(
+    MIN_POLYGON_AREA_FIRST_M2 < MIN_POLYGON_AREA_M2,
+    'le seuil de PREMIÈRE capture doit rester strictement sous celui du jeu établi',
+  );
+  assert(MIN_POLYGON_AREA_FIRST_M2 > 0, 'une aire nulle capturerait n’importe quoi');
 });
 
 // ─── §8.2 — maxClosureDistanceM : tolérance adaptative bornée ───────────────
@@ -113,22 +124,35 @@ Deno.test('maxClosureDistanceM — borne BASSE : GPS excellent retombe au planch
   assertEquals(maxClosureDistanceM(10), MAX_CLOSURE_DISTANCE_FLOOR_M);
 });
 
-Deno.test('maxClosureDistanceM — borne HAUTE : GPS dégradé plafonne à LOOP_CLOSE_TOLERANCE_M (80 m), jamais plus', () => {
-  // accuracyMedianM = 32 → adaptatif = 80 (point de croisement exact).
-  assertEquals(maxClosureDistanceM(32), LOOP_CLOSE_TOLERANCE_M);
+Deno.test('maxClosureDistanceM — borne HAUTE : GPS dégradé plafonne à la bande ASSISTÉE, jamais plus', () => {
+  // Le plafond est `LOOP_CLOSE_ASSIST_M` (60 m) et non la tolérance annoncée
+  // (40 m) : voir le commentaire de `maxClosureDistanceM`. Plafonner à 40
+  // écraserait la plage adaptative sur [35, 40] et tuerait le mécanisme D-19.
+  assertEquals(maxClosureDistanceM(32), LOOP_CLOSE_ASSIST_M);
   // Très au-delà : le plafond anti-abus d'AMENDEMENT-16 §2 tient bon, un GPS
   // arbitrairement mauvais (ou une précision falsifiée) ne rouvre PAS le
   // vecteur d'abus fermé par le durcissement 100 → 80 m.
-  assertEquals(maxClosureDistanceM(100), LOOP_CLOSE_TOLERANCE_M);
-  assertEquals(maxClosureDistanceM(1_000_000), LOOP_CLOSE_TOLERANCE_M);
+  assertEquals(maxClosureDistanceM(100), LOOP_CLOSE_ASSIST_M);
+  assertEquals(maxClosureDistanceM(1_000_000), LOOP_CLOSE_ASSIST_M);
+  // L'INVARIANT qui compte, et qui survivra à tout réglage : on ne referme
+  // jamais au-delà de la bande assistée, et jamais sous le plancher GPS.
+  for (const acc of [0, 5, 20, 33, 90, 5_000]) {
+    const d = maxClosureDistanceM(acc);
+    assert(
+      d >= MAX_CLOSURE_DISTANCE_FLOOR_M && d <= LOOP_CLOSE_ASSIST_M,
+      `précision ${acc} m : ${d} m sort de la plage [plancher, bande assistée]`,
+    );
+  }
 });
 
 Deno.test('maxClosureDistanceM — cas nominal : suit fidèlement 2,5 × précision GPS médiane entre les deux bornes', () => {
   // accuracyMedianM = 20 → 2.5 × 20 = 50, dans [35, 80] : l'adaptatif s'applique tel quel.
   assertEquals(maxClosureDistanceM(20), 50);
   assertEquals(maxClosureDistanceM(20), MAX_CLOSURE_DISTANCE_ACCURACY_FACTOR * 20);
-  // accuracyMedianM = 25 (POINT_MAX_ACCURACY_M) → 62,5 m, toujours dans la plage adaptative.
-  assertEquals(maxClosureDistanceM(25), 62.5);
+  // accuracyMedianM = 25 (POINT_MAX_ACCURACY_M) → 62,5 m : au-DESSUS de la
+  // bande assistée, donc écrêté. C'est voulu — au-delà de 60 m le joueur n'a
+  // pas bouclé, et le refus lui dira combien il manquait.
+  assertEquals(maxClosureDistanceM(25), LOOP_CLOSE_ASSIST_M);
 });
 
 Deno.test('maxClosureDistanceM — fonction PURE : même entrée, même sortie, aucun effet de bord', () => {

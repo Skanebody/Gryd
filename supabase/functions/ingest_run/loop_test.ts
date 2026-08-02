@@ -92,20 +92,32 @@ Deno.test('boucle trop courte → pas de boucle (LOOP_MIN_PERIMETER_M)', () => {
   assertEquals(detectClosedLoop(squareLoop(130, 10)), false);
 });
 
-Deno.test('départ/arrivée à ~70 m → boucle fermée ; à ~90 m → ouverte (80 m, AMENDEMENT-16)', () => {
-  const closed = squareLoop(300, 20, 70);
+Deno.test('la fermeture suit LOOP_CLOSE_TOLERANCE_M — sous la borne ferme, au-dessus non', () => {
+  // ─── LA BORNE A ÉTÉ DURCIE 80 → 40 m LE 03/08/2026 ──────────────────────
+  // MASTER Annexe A (`CLOSE_GAP_MAX_M`). Ce test ÉCRIVAIT ses distances en dur
+  // (« ~70 m ferme, ~90 m non ») et rougissait donc sur un réglage voulu. Il
+  // dérive désormais ses cas de la CONSTANTE : il gardera la règle quel que
+  // soit le prochain réglage de la Saison 0.
+  //
+  // ⚠️ LA BANDE ASSISTÉE (`LOOP_CLOSE_ASSIST_M`, 60 m) N'EST PAS ENCORE CÂBLÉE
+  // ICI : `detectClosedLoop` ne connaît que la tolérance de base. Tant que le
+  // lot G1b n'est pas livré, un écart de 41-60 m est REFUSÉ alors que la
+  // doctrine veut qu'il soit refermé d'office. C'est écrit plutôt que masqué —
+  // et c'est ce test qui basculera quand le câblage arrivera.
+  const sous = Math.round(LOOP_CLOSE_TOLERANCE_M * 0.85); // franchement sous la borne
+  const closed = squareLoop(300, 20, sous);
   const gapM = haversineM(closed[0]!, closed[closed.length - 1]!);
-  assert(gapM > 60 && gapM <= LOOP_CLOSE_TOLERANCE_M, `écart attendu ~70 m, obtenu ${gapM}`);
-  assert(detectClosedLoop(closed), 'fermeture par tolérance : ≤ 80 m doit fermer');
+  assert(gapM <= LOOP_CLOSE_TOLERANCE_M, `écart attendu ≤ borne, obtenu ${gapM}`);
+  assert(detectClosedLoop(closed), 'un écart sous la tolérance DOIT fermer');
 
-  // 90 m fermait sous AMENDEMENT-12 (100 m) — durci à 80 m : boucle ouverte.
-  const open90 = squareLoop(300, 20, 90);
-  const gap90 = haversineM(open90[0]!, open90[open90.length - 1]!);
-  assert(gap90 > LOOP_CLOSE_TOLERANCE_M, `écart attendu > 80 m, obtenu ${gap90}`);
-  assertEquals(detectClosedLoop(open90), false);
+  const auDessus = Math.round(LOOP_CLOSE_TOLERANCE_M * 2.2); // franchement au-dessus
+  const open = squareLoop(300, 20, auDessus);
+  const gapOpen = haversineM(open[0]!, open[open.length - 1]!);
+  assert(gapOpen > LOOP_CLOSE_TOLERANCE_M, `écart attendu > borne, obtenu ${gapOpen}`);
+  assertEquals(detectClosedLoop(open), false, 'un écart au-dessus de la tolérance NE ferme pas');
 
-  const open = squareLoop(300, 20, 150); // 150 m > tolérance → boucle ouverte
-  assertEquals(detectClosedLoop(open), false);
+  // Très loin : aucune ambiguïté possible, quelle que soit la borne.
+  assertEquals(detectClosedLoop(squareLoop(300, 20, 400)), false);
 });
 
 Deno.test('enclosedCells : aucune cellule du couloir dupliquée', () => {

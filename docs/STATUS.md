@@ -12,7 +12,7 @@
 | GO en 2 taps | **ABSENT** | — |
 | Live Run minimal (jauge de fermeture, ≤ 5 infos) | **ABSENT** | — |
 | Never-lose-a-run (kill → reprise) | **ABSENT** | — |
-| Pipeline territorial (8 fixtures GPX, codes de raison) | **ABSENT** | — |
+| Pipeline territorial (8 fixtures GPX, codes de raison) | **PARTIEL** | bornes Annexe A posées + gate vert (`npm run gate`, 3 962 tests) ; fixtures GPX, fermeture assistée (G1b) et codes de raison SPEC-GEO restent ABSENTS |
 | Verify v0 (VALIDATED/PARTIAL/STATS_ONLY) | **ABSENT** | — |
 | Bouclier 24 h | **ABSENT** | — |
 | Decay fragile J+7 | **ABSENT** | — |
@@ -38,4 +38,4 @@
 | Analytics Annexe B (funnel d'activation) | **ABSENT** | — |
 | i18n FR/EN (aucun texte en dur) | **ABSENT** | — |
 
-**Compteur : 0 opérationnel · 0 partiel · 30 absent.**
+**Compteur : 0 opérationnel · 1 partiel · 29 absent.** (delta vs init : +1 partiel)

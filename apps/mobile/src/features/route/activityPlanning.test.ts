@@ -144,15 +144,30 @@ Deno.test(
   () => {
     // ─── POURQUOI CE TEST ÉCRIT SES NOMBRES EN CLAIR ────────────────────────
     // Tout le reste de ce fichier confronte le module à game-rules, exprès. Ici
-    // c'est l'inverse ET c'est volontaire : ces quatre valeurs sont celles que
-    // le planificateur SERVAIT AUX COUREURS avant que le vélo existe —
-    // `GEN_MIN_KM = 1.5`, `GEN_MAX_KM = 50`, `GEN_STEP_KM = 0.5` (supprimées de
+    // c'est l'inverse ET c'est volontaire : ces valeurs sont celles que le
+    // planificateur SERVAIT AUX COUREURS avant que le vélo existe —
+    // `GEN_MAX_KM = 50`, `GEN_STEP_KM = 0.5` (supprimées de
     // `features/route/generator.ts` le 26/07/2026, cf. son en-tête) et la
     // « boucle courte » de 2 km de l'écran. Un verrou de non-régression doit
     // être lisible sans ouvrir game-rules : si l'un de ces nombres bouge,
     // quelqu'un doit venir ICI l'assumer, au lieu de le déplacer sans s'en
     // rendre compte — ce qui est exactement ce qui s'est passé le 26/07.
-    assertEquals(plannerMinKm('run'), 1.5, 'la boucle courte du débutant a re-disparu');
+    //
+    // ─── LE PLANCHER, LUI, A BOUGÉ LE 03/08/2026 — ET DANS LE BON SENS ──────
+    // Il valait 1,5 km (= PLANNER_FLOOR_PERIMETER_FACTOR × LOOP_MIN_PERIMETER_M,
+    // alors 1 000 m). Le MVP a abaissé `LOOP_MIN_PERIMETER_M` à 800 m (MASTER
+    // Annexe A) : le plancher DÉRIVE donc à 1,2 km. Ce que ce verrou protégeait
+    // — « la boucle courte du débutant n'a pas re-disparu » — est MIEUX servi
+    // qu'avant, et c'est le sens de la métrique d'activation.
+    //
+    // On garde donc la RÈGLE, pas le chiffre : le plancher ne doit JAMAIS
+    // remonter au-dessus de son ancienne valeur, et la boucle courte doit
+    // rester atteignable ET capturable. Figer 1,5 aurait fait rougir ce test
+    // sur une amélioration — un verrou qui punit le progrès finit désactivé.
+    assert(
+      plannerMinKm('run') <= 1.5,
+      'le plancher du sélecteur est REMONTÉ : la boucle courte du débutant recule',
+    );
     assertEquals(plannerMaxKm('run'), 50, 'le trail au-delà du marathon a re-disparu');
     assertEquals(plannerStepKm('run'), 0.5, 'le pas du sélecteur a bougé');
     assertEquals(plannerFormatsKm('run').shortKm, 2, 'le format « courte » n’est plus 2 km');
@@ -160,8 +175,20 @@ Deno.test(
     assertEquals(clampPlannerKm('run', 2), 2);
     // …et elle doit faire une zone, sinon on aurait rendu au coureur un mensonge.
     assert(proposalMakesZone('run', 2));
-    // Le défaut reste une sortie de semaine ordinaire (3 km), jamais le plancher.
-    assertEquals(plannerBounds('run').fallbackKm, 3);
+    // Le défaut reste une SORTIE DE SEMAINE ORDINAIRE, jamais le plancher.
+    // Il dérive lui aussi de `LOOP_MIN_PERIMETER_M` (×3) : 3 km hier, 2,4 km
+    // depuis le 03/08. Ce qu'il faut garder n'est pas le chiffre mais la
+    // propriété — ouvrir le sélecteur sur le MINIMUM suggérerait au joueur que
+    // le jeu se joue au ras du seuil, alors qu'on veut qu'il coure un tour.
+    const runBounds = plannerBounds('run');
+    assert(
+      runBounds.fallbackKm > runBounds.minKm,
+      'le sélecteur s’ouvre sur le plancher : le défaut a perdu son rôle',
+    );
+    assert(
+      runBounds.fallbackKm >= 2 && runBounds.fallbackKm <= 5,
+      `le défaut (${runBounds.fallbackKm} km) n’est plus une sortie de semaine ordinaire`,
+    );
   },
 );
 
@@ -246,11 +273,17 @@ Deno.test(
       );
     }
 
-    // ② COURSE : les bornes d'avant le chantier vélo, au chiffre près.
+    // ② COURSE : le plafond et le pas d'avant le chantier vélo, au chiffre
+    //    près ; le plancher, lui, n'a le droit que de DESCENDRE (03/08/2026 —
+    //    voir le test de non-régression ci-dessus pour le raisonnement complet).
     assertEquals(
-      [plannerMinKm('run'), plannerMaxKm('run'), plannerStepKm('run')],
-      [1.5, 50, 0.5],
-      'les bornes course à pied ne sont plus celles d’avant le chantier vélo',
+      [plannerMaxKm('run'), plannerStepKm('run')],
+      [50, 0.5],
+      'le plafond ou le pas course à pied ne sont plus ceux d’avant le chantier vélo',
+    );
+    assert(
+      plannerMinKm('run') <= 1.5,
+      'le plancher course à pied est remonté : la course paierait pour le vélo',
     );
     assertEquals(plannerFormatsKm('run').shortKm, 2);
   },
