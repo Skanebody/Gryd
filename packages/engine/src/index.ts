@@ -22,6 +22,10 @@ export * from './crewSupport.ts';
 // l'interprétation est payante ». N'ouvre QUE de la lecture et des outils —
 // aucune sortie n'entre jamais dans la capture, la défense ou le classement.
 export * from './offer.ts';
+// La MEMOIRE du territoire (0109/0110) : « ce quartier etait a toi de mars a
+// septembre ». Derivation PURE des regnes bruts — la duree se calcule ici et
+// nulle part ailleurs, pour qu'un chiffre serveur ne contredise pas l'ecran.
+export * from './territoryHistory.ts';
 export * from './coverage.ts';
 export * from './zone.ts';
 export * from './sectors.ts';
