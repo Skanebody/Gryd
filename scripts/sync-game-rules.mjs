@@ -121,6 +121,15 @@ const MOBILE_ENGINE_TARGETS = [
     files: ['tracePrivacy.ts', 'polygon.ts'],
     dir: ['apps', 'mobile', 'src', 'features', 'share', 'engine'],
   },
+  // MÉMOIRE DU TERRITOIRE (0109/0110) : « ce quartier était à toi de mars à
+  // septembre ». La durée d'un règne doit se calculer À UN SEUL ENDROIT —
+  // sinon un « 187 jours » serveur contredirait un « 6 mois » écran, et
+  // personne ne saurait lequel croire. `territoryHistory.ts` n'a AUCUN import :
+  // ni h3-js, ni même game-rules ne tombent dans le bundle.
+  {
+    files: ['territoryHistory.ts'],
+    dir: ['apps', 'mobile', 'src', 'features', 'premium', 'analytics', 'engine'],
+  },
 ];
 
 const mobileHeader = (name) =>

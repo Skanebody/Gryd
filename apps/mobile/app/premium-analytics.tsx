@@ -69,6 +69,10 @@ import {
   withAlpha,
   type Activity,
 } from '@klaim/shared';
+import {
+  longestFinishedReign,
+  type TerritoryHistory,
+} from '../src/features/premium/analytics';
 import { C } from '../src/i18n/catalog/premiumAnalytics';
 import { useLocale, useT } from '../src/i18n/store';
 import { screen, track } from '../src/lib/analytics';
@@ -131,6 +135,19 @@ function clockOf(ms: number): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${hh}:${mm}`;
+}
+
+/**
+ * Date LISIBLE d'un instant, dans la langue du joueur. Le mois est écrit en
+ * toutes lettres : « du 4 mars au 4 septembre » se lit, « du 04/03 au 04/09 »
+ * se déchiffre — et c'est une phrase de mémoire, pas un tableau.
+ */
+function dayOf(ms: number, locale: Locale): string {
+  return new Date(ms).toLocaleDateString(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 /** Anneau projeté → commande SVG fermée. */
@@ -279,12 +296,15 @@ function Metric({ value, unit, label }: { value: string; unit?: string; label: s
 
 function AnalyticsBody({
   data,
+  history,
   computedAtMs,
   activity,
   locale,
   t,
 }: {
   data: TerritoryAnalytics;
+  /** `null` = le serveur n'a pas rendu d'histoire. JAMAIS « rien tenu ». */
+  history: TerritoryHistory | null;
   computedAtMs: number;
   activity: Activity;
   locale: Locale;
@@ -406,7 +426,75 @@ function AnalyticsBody({
         </View>
       )}
 
-      {/* ── 5. CE QUE CETTE PAGE EST, ET N'EST PAS ──────────────────────── */}
+      {/* ── 5. TON HISTOIRE (0109/0110) ──────────────────────────────────
+          La MÉMOIRE : « ce territoire était à toi du … au … ». C'est la seule
+          chose de cette page que GRYD FABRIQUE au lieu de restituer — le
+          serveur oubliait tout avant la migration 0109.
+
+          TROIS ÉTATS, jamais confondus :
+           · `null`          → on n'a pas pu lire. On le DIT, on ne se tait pas.
+           · aucun règne     → lu, et ce joueur n'a encore rien tenu : on invite.
+           · des règnes      → les chiffres, puis LA PHRASE.
+
+          §A : aucun CTA ici — l'unique CTA chartreuse de l'écran vit dans l'état
+          vide. Cette section se lit, elle ne demande rien. */}
+      <SectionLabel style={styles.sectionLabel}>{t(C.historyLabel)}</SectionLabel>
+      {history === null ? (
+        <Text style={styles.note}>{t(C.historyUnavailable)}</Text>
+      ) : history.reigns.length === 0 ? (
+        <Text style={styles.note}>{t(C.historyEmpty)}</Text>
+      ) : (
+        <>
+          <Text style={styles.caption}>{t(C.historyCaption)}</Text>
+          <View style={styles.metrics}>
+            <Metric
+              value={formatIntFor(history.holdingCount, locale)}
+              label={t(C.historyHolding)}
+            />
+            {/* « Perdu » n'apparaît QUE s'il y a eu une reprise réelle : un
+                « 0 zone reprise » à quelqu'un qui n'a jamais rien perdu est un
+                reproche gratuit (anti-shame). */}
+            {history.lostCount > 0 ? (
+              <Metric
+                value={formatIntFor(history.lostCount, locale)}
+                label={t(C.historyLost)}
+              />
+            ) : null}
+            {history.longestDays === null ? null : (
+              <Metric
+                value={formatIntFor(history.longestDays, locale)}
+                unit={t(C.unitDays)}
+                label={t(C.historyLongest)}
+              />
+            )}
+          </View>
+          {/* LA PHRASE — écrite seulement si un règne est réellement TERMINÉ.
+              Un règne en cours n'a pas de « au … » : le raconter obligerait à
+              inventer une fin. */}
+          {(() => {
+            const fini = longestFinishedReign(history);
+            if (fini === null || fini.endedAtMs === null) return null;
+            return (
+              <Text style={styles.line}>
+                {t(C.historyStory, {
+                  from: dayOf(fini.startedAtMs, locale),
+                  to: dayOf(fini.endedAtMs, locale),
+                })}
+              </Text>
+            );
+          })()}
+          {/* L'histoire NE REMONTE PAS avant le registre. Le dire est la seule
+              façon de ne pas laisser croire au joueur qu'il n'avait rien tenu
+              avant cette date. */}
+          {history.firstKnownAtMs === null ? null : (
+            <Text style={styles.footnote}>
+              {t(C.historySince, { date: dayOf(history.firstKnownAtMs, locale) })}
+            </Text>
+          )}
+        </>
+      )}
+
+      {/* ── 6. CE QUE CETTE PAGE EST, ET N'EST PAS ──────────────────────── */}
       <Text style={styles.footnote}>{t(C.scopeNote)}</Text>
       <Text style={styles.footnote}>{t(C.privacyNote)}</Text>
       <Text style={styles.footnote}>{t(C.antiP2w)}</Text>
@@ -539,6 +627,7 @@ export default function PremiumAnalyticsScreen() {
         ) : (
           <AnalyticsBody
             data={analytics.data}
+            history={analytics.history}
             computedAtMs={analytics.computedAtMs ?? Date.now()}
             activity={activity}
             locale={locale}

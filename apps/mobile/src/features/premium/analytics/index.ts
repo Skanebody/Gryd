@@ -28,5 +28,7 @@ export type {
   TerritoryAnalytics,
   ZoneAnalytics,
 } from './derive';
+export { buildTerritoryHistory, longestFinishedReign } from './engine/territoryHistory';
+export type { Reign, TerritoryHistory } from './engine/territoryHistory';
 export { useTerritoryAnalytics } from './read';
 export type { AnalyticsStatus, UseTerritoryAnalyticsResult } from './read';

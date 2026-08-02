@@ -1568,12 +1568,24 @@ export const GRYD_CAPABILITIES: readonly GrydCapability[] = [
   { key: 'vulnerable_zones', tier: 'plus', built: true },
   /**
    * « Ce quartier était à toi de mars à septembre. »
-   * PAS ENCORE CONSTRUIT : aucune table n'historise la propriété — c'est
-   * pourquoi « tu as perdu N zones » est aujourd'hui déclaré intenable. C'est
-   * une MÉMOIRE que GRYD fabrique et que le joueur n'a pas produite : le
-   * meilleur candidat de tout le catalogue, et une migration.
+   *
+   * CONSTRUIT LE 01/08/2026, de bout en bout : registre tenu par trigger
+   * (`0109`), lecture personnelle (`0110`, `security invoker` — la RLS est le
+   * garde), dérivation PURE (`engine/territoryHistory.ts`, `nowMs` injecté) et
+   * section « TON HISTOIRE » dans E66.
+   *
+   * C'est la seule capacité du catalogue que GRYD FABRIQUE au lieu de
+   * restituer : avant `0109`, le serveur oubliait tout propriétaire dès qu'un
+   * autre prenait la main. Le joueur n'a pas produit cette mémoire — elle
+   * n'existerait nulle part sans nous. C'est ce qui la rend vendable sans le
+   * moindre goût d'extraction.
+   *
+   * ⚠️ ELLE NE REMONTE PAS AVANT `0109` : aucun backfill n'a été fait, parce
+   * qu'il aurait fallu inventer des dates de fin jamais enregistrées. L'écran
+   * dit « GRYD se souvient depuis le … » plutôt que de laisser croire qu'il
+   * connaît l'avant.
    */
-  { key: 'ownership_history', tier: 'plus', built: false },
+  { key: 'ownership_history', tier: 'plus', built: true },
 
   // ── GRYD Pro — DÉCIDER ────────────────────────────────────────────────────
   // AUCUNE n'est construite au 01/08/2026. Le palier existe donc comme

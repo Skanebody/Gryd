@@ -69,6 +69,13 @@ import {
   type OwnedTerritoryRow,
   type TerritoryAnalytics,
 } from './derive';
+// Copie GÉNÉRÉE du moteur (sync-game-rules.mjs) : la durée d'un règne se
+// calcule à UN SEUL endroit, sinon un chiffre serveur contredirait l'écran.
+import {
+  buildTerritoryHistory,
+  type RawReign,
+  type TerritoryHistory,
+} from './engine/territoryHistory';
 
 /** Colonnes de `territories` réellement lues — SOURCE UNIQUE de ce select. */
 const TERRITORY_COLUMNS = 'id, area_m2, state, defense_level, controlled_since, geometry';
@@ -88,6 +95,15 @@ export interface UseTerritoryAnalyticsResult {
   /** L'instant du calcul — l'écran l'affiche plutôt que de laisser croire au live. */
   readonly computedAtMs: number | null;
   /**
+   * MÉMOIRE DU TERRITOIRE (0109/0110) : « ce quartier était à toi de mars à
+   * septembre ». `null` tant qu'on n'est pas en 'ready', ou si le serveur n'a
+   * pas rendu d'histoire — jamais un objet vide de complaisance.
+   *
+   * ⚠️ L'histoire NE REMONTE PAS avant la migration 0109 : `firstKnownAtMs` est
+   * le plus ancien règne CONNU, pas le début du joueur.
+   */
+  readonly history: TerritoryHistory | null;
+  /**
    * Un écran de connexion qui MARCHE existe-t-il ? Sans backend configuré,
    * `/sign-in` n'a personne au bout : on ne peint alors AUCUN bouton (même garde
    * que `app/amis.tsx`, `app/qr.tsx` et `usePremium`).
@@ -100,6 +116,13 @@ interface Loaded {
   readonly activity: Activity;
   readonly data: TerritoryAnalytics;
   readonly computedAtMs: number;
+  /**
+   * `null` = le SERVEUR n'a pas rendu d'histoire (backend antérieur à 0110, ou
+   * refus). DISTINCT d'une histoire VIDE (`reigns: []`), qui veut dire « lu, et
+   * ce joueur n'a encore rien tenu ». L'écran ne doit jamais confondre les deux :
+   * l'un se tait, l'autre invite à courir.
+   */
+  readonly history: TerritoryHistory | null;
 }
 
 export function useTerritoryAnalytics(
@@ -162,7 +185,7 @@ export function useTerritoryAnalytics(
 
       // ─── 2. LES DONNÉES : les miennes, dans CETTE discipline ─────────────
       // En parallèle : les enchaîner doublerait la latence pour rien.
-      const [territories, contests] = await Promise.all([
+      const [territories, contests, history] = await Promise.all([
         supabase!
           .from('territories')
           .select(TERRITORY_COLUMNS)
@@ -170,6 +193,9 @@ export function useTerritoryAnalytics(
           .eq('owner_type', 'user')
           .eq('owner_id', userId),
         supabase!.from('territory_contests').select(CONTEST_COLUMNS),
+        // MÉMOIRE (0110). Bornée à la MÊME discipline que le reste de l'écran :
+        // sans ça, la lentille vélo montrerait une histoire de course.
+        supabase!.rpc('my_territory_history', { p_activity: activity }),
       ]);
       if (cancelled) return;
 
@@ -186,9 +212,27 @@ export function useTerritoryAnalytics(
       }
 
       const computedAtMs = Date.now();
+
+      /*
+        L'HISTOIRE NE FAIT PAS ÉCHOUER LA PAGE, et c'est une asymétrie ASSUMÉE.
+        Une contestation manquante ferait annoncer « aucune frontière à
+        surveiller » à quelqu'un dont la zone tombe dans trois heures : c'est
+        pourquoi son échec est fatal (voir plus haut). L'histoire, elle, ne
+        protège rien — la perdre coûte une section, pas une décision. On la rend
+        donc `null` (« on ne sait pas »), jamais vide (« tu n'as rien tenu »).
+      */
+      let builtHistory: TerritoryHistory | null = null;
+      const payload = history.error ? null : (history.data as { ok?: boolean; reigns?: unknown });
+      if (history.error) {
+        console.error('[premium/analytics] histoire non lue :', history.error.message);
+      } else if (payload?.ok === true && Array.isArray(payload.reigns)) {
+        builtHistory = buildTerritoryHistory(payload.reigns as RawReign[], computedAtMs);
+      }
+
       setLoaded({
         activity,
         computedAtMs,
+        history: builtHistory,
         data: deriveTerritoryAnalytics({
           territories: (territories.data ?? []) as unknown as OwnedTerritoryRow[],
           contests: (contests.data ?? []) as unknown as OwnContestRow[],
@@ -229,6 +273,7 @@ export function useTerritoryAnalytics(
   return {
     status,
     data: status === 'ready' ? (fresh?.data ?? null) : null,
+    history: status === 'ready' ? (fresh?.history ?? null) : null,
     computedAtMs: status === 'ready' ? (fresh?.computedAtMs ?? null) : null,
     canSignIn: configured && signedOut,
     reload,

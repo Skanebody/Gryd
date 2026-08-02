@@ -372,6 +372,84 @@ export const C = defineCatalog({
   },
 
   // ── Bas de page : portée, horodatage, règles ───────────────────────────────
+  // ══════════ MÉMOIRE DU TERRITOIRE (0109/0110) ══════════════════════════════
+  // « Ce quartier était à toi de mars à septembre. » C'est la phrase du produit,
+  // et elle ne s'écrit QUE si un règne est réellement TERMINÉ — on ne raconte
+  // pas une fin qui n'a pas eu lieu.
+  historyLabel: {
+    fr: 'TON HISTOIRE',
+    en: 'YOUR HISTORY',
+    es: 'TU HISTORIA',
+    de: 'DEINE GESCHICHTE',
+    pt: 'SUA HISTÓRIA',
+  },
+  historyCaption: {
+    fr: 'Depuis quand tu tiens, et ce que tu as tenu avant.',
+    en: 'How long you have held, and what you held before.',
+    es: 'Desde cuándo mantienes, y lo que mantuviste antes.',
+    de: 'Seit wann du hältst — und was du vorher gehalten hast.',
+    pt: 'Há quanto tempo você mantém, e o que manteve antes.',
+  },
+  // L'histoire NE REMONTE PAS avant la migration : le dire est la seule façon
+  // de ne pas laisser croire qu'un joueur n'a rien tenu avant cette date.
+  historySince: {
+    fr: 'GRYD se souvient depuis le {date}.',
+    en: 'GRYD remembers since {date}.',
+    es: 'GRYD recuerda desde el {date}.',
+    de: 'GRYD erinnert sich seit dem {date}.',
+    pt: 'O GRYD lembra desde {date}.',
+  },
+  historyEmpty: {
+    fr: 'Rien à raconter pour l’instant : ton histoire commence à ta première zone tenue.',
+    en: 'Nothing to tell yet: your history starts with your first held zone.',
+    es: 'Nada que contar aún: tu historia empieza con tu primera zona mantenida.',
+    de: 'Noch nichts zu erzählen: Deine Geschichte beginnt mit deiner ersten Zone.',
+    pt: 'Nada a contar ainda: sua história começa na sua primeira zona mantida.',
+  },
+  // Le serveur n'a pas rendu d'histoire — DISTINCT de « tu n'as rien tenu ».
+  historyUnavailable: {
+    fr: 'Ton histoire n’a pas pu être lue. Elle n’est pas perdue.',
+    en: 'Your history could not be read. It is not lost.',
+    es: 'No se pudo leer tu historia. No se ha perdido.',
+    de: 'Deine Geschichte konnte nicht gelesen werden. Sie ist nicht verloren.',
+    pt: 'Não foi possível ler sua história. Ela não se perdeu.',
+  },
+  historyHolding: {
+    fr: 'Zones tenues en ce moment',
+    en: 'Zones held right now',
+    es: 'Zonas mantenidas ahora',
+    de: 'Aktuell gehaltene Zonen',
+    pt: 'Zonas mantidas agora',
+  },
+  historyLost: {
+    fr: 'Zones reprises par quelqu’un',
+    en: 'Zones taken by someone',
+    es: 'Zonas tomadas por alguien',
+    de: 'Von jemandem übernommene Zonen',
+    pt: 'Zonas tomadas por alguém',
+  },
+  historyLongest: {
+    fr: 'Plus longue tenue',
+    en: 'Longest held',
+    es: 'Más tiempo mantenida',
+    de: 'Am längsten gehalten',
+    pt: 'Mantida por mais tempo',
+  },
+  historyDays: {
+    fr: '{n} j',
+    en: '{n} d',
+    es: '{n} d',
+    de: '{n} T',
+    pt: '{n} d',
+  },
+  // LA phrase. `{from}` et `{to}` sont des dates RÉELLES du registre.
+  historyStory: {
+    fr: 'Ce territoire était à toi du {from} au {to}.',
+    en: 'This ground was yours from {from} to {to}.',
+    es: 'Este territorio fue tuyo del {from} al {to}.',
+    de: 'Dieses Gebiet gehörte dir vom {from} bis zum {to}.',
+    pt: 'Este território foi seu de {from} a {to}.',
+  },
   scopeNote: {
     fr: 'Cette page ne lit que TON territoire personnel, dans la discipline affichée.',
     en: 'This page reads only YOUR personal territory, in the discipline shown.',
