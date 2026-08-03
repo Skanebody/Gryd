@@ -50,6 +50,15 @@
 | Partage (carte 1-tap, deep links) | **ABSENT** | — |
 
 > ⚠️ Ces écrans ne sont atteints que par URL directe : la bascule d'entrée n'a pas eu lieu.
+> **Backend PROD au 03/08/2026** : migrations `0107→0112` APPLIQUÉES (prod était à
+> 0106), fonction `ingest_run` DÉPLOYÉE. Vérifié en base : `territory_reigns` +
+> son trigger, `my_territory_history`, `purge_due_accounts`, `crew_overview`,
+> `add_crew_xp`, et **26 anneaux d'eau à Rouen = 9,63 km² soustraits à la
+> capture** (sans quoi une boucle longeant les deux rives capturait la Seine).
+> RLS réelle re-vérifiée APRÈS migration : **11/11** sur 83 tables — la nouvelle
+> table n'a pas ouvert de trou. Données de jeu réelles : 3 comptes, 0 territoire,
+> 0 course. Ce que PGlite ne peut pas prouver (superutilisateur) l'est ici.
+>
 > Verdict L1–L19 des 8 écrans : `docs/UX-GATE-PHASE1.md` — **CONFORME SOUS RÉSERVE**
 > (L7 et L14 partielles, L13 absente et hors périmètre, L3 non vérifiable avant la bascule).
 
