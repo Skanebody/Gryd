@@ -14,12 +14,14 @@ import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Map as MapLibreMap, Marker, type StyleSpecification } from 'maplibre-gl';
-import { colors, fonts, fontSizes, spacing, withAlpha } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, spacing, withAlpha } from '@klaim/shared';
 import { grydNightStyle } from './nightStyle';
 import { BASEMAP_ATTRIBUTION, type TerritoryFeatureCollection } from './territoryGeo';
 import type { MapCanvasProps } from './MapCanvas';
 
 const SOURCE_ID = 'gryd-mvp-territoires';
+const SOURCE_TRACE = 'gryd-mvp-trace';
+const SOURCE_RIVAUX = 'gryd-mvp-rivaux';
 
 /** Cadrage d'ouverture quand la position est inconnue — voir le fork natif. */
 const HOME_FALLBACK = { lng: 1.0993, lat: 49.4431, zoom: 12.5 } as const;
@@ -28,7 +30,7 @@ const HOME_FALLBACK = { lng: 1.0993, lat: 49.4431, zoom: 12.5 } as const;
  *  chaque cycle ferait clignoter la carte. Une collection vide ne peint rien. */
 const RIEN: TerritoryFeatureCollection = { type: 'FeatureCollection', features: [] };
 
-export function MapCanvas({ center, zoom, territories, showUser }: MapCanvasProps) {
+export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }: MapCanvasProps) {
   const hoteRef = useRef<HTMLDivElement | null>(null);
   const carteRef = useRef<MapLibreMap | null>(null);
   const pointRef = useRef<Marker | null>(null);
@@ -50,6 +52,24 @@ export function MapCanvas({ center, zoom, territories, showUser }: MapCanvasProp
     carteRef.current = carte;
 
     carte.on('load', () => {
+      // ORDRE DE POSE = ORDRE DE PILE. Les rivaux d'abord (dessous), ma surface
+      // ensuite, mon tracé en dernier : c'est la ligne que le coureur reconnaît
+      // comme sa sortie, elle ne doit jamais passer sous un aplat.
+      carte.addSource(SOURCE_RIVAUX, { type: 'geojson', data: RIEN });
+      carte.addLayer({
+        id: `${SOURCE_RIVAUX}-fill`,
+        type: 'fill',
+        source: SOURCE_RIVAUX,
+        paint: { 'fill-color': withAlpha(gameColors.rival, 0.26) },
+      });
+      carte.addLayer({
+        id: `${SOURCE_RIVAUX}-line`,
+        type: 'line',
+        source: SOURCE_RIVAUX,
+        layout: { 'line-join': 'round' },
+        paint: { 'line-color': withAlpha(gameColors.rival, 0.85), 'line-width': 2 },
+      });
+
       carte.addSource(SOURCE_ID, { type: 'geojson', data: RIEN });
       carte.addLayer({
         id: `${SOURCE_ID}-fill`,
@@ -63,6 +83,24 @@ export function MapCanvas({ center, zoom, territories, showUser }: MapCanvasProp
         source: SOURCE_ID,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: { 'line-color': withAlpha(colors.chartreuse, 0.8), 'line-width': 3 },
+      });
+
+      // Le TRACÉ : casing sombre puis cœur chartreuse. Deux passes, jamais une
+      // ombre — sur un fond clair, une ligne sans casing disparaît.
+      carte.addSource(SOURCE_TRACE, { type: 'geojson', data: RIEN });
+      carte.addLayer({
+        id: `${SOURCE_TRACE}-casing`,
+        type: 'line',
+        source: SOURCE_TRACE,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': colors.noir, 'line-width': 8 },
+      });
+      carte.addLayer({
+        id: `${SOURCE_TRACE}-core`,
+        type: 'line',
+        source: SOURCE_TRACE,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': colors.chartreuse, 'line-width': 4 },
       });
     });
 
@@ -84,14 +122,20 @@ export function MapCanvas({ center, zoom, territories, showUser }: MapCanvasProp
     const carte = carteRef.current;
     if (carte === null) return;
     const poser = () => {
-      const src = carte.getSource(SOURCE_ID);
-      if (src !== undefined && 'setData' in src) {
-        (src as { setData: (d: unknown) => void }).setData(territories ?? RIEN);
+      for (const [id, data] of [
+        [SOURCE_ID, territories],
+        [SOURCE_TRACE, trace],
+        [SOURCE_RIVAUX, rivals],
+      ] as const) {
+        const src = carte.getSource(id);
+        if (src !== undefined && 'setData' in src) {
+          (src as { setData: (d: unknown) => void }).setData(data ?? RIEN);
+        }
       }
     };
     if (carte.isStyleLoaded()) poser();
     else carte.once('load', poser);
-  }, [territories]);
+  }, [territories, trace, rivals]);
 
   /**
    * Le point de position.

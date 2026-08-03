@@ -173,3 +173,35 @@ Deno.test('l’échec dit COMBIEN de lignes sont corrompues', () => {
   if (r.kind !== 'failed') return;
   assertEquals(r.unreadable, 2);
 });
+
+// ─── Le TRACÉ suit les points, il ne les redresse pas ───────────────────────
+
+Deno.test('le tracé conserve CHAQUE sommet — aucune ligne droite de substitution', () => {
+  // Ce que le coureur reconnaît comme sa sortie, c'est la ligne qui épouse les
+  // rues. Simplifier ici dessinerait un raccourci que personne n'a couru : à
+  // travers un pâté de maisons, un fleuve, une voie ferrée.
+  const sinueux = {
+    type: 'Polygon',
+    coordinates: [[
+      [1.0993, 49.4431], [1.0995, 49.4432], [1.0996, 49.4434], [1.0994, 49.4436],
+      [1.0991, 49.4437], [1.0989, 49.4435], [1.0990, 49.4432], [1.0993, 49.4431],
+    ]],
+  };
+  const r = toTerritoryGeo([{ id: 't1', geometry: sinueux, area_m2: 9_000 }]);
+  assertEquals(r.kind, 'ok');
+  if (r.kind !== 'ok') return;
+  const anneau = r.trace.features[0]!.geometry.coordinates[0]!;
+  // 7 sommets distincts + la fermeture. Un seul point perdu et la ligne
+  // couperait un virage.
+  assertEquals(anneau.length, 8);
+});
+
+Deno.test('le TRACÉ et la SURFACE sont deux choses (ADR-010)', () => {
+  // `toTerritoryGeo` rend les deux ; l'appelant remplace la surface par celle
+  // dérivée des cellules et GARDE le tracé. Les confondre était tout le sujet.
+  const r = toTerritoryGeo([ligne()]);
+  assertEquals(r.kind, 'ok');
+  if (r.kind !== 'ok') return;
+  assert(r.trace.features.length > 0, 'aucun tracé rendu');
+  assertEquals(r.trace.features.length, r.collection.features.length);
+});

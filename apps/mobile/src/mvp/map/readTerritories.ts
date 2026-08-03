@@ -102,6 +102,11 @@ export async function readMyTerritories(userId: string): Promise<TerritoryGeoRes
     return {
       kind: 'ok',
       collection: forme.collection,
+      // LE TRACÉ : la géométrie EXACTE des boucles courues, point par point.
+      // `territories.geometry` (et non `geometry_generalized`) : le généralisé
+      // existe pour ne pas livrer le parcours d'AUTRUI — sur le mien, il me
+      // montrerait une ligne que je n'ai pas courue.
+      trace: aire.collection,
       // `ownedCount` compte ce qui est POSSÉDÉ, donc les cellules : c'est lui
       // qui décide `empty` vs `owned` sur l'accueil. Compter les polygones
       // laisserait « possédé » quelqu'un qui a tout perdu mais dont les traces
@@ -109,6 +114,52 @@ export async function readMyTerritories(userId: string): Promise<TerritoryGeoRes
       ownedCount: forme.cellCount,
       areaM2: aire.areaM2,
     };
+  } catch {
+    return { kind: 'failed', unreadable: 0 };
+  }
+}
+
+/**
+ * Les zones des AUTRES joueurs. La seconde I/O de l'accueil.
+ *
+ * ─── POURQUOI ELLES SONT NÉCESSAIRES ────────────────────────────────────────
+ * Sans elles, la carte ne montre qu'une moitié du jeu : on voit sa propre
+ * surface rétrécir sans jamais voir QUI l'a mordue. La prise partielle
+ * (ADR-010) devient alors une disparition inexpliquée.
+ *
+ * ─── CE QU'ELLE LIT, ET POURQUOI PAS AUTRE CHOSE ────────────────────────────
+ * La vue `public_territories`, JAMAIS la table. Elle n'expose que
+ * `geometry_generalized` — la géométrie floutée — et filtre côté SERVEUR selon
+ * `map_sharing` (RLS, vérifiée en réel : 11/11). Autrement dit : je ne peux pas
+ * voir le parcours exact de quelqu'un d'autre, même en le demandant.
+ *
+ * ⚠️ C'est aussi pourquoi on ne dessine PAS de tracé pour un rival. Ma trace
+ * suit mes rues point par point parce qu'elle est à moi ; la sienne ne m'est
+ * livrée que floutée, et la peindre comme une ligne de course laisserait croire
+ * qu'on sait où il est passé. On montre la surface qu'il tient, pas son chemin.
+ */
+const COLONNES_PUBLIQUES = 'id, geometry_generalized, area_m2';
+
+/** Plafond de lecture — la carte d'un quartier, pas l'annuaire d'une ville. */
+const MAX_RIVAUX = 200;
+
+export async function readRivalTerritories(userId: string): Promise<TerritoryGeoResult> {
+  if (supabase === null) return { kind: 'failed', unreadable: 0 };
+  try {
+    const { data, error } = await supabase
+      .from('public_territories')
+      .select(COLONNES_PUBLIQUES)
+      .neq('owner_id', userId)
+      .limit(MAX_RIVAUX);
+    if (error !== null || data === null) return { kind: 'failed', unreadable: 0 };
+    // `geometry_generalized` est renommée `geometry` pour que le parseur commun
+    // s'applique : la VÉRIFICATION de ce qui est lisible doit être la même pour
+    // les rivaux que pour moi — un polygone illisible ne devient pas acceptable
+    // parce qu'il appartient à quelqu'un d'autre.
+    const lignes = (data as unknown as { id: string; geometry_generalized: unknown; area_m2: number }[]).map(
+      (r) => ({ id: r.id, geometry: r.geometry_generalized, area_m2: r.area_m2 }),
+    );
+    return toTerritoryGeo(lignes);
   } catch {
     return { kind: 'failed', unreadable: 0 };
   }

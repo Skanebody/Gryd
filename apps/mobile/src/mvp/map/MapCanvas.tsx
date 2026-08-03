@@ -14,6 +14,24 @@
  * schéma CARTO, verrouillées par leur test) : un nom de `source-layer` réinventé
  * de mémoire rend une carte NOIRE.
  *
+ * ─── LES TROIS COUCHES, ET POURQUOI ELLES SONT DISTINCTES ───────────────────
+ * 1. RIVAUX (orange, dessous) — la surface que d'autres tiennent. Aucun tracé :
+ *    `public_territories` ne livre que la géométrie FLOUTÉE, et peindre un
+ *    chemin à partir d'elle laisserait croire qu'on sait où ils sont passés.
+ * 2. MA SURFACE (chartreuse) — dérivée des CELLULES que je tiens (ADR-010),
+ *    lissée. Elle rétrécit quand un rival mord dedans.
+ * 3. MON TRACÉ (chartreuse vif, dessus) — le chemin RÉEL, point par point.
+ *
+ * ⚠️ 2 et 3 ne sont PAS la même chose, et les confondre était tout le sujet
+ * d'ADR-010. La surface dit ce que je POSSÈDE ; le tracé dit ce que j'ai COURU.
+ * Le tracé suit les rues et ne change jamais après coup ; la surface, si.
+ *
+ * ⚠️ Le tracé est dessiné TEL QUEL, sommet par sommet — aucune simplification
+ * ici. Relier deux points éloignés par une droite dessinerait un raccourci que
+ * personne n'a couru : à travers un pâté de maisons, un fleuve, une voie ferrée.
+ * Le seul lissage du produit est celui de la SURFACE (`smoothRing`), et il ne
+ * touche jamais cette ligne.
+ *
  * ─── CE QU'IL NE DÉCIDE PAS ─────────────────────────────────────────────────
  * Il ne décide RIEN. Ni s'il y a un territoire (`homeState`), ni quoi dire quand
  * il n'y en a pas (l'écran). Il reçoit une géométrie ou `null`, et `null` ne
@@ -32,7 +50,7 @@ import {
   type FillLayerStyle,
   type LineLayerStyle,
 } from '@maplibre/maplibre-react-native';
-import { colors, fonts, fontSizes, spacing, withAlpha } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, spacing, withAlpha } from '@klaim/shared';
 import { grydNightStyleJson } from './nightStyle';
 import { BASEMAP_ATTRIBUTION, type TerritoryFeatureCollection } from './territoryGeo';
 
@@ -40,13 +58,27 @@ export interface MapCanvasProps {
   /** Où ouvrir. `null` = on ne sait pas où est le joueur : voir `HOME_FALLBACK`. */
   readonly center: { readonly lng: number; readonly lat: number } | null;
   readonly zoom: number;
-  /** Mes polygones, ou `null` quand il n'y a RIEN à peindre (≠ « je n'ai rien »). */
+  /** Ma surface possédée, ou `null` quand il n'y a RIEN à peindre (≠ « je n'ai rien »). */
   readonly territories: TerritoryFeatureCollection | null;
+  /** Mon tracé réel, point par point. `null` = rien à dessiner. */
+  readonly trace?: TerritoryFeatureCollection | null;
+  /** Les surfaces tenues par d'autres. Jamais de tracé pour eux (voir l'en-tête). */
+  readonly rivals?: TerritoryFeatureCollection | null;
   /** Peindre le point de position ? Faux tant que l'OS n'a rien accordé. */
   readonly showUser: boolean;
 }
 
 const SOURCE_ID = 'gryd-mvp-territoires';
+const SOURCE_TRACE = 'gryd-mvp-trace';
+const SOURCE_RIVAUX = 'gryd-mvp-rivaux';
+
+/**
+ * Largeurs du tracé héros, par zoom (reprises de `mapStyle.TRACE_WIDTH_STOPS`,
+ * salvage). Le CASING sombre passe DESSOUS le cœur chartreuse : sans lui, la
+ * ligne se perd sur une rue claire du fond de carte.
+ */
+const TRACE_CASING_W = 8;
+const TRACE_CORE_W = 4;
 
 /**
  * Cadrage d'ouverture quand la position est inconnue.
@@ -57,7 +89,7 @@ const SOURCE_ID = 'gryd-mvp-territoires';
  */
 const HOME_FALLBACK = { lng: 1.0993, lat: 49.4431, zoom: 12.5 } as const;
 
-export function MapCanvas({ center, zoom, territories, showUser }: MapCanvasProps) {
+export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }: MapCanvasProps) {
   // Mémoïsés : un nouvel objet de style à chaque rendu force MapLibre à
   // recompiler ses couches, et la carte perd ses images (perf, L14).
   const fill = useMemo<FillLayerStyle>(
@@ -68,6 +100,35 @@ export function MapCanvas({ center, zoom, territories, showUser }: MapCanvasProp
     () => ({
       lineColor: withAlpha(colors.chartreuse, 0.8),
       lineWidth: 3,
+      lineJoin: 'round',
+      lineCap: 'round',
+    }),
+    [],
+  );
+
+  const rivalFill = useMemo<FillLayerStyle>(
+    () => ({ fillColor: withAlpha(gameColors.rival, 0.26) }),
+    [],
+  );
+  const rivalLine = useMemo<LineLayerStyle>(
+    () => ({ lineColor: withAlpha(gameColors.rival, 0.85), lineWidth: 2, lineJoin: 'round' }),
+    [],
+  );
+  // Le casing est un TRAIT, pas une ombre : il porte la ligne sur un fond clair
+  // sans jamais la faire briller (AMENDEMENT-16 §0 — zéro halo).
+  const traceCasing = useMemo<LineLayerStyle>(
+    () => ({
+      lineColor: colors.noir,
+      lineWidth: TRACE_CASING_W,
+      lineJoin: 'round',
+      lineCap: 'round',
+    }),
+    [],
+  );
+  const traceCore = useMemo<LineLayerStyle>(
+    () => ({
+      lineColor: colors.chartreuse,
+      lineWidth: TRACE_CORE_W,
       lineJoin: 'round',
       lineCap: 'round',
     }),
@@ -95,10 +156,29 @@ export function MapCanvas({ center, zoom, territories, showUser }: MapCanvasProp
           }}
         />
         {showUser ? <UserLocation /> : null}
+
+        {/* 1. RIVAUX — dessous : ma zone et ma trace doivent rester lisibles
+            par-dessus (§C, la couleur suit le RÔLE : orange = rival). */}
+        {rivals ? (
+          <ShapeSource id={SOURCE_RIVAUX} shape={rivals}>
+            <FillLayer id={`${SOURCE_RIVAUX}-fill`} style={rivalFill} />
+            <LineLayer id={`${SOURCE_RIVAUX}-line`} style={rivalLine} />
+          </ShapeSource>
+        ) : null}
+
         {territories ? (
           <ShapeSource id={SOURCE_ID} shape={territories}>
             <FillLayer id={`${SOURCE_ID}-fill`} style={fill} />
             <LineLayer id={`${SOURCE_ID}-line`} style={line} />
+          </ShapeSource>
+        ) : null}
+
+        {/* 3. MON TRACÉ — au-dessus de tout : c'est l'objet que le coureur
+            reconnaît comme SA sortie. Deux passes, casing puis cœur. */}
+        {trace ? (
+          <ShapeSource id={SOURCE_TRACE} shape={trace}>
+            <LineLayer id={`${SOURCE_TRACE}-casing`} style={traceCasing} />
+            <LineLayer id={`${SOURCE_TRACE}-core`} style={traceCore} />
           </ShapeSource>
         ) : null}
       </MapView>

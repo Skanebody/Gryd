@@ -136,7 +136,22 @@ function memePoint(a: Position, b: Position): boolean {
 export type TerritoryGeoResult =
   | {
       readonly kind: 'ok';
+      /** Ce que je POSSÈDE : surface dérivée des cellules (ADR-010), lissée. */
       readonly collection: TerritoryFeatureCollection;
+      /**
+       * Ce que j'ai COURU : le tracé réel, point par point.
+       *
+       * ⚠️ Ce n'est PAS la même chose que `collection`, et les confondre était
+       * tout le sujet d'ADR-010. La surface possédée épouse la maille (elle
+       * peut rétrécir quand un rival mord dedans) ; le TRACÉ, lui, suit les
+       * rues — c'est la ligne que le coureur reconnaît comme sa sortie, et elle
+       * ne change jamais après coup.
+       *
+       * Vide = aucune trace à dessiner. Jamais une ligne droite de substitution :
+       * relier deux points éloignés dessinerait un raccourci que personne n'a
+       * couru (à travers un pâté de maisons, un fleuve, une voie ferrée).
+       */
+      readonly trace: TerritoryFeatureCollection;
       readonly ownedCount: number;
       readonly areaM2: number;
     }
@@ -173,9 +188,15 @@ export function toTerritoryGeo(rows: readonly TerritoryRow[]): TerritoryGeoResul
   }
 
   if (illisibles > 0) return { kind: 'failed', unreadable: illisibles };
+  const collection: TerritoryFeatureCollection = { type: 'FeatureCollection', features };
   return {
     kind: 'ok',
-    collection: { type: 'FeatureCollection', features },
+    collection,
+    // Par défaut, le tracé EST la géométrie lue : c'est le chemin réel, tel que
+    // le moteur l'a produit à partir des points GPS. L'appelant remplace
+    // `collection` par la surface dérivée des cellules (ADR-010) et GARDE
+    // celle-ci comme tracé.
+    trace: collection,
     ownedCount: features.length,
     areaM2: aire,
   };

@@ -84,4 +84,13 @@ Le test qui porte la décision : « perdre la moitié de ses cellules RÉTRÉCIT
 ⚠️ Le lissage RÉTRÉCIT (Chaikin coupe vers l'intérieur) et c'est le BON sens de l'erreur : dessiner vers l'extérieur peindrait du sol appartenant à quelqu'un d'autre. Il ne touche QUE le dessin — l'aire annoncée vient de `territories.area_m2`, jamais de l'anneau lissé, sinon deux écrans de la même app donneraient deux chiffres.
 Une étape 0 mesure d'abord que le contour BRUT est anguleux (~120°) : sans elle, l'assertion « c'est lisse » ne prouverait pas que ça l'est devenu.
 
-RESTE À FAIRE : les zones des AUTRES joueurs (le MVP ne peint que les miennes) et la microcopy des notifications en m² perdus.
+**Zones rivales + TRACÉ séparés (03/08/2026).** La carte porte désormais TROIS couches, et leur distinction est le fond d'ADR-010 :
+1. **Rivaux** (orange, dessous) — depuis la vue `public_territories`, qui n'expose que `geometry_generalized` et filtre côté serveur selon `map_sharing`. **Aucun tracé pour eux** : leur géométrie ne m'est livrée que floutée, et peindre un chemin à partir d'elle laisserait croire qu'on sait où ils sont passés.
+2. **Ma surface** (chartreuse) — dérivée des cellules, lissée. Elle rétrécit quand un rival mord dedans.
+3. **Mon tracé** (casing + cœur, au-dessus) — `territories.geometry` EXACTE, sommet par sommet. C'est la ligne que le coureur reconnaît comme sa sortie.
+
+⚠️ 2 et 3 ne sont PAS la même chose. La surface dit ce que je POSSÈDE (et elle change) ; le tracé dit ce que j'ai COURU (et il ne change jamais). Le tracé n'est JAMAIS simplifié : relier deux points éloignés dessinerait un raccourci que personne n'a couru — à travers un pâté de maisons, un fleuve, une voie ferrée. Le seul lissage du produit est celui de la surface, et il ne touche pas cette ligne. Test dédié.
+
+L'échec de la lecture des rivaux n'invalide PAS ma carte : ne pas savoir ce que les autres tiennent n'empêche pas de savoir ce que je tiens.
+
+RESTE À FAIRE : la microcopy des notifications en m² perdus.

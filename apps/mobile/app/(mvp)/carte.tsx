@@ -37,7 +37,7 @@ import {
   type LocationAccess,
   type TerritoryRead,
 } from '../../src/mvp/map/homeState';
-import { readMyTerritories } from '../../src/mvp/map/readTerritories';
+import { readMyTerritories, readRivalTerritories } from '../../src/mvp/map/readTerritories';
 import type { TerritoryFeatureCollection } from '../../src/mvp/map/territoryGeo';
 import { heroArea } from '../../src/mvp/ui/area';
 import { recoveryOffer, toSnapshot } from '../../src/mvp/run/persist';
@@ -69,6 +69,8 @@ export default function Carte() {
   const [permission, setPermission] = useState<Location.PermissionResponse | null>(null);
   const [read, setRead] = useState<TerritoryRead>({ kind: 'idle' });
   const [formes, setFormes] = useState<TerritoryFeatureCollection | null>(null);
+  const [trace, setTrace] = useState<TerritoryFeatureCollection | null>(null);
+  const [rivaux, setRivaux] = useState<TerritoryFeatureCollection | null>(null);
   const [position, setPosition] = useState<{ lng: number; lat: number } | null>(null);
   const [interrompue, setInterrompue] = useState(false);
 
@@ -130,11 +132,21 @@ export default function Carte() {
       // ⚠️ On ne garde PAS les formes précédentes : elles dateraient d'avant
       // l'échec et se liraient comme l'état actuel.
       setFormes(null);
+      setTrace(null);
+      setRivaux(null);
       setRead({ kind: 'failed' });
       return;
     }
     setFormes(r.collection);
+    setTrace(r.trace);
     setRead({ kind: 'ok', ownedCount: r.ownedCount, areaM2: r.areaM2 });
+
+    // Les rivaux SÉPARÉMENT, et leur échec n'invalide PAS ma carte : ne pas
+    // savoir ce que les autres tiennent n'empêche pas de savoir ce que je
+    // tiens. L'inverse — tout perdre parce qu'une lecture secondaire a raté —
+    // serait un échec partiel déguisé en panne totale.
+    const autres = await readRivalTerritories(userId);
+    setRivaux(autres.kind === 'ok' ? autres.collection : null);
   }, [userId]);
 
   useEffect(() => {
@@ -244,6 +256,8 @@ export default function Carte() {
         // tant qu'aucune lecture n'a abouti. La carte ne peint donc rien, et
         // c'est le bandeau qui dit pourquoi.
         territories={formes}
+        trace={trace}
+        rivals={rivaux}
         showUser={canCenterOnPlayer(etat)}
       />
 
