@@ -175,6 +175,63 @@ export function detectClosedLoop(
   return traceAreaM2(points) >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2);
 }
 
+/** Écart (m) entre le départ et l'arrivée d'une trace. `null` si trace inexploitable. */
+export function closureGapM(points: readonly LatLngPoint[]): number | null {
+  if (points.length < 2) return null;
+  return haversineM(points[0]!, points[points.length - 1]!);
+}
+
+/**
+ * Comment cette trace se referme — ou de combien elle a manqué. PURE.
+ *
+ * ─── POURQUOI CETTE FONCTION EXISTE, ET PAS SEULEMENT UN BOOLÉEN ────────────
+ * Une boucle ouverte est une TENSION : le joueur a couru en croyant refermer.
+ * Lui rendre `false` est exact et inutilisable — l'écran ne peut alors dire que
+ * « raté », ce que le MASTER interdit (« jamais d'échec sec à 98 % », L19
+ * « l'app n'accuse jamais »). Cette fonction rend donc le MANQUE, en mètres :
+ * c'est ce qui permet d'écrire « Il manquait 23 m pour fermer ta boucle. »
+ *
+ * ─── LES TROIS ISSUES ───────────────────────────────────────────────────────
+ *   · `closed`   — écart ≤ tolérance. Le joueur a bouclé, point.
+ *   · `assisted` — tolérance < écart ≤ bande assistée : GRYD referme À SA
+ *     PLACE par un segment droit. Il a fait le tour, il lui manquait un
+ *     trottoir. L'issue est NOMMÉE plutôt que confondue avec `closed` : le
+ *     produit doit savoir ce qu'il a donné — pour pouvoir le dire à l'écran, et
+ *     pour mesurer en Saison 0 si la bande est bien réglée.
+ *   · `open`     — au-delà. `missingM` dit de combien, toujours > 0.
+ *
+ * `missingM` est mesuré depuis la BANDE ASSISTÉE, pas depuis la tolérance :
+ * c'est la distance qu'il fallait réellement parcourir en moins pour que la
+ * boucle soit accordée. Annoncer un manque plus grand que le vrai serait
+ * décourager pour rien.
+ */
+export interface LoopClosureVerdict {
+  readonly kind: 'closed' | 'assisted' | 'open';
+  /** Écart départ/arrivée mesuré (m). `null` = trace inexploitable. */
+  readonly gapM: number | null;
+  /** Mètres manquants pour que la boucle soit accordée. `0` sauf si `open`. */
+  readonly missingM: number;
+}
+
+export function loopClosureVerdict(
+  points: readonly LatLngPoint[],
+  activity: Activity = DEFAULT_ACTIVITY,
+): LoopClosureVerdict {
+  const rules = activityRules(activity);
+  const gapM = closureGapM(points);
+  // Trace inexploitable : on ne prétend NI qu'elle ferme, NI de combien elle
+  // manque. `missingM = 0` avec `kind: 'open'` serait lu « il ne manquait
+  // rien », donc on rend l'écart `null` et l'appelant se tait.
+  if (gapM === null || !Number.isFinite(gapM)) {
+    return { kind: 'open', gapM: null, missingM: 0 };
+  }
+  if (gapM <= rules.loopCloseToleranceM) return { kind: 'closed', gapM, missingM: 0 };
+  if (gapM <= rules.loopCloseAssistM) return { kind: 'assisted', gapM, missingM: 0 };
+  // Arrondi au mètre SUPÉRIEUR : annoncer « 0 m manquants » sur un écart de
+  // 60,4 m ferait mentir la phrase. Un mètre de trop est honnête, zéro non.
+  return { kind: 'open', gapM, missingM: Math.ceil(gapM - rules.loopCloseAssistM) };
+}
+
 /**
  * Cellules INTÉRIEURES d'une boucle fermée (AMENDEMENT-12 §B) : polygonToCells
  * (h3, containment centre) sur le polygone de la trace en `res`, MOINS les
@@ -225,7 +282,7 @@ export function enclosedCells(
 
 // ─── AMENDEMENT-16 §2 — auto-intersection + anti-abus boucle (doc §4-§6) ─────
 
-export type LoopClosure = 'tolerance' | 'self_intersection';
+export type LoopClosure = 'tolerance' | 'assisted' | 'self_intersection';
 
 /** Boucle détectée par detectLoop : polygone + mode de fermeture + géométrie. */
 export interface DetectedLoop {
@@ -346,13 +403,29 @@ export function detectLoop(
   if (points.length < 3) return null;
   const rules = activityRules(activity);
   const candidates: DetectedLoop[] = selfIntersectionLoops(points, rules);
-  if (detectClosedLoop(points, activity)) {
-    candidates.push({
-      polygon: [...points],
-      closure: 'tolerance',
-      areaM2: traceAreaM2(points),
-      perimeterM: ringPerimeterM(points),
-    });
+  // FERMETURE PAR TOLÉRANCE ou PAR ASSISTANCE — même polygone, issue nommée.
+  //
+  // Géométriquement, les deux donnent le MÊME anneau : le shoelace referme déjà
+  // dernier→premier. Ce qui change est le SEUIL D'ACCEPTATION, et le fait qu'on
+  // le dise. `detectClosedLoop` reste strict (il porte le nom de la tolérance,
+  // il ne doit pas se mettre à mentir) ; l'assistance est décidée ici.
+  const closure = loopClosureVerdict(points, activity);
+  if (closure.kind === 'closed' || closure.kind === 'assisted') {
+    // Les DEUX autres conditions de `detectClosedLoop` (périmètre minimal, aire
+    // non dégénérée) valent aussi pour la bande assistée : assister la
+    // fermeture n'a jamais voulu dire accorder une micro-boucle ou un
+    // aller-retour d'aire nulle.
+    let totalM = 0;
+    for (let i = 1; i < points.length; i++) totalM += haversineM(points[i - 1]!, points[i]!);
+    const areaM2 = traceAreaM2(points);
+    if (totalM >= rules.loopMinPerimeterM && areaM2 >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2)) {
+      candidates.push({
+        polygon: [...points],
+        closure: closure.kind === 'assisted' ? 'assisted' : 'tolerance',
+        areaM2,
+        perimeterM: ringPerimeterM(points),
+      });
+    }
   }
   let best: DetectedLoop | null = null;
   let bestOk: DetectedLoop | null = null;

@@ -2510,11 +2510,11 @@ export const LOOP_CLOSE_TOLERANCE_M = 40;
  * fermeture silencieuse d'un tour qui n'a pas été fait. La bande assistée
  * (40-60 m) récupère le cas fréquent du pâté de maisons.
  *
- * ⚠️ EN SUSPENS AU 03/08/2026 : la CONSTANTE est posée, le CÂBLAGE ne l'est
- * pas. `detectClosedLoop` ne connaît encore que `LOOP_CLOSE_TOLERANCE_M` :
- * un écart de 41-60 m est donc REFUSÉ aujourd'hui, alors que la doctrine veut
- * qu'il soit refermé d'office par un segment droit. Lot G1b de la Phase 1.
- * `loop_test.ts` porte le même avertissement, à l'endroit où il basculera.
+ * CÂBLÉE LE 03/08/2026 (lot G1b) : `loopClosureVerdict` (engine/hexing.ts) rend
+ * `closed` / `assisted` / `open`, et `detectLoop` accepte la bande assistée en
+ * marquant la boucle `closure: 'assisted'`. Le produit SAIT donc ce qu'il a
+ * donné — condition pour que l'écran puisse le dire, et pour qu'on puisse
+ * mesurer en Saison 0 si la bande est trop large ou trop étroite.
  *
  * INVARIANT : `LOOP_CLOSE_ASSIST_M > LOOP_CLOSE_TOLERANCE_M`. Une bande
  * assistée plus étroite que la tolérance serait vide — donc morte.
@@ -3902,6 +3902,13 @@ export interface ActivityRuleSet {
   readonly segmentPaceMaxSKm: number;
   /** A-12 §B — tolérance de fermeture départ/arrivée d'une boucle (m). */
   readonly loopCloseToleranceM: number;
+  /**
+   * Écart départ/arrivée jusqu'auquel GRYD REFERME la boucle à la place du
+   * joueur (segment droit). Toujours > `loopCloseToleranceM` : entre les deux,
+   * la boucle est accordée mais MARQUÉE `assisted` — le produit sait ce qu'il
+   * a donné, et l'écran peut le dire.
+   */
+  readonly loopCloseAssistM: number;
   /** A-12 §B — périmètre minimal d'une boucle (m) ; en deçà : couloir seul. */
   readonly loopMinPerimeterM: number;
   /** A-16 §2 — paliers [distance courue (km), aire capturable max (km²)]. */
@@ -3937,6 +3944,7 @@ const RUN_RULES: ActivityRuleSet = {
   segmentPaceMinSKm: SEGMENT_PACE_MIN_S_KM,
   segmentPaceMaxSKm: SEGMENT_PACE_MAX_S_KM,
   loopCloseToleranceM: LOOP_CLOSE_TOLERANCE_M,
+  loopCloseAssistM: LOOP_CLOSE_ASSIST_M,
   loopMinPerimeterM: LOOP_MIN_PERIMETER_M,
   loopMaxAreaByDistanceKm2: LOOP_MAX_AREA_BY_DISTANCE_KM2,
   loopMaxAreaCapKm2: LOOP_MAX_AREA_CAP_KM2,
@@ -4079,6 +4087,14 @@ export const BIKE_LOOP_MIN_PERIMETER_M = 5_000;
  * mesure d'effort : elle ne dépend pas de la vitesse.
  */
 export const BIKE_LOOP_CLOSE_TOLERANCE_M = LOOP_CLOSE_TOLERANCE_M;
+/**
+ * Bande de fermeture ASSISTÉE à vélo — IDENTIQUE à celle de la course, pour la
+ * même raison que la tolérance l'est déjà : la marge de fermeture est une
+ * tolérance GPS, et un GPS ne devient pas meilleur parce qu'on roule. C'est le
+ * PÉRIMÈTRE minimal qui change d'échelle entre les deux mondes
+ * (`BIKE_LOOP_MIN_PERIMETER_M`), jamais la précision.
+ */
+export const BIKE_LOOP_CLOSE_ASSIST_M = LOOP_CLOSE_ASSIST_M;
 
 /**
  * Aire capturable max d'une boucle vélo, par distance parcourue.
@@ -4144,6 +4160,7 @@ const BIKE_RULES: ActivityRuleSet = {
   segmentPaceMinSKm: BIKE_SEGMENT_PACE_MIN_S_KM,
   segmentPaceMaxSKm: BIKE_SEGMENT_PACE_MAX_S_KM,
   loopCloseToleranceM: BIKE_LOOP_CLOSE_TOLERANCE_M,
+  loopCloseAssistM: BIKE_LOOP_CLOSE_ASSIST_M,
   loopMinPerimeterM: BIKE_LOOP_MIN_PERIMETER_M,
   loopMaxAreaByDistanceKm2: BIKE_LOOP_MAX_AREA_BY_DISTANCE_KM2,
   loopMaxAreaCapKm2: BIKE_LOOP_MAX_AREA_CAP_KM2,

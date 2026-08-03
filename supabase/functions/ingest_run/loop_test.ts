@@ -99,11 +99,11 @@ Deno.test('la fermeture suit LOOP_CLOSE_TOLERANCE_M — sous la borne ferme, au-
   // dérive désormais ses cas de la CONSTANTE : il gardera la règle quel que
   // soit le prochain réglage de la Saison 0.
   //
-  // ⚠️ LA BANDE ASSISTÉE (`LOOP_CLOSE_ASSIST_M`, 60 m) N'EST PAS ENCORE CÂBLÉE
-  // ICI : `detectClosedLoop` ne connaît que la tolérance de base. Tant que le
-  // lot G1b n'est pas livré, un écart de 41-60 m est REFUSÉ alors que la
-  // doctrine veut qu'il soit refermé d'office. C'est écrit plutôt que masqué —
-  // et c'est ce test qui basculera quand le câblage arrivera.
+  // ⚠️ `detectClosedLoop` RESTE STRICT, ET C'EST VOULU : il porte le nom de la
+  // TOLÉRANCE, l'élargir en silence à la bande assistée le ferait mentir. Le
+  // câblage de l'assistance (lot G1b, 03/08/2026) vit dans `detectLoop` et
+  // `loopClosureVerdict` — voir `packages/engine/src/loopClosure.test.ts`, qui
+  // prouve qu'un écart de 41-60 m est bien ACCORDÉ et marqué `assisted`.
   const sous = Math.round(LOOP_CLOSE_TOLERANCE_M * 0.85); // franchement sous la borne
   const closed = squareLoop(300, 20, sous);
   const gapM = haversineM(closed[0]!, closed[closed.length - 1]!);
