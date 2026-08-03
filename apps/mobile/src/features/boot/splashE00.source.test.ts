@@ -106,7 +106,12 @@ Deno.test('E00 — plus aucun écran de démarrage nu dans le layout racine', as
 Deno.test('E00 — la reprise de course ne repart pas d’un effet au montage', async () => {
   const src = await code('../../../app/_layout.tsx');
   const gateAt = src.indexOf('function BootGate');
-  const pushAt = src.indexOf("router.push('/course-live')");
+  // ⚠️ ROUTE CHANGÉE LE 03/08/2026 (bascule d'entrée) : la reprise mène
+  // désormais à `/course` (MVP) et non plus à `/course-live` (legacy). Les deux
+  // lisent le MÊME buffer, donc une course interrompue avant la bascule se
+  // reprend quand même. Ce test ne vérifie PAS la destination — il vérifie que
+  // la navigation vit dans le `BootGate`, et c'est ce qui compte.
+  const pushAt = src.indexOf("router.push('/course')");
   assert(pushAt >= 0, 'la reprise doit toujours exister');
   assert(
     pushAt > gateAt && gateAt >= 0,

@@ -65,15 +65,31 @@ const KNOWN_ORPHANS = new Map([
   // moitié fini. La bascule sera UN changement de route d'entrée — et ces deux
   // lignes devront alors DISPARAÎTRE d'ici, sans quoi l'audit cesserait de
   // surveiller les vraies orphelines du groupe.
+  // ⚠️ RAISON CHANGÉE LE 03/08/2026 — la bascule d'entrée a EU LIEU pour
+  // l'accueil : un joueur connecté atterrit sur `/carte` (MVP) et non plus sur
+  // les onglets legacy. Ces deux-là restent orphelines pour une raison PLUS
+  // ÉTROITE : le drapeau `onboardingDone` que lit la garde vit dans un hook
+  // legacy, qu'ADR-001 interdit d'importer depuis la nouvelle UI. Tant qu'un
+  // drapeau MVP ne le remplace pas, la porte d'onboarding reste l'ancienne.
   [
     '/bienvenue',
-    'onboarding MVP 1/2 (lot M2) — orpheline VOULUE : le groupe (mvp) n’est ' +
-      'atteint que par URL directe tant que la bascule d’entrée n’a pas eu lieu.',
+    'onboarding MVP 1/2 (lot M2) — l’accueil A basculé (03/08), pas la porte ' +
+      'd’onboarding : le drapeau `onboardingDone` vit dans un hook legacy ' +
+      'qu’ADR-001 interdit d’importer. Ces lignes disparaissent avec le ' +
+      'drapeau MVP qui le remplacera (BACKLOG).',
   ],
   [
     '/position',
     'onboarding MVP 2/2, priming des permissions (lot M2) — même raison que ' +
-      '/bienvenue : porte volontairement absente jusqu’à la bascule.',
+      '/bienvenue : c’est la porte d’onboarding, pas l’accueil, qui attend encore.',
+  ],
+  [
+    '/course-live',
+    'Live Run LEGACY — devenu orphelin PAR LA BASCULE du 03/08/2026, et c’est ' +
+      'le signe que la bascule a marché : la reprise après crash mène désormais ' +
+      'à `/course` (MVP). Les deux lisent le MÊME buffer (`lib/runStore`), donc ' +
+      'une course interrompue avant la bascule se reprend quand même. Cet écran ' +
+      'meurt avec l’UI legacy — il n’a pas à être re-relié.',
   ],
   // ─── RÉVÉLÉES LE 27/07/2026 PAR L'EXCLUSION DES TESTS (voir isTestFile) ────
   // Elles n'étaient pas atteignables hier non plus : leur SEUL référent était

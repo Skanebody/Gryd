@@ -49,7 +49,17 @@
 | Capture + résultat | **OPÉRATIONNEL** | `app/(mvp)/resultat.tsx` + `mvp/run/payload.ts` (7) + `outcome.ts` (13) + `sendRun.ts`. La course PART : envoi direct, ou file FIFO persistée si le réseau manque. `ingest_run` renvoie désormais `loopAreaM2` (`reportableAreaM2`, 3 tests) — le chiffre héros existait nulle part avant. Captures des 4 issues clés en preview : capture 42 350 m², attente sans verdict, manque « 23 m », intérieur partiel SANS chiffre |
 | Partage (carte 1-tap, deep links) | **ABSENT** | — |
 
-> ⚠️ Ces écrans ne sont atteints que par URL directe : la bascule d'entrée n'a pas eu lieu.
+> **BASCULE D'ENTRÉE FAITE le 03/08/2026** — un joueur connecté et configuré
+> atterrit sur `/carte` (MVP), plus sur les onglets legacy. Posée au SEUL point de
+> décision du parcours (`app/(tabs)/_layout.tsx`), et la reprise après crash mène
+> désormais à `/course` (MVP) : les deux écrans lisent le même buffer, donc une
+> course interrompue avant la bascule se reprend quand même.
+> ⚠️ RESTENT LEGACY : la CONNEXION (le groupe `(mvp)` n'a aucun écran d'auth —
+> basculer sans lui livrerait une app où on ne peut pas créer de compte) et la
+> PORTE d'onboarding (`onboardingDone` vit dans un hook legacy qu'ADR-001 interdit
+> d'importer). `/bienvenue` et `/position` restent donc atteints par URL directe.
+> ⚠️ NON VÉRIFIÉ À L'ÉCRAN : la bascule demande une session, et je n'ai pas de
+> compte — même preuve manquante que le reste.
 > **Backend PROD au 03/08/2026** : migrations `0107→0112` APPLIQUÉES (prod était à
 > 0106), fonction `ingest_run` DÉPLOYÉE. Vérifié en base : `territory_reigns` +
 > son trigger, `my_territory_history`, `purge_due_accounts`, `crew_overview`,

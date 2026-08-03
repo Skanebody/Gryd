@@ -231,7 +231,10 @@ function BootGate({ fontsReady, children }: { fontsReady: boolean; children: Rea
     // 03/08/2026 en preview, sur `/` comme sur une URL directe.
     if (!ready || handedOff || !fontsReady) return;
     // « Activité active retrouvée : aller directement à la récupération. »
-    if (next === 'recover_run') router.push('/course-live');
+    // BASCULE (03/08/2026) : la reprise mène à l'écran MVP, pas au legacy. Les
+    // deux lisent le MÊME buffer (`lib/runStore`), donc une course interrompue
+    // AVANT la bascule se reprend quand même — rien n'est perdu au passage.
+    if (next === 'recover_run') router.push('/course');
     setHandedOff(true);
   }, [ready, next, handedOff, fontsReady]);
 

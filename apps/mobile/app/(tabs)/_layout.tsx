@@ -148,6 +148,29 @@ export default function TabsLayout() {
   if (firstRun === 'wait') return <SplashE00 logoReady />;
   if (firstRun === 'setup') return <Redirect href={SETUP_ENTRY} />;
 
+  // ══════════ BASCULE D'ENTRÉE — 03/08/2026 (ADR-001, Phase 1 close) ════════
+  // Un joueur connecté et configuré atterrit désormais sur la carte MVP, plus
+  // sur les onglets legacy. C'est LA bascule : jusqu'ici les huit écrans
+  // reconstruits n'étaient atteints que par URL directe, donc par personne.
+  //
+  // Elle est posée ICI et nulle part ailleurs parce que ce fichier est, de son
+  // propre aveu, « le SEUL point de décision du parcours ». Une seconde garde
+  // ailleurs finirait par diverger de celle-ci — c'est le défaut que l'entête
+  // de ce fichier raconte déjà avoir payé une fois.
+  //
+  // ⚠️ CE QUI RESTE LEGACY, ET POURQUOI :
+  //   · la CONNEXION (`/sign-in`, `/onboarding`) — le groupe `(mvp)` n'a aucun
+  //     écran d'authentification, et basculer sans lui livrerait une app où un
+  //     nouveau joueur ne peut jamais créer de compte ;
+  //   · la PORTE d'onboarding — le drapeau `onboardingDone` vit dans un hook
+  //     legacy qu'ADR-001 interdit d'importer depuis la nouvelle UI. Tant qu'un
+  //     drapeau MVP ne le remplace pas, `/bienvenue` et `/position` restent
+  //     atteints par URL directe.
+  // Les deux sont inscrits au BACKLOG. Ce qui bascule aujourd'hui, c'est le
+  // PRODUIT : carte → GO → course → résultat.
+  return <Redirect href="/carte" />;
+
+  // eslint-disable-next-line no-unreachable
   return (
     <View style={styles.root}>
       <Tabs screenOptions={{ headerShown: false, tabBarStyle: styles.hiddenTabBar }}>
