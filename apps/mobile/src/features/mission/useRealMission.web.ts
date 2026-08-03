@@ -8,7 +8,7 @@
  * vraie mission. Une donnée figée qui contredit le natif est un mensonge sur le
  * produit, même si aucun chiffre n'est fabriqué.
  *
- * La raison d'être du stub — ne pas tirer `run/gps/provider` (expo-location /
+ * La raison d'être du stub — ne pas tirer `mvp/run/gpsProvider` (expo-location /
  * expo-task-manager) dans le bundle du navigateur — est désormais couverte par
  * `features/map/webGeolocation.ts` : même signature, `navigator.geolocation`
  * réel, AUCUNE position de repli (refus ou capteur muet → `null`, jamais une

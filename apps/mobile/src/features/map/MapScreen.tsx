@@ -83,7 +83,7 @@ import {
   checkForegroundPermission,
   getCurrentPositionOnce,
   requestForegroundPermission,
-} from '../run/gps/provider';
+} from '../../mvp/run/gpsProvider';
 
 /**
  * Les états de `locationState.ts`, PLUS celui que seul l'écran connaît :

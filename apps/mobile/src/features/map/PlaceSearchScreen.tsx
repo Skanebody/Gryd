@@ -68,7 +68,7 @@ import { SectionLabel } from '../../ui/SectionLabel';
 import { StackScreen } from '../../ui/StackScreen';
 import { useCityCatalog } from '../city/useCityCatalog';
 import { usePrivacyZones } from '../privacy/zonesStore';
-import { checkForegroundPermission, getCurrentPositionOnce } from '../run/gps/provider';
+import { checkForegroundPermission, getCurrentPositionOnce } from '../../mvp/run/gpsProvider';
 import { CITY_SCALE_ZOOM, type LatLngPoint } from './realAnchors';
 import { requestPlaceFocus } from './placeFocus';
 import { usePlaceRecents } from './placeRecents';

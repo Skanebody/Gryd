@@ -10,7 +10,7 @@
  * mensonge sur le produit, même quand chaque surface prise isolément est vraie.
  *
  * La justification historique du stub était valable : ne pas tirer
- * `../run/gps/provider` (expo-location / expo-task-manager) dans le bundle web.
+ * `../mvp/run/gpsProvider` (expo-location / expo-task-manager) dans le bundle web.
  * Elle ne l'est plus depuis `features/map/webGeolocation.ts`, qui expose
  * `getCurrentPositionOnce()` avec la MÊME signature et sans position de repli.
  *

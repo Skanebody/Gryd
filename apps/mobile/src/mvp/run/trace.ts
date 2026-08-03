@@ -71,3 +71,40 @@ export function formatChrono(elapsedMs: number): string {
   const deux = (n: number) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${deux(m)}:${deux(s)}` : `${deux(m)}:${deux(s)}`;
 }
+
+/**
+ * FUSION DES DEUX SOURCES DE POINTS. PURE.
+ *
+ * ─── POURQUOI IL Y EN A DEUX ────────────────────────────────────────────────
+ * Pendant une course, les positions arrivent par le suivi de PREMIER PLAN tant
+ * que l'écran est allumé, et par la TÂCHE BACKGROUND dès qu'il s'éteint ou que
+ * l'app passe en fond. Les deux se recouvrent au moment de la bascule : le
+ * système livre parfois le même relevé aux deux chemins.
+ *
+ * Concaténer sans dédupliquer ferait COMPTER DEUX FOIS les mètres du
+ * recouvrement — une distance gonflée à chaque verrouillage d'écran, donc
+ * plusieurs fois par course. Le serveur, lui, redéduplique (`cleanTrace`) : le
+ * chiffre affiché finirait par contredire celui du résultat, et le joueur
+ * n'aurait aucun moyen de savoir lequel croire.
+ *
+ * ⚠️ LA CLÉ EST L'HORODATAGE, pas la position. Deux relevés à la même
+ * milliseconde SONT le même relevé — à 1 Hz, aucune course ne produit deux
+ * positions distinctes dans la même milliseconde. Dédupliquer sur les
+ * coordonnées, à l'inverse, effacerait les arrêts (feu rouge, lacet refait),
+ * pendant lesquels la position ne bouge pas alors que le temps passe.
+ *
+ * Le tri est indispensable : la file background est vidée par lots, donc ses
+ * points arrivent APRÈS des points de premier plan plus récents. Une trace non
+ * triée mesurerait des allers-retours qui n'ont pas eu lieu.
+ */
+export function mergeFixes(
+  a: readonly TracePoint[],
+  b: readonly TracePoint[],
+): TracePoint[] {
+  const parTs = new Map<number, TracePoint>();
+  // `a` d'abord, `b` ensuite : à horodatage égal, le second gagne. Sans
+  // conséquence (c'est le même relevé), mais l'ordre est ÉCRIT plutôt que subi.
+  for (const p of a) parTs.set(p.t, p);
+  for (const p of b) parTs.set(p.t, p);
+  return [...parTs.values()].sort((x, y) => x.t - y.t);
+}

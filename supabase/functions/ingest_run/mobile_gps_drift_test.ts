@@ -38,7 +38,7 @@ const MOBILE_ENGINE_TARGETS = [
   // implémentations divergeraient en silence — d'où la copie générée, et ce
   // test. `validation.ts` a deux destinations : les deux sont vérifiées.
   {
-    files: ['closure.ts', 'validation.ts'],
+    files: ['closure.ts', 'gps.ts', 'validation.ts'],
     dir: 'apps/mobile/src/mvp/run/engine/',
   },
 ] as const;

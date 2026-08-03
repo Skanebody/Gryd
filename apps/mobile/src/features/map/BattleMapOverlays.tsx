@@ -108,7 +108,7 @@ import { MapAnchoredSheet } from './MapAnchoredSheet';
 import { mapSheetStops, type MapSheetStop } from './sheetSnap';
 import { type MapActivity } from './mapPref';
 // Provider de position RÉSOLU PAR PLATEFORME (Metro sert `locate.web.ts` sur
-// web). On l'emprunte à l'onboarding plutôt que d'importer `run/gps/provider`
+// web). On l'emprunte à l'onboarding plutôt que d'importer `mvp/run/gpsProvider`
 // ici : ce module tire `expo-task-manager`, sans support web, et cet écran-ci est
 // partagé natif ⇄ web (cf. l'en-tête de `webGeolocation.ts`).
 import { LOCATION_CAPABLE, LOCATION_PROVIDER } from '../onboarding/locate';
@@ -296,7 +296,7 @@ const SKELETON_PEEK_HEIGHT = 100;
  * pas. On dérive donc l'affichage de la capacité RÉELLE — l'absence d'un bouton
  * n'est pas un mensonge, un bouton qui échoue à coup sûr en est un (§A4).
  *
- * `openLocationSettings` (features/run/gps/provider.ts) fait exactement ça, mais
+ * `openLocationSettings` (mvp/run/gpsProvider.ts) fait exactement ça, mais
  * son module tire `expo-task-manager` et ne doit JAMAIS entrer dans le bundle
  * web (cf. l'en-tête de `webGeolocation.ts`) — or cet écran est partagé. On
  * appelle donc `Linking.openSettings` directement, comme le font déjà

@@ -28,7 +28,7 @@ import {
   startBackgroundUpdates,
   stopBackgroundUpdates,
   watchPosition,
-} from './provider';
+} from '../../../mvp/run/gpsProvider';
 import { useRealRunCore } from './useRealRunCore';
 
 /**

@@ -2,7 +2,7 @@
  * GRYD — E08 : LIRE la position, sur la plateforme courante. Rien d'autre.
  *
  * ─── POURQUOI CE FICHIER EXISTE (et pourquoi il a un jumeau `.web.ts`) ──────
- * `features/run/gps/provider.ts` porte en tête « fichier natif uniquement » : il
+ * `mvp/run/gpsProvider.ts` porte en tête « fichier natif uniquement » : il
  * importe `expo-task-manager`, qui n'a pas de support web. L'importer depuis une
  * ROUTE le mettrait dans le bundle navigateur — c'est exactement la faute que
  * `MapScreen.web.tsx:112-117` documente et corrige de son côté en tapant dans
@@ -25,4 +25,4 @@
 export {
   checkForegroundPermission,
   getCurrentPositionOnce,
-} from '../run/gps/provider';
+} from '../../mvp/run/gpsProvider';

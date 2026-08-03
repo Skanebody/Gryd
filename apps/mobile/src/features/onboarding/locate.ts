@@ -17,7 +17,7 @@ import {
   checkForegroundPermission,
   getCurrentPositionOnce,
   requestForegroundPermission,
-} from '../run/gps/provider';
+} from '../../mvp/run/gpsProvider';
 import type { MapLocationProvider } from '../map/locationState';
 
 /**

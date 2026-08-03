@@ -2,7 +2,7 @@
  * GRYD — position réelle du joueur pour la carte, côté WEB.
  *
  * POURQUOI CE FICHIER EXISTE. `MapScreen.web.tsx` importait STATIQUEMENT
- * `../run/gps/provider` — un module dont l'en-tête dit noir sur blanc « fichier
+ * `../mvp/run/gpsProvider` — un module dont l'en-tête dit noir sur blanc « fichier
  * natif uniquement : importé via useRealRun.ts / registerBackgroundTask.ts
  * (variantes .web.ts vides) — jamais dans le bundle web ». L'import tirait donc
  * `expo-task-manager` (aucun support web) dans le bundle du navigateur : au

@@ -23,7 +23,7 @@
  *
  * Ce module est la SEULE séquence, partagée par les deux variantes. Il ne
  * connaît ni expo-location ni `navigator.geolocation` : le provider lui est
- * passé (`../run/gps/provider` sur natif, `./webGeolocation` sur web), ce qui
+ * passé (`../mvp/run/gpsProvider` sur natif, `./webGeolocation` sur web), ce qui
  * garantit que localhost et l'iPhone suivent la même logique de décision, à la
  * seule différence des capteurs eux-mêmes.
  */

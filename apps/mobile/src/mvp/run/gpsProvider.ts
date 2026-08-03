@@ -23,7 +23,7 @@ import { Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { GPS_ACCURACY_MAX_M, GPS_SAMPLE_INTERVAL_MS, colors } from '@klaim/shared';
-import { appendBackgroundFixes } from '../../../lib/runStore';
+import { appendBackgroundFixes } from '../../lib/runStore';
 import type { RawFix } from './engine/gps';
 
 /** Nom STABLE de la tâche background (persisté par l'OS entre relances). */

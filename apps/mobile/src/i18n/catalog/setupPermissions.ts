@@ -98,7 +98,7 @@ export const C = defineCatalog({
    * sortie ». AUCUN code ne fait ça. Le podomètre n'est utilisé que par
    * `run/gps/tracker.ts` (`startPedometer` → `watchStepCount`), dont le cumul
    * alimente `motionTrust` côté serveur ; la cadence GPS, elle, est fixe
-   * (`GPS_SAMPLE_INTERVAL_MS`, `BestForNavigation` dans `run/gps/provider.ts`) et
+   * (`GPS_SAMPLE_INTERVAL_MS`, `BestForNavigation` dans `mvp/run/gpsProvider.ts`) et
    * ne dépend d'aucun signal de mouvement. Une garantie écrite avant que le code
    * la tienne est la même faute qu'une donnée fabriquée.
    *

@@ -89,7 +89,7 @@ export { AppErrorBoundary as ErrorBoundary } from '../src/ui/AppErrorBoundary';
 // AMENDEMENT-15 §2 : la tâche GPS background doit être définie AU CHARGEMENT
 // du bundle (relance headless après kill). Variante .web.ts vide — le preview
 // web ne voit aucun module natif.
-import '../src/features/run/gps/registerBackgroundTask';
+import '../src/mvp/run/registerBackgroundTask';
 
 /**
  * TRACEUR DE NAVIGATION (§26 super-propriétés). Un composant sans rendu, monté

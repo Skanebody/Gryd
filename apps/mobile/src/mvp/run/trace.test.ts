@@ -5,7 +5,7 @@
  * (décalé d'une heure entière hors du fuseau de développement) et un « 0,00 km »
  * au premier pas, qui se lit comme une panne.
  */
-import { formatChrono, formatKm, traceDistanceM, type TracePoint } from './trace';
+import { formatChrono, formatKm, mergeFixes, traceDistanceM, type TracePoint } from './trace';
 
 declare const Deno: { test(nom: string, fn: () => void | Promise<void>): void };
 
@@ -88,4 +88,39 @@ Deno.test('une horloge aberrante affiche zéro, jamais « NaN:NaN »', () => {
   for (const v of [-1, Number.NaN, Number.NEGATIVE_INFINITY]) {
     assertEquals(formatChrono(v), '00:00', `valeur ${String(v)}`);
   }
+});
+
+// ─── Fusion premier plan / background ───────────────────────────────────────
+
+Deno.test('le RECOUVREMENT ne compte pas deux fois', () => {
+  // À chaque verrouillage d'écran, le système livre parfois le même relevé aux
+  // deux chemins. Concaténer gonflerait la distance à chaque bascule.
+  const commun = P(0, 49, 1000);
+  const avant = [P(0, 48.999, 0), commun];
+  const apres = [commun, P(0, 49.001, 2000)];
+  const fusion = mergeFixes(avant, apres);
+  assertEquals(fusion.length, 3);
+});
+
+Deno.test('la clé est l’HORODATAGE, pas la position — un arrêt n’est pas effacé', () => {
+  // Feu rouge, lacet refait : la position ne bouge pas alors que le temps
+  // passe. Dédupliquer sur les coordonnées supprimerait ces points.
+  const arret = [P(1.0993, 49.4431, 0), P(1.0993, 49.4431, 1000), P(1.0993, 49.4431, 2000)];
+  assertEquals(mergeFixes(arret, []).length, 3);
+});
+
+Deno.test('la trace fusionnée est TRIÉE — la file background arrive par lots', () => {
+  // Ses points sont donc plus VIEUX que des points de premier plan déjà reçus.
+  // Non triée, la trace mesurerait des allers-retours qui n'ont pas eu lieu.
+  const premierPlan = [P(0, 49, 3000), P(0, 49.001, 4000)];
+  const background = [P(0, 48.998, 1000), P(0, 48.999, 2000)];
+  const fusion = mergeFixes(premierPlan, background);
+  assertEquals(fusion.map((p) => p.t).join(','), '1000,2000,3000,4000');
+});
+
+Deno.test('fusionner avec du vide ne change rien', () => {
+  const trace = [P(0, 49, 0), P(0, 49.001, 1000)];
+  assertEquals(mergeFixes(trace, []).length, 2);
+  assertEquals(mergeFixes([], trace).length, 2);
+  assertEquals(mergeFixes([], []).length, 0);
 });

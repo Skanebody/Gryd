@@ -33,14 +33,19 @@
  * ce qui est exactement ce que garantit never-lose-a-run.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import { gpsGrade, type GpsGrade } from '../../src/mvp/run/countdown';
 import { gauge } from '../../src/mvp/run/gauge';
-import { formatChrono, formatKm, traceDistanceM, type TracePoint } from '../../src/mvp/run/trace';
+import { formatChrono, formatKm, mergeFixes, traceDistanceM, type TracePoint } from '../../src/mvp/run/trace';
+import {
+  requestBackgroundPermission,
+  startBackgroundUpdates,
+  stopBackgroundUpdates,
+} from '../../src/mvp/run/gpsProvider';
 import { stopWatch } from '../../src/mvp/run/watch';
 import { shouldFlush } from '../../src/mvp/run/persist';
 import { buildRunPayload } from '../../src/mvp/run/payload';
@@ -48,6 +53,7 @@ import { sendRun } from '../../src/mvp/run/sendRun';
 import {
   clearActiveRun,
   clearCurrentRun,
+  drainBackgroundFixes,
   loadActiveRun,
   saveActiveRun,
   type StoredRun,
@@ -129,10 +135,11 @@ export default function Course() {
       if (!vivant) return;
       setGrade(gpsGrade(p.coords.accuracy));
       setPoints((prev) => {
-        const suite = [
-          ...prev,
+        // `mergeFixes` et non un `push` : le même relevé peut arriver par le
+        // capteur ET par la file background au moment d'une bascule d'écran.
+        const suite = mergeFixes(prev, [
           { lng: p.coords.longitude, lat: p.coords.latitude, t: p.timestamp },
-        ];
+        ]);
         enAttenteRef.current += 1;
         const maintenant = Date.now();
         if (shouldFlush(dernierFlushRef.current, maintenant, enAttenteRef.current)) {
@@ -174,6 +181,60 @@ export default function Course() {
     };
   }, []);
 
+  /**
+   * SUIVI EN ARRIÈRE-PLAN — ce qui fait qu'une app de course est une app de
+   * course. Sans lui, verrouiller son téléphone TROUE la trace, et la boucle ne
+   * se referme jamais chez quelqu'un qui court écran éteint (c'est-à-dire tout
+   * le monde).
+   *
+   * La permission « Toujours » est demandée ICI et nulle part ailleurs : la
+   * chaîne de purpose strings d'`app.json` promet noir sur blanc qu'elle « n'est
+   * lancée qu'au départ d'une course ». La demander plus tôt trahirait cette
+   * phrase, et Apple la lit.
+   *
+   * Un REFUS n'arrête rien : la course continue en premier plan. Bloquer
+   * quelqu'un qui vient de partir pour une permission facultative serait une
+   * rançon (L17), et une trace partielle vaut mieux qu'une absence de trace.
+   */
+  useEffect(() => {
+    let vivant = true;
+    requestBackgroundPermission()
+      .then((accorde) => {
+        if (vivant && accorde) return startBackgroundUpdates();
+        return undefined;
+      })
+      .catch(() => undefined);
+    return () => {
+      vivant = false;
+      // Arrêt au démontage : laisser la tâche tourner après la course garderait
+      // l'indicateur de localisation allumé sans raison — le contraire exact de
+      // ce que la purpose string promet.
+      void stopBackgroundUpdates();
+    };
+  }, []);
+
+  /**
+   * Récupération des points collectés pendant que l'écran était éteint.
+   *
+   * La tâche background les empile dans `runStore` (aucun écran n'écoute) : ils
+   * n'existent à l'écran qu'une fois VIDÉS ici. Sans ce drain, le chrono
+   * continuerait d'avancer pendant que la distance resterait figée — et le
+   * joueur croirait avoir perdu ses mètres.
+   */
+  const draguer = useCallback(async () => {
+    const bg = await drainBackgroundFixes().catch(() => []);
+    if (bg.length === 0) return;
+    setPoints((prev) => mergeFixes(prev, bg.map((f) => ({ lng: f.lng, lat: f.lat, t: f.ts }))));
+  }, []);
+
+  useEffect(() => {
+    void draguer();
+    const sub = AppState.addEventListener('change', (etat) => {
+      if (etat === 'active') void draguer();
+    });
+    return () => sub.remove();
+  }, [draguer]);
+
   useEffect(() => {
     const id = setInterval(() => setEcouleMs(Date.now() - debutRef.current), TICK_MS);
     return () => clearInterval(id);
@@ -198,13 +259,24 @@ export default function Course() {
     envoiRef.current = true;
     setEnvoi(true);
 
-    const distanceM = traceDistanceM(points);
+    // ⚠️ UN DERNIER DRAIN AVANT D'ENVOYER. Les points collectés en arrière-plan
+    // depuis le dernier retour au premier plan sont encore dans la file : partir
+    // sans les vider amputerait la trace de sa fin — souvent le segment qui
+    // REFERME la boucle.
+    await stopBackgroundUpdates().catch(() => undefined);
+    const restants = await drainBackgroundFixes().catch(() => []);
+    const complet = mergeFixes(
+      points,
+      restants.map((f) => ({ lng: f.lng, lat: f.lat, t: f.ts })),
+    );
+
+    const distanceM = traceDistanceM(complet);
     const dureeMs = Date.now() - debutRef.current;
 
     const payload = buildRunPayload({
       clientRunId: runIdRef.current,
       startedAt: debutRef.current,
-      points: points.map((p) => ({ lat: p.lat, lng: p.lng, ts: p.t })),
+      points: complet.map((p) => ({ lat: p.lat, lng: p.lng, ts: p.t })),
     });
 
     // Aucun point envoyable : un GO annulé avant le premier pas n'est PAS une

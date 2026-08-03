@@ -155,7 +155,11 @@ const MOBILE_ENGINE_TARGETS = [
   // vers `features/run/gps/engine/` : la même source, deux destinations, ce que
   // le drift test vérifie des deux côtés.
   {
-    files: ['closure.ts', 'validation.ts'],
+    // `gps.ts` suit depuis le lot M8 : le provider GPS déplacé dans `mvp/run/`
+    // en tire le type `RawFix`. Sans lui, ce provider importerait sa forme
+    // depuis une copie générée restée côté legacy — donc une dépendance de la
+    // nouvelle UI vers l'ancienne, exactement ce qu'ADR-001 interdit.
+    files: ['closure.ts', 'gps.ts', 'validation.ts'],
     dir: ['apps', 'mobile', 'src', 'mvp', 'run', 'engine'],
   },
 ];

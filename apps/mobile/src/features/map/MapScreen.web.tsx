@@ -119,7 +119,7 @@ import { type MapLocationState, resolveLocation } from './locationState';
 import { C } from '../../i18n/catalog/map';
 import { useLocale } from '../../i18n/store';
 import { resolve } from '../../i18n/types';
-// Position réelle côté WEB : `../run/gps/provider` est marqué « fichier natif
+// Position réelle côté WEB : `../mvp/run/gpsProvider` est marqué « fichier natif
 // uniquement » (il tire expo-task-manager, sans support web) — l'importer ici
 // mettait dans le bundle navigateur un module qui n'y a pas sa place. Même
 // surface, même honnêteté (aucune position de repli) : voir webGeolocation.ts.
