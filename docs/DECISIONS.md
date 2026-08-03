@@ -38,3 +38,46 @@ Conséquences : `docs/SPEC-UX.md` et `.claude/agents/mobile-ui.md` corrigés —
 L'Annexe E du MASTER prescrit `locales/fr.json` + `en.json`. Le dépôt a 78 catalogues TypeScript où une `Entry` est un `Record<Locale, string>` COMPLET : ajouter un texte sans ses cinq langues est une erreur de compilation, donc un gate rouge. Un JSON ne peut pas offrir ça — une clé manquante ne se voit qu'à l'exécution, chez le joueur, dans la langue qu'on ne teste jamais.
 L18 exige « aucun texte en dur, parité FR/EN, pluriels gérés » : c'est tenu, et plus strictement. Le FORMAT n'était pas la règle ; la garantie l'était.
 Conséquences : la microcopy MVP (Annexe C) vit dans `apps/mobile/src/i18n/catalog/mvp.ts`, en cinq langues parce que le type l'impose. Le MVP n'en EXPOSE que deux — restreindre se fait au sélecteur de langue, jamais en amputant un catalogue (une chaîne absente n'affiche pas un repli, elle affiche une clé brute).
+
+## ADR-010 — 2026-08-03 — La PROPRIÉTÉ, ce sont les cellules ; `territories` est la MÉMOIRE de la course
+**Déclencheur (Belou)** : « un coureur ne prend pas une ville entière, il prend un pâté de rues […] il va prendre une partie et sûrement une autre en même temps ». La prise PARTIELLE n'est pas un cas limite : c'est le cas NORMAL.
+
+### Le défaut, constaté
+`ST_Difference` n'apparaît **nulle part** dans le dépôt : un polygone de `territories` n'est JAMAIS découpé quand un rival lui prend des cellules. Or :
+- les points, les classements et le decay suivent `hex_claims` (la vérité) ;
+- la carte lit `territories` (les polygones de boucle).
+
+Donc, dès qu'une boucle mord sur une autre — c'est-à-dire presque toujours — **les deux joueurs voient chacun leur boucle entière sur un terrain qui n'appartient qu'à l'un d'eux**. La carte affirme une propriété que la base contredit. C'est l'interdit constitutionnel n°1, et il est atteint par le fonctionnement nominal, pas par un bug.
+
+`complementClaims` (legacy) ajoute les cellules qu'aucun polygone ne couvre. Il ne sait pas RETRANCHER d'un polygone dont les cellules sont parties : c'est un pansement sur la divergence, pas une correction.
+
+### Ce qui est écarté, et pourquoi
+**Découper les polygones (ST_Difference).** Marcherait une fois, deux fois — puis produirait des multipolygones en échardes, des `area_m2` à recalculer à chaque passage, des règnes qui « continuent en plus petit », et une géométrie qui se dégrade par accumulation. C'est empiler de la réparation sur un modèle faux : tant qu'il y a DEUX sources de vérité, elles ne coïncident que si rien ne se recouvre.
+
+### Décision
+1. **Les cellules SONT la propriété.** Une seule source de vérité, celle qui décide déjà les points.
+2. **La forme affichée se DÉRIVE des cellules tenues.** Perdre une partie, c'est perdre des cellules : la forme se redessine, sans découpe et sans divergence possible.
+3. **`territories` cesse d'être « ce que je possède » et devient « comment je l'ai eu »** — la trace de la boucle courue. C'est exactement ce dont le registre des règnes (0109) et la carte de partage (§5.2) ont besoin ; ni l'un ni l'autre ne demandait une revendication.
+
+C'est la lettre du MASTER §29 : « H3 invisible backend, **polygones organiques frontend** ». La conséquence n'en avait pas été tirée.
+
+### Où le calcul a lieu — tranché par un fait, pas par un goût
+**`h3` n'est PAS disponible comme extension sur le projet Supabase** (vérifié le 03/08/2026 : `pg_available_extensions` ne le propose pas ; seul PostGIS 3.3.7 est installé). La base ne peut donc PAS convertir un `h3index` en géométrie, aujourd'hui ni en installant quoi que ce soit.
+
+⚠️ **Le MASTER §6 annonce « Postgres + PostGIS + h3-pg » : sur ce point, la doc promet au-delà du code.** Corrigé ici plutôt que dans le MASTER (§12.11).
+
+`h3-js` est en revanche une dépendance de `apps/mobile` ET du moteur Deno. La dérivation a donc lieu **côté client** (rendu) et **côté Edge Function** (ce qui doit être décidé serveur) — jamais en SQL.
+
+### Ce que ça coûte, dit franchement
+Rendre l'union de cellules en forme organique est plus lourd qu'un `select` de polygones, et doit rester fluide au cadrage (L14). Le legacy a de la machinerie à reprendre (`ribbonRing`, `loopRing`, lissage). C'est un vrai chantier, pas un correctif.
+
+### Conséquences immédiates
+- `apps/mobile/src/mvp/map/readTerritories.ts` hérite du défaut (il ne lit que `territories`) : à rebrancher sur les cellules tenues.
+- Les notifications ne peuvent pas dire « il t'a pris {zone} » — il t'en a pris une PARTIE. Ce qui est perdu s'exprime en m² (voir la note sur la microcopy ci-dessous).
+- La Phase 2 du MASTER prévoyait « reprise (ST_Difference) » : cette ligne devient sans objet.
+
+### Premier pas FAIT (03/08/2026)
+`mvp/map/heldShape.ts` (10 tests) dérive la forme des cellules via `h3-js`, et `readTerritories.ts` lit désormais `hex_claims` pour la FORME — `territories.area_m2` restant la source unique du chiffre héros (le recalculer donnerait un second chiffre qui contredirait l'écran de résultat). Les deux lectures doivent réussir ENSEMBLE : une forme sans aire décrirait une possession que l'autre moitié dément.
+`ownedCount` compte désormais des CELLULES, pas des polygones — sinon quelqu'un qui a tout perdu resterait « possédant » parce que ses traces de course sont encore en base.
+Le test qui porte la décision : « perdre la moitié de ses cellules RÉTRÉCIT la forme ». Avec l'ancienne lecture, les deux formes auraient été IDENTIQUES.
+RESTE À FAIRE : les zones des AUTRES joueurs (le MVP ne peint que les miennes), le lissage organique (aujourd'hui le contour épouse la maille), et la microcopy des notifications en m² perdus.
