@@ -25,6 +25,22 @@ const MOBILE_ENGINE_TARGETS = [
     files: ['tracePrivacy.ts', 'polygon.ts'],
     dir: 'apps/mobile/src/features/share/engine/',
   },
+  // ⚠ ENTRÉE MANQUANTE jusqu'au 03/08/2026 : `territoryHistory.ts` était
+  // synchronisé par le script sans être drift-testé ici. Une copie non testée
+  // est exactement ce que ce fichier existe pour empêcher — elle pouvait
+  // diverger de sa source sans qu'aucun gate ne rougisse.
+  {
+    files: ['territoryHistory.ts'],
+    dir: 'apps/mobile/src/features/premium/analytics/engine/',
+  },
+  // Jauge de fermeture (lot M5) : la MÊME fonction calcule ce que l'écran
+  // annonce pendant la course et ce que le serveur accorde après. Deux
+  // implémentations divergeraient en silence — d'où la copie générée, et ce
+  // test. `validation.ts` a deux destinations : les deux sont vérifiées.
+  {
+    files: ['closure.ts', 'validation.ts'],
+    dir: 'apps/mobile/src/mvp/run/engine/',
+  },
 ] as const;
 
 const mobileHeader = (name: string): string =>

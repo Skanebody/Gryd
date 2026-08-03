@@ -1,59 +1,41 @@
 /**
- * GRYD — LA TRACE PENDANT LA COURSE. PUR (lot M4).
+ * GRYD — CE QUE LA COURSE AFFICHE : distance, chrono, jauge de fermeture.
  *
- * Le strict minimum pour que l'écran de course dise des choses VRAIES : une
- * distance, et rien de plus.
+ * ─── UNE SEULE GÉOMÉTRIE, PARTAGÉE AVEC LE SERVEUR ──────────────────────────
+ * La distance et le verdict de fermeture viennent du MOTEUR, via la copie
+ * générée `run/engine/closure.ts` — la même source que celle qui décide le
+ * claim dans `ingest_run`. C'est la seule façon d'éviter la faute qui compte
+ * ici : un écran qui annonce « boucle fermée » sur une trace que le serveur
+ * refusera ensuite. Deux implémentations « équivalentes » divergent toujours,
+ * et le joueur découvre l'écart au pire moment — après avoir couru.
  *
- * ─── POURQUOI UN HAVERSINE ICI PLUTÔT QUE CELUI DU MOTEUR ───────────────────
- * `@klaim/engine` en a un (`validation.ts:haversineM`), et c'est LUI qui fait
- * foi pour tout ce qui décide un claim. Mais le moteur ne se bundle pas tel quel
- * dans Expo : il est RECOPIÉ par `scripts/sync-game-rules.mjs` vers des chemins
- * choisis, et les seuls existants aujourd'hui sont des chemins legacy.
+ * ⚠️ Une version antérieure de ce fichier réécrivait son propre haversine
+ * (« ce ne sont que huit lignes de trigonométrie »). C'était vrai, et c'était
+ * quand même faux : le problème n'était pas la formule, c'était qu'il y en ait
+ * DEUX. L'extraction de `closure.ts` hors de `hexing.ts` a supprimé la raison
+ * technique qui l'imposait ; cette duplication n'a plus lieu d'être.
  *
- * Plutôt que d'ajouter une cible de synchronisation à la hâte, ce module refait
- * les huit lignes de trigonométrie — ET NE DÉCIDE RIEN AVEC. La distance
- * affichée est de l'INFORMATION de course ; la distance qui compte pour le
- * territoire est recalculée côté serveur, sur la trace envoyée. Aucun des deux
- * chiffres n'autorise l'autre, donc aucun ne peut faire mentir l'autre.
- *
- * ⚠️ CE QUI N'EST PAS ENCORE LÀ : la jauge de fermeture (« il te manque 84 m »)
- * a besoin de `loopClosureVerdict`, qui vit dans `engine/hexing.ts` — lequel
- * importe h3-js et ne peut donc pas tomber dans le bundle mobile en l'état.
- * L'extraction est un arbitrage à part entière (SALVAGE le prévoit pour
- * `features/run/gps/**`), pas un raccourci de fin de lot. Inscrit au BACKLOG.
+ * ─── CE QUI RESTE ICI ───────────────────────────────────────────────────────
+ * Uniquement du FORMATAGE : transformer des nombres vrais en texte lisible à
+ * bout de souffle. Aucun calcul de jeu, aucune décision.
  */
+import { traceLengthM, type LatLngPoint } from './engine/closure';
 
-export interface TracePoint {
-  readonly lng: number;
-  readonly lat: number;
+export { loopClosureVerdict, type LoopClosureVerdict } from './engine/closure';
+
+export interface TracePoint extends LatLngPoint {
   /** Millisecondes epoch. Injecté par l'appelant — ce module n'a pas d'horloge. */
   readonly t: number;
 }
 
-/** Rayon moyen de la Terre (m). Constante physique, pas une règle de jeu. */
-const R_TERRE_M = 6_371_000;
-
-/** Distance orthodromique entre deux points, en mètres. */
-export function distanceM(a: TracePoint, b: TracePoint): number {
-  const rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad;
-  const dLng = (b.lng - a.lng) * rad;
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
-  return 2 * R_TERRE_M * Math.asin(Math.min(1, Math.sqrt(s)));
-}
-
-/** Longueur cumulée de la trace, en mètres. Zéro pour 0 ou 1 point. */
+/**
+ * Longueur cumulée de la trace, en mètres.
+ *
+ * Délègue au moteur : c'est la MÊME somme que celle qui servira à valider la
+ * course côté serveur.
+ */
 export function traceDistanceM(points: readonly TracePoint[]): number {
-  let total = 0;
-  for (let i = 1; i < points.length; i += 1) {
-    const a = points[i - 1];
-    const b = points[i];
-    if (a === undefined || b === undefined) continue;
-    total += distanceM(a, b);
-  }
-  return total;
+  return traceLengthM(points);
 }
 
 /**
@@ -61,7 +43,7 @@ export function traceDistanceM(points: readonly TracePoint[]): number {
  *
  * `null` et « 0,00 » ne sont pas la même chose : au tout début d'une course, un
  * compteur à zéro se lit comme une panne. La constitution interdit le « 0 » nu
- * pour cette raison — l'écran affiche alors un tiret, pas un échec.
+ * pour cette raison — l'écran affiche alors autre chose, jamais un échec.
  */
 export function formatKm(meters: number): string | null {
   if (!Number.isFinite(meters) || meters <= 0) return null;

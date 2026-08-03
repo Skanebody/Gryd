@@ -38,6 +38,30 @@ import {
   TRACE_BUFFER_M,
 } from '../game-rules.ts';
 import { haversineM, type Segment } from './validation.ts';
+import {
+  closureGapM,
+  type LatLngPoint,
+  type LoopClosure,
+  type LoopClosureVerdict,
+  loopClosureVerdict,
+  loopTracePoints,
+  traceAreaM2,
+  traceLengthM,
+} from './closure.ts';
+
+/**
+ * RÉEXPORT — la fermeture d'une trace vit désormais dans `closure.ts`, sans h3
+ * (voir son en-tête). Ces lignes existent pour qu'AUCUN appelant ne change :
+ * le découpage est une couture interne, pas une migration à propager.
+ */
+export {
+  closureGapM,
+  loopClosureVerdict,
+  loopTracePoints,
+  traceAreaM2,
+  traceLengthM,
+};
+export type { LatLngPoint, LoopClosure, LoopClosureVerdict };
 
 // Constantes physiques / géométriques — pas des règles de jeu.
 const EARTH_RADIUS_M = 6_371_000;
@@ -103,53 +127,6 @@ export function hexesForSegments(segments: Segment[]): string[] {
 
 // ─── AMENDEMENT-12 §B — « La boucle fait la zone » ───────────────────────────
 
-/** Point minimal lat/lng (un RunPoint est structurellement compatible). */
-export interface LatLngPoint {
-  lat: number;
-  lng: number;
-}
-
-/**
- * Aire (m²) du polygone formé par la trace refermée sur elle-même : shoelace
- * sur une projection équirectangulaire centrée (coordonnées relatives au 1er
- * point pour la stabilité numérique). Précision largement suffisante à
- * l'échelle d'une course ; ne sert qu'à écarter les polygones DÉGÉNÉRÉS
- * (aller-retour → aire ~0), jamais à compter des zones (ça, c'est h3).
- */
-function traceAreaM2(points: readonly LatLngPoint[]): number {
-  const first = points[0];
-  if (first === undefined) return 0;
-  let latSum = 0;
-  for (const p of points) latSum += p.lat;
-  const cosLat0 = Math.cos((latSum / points.length) * RAD_PER_DEG);
-  const x = (p: LatLngPoint): number => (p.lng - first.lng) * RAD_PER_DEG * cosLat0 * EARTH_RADIUS_M;
-  const y = (p: LatLngPoint): number => (p.lat - first.lat) * RAD_PER_DEG * EARTH_RADIUS_M;
-  let doubled = 0;
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i]!;
-    const b = points[(i + 1) % points.length]!;
-    doubled += x(a) * y(b) - x(b) * y(a);
-  }
-  return Math.abs(doubled) / 2;
-}
-
-/**
- * Trace candidate au polygone de boucle (AMENDEMENT-12 §B). PURE. La boucle
- * n'est détectable que sur une trace claimable CONTIGUË : exactement UN
- * segment claimable — aucun segment exclu du claim (§3.2 : allure hors
- * bornes, véhicule) ni coupure GPS entre le départ et la fermeture. Sinon,
- * aplatir les segments restants relierait leurs extrémités en ligne droite :
- * l'aire parcourue en segment exclu (voiture…) resterait ENFERMÉE dans le
- * polygone et serait capturée en intérieur, alors que le périmètre n'a pas
- * été couru en entier. Retourne le segment unique, ou null si la trace n'est
- * pas contiguë → couloir seul (« trait »), jamais d'intérieur.
- */
-export function loopTracePoints<P extends LatLngPoint>(
-  segments: readonly (readonly P[])[],
-): readonly P[] | null {
-  return segments.length === 1 ? segments[0]! : null;
-}
-
 /**
  * Boucle fermée par TOLÉRANCE départ/arrivée (AMENDEMENT-12 §B, mode 1 de
  * detectLoop — le mode 2 auto-intersection est AMENDEMENT-16 §2) ? PURE.
@@ -176,75 +153,6 @@ export function detectClosedLoop(
   for (let i = 1; i < points.length; i++) totalM += haversineM(points[i - 1]!, points[i]!);
   if (totalM < rules.loopMinPerimeterM) return false;
   return traceAreaM2(points) >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2);
-}
-
-/**
- * Longueur (m) d'une trace OUVERTE — somme des segments, SANS le segment de
- * fermeture. À ne pas confondre avec `ringPerimeterM`, qui referme l'anneau :
- * confondre les deux surestimerait une trace non bouclée du seul écart
- * départ/arrivée, et ferait passer une sortie courte pour une boucle ratée.
- */
-export function traceLengthM(points: readonly LatLngPoint[]): number {
-  let total = 0;
-  for (let i = 1; i < points.length; i++) total += haversineM(points[i - 1]!, points[i]!);
-  return total;
-}
-
-/** Écart (m) entre le départ et l'arrivée d'une trace. `null` si trace inexploitable. */
-export function closureGapM(points: readonly LatLngPoint[]): number | null {
-  if (points.length < 2) return null;
-  return haversineM(points[0]!, points[points.length - 1]!);
-}
-
-/**
- * Comment cette trace se referme — ou de combien elle a manqué. PURE.
- *
- * ─── POURQUOI CETTE FONCTION EXISTE, ET PAS SEULEMENT UN BOOLÉEN ────────────
- * Une boucle ouverte est une TENSION : le joueur a couru en croyant refermer.
- * Lui rendre `false` est exact et inutilisable — l'écran ne peut alors dire que
- * « raté », ce que le MASTER interdit (« jamais d'échec sec à 98 % », L19
- * « l'app n'accuse jamais »). Cette fonction rend donc le MANQUE, en mètres :
- * c'est ce qui permet d'écrire « Il manquait 23 m pour fermer ta boucle. »
- *
- * ─── LES TROIS ISSUES ───────────────────────────────────────────────────────
- *   · `closed`   — écart ≤ tolérance. Le joueur a bouclé, point.
- *   · `assisted` — tolérance < écart ≤ bande assistée : GRYD referme À SA
- *     PLACE par un segment droit. Il a fait le tour, il lui manquait un
- *     trottoir. L'issue est NOMMÉE plutôt que confondue avec `closed` : le
- *     produit doit savoir ce qu'il a donné — pour pouvoir le dire à l'écran, et
- *     pour mesurer en Saison 0 si la bande est bien réglée.
- *   · `open`     — au-delà. `missingM` dit de combien, toujours > 0.
- *
- * `missingM` est mesuré depuis la BANDE ASSISTÉE, pas depuis la tolérance :
- * c'est la distance qu'il fallait réellement parcourir en moins pour que la
- * boucle soit accordée. Annoncer un manque plus grand que le vrai serait
- * décourager pour rien.
- */
-export interface LoopClosureVerdict {
-  readonly kind: 'closed' | 'assisted' | 'open';
-  /** Écart départ/arrivée mesuré (m). `null` = trace inexploitable. */
-  readonly gapM: number | null;
-  /** Mètres manquants pour que la boucle soit accordée. `0` sauf si `open`. */
-  readonly missingM: number;
-}
-
-export function loopClosureVerdict(
-  points: readonly LatLngPoint[],
-  activity: Activity = DEFAULT_ACTIVITY,
-): LoopClosureVerdict {
-  const rules = activityRules(activity);
-  const gapM = closureGapM(points);
-  // Trace inexploitable : on ne prétend NI qu'elle ferme, NI de combien elle
-  // manque. `missingM = 0` avec `kind: 'open'` serait lu « il ne manquait
-  // rien », donc on rend l'écart `null` et l'appelant se tait.
-  if (gapM === null || !Number.isFinite(gapM)) {
-    return { kind: 'open', gapM: null, missingM: 0 };
-  }
-  if (gapM <= rules.loopCloseToleranceM) return { kind: 'closed', gapM, missingM: 0 };
-  if (gapM <= rules.loopCloseAssistM) return { kind: 'assisted', gapM, missingM: 0 };
-  // Arrondi au mètre SUPÉRIEUR : annoncer « 0 m manquants » sur un écart de
-  // 60,4 m ferait mentir la phrase. Un mètre de trop est honnête, zéro non.
-  return { kind: 'open', gapM, missingM: Math.ceil(gapM - rules.loopCloseAssistM) };
 }
 
 /**
@@ -296,8 +204,6 @@ export function enclosedCells(
 }
 
 // ─── AMENDEMENT-16 §2 — auto-intersection + anti-abus boucle (doc §4-§6) ─────
-
-export type LoopClosure = 'tolerance' | 'assisted' | 'self_intersection';
 
 /** Boucle détectée par detectLoop : polygone + mode de fermeture + géométrie. */
 export interface DetectedLoop {

@@ -5,7 +5,7 @@
  * (décalé d'une heure entière hors du fuseau de développement) et un « 0,00 km »
  * au premier pas, qui se lit comme une panne.
  */
-import { distanceM, formatChrono, formatKm, traceDistanceM, type TracePoint } from './trace';
+import { formatChrono, formatKm, traceDistanceM, type TracePoint } from './trace';
 
 declare const Deno: { test(nom: string, fn: () => void | Promise<void>): void };
 
@@ -20,19 +20,21 @@ function assertEquals(actual: unknown, expected: unknown, message = 'valeurs dif
 
 const P = (lng: number, lat: number, t = 0): TracePoint => ({ lng, lat, t });
 
-// ─── Distance ───────────────────────────────────────────────────────────────
+// ─── Distance : DÉLÉGUÉE au moteur, et on vérifie que c'est bien le cas ─────
 
-Deno.test('un degré de latitude vaut ~111 km, et le calcul le retrouve', () => {
-  // Repère indépendant du code : si la formule est fausse, cet écart le crie.
-  const d = distanceM(P(0, 49), P(0, 50));
+Deno.test('la distance vient du MOTEUR — un degré de latitude vaut ~111 km', () => {
+  // Repère indépendant : si un jour quelqu'un réécrit un haversine local « pour
+  // aller plus vite », cet écart le crie. La formule elle-même est testée dans
+  // `packages/engine` ; ce qui se vérifie ICI, c'est que l'écran s'en sert.
+  const d = traceDistanceM([P(0, 49), P(0, 50)]);
   assert(Math.abs(d - 111_195) < 300, `un degré de latitude mesuré à ${Math.round(d)} m`);
 });
 
 Deno.test('la longitude se resserre avec la latitude', () => {
   // À 49°, un degré de longitude vaut ~73 km — pas 111. Une formule qui
   // oublierait le cosinus donnerait le même nombre qu'à l'équateur.
-  const equateur = distanceM(P(0, 0), P(1, 0));
-  const rouen = distanceM(P(0, 49), P(1, 49));
+  const equateur = traceDistanceM([P(0, 0), P(1, 0)]);
+  const rouen = traceDistanceM([P(0, 49), P(1, 49)]);
   assert(rouen < equateur * 0.7, `pas de resserrement : ${Math.round(rouen)} m à 49°`);
 });
 
@@ -43,7 +45,7 @@ Deno.test('une trace de moins de deux points ne parcourt rien', () => {
 
 Deno.test('la trace CUMULE ses segments, elle ne mesure pas le vol d’oiseau', () => {
   // Un aller-retour parcourt DEUX fois la distance, même s'il revient au départ.
-  const aller = distanceM(P(0, 49), P(0, 49.001));
+  const aller = traceDistanceM([P(0, 49), P(0, 49.001)]);
   const total = traceDistanceM([P(0, 49), P(0, 49.001), P(0, 49)]);
   assert(Math.abs(total - 2 * aller) < 0.01, `aller-retour mesuré ${total} au lieu de ${2 * aller}`);
 });

@@ -144,6 +144,20 @@ const MOBILE_ENGINE_TARGETS = [
     files: ['territoryHistory.ts'],
     dir: ['apps', 'mobile', 'src', 'features', 'premium', 'analytics', 'engine'],
   },
+  // JAUGE DE FERMETURE (03/08/2026, lot M5) : « il te manque 84 m » se calcule
+  // PENDANT la course, donc dans le bundle Expo — et la même fonction décide le
+  // claim côté serveur. Deux implémentations divergeraient en silence : l'écran
+  // annoncerait une boucle que le serveur refuserait.
+  // `closure.ts` a été EXTRAIT de `hexing.ts` pour ça : ce dernier importe
+  // h3-js en tête de module, donc rien de son contenu ne pouvait descendre ici
+  // sans embarquer l'index spatial du serveur (voir l'en-tête de closure.ts).
+  // `validation.ts` suit — `closure.ts` en tire `haversineM`. Il est DÉJÀ copié
+  // vers `features/run/gps/engine/` : la même source, deux destinations, ce que
+  // le drift test vérifie des deux côtés.
+  {
+    files: ['closure.ts', 'validation.ts'],
+    dir: ['apps', 'mobile', 'src', 'mvp', 'run', 'engine'],
+  },
 ];
 
 const mobileHeader = (name) =>

@@ -10,17 +10,20 @@
  * Tout ce qui est affiché ici est MESURÉ : les points viennent du capteur, la
  * distance est leur somme, le chrono est une durée réelle. Rien n'est simulé.
  *
+ * LA JAUGE DIT LA MÊME CHOSE QUE LE SERVEUR
+ * « Boucle fermée » vient de `loopClosureVerdict` — la copie GÉNÉRÉE du moteur
+ * qui décide aussi le claim dans `ingest_run`, drift testée. Une seconde
+ * implémentation « équivalente » aurait fini par diverger, et le joueur aurait
+ * découvert l'écart après avoir couru. `gauge.ts` ajoute la seule chose que le
+ * verdict ne dit pas : QUAND se taire (voir son en-tête — trois secondes après
+ * le GO, l'écart vaut zéro et le verdict dit « fermée »).
+ *
  * ⚠️ CE QUI N'EST PAS ENCORE LÀ, et qui est inscrit au BACKLOG plutôt que
- * maquillé :
- *   · la JAUGE DE FERMETURE (« il te manque 84 m ») — elle a besoin de
- *     `loopClosureVerdict`, qui vit dans `engine/hexing.ts` et importe h3-js :
- *     le faire tomber dans le bundle Expo est un arbitrage à part entière
- *     (SALVAGE le prévoit déjà pour `features/run/gps/**`), pas un raccourci ;
- *   · le NEVER-LOSE-A-RUN — la trace vit en mémoire. Une course perdue par un
- *     crash reste possible. C'est une faiblesse de robustesse DÉCLARÉE, pas un
- *     mensonge à l'écran : rien ici ne promet que la course est sauvegardée.
- * Tant que ces deux points ne sont pas faits, cet écran n'a pas passé son
- * `ux-gate` M5 et le groupe `(mvp)` reste sans porte d'entrée.
+ * maquillé : le NEVER-LOSE-A-RUN — la trace vit en mémoire, une course perdue
+ * par un crash reste possible. C'est une faiblesse de robustesse DÉCLARÉE, pas
+ * un mensonge à l'écran : rien ici ne promet que la course est sauvegardée.
+ * Tant que ce point tient, cet écran n'a pas passé son `ux-gate` M5 et le
+ * groupe `(mvp)` reste sans porte d'entrée.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -29,6 +32,7 @@ import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import { gpsGrade, type GpsGrade } from '../../src/mvp/run/countdown';
+import { gauge } from '../../src/mvp/run/gauge';
 import { formatChrono, formatKm, traceDistanceM, type TracePoint } from '../../src/mvp/run/trace';
 import { stopWatch } from '../../src/mvp/run/watch';
 import { C } from '../../src/i18n/catalog/mvp';
@@ -87,6 +91,20 @@ export default function Course() {
   }, []);
 
   const km = formatKm(traceDistanceM(points));
+  // ⚠️ `isFirstCapture` n'est pas passé : cet écran ne sait pas encore si le
+  // joueur a déjà capturé (l'info vit dans la lecture de la carte). Le défaut
+  // prend le seuil le PLUS HAUT, donc la jauge parle plus tard qu'elle ne
+  // pourrait pour un premier joueur — se tromper dans ce sens fait dire moins,
+  // l'autre ferait promettre une boucle que le moteur refuserait.
+  const jauge = gauge(points);
+  const phraseJauge =
+    jauge.kind === 'closed'
+      ? t(C.runLoopClosed)
+      : jauge.kind === 'almost'
+        ? t(C.runLoopAlmost)
+        : jauge.kind === 'missing'
+          ? t(C.runMetersLeft, { m: String(jauge.missingM) })
+          : null;
   const phraseGps =
     grade === 'good' ? t(C.gpsGood) : grade === 'weak' ? t(C.gpsWeak) : t(C.gpsSearching);
 
@@ -110,6 +128,9 @@ export default function Course() {
         ) : (
           <Text style={styles.hero}>{formatChrono(ecouleMs)}</Text>
         )}
+        {/* La jauge — absente tant qu'il n'y a rien de vrai à en dire. Une
+            ligne vide vaut mieux qu'une ligne qui meuble (L5). */}
+        {phraseJauge !== null ? <Text style={styles.jauge}>{phraseJauge}</Text> : null}
         <Text style={styles.gps}>{phraseGps}</Text>
       </View>
 
@@ -132,6 +153,7 @@ const styles = StyleSheet.create({
   hero: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.heroMax },
   unite: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.xl },
   chrono: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xl },
+  jauge: { color: colors.chartreuse, fontFamily: fonts.textSemi, fontSize: fontSizes.lg },
   gps: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.sm },
   cta: {
     minHeight: TOUCH_TARGET_PT,
