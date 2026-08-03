@@ -334,6 +334,22 @@ export interface IngestRunResponse {
    */
   loopMissingM?: number;
   /**
+   * AIRE (m²) de l'anneau de la boucle — le CHIFFRE HÉROS de l'écran de
+   * résultat (L12 : « les m² dominent »).
+   *
+   * ABSENTE quand aucune ligne `territories` n'a été écrite : l'écran affiche
+   * alors une phrase, jamais un « 0 m² » (constitution — pas de zéro nu). Elle
+   * n'est renseignée que si le polygone EST réellement en base, sinon le
+   * résultat annoncerait une surface que la carte ne montrerait jamais.
+   *
+   * ⚠️ À LIRE AVEC `interiorPartial`. Cette aire est celle de l'anneau ENTIER ;
+   * quand `interiorPartial` est vrai, elle SURESTIME ce que le coureur a
+   * obtenu (plafond d'aire, plafond quotidien, zone privée ou interdite,
+   * cellule tenue par un rival). Elle ne doit alors PAS être présentée comme
+   * le gain.
+   */
+  loopAreaM2?: number;
+  /**
    * AMENDEMENT-17 §CH2 — Frontière partielle OUVERTE par cette course : run
    * VALIDE, long, NON bouclé mais FERMABLE → une `partial_boundary` `open` du
    * crew a été créée (gardée PARTIAL_BOUNDARY_TTL_H, complétable par un membre).

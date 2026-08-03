@@ -41,6 +41,7 @@ import { detectLoop, type LatLngPoint } from '../_shared/engine/hexing.ts';
 import { normalizeRing, polygonAreaM2 } from '../_shared/engine/polygon.ts';
 import {
   buildTerritoryRow,
+  reportableAreaM2,
   TERRITORY_ALGORITHM_VERSION,
   TERRITORY_GENERALIZE_TOLERANCE_M,
   TERRITORY_PUBLISH_DELAY_MINUTES,
@@ -335,4 +336,28 @@ Deno.test('index.ts écrit RÉELLEMENT dans `territories`, après la RPC claim_h
     !/throw new Error\(`territories/.test(source),
     'aucun throw sur cette écriture : la propriété hexagonale et les points sont déjà appliqués',
   );
+});
+
+// ─── L'aire renvoyée au client ne décrit jamais un polygone absent ──────────
+
+Deno.test('l’aire n’est renvoyée QUE si le polygone est réellement en base', () => {
+  const row = { area_m2: 42_000 };
+  // Écriture réussie : l'aire décrit une ligne que la carte pourra montrer.
+  assertEquals(reportableAreaM2(row, null), 42_000);
+  // Rien à écrire (aucune capture, ou intérieur refusé) : rien à annoncer.
+  assertEquals(reportableAreaM2(null, null), undefined);
+});
+
+Deno.test('un échec d’écriture ne produit PAS de chiffre héros', () => {
+  // Le bloc `territories` est best-effort : la course est déjà créditée. Sans
+  // cette règle, le résultat annoncerait « +42 000 m² » pour un polygone que la
+  // carte ne montrerait jamais — le joueur croirait la carte cassée.
+  assertEquals(reportableAreaM2({ area_m2: 42_000 }, { code: '42501' }), undefined);
+  assertEquals(reportableAreaM2({ area_m2: 42_000 }, { code: undefined }), undefined);
+});
+
+Deno.test('23505 est un SUCCÈS : un retry concurrent a déjà écrit la ligne', () => {
+  // La traiter comme un échec priverait de son chiffre héros exactement le
+  // joueur dont l'app a renvoyé sa course deux fois.
+  assertEquals(reportableAreaM2({ area_m2: 42_000 }, { code: '23505' }), 42_000);
 });

@@ -43,6 +43,8 @@ import { gauge } from '../../src/mvp/run/gauge';
 import { formatChrono, formatKm, traceDistanceM, type TracePoint } from '../../src/mvp/run/trace';
 import { stopWatch } from '../../src/mvp/run/watch';
 import { shouldFlush } from '../../src/mvp/run/persist';
+import { buildRunPayload } from '../../src/mvp/run/payload';
+import { sendRun } from '../../src/mvp/run/sendRun';
 import {
   clearActiveRun,
   clearCurrentRun,
@@ -92,6 +94,11 @@ export default function Course() {
   const runIdRef = useRef<string>(nouvelId());
   const dernierFlushRef = useRef<number | null>(null);
   const enAttenteRef = useRef(0);
+  // Un envoi en cours ne se relance pas : deux `TERMINER` enverraient deux fois
+  // la même course. L'idempotence serveur (D14) l'absorberait, mais l'écran, lui,
+  // partirait deux fois vers le résultat.
+  const [envoi, setEnvoi] = useState(false);
+  const envoiRef = useRef(false);
 
   useEffect(() => {
     screen('run_live');
@@ -187,9 +194,48 @@ export default function Course() {
    * effacer qu'une laisserait l'autre reproposer éternellement un fantôme.
    */
   const terminer = useCallback(async () => {
-    await Promise.all([clearActiveRun(), clearCurrentRun()]);
-    router.replace('/carte');
-  }, []);
+    if (envoiRef.current) return;
+    envoiRef.current = true;
+    setEnvoi(true);
+
+    const distanceM = traceDistanceM(points);
+    const dureeMs = Date.now() - debutRef.current;
+
+    const payload = buildRunPayload({
+      clientRunId: runIdRef.current,
+      startedAt: debutRef.current,
+      points: points.map((p) => ({ lat: p.lat, lng: p.lng, ts: p.t })),
+    });
+
+    // Aucun point envoyable : un GO annulé avant le premier pas n'est PAS une
+    // course rejetée. On efface et on rend la main, sans écran de résultat —
+    // il n'y a rien à raconter (L19 : on n'adresse pas un refus à quelqu'un qui
+    // n'a rien fait).
+    if (payload === null) {
+      await Promise.all([clearActiveRun(), clearCurrentRun()]);
+      router.replace('/carte');
+      return;
+    }
+
+    const issue = await sendRun(payload);
+
+    // ⚠️ ON N'EFFACE LE BUFFER QUE SI LA COURSE EST EN SÛRETÉ : répondue par le
+    // serveur, ou acceptée dans la file d'envoi. Sur `lost`, la file a refusé —
+    // le buffer `runStore` est alors le DERNIER filet, et l'effacer perdrait
+    // pour de bon une course que le joueur vient de courir.
+    if (issue.kind !== 'lost') {
+      await Promise.all([clearActiveRun(), clearCurrentRun()]);
+    }
+
+    router.replace({
+      pathname: '/resultat',
+      params: {
+        issue: JSON.stringify(issue),
+        distanceM: String(Math.round(distanceM)),
+        dureeMs: String(dureeMs),
+      },
+    });
+  }, [points]);
 
   const km = formatKm(traceDistanceM(points));
   // ⚠️ `isFirstCapture` n'est pas passé : cet écran ne sait pas encore si le
@@ -241,6 +287,8 @@ export default function Course() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t(C.ctaFinish)}
+        accessibilityState={{ disabled: envoi }}
+        disabled={envoi}
         onPress={() => void terminer()}
         style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
       >

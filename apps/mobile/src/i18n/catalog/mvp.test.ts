@@ -87,7 +87,7 @@ Deno.test('L18 — aucun texte n’est vide ni laissé en français par défaut'
     // langue éloignée du français.
     // `unitM2` : un symbole d'unité SI est le même dans toutes les langues.
     // Le « traduire » serait une faute, pas une amélioration.
-    const invariant = ['ctaGo', 'shareTagline', 'captureGain', 'unitM2', 'unitKm'].includes(key);
+    const invariant = ['ctaGo', 'shareTagline', 'captureGain', 'unitM2', 'unitKm', 'resStats'].includes(key);
     if (!invariant) {
       assert(
         e.de !== e.fr || e.en !== e.fr,

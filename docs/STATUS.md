@@ -46,7 +46,8 @@
 | Home Map (empty + actif) | **OPÉRATIONNEL** | `app/(mvp)/carte.tsx` + `mvp/map/homeState.ts` (18 tests, balayage exhaustif des 72 entrées) + `territoryGeo.ts` (11) + `ui/area.ts` (7) ; fond `mvp/map/nightStyle.ts` ; capture de l'état `unavailable` |
 | Préflight + décompte | **OPÉRATIONNEL** | `app/(mvp)/prete.tsx` + `mvp/run/countdown.ts` (6 tests) ; un seul tap depuis la carte (L3) ; capture |
 | Live Run | **PARTIEL** | `app/(mvp)/course.tsx` + `trace.ts` (9) + `gauge.ts` (7) + `persist.ts` (10) : chrono, distance, jauge de fermeture et NEVER-LOSE-A-RUN réels. Preuve bout en bout en preview : buffer planté → `/carte` annonce et offre → reprise à 0,43 km avec chrono CONTINU depuis le vrai départ → TERMINER → buffers vides, plus aucune offre. **Manque** l'ENVOI de la course (capture/résultat) |
-| Capture / résultat / partage | **ABSENT** | — |
+| Capture + résultat | **OPÉRATIONNEL** | `app/(mvp)/resultat.tsx` + `mvp/run/payload.ts` (7) + `outcome.ts` (13) + `sendRun.ts`. La course PART : envoi direct, ou file FIFO persistée si le réseau manque. `ingest_run` renvoie désormais `loopAreaM2` (`reportableAreaM2`, 3 tests) — le chiffre héros existait nulle part avant. Captures des 4 issues clés en preview : capture 42 350 m², attente sans verdict, manque « 23 m », intérieur partiel SANS chiffre |
+| Partage (carte 1-tap, deep links) | **ABSENT** | — |
 
 > ⚠️ Ces écrans ne sont atteints que par URL directe : la bascule d'entrée n'a pas eu lieu.
 

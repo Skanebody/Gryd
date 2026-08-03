@@ -220,6 +220,81 @@ export const C = defineCatalog({
   ctaFinish: { fr: 'TERMINER', en: 'FINISH', es: 'TERMINAR', de: 'BEENDEN', pt: 'TERMINAR' },
   unitKm: { fr: 'km', en: 'km', es: 'km', de: 'km', pt: 'km' },
 
+  // ══════════ RÉSULTAT — L19 : un refus nomme un FAIT, jamais une faute ════
+  resTakenTitle: {
+    fr: 'Territoire pris',
+    en: 'Territory taken',
+    es: 'Territorio conquistado',
+    de: 'Gebiet erobert',
+    pt: 'Território conquistado',
+  },
+  /** Fermeture assistée : le produit DIT ce qu'il a donné (§ moteur). */
+  resAssisted: {
+    fr: 'GRYD a refermé les derniers mètres.',
+    en: 'GRYD closed the last few metres for you.',
+    es: 'GRYD ha cerrado los últimos metros.',
+    de: 'GRYD hat die letzten Meter geschlossen.',
+    pt: 'O GRYD fechou os últimos metros.',
+  },
+  /** Pris, mais l'aire surestimerait le gain : on ne chiffre pas. */
+  resTakenNoArea: {
+    fr: 'Une partie de la boucle est à toi. La carte montre ce qui a été pris.',
+    en: 'Part of the loop is yours. The map shows what was taken.',
+    es: 'Una parte del bucle es tuya. El mapa muestra lo conquistado.',
+    de: 'Ein Teil der Schleife gehört dir. Die Karte zeigt das Eroberte.',
+    pt: 'Parte do circuito é sua. O mapa mostra o que foi conquistado.',
+  },
+  resNoLoop: {
+    fr: 'Ta boucle ne s’est pas refermée. Tes stats restent disponibles.',
+    en: 'Your loop did not close. Your stats are still available.',
+    es: 'Tu bucle no se cerró. Tus estadísticas siguen disponibles.',
+    de: 'Deine Schleife hat sich nicht geschlossen. Deine Statistiken bleiben verfügbar.',
+    pt: 'Seu circuito não fechou. Suas estatísticas continuam disponíveis.',
+  },
+  resNarrow: {
+    fr: 'Forme trop étroite pour créer une zone. Tes stats restent disponibles.',
+    en: 'Shape too narrow to create a zone. Your stats are still available.',
+    es: 'Forma demasiado estrecha para crear una zona. Tus estadísticas siguen disponibles.',
+    de: 'Form zu schmal für ein Gebiet. Deine Statistiken bleiben verfügbar.',
+    pt: 'Forma estreita demais para criar uma zona. Suas estatísticas continuam disponíveis.',
+  },
+  resRefused: {
+    fr: 'Cette sortie n’a pas été retenue pour le territoire. Tes stats restent disponibles.',
+    en: 'This outing was not counted for territory. Your stats are still available.',
+    es: 'Esta salida no se ha contado para el territorio. Tus estadísticas siguen disponibles.',
+    de: 'Diese Ausfahrt zählt nicht für das Gebiet. Deine Statistiken bleiben verfügbar.',
+    pt: 'Esta saída não contou para o território. Suas estatísticas continuam disponíveis.',
+  },
+  /** Hors ligne : AUCUN verdict n'existe. On ne dit rien du territoire. */
+  resPending: {
+    fr: 'Course enregistrée. Envoi dès que possible.',
+    en: 'Run saved. It will be sent as soon as possible.',
+    es: 'Carrera guardada. Se enviará en cuanto sea posible.',
+    de: 'Lauf gespeichert. Wird sobald wie möglich gesendet.',
+    pt: 'Corrida salva. Será enviada assim que possível.',
+  },
+  resLost: {
+    fr: 'L’envoi n’a pas pu être mis en attente. Ta course est encore sur cet appareil.',
+    en: 'The upload could not be queued. Your run is still on this device.',
+    es: 'El envío no se ha podido poner en cola. Tu carrera sigue en este dispositivo.',
+    de: 'Der Upload konnte nicht eingereiht werden. Dein Lauf liegt noch auf diesem Gerät.',
+    pt: 'O envio não pôde ser enfileirado. Sua corrida ainda está neste aparelho.',
+  },
+  resStats: {
+    fr: '{km} km · {duree}',
+    en: '{km} km · {duree}',
+    es: '{km} km · {duree}',
+    de: '{km} km · {duree}',
+    pt: '{km} km · {duree}',
+  },
+  ctaBackToMap: {
+    fr: 'VOIR LA CARTE',
+    en: 'SEE THE MAP',
+    es: 'VER EL MAPA',
+    de: 'KARTE ANSEHEN',
+    pt: 'VER O MAPA',
+  },
+
   // ══════════ NEVER-LOSE-A-RUN — une trace retrouvée se DIT ═══════════════
   // Une course qui survit à un crash sans que personne ne le sache est perdue
   // quand même. Ce texte est la moitié de la garantie ; le buffer est l'autre.

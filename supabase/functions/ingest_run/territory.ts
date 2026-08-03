@@ -218,3 +218,31 @@ export function buildTerritoryRow(input: TerritoryRowInput): TerritoryRow | null
     source_run_id: input.runId,
   };
 }
+
+/**
+ * L'AIRE À RENVOYER AU CLIENT — ou `undefined`. PURE.
+ *
+ * ─── POURQUOI CETTE DÉCISION EST ISOLÉE ─────────────────────────────────────
+ * L'écran de résultat affiche cette aire comme CHIFFRE HÉROS (L12). Si elle
+ * sortait alors que la ligne `territories` n'est pas en base, le résultat
+ * annoncerait « +42 000 m² » pour un polygone que la carte ne montrerait
+ * jamais : deux écrans de la même app se contrediraient, et le joueur croirait
+ * la carte cassée. L'écriture du territoire étant BEST-EFFORT (la course est
+ * déjà créditée, la propriété hexagonale déjà appliquée), le cas n'est pas
+ * théorique — il arrive dès que l'insert échoue.
+ *
+ * La règle tient en une phrase : **l'aire ne sort que si le polygone existe.**
+ *
+ * `23505` (violation d'unicité `territories_source_run_unique`) est un SUCCÈS :
+ * un retry concurrent a gagné la course, et la ligne est donc bien là. La
+ * traiter comme un échec priverait de son chiffre héros exactement le joueur
+ * dont l'app a renvoyé sa course deux fois.
+ */
+export function reportableAreaM2(
+  row: { readonly area_m2: number } | null,
+  insertError: { readonly code?: string } | null,
+): number | undefined {
+  if (row === null) return undefined;
+  if (insertError === null) return row.area_m2;
+  return insertError.code === '23505' ? row.area_m2 : undefined;
+}

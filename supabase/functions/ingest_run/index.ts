@@ -72,7 +72,7 @@ import {
 } from '../_shared/engine/hexing.ts';
 // LOT 1 ÉTAPE 2 — la ligne `territories` (polygone autoritaire) d'une course.
 // Décision PURE et testable, hors de ce fichier (index.ts n'est pas importable).
-import { buildTerritoryRow } from './territory.ts';
+import { buildTerritoryRow, reportableAreaM2 } from './territory.ts';
 // LOT 3 (suite) — la CONTESTATION (§9) : une boucle rivale n'emporte plus le
 // polygone, elle ouvre une fenêtre de défense. Décision PURE et testable, hors
 // de ce fichier ; l'échéance est tranchée par `resolve_due_contests()` (0080).
@@ -3424,6 +3424,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ? detectLoop(loopTrace, activity)?.polygon ?? null
       : null;
 
+    // AIRE RENVOYÉE AU CLIENT — déclarée ICI, hors du `try`, parce que l'écran
+    // de résultat en a besoin et que le bloc ci-dessous est best-effort.
+    // ⚠️ Elle n'est renseignée QUE si la ligne `territories` est réellement en
+    // base (insert OK, ou 23505 = un retry concurrent l'a déjà écrite). Sinon
+    // le résultat annoncerait « +42 000 m² » pour un polygone que la carte ne
+    // montrerait jamais — deux écrans de la même app se contrediraient.
+    let loopAreaM2: number | undefined;
     try {
       const capturedCellCount = decision.results.filter(
         (r) => r.outcome === 'claimed_neutral' || r.outcome === 'stolen',
@@ -3452,6 +3459,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             .insert(territoryRow);
           // 23505 = `territories_source_run_unique` → un retry concurrent a
           // gagné. Le territoire existe : ce n'est pas une erreur.
+          // Décision PURE et testée (`reportableAreaM2`) : l'aire ne sort que
+          // si le polygone est réellement en base — 23505 compris, qui signifie
+          // qu'un retry concurrent l'a déjà écrit.
+          loopAreaM2 = reportableAreaM2(territoryRow, territoryErr ?? null);
           if (territoryErr && territoryErr.code !== '23505') {
             console.error(
               '[ingest_run] territories insert (best-effort, propriété hexagonale intacte):',
@@ -3989,6 +4000,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // `undefined` plutôt que 0 : « il ne manquait rien » et « on ne dit rien »
       // ne sont pas la même phrase, et l'écran doit pouvoir les distinguer.
       ...(loopMissingM !== undefined ? { loopMissingM } : {}),
+      // Le CHIFFRE HÉROS de l'écran de résultat (L12 — « les m² dominent »).
+      // Absent quand aucun territoire n'a été écrit : l'app affiche alors une
+      // phrase, jamais un « 0 m² » (constitution — pas de zéro nu).
+      // ⚠️ À lire AVEC `interiorPartial` : quand ce drapeau est là, cette aire
+      // SURESTIME ce qui a été obtenu, et ne doit pas être présentée comme le
+      // gain (voir son commentaire plus haut).
+      ...(loopAreaM2 !== undefined ? { loopAreaM2 } : {}),
       hexes: {
         claimed: decision.totals.claimed,
         stolen: decision.totals.stolen,
