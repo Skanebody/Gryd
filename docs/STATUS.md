@@ -37,6 +37,6 @@
 | Saison 0 Rouen (8 sem., points, caps, reset festif, poster) | **ABSENT** | — |
 | Confidentialité (zones privées, masque domicile 200 m, suppression, export) | **ABSENT** | — |
 | Analytics Annexe B (funnel d'activation) | **ABSENT** | — |
-| i18n FR/EN (aucun texte en dur) | **ABSENT** | — |
+| i18n FR/EN (aucun texte en dur) | **PARTIEL** | microcopy MVP (Annexe C) posée et conforme — `mvp.test.ts` (10 tests : L5/L8/L16/L18/L19 sur les 5 langues). Reste ABSENT : le branchement aux écrans, qui vient avec eux |
 
-**Compteur : 1 opérationnel · 1 partiel · 29 absent.** (pipeline territorial : bornes, fermeture assistée, verdict au contrat et 8 fixtures — reste l'écran)
+**Compteur : 1 opérationnel · 2 partiels · 28 absents.** (pipeline territorial : bornes, fermeture assistée, verdict au contrat et 8 fixtures — reste l'écran)
