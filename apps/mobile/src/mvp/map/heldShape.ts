@@ -136,6 +136,7 @@ export function heldCollection(
   if (rings.length === 0) {
     return { collection: { type: 'FeatureCollection', features: [] }, cellCount: 0 };
   }
+  const lissees = rings.map(smoothRing);
   const feature: TerritoryFeature = {
     type: 'Feature',
     id: 'moi',
@@ -143,7 +144,92 @@ export function heldCollection(
     // tient du moteur. La recalculer sur les anneaux donnerait un second chiffre
     // qui finirait par contredire le premier.
     properties: { areaM2: 0 },
-    geometry: { type: 'Polygon', coordinates: rings },
+    // LISSÉ : le joueur ne doit jamais voir la maille (MASTER §29).
+    geometry: { type: 'Polygon', coordinates: lissees },
   };
   return { collection: { type: 'FeatureCollection', features: [feature] }, cellCount: cells.length };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LISSAGE — « polygones organiques », donc le joueur ne voit JAMAIS la maille
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Passes de Chaikin. Deux suffisent : la troisième n'est plus perceptible et
+ * quadruple les sommets. Constante d'AFFICHAGE — elle ne décide aucun claim.
+ */
+const PASSES = 2;
+
+/**
+ * Au-delà, on ne lisse plus : un anneau de cette taille couvre déjà tout
+ * l'écran, ses angles sont sous le pixel, et doubler ses sommets coûterait des
+ * images perdues (L14 — 60 fps) pour une différence que personne ne voit.
+ */
+const MAX_SOMMETS = 2_000;
+
+/**
+ * Un tour de Chaikin : chaque arête donne deux points, à 1/4 et 3/4.
+ *
+ * L'anneau est traité comme FERMÉ (la dernière arête relie le dernier sommet au
+ * premier) : lisser un anneau comme une ligne ouverte laisserait un angle vif au
+ * point de fermeture — exactement là où l'œil le remarque, parce que c'est le
+ * seul coin resté pointu de toute la forme.
+ */
+function chaikin(ouvert: readonly [number, number][]): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < ouvert.length; i += 1) {
+    const a = ouvert[i]!;
+    const b = ouvert[(i + 1) % ouvert.length]!;
+    out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+    out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+  }
+  return out;
+}
+
+/**
+ * Adoucit un anneau fermé. PURE.
+ *
+ * ⚠️ CE LISSAGE RÉTRÉCIT LA FORME, et c'est assumé : Chaikin coupe les angles
+ * vers l'INTÉRIEUR, donc le dessin reste contenu dans ce qui est possédé. C'est
+ * le bon sens de l'erreur — dessiner vers l'extérieur peindrait du sol qui
+ * appartient à quelqu'un d'autre.
+ *
+ * ⚠️ ET IL NE TOUCHE QUE LE DESSIN. L'aire annoncée au joueur vient de
+ * `territories.area_m2` (le moteur), jamais de cet anneau. Mesurer la surface
+ * sur une forme lissée donnerait un chiffre plus petit que la réalité, et deux
+ * écrans de la même app se contrediraient.
+ */
+export function smoothRing(ring: ClosedRing): ClosedRing {
+  if (ring.length < 4) return ring;
+  const premier = ring[0]!;
+  const dernier = ring[ring.length - 1]!;
+  const ferme = premier[0] === dernier[0] && premier[1] === dernier[1];
+  // On lisse sur l'anneau OUVERT : garder le doublon de fermeture créerait une
+  // arête de longueur nulle, donc deux sommets confondus à chaque passe.
+  let pts: [number, number][] = ferme ? (ring.slice(0, -1) as [number, number][]) : [...ring];
+  if (pts.length < 3) return ring;
+
+  for (let i = 0; i < PASSES; i += 1) {
+    if (pts.length * 2 > MAX_SOMMETS) break;
+    pts = chaikin(pts);
+  }
+  const depart = pts[0]!;
+  return [...pts, depart];
+}
+
+/** Le même, sur une collection entière — trous compris (voir `heldCollection`). */
+export function smoothCollection(c: TerritoryFeatureCollection): TerritoryFeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: c.features.map((f) => ({
+      ...f,
+      geometry: {
+        type: 'Polygon',
+        // CHAQUE anneau, extérieur ET trous : ne lisser que l'extérieur
+        // laisserait des trous hexagonaux au milieu d'une forme organique —
+        // la maille reviendrait par la fenêtre.
+        coordinates: f.geometry.coordinates.map(smoothRing),
+      },
+    })),
+  };
 }
