@@ -45,7 +45,7 @@
 | Onboarding (2 écrans + priming) | **OPÉRATIONNEL** | `app/(mvp)/bienvenue.tsx`, `position.tsx` ; `permission.test.ts` 8/8 (les 3 issues + le défaut prudent) ; captures 375×812 |
 | Home Map (empty + actif) | **OPÉRATIONNEL** | `app/(mvp)/carte.tsx` + `mvp/map/homeState.ts` (18 tests, balayage exhaustif des 72 entrées) + `territoryGeo.ts` (11) + `ui/area.ts` (7) ; fond `mvp/map/nightStyle.ts` ; capture de l'état `unavailable` |
 | Préflight + décompte | **OPÉRATIONNEL** | `app/(mvp)/prete.tsx` + `mvp/run/countdown.ts` (6 tests) ; un seul tap depuis la carte (L3) ; capture |
-| Live Run | **PARTIEL** | `app/(mvp)/course.tsx` + `mvp/run/trace.ts` (9) + `gauge.ts` (7) : chrono, distance et JAUGE DE FERMETURE réels — la jauge appelle `loopClosureVerdict`, la copie générée du moteur qui décide aussi le claim serveur (drift testé). **Manque** le never-lose-a-run : la trace vit en mémoire, et rien n'est encore envoyé |
+| Live Run | **PARTIEL** | `app/(mvp)/course.tsx` + `trace.ts` (9) + `gauge.ts` (7) + `persist.ts` (10) : chrono, distance, jauge de fermeture et NEVER-LOSE-A-RUN réels. Preuve bout en bout en preview : buffer planté → `/carte` annonce et offre → reprise à 0,43 km avec chrono CONTINU depuis le vrai départ → TERMINER → buffers vides, plus aucune offre. **Manque** l'ENVOI de la course (capture/résultat) |
 | Capture / résultat / partage | **ABSENT** | — |
 
 > ⚠️ Ces écrans ne sont atteints que par URL directe : la bascule d'entrée n'a pas eu lieu.

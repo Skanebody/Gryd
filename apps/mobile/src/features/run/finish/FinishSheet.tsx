@@ -10,7 +10,7 @@
  * Cette feuille s'ouvre AVANT `RealRunApi.finish()`. Tant qu'elle est là, la
  * sortie est en PAUSE UTILISATEUR : le tracker vit, la trace est en mémoire et
  * sur le disque (autosave `run_autosave`, reprise après kill par
- * `gps/crashRecovery.ts`). `REPRENDRE` ne restaure rien — il lève la pause. Le
+ * `mvp/run/crashRecovery.ts`). `REPRENDRE` ne restaure rien — il lève la pause. Le
  * raisonnement complet est dans `finishModel.ts`.
  *
  * ═══ LA CONFIRMATION N'APPARAÎT QUE SOUS LE PLANCHER §3.2 ══════════════════

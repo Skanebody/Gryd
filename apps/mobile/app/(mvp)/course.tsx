@@ -18,14 +18,21 @@
  * verdict ne dit pas : QUAND se taire (voir son en-tête — trois secondes après
  * le GO, l'écart vaut zéro et le verdict dit « fermée »).
  *
- * ⚠️ CE QUI N'EST PAS ENCORE LÀ, et qui est inscrit au BACKLOG plutôt que
- * maquillé : le NEVER-LOSE-A-RUN — la trace vit en mémoire, une course perdue
- * par un crash reste possible. C'est une faiblesse de robustesse DÉCLARÉE, pas
- * un mensonge à l'écran : rien ici ne promet que la course est sauvegardée.
- * Tant que ce point tient, cet écran n'a pas passé son `ux-gate` M5 et le
- * groupe `(mvp)` reste sans porte d'entrée.
+ * ─── NEVER-LOSE-A-RUN ───────────────────────────────────────────────────────
+ * La trace est écrite sur le disque au fil de la course (`lib/runStore.ts`,
+ * buffer à trois clés — voir `mvp/run/persist.ts` pour l'arbitrage). Deux
+ * conséquences visibles ici :
+ *   · au MONTAGE, cet écran REPREND une course trouvée sur le disque au lieu
+ *     d'en commencer une nouvelle. Repartir de zéro par-dessus une trace
+ *     survivante l'écraserait — le buffer aurait fait son travail pour rien ;
+ *   · « TERMINER » efface le buffer. Ne pas l'effacer ferait reproposer
+ *     indéfiniment une course déjà close.
+ *
+ * ⚠️ Ce que ça ne fait PAS encore : ENVOYER. Rien à l'écran ne le promet — le
+ * bouton dit « Terminer », pas « Enregistrer ». La trace attend sur le disque,
+ * ce qui est exactement ce que garantit never-lose-a-run.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -35,11 +42,31 @@ import { gpsGrade, type GpsGrade } from '../../src/mvp/run/countdown';
 import { gauge } from '../../src/mvp/run/gauge';
 import { formatChrono, formatKm, traceDistanceM, type TracePoint } from '../../src/mvp/run/trace';
 import { stopWatch } from '../../src/mvp/run/watch';
+import { shouldFlush } from '../../src/mvp/run/persist';
+import {
+  clearActiveRun,
+  clearCurrentRun,
+  loadActiveRun,
+  saveActiveRun,
+  type StoredRun,
+} from '../../src/lib/runStore';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { screen } from '../../src/lib/analytics';
 
 const TOUCH_TARGET_PT = 44;
+
+/**
+ * Précision écrite quand le capteur n'en donne pas. 999 m se lit « aucune
+ * confiance » côté moteur ; un `0` se lirait « parfait », ce qui serait une
+ * précision INVENTÉE — et le trust serveur en dépend.
+ */
+const PRECISION_INCONNUE_M = 999;
+
+/** Identité locale de la course — clé d'idempotence d'`ingest_run`. */
+function nouvelId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 /** Rafraîchissement du chrono. 500 ms : la seconde ne saute jamais. */
 const TICK_MS = 500;
@@ -57,10 +84,35 @@ export default function Course() {
   const [points, setPoints] = useState<TracePoint[]>([]);
   const [grade, setGrade] = useState<GpsGrade>('searching');
   const [ecouleMs, setEcouleMs] = useState(0);
+  const [reprise, setReprise] = useState(false);
   const debutRef = useRef<number>(Date.now());
+  // Identité de la course, FIXÉE au premier écrit et jamais régénérée : c'est
+  // la clé d'idempotence qu'`ingest_run` attend. En changer à la reprise ferait
+  // compter deux fois la même sortie.
+  const runIdRef = useRef<string>(nouvelId());
+  const dernierFlushRef = useRef<number | null>(null);
+  const enAttenteRef = useRef(0);
 
   useEffect(() => {
     screen('run_live');
+  }, []);
+
+  // REPRISE — avant tout enregistrement. Une course trouvée sur le disque est
+  // continuée telle quelle : même identité, même départ, mêmes points.
+  useEffect(() => {
+    let vivant = true;
+    loadActiveRun()
+      .then((stored) => {
+        if (!vivant || stored === null || stored.fixes.length === 0) return;
+        runIdRef.current = stored.runId;
+        debutRef.current = stored.startedAt;
+        setPoints(stored.fixes.map((f) => ({ lng: f.lng, lat: f.lat, t: f.ts })));
+        setReprise(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      vivant = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -69,10 +121,40 @@ export default function Course() {
     Location.watchPositionAsync(SUIVI, (p) => {
       if (!vivant) return;
       setGrade(gpsGrade(p.coords.accuracy));
-      setPoints((prev) => [
-        ...prev,
-        { lng: p.coords.longitude, lat: p.coords.latitude, t: p.timestamp },
-      ]);
+      setPoints((prev) => {
+        const suite = [
+          ...prev,
+          { lng: p.coords.longitude, lat: p.coords.latitude, t: p.timestamp },
+        ];
+        enAttenteRef.current += 1;
+        const maintenant = Date.now();
+        if (shouldFlush(dernierFlushRef.current, maintenant, enAttenteRef.current)) {
+          dernierFlushRef.current = maintenant;
+          enAttenteRef.current = 0;
+          // `accuracy` est OBLIGATOIRE dans un `RawFix` : la jauge et le trust
+          // serveur en vivent. `?? 0` serait une précision INVENTÉE — on écrit
+          // ce que le capteur a dit, et s'il n'a rien dit on écrit un nombre
+          // qui se lit « aucune confiance », pas « parfait ».
+          const stored: StoredRun = {
+            runId: runIdRef.current,
+            // `conquete` : le mode par défaut, celui qui capture. Le MVP n'en
+            // expose aucun autre — les modes sans claim (`social_run`,
+            // `course_privee`) sont hors périmètre §7.
+            mode: 'conquete',
+            activity: 'run',
+            startedAt: debutRef.current,
+            fixes: suite.map((q, i) => ({
+              lat: q.lat,
+              lng: q.lng,
+              ts: q.t,
+              accuracy: i === suite.length - 1 ? (p.coords.accuracy ?? PRECISION_INCONNUE_M) : PRECISION_INCONNUE_M,
+            })),
+            userPausedMs: 0,
+          };
+          void saveActiveRun(stored);
+        }
+        return suite;
+      });
     })
       .then((s) => {
         if (vivant) sub = s;
@@ -88,6 +170,25 @@ export default function Course() {
   useEffect(() => {
     const id = setInterval(() => setEcouleMs(Date.now() - debutRef.current), TICK_MS);
     return () => clearInterval(id);
+  }, []);
+
+  /**
+   * Clore la course.
+   *
+   * ⚠️ ON ATTEND l'effacement AVANT de naviguer, et ce n'est pas de la
+   * prudence gratuite : la version `void clear(); router.replace()` a été
+   * écrite d'abord, et la preview l'a démentie. L'accueil remonte et lit le
+   * buffer immédiatement — c'est-à-dire AVANT que l'effacement asynchrone
+   * n'atterrisse. Il reproposait alors « Une course n'a pas été terminée »
+   * pour la course qu'on venait justement de terminer, et « Reprendre »
+   * ouvrait une trace déjà effacée.
+   *
+   * LES DEUX CLÉS, parce que l'accueil lit LES DEUX (`recoveryOffer`) : n'en
+   * effacer qu'une laisserait l'autre reproposer éternellement un fantôme.
+   */
+  const terminer = useCallback(async () => {
+    await Promise.all([clearActiveRun(), clearCurrentRun()]);
+    router.replace('/carte');
   }, []);
 
   const km = formatKm(traceDistanceM(points));
@@ -131,13 +232,16 @@ export default function Course() {
         {/* La jauge — absente tant qu'il n'y a rien de vrai à en dire. Une
             ligne vide vaut mieux qu'une ligne qui meuble (L5). */}
         {phraseJauge !== null ? <Text style={styles.jauge}>{phraseJauge}</Text> : null}
+        {/* On DIT que la course a été reprise : continuer en silence laisserait
+            croire que le chrono repart de zéro. */}
+        {reprise ? <Text style={styles.gps}>{t(C.runResumed)}</Text> : null}
         <Text style={styles.gps}>{phraseGps}</Text>
       </View>
 
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t(C.ctaFinish)}
-        onPress={() => router.replace('/carte')}
+        onPress={() => void terminer()}
         style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
       >
         <Text style={styles.ctaLabel}>{t(C.ctaFinish)}</Text>

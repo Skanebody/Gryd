@@ -40,6 +40,8 @@ import {
 import { readMyTerritories } from '../../src/mvp/map/readTerritories';
 import type { TerritoryFeatureCollection } from '../../src/mvp/map/territoryGeo';
 import { heroArea } from '../../src/mvp/ui/area';
+import { recoveryOffer, toSnapshot } from '../../src/mvp/run/persist';
+import { loadActiveRun, loadCurrentRun } from '../../src/lib/runStore';
 import { isSupabaseConfigured } from '../../src/lib/supabase';
 import { useSession } from '../../src/lib/session';
 import { C } from '../../src/i18n/catalog/mvp';
@@ -68,6 +70,7 @@ export default function Carte() {
   const [read, setRead] = useState<TerritoryRead>({ kind: 'idle' });
   const [formes, setFormes] = useState<TerritoryFeatureCollection | null>(null);
   const [position, setPosition] = useState<{ lng: number; lat: number } | null>(null);
+  const [interrompue, setInterrompue] = useState(false);
 
   const userId = session?.user?.id ?? null;
   const acces = accesDepuisOS(permission);
@@ -77,6 +80,7 @@ export default function Carte() {
     session: sessionLoading ? 'restoring' : userId === null ? 'signedOut' : 'signedIn',
     read,
     location: acces,
+    interrupted: interrompue,
   };
   const status = homeStatus(etat);
   const action = homeAction(etat);
@@ -149,15 +153,46 @@ export default function Carte() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // NEVER-LOSE-A-RUN — la moitié visible de la garantie. Une trace qui survit
+  // sur le disque sans que personne ne le sache est perdue quand même : c'est
+  // ICI qu'on le dit. Les DEUX clés sont lues (cf. `runStore.ts`, cas du 2ᵉ
+  // kill pendant qu'une reprise attendait déjà) — n'en lire qu'une effacerait
+  // l'autre en silence.
+  useEffect(() => {
+    let vivant = true;
+    Promise.all([loadActiveRun(), loadCurrentRun()])
+      .then(([actif, courant]) => {
+        if (!vivant) return;
+        const offre = recoveryOffer(
+          [
+            toSnapshot(actif?.runId ?? '', actif),
+            toSnapshot(courant?.runId ?? '', courant),
+          ],
+          Date.now(),
+        );
+        setInterrompue(offre === 'resume');
+      })
+      .catch(() => undefined);
+    return () => {
+      vivant = false;
+    };
+  }, []);
+
   const demanderPosition = useCallback(async () => {
     const r = await Location.requestForegroundPermissionsAsync().catch(() => null);
     setPermission(r);
     track(EVENTS.permissionLocation, { result: r?.granted === true ? 'granted' : 'retry' });
   }, []);
 
-  /** La phrase d'état — présente dans TOUS les cas sauf quand un chiffre parle. */
-  const phrase =
-    status === 'unavailable'
+  /**
+   * La phrase d'état.
+   *
+   * La course interrompue passe DEVANT le reste, y compris devant un chiffre
+   * héros : ce qui peut encore être perdu prime sur ce qui est déjà acquis.
+   */
+  const phrase = interrompue
+    ? t(C.mapInterrupted)
+    : status === 'unavailable'
       ? t(C.mapUnavailable)
       : status === 'signedOut'
         ? t(C.mapSignedOut)
@@ -170,8 +205,10 @@ export default function Carte() {
               : null;
 
   const libelleAction =
-    action === 'go'
-      ? t(C.ctaGo)
+    action === 'resume'
+      ? t(C.ctaResumeRun)
+      : action === 'go'
+        ? t(C.ctaGo)
       : action === 'askLocation'
         ? t(C.obPrimingCta)
         : action === 'openSettings'
@@ -179,6 +216,12 @@ export default function Carte() {
           : null;
 
   const lancerAction = useCallback(() => {
+    if (action === 'resume') {
+      // DIRECTEMENT la course, sans décompte : elle est déjà partie. Faire
+      // recompter « 3, 2, 1 » sur une sortie en cours dirait qu'elle recommence.
+      router.push('/course');
+      return;
+    }
     if (action === 'go') {
       router.push('/prete');
       return;
@@ -210,7 +253,7 @@ export default function Carte() {
           passer les gestes — sinon il volerait le pan de la carte sur tout le
           haut de l'écran. */}
       <View style={[styles.bandeau, { paddingTop: insets.top + spacing.md }]}>
-        {chiffre !== null ? (
+        {chiffre !== null && !interrompue ? (
           <View style={styles.heroLigne}>
             <Text style={styles.hero}>{chiffre}</Text>
             <Text style={styles.unite}>{t(C.unitM2)}</Text>

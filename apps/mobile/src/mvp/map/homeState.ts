@@ -69,6 +69,14 @@ export interface HomeInput {
   readonly session: SessionState;
   readonly read: TerritoryRead;
   readonly location: LocationAccess;
+  /**
+   * Une course interrompue attend-elle sur le disque ? (`mvp/run/persist.ts`)
+   *
+   * C'est une CAPACITÉ, pas un affichage : elle change ce que le joueur peut
+   * faire de plus urgent. Une trace qui survit à un crash sans que personne ne
+   * le sache est perdue quand même — c'est tout l'objet de never-lose-a-run.
+   */
+  readonly interrupted?: boolean;
 }
 
 /**
@@ -122,13 +130,14 @@ export function heroAreaM2(input: HomeInput): number | null {
 /**
  * L'UNIQUE action primaire de l'accueil (L2).
  *
+ *   · `resume`       — une course interrompue attend d'être reprise ou close.
  *   · `go`           — partir courir. C'est l'action du jeu.
  *   · `askLocation`  — l'OS acceptera de redemander : un tap suffit.
  *   · `openSettings` — l'OS a fermé la porte ; les réglages sont la seule voie.
  *   · `retry`        — la lecture a échoué : réessayer est une vraie action.
  *   · `none`         — rien de ce que le joueur peut faire ne débloque l'état.
  */
-export type HomeAction = 'go' | 'askLocation' | 'openSettings' | 'retry' | 'none';
+export type HomeAction = 'resume' | 'go' | 'askLocation' | 'openSettings' | 'retry' | 'none';
 
 /**
  * Quelle action peindre. PURE.
@@ -143,6 +152,8 @@ export type HomeAction = 'go' | 'askLocation' | 'openSettings' | 'retry' | 'none
  *   2. Permission bloquée → `openSettings`. 3. Pas encore accordée →
  *      `askLocation`. Sans position, la trace n'existe pas : GO ne peut rien
  *      produire.
+ *   1bis. Une course INTERROMPUE l'emporte sur tout le reste (sauf le backend) :
+ *      c'est la seule chose à l'écran qui puisse encore être PERDUE.
  *   4. Sinon → `go`, MÊME PENDANT LE CHARGEMENT et MÊME après un échec de
  *      lecture. Courir ne dépend pas de savoir ce qu'on possède déjà, et faire
  *      attendre le départ derrière un aller-retour réseau casserait L3 (deux
@@ -152,6 +163,17 @@ export type HomeAction = 'go' | 'askLocation' | 'openSettings' | 'retry' | 'none
  * lecture se rejoue par un geste secondaire, il ne prend pas la place du jeu.
  */
 export function homeAction(input: HomeInput): HomeAction {
+  // AVANT TOUT LE RESTE, backend compris. Rouvrir une course qui attend sur le
+  // disque ne demande NI serveur NI nouvelle permission : la trace est déjà là,
+  // on peut la voir et la clore. La cacher derrière l'une ou l'autre la ferait
+  // disparaître pour quelqu'un hors ligne ou ayant refusé la position —
+  // c'est-à-dire annuler la garantie dans les cas mêmes où elle sert le plus.
+  //
+  // ⚠️ L'ordre inverse a été écrit d'abord, et la preview l'a démenti : avec un
+  // backend absent, l'accueil ANNONÇAIT la course retrouvée sans offrir aucun
+  // moyen de l'ouvrir. Dire qu'une chose existe sans permettre d'y accéder est
+  // pire que se taire.
+  if (input.interrupted === true) return 'resume';
   if (input.backend === 'absent') return 'none';
   if (input.location === 'blocked') return 'openSettings';
   if (input.location === 'unknown') return 'askLocation';

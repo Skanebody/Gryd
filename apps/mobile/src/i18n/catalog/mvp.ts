@@ -220,6 +220,32 @@ export const C = defineCatalog({
   ctaFinish: { fr: 'TERMINER', en: 'FINISH', es: 'TERMINAR', de: 'BEENDEN', pt: 'TERMINAR' },
   unitKm: { fr: 'km', en: 'km', es: 'km', de: 'km', pt: 'km' },
 
+  // ══════════ NEVER-LOSE-A-RUN — une trace retrouvée se DIT ═══════════════
+  // Une course qui survit à un crash sans que personne ne le sache est perdue
+  // quand même. Ce texte est la moitié de la garantie ; le buffer est l'autre.
+  mapInterrupted: {
+    fr: 'Une course n’a pas été terminée. Elle t’attend.',
+    en: 'A run was never finished. It is waiting for you.',
+    es: 'Una carrera no se terminó. Te está esperando.',
+    de: 'Ein Lauf wurde nie beendet. Er wartet auf dich.',
+    pt: 'Uma corrida não foi finalizada. Ela está esperando por você.',
+  },
+  ctaResumeRun: {
+    fr: 'REPRENDRE MA COURSE',
+    en: 'RESUME MY RUN',
+    es: 'CONTINUAR MI CARRERA',
+    de: 'LAUF FORTSETZEN',
+    pt: 'CONTINUAR MINHA CORRIDA',
+  },
+  /** Bandeau de la course reprise : le joueur doit savoir qu'il continue. */
+  runResumed: {
+    fr: 'Course reprise',
+    en: 'Run resumed',
+    es: 'Carrera reanudada',
+    de: 'Lauf fortgesetzt',
+    pt: 'Corrida retomada',
+  },
+
   // ══════════ ACCUEIL / CARTE — une phrase PAR ÉTAT, jamais une pour deux ══
   // `homeState.ts` distingue six réponses honnêtes à « qu'est-ce qui est à
   // moi ? ». Si deux d'entre elles partageaient un texte, la distinction ne

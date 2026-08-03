@@ -13,7 +13,7 @@
  * n'aurait aucun moyen de rendre le tracker. Tant que la feuille est ouverte,
  * la sortie est simplement en PAUSE UTILISATEUR — le tracker vit, la trace
  * reste en mémoire ET sur le disque (autosave `run_autosave`, §8, et reprise
- * après kill par `gps/crashRecovery.ts`). `REPRENDRE` ne « restaure » donc rien :
+ * après kill par `mvp/run/crashRecovery.ts`). `REPRENDRE` ne « restaure » donc rien :
  * il lève la pause. Le segment déjà enregistré n'a jamais cessé d'exister, et
  * c'est la seule façon d'en être certain plutôt que de l'espérer.
  *

@@ -149,7 +149,7 @@ export function pointInRing(p: CoveragePoint, ring: readonly CoveragePoint[]): b
  * Distance (m) au-delà de laquelle une zone contestée ne concerne PLUS la
  * sortie en cours. Ce n'est PAS une règle de jeu et elle ne vit donc pas dans
  * `game-rules.ts` (même distinction que `CRASH_RECOVERY_MAX_AGE_MS` dans
- * `gps/crashRecovery.ts`, ou `RUN_LIVE_MAX_SILENCE_MS` dans `runGuard.ts`) :
+ * `mvp/run/crashRecovery.ts`, ou `RUN_LIVE_MAX_SILENCE_MS` dans `runGuard.ts`) :
  * elle ne décide d'AUCUN claim, d'aucun point, d'aucune durée de protection.
  * Le serveur mesurera la couverture réelle quoi qu'il arrive, et une défense
  * reste parfaitement valide même si cet écran n'a jamais affiché la variante.

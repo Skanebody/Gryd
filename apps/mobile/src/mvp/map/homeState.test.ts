@@ -7,7 +7,7 @@
  * ressemblent — une carte sans forme chartreuse — et c'est précisément pour ça
  * qu'aucune revue visuelle ne les distingue. Seul un test le peut.
  *
- * Le balayage EXHAUSTIF plus bas (72 combinaisons) n'est pas du zèle : chacune
+ * Le balayage EXHAUSTIF plus bas (144 combinaisons) n'est pas du zèle : chacune
  * de ces combinaisons arrivera chez un vrai joueur, et deux d'entre elles ne se
  * provoquent pas à la main (backend absent, permission définitivement bloquée).
  */
@@ -102,7 +102,9 @@ function toutesLesEntrees(): HomeInput[] {
   for (const backend of BACKENDS)
     for (const session of SESSIONS)
       for (const location of LIEUX)
-        for (const read of LECTURES) out.push({ backend, session, location, read });
+        for (const read of LECTURES)
+          for (const interrupted of [false, true])
+            out.push({ backend, session, location, read, interrupted });
   return out;
 }
 
@@ -155,6 +157,26 @@ Deno.test('permission BLOQUÉE → les réglages, seule sortie réelle', () => {
   assertEquals(homeAction(jeu({ location: 'blocked' })), 'openSettings');
 });
 
+Deno.test('une course INTERROMPUE prime sur le départ d’une nouvelle', () => {
+  // C'est la seule chose à l'écran qui puisse encore être perdue.
+  assertEquals(homeAction(jeu({ interrupted: true })), 'resume');
+});
+
+Deno.test('…et elle prime AUSSI sur un backend injoignable', () => {
+  // Constaté en preview : sans cet ordre, l'accueil ANNONÇAIT la course
+  // retrouvée sans offrir aucun moyen de l'ouvrir. Dire qu'une chose existe
+  // sans permettre d'y accéder est pire que se taire.
+  assertEquals(homeAction(jeu({ interrupted: true, backend: 'absent' })), 'resume');
+});
+
+Deno.test('…et elle prime AUSSI sur la demande de permission', () => {
+  // Rouvrir une course qui attend ne demande pas d'enregistrer de nouveaux
+  // points : on peut la clore telle quelle. La cacher derrière « Autoriser »
+  // la ferait disparaître pour quiconque a refusé — la garantie tomberait.
+  assertEquals(homeAction(jeu({ interrupted: true, location: 'unknown' })), 'resume');
+  assertEquals(homeAction(jeu({ interrupted: true, location: 'blocked' })), 'resume');
+});
+
 Deno.test('INVARIANT : GO n’est jamais peint sans position ET sans backend', () => {
   // Un GO sans position ne produit aucune trace ; un GO sans backend produit
   // une course que rien ne pourra jamais transformer en territoire. Les deux
@@ -163,6 +185,7 @@ Deno.test('INVARIANT : GO n’est jamais peint sans position ET sans backend', (
     if (homeAction(e) !== 'go') continue;
     assertEquals(e.location, 'granted', `${JSON.stringify(e)} : GO sans position`);
     assertEquals(e.backend, 'configured', `${JSON.stringify(e)} : GO sans backend`);
+    assertEquals(e.interrupted, false, `${JSON.stringify(e)} : GO alors qu'une course attend`);
   }
 });
 
@@ -179,6 +202,8 @@ Deno.test('backend absent → AUCUNE action primaire, plutôt qu’une action qu
   for (const location of LIEUX) {
     assertEquals(homeAction(jeu({ backend: 'absent', location })), 'none');
   }
+  // …sauf s'il y a une course à sauver — le seul cas qui passe devant.
+  assertEquals(homeAction(jeu({ backend: 'absent', interrupted: true })), 'resume');
 });
 
 // ─── Réessayer reste secondaire ─────────────────────────────────────────────

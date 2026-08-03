@@ -39,7 +39,7 @@ import { SessionProvider, useSession } from '../src/lib/session';
 import {
   decideCrashRecoveryNavigation,
   type InterruptedRunSnapshot,
-} from '../src/features/run/gps/crashRecovery';
+} from '../src/mvp/run/crashRecovery';
 import {
   BOOT_STORAGE_TIMEOUT_MS,
   decideBoot,
@@ -218,11 +218,22 @@ function BootGate({ fontsReady, children }: { fontsReady: boolean; children: Rea
   const ready = outcome.phase === 'ready';
   const next = outcome.phase === 'ready' ? outcome.next : null;
   useEffect(() => {
-    if (!ready || handedOff) return;
+    // ⚠️ `fontsReady` EST une condition de navigation, pas seulement d'affichage.
+    // Ce composant ne rend `children` — donc le `<Stack>` — que si les fontes
+    // sont là (voir le `return` plus bas). Tant qu'elles ne le sont pas, AUCUN
+    // navigateur n'est monté, et un `router.push` lève « Attempted to navigate
+    // before mounting the Root Layout ».
+    //
+    // Le cas se produisait pour de bon : la séquence de démarrage peut conclure
+    // « reprendre la course » AVANT la fin du chargement des polices. Résultat,
+    // tout démarrage à froid avec une course interrompue plantait l'app — sur
+    // le chemin même qui existe pour ne jamais perdre une course. Reproduit le
+    // 03/08/2026 en preview, sur `/` comme sur une URL directe.
+    if (!ready || handedOff || !fontsReady) return;
     // « Activité active retrouvée : aller directement à la récupération. »
     if (next === 'recover_run') router.push('/course-live');
     setHandedOff(true);
-  }, [ready, next, handedOff]);
+  }, [ready, next, handedOff, fontsReady]);
 
   // Fontes NIGHT PRINT prêtes avant TOUTE route : jamais de flash de la police
   // système ensuite remplacée. Le splash, lui, est rendu dès le premier frame —
@@ -256,7 +267,7 @@ export default function RootLayout() {
     // ci-dessous ne fait QUE `retryPendingUpload`) : une course RÉELLEMENT en
     // cours reste sur son écran `course-live`, et la reproposer à chaque retour
     // arracherait le joueur de SA PROPRE course pour la lui « redécouvrir ».
-    // Le module de décision (`features/run/gps/crashRecovery.ts`) et l'écran de
+    // Le module de décision (`mvp/run/crashRecovery.ts`) et l'écran de
     // reprise (`course-live` / `RestoreRunCard`, qui refait sa PROPRE
     // réconciliation des deux clés ACTIVE/CURRENT) sont INCHANGÉS.
     //

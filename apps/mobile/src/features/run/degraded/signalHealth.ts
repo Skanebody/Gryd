@@ -45,7 +45,7 @@
  *   (`lib/pendingUpload.ts`) et par la machine d'analyse E27
  *   (`analysis/analysisMachine.ts`, phases `deferred` / `unstored`). L'ajouter
  *   ici dupliquerait une vérité qui existe déjà.
- * · APP TUÉE (l.1207) — `gps/crashRecovery.ts`, déjà pur, déjà testé, déjà
+ * · APP TUÉE (l.1207) — `mvp/run/crashRecovery.ts`, déjà pur, déjà testé, déjà
  *   branché au lancement (`app/_layout.tsx:171`). Ce module ne le redécide pas :
  *   il se contente d'en NOMMER la cause pour la mesure (`interruptionCause`).
  *
