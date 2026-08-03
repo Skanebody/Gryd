@@ -3909,6 +3909,14 @@ export interface ActivityRuleSet {
    * a donné, et l'écran peut le dire.
    */
   readonly loopCloseAssistM: number;
+  /**
+   * Périmètre minimal de la TOUTE PREMIÈRE boucle d'un compte, et aire
+   * minimale correspondante. Les deux vont PAR PAIRE : abaisser l'un sans
+   * l'autre laisserait passer une forme que l'autre borne rejetterait, et le
+   * joueur lirait un refus incompréhensible sur sa première course.
+   */
+  readonly loopMinPerimeterFirstM: number;
+  readonly minPolygonAreaFirstM2: number;
   /** A-12 §B — périmètre minimal d'une boucle (m) ; en deçà : couloir seul. */
   readonly loopMinPerimeterM: number;
   /** A-16 §2 — paliers [distance courue (km), aire capturable max (km²)]. */
@@ -3945,6 +3953,8 @@ const RUN_RULES: ActivityRuleSet = {
   segmentPaceMaxSKm: SEGMENT_PACE_MAX_S_KM,
   loopCloseToleranceM: LOOP_CLOSE_TOLERANCE_M,
   loopCloseAssistM: LOOP_CLOSE_ASSIST_M,
+  loopMinPerimeterFirstM: LOOP_MIN_PERIMETER_FIRST_M,
+  minPolygonAreaFirstM2: MIN_POLYGON_AREA_FIRST_M2,
   loopMinPerimeterM: LOOP_MIN_PERIMETER_M,
   loopMaxAreaByDistanceKm2: LOOP_MAX_AREA_BY_DISTANCE_KM2,
   loopMaxAreaCapKm2: LOOP_MAX_AREA_CAP_KM2,
@@ -4161,6 +4171,14 @@ const BIKE_RULES: ActivityRuleSet = {
   segmentPaceMaxSKm: BIKE_SEGMENT_PACE_MAX_S_KM,
   loopCloseToleranceM: BIKE_LOOP_CLOSE_TOLERANCE_M,
   loopCloseAssistM: BIKE_LOOP_CLOSE_ASSIST_M,
+  // Le vélo garde le MÊME RAPPORT d'indulgence que la course (400/800 = ½),
+  // appliqué à SON échelle. Recopier 400 m aurait donné au cycliste une
+  // première capture 12 fois plus facile qu'un coureur — l'exception
+  // d'activation serait devenue une faille.
+  loopMinPerimeterFirstM: Math.round(
+    BIKE_LOOP_MIN_PERIMETER_M * (LOOP_MIN_PERIMETER_FIRST_M / LOOP_MIN_PERIMETER_M),
+  ),
+  minPolygonAreaFirstM2: MIN_POLYGON_AREA_FIRST_M2,
   loopMinPerimeterM: BIKE_LOOP_MIN_PERIMETER_M,
   loopMaxAreaByDistanceKm2: BIKE_LOOP_MAX_AREA_BY_DISTANCE_KM2,
   loopMaxAreaCapKm2: BIKE_LOOP_MAX_AREA_CAP_KM2,

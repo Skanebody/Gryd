@@ -103,7 +103,20 @@ const listTs = (dir: URL): string[] =>
     .map((e) => e.name)
     .sort();
 
-const engineFiles = listTs(engineSrcDir);
+/**
+ * MIROIR EXACT de `ENGINE_TESTS_WITH_FIXTURES` (scripts/sync-game-rules.mjs).
+ *
+ * Ces tests lisent des FICHIERS voisins (`packages/engine/fixtures/`) que la
+ * copie `_shared/engine/` n'emporte pas : les recopier ici les ferait échouer
+ * sur un chemin introuvable — un rouge qui ne dirait rien du moteur.
+ *
+ * ⚠ Ce n'est PAS un trou de couverture : ils tournent au même commit, sur la
+ * même source, via `npm run test:packages`. Si cette liste et celle du script
+ * divergent, le premier test ci-dessous rougit — c'est exactement son rôle.
+ */
+const ENGINE_TESTS_WITH_FIXTURES = new Set(['gpxFixtures.test.ts']);
+
+const engineFiles = listTs(engineSrcDir).filter((n) => !ENGINE_TESTS_WITH_FIXTURES.has(n));
 
 Deno.test('drift : _shared/engine/ contient exactement les fichiers de packages/engine/src/', () => {
   assertEquals(

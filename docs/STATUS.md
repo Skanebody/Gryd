@@ -12,7 +12,7 @@
 | GO en 2 taps | **ABSENT** | — |
 | Live Run minimal (jauge de fermeture, ≤ 5 infos) | **ABSENT** | — |
 | Never-lose-a-run (kill → reprise) | **ABSENT** | — |
-| Pipeline territorial (8 fixtures GPX, codes de raison) | **PARTIEL** | bornes Annexe A + **fermeture assistée câblée** (`loopClosure.test.ts`, 12 tests) + `missingM` pour « il manquait {m} m » ; gate vert (3 987 tests). + **verdict transporté jusqu'au contrat client** (`loopAssisted`, `loopMissingM` — `loopMissing.test.ts`, 8 tests). Restent ABSENTS : les 8 fixtures GPX (G2) et l'affichage, qui vient avec la nouvelle UI (M7) |
+| Pipeline territorial (8 fixtures GPX, codes de raison) | **PARTIEL** | bornes Annexe A + **fermeture assistée câblée** (`loopClosure.test.ts`, 12 tests) + `missingM` pour « il manquait {m} m » ; gate vert (3 987 tests). + **verdict transporté jusqu'au contrat client** (`loopAssisted`, `loopMissingM` — `loopMissing.test.ts`, 8 tests). + **8 fixtures GPX vertes** (`gpxFixtures.test.ts`) + seuil de 1ʳᵉ capture câblé. Reste ABSENT : l'affichage, qui vient avec la nouvelle UI (M7) |
 | Verify v0 (VALIDATED/PARTIAL/STATS_ONLY) | **ABSENT** | — |
 | Bouclier 24 h | **ABSENT** | — |
 | Decay fragile J+7 | **ABSENT** | — |
@@ -38,4 +38,4 @@
 | Analytics Annexe B (funnel d'activation) | **ABSENT** | — |
 | i18n FR/EN (aucun texte en dur) | **ABSENT** | — |
 
-**Compteur : 0 opérationnel · 1 partiel · 29 absent.** (delta vs init : +1 partiel)
+**Compteur : 0 opérationnel · 1 partiel · 29 absent.** (pipeline territorial : bornes, fermeture assistée, verdict au contrat et 8 fixtures — reste l'écran)

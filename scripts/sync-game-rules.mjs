@@ -78,7 +78,21 @@ const engineSrc = join(root, 'packages', 'engine', 'src');
 const engineDest = join(dest, 'engine');
 mkdirSync(engineDest, { recursive: true });
 
-for (const f of readdirSync(engineSrc).filter((n) => n.endsWith('.ts')).sort()) {
+/**
+ * Tests du moteur qui lisent des FICHIERS voisins (`packages/engine/fixtures/`)
+ * plutôt que des données en dur. La copie `_shared/engine/` n'emporte pas ce
+ * dossier : recopier ces tests là-bas les ferait échouer sur un chemin
+ * introuvable, et on aurait un rouge qui ne dit rien du moteur.
+ *
+ * Ils tournent déjà — au même commit, sur la même source — via
+ * `npm run test:packages`. Les exclure ici ne retire donc AUCUNE couverture ;
+ * ça évite juste de la compter deux fois, dont une fois cassée.
+ */
+const ENGINE_TESTS_WITH_FIXTURES = new Set(['gpxFixtures.test.ts']);
+
+for (const f of readdirSync(engineSrc)
+  .filter((n) => n.endsWith('.ts') && !ENGINE_TESTS_WITH_FIXTURES.has(n))
+  .sort()) {
   const source = readFileSync(join(engineSrc, f), 'utf8');
   const out = engineHeader(f) + source.split('\n').map(transformEngineLine).join('\n');
   writeFileSync(join(engineDest, f), out);

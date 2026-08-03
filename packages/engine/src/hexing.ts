@@ -332,6 +332,8 @@ function ringPerimeterM(points: readonly LatLngPoint[]): number {
 function selfIntersectionLoops(
   points: readonly LatLngPoint[],
   rules: ActivityRuleSet,
+  /** Périmètre minimal EFFECTIF (abaissé à la première capture). */
+  minPerimeterM: number = rules.loopMinPerimeterM,
 ): DetectedLoop[] {
   const n = points.length;
   if (n < 4) return []; // il faut ≥ 3 segments pour un croisement non adjacent
@@ -376,7 +378,7 @@ function selfIntersectionLoops(
       // Filtre périmètre O(1) AVANT tout calcul d'aire (bruit GPS → dehors).
       const perimeterM = haversineM(crossing, points[i + 1]!) +
         (cum[j]! - cum[i + 1]!) + haversineM(points[j]!, crossing);
-      if (perimeterM < rules.loopMinPerimeterM) continue;
+      if (perimeterM < minPerimeterM) continue;
 
       const polygon: LatLngPoint[] = [crossing, ...points.slice(i + 1, j + 1)];
       if (polygon.length < 3) continue;
@@ -411,10 +413,17 @@ function selfIntersectionLoops(
 export function detectLoop(
   points: readonly LatLngPoint[],
   activity: Activity = DEFAULT_ACTIVITY,
+  /**
+   * Première capture du compte : le périmètre minimal descend à
+   * `loopMinPerimeterFirstM`. Défaut `false` — dans le doute, barème du jeu
+   * établi (une exception permanente rendrait la micro-boucle rentable).
+   */
+  isFirstCapture = false,
 ): DetectedLoop | null {
   if (points.length < 3) return null;
   const rules = activityRules(activity);
-  const candidates: DetectedLoop[] = selfIntersectionLoops(points, rules);
+  const minPerimeterM = isFirstCapture ? rules.loopMinPerimeterFirstM : rules.loopMinPerimeterM;
+  const candidates: DetectedLoop[] = selfIntersectionLoops(points, rules, minPerimeterM);
   // FERMETURE PAR TOLÉRANCE ou PAR ASSISTANCE — même polygone, issue nommée.
   //
   // Géométriquement, les deux donnent le MÊME anneau : le shoelace referme déjà
@@ -430,7 +439,7 @@ export function detectLoop(
     let totalM = 0;
     for (let i = 1; i < points.length; i++) totalM += haversineM(points[i - 1]!, points[i]!);
     const areaM2 = traceAreaM2(points);
-    if (totalM >= rules.loopMinPerimeterM && areaM2 >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2)) {
+    if (totalM >= minPerimeterM && areaM2 >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2)) {
       candidates.push({
         polygon: [...points],
         closure: closure.kind === 'assisted' ? 'assisted' : 'tolerance',

@@ -144,6 +144,23 @@ export interface RunTerritoryInput {
    */
   activity?: Activity;
   /**
+   * PREMIÈRE CAPTURE DE CE COMPTE ? Abaisse le périmètre et l'aire minimaux
+   * (`loopMinPerimeterFirstM`, `minPolygonAreaFirstM2`).
+   *
+   * ─── POURQUOI CETTE EXCEPTION EXISTE ────────────────────────────────────
+   * La métrique nord d'ACTIVATION est « 1ʳᵉ capture < 48 h ≥ 40 % » (MASTER
+   * §2.5). Un joueur qui installe, court 600 m et n'obtient RIEN n'a pas vu le
+   * jeu : il a vu une app qui l'a refusé. La première boucle doit être quasi
+   * garantie — c'est la première leçon de Duolingo, pas une faveur.
+   *
+   * ⚠️ L'EXCEPTION EST BORNÉE AU JOUEUR, PAS AU JEU. Elle ne vaut qu'une fois.
+   * L'appelant serveur DOIT la calculer sur un fait de base (aucune capture
+   * antérieure), jamais sur une heuristique de session : `true` en permanence
+   * ferait de la micro-boucle farmée sur place une stratégie rentable.
+   * Absent ⇒ `false` : dans le doute, on applique le barème du jeu établi.
+   */
+  isFirstCapture?: boolean;
+  /**
    * AVANTAGE DE GROUPE : nombre de coéquipiers CO-PRÉSENTS same-crew validés sur
    * la capture (1 = solo). Threadé vers DecideClaimsContext.runners → allonge le
    * LOCK (capé +40 %), jamais les points/attribution/decay. Absent → solo (inchangé).
@@ -272,7 +289,8 @@ export async function runTerritoryEngine(
   // trop grande → intérieur tronqué au plafond d'aire (les plus proches du tracé).
   const activity = input.activity ?? DEFAULT_ACTIVITY;
   const loopTrace = loopTracePoints(input.claimable);
-  const loop = loopTrace !== null ? detectLoop(loopTrace, activity) : null;
+  const isFirstCapture = input.isFirstCapture === true;
+  const loop = loopTrace !== null ? detectLoop(loopTrace, activity, isFirstCapture) : null;
   const loopClosed = loop !== null;
   const loopAssisted = loop?.closure === 'assisted';
 
@@ -284,7 +302,13 @@ export async function runTerritoryEngine(
     if (verdict.kind === 'open' && verdict.gapM !== null && verdict.gapM <= LOOP_HINT_DISTANCE_M) {
       // Trace trop courte : ce n'est pas une boucle ratée, c'est une sortie
       // courte. On se tait plutôt que de transformer une balade en échec.
-      if (traceLengthM(loopTrace) >= activityRules(activity).loopMinPerimeterM) {
+      // Barème EFFECTIF : sur une première capture, une trace de 500 m est
+      // une vraie tentative de boucle — se taire l'exclurait du seul message
+      // qui pouvait l'aider à réussir la fois suivante.
+      const seuilM = isFirstCapture
+        ? activityRules(activity).loopMinPerimeterFirstM
+        : activityRules(activity).loopMinPerimeterM;
+      if (traceLengthM(loopTrace) >= seuilM) {
         loopMissingM = verdict.missingM;
       }
     }
