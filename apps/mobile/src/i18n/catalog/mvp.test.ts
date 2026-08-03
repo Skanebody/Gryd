@@ -143,6 +143,29 @@ Deno.test('L19 — le manque se dit en MÈTRES, jamais en jugement', () => {
 
 // ─── L16 — une notification nomme un fait ───────────────────────────────────
 
+Deno.test('AUCUNE notification ne NOMME un lieu (ADR-010 + vie privée)', () => {
+  // Trois raisons : `territories` n'a pas de nom ; un coureur ne prend qu'une
+  // PART d'une zone, donc la nommer annonce un tout pour une part ; et nommer
+  // le lieu d'une prise DIFFUSE le parcours de l'attaquant à un tiers.
+  // Les m² remplacent le lieu — précis, vrais sur une prise partielle, et ils
+  // ne localisent personne.
+  for (const key of ['notifTaken', 'notifFragile'] as const) {
+    for (const locale of LOCALES) {
+      // ⚠️ `vars` rend les jetons AVEC leurs accolades (`{m2}`), pas les noms
+      // nus — comme le contrôle de `verifyGap` plus bas. Chercher `m2` fait
+      // échouer le test sur une copy pourtant juste.
+      const v = vars(C[key][locale]);
+      assert(!v.has('{zone}'), `${key} [${locale}] : nomme encore un lieu`);
+      assert(v.has('{m2}'), `${key} [${locale}] : ne dit pas COMBIEN`);
+    }
+  }
+  // `notifCrewRank` garde son nom de VILLE : un agrégat sur beaucoup de gens
+  // ne désigne personne. C'est la ligne, et elle doit rester franche.
+  for (const locale of LOCALES) {
+    assert(vars(C.notifCrewRank[locale]).has('{city}'), `notifCrewRank [${locale}] : la ville a disparu`);
+  }
+});
+
 Deno.test('L16 — chaque notification porte un FAIT nommé, pas un rappel', () => {
   // Un fait de jeu se reconnaît à ses variables : QUI, QUOI, OÙ. Une notif sans
   // variable est un rappel générique — exactement ce que L16 interdit.

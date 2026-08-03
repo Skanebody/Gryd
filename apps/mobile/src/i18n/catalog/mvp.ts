@@ -146,19 +146,36 @@ export const C = defineCatalog({
   },
 
   // ══════════ NOTIFICATIONS — L16 : un FAIT de jeu, jamais un rappel ════════
+  // ⚠️ AUCUNE NOTIFICATION NE NOMME UN LIEU. Trois raisons, et chacune suffit :
+  //
+  // 1. `territories` N'A PAS de colonne « nom » — un territoire est un polygone,
+  //    une aire, un propriétaire. Le nom venait d'un `zoneLabel` envoyé par le
+  //    CLIENT, alors que tout doit être tranché serveur (constitution).
+  // 2. UN COUREUR NE PREND PAS UNE ZONE ENTIÈRE (ADR-010). Un territoire fait
+  //    ~40 000 m², une commune ~15 km² : écrire « il t'a pris Bihorel » annonce
+  //    un quartier pour un pâté de rues, et surtout un TOUT pour une PART.
+  // 3. VIE PRIVÉE. « Marc t'a pris rue des Capucins » diffuse le parcours de
+  //    Marc à quelqu'un d'autre. Le dépôt protège la trace partout ailleurs
+  //    (polyline masquée, `map_sharing`, zones privées, domicile à 200 m) — la
+  //    notification passait à travers, par la petite porte du nom.
+  //
+  // Ce qui remplace le lieu : les m², déjà le chiffre héros du jeu. Précis,
+  // vrai même sur une prise partielle, et ça ne localise personne. Les noms
+  // restent à l'échelle de la VILLE (`notifCrewRank`), parce qu'un agrégat sur
+  // beaucoup de gens ne désigne personne.
   notifTaken: {
-    fr: '{player} t’a pris {zone}',
-    en: '{player} took {zone} from you',
-    es: '{player} te ha quitado {zone}',
-    de: '{player} hat dir {zone} abgenommen',
-    pt: '{player} tomou {zone} de você',
+    fr: '{player} t’a pris {m2} m²',
+    en: '{player} took {m2} m² from you',
+    es: '{player} te ha quitado {m2} m²',
+    de: '{player} hat dir {m2} m² abgenommen',
+    pt: '{player} tomou {m2} m² de você',
   },
   notifFragile: {
-    fr: '{zone} devient fragile demain',
-    en: '{zone} turns fragile tomorrow',
-    es: '{zone} se vuelve frágil mañana',
-    de: '{zone} wird morgen brüchig',
-    pt: '{zone} fica frágil amanhã',
+    fr: '{m2} m² deviennent fragiles demain',
+    en: '{m2} m² turn fragile tomorrow',
+    es: '{m2} m² se vuelven frágiles mañana',
+    de: '{m2} m² werden morgen brüchig',
+    pt: '{m2} m² ficam frágeis amanhã',
   },
   notifCrewRank: {
     fr: 'Ton crew passe {rank} à {city}',

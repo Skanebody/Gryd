@@ -93,4 +93,7 @@ Une étape 0 mesure d'abord que le contour BRUT est anguleux (~120°) : sans ell
 
 L'échec de la lecture des rivaux n'invalide PAS ma carte : ne pas savoir ce que les autres tiennent n'empêche pas de savoir ce que je tiens.
 
-RESTE À FAIRE : la microcopy des notifications en m² perdus.
+**Microcopy des notifications FAITE (03/08/2026).** `notifTaken` et `notifFragile` ne nomment plus AUCUN lieu : « {player} t'a pris {m2} m² », « {m2} m² deviennent fragiles demain ». Trois raisons, chacune suffisante — `territories` n'a pas de colonne nom (le nom venait d'un `zoneLabel` envoyé par le CLIENT, alors que tout se tranche serveur) ; un coureur ne prend qu'une PART, donc nommer la zone annonce un tout pour une part ; et nommer le lieu d'une prise DIFFUSE le parcours de l'attaquant à un tiers, alors que le dépôt protège la trace partout ailleurs. Un test verrouille l'absence de `{zone}` ET la présence de `{m2}` sur les 5 langues.
+`notifCrewRank` GARDE son nom de ville : un agrégat sur beaucoup de gens ne désigne personne. C'est la ligne, et le test la maintient franche.
+
+RESTE À FAIRE côté legacy : retirer `zoneLabel` du corps de `create_offensive` (un client ne doit pas choisir un nom de lieu). Hors périmètre MVP, à faire au basculement.
