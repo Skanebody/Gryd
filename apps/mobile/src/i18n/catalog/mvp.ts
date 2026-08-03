@@ -210,6 +210,66 @@ export const C = defineCatalog({
     de: 'GRYD zeichnet dein Gebiet aus deinem Lauf. Erlaube den Standort, um zu starten.',
     pt: 'O GRYD desenha seu território a partir da sua corrida. Permita a localização para começar.',
   },
+
+  // ══════════ ONBOARDING — L9 : la valeur AVANT la permission ══════════════
+  // DEUX écrans, pas trois. L9 pose un PLAFOND (« ≤ 3 »), pas un objectif, et
+  // la 2ᵉ vérité du MASTER impose que chaque écran justifie son existence. Le
+  // jeu tient en une phrase : l'étirer sur un écran de plus n'ajouterait qu'un
+  // tap entre l'installation et la carte.
+  obTitle: {
+    fr: 'Ta ville est à prendre',
+    en: 'Your city is up for grabs',
+    es: 'Tu ciudad está por conquistar',
+    de: 'Deine Stadt ist zu erobern',
+    pt: 'Sua cidade está para conquistar',
+  },
+  obBody: {
+    fr: 'Tu cours. Ta trace dessine une ligne. Si elle se referme, l’intérieur est à toi.',
+    en: 'You run. Your track draws a line. Close it, and the inside is yours.',
+    es: 'Corres. Tu traza dibuja una línea. Si se cierra, el interior es tuyo.',
+    de: 'Du läufst. Deine Spur zieht eine Linie. Schließt sie sich, gehört dir das Innere.',
+    pt: 'Você corre. Seu traçado desenha uma linha. Se ela fecha, o interior é seu.',
+  },
+  obCta: { fr: 'CONTINUER', en: 'CONTINUE', es: 'CONTINUAR', de: 'WEITER', pt: 'CONTINUAR' },
+
+  // ── Priming (L9) : on explique AVANT que l'OS ne demande ──────────────────
+  obPrimingTitle: {
+    fr: 'Une seule autorisation',
+    en: 'One permission',
+    es: 'Un solo permiso',
+    de: 'Eine Berechtigung',
+    pt: 'Uma única permissão',
+  },
+  obPrimingCta: { fr: 'AUTORISER', en: 'ALLOW', es: 'PERMITIR', de: 'ERLAUBEN', pt: 'PERMITIR' },
+  // Refus : jamais un cul-de-sac, jamais un reproche (L8, L19).
+  obDeniedTitle: {
+    fr: 'Sans position, pas de territoire',
+    en: 'No location, no territory',
+    es: 'Sin ubicación, no hay territorio',
+    de: 'Ohne Standort kein Gebiet',
+    pt: 'Sem localização, não há território',
+  },
+  obDeniedBody: {
+    fr: 'GRYD ne peut pas dessiner ta boucle sans savoir où tu cours. Tu peux l’autoriser dans les réglages, quand tu veux.',
+    en: 'GRYD cannot draw your loop without knowing where you run. You can allow it in settings, whenever you want.',
+    es: 'GRYD no puede dibujar tu bucle sin saber dónde corres. Puedes permitirlo en los ajustes, cuando quieras.',
+    de: 'GRYD kann deine Schleife nicht zeichnen, ohne zu wissen, wo du läufst. Du kannst es jederzeit in den Einstellungen erlauben.',
+    pt: 'O GRYD não consegue desenhar seu circuito sem saber onde você corre. Você pode permitir nos ajustes, quando quiser.',
+  },
+  obDeniedCta: {
+    fr: 'OUVRIR LES RÉGLAGES',
+    en: 'OPEN SETTINGS',
+    es: 'ABRIR AJUSTES',
+    de: 'EINSTELLUNGEN ÖFFNEN',
+    pt: 'ABRIR AJUSTES',
+  },
+  obSkip: {
+    fr: 'Voir la carte d’abord',
+    en: 'See the map first',
+    es: 'Ver el mapa primero',
+    de: 'Zuerst die Karte ansehen',
+    pt: 'Ver o mapa primeiro',
+  },
 });
 
 /**

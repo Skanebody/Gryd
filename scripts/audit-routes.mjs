@@ -58,6 +58,23 @@ const KNOWN_ORPHANS = new Map([
       'reste celle d’E56, ci-dessus.',
   ],
   ['/aujourdhui', "sans porte stable dans l'app — trou PRÉEXISTANT, inscrit dans son docblock"],
+  // ─── UI MVP en construction (ADR-001, Phase 1) ────────────────────────────
+  // Ces écrans sont orphelins PAR CONSTRUCTION, et c'est la garantie qu'ils ne
+  // nuisent pas : tant que les huit du MVP ne sont pas passés sous `ux-gate`,
+  // aucune porte ne doit y mener, sinon un joueur tomberait sur un parcours à
+  // moitié fini. La bascule sera UN changement de route d'entrée — et ces deux
+  // lignes devront alors DISPARAÎTRE d'ici, sans quoi l'audit cesserait de
+  // surveiller les vraies orphelines du groupe.
+  [
+    '/bienvenue',
+    'onboarding MVP 1/2 (lot M2) — orpheline VOULUE : le groupe (mvp) n’est ' +
+      'atteint que par URL directe tant que la bascule d’entrée n’a pas eu lieu.',
+  ],
+  [
+    '/position',
+    'onboarding MVP 2/2, priming des permissions (lot M2) — même raison que ' +
+      '/bienvenue : porte volontairement absente jusqu’à la bascule.',
+  ],
   // ─── RÉVÉLÉES LE 27/07/2026 PAR L'EXCLUSION DES TESTS (voir isTestFile) ────
   // Elles n'étaient pas atteignables hier non plus : leur SEUL référent était
   // un fichier `.test.ts`. Le script comptait donc un test comme une porte, et
