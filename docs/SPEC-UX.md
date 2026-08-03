@@ -23,4 +23,21 @@ Chaque écran, avant merge, passe au gate de l'agent `ux-gate`. **Une loi violé
 **L19 — L'app n'accuse jamais.** Rejet = « Une partie du parcours n'a pas été utilisée pour le territoire. Tes stats restent disponibles. » Stats TOUJOURS préservées.
 **L20 — Gate obligatoire.** Chaque écran screenshoté → `ux-gate` → verdict L1–L19 écrit dans la PR.
 
-Palette : fond sombre `#0B0E11` · chartreuse (moi — ADR-008 : token, jamais d'hex en dur) · orange (rival) · violet (contesté) · bleu (protégé) · gris (neutre) ; motifs + labels en plus de la couleur.
+## Palette — la source est `packages/shared/src/design-tokens.ts`, PAS ce document
+
+⚠️ Ce paragraphe citait la palette du MASTER (`#0B0E11`, `#D8FF3E`) : c'était une
+recopie non vérifiée. **ADR-008 tranche : les tokens du dépôt font foi.**
+
+L'univers de GRYD n'est pas son accent, c'est son ÉCHELLE NEUTRE. `noir #060907`,
+`carbone #151C17`, `carbone2 #1D251F`, `grisLigne #2A342D`, `gris #9CA59E`,
+`blanc #F5F7F5` sont tous à **dominante verte** (G > B > R) : la chartreuse
+`#C2FF23` y est native, alors qu'un near-black bleuté la ferait paraître
+rapportée. C'est ça, la signature — pas le vert seul.
+
+Rôles (§C, jamais une couleur par crew) : chartreuse = MOI · orange = rival ·
+violet = contesté · bleu = protégé · gris = neutre. Motifs + libellés EN PLUS de
+la couleur (L15). Chartreuse en quota 8-10 % de l'écran, JAMAIS sur fond clair
+(1,19:1). `grisFaible` est `#707B72` et non `#667068` : la spec produit se
+contredit sur l'AA, l'accessibilité tranche (4,54:1 contre 3,89:1).
+
+**En pratique : `colors.*` uniquement, jamais un hex en dur dans un écran.**
