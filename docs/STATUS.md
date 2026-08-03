@@ -50,5 +50,7 @@
 | Partage (carte 1-tap, deep links) | **ABSENT** | — |
 
 > ⚠️ Ces écrans ne sont atteints que par URL directe : la bascule d'entrée n'a pas eu lieu.
+> Verdict L1–L19 des 8 écrans : `docs/UX-GATE-PHASE1.md` — **CONFORME SOUS RÉSERVE**
+> (L7 et L14 partielles, L13 absente et hors périmètre, L3 non vérifiable avant la bascule).
 
 **Compteur : 1 opérationnel · 2 partiels · 28 absents.** (pipeline territorial : bornes, fermeture assistée, verdict au contrat et 8 fixtures — reste l'écran)

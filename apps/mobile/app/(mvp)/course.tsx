@@ -40,6 +40,8 @@ import * as Location from 'expo-location';
 import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import { gpsGrade, type GpsGrade } from '../../src/mvp/run/countdown';
 import { gauge } from '../../src/mvp/run/gauge';
+import { gaugeHaptic, signalHaptic } from '../../src/mvp/run/feedback';
+import { haptics } from '../../src/lib/haptics';
 import { formatChrono, formatKm, mergeFixes, traceDistanceM, type TracePoint } from '../../src/mvp/run/trace';
 import {
   requestBackgroundPermission,
@@ -316,6 +318,23 @@ export default function Course() {
   // pourrait pour un premier joueur — se tromper dans ce sens fait dire moins,
   // l'autre ferait promettre une boucle que le moteur refuserait.
   const jauge = gauge(points);
+
+  // L6 — l'haptique se déclenche sur une TRANSITION, jamais sur un état : la
+  // jauge est recalculée à chaque point GPS, et vibrer sur son état ferait
+  // trembler le téléphone en continu. `feedback.ts` (pur, testé) décide.
+  const jaugePrecRef = useRef<typeof jauge.kind>('silent');
+  useEffect(() => {
+    const quoi = gaugeHaptic(jaugePrecRef.current, jauge.kind);
+    jaugePrecRef.current = jauge.kind;
+    if (quoi !== null) haptics[quoi]();
+  }, [jauge.kind]);
+
+  const gradePrecRef = useRef<GpsGrade>('searching');
+  useEffect(() => {
+    const quoi = signalHaptic(gradePrecRef.current, grade);
+    gradePrecRef.current = grade;
+    if (quoi !== null) haptics[quoi]();
+  }, [grade]);
   const phraseJauge =
     jauge.kind === 'closed'
       ? t(C.runLoopClosed)

@@ -16,6 +16,9 @@ espagnol (+ de/pt existants : gelés, FR/EN seuls maintenus) · zones interdites
 - Classement départemental (0103), badges 204, arsenal, saisons multiples, LE RELAIS (A-41), parcours personnalisés (A-46).
 
 ## Dettes DÉCLARÉES de la Phase 1 (dans le périmètre, pas encore faites)
+- **L7 — la célébration est PARTIELLE.** Faite : apparition de l'objet puis révélation du chiffre (1,1 s), skippable, Reduce Motion respecté, haptique `success`. Manquent la chorégraphie en trois temps (contour se stabilise → remplissage → gain) et le SON. Voir `docs/UX-GATE-PHASE1.md`.
+- **L14 — pas de skeleton, et 60 fps non mesurés.** Aucun spinner bloquant nulle part, mais la mesure demande un appareil.
+- **Gate Phase 1 non tenu : e2e Maestro GPS mocké** (install → onboarding → GO → boucle simulée → capture → résultat, vidéo en preuve).
 - **La chaîne n'est pas prouvée contre un VRAI serveur.** `sendRun` et l'écran de résultat sont testés purement et vérifiés à l'écran par injection d'issues ; la base est vide et le build local n'a pas de `.env`. La preuve manquante est celle de l'Annexe D : une course réelle sur le terrain, envoyée, capturée, relue sur la carte.
 - ~~Jauge de fermeture du Live Run~~ — **FAIT le 03/08/2026.** L'arbitrage a été tranché par l'extraction : `packages/engine/src/closure.ts` sort de `hexing.ts` la géométrie de fermeture (sans h3), synchronisée vers `apps/mobile/src/mvp/run/engine/` et drift-testée. Même fonction à l'écran et au serveur — voir `mvp/run/gauge.ts` pour la seule chose que le verdict ne dit pas : QUAND se taire.
 - ~~Never-lose-a-run sur la nouvelle UI~~ — **FAIT le 03/08/2026.** Arbitrage SALVAGE tranché : on RÉUTILISE la plomberie (`lib/runStore.ts`, buffer à 3 clés, `RawFix` canoniques) et on RÉÉCRIT la surface. Voir `mvp/run/persist.ts`. Reste ouvert : l'ENVOI de la course (capture/résultat, M6-M7) — `/course` se termine par un retour à la carte, sans claim.

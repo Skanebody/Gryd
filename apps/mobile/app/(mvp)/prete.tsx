@@ -25,6 +25,7 @@ import * as Location from 'expo-location';
 import { colors, fonts, fontSizes, spacing, EVENTS } from '@klaim/shared';
 import { gpsGrade, isDegradedStart, isDone, remaining, type GpsGrade } from '../../src/mvp/run/countdown';
 import { stopWatch } from '../../src/mvp/run/watch';
+import { haptics } from '../../src/lib/haptics';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { screen, track } from '../../src/lib/analytics';
@@ -83,6 +84,10 @@ export default function Prete() {
   const partir = useCallback(() => {
     if (partiRef.current) return;
     partiRef.current = true;
+    // L6 — « haptique sur chaque événement de jeu : DÉPART […] ». C'est le
+    // seul retour physique que reçoit quelqu'un qui a déjà rangé son téléphone
+    // et qui écoute le décompte plutôt que de le regarder.
+    haptics.medium();
     track(EVENTS.runStart, { activity: 'run' });
     if (isDegradedStart(grade)) track(EVENTS.runStartDegraded, { grade });
     router.replace('/course');
