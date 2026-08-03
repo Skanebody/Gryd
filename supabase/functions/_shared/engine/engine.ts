@@ -30,7 +30,12 @@
  * structuré lisible (palier verify, verdict de boucle, points de base vs
  * multipliés, raison du refus d'intérieur) pour l'explicabilité post-run.
  */
-import { type Activity, activityRules, DEFAULT_ACTIVITY } from '../game-rules.ts';
+import {
+  type Activity,
+  activityRules,
+  DEFAULT_ACTIVITY,
+  LOOP_HINT_DISTANCE_M,
+} from '../game-rules.ts';
 import type { Segment } from './validation.ts';
 import {
   type DetectedLoop,
@@ -39,6 +44,8 @@ import {
   hexesForSegments,
   loopInteriorCellCap,
   type LoopRejectedReason,
+  loopClosureVerdict,
+  traceLengthM,
   loopShapeVerdict,
   loopTracePoints,
 } from './hexing.ts';
@@ -216,6 +223,29 @@ export interface RunTerritoryResult {
    * l'intérieur est capturé ou s'il n'y a pas de boucle.
    */
   loopRejectedReason?: LoopRejectedReason;
+  /**
+   * La boucle a-t-elle été REFERMÉE PAR GRYD (bande assistée, lot G1b) ?
+   * `false` quand le joueur a bouclé lui-même. Distinguer les deux n'est pas
+   * cosmétique : le produit doit savoir ce qu'il a donné, pour pouvoir le dire
+   * et pour régler la bande sur des données réelles en Saison 0.
+   */
+  loopAssisted: boolean;
+  /**
+   * MÈTRES MANQUANTS pour que la boucle soit accordée — la donnée de la phrase
+   * « Il manquait {m} m pour fermer ta boucle » (Annexe C `verify.gap`).
+   *
+   * ⚠️ ABSENT DÈS QUE L'ANNONCER SERAIT ABSURDE, et c'est le cœur du réglage :
+   *   · une boucle a été fermée → il ne manquait rien ;
+   *   · l'écart dépasse `LOOP_HINT_DISTANCE_M` (600 m) → le coureur n'essayait
+   *     pas de refermer. Lui annoncer « il manquait 4 940 m » sur une ligne
+   *     droite serait un reproche déguisé en information (L19) ;
+   *   · la trace est plus courte que le périmètre minimal → ce n'est pas une
+   *     boucle ratée, c'est une sortie courte. Rien à reprocher non plus.
+   * 600 m n'est pas un nombre neuf : c'est EXACTEMENT la distance à laquelle
+   * l'écran live affichait déjà « Boucle ouverte » (`LOOP_HINT_DISTANCE_M`).
+   * Le message d'après-course prolonge donc ce que le joueur voyait pendant.
+   */
+  loopMissingM?: number;
   /** Décision par hex (pure) — appliquée atomiquement en aval par claim_hexes. */
   decision: DecideClaimsResult;
   /** Score de course (base × verify × streak × perf → Foulées / XP). */
@@ -244,6 +274,21 @@ export async function runTerritoryEngine(
   const loopTrace = loopTracePoints(input.claimable);
   const loop = loopTrace !== null ? detectLoop(loopTrace, activity) : null;
   const loopClosed = loop !== null;
+  const loopAssisted = loop?.closure === 'assisted';
+
+  // ── COMBIEN IL MANQUAIT (lot G1c) ────────────────────────────────────────
+  // Calculé UNIQUEMENT quand la phrase aurait un sens : voir `loopMissingM`.
+  let loopMissingM: number | undefined;
+  if (loop === null && loopTrace !== null) {
+    const verdict = loopClosureVerdict(loopTrace, activity);
+    if (verdict.kind === 'open' && verdict.gapM !== null && verdict.gapM <= LOOP_HINT_DISTANCE_M) {
+      // Trace trop courte : ce n'est pas une boucle ratée, c'est une sortie
+      // courte. On se tait plutôt que de transformer une balade en échec.
+      if (traceLengthM(loopTrace) >= activityRules(activity).loopMinPerimeterM) {
+        loopMissingM = verdict.missingM;
+      }
+    }
+  }
   let loopRejectedReason: LoopRejectedReason | undefined;
   let capReached = false;
   let interiorCells: string[] = [];
@@ -358,6 +403,8 @@ export async function runTerritoryEngine(
     interiorCells,
     allHexes,
     loopClosed,
+    loopAssisted,
+    ...(loopMissingM !== undefined ? { loopMissingM } : {}),
     capReached,
     ...(loopRejectedReason !== undefined ? { loopRejectedReason } : {}),
     decision,

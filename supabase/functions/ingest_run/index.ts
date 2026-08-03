@@ -3116,6 +3116,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // rend le RESTE (intérieur, décision, score, verdict de boucle).
     const { interiorCells, loopClosed, capReached, decision, score } = territory;
     const loopRejectedReason = territory.loopRejectedReason;
+    // LOT G1c — le verdict de fermeture voyage jusqu'au client. `loopAssisted`
+    // dit ce que le produit a DONNÉ (bande assistée) ; `loopMissingM` dit ce
+    // qu'il MANQUAIT quand la phrase a un sens. Les deux sont décidés par le
+    // moteur PUR : rien n'est recalculé ici, sinon les deux versions
+    // divergeraient au premier réglage de Saison 0.
+    const loopAssisted = territory.loopAssisted;
+    const loopMissingM = territory.loopMissingM;
     // `interiorSet` reste dérivé ici (le couloir vs l'intérieur d'une boucle sert
     // au comptage des zones fermées de la célébration, plus bas).
     const interiorSet = new Set(interiorCells);
@@ -3978,6 +3985,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ? { interiorPartial: true }
         : {}),
       ...(loopRejectedReason !== undefined ? { loopRejectedReason } : {}),
+      ...(loopAssisted ? { loopAssisted: true as const } : {}),
+      // `undefined` plutôt que 0 : « il ne manquait rien » et « on ne dit rien »
+      // ne sont pas la même phrase, et l'écran doit pouvoir les distinguer.
+      ...(loopMissingM !== undefined ? { loopMissingM } : {}),
       hexes: {
         claimed: decision.totals.claimed,
         stolen: decision.totals.stolen,

@@ -311,6 +311,29 @@ export interface IngestRunResponse {
    */
   loopRejectedReason?: 'narrow';
   /**
+   * La boucle a été REFERMÉE PAR GRYD (bande assistée, lot G1b) : l'écart
+   * départ/arrivée dépassait la tolérance annoncée mais restait dans la marge.
+   * Absent quand le joueur a bouclé lui-même.
+   *
+   * POURQUOI C'EST DIT AU CLIENT plutôt que gardé côté serveur : « jamais
+   * d'échec sec » ne veut pas dire « cadeau silencieux ». Le joueur a le droit
+   * de savoir que le produit lui a refermé les derniers mètres — et nous avons
+   * besoin de mesurer combien de fois ça arrive pour régler la bande en
+   * Saison 0. Un cadeau anonyme ne se règle pas.
+   */
+  loopAssisted?: true;
+  /**
+   * MÈTRES MANQUANTS pour que la boucle soit accordée — la donnée de « Il
+   * manquait {m} m pour fermer ta boucle » (Annexe C `verify.gap`).
+   *
+   * ⚠️ ABSENT DÈS QUE LA PHRASE SERAIT ABSURDE OU BLESSANTE : boucle fermée,
+   * écart au-delà de `LOOP_HINT_DISTANCE_M` (le coureur n'essayait pas de
+   * refermer — le lui reprocher serait un jugement déguisé en information,
+   * L19), ou trace plus courte que le périmètre minimal (une sortie courte
+   * n'est pas une boucle ratée). Absent = ne rien dire, jamais afficher « 0 ».
+   */
+  loopMissingM?: number;
+  /**
    * AMENDEMENT-17 §CH2 — Frontière partielle OUVERTE par cette course : run
    * VALIDE, long, NON bouclé mais FERMABLE → une `partial_boundary` `open` du
    * crew a été créée (gardée PARTIAL_BOUNDARY_TTL_H, complétable par un membre).

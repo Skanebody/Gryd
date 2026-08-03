@@ -178,6 +178,18 @@ export function detectClosedLoop(
   return traceAreaM2(points) >= getHexagonAreaAvg(H3_RESOLUTION, UNITS.m2);
 }
 
+/**
+ * Longueur (m) d'une trace OUVERTE — somme des segments, SANS le segment de
+ * fermeture. À ne pas confondre avec `ringPerimeterM`, qui referme l'anneau :
+ * confondre les deux surestimerait une trace non bouclée du seul écart
+ * départ/arrivée, et ferait passer une sortie courte pour une boucle ratée.
+ */
+export function traceLengthM(points: readonly LatLngPoint[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += haversineM(points[i - 1]!, points[i]!);
+  return total;
+}
+
 /** Écart (m) entre le départ et l'arrivée d'une trace. `null` si trace inexploitable. */
 export function closureGapM(points: readonly LatLngPoint[]): number | null {
   if (points.length < 2) return null;

@@ -12,7 +12,7 @@
 | GO en 2 taps | **ABSENT** | — |
 | Live Run minimal (jauge de fermeture, ≤ 5 infos) | **ABSENT** | — |
 | Never-lose-a-run (kill → reprise) | **ABSENT** | — |
-| Pipeline territorial (8 fixtures GPX, codes de raison) | **PARTIEL** | bornes Annexe A + **fermeture assistée câblée** (`loopClosure.test.ts`, 12 tests) + `missingM` pour « il manquait {m} m » ; gate vert (3 987 tests). Restent ABSENTS : les 8 fixtures GPX et le branchement des codes de raison jusqu'à l'écran |
+| Pipeline territorial (8 fixtures GPX, codes de raison) | **PARTIEL** | bornes Annexe A + **fermeture assistée câblée** (`loopClosure.test.ts`, 12 tests) + `missingM` pour « il manquait {m} m » ; gate vert (3 987 tests). + **verdict transporté jusqu'au contrat client** (`loopAssisted`, `loopMissingM` — `loopMissing.test.ts`, 8 tests). Restent ABSENTS : les 8 fixtures GPX (G2) et l'affichage, qui vient avec la nouvelle UI (M7) |
 | Verify v0 (VALIDATED/PARTIAL/STATS_ONLY) | **ABSENT** | — |
 | Bouclier 24 h | **ABSENT** | — |
 | Decay fragile J+7 | **ABSENT** | — |
