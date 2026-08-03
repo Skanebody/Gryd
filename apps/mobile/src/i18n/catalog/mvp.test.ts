@@ -85,7 +85,9 @@ Deno.test('L18 — aucun texte n’est vide ni laissé en français par défaut'
     // Les INVARIANTS assumés (marque, signature) : identiques partout, et c'est
     // voulu. Tout le reste doit avoir été réellement traduit dans au moins une
     // langue éloignée du français.
-    const invariant = ['ctaGo', 'shareTagline', 'captureGain'].includes(key);
+    // `unitM2` : un symbole d'unité SI est le même dans toutes les langues.
+    // Le « traduire » serait une faute, pas une amélioration.
+    const invariant = ['ctaGo', 'shareTagline', 'captureGain', 'unitM2', 'unitKm'].includes(key);
     if (!invariant) {
       assert(
         e.de !== e.fr || e.en !== e.fr,

@@ -36,7 +36,7 @@
  * ── COULEURS ──────────────────────────────────────────────────────────────────
  * TOUTES viennent des tokens `@klaim/shared` (`colors` / `mapTokens` / `withAlpha`).
  * La charte ne s'arrête pas au bord de la carte : une teinte écrite en dur dans un
- * fond est un bug au même titre qu'ailleurs. Verrouillé par `grydBasemapStyle.test.ts`.
+ * fond est un bug au même titre qu'ailleurs. Verrouillé par `nightStyle.test.ts`.
  *
  * UI PURE — aucune règle de jeu, aucun nombre de `game-rules` (ces largeurs de
  * trait ne décident d'aucun claim).

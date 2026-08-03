@@ -36,7 +36,7 @@ export type {
 /**
  * URL du style CARTO dark-matter dont le fond sombre GRYD est DÉRIVÉ. Conservée
  * comme PROVENANCE (et pour l'API publique de ui/game) : plus rien ne la
- * télécharge — le style sombre est embarqué (`features/map/grydBasemapStyle.ts`).
+ * télécharge — le style sombre est embarqué (`mvp/map/nightStyle.ts`).
  * Ce fork Expo Go ne monte de toute façon aucune carte vectorielle (repli SVG).
  */
 export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;

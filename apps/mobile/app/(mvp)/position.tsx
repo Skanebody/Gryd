@@ -30,8 +30,14 @@ import { useT } from '../../src/i18n/store';
 import { EVENTS } from '@klaim/shared';
 import { screen, track } from '../../src/lib/analytics';
 
-/** Là où mène la fin de l'onboarding — la carte, dans tous les cas. */
-const APRES = '/';
+/**
+ * Là où mène la fin de l'onboarding — la carte, dans tous les cas.
+ *
+ * Depuis M3, c'est la carte MVP et non plus la racine legacy : envoyer quelqu'un
+ * qui vient de voir deux écrans MVP sur l'ancien accueil lui ferait traverser
+ * deux produits en trois taps.
+ */
+const APRES = '/carte';
 
 export default function Position() {
   const t = useT();

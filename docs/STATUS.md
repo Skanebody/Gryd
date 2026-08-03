@@ -37,6 +37,17 @@
 | Saison 0 Rouen (8 sem., points, caps, reset festif, poster) | **ABSENT** | — |
 | Confidentialité (zones privées, masque domicile 200 m, suppression, export) | **ABSENT** | — |
 | Analytics Annexe B (funnel d'activation) | **ABSENT** | — |
-| i18n FR/EN (aucun texte en dur) | **PARTIEL** | microcopy MVP (Annexe C) posée et conforme — `mvp.test.ts` (10 tests : L5/L8/L16/L18/L19 sur les 5 langues). Reste ABSENT : le branchement aux écrans, qui vient avec eux |
+| i18n FR/EN (aucun texte en dur) | **PARTIEL** | microcopy MVP posée, conforme et BRANCHÉE sur les cinq écrans `(mvp)` — `mvp.test.ts` (10 tests : L5/L8/L16/L18/L19 sur les 5 langues) + `registre.test.ts` (le portugais est brésilien). Reste ABSENT : les écrans non encore écrits |
+
+### Phase 1 — écrans MVP (mis à jour le 03/08/2026)
+| Écran | État | Preuve |
+|---|---|---|
+| Onboarding (2 écrans + priming) | **OPÉRATIONNEL** | `app/(mvp)/bienvenue.tsx`, `position.tsx` ; `permission.test.ts` 8/8 (les 3 issues + le défaut prudent) ; captures 375×812 |
+| Home Map (empty + actif) | **OPÉRATIONNEL** | `app/(mvp)/carte.tsx` + `mvp/map/homeState.ts` (18 tests, balayage exhaustif des 72 entrées) + `territoryGeo.ts` (11) + `ui/area.ts` (7) ; fond `mvp/map/nightStyle.ts` ; capture de l'état `unavailable` |
+| Préflight + décompte | **OPÉRATIONNEL** | `app/(mvp)/prete.tsx` + `mvp/run/countdown.ts` (6 tests) ; un seul tap depuis la carte (L3) ; capture |
+| Live Run | **PARTIEL** | `app/(mvp)/course.tsx` + `mvp/run/trace.ts` (9 tests) : chrono et distance RÉELS, signal honnête. **Manquent** la jauge de fermeture et le never-lose-a-run — inscrits au BACKLOG, dits dans l'en-tête de l'écran |
+| Capture / résultat / partage | **ABSENT** | — |
+
+> ⚠️ Ces écrans ne sont atteints que par URL directe : la bascule d'entrée n'a pas eu lieu.
 
 **Compteur : 1 opérationnel · 2 partiels · 28 absents.** (pipeline territorial : bornes, fermeture assistée, verdict au contrat et 8 fixtures — reste l'écran)

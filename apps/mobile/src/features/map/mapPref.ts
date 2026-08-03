@@ -99,7 +99,7 @@ function nextBasemap(value: BasemapKey): BasemapKey {
  * propose ainsi 3 options explicites — AMENDEMENT-28).
  *
  * ⚠ `styleUrl` est un HÉRITAGE, inutilisé hors de ce hook, et ce n'est PLUS le
- * style servi : le fond sombre est embarqué (`grydBasemapStyle.ts`) et le
+ * style servi : le fond sombre est embarqué (`mvp/map/nightStyle.ts`) et le
  * satellite est un raster construit sur place. Ce champ ne rend que l'URL CARTO
  * de PROVENANCE (repli sombre pour `satellite`). Les forks RealMap résolvent
  * eux-mêmes le vrai style ; ne pas rebrancher un rendu dessus.

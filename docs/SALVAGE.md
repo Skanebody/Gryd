@@ -9,7 +9,8 @@
 |---|---|---|
 | `packages/shared/src/design-tokens.ts` | tokens (couleurs, spacing, typo, elevation) | conservé tel quel — **ADR-008 : ce fichier FAIT FOI sur la palette**, pas le MASTER |
 | `apps/mobile/src/ui/Icon.tsx` + jeu d'icônes | pictos | nouvelle UI, copie |
-| `apps/mobile/src/features/map/mapStyle.ts` | style carte sombre + trace héros (casing/core, largeurs par zoom) | nouvelle carte, copie adaptée |
+| `apps/mobile/src/features/map/mapStyle.ts` | trace héros (casing/core, largeurs par zoom) | nouvelle carte, copie adaptée |
+| ~~`apps/mobile/src/features/map/grydBasemapStyle.ts`~~ → **`apps/mobile/src/mvp/map/nightStyle.ts`** | LE fond sombre (25 couches dérivées du schéma CARTO, tokens seuls, test dédié). **DÉPLACÉ, pas copié** (03/08/2026, lot M3) : ce module n'avait AUCUNE attache legacy — un seul import (`@klaim/shared`) et un seul importeur. Le copier aurait créé 600 lignes en double à faire dériver ; le déplacer inverse la dépendance dans le bon sens (c'est le legacy qui pointe désormais vers le neuf) et rend la suppression du legacy propre. Un nom de `source-layer` réécrit de mémoire rend une carte NOIRE : ce fichier ne se réinvente pas | en place, `src/mvp/map/` |
 | `apps/mobile/src/i18n/catalog/*` | clés FR/EN uniquement (de/es/pt gelés) | `locales/fr.json` + `en.json`, extraction |
 | `brand/` | assets de marque | inchangé |
 | `apps/web` (Next.js waitlist + légal) | base du site public zones/crews | évolue en place (Phase 3) |

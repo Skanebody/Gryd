@@ -626,7 +626,7 @@ export const C = defineCatalog({
    * ouvre certains écrans — en laissant de côté ceux qui sont appelés à CHAQUE
    * carte affichée, c'est-à-dire dès le premier écran de l'app et en continu
    * pendant une sortie :
-   *   · CARTO   — `features/map/grydBasemapStyle.ts:62` (TileJSON `carto.streets/v1`)
+   *   · CARTO   — `mvp/map/nightStyle.ts:62` (TileJSON `carto.streets/v1`)
    *               et `:70` (glyphes), plus `features/map/mapStyle.ts:62-63` (styles
    *               distants « nuit » de référence et « couleur ») ;
    *   · Esri    — `features/map/mapStyle.ts:93` (raster World Imagery, fond satellite) ;

@@ -27,7 +27,7 @@ import {
   territoryGeoByState,
   territoryLisereLines,
 } from './allTerritories';
-import { BASEMAP_SOURCE_ID, BASEMAP_TILEJSON_URL, grydNightStyleJson } from './grydBasemapStyle';
+import { BASEMAP_SOURCE_ID, BASEMAP_TILEJSON_URL, grydNightStyleJson } from '../../mvp/map/nightStyle';
 import type { RealTerritory } from './hexClaims';
 import { sectorPaintRole, type RealSectorView } from './sectorView';
 import { REAL_M_PER_DEG_LAT, REAL_M_PER_DEG_LNG, type LatLngPoint } from './realAnchors';
@@ -37,7 +37,7 @@ import { type ModeEmphasis, type TerritoryState } from './territory';
  * Fonds de carte VECTORIELS disponibles (demande fondateur : « la carte en
  * couleur comme sur Plan d'iPhone »). Deux fonds, servis par les DEUX forks
  * RealMap selon la préférence utilisateur (mapPref) :
- *   dark  — GRYD Night : style EMBARQUÉ (grydBasemapStyle.ts), DÉRIVÉ de CARTO
+ *   dark  — GRYD Night : style EMBARQUÉ (mvp/map/nightStyle.ts), DÉRIVÉ de CARTO
  *           dark-matter et de son schéma `carto.streets/v1`. Plus téléchargé,
  *           plus patché, plus remonté — cf. le bloc « LABELS EN LANGUE LOCALE »
  *           plus bas pour ce que ça remplace.
@@ -52,7 +52,7 @@ import { type ModeEmphasis, type TerritoryState } from './territory';
  *     demande, quand l'utilisateur choisit ce fond (jamais sur le chemin critique
  *     du premier écran).
  * La prod passera à un provider dédié (O6) en ne changeant QUE l'URL du TileJSON
- * (grydBasemapStyle) côté sombre, et cette URL côté clair.
+ * (mvp/map/nightStyle) côté sombre, et cette URL côté clair.
  *
  * Le fond `satellite` (AMENDEMENT-28) n'est PAS ici : ce n'est pas un style
  * vectoriel mais une source RASTER (photos aériennes Esri) — il est construit à
@@ -116,7 +116,7 @@ export const SATELLITE_BASEMAP = {
 // `name`, et les écrans REMONTAIENT la carte quand la spec patchée arrivait.
 //
 // 26/07/2026 — le fond SOMBRE (le défaut, donc le premier écran de l'app) ne passe
-// plus par là : son style est ÉCRIT (`grydBasemapStyle.ts`), `{name}` compris. Zéro
+// plus par là : son style est ÉCRIT (`mvp/map/nightStyle.ts`), `{name}` compris. Zéro
 // requête de style, zéro patch, zéro remount sur le chemin critique. Mesure avant
 // correctif en preview : 3 requêtes `style.json` (dark ×2 + voyager ×1) pour un
 // seul fond affiché — les deux styles étaient préchargés quel que soit le fond actif.
@@ -266,7 +266,7 @@ export const SATELLITE_DIM = {
  */
 export const MAP_3D = {
   /**
-   * Id de la source vectorielle CARTO. Vient de `grydBasemapStyle` : le style
+   * Id de la source vectorielle CARTO. Vient de `mvp/map/nightStyle` : le style
    * SOMBRE est désormais écrit par nous, et c'est CETTE constante qui garantit
    * que le fork web y retrouve bien sa source pour extruder les bâtiments (le
    * Voyager distant utilise le même id `carto`). Un renommage d'un côté sans

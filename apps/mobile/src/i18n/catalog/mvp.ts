@@ -202,6 +202,81 @@ export const C = defineCatalog({
     pt: 'Sua cidade está intocada. Feche seu primeiro circuito.',
   },
 
+  // ══════════ DÉPART — L3 : un seul tap, puis le décompte se déroule seul ══
+  // Le signal GPS est une INFORMATION, jamais une permission de courir : ces
+  // trois phrases décrivent, elles ne retiennent personne (voir run/countdown.ts).
+  gpsSearching: {
+    fr: 'Recherche du signal',
+    en: 'Finding signal',
+    es: 'Buscando señal',
+    de: 'Signalsuche',
+    pt: 'Procurando sinal',
+  },
+  gpsWeak: { fr: 'Signal faible', en: 'Weak signal', es: 'Señal débil', de: 'Schwaches Signal', pt: 'Sinal fraco' },
+  gpsGood: { fr: 'Signal franc', en: 'Strong signal', es: 'Señal fuerte', de: 'Starkes Signal', pt: 'Sinal forte' },
+  ctaCancel: { fr: 'ANNULER', en: 'CANCEL', es: 'CANCELAR', de: 'ABBRECHEN', pt: 'CANCELAR' },
+
+  // ══════════ PENDANT — L5 : lisible à bout de souffle, ≤ 8 mots ═══════════
+  ctaFinish: { fr: 'TERMINER', en: 'FINISH', es: 'TERMINAR', de: 'BEENDEN', pt: 'TERMINAR' },
+  unitKm: { fr: 'km', en: 'km', es: 'km', de: 'km', pt: 'km' },
+
+  // ══════════ ACCUEIL / CARTE — une phrase PAR ÉTAT, jamais une pour deux ══
+  // `homeState.ts` distingue six réponses honnêtes à « qu'est-ce qui est à
+  // moi ? ». Si deux d'entre elles partageaient un texte, la distinction ne
+  // servirait à rien : c'est ICI que le joueur la perçoit ou pas.
+  mapLoading: {
+    fr: 'Lecture en cours…',
+    en: 'Loading…',
+    es: 'Cargando…',
+    de: 'Wird geladen…',
+    pt: 'Carregando…',
+  },
+  // L19 — un échec nomme un fait, ne reproche rien, et laisse une porte.
+  mapFailed: {
+    fr: 'Tes territoires n’ont pas pu être lus. Tes captures restent enregistrées.',
+    en: 'Your territories could not be read. Your captures are still saved.',
+    es: 'No se han podido leer tus territorios. Tus capturas siguen guardadas.',
+    de: 'Deine Gebiete konnten nicht gelesen werden. Deine Eroberungen bleiben gespeichert.',
+    pt: 'Não foi possível ler seus territórios. Suas capturas continuam salvas.',
+  },
+  mapRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  // Ni un vide, ni un échec de lecture : ce build ne joint AUCUN serveur.
+  mapUnavailable: {
+    fr: 'GRYD ne joint aucun serveur. Rien ne peut être affiché ni capturé.',
+    en: 'GRYD cannot reach any server. Nothing can be shown or captured.',
+    es: 'GRYD no alcanza ningún servidor. No se puede mostrar ni capturar nada.',
+    de: 'GRYD erreicht keinen Server. Es kann nichts angezeigt oder erobert werden.',
+    pt: 'O GRYD não alcança nenhum servidor. Nada pode ser exibido nem capturado.',
+  },
+  // Sans compte, « à moi » n'a pas de référent — ce n'est pas « tu n'as rien ».
+  mapSignedOut: {
+    fr: 'Sans compte, GRYD ne sait pas encore ce qui est à toi.',
+    en: 'Without an account, GRYD does not yet know what is yours.',
+    es: 'Sin cuenta, GRYD aún no sabe qué es tuyo.',
+    de: 'Ohne Konto weiß GRYD noch nicht, was dir gehört.',
+    pt: 'Sem conta, o GRYD ainda não sabe o que é seu.',
+  },
+  /** Légende SOUS le chiffre héros (L12) : le nombre domine, le mot explique. */
+  mapOwnedLabel: {
+    fr: 'à toi',
+    en: 'yours',
+    es: 'tuyo',
+    de: 'dir gehörend',
+    pt: 'seu',
+  },
+  /**
+   * Unité SI — INVARIANTE : un symbole d'unité ne se traduit pas. Le MVP n'en a
+   * QU'UNE : le chiffre héros reste en m² à toutes les échelles (L12 — « les m²
+   * dominent »), voir `mvp/ui/area.ts`.
+   */
+  unitM2: { fr: 'm²', en: 'm²', es: 'm²', de: 'm²', pt: 'm²' },
+
   // ══════════ ONBOARDING — L9 : la valeur AVANT la permission ══════════════
   onboardingPriming: {
     fr: 'GRYD dessine ton territoire à partir de ta course. Autorise ta position pour commencer.',

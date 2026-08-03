@@ -27,7 +27,7 @@ import {
   buildBasemapStyle,
   grydNightStyle,
   grydNightStyleJson,
-} from './grydBasemapStyle.ts';
+} from './nightStyle.ts';
 
 /**
  * Le contrat avec `mapStyle.ts` est vérifié en LISANT SON TEXTE, pas en
@@ -36,7 +36,16 @@ import {
  * détection INDÉPENDANTE — elle attrape un identifiant ajouté à la main
  * là-bas, ce qu'un import de constantes ne verrait pas.
  */
-const mapStyleSource = await Deno.readTextFile(new URL('./mapStyle.ts', import.meta.url));
+/**
+ * ⚠️ Ce chemin pointe vers le LEGACY, et c'est volontaire tant que la carte
+ * legacy vit : c'est elle qui peut entrer en collision d'identifiants avec ce
+ * fond. Le module testé, lui, n'importe rien de `features/` — seule cette
+ * VÉRIFICATION regarde là-bas. Ces lignes disparaissent avec la carte legacy
+ * au basculement (ADR-001, mode hybride), pas avant.
+ */
+const mapStyleSource = await Deno.readTextFile(
+  new URL('../../features/map/mapStyle.ts', import.meta.url),
+);
 
 /**
  * Les 14 `vector_layers` du TileJSON `carto.streets/v1` (relevés le 26/07/2026).
@@ -224,11 +233,11 @@ Deno.test('style — le 3D retrouve sa source et ses bâtiments', () => {
   // recopiées dériveraient un jour, et le 3D chercherait une source inexistante.
   assert(
     mapStyleSource.includes('vectorSourceId: BASEMAP_SOURCE_ID'),
-    'MAP_3D.vectorSourceId doit venir de grydBasemapStyle',
+    'MAP_3D.vectorSourceId doit venir de mvp/map/nightStyle',
   );
   assert(
     mapStyleSource.includes('vectorTileJsonUrl: BASEMAP_TILEJSON_URL'),
-    'MAP_3D.vectorTileJsonUrl doit venir de grydBasemapStyle',
+    'MAP_3D.vectorTileJsonUrl doit venir de mvp/map/nightStyle',
   );
 });
 

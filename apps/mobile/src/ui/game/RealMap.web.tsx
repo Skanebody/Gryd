@@ -65,7 +65,7 @@ import type { StyleSpecification } from 'maplibre-gl';
 /**
  * URL du style CARTO dark-matter dont le fond sombre GRYD est DÉRIVÉ. Conservée
  * comme PROVENANCE (et pour l'API publique de ui/game) : plus rien ne la
- * télécharge — le style sombre est embarqué (`features/map/grydBasemapStyle.ts`).
+ * télécharge — le style sombre est embarqué (`mvp/map/nightStyle.ts`).
  */
 export const DARK_MAP_STYLE_URL = MAP_BASEMAP_STYLES.dark;
 
@@ -505,7 +505,7 @@ function applySilentRunOverrides(map: MapLibreMap): void {
 // `applyGrydStyleOverrides`, qui reteintait à chaud le style dark-matter
 // TÉLÉCHARGÉ (fond, eau, parcs, bâti, opacité de chaque route, couleur de chaque
 // label) en devinant le rôle d'un calque par sous-chaîne de son id. Le style
-// sombre est désormais ÉCRIT (`features/map/grydBasemapStyle.ts`) : ses teintes
+// sombre est désormais ÉCRIT (`mvp/map/nightStyle.ts`) : ses teintes
 // SONT les tokens dès la première frame, sa hiérarchie de voirie est explicite,
 // et il n'y a plus rien à deviner ni à repeindre. La fonction a été SUPPRIMÉE —
 // pas neutralisée : la garder aurait écrasé la hiérarchie du nouveau style par

@@ -107,7 +107,7 @@ export const EXTERNAL_HOSTS: readonly ExternalHost[] = [
     host: 'tiles.basemaps.cartocdn.com',
     kind: 'recipient',
     policyName: 'CARTO',
-    why: 'Fond « nuit » embarqué : TileJSON + glyphes (features/map/grydBasemapStyle.ts:62 et :70). Chargé dès la première carte.',
+    why: 'Fond « nuit » embarqué : TileJSON + glyphes (mvp/map/nightStyle.ts:62 et :70). Chargé dès la première carte.',
   },
   {
     host: 'basemaps.cartocdn.com',
