@@ -392,6 +392,91 @@ export const C = defineCatalog({
     pt: 'O login não foi concluído. Você pode tentar de novo.',
   },
 
+  // ══════════ PROFIL — suivi + compte (exigences App Store 5.1.1(v), RGPD) ══
+  profilTitle: { fr: 'Toi', en: 'You', es: 'Tú', de: 'Du', pt: 'Você' },
+  statTerritory: { fr: 'Territoire', en: 'Territory', es: 'Territorio', de: 'Gebiet', pt: 'Território' },
+  statRuns: { fr: 'Sorties', en: 'Runs', es: 'Salidas', de: 'Läufe', pt: 'Saídas' },
+  statDistance: { fr: 'Distance', en: 'Distance', es: 'Distancia', de: 'Distanz', pt: 'Distância' },
+  statsEmpty: {
+    fr: 'Aucune sortie enregistrée. Ferme ta première boucle.',
+    en: 'No run recorded yet. Close your first loop.',
+    es: 'Ninguna salida registrada. Cierra tu primer bucle.',
+    de: 'Noch kein Lauf aufgezeichnet. Schließe deine erste Schleife.',
+    pt: 'Nenhuma saída registrada. Feche seu primeiro circuito.',
+  },
+  statsFailed: {
+    fr: 'Tes statistiques n’ont pas pu être lues. Tes courses restent enregistrées.',
+    en: 'Your stats could not be read. Your runs are still saved.',
+    es: 'No se han podido leer tus estadísticas. Tus carreras siguen guardadas.',
+    de: 'Deine Statistiken konnten nicht gelesen werden. Deine Läufe bleiben gespeichert.',
+    pt: 'Não foi possível ler suas estatísticas. Suas corridas continuam salvas.',
+  },
+  accountTitle: { fr: 'Compte', en: 'Account', es: 'Cuenta', de: 'Konto', pt: 'Conta' },
+  accountSignOut: {
+    fr: 'Se déconnecter',
+    en: 'Sign out',
+    es: 'Cerrar sesión',
+    de: 'Abmelden',
+    pt: 'Sair da conta',
+  },
+  accountExport: {
+    fr: 'Exporter mes données',
+    en: 'Export my data',
+    es: 'Exportar mis datos',
+    de: 'Meine Daten exportieren',
+    pt: 'Exportar meus dados',
+  },
+  accountDelete: {
+    fr: 'Supprimer mon compte',
+    en: 'Delete my account',
+    es: 'Eliminar mi cuenta',
+    de: 'Mein Konto löschen',
+    pt: 'Excluir minha conta',
+  },
+  // L17 en miroir : une action irréversible se confirme, et la phrase dit ce
+  // qui se passe VRAIMENT — un délai, pas un effacement instantané.
+  accountDeleteConfirm: {
+    fr: 'Supprimer ton compte et tout ce que tu as capturé ? Tu auras {d} jours pour changer d’avis.',
+    en: 'Delete your account and everything you captured? You will have {d} days to change your mind.',
+    es: '¿Eliminar tu cuenta y todo lo que has conquistado? Tendrás {d} días para cambiar de opinión.',
+    de: 'Dein Konto und alles Eroberte löschen? Du hast {d} Tage, um es dir anders zu überlegen.',
+    pt: 'Excluir sua conta e tudo o que você conquistou? Você terá {d} dias para mudar de ideia.',
+  },
+  accountDeletePending: {
+    fr: 'Suppression prévue dans {d} jours.',
+    en: 'Deletion scheduled in {d} days.',
+    es: 'Eliminación prevista en {d} días.',
+    de: 'Löschung in {d} Tagen geplant.',
+    pt: 'Exclusão prevista em {d} dias.',
+  },
+  accountDeleteCancel: {
+    fr: 'Annuler la suppression',
+    en: 'Cancel deletion',
+    es: 'Cancelar la eliminación',
+    de: 'Löschung abbrechen',
+    pt: 'Cancelar a exclusão',
+  },
+  legalTitle: { fr: 'Légal', en: 'Legal', es: 'Legal', de: 'Rechtliches', pt: 'Jurídico' },
+  legalPrivacy: {
+    fr: 'Confidentialité',
+    en: 'Privacy',
+    es: 'Privacidad',
+    de: 'Datenschutz',
+    pt: 'Privacidade',
+  },
+  legalConduct: {
+    fr: 'Code de conduite',
+    en: 'Code of conduct',
+    es: 'Código de conducta',
+    de: 'Verhaltenskodex',
+    pt: 'Código de conduta',
+  },
+  // « Support » est le MÊME mot en français, anglais et allemand — le test L18
+  // l'a refusé, et il a raison : ce n'était pas une traduction. « Aide » est de
+  // toute façon le mot juste ici, et il dit mieux ce que le lien fait.
+  legalSupport: { fr: 'Aide', en: 'Help', es: 'Ayuda', de: 'Hilfe', pt: 'Ajuda' },
+  ctaProfil: { fr: 'Toi', en: 'You', es: 'Tú', de: 'Du', pt: 'Você' },
+
   // ══════════ ACCUEIL / CARTE — une phrase PAR ÉTAT, jamais une pour deux ══
   // `homeState.ts` distingue six réponses honnêtes à « qu'est-ce qui est à
   // moi ? ». Si deux d'entre elles partageaient un texte, la distinction ne

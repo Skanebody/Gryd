@@ -97,3 +97,24 @@ L'échec de la lecture des rivaux n'invalide PAS ma carte : ne pas savoir ce que
 `notifCrewRank` GARDE son nom de ville : un agrégat sur beaucoup de gens ne désigne personne. C'est la ligne, et le test la maintient franche.
 
 RESTE À FAIRE côté legacy : retirer `zoneLabel` du corps de `create_offensive` (un client ne doit pas choisir un nom de lieu). Hors périmètre MVP, à faire au basculement.
+
+## ADR-011 — 2026-08-03 — GRYD est 100 % GRATUIT au lancement
+**Décision fondateur** : « on fait un GRYD 100 % gratuit pour commencer, on implémentera un catalogue plus tard ; il faut un dashboard de suivi des performances optimisé mais pas assez poussé pour pouvoir implémenter une version payante plus tard ».
+
+### Ce que ça veut dire, concrètement
+- **Aucune surface d'achat n'existe et aucune n'est peinte.** Vérifié : `app.json` ne déclare AUCUN achat intégré ; aucune route atteignable ne mène à `/premium`, `/abonnement` ou `/arsenal`.
+- **Aucune capacité n'est bridée.** `GRYD_CAPABILITIES` conserve ses paliers (`free`/`plus`/`pro`) — ils décrivent un PLAN, pas une contrainte appliquée. Rien dans le code du MVP ne lit un palier pour refuser quoi que ce soit.
+- `react-native-purchases` reste une dépendance INERTE. La retirer serait un travail à refaire ; la laisser ne déclare rien par elle-même (aucun produit, aucun `app.json`).
+
+### La marge, et pourquoi elle est délibérée
+Le tableau de bord (`app/(mvp)/profil.tsx`) montre QUATRE chiffres : territoire, sorties, distance, dernière course. C'est ce qu'un coureur regarde entre deux sorties.
+
+Ce qu'il ne montre pas — allures par segment, dénivelé, tendances, comparaisons, carte de chaleur — **n'est pas un oubli**. C'est l'espace dans lequel une offre payante pourra s'installer plus tard sans rien reprendre : `control_heatmap` est déjà catalogué `plus`, et le module de lecture (`mvp/profil/read.ts`) agrège sans jamais jeter le détail.
+
+### Ce qui doit rester vrai pour que ce soit honnête
+- **Aucun écran ne teasera un contenu payant** tant qu'il n'existe pas. Un « bientôt disponible » sur une fonction absente est un dark pattern (L17) et un bouton mort.
+- **Aucune capacité déjà offerte ne deviendra payante.** Les entrées `freeForever: true` de `GRYD_CAPABILITIES` existent pour ça — les reprendre serait retirer au joueur ce qu'il avait, ce que la règle anti-pay-to-win (règle 10) interdit dans l'esprit.
+- Le jour où le catalogue arrive, il devra passer par un ADR à part : ce document autorise la GRATUITÉ, pas son inverse futur.
+
+### Remplace
+ADR-005 (« monétisation parquée post-MVP ») reste vrai mais devient plus faible que nécessaire : ce n'est plus un report, c'est un choix de produit pour le lancement.

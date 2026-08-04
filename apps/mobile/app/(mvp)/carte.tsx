@@ -283,6 +283,19 @@ export default function Carte() {
         {/* « Réessayer » est un TEXTE, jamais un bouton plein : il ne doit pas
             peser autant que l'action du jeu (L2). Et il n'existe que sur un
             échec — un lien qui ne rejoue rien serait un bouton mort. */}
+        {/* Accès à « Toi » — TEXTE, jamais un second bouton plein : GO reste
+            l'unique action primaire de la carte (L2), et le suivi ne se dispute
+            pas la place du jeu. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.ctaProfil)}
+          onPress={() => router.push('/profil')}
+          hitSlop={spacing.sm}
+          style={styles.lien}
+        >
+          <Text style={styles.lienLabel}>{t(C.ctaProfil)}</Text>
+        </Pressable>
+
         {status === 'failed' ? (
           <Pressable
             accessibilityRole="button"

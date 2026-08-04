@@ -15,6 +15,9 @@ espagnol (+ de/pt existants : gelés, FR/EN seuls maintenus) · zones interdites
 - Les trois offres (free/plus/pro, `GRYD_CAPABILITIES`) + GRYD+ analytics (E66) + histoire de propriété (0109-0111 restent en base : le registre CONTINUE d'enregistrer, il ne s'affiche juste pas au MVP).
 - Classement départemental (0103), badges 204, arsenal, saisons multiples, LE RELAIS (A-41), parcours personnalisés (A-46).
 
+## Angle mort connu de l'audit de routes (03/08/2026)
+`scripts/audit-routes.mjs` compte les liens ÉCRITS, pas l'atteignabilité depuis l'entrée. Depuis la bascule, `app/(tabs)/_layout.tsx` contient un `return <Redirect/>` inconditionnel suivi des `<Tabs.Screen>` : ces déclarations comptent encore comme des portes alors qu'aucun joueur ne les atteint. C'est ainsi que la perte des écrans compte/légal est passée inaperçue jusqu'à ce qu'on la cherche à la main. À corriger : mesurer l'atteignabilité depuis la route d'entrée, pas la présence d'une chaîne.
+
 ## Dettes DÉCLARÉES de la Phase 1 (dans le périmètre, pas encore faites)
 - **L7 — la célébration est PARTIELLE.** Faite : apparition de l'objet puis révélation du chiffre (1,1 s), skippable, Reduce Motion respecté, haptique `success`. Manquent la chorégraphie en trois temps (contour se stabilise → remplissage → gain) et le SON. Voir `docs/UX-GATE-PHASE1.md`.
 - **L14 — pas de skeleton, et 60 fps non mesurés.** Aucun spinner bloquant nulle part, mais la mesure demande un appareil.
