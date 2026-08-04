@@ -55,9 +55,13 @@
 > décision du parcours (`app/(tabs)/_layout.tsx`), et la reprise après crash mène
 > désormais à `/course` (MVP) : les deux écrans lisent le même buffer, donc une
 > course interrompue avant la bascule se reprend quand même.
-> **Connexion MVP FAITE le 03/08** — `/bienvenue` → `/position` → `/connexion` →
-> `/carte`. Le parcours est entièrement reconstruit.
-> ⚠️ RESTE LEGACY : la PORTE d'onboarding (`onboardingDone` vit dans un hook legacy qu'ADR-001 interdit
+> **BASCULE COMPLÈTE le 03/08** — `/` ouvre sur `/bienvenue`. Parcours entier en
+> MVP : onboarding → priming → connexion → carte → GO → décompte → course →
+> résultat. `/bienvenue` et `/position` sont SORTIS de `KNOWN_ORPHANS` : ils ont
+> une vraie porte.
+> ⚠️ RESTE LEGACY : le FORMULAIRE de code à usage unique (`/sign-in`), vers
+> lequel « Continuer par e-mail » renvoie — une surface d'authentification ne se
+> réécrit pas à la hâte. Et l'ancienne PORTE d'onboarding (`onboardingDone` vit dans un hook legacy qu'ADR-001 interdit
 > d'importer). `/bienvenue` et `/position` restent donc atteints par URL directe.
 > ⚠️ NON VÉRIFIÉ À L'ÉCRAN : la bascule demande une session, et je n'ai pas de
 > compte — même preuve manquante que le reste.

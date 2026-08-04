@@ -104,3 +104,35 @@ export function signInOutcome(answer: AuthAnswer | null | undefined): SignInOutc
 export function emailIsPrimary(d: SignInDoors): boolean {
   return d.email && !d.apple && !d.google;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LA PORTE D'ENTRÉE — quel écran voit quelqu'un qui n'a pas de session
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ce que le stockage sait de l'onboarding. `reading` = on ne sait pas ENCORE. */
+export type OnboardingSeen = 'reading' | 'seen' | 'unseen';
+
+/**
+ * L'écran vers lequel envoyer quelqu'un sans session.
+ *
+ *   · `wait`      — on LIT encore le drapeau. On ne choisit pas une porte sur
+ *     une valeur par défaut : « un chargement n'affirme rien sur le joueur ».
+ *   · `onboarding` — il n'a jamais vu les deux écrans.
+ *   · `signIn`    — il les a vus, il lui manque un compte.
+ */
+export type EntryDoor = 'wait' | 'onboarding' | 'signIn';
+
+/**
+ * Drapeau → porte. PURE.
+ *
+ * ⚠️ UN DRAPEAU ILLISIBLE ENVOIE VERS L'ONBOARDING, pas vers la connexion. Le
+ * sens du doute compte : se tromper vers l'onboarding coûte deux écrans à
+ * quelqu'un qui les avait déjà vus, et il en ressort de toute façon par la
+ * connexion. Se tromper dans l'autre sens sauterait la seule explication du jeu,
+ * et déposerait un nouveau venu devant une demande de compte sans lui avoir dit
+ * ce qu'il achète. C'est la règle que la garde legacy avait déjà tranchée ainsi.
+ */
+export function entryDoor(seen: OnboardingSeen): EntryDoor {
+  if (seen === 'reading') return 'wait';
+  return seen === 'seen' ? 'signIn' : 'onboarding';
+}

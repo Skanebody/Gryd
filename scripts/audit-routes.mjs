@@ -65,24 +65,11 @@ const KNOWN_ORPHANS = new Map([
   // moitié fini. La bascule sera UN changement de route d'entrée — et ces deux
   // lignes devront alors DISPARAÎTRE d'ici, sans quoi l'audit cesserait de
   // surveiller les vraies orphelines du groupe.
-  // ⚠️ RAISON CHANGÉE LE 03/08/2026 — la bascule d'entrée a EU LIEU pour
-  // l'accueil : un joueur connecté atterrit sur `/carte` (MVP) et non plus sur
-  // les onglets legacy. Ces deux-là restent orphelines pour une raison PLUS
-  // ÉTROITE : le drapeau `onboardingDone` que lit la garde vit dans un hook
-  // legacy, qu'ADR-001 interdit d'importer depuis la nouvelle UI. Tant qu'un
-  // drapeau MVP ne le remplace pas, la porte d'onboarding reste l'ancienne.
-  [
-    '/bienvenue',
-    'onboarding MVP 1/2 (lot M2) — l’accueil A basculé (03/08), pas la porte ' +
-      'd’onboarding : le drapeau `onboardingDone` vit dans un hook legacy ' +
-      'qu’ADR-001 interdit d’importer. Ces lignes disparaissent avec le ' +
-      'drapeau MVP qui le remplacera (BACKLOG).',
-  ],
-  [
-    '/position',
-    'onboarding MVP 2/2, priming des permissions (lot M2) — même raison que ' +
-      '/bienvenue : c’est la porte d’onboarding, pas l’accueil, qui attend encore.',
-  ],
+  // ⚠️ `/bienvenue` et `/position` ONT ÉTÉ RETIRÉS D'ICI le 03/08/2026 : la
+  // bascule de la porte d'entrée leur a donné une vraie porte
+  // (`app/(tabs)/_layout.tsx` y redirige quiconque n'a pas de session). C'est
+  // précisément ce que leur ancienne entrée annonçait devoir arriver — les
+  // laisser aurait fait de l'audit un tampon plutôt qu'une surveillance.
   [
     '/course-live',
     'Live Run LEGACY — devenu orphelin PAR LA BASCULE du 03/08/2026, et c’est ' +

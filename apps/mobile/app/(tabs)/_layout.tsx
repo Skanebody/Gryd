@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 /**
  * GRYD — layout (tabs) : BARRE D'ONGLETS BASSE PERSISTANTE custom (GrydNavBar)
  * par-dessus des Tabs expo-router dont la tab bar NATIVE est masquée.
@@ -88,8 +89,9 @@ import { StyleSheet, View } from 'react-native';
 import { colors } from '@klaim/shared';
 import { SplashE00 } from '../../src/features/boot/SplashE00';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
-import { useOnboardingState } from '../../src/features/onboarding/store';
 import { SETUP_ENTRY, decideFirstRun } from '../../src/features/setup/firstRun';
+import { entryDoor, type OnboardingSeen } from '../../src/mvp/onboarding/signIn';
+import { readOnboardingSeen } from '../../src/mvp/onboarding/seen';
 import { useMinimalProfile } from '../../src/features/setup/minimalProfile';
 import { C } from '../../src/i18n/catalog/nav';
 import { useT } from '../../src/i18n/store';
@@ -97,7 +99,25 @@ import { useSession } from '../../src/lib/session';
 
 export default function TabsLayout() {
   const { session, loading, configured } = useSession();
-  const { state: onboarding, status: onboardingStatus } = useOnboardingState();
+  // Drapeau d'onboarding MVP — lu ICI plutôt que par le store legacy (ADR-001,
+  // voir la garde plus bas). `reading` tant que le stockage n'a pas répondu :
+  // on ne choisit pas une porte sur une valeur par défaut.
+  const [mvpSeen, setMvpSeen] = useState<OnboardingSeen>('reading');
+  useEffect(() => {
+    let vivant = true;
+    readOnboardingSeen()
+      .then((v) => {
+        if (vivant) setMvpSeen(v);
+      })
+      // `readOnboardingSeen` ne jette pas ; ce `catch` couvre l'imprévu et
+      // choisit le même sens du doute — l'onboarding, jamais la connexion.
+      .catch(() => {
+        if (vivant) setMvpSeen('unseen');
+      });
+    return () => {
+      vivant = false;
+    };
+  }, []);
   // ⚠️ Règle des hooks : déclaré AVANT tout retour anticipé. Il ne déclenche
   // aucune requête tant qu'il n'y a ni backend ni session (`shouldStartRead`).
   const minimalProfile = useMinimalProfile(session?.user?.id ?? null);
@@ -110,15 +130,24 @@ export default function TabsLayout() {
   // seulement là, que le drapeau local d'onboarding décide de la porte.
   // Une session existante ne consulte plus rien — voir l'entête.
   if (configured && !session) {
-    // Lecture du drapeau EN COURS : fond noir muet. On ne choisit pas une porte
-    // sur une valeur par défaut (« un chargement n'affirme rien sur le joueur »).
-    // Borné : le store plafonne la lecture, elle finit toujours par trancher
-    // entre `ready` et `unavailable` — jamais de noir éternel.
-    if (onboardingStatus === 'reading') return <View style={styles.root} />;
-    // `/sign-in` UNIQUEMENT sur une réponse LUE. Illisible ⇒ /onboarding, qui
-    // re-demande et garde la porte de connexion ouverte (voir l'entête).
-    const seen = onboardingStatus === 'ready' && onboarding.onboardingDone;
-    return <Redirect href={seen ? '/sign-in' : '/onboarding'} />;
+    // ══════════ BASCULE DE LA PORTE D'ENTRÉE — 03/08/2026 ══════════════════
+    // Les écrans sans session sont désormais ceux du MVP : `/bienvenue` (les
+    // deux écrans d'onboarding) puis `/connexion`. La bascule de l'ACCUEIL
+    // avait eu lieu plus tôt dans la journée ; il manquait la porte.
+    //
+    // Le drapeau lu est CELUI DU MVP (`mvp/onboarding/seen.ts`), pas celui du
+    // legacy : ce dernier vit dans un hook d'UI, et ADR-001 interdit à la
+    // nouvelle UI d'en dépendre. Conséquence assumée — quelqu'un qui avait vu
+    // l'ANCIEN onboarding reverra les deux écrans MVP une fois. Deux écrans,
+    // une seule fois, contre une dépendance permanente vers le legacy.
+    //
+    // La DÉCISION est pure et testée (`entryDoor`) : lecture en cours ⇒ on
+    // n'affirme rien, et un drapeau illisible envoie vers l'ONBOARDING — se
+    // tromper de ce côté coûte deux écrans, l'autre sauterait la seule
+    // explication du jeu.
+    const porte = entryDoor(mvpSeen);
+    if (porte === 'wait') return <View style={styles.root} />;
+    return <Redirect href={porte === 'signIn' ? '/connexion' : '/bienvenue'} />;
   }
 
   // ── PORTE DU PREMIER USAGE (E08 → E09 → E10 → carte) ──────────────────────

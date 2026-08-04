@@ -25,6 +25,7 @@ import * as Location from 'expo-location';
 import { Stage } from '../../src/mvp/ui/Stage';
 import { TerritoryMark } from '../../src/mvp/ui/TerritoryMark';
 import { permissionOutcome, type PermissionOutcome } from '../../src/mvp/onboarding/permission';
+import { markOnboardingSeen } from '../../src/mvp/onboarding/seen';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { EVENTS } from '@klaim/shared';
@@ -75,6 +76,10 @@ export default function Position() {
       // qui divergeraient à la première analyse. Même information, un seul nom.
       track(EVENTS.permissionLocation, { result: suite });
       if (suite === 'granted') {
+        // Le drapeau se pose ICI, à la sortie de l'onboarding — pas à son
+        // entrée. Le poser au montage marquerait « vu » quelqu'un qui a fermé
+        // l'app au premier écran, et lui ferait manquer l'explication du jeu.
+        await markOnboardingSeen();
         router.replace(APRES);
         return;
       }
@@ -106,7 +111,17 @@ export default function Position() {
         busy,
         onPress: issue === 'settings' ? () => void Linking.openSettings() : () => void demander(),
       }}
-      link={{ label: t(C.obSkip), onPress: () => router.replace(SANS_COMPTE) }}
+      link={{
+        // Le drapeau se pose AUSSI sur cette sortie : « voir la carte d'abord »
+        // est une façon légitime de terminer l'onboarding, pas une évasion. Ne
+        // pas le poser ferait revenir les deux écrans à chaque ouverture, à
+        // quelqu'un qui a justement dit qu'il voulait passer.
+        label: t(C.obSkip),
+        onPress: () => {
+          void markOnboardingSeen();
+          router.replace(SANS_COMPTE);
+        },
+      }}
     />
   );
 }

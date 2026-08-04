@@ -7,7 +7,15 @@
  * s'engager — et ces combinaisons ne se produisent pas toutes seules sur
  * l'appareil qu'on a sous la main.
  */
-import { emailIsPrimary, hasAnyDoor, signInDoors, signInOutcome, type SignInCapability } from './signIn';
+import {
+  emailIsPrimary,
+  entryDoor,
+  hasAnyDoor,
+  signInDoors,
+  signInOutcome,
+  type OnboardingSeen,
+  type SignInCapability,
+} from './signIn';
 
 declare const Deno: { test(nom: string, fn: () => void | Promise<void>): void };
 
@@ -132,4 +140,25 @@ Deno.test('INVARIANT : il y a TOUJOURS une action primaire quand il y a une port
       `aucune action primaire malgré une porte : ${JSON.stringify(c)}`,
     );
   }
+});
+
+// ─── La porte d'entrée ──────────────────────────────────────────────────────
+
+Deno.test('drapeau EN LECTURE → on attend, on ne choisit pas de porte', () => {
+  // « Un chargement n'affirme rien sur le joueur » : router sur une valeur par
+  // défaut ferait clignoter un écran qui n'était pas le bon.
+  assertEquals(entryDoor('reading'), 'wait');
+});
+
+Deno.test('jamais vu → l’onboarding ; déjà vu → la connexion', () => {
+  assertEquals(entryDoor('unseen'), 'onboarding');
+  assertEquals(entryDoor('seen'), 'signIn');
+});
+
+Deno.test('un drapeau ILLISIBLE renvoie vers l’ONBOARDING, jamais vers la connexion', () => {
+  // Le sens du doute : se tromper vers l'onboarding coûte deux écrans à
+  // quelqu'un qui les avait vus, et il en ressort par la connexion de toute
+  // façon. L'inverse sauterait la seule explication du jeu et déposerait un
+  // nouveau venu devant une demande de compte sans lui dire ce qu'il achète.
+  assertEquals(entryDoor('unsupported' as OnboardingSeen), 'onboarding');
 });

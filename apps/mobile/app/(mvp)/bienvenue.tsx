@@ -35,7 +35,16 @@ export default function Bienvenue() {
       photo={require('../../assets/onboarding/e01-crew.jpg')}
       title={t(C.obTitle)}
       body={t(C.obBody)}
-      cta={{ label: t(C.obCta), onPress: () => router.push('/(mvp)/position') }}
+      cta={{
+        // `/position` et non `/(mvp)/position` : les groupes expo-router sont
+        // transparents, les deux formes mènent au même écran — mais l'audit de
+        // routes ne reconnaît que la seconde comme une PORTE. Écrire la forme
+        // longue rendait `/position` orpheline aux yeux du script, ce qui
+        // l'obligeait à vivre dans `KNOWN_ORPHANS` alors qu'elle était liée.
+        // Tout le reste du groupe navigue déjà sans le préfixe.
+        label: t(C.obCta),
+        onPress: () => router.push('/position'),
+      }}
     />
   );
 }
