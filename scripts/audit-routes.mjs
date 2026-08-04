@@ -202,6 +202,79 @@ for (const [link, files] of refs) {
 }
 
 const orphans = [...routes.keys()].filter((r) => (inbound.get(r)?.size ?? 0) === 0);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ATTEIGNABILITÉ RÉELLE — ajoutée le 03/08/2026, après un défaut passé au VERT
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Ce qui précède mesure « existe-t-il un lien ÉCRIT vers cette route ». Ce n'est
+// pas la même question que « un joueur peut-il y arriver », et l'écart s'est
+// payé le jour de la bascule d'entrée : `app/(tabs)/_layout.tsx` renvoie
+// désormais vers `/carte` par un `return` inconditionnel, donc AUCUN écran des
+// onglets ne rend plus — mais leurs liens croisés restaient écrits, et chacun
+// donnait une porte à l'autre. Le graphe legacy s'auto-alimentait.
+//
+// Résultat : la suppression de compte, l'export RGPD, la confidentialité et
+// l'aide sont devenues injoignables — un REFUS App Store garanti (5.1.1(v)) —
+// et cet audit est resté vert. Il ne mesurait plus rien de ce qui comptait.
+//
+// D'où un second passage, en PARTANT DES PORTES.
+
+/**
+ * Les routes sur lesquelles l'app peut RÉELLEMENT s'ouvrir.
+ *
+ * Ce sont les trois issues de la garde d'entrée (`app/(tabs)/_layout.tsx`) :
+ * l'onboarding si le drapeau n'est pas posé, la connexion s'il l'est, la carte
+ * si une session existe.
+ *
+ * ⚠️ `/` N'EN FAIT PAS PARTIE, et c'est tout le sujet : la garde y redirige
+ * AVANT que `(tabs)/index.tsx` ne rende. L'inscrire ici rouvrirait tout l'arbre
+ * legacy par la porte même qu'on vient de condamner, et cet audit recommencerait
+ * à s'auto-satisfaire.
+ */
+const ENTRY_ROUTES = ['/bienvenue', '/connexion', '/carte'];
+
+/**
+ * Ce qui DOIT rester atteignable, sous peine de refus App Store ou d'infraction.
+ * Cette liste n'est pas une préférence : chaque entrée porte une obligation.
+ */
+const REQUIRED_REACHABLE = new Map([
+  ['/confidentialite', 'politique de confidentialité + export RGPD (portabilité)'],
+  ['/code-conduite', 'CGU / règles de communauté'],
+  ['/support', 'contact d’assistance — exigé par l’App Store'],
+  ['/sign-in', 'la connexion : sans elle, aucun compte ne peut être créé'],
+]);
+
+// fichier → routes qu'il désigne, puis route → routes (le graphe de navigation).
+const outByFile = new Map();
+for (const [link, files] of refs) {
+  const r = matchRoute(link);
+  if (!r) continue;
+  for (const f of files) {
+    if (!outByFile.has(f)) outByFile.set(f, new Set());
+    outByFile.get(f).add(r);
+  }
+}
+const outByRoute = new Map();
+for (const [r, files] of routes) {
+  const s = new Set();
+  for (const f of files) for (const x of outByFile.get(f) ?? []) s.add(x);
+  outByRoute.set(r, s);
+}
+
+const reachable = new Set();
+const file = [...ENTRY_ROUTES];
+while (file.length > 0) {
+  const r = file.shift();
+  if (reachable.has(r) || !routes.has(r)) continue;
+  reachable.add(r);
+  for (const next of outByRoute.get(r) ?? []) if (!reachable.has(next)) file.push(next);
+}
+
+const unreachable = [...routes.keys()].filter((r) => !reachable.has(r));
+const requiredLost = [...REQUIRED_REACHABLE.keys()].filter(
+  (r) => routes.has(r) && !reachable.has(r),
+);
 const dead = [];
 for (const [link, files] of refs) {
   if (NOT_A_LINK.has(link) || link === '/') continue;
@@ -219,10 +292,33 @@ for (const r of orphans) {
 console.log(`\nLIENS SANS ROUTE (${dead.length})`);
 for (const d of dead) console.log(`  ⚠ ${d.link} — dans ${d.files.slice(0, 3).join(', ')}`);
 
+console.log(`\nATTEIGNABLES depuis les portes d'entrée : ${reachable.size} / ${routes.size}`);
+if (unreachable.length > 0) {
+  // INFORMATIF, pas bloquant : depuis la bascule (ADR-001, mode hybride), tout
+  // l'arbre legacy est légitimement injoignable — c'est le but. Le CHIFFRE est
+  // affiché pour qu'il ne dérive pas en silence : s'il augmente d'un coup, c'est
+  // qu'une branche vivante vient d'être coupée.
+  console.log(`  (dont ${unreachable.length} injoignables — legacy en quarantaine, ADR-001)`);
+  if (process.env.GRYD_AUDIT_VERBOSE === '1') for (const r of unreachable) console.log(`      · ${r}`);
+}
+if (requiredLost.length > 0) {
+  console.log('\nOBLIGATIONS PERDUES :');
+  for (const r of requiredLost) console.log(`  ⚠ ${r} — ${REQUIRED_REACHABLE.get(r)}`);
+}
+
 const newOrphans = orphans.filter((r) => !KNOWN_ORPHANS.has(r));
 const stale = [...KNOWN_ORPHANS.keys()].filter((r) => !orphans.includes(r));
 if (stale.length > 0) {
   console.log(`\nÀ NETTOYER : ces orphelines ont trouvé une porte — ${stale.join(', ')}`);
+}
+if (requiredLost.length > 0) {
+  console.log(
+    '\nÉCHEC : un écran EXIGÉ n’est plus atteignable depuis les portes d’entrée.\n' +
+      'Ce n’est pas une orpheline : le lien existe peut-être encore, mais aucun\n' +
+      'joueur ne peut y arriver. C’est exactement le défaut que la bascule du\n' +
+      '03/08/2026 a produit, et que cet audit ne savait pas voir.',
+  );
+  process.exit(1);
 }
 if (newOrphans.length > 0 || dead.length > 0) {
   console.error('\nÉCHEC : route orpheline non documentée, ou lien vers une route inexistante.');

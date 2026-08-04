@@ -34,12 +34,12 @@ const ROWS = SETTINGS_GROUPS.flatMap((g) => g.rows);
  * finirait par accumuler des entrées que personne n'ose retirer.
  */
 const PORTES_DE_DERNIER_RECOURS: ReadonlyMap<string, string> = new Map([
-  [
-    '/abonnement',
-    'E75 : ses seules autres portes passent par /premium, lui-même derrière ' +
-      'flags.arsenal ou derrière la branche `locked` de /premium-analytics — ' +
-      'branche absente précisément quand le joueur EST abonné.',
-  ],
+  // ⚠️ `/abonnement` A ÉTÉ RETIRÉ DE CETTE LISTE le 03/08/2026 — ADR-011.
+  // La raison d'origine reste juste POUR UN PRODUIT QUI VEND : E75 était le
+  // dernier recours d'un ABONNÉ. GRYD étant 100 % gratuit au lancement, il n'y
+  // a plus d'abonné à secourir, et une porte vers un écran de gestion
+  // d'abonnement sans abonnement possible est un bouton mort au sens strict.
+  // L'assertion n'est pas supprimée : elle est RETOURNÉE plus bas.
 ]);
 
 Deno.test('paramètres : les portes de dernier recours existent, drapeaux compris', () => {
@@ -47,6 +47,18 @@ Deno.test('paramètres : les portes de dernier recours existent, drapeaux compri
   for (const [route, raison] of PORTES_DE_DERNIER_RECOURS) {
     assert(hrefs.has(route), `${route} n’a plus de porte dans les Paramètres — ${raison}`);
   }
+});
+
+Deno.test('ADR-011 : la porte d’ABONNEMENT est fermée tant que rien n’est à vendre', () => {
+  // Le pendant exact de la liste ci-dessus. Sans cette assertion, la ligne
+  // pourrait être rouverte sans offre — et personne ne le verrait avant qu'un
+  // joueur ne tape « Gérer dans le Store » pour un catalogue vide.
+  const ligne = ROWS.find((r) => r.href === '/abonnement');
+  assert(
+    ligne === undefined,
+    'la ligne « Abonnement et achats » est peinte alors que `flags.paidOffer` ' +
+      'est faux : elle mène à la gestion d’un abonnement qui ne peut pas exister.',
+  );
 });
 
 Deno.test('paramètres : ces portes ne dépendent d’AUCUN drapeau', async () => {

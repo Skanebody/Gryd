@@ -130,7 +130,17 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       // CE N'EST PAS UN BOUTON MORT : E75 gère lui-même ses quatre états de
       // lecture (chargement / pas connecté / pas de Store ici / échec) et ne
       // peint « Gérer dans le Store » que s'il a une `managementURL`.
-      { href: '/abonnement', label: CAbo.title, detail: CAbo.rowDetail, icon: 'couronne' },
+      // ⚠️ FERMÉE PAR ADR-011 (03/08/2026) — GRYD est 100 % GRATUIT au
+      // lancement. La raison écrite ci-dessus reste juste : cette ligne
+      // réparait un cul-de-sac pour les ABONNÉS. Il n'y en a plus, et un écran
+      // de gestion d'abonnement atteignable sans abonnement possible est un
+      // bouton mort au sens strict — il « marche », et ne mène à rien qui
+      // existe. `flags.paidOffer` la rouvrira d'un interrupteur le jour où un
+      // catalogue existera ; ni cette ligne, ni E75, ni le catalogue ne sont
+      // supprimés.
+      ...(flags.paidOffer
+        ? [{ href: '/abonnement', label: CAbo.title, detail: CAbo.rowDetail, icon: 'couronne' } as const]
+        : []),
       // D8 : Arsenal masqué hors MVP — la ligne disparaît avec la route.
       ...(flags.arsenal
         ? [

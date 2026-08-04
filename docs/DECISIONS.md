@@ -102,7 +102,12 @@ RESTE À FAIRE côté legacy : retirer `zoneLabel` du corps de `create_offensive
 **Décision fondateur** : « on fait un GRYD 100 % gratuit pour commencer, on implémentera un catalogue plus tard ; il faut un dashboard de suivi des performances optimisé mais pas assez poussé pour pouvoir implémenter une version payante plus tard ».
 
 ### Ce que ça veut dire, concrètement
-- **Aucune surface d'achat n'existe et aucune n'est peinte.** Vérifié : `app.json` ne déclare AUCUN achat intégré ; aucune route atteignable ne mène à `/premium`, `/abonnement` ou `/arsenal`.
+- **Aucun achat intégré n'est déclaré.** Vérifié dans `app.json` : zéro produit, zéro `StoreKit`.
+- ⚠️ **CORRECTION DU 03/08, LE JOUR MÊME.** La première rédaction affirmait qu'« aucune route atteignable ne mène à `/premium`, `/abonnement` ou `/arsenal` ». **C'ÉTAIT FAUX**, et je l'avais écrit comme vérifié. L'audit d'atteignabilité, ajouté quelques minutes plus tard, a montré deux portes ouvertes :
+  · la ligne « Abonnement et achats » des réglages (`features/settings/sections.ts`, ajoutée le 28/07 pour réparer un cul-de-sac d'ABONNÉ — il n'y en a plus) ;
+  · la ligne « analyse territoriale » de `/performance`, dont la branche « pas encore Club » renvoie vers `/premium`.
+  Les deux sont désormais fermées par **`flags.paidOffer: false`**. Rien n'est supprimé : la ligne, l'écran E75 et le catalogue restent en place, et la version payante redevient un interrupteur.
+- **Aucune capacité n'est bridée.** `GRYD_CAPABILITIES` conserve ses paliers (`free`/`plus`/`pro`) — ils décrivent un PLAN, pas une contrainte appliquée.
 - **Aucune capacité n'est bridée.** `GRYD_CAPABILITIES` conserve ses paliers (`free`/`plus`/`pro`) — ils décrivent un PLAN, pas une contrainte appliquée. Rien dans le code du MVP ne lit un palier pour refuser quoi que ce soit.
 - `react-native-purchases` reste une dépendance INERTE. La retirer serait un travail à refaire ; la laisser ne déclare rien par elle-même (aucun produit, aucun `app.json`).
 
@@ -110,6 +115,15 @@ RESTE À FAIRE côté legacy : retirer `zoneLabel` du corps de `create_offensive
 Le tableau de bord (`app/(mvp)/profil.tsx`) montre QUATRE chiffres : territoire, sorties, distance, dernière course. C'est ce qu'un coureur regarde entre deux sorties.
 
 Ce qu'il ne montre pas — allures par segment, dénivelé, tendances, comparaisons, carte de chaleur — **n'est pas un oubli**. C'est l'espace dans lequel une offre payante pourra s'installer plus tard sans rien reprendre : `control_heatmap` est déjà catalogué `plus`, et le module de lecture (`mvp/profil/read.ts`) agrège sans jamais jeter le détail.
+
+### Ce que l'outillage NE peut PAS prouver, et qu'il ne faut pas croire prouvé
+`audit-routes.mjs` fait de l'analyse STATIQUE : il voit les chaînes `'/premium'`
+écrites dans un fichier, pas la branche `flags.paidOffer` qui les entoure. Il
+continuera donc de compter ces routes comme « atteignables », et **il aurait
+tort**. Aucune vérification automatique n'a été ajoutée sur ce point : un contrôle
+qui rendrait un verdict faux vaut moins que pas de contrôle du tout — c'est ce
+que le fichier de réglages disait déjà de lui-même (« un vert qui ne prouvait pas
+la porte »). Ce qui garde la promesse, ici, c'est le drapeau et ce document.
 
 ### Ce qui doit rester vrai pour que ce soit honnête
 - **Aucun écran ne teasera un contenu payant** tant qu'il n'existe pas. Un « bientôt disponible » sur une fonction absente est un dark pattern (L17) et un bouton mort.

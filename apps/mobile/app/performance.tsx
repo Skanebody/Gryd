@@ -470,16 +470,26 @@ function StatsBody({
           ce n'est pas un bouton mort : l'écran d'arrivée sait dire lui-même son
           état — pas connecté / pas encore Club (aperçu honnête + renvoi vers
           /premium) / échec / lu. Rien n'y est floué ni fabriqué. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t(CA.entryA11y)}
-        onPress={openTerritoryAnalytics}
-        style={({ pressed }) => [styles.premiumRow, pressed && styles.pressed]}
-      >
-        <Text style={styles.premiumText}>{t(CA.entryRow)}</Text>
-        <Text style={styles.premiumCta}>{t(CA.entryCta)}</Text>
-        <Icon name="chevron" size={16} color={colors.gris} />
-      </Pressable>
+      {/* ⚠️ FERMÉE PAR ADR-011 (03/08/2026) — GRYD est 100 % GRATUIT au
+          lancement. Le raisonnement ci-dessus reste juste POUR UN PRODUIT QUI
+          VEND : l'écran d'arrivée sait dire son état, donc ce n'était pas un
+          bouton mort. Mais sa branche « pas encore Club » renvoie vers
+          `/premium`, c'est-à-dire vers une offre qui N'EXISTE PLUS. Peindre une
+          porte vers un catalogue vide serait le seul vrai bouton mort de la
+          page — et un teaser d'un contenu inexistant est un dark pattern (L17).
+          `flags.paidOffer` la rouvre d'un interrupteur : rien n'est supprimé. */}
+      {flags.paidOffer ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(CA.entryA11y)}
+          onPress={openTerritoryAnalytics}
+          style={({ pressed }) => [styles.premiumRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.premiumText}>{t(CA.entryRow)}</Text>
+          <Text style={styles.premiumCta}>{t(CA.entryCta)}</Text>
+          <Icon name="chevron" size={16} color={colors.gris} />
+        </Pressable>
+      ) : null}
 
       {/* Entrée Premium : une LIGNE légère en bas du gratuit, sans pression.
           La planche pose ce renvoi ; on le garde TOUJOURS présent, mais son état

@@ -91,6 +91,20 @@ export const flags = {
   /** Arsenal / boutique (skins, objets capés, GRYD Club). */
   arsenal: FULL_SURFACE,
   /**
+   * EXISTE-T-IL UNE OFFRE PAYANTE ? Non — ADR-011, GRYD est 100 % gratuit au
+   * lancement.
+   *
+   * ⚠️ Ce drapeau ne suit PAS `FULL_SURFACE`, et c'est délibéré : les autres
+   * masquent une surface CONSTRUITE qu'on rallumera. Celui-ci dit qu'il n'y a
+   * RIEN À VENDRE. Rouvrir la porte d'abonnement dans un build de test
+   * montrerait un écran de gestion d'un abonnement qui n'existe pas — un
+   * mensonge, pas une inspection.
+   *
+   * C'est aussi ce qui rend la version payante future un simple interrupteur :
+   * la ligne de réglages, l'écran E75 et le catalogue restent en place.
+   */
+  paidOffer: false,
+  /**
    * Univers VÉLO (planche E14 : commutateur Run/Bike dans les en-têtes de Carte,
    * Classement, Historique et Statistiques).
    *
