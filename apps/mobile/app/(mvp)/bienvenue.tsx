@@ -16,7 +16,6 @@
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Stage } from '../../src/mvp/ui/Stage';
-import { TerritoryMark } from '../../src/mvp/ui/TerritoryMark';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { screen } from '../../src/lib/analytics';
@@ -28,9 +27,14 @@ export default function Bienvenue() {
   }, []);
   return (
     <Stage
+      // LA PHOTO DU FONDATEUR, conservée telle quelle (`assets/onboarding/`).
+      // Elle répond à L9 mieux qu'un objet abstrait : elle dit CE QUE C'EST —
+      // des gens qui courent en ville — en une demi-seconde, avant toute
+      // demande. `TerritoryMark` reste sur l'écran SUIVANT, où il dit ce que la
+      // position va dessiner : les superposer les affaiblirait toutes les deux.
+      photo={require('../../assets/onboarding/e01-crew.jpg')}
       title={t(C.obTitle)}
       body={t(C.obBody)}
-      visual={<TerritoryMark />}
       cta={{ label: t(C.obCta), onPress: () => router.push('/(mvp)/position') }}
     />
   );

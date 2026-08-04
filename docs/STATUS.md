@@ -42,6 +42,7 @@
 ### Phase 1 — écrans MVP (mis à jour le 03/08/2026)
 | Écran | État | Preuve |
 |---|---|---|
+| Connexion | **OPÉRATIONNEL** | `app/(mvp)/connexion.tsx` + `mvp/onboarding/signIn.ts` (11 tests, les 8 combinaisons de capacité balayées). Portes DÉRIVÉES de la capacité réelle : Apple sondé (pas déduit de l'OS), Google selon client id, e-mail comme plancher. Aucun identifiant manipulé — l'e-mail mène à l'écran legacy qui gère déjà le code. Photo du fondateur conservée |
 | Onboarding (2 écrans + priming) | **OPÉRATIONNEL** | `app/(mvp)/bienvenue.tsx`, `position.tsx` ; `permission.test.ts` 8/8 (les 3 issues + le défaut prudent) ; captures 375×812 |
 | Home Map (empty + actif) | **OPÉRATIONNEL** | `app/(mvp)/carte.tsx` + `mvp/map/homeState.ts` (18 tests, balayage exhaustif des 72 entrées) + `territoryGeo.ts` (11) + `ui/area.ts` (7) ; fond `mvp/map/nightStyle.ts` ; capture de l'état `unavailable` |
 | Préflight + décompte | **OPÉRATIONNEL** | `app/(mvp)/prete.tsx` + `mvp/run/countdown.ts` (6 tests) ; un seul tap depuis la carte (L3) ; capture |
@@ -54,9 +55,9 @@
 > décision du parcours (`app/(tabs)/_layout.tsx`), et la reprise après crash mène
 > désormais à `/course` (MVP) : les deux écrans lisent le même buffer, donc une
 > course interrompue avant la bascule se reprend quand même.
-> ⚠️ RESTENT LEGACY : la CONNEXION (le groupe `(mvp)` n'a aucun écran d'auth —
-> basculer sans lui livrerait une app où on ne peut pas créer de compte) et la
-> PORTE d'onboarding (`onboardingDone` vit dans un hook legacy qu'ADR-001 interdit
+> **Connexion MVP FAITE le 03/08** — `/bienvenue` → `/position` → `/connexion` →
+> `/carte`. Le parcours est entièrement reconstruit.
+> ⚠️ RESTE LEGACY : la PORTE d'onboarding (`onboardingDone` vit dans un hook legacy qu'ADR-001 interdit
 > d'importer). `/bienvenue` et `/position` restent donc atteints par URL directe.
 > ⚠️ NON VÉRIFIÉ À L'ÉCRAN : la bascule demande une session, et je n'ai pas de
 > compte — même preuve manquante que le reste.

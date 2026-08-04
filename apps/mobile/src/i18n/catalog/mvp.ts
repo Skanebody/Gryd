@@ -338,6 +338,60 @@ export const C = defineCatalog({
     pt: 'Corrida retomada',
   },
 
+  // ══════════ CONNEXION — le seul écran dont on ne ressort pas sans succès ══
+  signInTitle: {
+    fr: 'Prends ta ville',
+    en: 'Claim your city',
+    es: 'Conquista tu ciudad',
+    de: 'Erobere deine Stadt',
+    pt: 'Conquiste sua cidade',
+  },
+  signInBody: {
+    fr: 'Un compte pour que ton territoire t’appartienne d’une course à l’autre.',
+    en: 'An account so your territory stays yours from one run to the next.',
+    es: 'Una cuenta para que tu territorio siga siendo tuyo de una carrera a otra.',
+    de: 'Ein Konto, damit dein Gebiet von Lauf zu Lauf deins bleibt.',
+    pt: 'Uma conta para que seu território continue seu de uma corrida a outra.',
+  },
+  signInApple: {
+    fr: 'Continuer avec Apple',
+    en: 'Continue with Apple',
+    es: 'Continuar con Apple',
+    de: 'Weiter mit Apple',
+    pt: 'Continuar com a Apple',
+  },
+  signInGoogle: {
+    fr: 'Continuer avec Google',
+    en: 'Continue with Google',
+    es: 'Continuar con Google',
+    de: 'Weiter mit Google',
+    pt: 'Continuar com o Google',
+  },
+  signInEmail: {
+    fr: 'Continuer par e-mail',
+    en: 'Continue with email',
+    es: 'Continuar por correo',
+    de: 'Weiter per E-Mail',
+    pt: 'Continuar por e-mail',
+  },
+  // Aucune porte : on DIT pourquoi plutôt que de peindre trois boutons inertes.
+  signInNoDoor: {
+    fr: 'GRYD ne joint aucun serveur. La connexion n’est pas possible pour l’instant.',
+    en: 'GRYD cannot reach any server. Signing in is not possible right now.',
+    es: 'GRYD no alcanza ningún servidor. No es posible iniciar sesión ahora.',
+    de: 'GRYD erreicht keinen Server. Anmelden ist gerade nicht möglich.',
+    pt: 'O GRYD não alcança nenhum servidor. Não é possível entrar agora.',
+  },
+  // L19 — un échec nomme un fait et laisse la porte ouverte. Une ANNULATION,
+  // elle, n'affiche rien du tout (voir `signIn.ts`).
+  signInFailed: {
+    fr: 'La connexion n’a pas abouti. Tu peux réessayer.',
+    en: 'Signing in did not go through. You can try again.',
+    es: 'El inicio de sesión no se completó. Puedes reintentar.',
+    de: 'Die Anmeldung ist nicht durchgegangen. Du kannst es erneut versuchen.',
+    pt: 'O login não foi concluído. Você pode tentar de novo.',
+  },
+
   // ══════════ ACCUEIL / CARTE — une phrase PAR ÉTAT, jamais une pour deux ══
   // `homeState.ts` distingue six réponses honnêtes à « qu'est-ce qui est à
   // moi ? ». Si deux d'entre elles partageaient un texte, la distinction ne

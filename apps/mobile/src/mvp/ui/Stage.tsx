@@ -26,12 +26,31 @@
  * qui garde « une seule action primaire » vrai à l'œil, pas seulement au type.
  */
 import { type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type ImageSourcePropType,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, radii, spacing, withAlpha } from '@klaim/shared';
 
 /** Cible tactile minimale (L4). Constante d'ACCESSIBILITÉ, pas de jeu. */
 const TOUCH_TARGET_PT = 44;
+
+/**
+ * Paliers du voile, du haut de la photo vers le bas.
+ *
+ * Ils commencent à ZÉRO : le haut de l'image reste intact, c'est lui qui porte
+ * la valeur montrée (L9). Et ils finissent à 1 — le bas devient le fond noir de
+ * l'app, ce qui fait que le bloc de texte semble s'y poser plutôt que flotter
+ * sur une photo. Assez de paliers pour qu'aucune marche ne se voie.
+ */
+const VOILE_PALIERS = [0, 0, 0.08, 0.2, 0.36, 0.54, 0.72, 0.88, 0.96, 1] as const;
 
 export interface StageAction {
   /** Déjà traduit. Impératif court (Annexe C). */
@@ -47,6 +66,7 @@ export function Stage({
   cta,
   link,
   visual,
+  photo,
 }: {
   readonly title: string;
   readonly body: string;
@@ -55,13 +75,51 @@ export function Stage({
   /** Sortie secondaire — TEXTE, jamais un bouton plein. */
   readonly link?: StageAction;
   readonly visual?: ReactNode;
+  /**
+   * PHOTO plein cadre, derrière le contenu.
+   *
+   * ─── POURQUOI UNE PHOTO ET PAS L'OBJET SIGNATURE ──────────────────────────
+   * Les deux répondent à L9 (« montrer la valeur avant de demander ») mais pas
+   * à la même question. La photo dit CE QUE C'EST — des gens qui courent en
+   * ville, reconnaissable en une demi-seconde. `TerritoryMark` dit CE QU'ON
+   * OBTIENT — une forme abstraite qui n'a de sens qu'une fois la mécanique
+   * expliquée. Les superposer les affaiblirait toutes les deux.
+   *
+   * ⚠️ Le fond `colors.noir` reste DERRIÈRE l'image : photo absente, lente ou
+   * en échec → écran sombre, jamais blanc, jamais vide.
+   */
+  readonly photo?: ImageSourcePropType;
 }) {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
+      {photo !== undefined ? (
+        <>
+          {/* DIMENSIONS EXPLICITES, pas `absoluteFill` — piège documenté par le
+              legacy et revérifié le 03/08 : sur react-native-web (le bundle qui
+              sert de preview), une image en `absoluteFill` n'est pas contrainte
+              à la fenêtre, donc `cover` recadre sur une surface plus grande que
+              l'écran. Résultat : un gros plan de visage là où la planche montre
+              un peloton. */}
+          <Image source={photo} resizeMode="cover" style={[styles.photo, { width, height }]} />
+          {/* VOILE DÉGRADÉ — pas un aplat. Un aplat uniforme éteindrait la photo
+              partout ; le dégradé ne l'assombrit QUE là où le texte se pose.
+              Sans lui, un titre blanc sur un ciel clair devient illisible : ce
+              n'est pas une préférence esthétique, c'est L15 (contraste AA).
+              Fait en BANDES et non avec `expo-linear-gradient` : ce paquet est
+              absent du projet, et le legacy avait déjà tranché ainsi plutôt que
+              d'ajouter une dépendance native pour un fondu. */}
+          <View style={styles.voile} pointerEvents="none">
+            {VOILE_PALIERS.map((o, i) => (
+              <View key={i} style={{ flex: 1, backgroundColor: withAlpha(colors.noir, o) }} />
+            ))}
+          </View>
+        </>
+      ) : null}
       {/* Le contenu défile ; l'action, elle, ne défile JAMAIS hors de portée. */}
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, photo !== undefined && styles.contentPhoto]}
         showsVerticalScrollIndicator={false}
       >
         {visual}
@@ -113,6 +171,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
   },
+  // Avec une photo, le texte descend : le haut de l'image doit rester LISIBLE
+  // (c'est elle qui porte la valeur montrée), et le voile n'assombrit que le bas.
+  contentPhoto: { justifyContent: 'flex-end' },
+  photo: { position: 'absolute', top: 0, left: 0 },
+  voile: { ...StyleSheet.absoluteFillObject, flexDirection: 'column' },
   title: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xxl },
   body: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.md, lineHeight: 24 },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm },

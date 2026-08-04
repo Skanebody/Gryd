@@ -33,11 +33,27 @@ import { screen, track } from '../../src/lib/analytics';
 /**
  * Là où mène la fin de l'onboarding — la carte, dans tous les cas.
  *
- * Depuis M3, c'est la carte MVP et non plus la racine legacy : envoyer quelqu'un
- * qui vient de voir deux écrans MVP sur l'ancien accueil lui ferait traverser
- * deux produits en trois taps.
+ * Depuis M10, c'est la CONNEXION : l'onboarding se termine, et la carte demande
+ * un compte pour dire ce qui est à toi. Envoyer directement à la carte ferait
+ * lire « Sans compte, GRYD ne sait pas encore ce qui est à toi » à quelqu'un qui
+ * vient d'accepter de jouer — une phrase vraie, au pire moment, sans porte.
+ *
+ * ⚠️ Y compris quand la permission est REFUSÉE, et c'est délibéré : refuser sa
+ * position n'est pas refuser de jouer, et la carte a un état vide honnête. Le
+ * lien « Voir la carte d'abord » reste, lui, la sortie directe.
  */
-const APRES = '/carte';
+const APRES = '/connexion';
+
+/**
+ * Où mène « Voir la carte d'abord ». La CARTE — son libellé le dit.
+ *
+ * ⚠️ Une version de ce fichier a fait pointer ce lien sur `/connexion` en même
+ * temps que le CTA. Le libellé promettait alors une chose et en faisait une
+ * autre : c'est la faute que tout le reste de cet écran existe pour éviter.
+ * Refuser de créer un compte tout de suite est un choix légitime, et la carte a
+ * un état vide honnête qui se suffit.
+ */
+const SANS_COMPTE = '/carte';
 
 export default function Position() {
   const t = useT();
@@ -90,7 +106,7 @@ export default function Position() {
         busy,
         onPress: issue === 'settings' ? () => void Linking.openSettings() : () => void demander(),
       }}
-      link={{ label: t(C.obSkip), onPress: () => router.replace(APRES) }}
+      link={{ label: t(C.obSkip), onPress: () => router.replace(SANS_COMPTE) }}
     />
   );
 }
