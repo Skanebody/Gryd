@@ -109,7 +109,9 @@ RESTE À FAIRE côté legacy : retirer `zoneLabel` du corps de `create_offensive
   Les deux sont désormais fermées par **`flags.paidOffer: false`**. Rien n'est supprimé : la ligne, l'écran E75 et le catalogue restent en place, et la version payante redevient un interrupteur.
 - **Aucune capacité n'est bridée.** `GRYD_CAPABILITIES` conserve ses paliers (`free`/`plus`/`pro`) — ils décrivent un PLAN, pas une contrainte appliquée.
 - **Aucune capacité n'est bridée.** `GRYD_CAPABILITIES` conserve ses paliers (`free`/`plus`/`pro`) — ils décrivent un PLAN, pas une contrainte appliquée. Rien dans le code du MVP ne lit un palier pour refuser quoi que ce soit.
-- `react-native-purchases` reste une dépendance INERTE. La retirer serait un travail à refaire ; la laisser ne déclare rien par elle-même (aucun produit, aucun `app.json`).
+- `react-native-purchases` reste une dépendance INERTE — **et « inerte » est vérifié, pas supposé**. Le SDK ne contacte RevenueCat qu'à l'appel de `configurePurchases`, et seuls DEUX fichiers y touchent hors de `features/premium/` : `app/arsenal.tsx` (derrière `flags.arsenal`) et `app/premium.tsx` (derrière `flags.paidOffer`). Les deux drapeaux sont fermés.
+  **Pourquoi ça compte au-delà du produit** : cet appel emporte un identifiant utilisateur vers un tiers, donc un partage de données à déclarer dans les réponses « App Privacy » de l'App Store. Le déclarer sans rien vendre serait absurde ; ne pas le déclarer alors que l'appel part serait une FAUSSE déclaration. La seule position tenable est que l'appel ne parte pas — `noReachableCaller.test.ts` verrouille la liste, et rougira si un troisième écran apparaît.
+  La retirer serait un travail à refaire pour rien.
 
 ### La marge, et pourquoi elle est délibérée
 Le tableau de bord (`app/(mvp)/profil.tsx`) montre QUATRE chiffres : territoire, sorties, distance, dernière course. C'est ce qu'un coureur regarde entre deux sorties.

@@ -78,4 +78,11 @@
 > Verdict L1–L19 des 8 écrans : `docs/UX-GATE-PHASE1.md` — **CONFORME SOUS RÉSERVE**
 > (L7 et L14 partielles, L13 absente et hors périmètre, L3 non vérifiable avant la bascule).
 
+### Prêt à builder (03/08/2026)
+`expo-doctor` : **18/18**. `eas.json` a ses trois profils ; `ios.buildNumber` est
+absent À RAISON (`appVersionSource: remote` + `autoIncrement` — c'est EAS qui le
+tient). Bundle `fr.nexus1993.gryd`, permissions de position rédigées dans le
+plugin `expo-location`. Ce qui manque est côté fondateur : les credentials Apple
+(O2). **Rien dans le dépôt ne bloque un build.**
+
 **Compteur : 1 opérationnel · 2 partiels · 28 absents.** (pipeline territorial : bornes, fermeture assistée, verdict au contrat et 8 fixtures — reste l'écran)
