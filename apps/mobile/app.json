@@ -45,6 +45,7 @@
   },
   "_note_updates_retire": "expo-updates RETIRÉ ENTIÈREMENT le 20/07/2026 (crash au démarrage du 1er build iOS). Le .ips prouve que le crash survient sur expo.controller.errorRecoveryQueue MÊME avec EXUpdatesEnabled=false dans le plist du build (vérifié par UUID + plutil sur l'IPA) : ErrorRecovery avale l'erreur réelle, attend 5 s une update de secours (canal jamais publié), puis abort — crash muet. enabled:false n'a PAS suffi → dépendance désinstallée + channel retirés d'eas.json (sinon EAS la réinstalle tout seul, cf. 39a6299). À réintroduire une fois l'app stable : réinstaller expo-updates, remettre updates.url + runtimeVersion + channels, et publier une 1re update AVANT tout build pour que la récupération ait un filet.",
   "_note_push_perimetre3": "NOTIFICATIONS DE DECAY (PÉRIMÈTRE 3, 21/07/2026) — le plugin `expo-notifications` ci-dessous ajoute au build iOS l'entitlement `aps-environment` et, côté Android, la plomberie FCM. TOUT le reste de la chaîne est déjà réel : migration 0048 (`push_devices` + `register_push_device`), `_shared/push.ts` (préférences, quiet hours dans le fuseau de l'appareil, cap PUSH_MAX_PER_DAY), `_shared/expo-push.ts` (POST exp.host) et `decay_job` qui envoie à J-3. CE QUI RESTE AU FONDATEUR, et que le code ne peut pas faire à sa place : (1) `eas credentials` → iOS → générer/uploader la clé APNs (.p8) sur le projet EAS `4c80219c-…` ; (2) Android : déposer le `google-services.json` FCM v1 dans les credentials EAS ; (3) rebuilder l'app (les tokens n'existent qu'à partir de ce build) ; (4) OPTIONNEL, seulement si « Enhanced Security for Push Notifications » est activé sur le compte Expo : `npx supabase secrets set EXPO_ACCESS_TOKEN=…`. Tant que (1)-(3) ne sont pas faits, `getExpoPushTokenAsync` échoue et l'écran Réglages > Notifications affiche « Pas encore disponibles sur cette version de l'app » — jamais un bouton qui prétend activer quelque chose. Détail complet : docs/BACKLOG-SOURCES.md.",
+  "_note_push_retire_2026_08_09": "PLUGIN `expo-notifications` RETIRÉ DU BUILD le 09/08/2026 — et la note ci-dessus avait prédit exactement pourquoi. Il ajoutait l'entitlement `aps-environment` ; le profil de provisioning ne porte pas la capacité Push, parce que les étapes (1)-(3) de `_note_push_perimetre3` (clé APNs .p8 via `eas credentials`, google-services.json FCM, rebuild) n'ont jamais été faites. Le build iOS `preview` échouait donc en 2 min sur XCODE_BUILD_ERROR, avant même de compiler. Ce n'était pas un accident de configuration : l'app DÉCLARAIT une capacité qu'aucun écran atteignable n'utilise — aucun fichier de `app/(mvp)/` ni de `src/mvp/` n'importe expo-notifications, et L16 (notifications) est explicitement « sans objet au MVP, Phase 2 ». La dépendance npm RESTE installée (le legacy en quarantaine l'importe, et le typecheck en a besoin) : seule la DÉCLARATION native part. Rien du travail serveur n'est perdu — migration 0048, _shared/push.ts, _shared/expo-push.ts et decay_job sont intacts. POUR RÉACTIVER : faire (1)-(3) de la note ci-dessus, remettre ce bloc de plugin, rebuilder. ⚠️ Au passage : la couleur d'icône déclarée ici était #B4FF0D, qui n'est PAS la chartreuse de marque (#C2FF23, token colors.chartreuse) — à corriger en la remettant, cf. ADR-008.",
   "expo": {
     "name": "GRYD",
     "slug": "gryd",
@@ -126,13 +127,6 @@
         }
       ],
       "expo-apple-authentication",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#B4FF0D"
-        }
-      ],
       "@maplibre/maplibre-react-native",
       "expo-localization"
     ],
