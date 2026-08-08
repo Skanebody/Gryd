@@ -42,8 +42,20 @@ export default function Bienvenue() {
         // longue rendait `/position` orpheline aux yeux du script, ce qui
         // l'obligeait à vivre dans `KNOWN_ORPHANS` alors qu'elle était liée.
         // Tout le reste du groupe navigue déjà sans le préfixe.
+        //
+        // ⚠️ `replace` ET NON `push`. Constaté en preview le 03/08 : avec un
+        // `push`, cet écran RESTE SOUS la pile, et un swipe depuis le bord
+        // gauche depuis la CARTE ramenait dans le tutoriel — le geste le plus
+        // courant d'iOS renvoyait à l'écran qu'on venait de finir. `/position`
+        // remplace ensuite par la connexion ou la carte : la pile ne contient
+        // donc jamais d'onboarding une fois qu'on en est sorti.
+        //
+        // Le prix : on ne peut plus revenir de `/position` à `/bienvenue`. Sur
+        // un tutoriel de DEUX écrans dont le CTA est à sens unique, revenir en
+        // arrière n'apporte rien — et se retrouver dans le tutoriel depuis la
+        // carte coûte infiniment plus.
         label: t(C.obCta),
-        onPress: () => router.push('/position'),
+        onPress: () => router.replace('/position'),
       }}
     />
   );

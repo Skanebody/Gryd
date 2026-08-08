@@ -29,8 +29,7 @@ espagnol (+ de/pt existants : gelés, FR/EN seuls maintenus) · zones interdites
 - ~~**Écran de CONNEXION MVP**~~ — **FAIT le 03/08/2026** (`app/(mvp)/connexion.tsx`). Reste legacy : le FORMULAIRE de code à usage unique, vers lequel « Continuer par e-mail » renvoie. Le refaire à la hâte serait réécrire une surface d'authentification sans raison — à reprendre quand le reste sera stabilisé.
 - ~~**Drapeau d'onboarding MVP**~~ — **FAIT le 03/08/2026** (`mvp/onboarding/seen.ts`, clé propre). Les lignes `KNOWN_ORPHANS` de `/bienvenue` et `/position` ont bien disparu, comme leur entrée l'annonçait. Effet de bord assumé : qui avait vu l'ANCIEN onboarding reverra les deux écrans MVP une fois — deux écrans, une seule fois, contre une dépendance permanente vers un hook legacy.
 - ~~**La reprise legacy au lancement détourne les routes `(mvp)`.**~~ RÉGLÉ par la bascule du 03/08 : elle mène désormais à `/course`.
-- **(obsolète, gardé pour mémoire)** `app/_layout.tsx` pousse `/course-live` dès qu'une course interrompue existe, quelle que soit l'URL demandée — vérifié en preview le 03/08/2026 sur `/carte`. À retirer AU BASCULEMENT, en même temps que les `KNOWN_ORPHANS` : c'est `(mvp)/carte.tsx` qui portera l'offre de reprise.
-- **Bascule d'entrée du groupe `(mvp)`.** `/bienvenue`, `/position`, `/carte`, `/prete`, `/course` ne sont atteints que par URL directe. Les lignes `KNOWN_ORPHANS` de `scripts/audit-routes.mjs` DOIVENT disparaître au basculement.
+- ~~La reprise legacy détourne les routes `(mvp)`~~ · ~~Bascule d'entrée du groupe `(mvp)`~~ — **FAITS le 03/08/2026**, tous les deux. La reprise mène à `/course`, l'app ouvre sur `/bienvenue`, et les lignes `KNOWN_ORPHANS` correspondantes ont bien disparu comme elles l'annonçaient.
 
 ## Dettes héritées à ne pas perdre
 - `territories.owner_id` polymorphe : purge OK depuis 0111 ; l'arbitrage produit « supprimer vs relâcher » est tranché (suppression) et testé.
