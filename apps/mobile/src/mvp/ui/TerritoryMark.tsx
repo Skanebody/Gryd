@@ -21,9 +21,23 @@
  * Accessibility="no-hide-descendants"`. Un lecteur d'écran doit entendre le
  * titre, pas un polygone. L'information reste portée par le texte.
  */
-import { View } from 'react-native';
+import { Animated, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '@klaim/shared';
+
+/**
+ * `Path` animable — pour que le CONTOUR et le REMPLISSAGE puissent apparaître
+ * SÉPARÉMENT (L7 : « le contour se stabilise → remplissage → gain »).
+ *
+ * ⚠️ `fillOpacity` et `strokeOpacity` sont des props SVG, pas des styles : elles
+ * ne passent PAS par le pilote natif. L'animation qui les commande doit donc
+ * tourner en `useNativeDriver: false` — mélanger les deux pilotes sur une même
+ * valeur lève une erreur à l'exécution.
+ */
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+/** Une opacité : constante, ou pilotée par une animation. */
+type Opacite = number | Animated.AnimatedInterpolation<number>;
 
 /**
  * Anneau FERMÉ aux proportions d'un vrai tour de pâté de maisons.
@@ -46,7 +60,17 @@ import { colors } from '@klaim/shared';
 const RING =
   'M22 54 L74 20 L119 34 L128 59 L152 74 L143 121 L92 150 L47 133 L33 93 Z';
 
-export function TerritoryMark({ size = 200 }: { readonly size?: number }) {
+export function TerritoryMark({
+  size = 200,
+  strokeOpacity = 1,
+  fillOpacity = 1,
+}: {
+  readonly size?: number;
+  /** Opacité du CONTOUR — le 1ᵉʳ temps de la célébration (L7). */
+  readonly strokeOpacity?: Opacite;
+  /** Opacité du REMPLISSAGE — le 2ᵉ temps. */
+  readonly fillOpacity?: Opacite;
+}) {
   return (
     <View
       accessibilityElementsHidden
@@ -55,15 +79,16 @@ export function TerritoryMark({ size = 200 }: { readonly size?: number }) {
     >
       <Svg viewBox="0 0 168 168" width={size} height={size}>
         {/* Remplissage DISCRET : la trace domine, jamais l'aplat (§C, spec §3.9). */}
-        <Path d={RING} fill={colors.chartreuse14} />
+        <AnimatedPath d={RING} fill={colors.chartreuse14} fillOpacity={fillOpacity} />
         {/* Le contour EST la signature — épais, bouts ronds, comme la trace héros. */}
-        <Path
+        <AnimatedPath
           d={RING}
           fill="none"
           stroke={colors.chartreuse}
           strokeWidth={6}
           strokeLinejoin="round"
           strokeLinecap="round"
+          strokeOpacity={strokeOpacity}
         />
       </Svg>
     </View>

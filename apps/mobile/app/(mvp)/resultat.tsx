@@ -28,6 +28,13 @@ import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
 import { resultView, type ResultView, type SendResult } from '../../src/mvp/run/outcome';
 import { formatChrono } from '../../src/mvp/run/trace';
 import { heroArea } from '../../src/mvp/ui/area';
+import {
+  CELEBRATION_MS,
+  FILL,
+  GAIN,
+  OUTLINE,
+  OUTLINE_SCALE,
+} from '../../src/mvp/ui/celebration';
 import { TerritoryMark } from '../../src/mvp/ui/TerritoryMark';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
@@ -37,16 +44,6 @@ import { haptics } from '../../src/lib/haptics';
 
 const TOUCH_TARGET_PT = 44;
 
-/**
- * Durée de la célébration (ms).
- *
- * L7 demande 2 à 3 s pour la séquence complète (contour → remplissage → gain).
- * Ce lot en tient la PREMIÈRE moitié : l'objet apparaît, puis le chiffre. Un
- * peu plus d'une seconde — assez pour que le chiffre soit une RÉVÉLATION et non
- * un affichage, pas assez pour retenir quelqu'un qui veut déjà revoir sa carte.
- * Le reste de la chorégraphie, et le son, sont déclarés manquants au BACKLOG.
- */
-const FETE_MS = 1_100;
 
 /**
  * L'issue de l'envoi transite par l'URL, sérialisée.
@@ -126,9 +123,13 @@ export default function Resultat() {
         }
         Animated.timing(anim, {
           toValue: 1,
-          duration: FETE_MS,
+          duration: CELEBRATION_MS,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          // ⚠️ `false` OBLIGATOIRE : cette valeur pilote aussi `fillOpacity` et
+          // `strokeOpacity`, qui sont des props SVG et non des styles — elles ne
+          // passent pas par le pilote natif. Mélanger les deux pilotes sur une
+          // MÊME valeur lève une erreur à l'exécution.
+          useNativeDriver: false,
         }).start();
       })
       .catch(() => anim.setValue(1));
@@ -140,11 +141,34 @@ export default function Resultat() {
 
   const passer = () => anim.setValue(1);
 
-  // L'objet arrive d'abord, le chiffre ensuite : c'est cet écart qui fait du
-  // nombre une révélation. `extrapolate: 'clamp'` évite qu'il déborde.
-  const opaciteMarque = anim.interpolate({ inputRange: [0, 0.45], outputRange: [0, 1], extrapolate: 'clamp' });
-  const echelleMarque = anim.interpolate({ inputRange: [0, 0.45], outputRange: [0.86, 1], extrapolate: 'clamp' });
-  const opaciteChiffre = anim.interpolate({ inputRange: [0.45, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+  // Les trois temps de L7 (voir `mvp/ui/celebration.ts`). `extrapolate: 'clamp'`
+  // partout :
+  // sans lui, une interpolation déborde de ses bornes et rend des opacités
+  // supérieures à 1 ou négatives — invisibles au test, visibles à l'écran.
+  // Les bornes viennent de `celebration.ts` — PAS écrites ici. Trois
+  // `interpolate` côte à côte se chevauchent sans qu'aucune relecture ne le
+  // voie, et une capture d'écran ne le montre pas non plus (son aller-retour
+  // dépasse la durée de la séquence). Là-bas, l'ordre se TESTE.
+  const opaciteContour = anim.interpolate({
+    inputRange: [OUTLINE.from, OUTLINE.to],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const echelleMarque = anim.interpolate({
+    inputRange: [...OUTLINE_SCALE.input],
+    outputRange: [...OUTLINE_SCALE.output],
+    extrapolate: 'clamp',
+  });
+  const opaciteRemplissage = anim.interpolate({
+    inputRange: [FILL.from, FILL.to],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const opaciteChiffre = anim.interpolate({
+    inputRange: [GAIN.from, GAIN.to],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
   const phrase =
     vue.kind === 'captured'
@@ -183,8 +207,12 @@ export default function Resultat() {
         {/* L'objet signature n'apparaît QUE sur une prise : le montrer sur un
             refus ferait miroiter ce qu'on vient de dire non obtenu. */}
         {fete ? (
-          <Animated.View style={{ opacity: opaciteMarque, transform: [{ scale: echelleMarque }] }}>
-            <TerritoryMark size={140} />
+          <Animated.View style={{ transform: [{ scale: echelleMarque }] }}>
+            <TerritoryMark
+              size={140}
+              strokeOpacity={opaciteContour}
+              fillOpacity={opaciteRemplissage}
+            />
           </Animated.View>
         ) : null}
 

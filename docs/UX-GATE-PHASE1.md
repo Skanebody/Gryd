@@ -4,9 +4,10 @@
 > **Méthode** : relecture loi par loi contre le code et contre des captures
 > 375 × 812 prises en preview (`mobile-web`). Ce verdict est le MIEN, pas celui
 > d'un relecteur tiers — c'est une limite, elle est dite plutôt que masquée.
-> **Verdict global : CONFORME SOUS RÉSERVE.** Deux lois sont PARTIELLES (L7,
-> L13) et une n'est pas vérifiable avant la bascule d'entrée (L3). Aucune loi
-> n'est violée.
+> **Verdict global : CONFORME SOUS RÉSERVE.** L7 et L14 restent PARTIELLES (le
+> son ; le skeleton et les 60 fps mesurés), L13 est absente et hors périmètre.
+> Aucune loi n'est violée. Mis à jour le 03/08 après la bascule d'entrée : L3
+> était « non vérifiable », elle ne l'est plus.
 
 ## Les écrans
 
@@ -14,7 +15,9 @@
 |---|---|---|---|
 | 1 | Onboarding | `/bienvenue` | ✅ |
 | 2 | Priming permission | `/position` | ✅ (nominal + refus) |
-| 3 | Home Map — vide | `/carte` | ✅ (états `unavailable` et `interrupted`) |
+| 3 | Home Map — vide | `/carte` | ✅ (états `unavailable`, `signedOut`, `interrupted`) |
+| 3b | Profil : suivi + compte + légal | `/profil` | ✅ (sans compte : légal visible, section compte masquée) |
+| 3c | Connexion | `/connexion` | ✅ (web : seule porte e-mail, peinte en primaire) |
 | 4 | Home Map — actif | `/carte` | ⚠️ non capturé : la base est VIDE et le build local n'a pas de `.env`. Le rendu des polygones est couvert par `territoryGeo.test.ts`, pas par une image |
 | 5 | Préflight + décompte | `/prete` | ✅ |
 | 6 | Live Run | `/course` | ✅ (départ, reprise à 0,43 km) |
@@ -27,11 +30,11 @@
 |---|---|---|
 | **L1** — 3 questions en < 1 s | ✅ | `homeState` répond aux trois : la carte (où), une phrase ou un chiffre (à moi), une action dérivée de la capacité réelle (quoi faire). Sans autorisation, la carte ouvre sur la ville et ne peint AUCUN point — elle ne prétend pas savoir où l'on est |
 | **L2** — une action primaire | ✅ | `Stage` n'accepte qu'un `cta` (objet, pas tableau) : un second bouton de même poids est impossible à écrire. Sur `/carte` et `/course`, les sorties secondaires sont des TEXTES |
-| **L3** — 2 taps max jusqu'au départ | ⚠️ **NON VÉRIFIABLE** | Par construction : ouvrir → GO → décompte, et le préflight se déroule seul (aucun « confirmer »). Mais l'app n'ouvre PAS encore sur `/carte` — la bascule d'entrée n'a pas eu lieu. Vérifiable seulement après |
+| **L3** — 2 taps max jusqu'au départ | ✅ | La bascule d'entrée a eu lieu (03/08) : un joueur connecté ouvre sur `/carte`. Ouvrir n'est pas un tap, il en reste UN — GO — et le préflight se déroule seul, sans « confirmer ». Parcours rejoué en preview de bout en bout |
 | **L4** — zone du pouce, ≥ 44 pt | ✅ | CTA dans un `footer` SŒUR du contenu défilant (donc ancré quoi qu'on mette au-dessus) ; `minHeight: 44` sur chaque cible |
 | **L5** — Live Run ≤ 5 infos, ≤ 8 mots | ✅ | 4 blocs : distance (ou chrono), chrono, jauge, signal. `mvp.test.ts` vérifie la limite de 8 mots sur les 5 langues |
 | **L6** — feedback < 100 ms, haptique | ✅ | `ctaPressed` sur chaque bouton ; haptique aux 4 événements de jeu du MVP (départ, quasi-fermeture, fermeture, perte de signal, capture) via `feedback.ts`. ⚠️ Déclenchée sur TRANSITION et non sur état : sur l'état, le téléphone vibrerait ~1 ×/s pendant tout le retour |
-| **L7** — célébration 2–3 s, skippable | ⚠️ **PARTIEL** | Fait : apparition de l'objet puis révélation du chiffre (1,1 s), skippable au tap, désactivée sous Reduce Motion, haptique `success`. **Manque** : la chorégraphie complète en trois temps (contour se stabilise → remplissage → gain) et le SON. Inscrit au BACKLOG |
+| **L7** — célébration 2–3 s, skippable | ⚠️ **PARTIEL** (le son) | La chorégraphie en TROIS TEMPS est faite — contour qui se stabilise (avec dépassement puis retour) → remplissage → gain, 2,2 s. Skippable au tap, désactivée sous Reduce Motion, haptique `success`. Les bornes sont dans `mvp/ui/celebration.ts`, **testées** (5 tests) : ni la relecture ni la capture ne peuvent attraper un chevauchement, l'aller-retour d'une capture dépassant la durée de la séquence. **Manque le SON**, faute d'asset — et un son bâclé vaudrait moins que son absence |
 | **L8** — aucun écran vide | ✅ | `emptyMap` porte l'action qui la remplit, et `mvp.test.ts` vérifie qu'elle contient bien DEUX phrases (constat + action) |
 | **L9** — onboarding ≤ 3, valeur avant permission | ✅ | 2 écrans. L9 pose un plafond, pas un objectif : le jeu tient en une phrase. La forme signature est montrée AVANT toute demande |
 | **L10** — progressive disclosure | ✅ | Aucune mécanique n'est expliquée avant de servir : la jauge n'apparaît qu'une fois la trace candidate, le décompte ne parle que du signal |
@@ -48,7 +51,10 @@
 ## Ce qui reste à prouver, et qui ne peut pas l'être ici
 
 1. **Home Map actif** — il faut des territoires en base. La base est vide.
-2. **Chaîne contre un vrai serveur** — `.env` absent en local.
+2. **Chaîne contre un vrai serveur** — le `.env` est en place et l'app JOINT le
+   backend (migrations à jour, `ingest_run` déployée, RLS 11/11). Ce qui manque
+   n'est plus technique : il faut un COMPTE et une COURSE, et je ne fabrique ni
+   l'un ni l'autre en production.
 3. **Never-lose-a-run par un kill réel** — prouvé en preview (buffer → offre →
    reprise à 0,43 km avec chrono continu → effacement), pas par un kill de
    process sur appareil.
