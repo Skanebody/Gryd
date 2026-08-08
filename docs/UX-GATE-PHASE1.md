@@ -2,12 +2,47 @@
 
 > **Portée** : les écrans du groupe `(mvp)`, au 03/08/2026.
 > **Méthode** : relecture loi par loi contre le code et contre des captures
-> 375 × 812 prises en preview (`mobile-web`). Ce verdict est le MIEN, pas celui
-> d'un relecteur tiers — c'est une limite, elle est dite plutôt que masquée.
-> **Verdict global : CONFORME SOUS RÉSERVE.** L7 et L14 restent PARTIELLES (le
-> son ; le skeleton et les 60 fps mesurés), L13 est absente et hors périmètre.
-> Aucune loi n'est violée. Mis à jour le 03/08 après la bascule d'entrée : L3
-> était « non vérifiable », elle ne l'est plus.
+> 375 × 812 prises en preview (`mobile-web`).
+> **Verdict global : CONFORME SOUS RÉSERVE**, après correction. L7 reste
+> PARTIELLE (le son), L14 aussi (les 60 fps mesurés — le skeleton, lui, existe
+> désormais), L13 est absente et hors périmètre.
+>
+> ⚠️ **Ce document s'est trompé, et il faut le lire en le sachant.** Sa première
+> version portait un ✅ sur `/profil` et `/connexion` (lignes 3b et 3c). Une
+> relecture INDÉPENDANTE, le 03/08, a rendu **NON CONFORME** sur ces deux écrans
+> avec 14 constats, dont 5 bloquants — tous vérifiés un par un, tous réels. Le
+> verdict précédent était le MIEN sur MON propre travail : c'est exactement la
+> configuration dans laquelle un gate ne gate rien. Les corrections sont listées
+> ci-dessous ; le ✅ n'est rétabli que sur ce qui a été refait.
+
+## Ce que la relecture indépendante a trouvé (03/08)
+
+Son diagnostic tient en une phrase, et elle vaut plus que la liste :
+**« les écrans reprennent d'une main ce que les modules purs ont interdit de
+l'autre. »** Les 2 400 tests ne pouvaient pas l'attraper — ils testaient les
+modules, pas la COUTURE. `src/mvp/couture.test.ts` teste maintenant la couture
+elle-même, et chacune de ses trois règles cite le code réel qui l'aurait fait
+échouer.
+
+| | Constat | Ce qu'un joueur vivait | État |
+|---|---|---|---|
+| ① | `requestDeletion` ne lisait que `error === null` | la RPC répond `{ok:false}` **en 200** : une suppression REFUSÉE passait pour faite | corrigé |
+| ② | `Alert.alert` pour confirmer la suppression | `react-native-web` n'a **aucun** module `Alert` : sur web, tap → **rien**, sur l'action qu'Apple 5.1.1(v) exige | corrigé — confirmation rendue DANS l'écran |
+| ③ | `/connexion` atteint par `replace`, sans en-tête | on n'en sortait **qu'en tuant l'app** | corrigé |
+| ④ | après « Se déconnecter » | **aucun chemin** vers la connexion dans toute l'app | corrigé |
+| ⑤ | `signedIn: boolean` passé à `statsStatus` | à froid, `/profil` disait « sans compte » et **masquait la suppression** | corrigé — trois états |
+| ⑥ | `{aire ?? '0'}` | un « 0 » héros géant là où `heroArea` avait rendu `null` | corrigé — une phrase, pas un zéro |
+| ⑦ | `'—'` pour la distance, `'0'` pour l'aire | deux conventions contradictoires sur la même ligne | corrigé — une seule |
+| ⑧ | `suppression?.graceDays ?? 0` | « Tu auras **0 jours** pour changer d'avis » — hors `pending`, le serveur n'envoie aucun délai | corrigé — `ACCOUNT_DELETION_GRACE_DAYS` |
+| ⑨ | `danger: { color: colors.gris }` | le commentaire promettait un rouge que le code n'écrivait pas | corrigé — `gameColors.danger` |
+| ⑪ | `void signOut()` puis navigation | la carte relisait la session ENCORE connectée | corrigé — attendu |
+| ⑫⑬⑭ | retour sans retour visuel ; `busy` invisible ; photo non masquée | on tape dans le vide ; VoiceOver annonce une image décorative | corrigés |
+| ⑩ | « Exporter mes données » mènerait à un document | **non retenu** : `/confidentialite` porte un VRAI export (Edge Function `export_account` + partage). Le lien tient sa promesse | écarté, vérifié |
+
+**Trouvé en corrigeant ④, et plus grave que ④ :** sans compte, **GO était un
+bouton mort**. La course s'enregistrait, mais ne pouvait JAMAIS devenir un
+territoire — personne à qui l'attribuer. C'est l'argument qu'on applique déjà
+quand le backend manque ; il ne l'était pas ici. `homeAction` rend `signIn`.
 
 ## Les écrans
 
@@ -16,8 +51,8 @@
 | 1 | Onboarding | `/bienvenue` | ✅ |
 | 2 | Priming permission | `/position` | ✅ (nominal + refus) |
 | 3 | Home Map — vide | `/carte` | ✅ (états `unavailable`, `signedOut`, `interrupted`) |
-| 3b | Profil : suivi + compte + légal | `/profil` | ✅ (sans compte : légal visible, section compte masquée) |
-| 3c | Connexion | `/connexion` | ✅ (web : seule porte e-mail, peinte en primaire) |
+| 3b | Profil : suivi + compte + légal | `/profil` | ✅ **après correction** — 9 constats de la relecture indépendante (① ② ⑤ ⑥ ⑦ ⑧ ⑨ ⑪ ⑫). La capture d'avant montrait un écran conforme ; c'est le code qui ne l'était pas |
+| 3c | Connexion | `/connexion` | ✅ **après correction** — ③ ④ ⑬ ⑭. La capture ne pouvait pas montrer le défaut : l'absence de SORTIE ne se voit sur aucune image fixe |
 | 4 | Home Map — actif | `/carte` | ⚠️ non capturé : la base est VIDE et le build local n'a pas de `.env`. Le rendu des polygones est couvert par `territoryGeo.test.ts`, pas par une image |
 | 5 | Préflight + décompte | `/prete` | ✅ |
 | 6 | Live Run | `/course` | ✅ (départ, reprise à 0,43 km) |
@@ -41,7 +76,7 @@
 | **L11** — une seule cible | — | Sans objet au MVP : ni objectif du jour ni rival (Phase 2) |
 | **L12** — un chiffre héros | ✅ | Un seul par écran, et JAMAIS un zéro nu : `heroArea` et `heroAreaM2` rendent `null` hors d'un état qui sait ; sur la course, le chrono est le héros tant qu'aucun mètre n'est parcouru |
 | **L13** — partage en 1 tap | ❌ **ABSENT** | Phase 3 (§5.2). Aucune surface de partage n'est peinte — donc aucun bouton mort non plus |
-| **L14** — 60 fps, pas de spinner > 1 s | ⚠️ **PARTIEL** | Aucun spinner bloquant nulle part ; le chargement de la carte est une PHRASE, pas un sablier. **Manque** : un skeleton, et une mesure réelle de 60 fps sur appareil |
+| **L14** — 60 fps, pas de spinner > 1 s | ⚠️ **PARTIEL** (les 60 fps) | Aucun spinner bloquant nulle part. Le SKELETON existe désormais (`mvp/ui/Skeleton.tsx`) sur `/carte` et `/profil` : il peint la FORME du contenu à venir, jamais une valeur — un skeleton qui montrerait des chiffres plausibles serait un mensonge de plus. Coupé sous Reduce Motion, masqué aux lecteurs d'écran, l'annonce restant portée par le conteneur (sinon VoiceOver n'aurait plus rien dit pendant tout le chargement — une régression que la version en texte n'avait pas). **Manque** : une mesure réelle de 60 fps sur appareil |
 | **L15** — accessibilité | ✅ | Libellés = `accessibilityLabel` par construction ; `TerritoryMark` masqué aux lecteurs d'écran (l'information est portée par le texte) ; Reduce Motion respecté. ⚠️ « jamais la couleur seule » n'est pas encore éprouvé : le MVP ne peint QU'UN rôle (moi), donc aucune distinction ne repose sur la teinte — la loi redeviendra mordante à l'arrivée des rivaux |
 | **L16** — notifications | — | Sans objet au MVP (Phase 2) |
 | **L17** — zéro dark pattern | ✅ | « Voir la carte d'abord » toujours offert au priming ; « Annuler » disponible jusqu'au bout du décompte ; aucun compte à rebours factice ; un refus de permission background n'arrête pas la course |

@@ -21,10 +21,17 @@
  * l'inverse de ce qu'on veut d'une action irréversible (L17 en miroir).
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { colors, fonts, fontSizes, spacing } from '@klaim/shared';
+import {
+  ACCOUNT_DELETION_GRACE_DAYS,
+  colors,
+  fonts,
+  fontSizes,
+  gameColors,
+  spacing,
+} from '@klaim/shared';
 import { useSession } from '../../src/lib/session';
 import { signOut } from '../../src/lib/auth';
 import {
@@ -48,6 +55,7 @@ import {
   requestDeletion,
 } from '../../src/mvp/profil/read';
 import { heroArea } from '../../src/mvp/ui/area';
+import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { screen } from '../../src/lib/analytics';
@@ -57,10 +65,23 @@ const TOUCH_TARGET_PT = 44;
 export default function Profil() {
   const t = useT();
   const insets = useSafeAreaInsets();
-  const { session } = useSession();
+  const { session, loading: sessionLoading } = useSession();
   const userId = session?.user?.id ?? null;
   const [read, setRead] = useState<StatsRead>({ kind: 'idle' });
   const [suppression, setSuppression] = useState<DeletionStatus | null>(null);
+  /**
+   * ⚠️ LA CONFIRMATION EST UN ÉTAT DE L'ÉCRAN, PAS UNE `Alert`.
+   *
+   * `react-native-web` n'a AUCUN module `Alert` : `Alert.alert` y est un no-op
+   * silencieux. Or `app.json` déclare la cible web — donc sur web, taper
+   * « Supprimer mon compte » n'affichait RIEN, sur la seule action qu'Apple
+   * 5.1.1(v) exige et que le RGPD impose. Le bouton n'était pas discret : il
+   * était mort. Rendre la confirmation DANS l'écran la rend vraie partout.
+   *
+   * `failed` est le troisième état, et il n'est pas décoratif : la RPC répond
+   * `{ ok: false }` avec un code 200, donc un refus doit se DIRE.
+   */
+  const [confirmation, setConfirmation] = useState<'idle' | 'asking' | 'failed'>('idle');
 
   useEffect(() => {
     screen('profil');
@@ -77,30 +98,44 @@ export default function Profil() {
     void charger();
   }, [charger]);
 
-  const etat = { signedIn: userId !== null, read };
+  // `restoring` AVANT `signedOut` — même piège que la carte (`homeState.ts`) :
+  // au démarrage à froid, la session est lue depuis le stockage avant d'être
+  // connue, et la confondre avec « pas de compte » masquerait la suppression
+  // de compte exigée par l'App Store le temps d'un aller-retour.
+  const etat = {
+    session: sessionLoading ? ('restoring' as const) : userId === null ? ('signedOut' as const) : ('signedIn' as const),
+    read,
+  };
   const statut = statsStatus(etat);
   const compte = accountView(suppression);
 
   const aire = heroArea(statAreaM2(etat));
   const sorties = statRuns(etat);
   const distM = statDistanceM(etat);
-  const km = distM !== null && distM > 0 ? (Math.round(distM / 10) / 100).toFixed(2).replace('.', ',') : null;
+  /**
+   * UNE SEULE CONVENTION, et elle tient en une phrase : dans `ready`, tout est
+   * connu, donc tout s'écrit — y compris un zéro, qui RÉPOND alors à la question.
+   * Ailleurs, ce n'est pas un chiffre qui manque, c'est le bloc entier qui cède
+   * la place à une phrase ou à un skeleton.
+   *
+   * La version précédente mélangeait deux conventions contradictoires sur la même
+   * ligne — `?? '0'` pour l'aire, `?? '—'` pour la distance — donc le même
+   * « je ne sais pas » se lisait tantôt comme zéro, tantôt comme un blanc.
+   */
+  const km = distM !== null ? (Math.round(distM / 10) / 100).toFixed(2).replace('.', ',') : null;
 
-  const demanderSuppression = useCallback(() => {
-    const jours = suppression?.graceDays ?? 0;
-    const faire = async () => {
-      if (await requestDeletion()) setSuppression(await readDeletionStatus());
-    };
-    // L17 en miroir : une action irréversible ne s'atteint jamais en un tap.
-    if (!DELETION_NEEDS_CONFIRMATION) {
-      void faire();
+  const supprimer = useCallback(async () => {
+    const issue = await requestDeletion();
+    // ⚠️ `issue` est un OBJET : `if (await requestDeletion())` serait toujours
+    // vrai, y compris sur un refus. C'est le piège que le type a introduit en
+    // corrigeant le précédent — il fallait lire `done`, pas la vérité de l'objet.
+    if (issue.done) {
+      setSuppression(issue.status);
+      setConfirmation('idle');
       return;
     }
-    Alert.alert(t(C.accountDelete), t(C.accountDeleteConfirm, { d: String(jours) }), [
-      { text: t(C.ctaCancel), style: 'cancel' },
-      { text: t(C.accountDelete), style: 'destructive', onPress: () => void faire() },
-    ]);
-  }, [suppression, t]);
+    setConfirmation('failed');
+  }, []);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
@@ -113,14 +148,22 @@ export default function Profil() {
         {/* ── LE SUIVI ───────────────────────────────────────────────────── */}
         {statut === 'ready' ? (
           <View style={styles.chiffres}>
-            {/* Le territoire domine (L12). `heroArea` rend `null` sur zéro ; ici
-                un zéro est une RÉPONSE (on a couru sans refermer), donc on
-                l'écrit explicitement plutôt que de laisser un blanc. */}
-            <View style={styles.bloc}>
-              <Text style={styles.hero}>{aire ?? '0'}</Text>
-              <Text style={styles.unite}>{t(C.unitM2)}</Text>
-            </View>
-            <Text style={styles.legende}>{t(C.statTerritory)}</Text>
+            {/* Le territoire domine (L12) — MAIS un zéro ne peut pas être le
+                chiffre héros : « 0 » en chartreuse géant se lit comme un score
+                raté, alors qu'avoir couru sans refermer est une étape NORMALE du
+                jeu. `heroArea` rend `null` là, et on le dit en toutes lettres.
+                Le `?? '0'` d'avant court-circuitait précisément cette garde. */}
+            {aire !== null ? (
+              <>
+                <View style={styles.bloc}>
+                  <Text style={styles.hero}>{aire}</Text>
+                  <Text style={styles.unite}>{t(C.unitM2)}</Text>
+                </View>
+                <Text style={styles.legende}>{t(C.statTerritory)}</Text>
+              </>
+            ) : (
+              <Text style={styles.phrase}>{t(C.statsNoTerritory)}</Text>
+            )}
 
             <View style={styles.ligne}>
               <View style={styles.demi}>
@@ -128,27 +171,59 @@ export default function Profil() {
                 <Text style={styles.legende}>{t(C.statRuns)}</Text>
               </View>
               <View style={styles.demi}>
-                <Text style={styles.second}>{km ?? '—'}</Text>
+                <Text style={styles.second}>{km}</Text>
                 <Text style={styles.legende}>
                   {t(C.statDistance)} · {t(C.unitKm)}
                 </Text>
               </View>
             </View>
           </View>
+        ) : statut === 'loading' ? (
+          // L14 — la FORME du tableau de bord, pas un sablier. `accessible` +
+          // `accessibilityLabel` portent l'annonce du chargement : le skeleton
+          // reste décoratif (voir l'en-tête de `Skeleton.tsx`), sinon un
+          // VoiceOver n'apprendrait plus rien pendant tout le chargement — une
+          // régression que la version en texte n'avait pas.
+          <View accessible accessibilityLabel={t(C.mapLoading)} accessibilityLiveRegion="polite">
+            <SkeletonGroup style={styles.chiffres}>
+              <View style={styles.blocSkeleton}>
+                <SkeletonBlock width={96} height={fontSizes.hero} />
+                <SkeletonBlock width={32} height={fontSizes.lg} />
+              </View>
+              <SkeletonBlock width={120} height={fontSizes.sm} />
+              <View style={styles.ligne}>
+                <View style={styles.demi}>
+                  <SkeletonBlock width={48} height={fontSizes.xl} />
+                  <SkeletonBlock width={70} height={fontSizes.sm} style={styles.legendeSkeleton} />
+                </View>
+                <View style={styles.demi}>
+                  <SkeletonBlock width={48} height={fontSizes.xl} />
+                  <SkeletonBlock width={90} height={fontSizes.sm} style={styles.legendeSkeleton} />
+                </View>
+              </View>
+            </SkeletonGroup>
+          </View>
         ) : (
           <Text style={styles.phrase}>
-            {statut === 'loading'
-              ? t(C.mapLoading)
-              : statut === 'failed'
-                ? t(C.statsFailed)
-                : statut === 'signedOut'
-                  ? t(C.mapSignedOut)
-                  : t(C.statsEmpty)}
+            {statut === 'failed'
+              ? t(C.statsFailed)
+              : statut === 'signedOut'
+                ? t(C.mapSignedOut)
+                : t(C.statsEmpty)}
           </Text>
         )}
 
         {canRetryStats(etat) ? (
           <Lien label={t(C.mapRetry)} onPress={() => void charger()} />
+        ) : null}
+
+        {/* La porte de RETOUR. Sans elle, « Se déconnecter » était un aller sans
+            retour : plus aucun chemin vers la connexion depuis l'app entière.
+            `signedOut` et non `userId === null` — pendant la RESTAURATION on ne
+            sait pas encore, et proposer de se connecter à quelqu'un qui l'est
+            déjà est la même faute, dans l'autre sens. */}
+        {statut === 'signedOut' ? (
+          <Lien label={t(C.ctaSignIn)} onPress={() => router.push('/connexion')} />
         ) : null}
 
         {/* ── LE COMPTE (App Store 5.1.1(v) + RGPD) ──────────────────────── */}
@@ -158,8 +233,13 @@ export default function Profil() {
             <Lien
               label={t(C.accountSignOut)}
               onPress={() => {
-                void signOut();
-                router.replace('/carte');
+                // ATTENDU avant de naviguer : la carte relit la session au
+                // montage, et partir trop tôt la lui faisait lire ENCORE
+                // connectée — elle peignait alors un état déjà faux.
+                void (async () => {
+                  await signOut();
+                  router.replace('/carte');
+                })();
               }}
             />
             {canExport(true) ? (
@@ -181,14 +261,51 @@ export default function Profil() {
                   label={t(C.accountDeleteCancel)}
                   onPress={() => {
                     void (async () => {
-                      if (await cancelDeletion()) setSuppression(await readDeletionStatus());
+                      // Même piège que `supprimer` : l'objet est toujours vrai.
+                      const issue = await cancelDeletion();
+                      if (issue.done) setSuppression(issue.status);
                     })();
                   }}
                 />
               </>
             ) : null}
+
+            {/* La confirmation, RENDUE DANS L'ÉCRAN (voir `confirmation`).
+                Le délai vient de `ACCOUNT_DELETION_GRACE_DAYS`, pas de
+                `suppression.graceDays` : hors `pending`, le serveur n'envoie
+                AUCUN délai, et le `?? 0` d'avant promettait donc « 0 jours pour
+                changer d'avis » — un mensonge, sur ce qu'on ne peut pas défaire.
+                La constante est la même des deux côtés (migration 0046, drift
+                testé au gate). */}
             {compte.kind === 'deletable' ? (
-              <Lien label={t(C.accountDelete)} onPress={demanderSuppression} danger />
+              confirmation === 'asking' ? (
+                <View style={styles.confirmation}>
+                  <Text style={styles.phrase}>
+                    {t(C.accountDeleteConfirm, { d: String(ACCOUNT_DELETION_GRACE_DAYS) })}
+                  </Text>
+                  {/* « Annuler » d'abord : sur une action irréversible, la sortie
+                      se lit avant l'entrée (L17 en miroir). */}
+                  <Lien label={t(C.ctaCancel)} onPress={() => setConfirmation('idle')} />
+                  <Lien label={t(C.accountDelete)} onPress={() => void supprimer()} danger />
+                </View>
+              ) : (
+                <>
+                  <Lien
+                    label={t(C.accountDelete)}
+                    onPress={() => {
+                      if (DELETION_NEEDS_CONFIRMATION) {
+                        setConfirmation('asking');
+                        return;
+                      }
+                      void supprimer();
+                    }}
+                    danger
+                  />
+                  {confirmation === 'failed' ? (
+                    <Text style={styles.phrase}>{t(C.accountDeleteFailed)}</Text>
+                  ) : null}
+                </>
+              )
             ) : null}
             {/* `unknown` → RIEN. Offrir de supprimer sans savoir où en est une
                 demande précédente est le pire des deux mondes. */}
@@ -207,7 +324,10 @@ export default function Profil() {
         accessibilityLabel={t(C.ctaBackToMap)}
         onPress={() => router.replace('/carte')}
         hitSlop={spacing.sm}
-        style={[styles.retour, { top: insets.top + spacing.sm }]}
+        // L6 — la seule cible de l'écran qui ne répondait PAS au doigt : sur un
+        // texte gris de 13 pt sans retour visuel, un tap manqué est
+        // indiscernable d'un tap ignoré.
+        style={({ pressed }) => [styles.retour, { top: insets.top + spacing.sm }, pressed && styles.dim]}
       >
         <Text style={styles.retourLabel}>{t(C.ctaBackToMap)}</Text>
       </Pressable>
@@ -244,6 +364,13 @@ const styles = StyleSheet.create({
   titre: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xxl, marginBottom: spacing.md },
   chiffres: { gap: spacing.xs, marginBottom: spacing.md },
   bloc: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  // `flex-end` et non `baseline` : sans texte à l'intérieur, deux blocs n'ont
+  // pas de ligne de base à partager (même remarque que `carte.tsx`).
+  blocSkeleton: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
+  // Les vrais `second`/`legende` s'empilent SANS gap, portés par leur propre
+  // interligne de texte ; deux blocs opaques n'ont pas cet interligne, d'où ce
+  // petit espace explicite pour ne pas les souder visuellement.
+  legendeSkeleton: { marginTop: spacing.xxs },
   hero: { color: colors.chartreuse, fontFamily: fonts.display, fontSize: fontSizes.hero },
   unite: { color: colors.chartreuse, fontFamily: fonts.text, fontSize: fontSizes.lg },
   ligne: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.md },
@@ -260,9 +387,21 @@ const styles = StyleSheet.create({
   },
   item: { minHeight: TOUCH_TARGET_PT, justifyContent: 'center' },
   itemLabel: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md },
-  // Le rouge dit « irréversible ». Il ne CRIE pas : c'est un texte, pas un
+  // Le rouge dit « irréversible ». Il ne CRIE pas : c'est un TEXTE, pas un
   // bouton plein — l'action la plus grave ne doit pas être la plus visible.
-  danger: { color: colors.gris },
+  // ⚠️ Ce commentaire promettait un rouge que le code n'écrivait pas : la règle
+  // était `colors.gris`, donc « Supprimer mon compte » avait exactement l'allure
+  // des liens légaux voisins. Le jeton rouge existait déjà (`gameColors.danger`).
+  danger: { color: gameColors.danger },
+  // La confirmation est en RETRAIT, pas en surimpression : une feuille modale
+  // rejouerait le défaut de l'`Alert` (une couche qui peut ne pas s'afficher).
+  confirmation: {
+    borderLeftWidth: 2,
+    borderLeftColor: gameColors.danger,
+    paddingLeft: spacing.md,
+    marginTop: spacing.xs,
+    gap: spacing.xxs,
+  },
   retour: { position: 'absolute', right: spacing.lg, minHeight: TOUCH_TARGET_PT, justifyContent: 'center' },
   retourLabel: { color: colors.gris, fontFamily: fonts.textSemi, fontSize: fontSizes.sm },
   dim: { opacity: 0.6 },

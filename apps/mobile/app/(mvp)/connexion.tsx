@@ -58,6 +58,10 @@ export default function Connexion() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [appleOk, setAppleOk] = useState(false);
+  // ⚠️ `busy` doit se VOIR. Les portes devenaient `disabled` sans le moindre
+  // changement visuel : si la feuille système tarde, ou si Google ouvre un
+  // navigateur externe, le joueur tape dans le vide — sur l'écran dont on ne
+  // ressort pas sans succès. L6 : « retour visuel immédiat sur tout tap ».
   const [busy, setBusy] = useState(false);
   const [echec, setEchec] = useState(false);
 
@@ -109,6 +113,11 @@ export default function Connexion() {
         source={require('../../assets/auth/sign-in-crew.jpg')}
         resizeMode="cover"
         style={[styles.photo, { width, height }]}
+        // L15 — DÉCORATIVE : un lecteur d'écran doit entendre le titre, pas
+        // « image ». La convention existait déjà (`TerritoryMark`) ; je l'avais
+        // oubliée ici.
+        accessible={false}
+        importantForAccessibility="no-hide-descendants"
       />
       <View style={styles.voile} pointerEvents="none">
         {VOILE_PALIERS.map((o, i) => (
@@ -121,9 +130,25 @@ export default function Connexion() {
           <Text style={styles.titre}>{t(C.signInTitle)}</Text>
           <Text style={styles.corps}>{t(C.signInBody)}</Text>
 
-          {/* AUCUNE porte : on DIT pourquoi. Trois boutons inertes vaudraient
-              moins que zéro option assumée. */}
-          {!hasAnyDoor(portes) ? <Text style={styles.echec}>{t(C.signInNoDoor)}</Text> : null}
+          {/* AUCUNE porte : on DIT pourquoi — ET on offre la sortie.
+              ⚠️ Sans ce bouton, cet écran était un CUL-DE-SAC : on y arrive par
+              `replace` (pas de pile, aucun geste retour, pas d'en-tête), et sur
+              un build sans backend on n'en sortait qu'en tuant l'app. L8 exige
+              que tout état vide porte l'action qui le remplit ; ici c'est la
+              carte, qui a son propre état vide honnête. */}
+          {!hasAnyDoor(portes) ? (
+            <>
+              <Text style={styles.echec}>{t(C.signInNoDoor)}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(C.ctaBackToMap)}
+                onPress={() => router.replace('/carte')}
+                style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+              >
+                <Text style={styles.ctaLabel}>{t(C.ctaBackToMap)}</Text>
+              </Pressable>
+            </>
+          ) : null}
 
           {echec ? <Text style={styles.echec}>{t(C.signInFailed)}</Text> : null}
 
@@ -134,7 +159,7 @@ export default function Connexion() {
               accessibilityState={{ disabled: busy }}
               disabled={busy}
               onPress={() => void tenter('apple')}
-              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, busy && styles.dim]}
             >
               <Text style={styles.ctaLabel}>{t(C.signInApple)}</Text>
             </Pressable>
@@ -147,7 +172,7 @@ export default function Connexion() {
               accessibilityState={{ disabled: busy }}
               disabled={busy}
               onPress={() => void tenter('google')}
-              style={({ pressed }) => [styles.ctaSecond, pressed && styles.dim]}
+              style={({ pressed }) => [styles.ctaSecond, (pressed || busy) && styles.dim]}
             >
               <Text style={styles.ctaSecondLabel}>{t(C.signInGoogle)}</Text>
             </Pressable>
@@ -177,6 +202,30 @@ export default function Connexion() {
               <Text style={emailIsPrimary(portes) ? styles.ctaLabel : styles.lienLabel}>
                 {t(C.signInEmail)}
               </Text>
+            </Pressable>
+          ) : null}
+
+          {/* ⚠️ LA SORTIE, SANS CONDITION.
+              Elle n'existait QUE dans la branche « aucune porte » — alors que
+              l'argument écrit juste au-dessus (on arrive par `replace` : pas de
+              pile, aucun geste retour, pas d'en-tête) ne dépend en RIEN des
+              portes disponibles. Résultat : l'état que tout le monde rencontre
+              vraiment n'avait qu'un seul contrôle, et aucun moyen de repartir.
+              Constaté en preview, pas à la relecture — sur une capture, une
+              sortie ABSENTE ne se voit pas ; il faut essayer de sortir.
+
+              Un TEXTE, pas un bouton : la porte de connexion reste l'unique
+              action primaire (L2). Dans la branche sans porte, la même sortie
+              est peinte en plein, parce qu'elle y est la seule action. */}
+          {hasAnyDoor(portes) ? (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={t(C.ctaBackToMap)}
+              onPress={() => router.replace('/carte')}
+              hitSlop={spacing.sm}
+              style={({ pressed }) => [styles.lien, pressed && styles.dim]}
+            >
+              <Text style={styles.lienLabel}>{t(C.ctaBackToMap)}</Text>
             </Pressable>
           ) : null}
         </View>

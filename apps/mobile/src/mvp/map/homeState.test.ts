@@ -177,6 +177,27 @@ Deno.test('…et elle prime AUSSI sur la demande de permission', () => {
   assertEquals(homeAction(jeu({ interrupted: true, location: 'blocked' })), 'resume');
 });
 
+Deno.test('session EN RESTAURATION → AUCUNE action : on ne sait pas encore', () => {
+  // Peindre GO ferait partir quelqu'un qui se révélera déconnecté ; peindre
+  // « Se connecter » le dirait à quelqu'un déjà connecté. L'attente dure le
+  // temps de lire un jeton, et le bandeau dit déjà « Lecture en cours ».
+  assertEquals(homeAction(jeu({ session: 'restoring' })), 'none');
+});
+
+Deno.test('SANS COMPTE, l’action est SE CONNECTER — pas GO', () => {
+  // Une course lancée sans compte s'enregistre, mais ne deviendra jamais un
+  // territoire : personne à qui l'attribuer. GO y promet ce qui ne viendra pas.
+  // Et c'est l'action qui remplit l'état vide « sans compte » (L8).
+  assertEquals(homeAction(jeu({ session: 'signedOut' })), 'signIn');
+  assertEquals(homeAction(jeu({ session: 'signedOut', location: 'unknown' })), 'signIn');
+});
+
+Deno.test('une course interrompue passe même DEVANT la connexion', () => {
+  // Elle est déjà sur le disque : la clore ne demande pas de compte, et c'est
+  // la seule chose qui puisse encore être perdue.
+  assertEquals(homeAction(jeu({ session: 'signedOut', interrupted: true })), 'resume');
+});
+
 Deno.test('INVARIANT : GO n’est jamais peint sans position ET sans backend', () => {
   // Un GO sans position ne produit aucune trace ; un GO sans backend produit
   // une course que rien ne pourra jamais transformer en territoire. Les deux
@@ -186,6 +207,7 @@ Deno.test('INVARIANT : GO n’est jamais peint sans position ET sans backend', (
     assertEquals(e.location, 'granted', `${JSON.stringify(e)} : GO sans position`);
     assertEquals(e.backend, 'configured', `${JSON.stringify(e)} : GO sans backend`);
     assertEquals(e.interrupted, false, `${JSON.stringify(e)} : GO alors qu'une course attend`);
+    assertEquals(e.session, 'signedIn', `${JSON.stringify(e)} : GO sans compte — le territoire ne viendra jamais`);
   }
 });
 

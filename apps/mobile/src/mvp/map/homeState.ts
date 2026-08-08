@@ -131,13 +131,14 @@ export function heroAreaM2(input: HomeInput): number | null {
  * L'UNIQUE action primaire de l'accueil (L2).
  *
  *   · `resume`       — une course interrompue attend d'être reprise ou close.
+ *   · `signIn`       — pas de compte : c'est CE qui manque, et rien d'autre.
  *   · `go`           — partir courir. C'est l'action du jeu.
  *   · `askLocation`  — l'OS acceptera de redemander : un tap suffit.
  *   · `openSettings` — l'OS a fermé la porte ; les réglages sont la seule voie.
  *   · `retry`        — la lecture a échoué : réessayer est une vraie action.
  *   · `none`         — rien de ce que le joueur peut faire ne débloque l'état.
  */
-export type HomeAction = 'resume' | 'go' | 'askLocation' | 'openSettings' | 'retry' | 'none';
+export type HomeAction = 'resume' | 'signIn' | 'go' | 'askLocation' | 'openSettings' | 'retry' | 'none';
 
 /**
  * Quelle action peindre. PURE.
@@ -175,6 +176,26 @@ export function homeAction(input: HomeInput): HomeAction {
   // pire que se taire.
   if (input.interrupted === true) return 'resume';
   if (input.backend === 'absent') return 'none';
+  // ⚠️ SANS COMPTE, GO EST UN BOUTON MORT — défaut trouvé par la relecture
+  // indépendante du 03/08, sous un autre angle : après « Se déconnecter »,
+  // AUCUN écran ne menait plus à la connexion, et on ne sortait de l'app qu'en
+  // la tuant. En cherchant la sortie, le vrai défaut est apparu : une course
+  // lancée sans compte s'enregistre bien (never-lose-a-run), mais ne pourra
+  // JAMAIS devenir un territoire — personne à qui l'attribuer. C'est exactement
+  // l'argument qui ferme GO quand le backend manque, et je ne l'avais pas
+  // appliqué ici. L'état vide de la carte dit « sans compte » ; l'action qui le
+  // remplit est donc de se connecter (L8), pas de courir.
+  if (input.session === 'signedOut') return 'signIn';
+  // RESTAURATION : on ne sait pas ENCORE s'il y a un compte, donc on ne peint
+  // pas l'action qui dépend de la réponse. Peindre GO ferait partir quelqu'un
+  // qui se révélera déconnecté ; peindre « Se connecter » le dirait à quelqu'un
+  // qui est peut-être déjà connecté. Le bandeau dit déjà « Lecture en cours »,
+  // et l'attente dure le temps de lire un jeton.
+  //
+  // ⚠️ Ce cas m'a été rendu par l'INVARIANT du fichier de test, pas par ma
+  // relecture : en fermant GO pour les déconnectés, je l'avais laissé ouvert
+  // pour les « pas encore connus ». Le balayage exhaustif l'a vu tout de suite.
+  if (input.session === 'restoring') return 'none';
   if (input.location === 'blocked') return 'openSettings';
   if (input.location === 'unknown') return 'askLocation';
   return 'go';

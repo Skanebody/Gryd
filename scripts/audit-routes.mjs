@@ -271,6 +271,36 @@ while (file.length > 0) {
   for (const next of outByRoute.get(r) ?? []) if (!reachable.has(next)) file.push(next);
 }
 
+// ── ÉCHAPPABILITÉ : peut-on REPARTIR ? ─────────────────────────────────────
+//
+// L'atteignabilité mesure l'aller. Le 03/08, `/connexion` a montré qu'il manque
+// le retour : dans son état NORMAL, l'écran n'avait qu'un seul contrôle
+// (« Continuer par e-mail ») et aucune sortie — alors qu'on y arrive par
+// `replace`, donc sans pile, sans geste retour et sans en-tête.
+//
+// ⚠️ CE QUE CE CONTRÔLE NE VOIT PAS, ET IL FAUT LE DIRE : il lit des LIENS
+// ÉCRITS, pas des liens ATTEINTS. `/connexion` contenait déjà `'/carte'` — mais
+// dans une branche conditionnelle (« aucune porte disponible »), donc invisible
+// pour l'état que tout le monde rencontre. Ce contrôle serait resté VERT.
+// Seul le rejeu en preview l'a trouvé. C'est donc un PLANCHER — il attrape le
+// cul-de-sac total — et non une preuve qu'on peut sortir de chaque écran.
+const MVP_ROUTES = [...routes.keys()].filter((r) =>
+  [...(routes.get(r) ?? [])].some((f) => f.includes('app/(mvp)/')),
+);
+function sortVers(depart, cible) {
+  const vus = new Set([depart]);
+  const q = [...(outByRoute.get(depart) ?? [])];
+  while (q.length > 0) {
+    const r = q.shift();
+    if (r === cible) return true;
+    if (vus.has(r) || !routes.has(r)) continue;
+    vus.add(r);
+    for (const n of outByRoute.get(r) ?? []) q.push(n);
+  }
+  return false;
+}
+const culsDeSac = MVP_ROUTES.filter((r) => r !== '/carte' && !sortVers(r, '/carte'));
+
 const unreachable = [...routes.keys()].filter((r) => !reachable.has(r));
 const requiredLost = [...REQUIRED_REACHABLE.keys()].filter(
   (r) => routes.has(r) && !reachable.has(r),
@@ -301,6 +331,11 @@ if (unreachable.length > 0) {
   console.log(`  (dont ${unreachable.length} injoignables — legacy en quarantaine, ADR-001)`);
   if (process.env.GRYD_AUDIT_VERBOSE === '1') for (const r of unreachable) console.log(`      · ${r}`);
 }
+console.log(`\nÉCHAPPABLES vers /carte : ${MVP_ROUTES.length - culsDeSac.length} / ${MVP_ROUTES.length} écrans (mvp)`);
+if (culsDeSac.length > 0) {
+  console.log('\nCULS-DE-SAC :');
+  for (const r of culsDeSac) console.log(`  ⚠ ${r} — aucun chemin écrit vers /carte`);
+}
 if (requiredLost.length > 0) {
   console.log('\nOBLIGATIONS PERDUES :');
   for (const r of requiredLost) console.log(`  ⚠ ${r} — ${REQUIRED_REACHABLE.get(r)}`);
@@ -317,6 +352,14 @@ if (requiredLost.length > 0) {
       'Ce n’est pas une orpheline : le lien existe peut-être encore, mais aucun\n' +
       'joueur ne peut y arriver. C’est exactement le défaut que la bascule du\n' +
       '03/08/2026 a produit, et que cet audit ne savait pas voir.',
+  );
+  process.exit(1);
+}
+if (culsDeSac.length > 0) {
+  console.error(
+    '\nÉCHEC : un écran (mvp) n’offre AUCUN chemin écrit vers la carte.\n' +
+      'Un écran dont on ne ressort qu’en tuant l’app n’est pas un écran discret :\n' +
+      'c’est une impasse. Voir `/connexion` le 03/08/2026.',
   );
   process.exit(1);
 }

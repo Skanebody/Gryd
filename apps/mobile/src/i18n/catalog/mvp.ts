@@ -411,6 +411,16 @@ export const C = defineCatalog({
     de: 'Deine Statistiken konnten nicht gelesen werden. Deine Läufe bleiben gespeichert.',
     pt: 'Não foi possível ler suas estatísticas. Suas corridas continuam salvas.',
   },
+  // Le joueur A couru, mais n'a jamais refermé : `statsEmpty` (« aucune sortie »)
+  // serait FAUX, et un « 0 » en chiffre héros serait pire — il se lirait comme un
+  // score, alors que c'est une étape normale du jeu. On le dit en toutes lettres.
+  statsNoTerritory: {
+    fr: 'Aucune boucle fermée pour l’instant.',
+    en: 'No loop closed yet.',
+    es: 'Ningún bucle cerrado por ahora.',
+    de: 'Noch keine Schleife geschlossen.',
+    pt: 'Nenhum circuito fechado ainda.',
+  },
   accountTitle: { fr: 'Compte', en: 'Account', es: 'Cuenta', de: 'Konto', pt: 'Conta' },
   accountSignOut: {
     fr: 'Se déconnecter',
@@ -455,6 +465,25 @@ export const C = defineCatalog({
     es: 'Cancelar la eliminación',
     de: 'Löschung abbrechen',
     pt: 'Cancelar a exclusão',
+  },
+  // ⚠️ La RPC répond `{ ok: false }` AVEC un code 200 : un refus arrive sans
+  // erreur. Sans cette phrase, l'écran redevenait identique à un succès — sur la
+  // seule action qu'on ne peut pas défaire. Elle dit d'abord ce qui RASSURE.
+  accountDeleteFailed: {
+    fr: 'Ton compte n’a pas été supprimé : la demande n’a pas abouti.',
+    en: 'Your account was not deleted: the request did not go through.',
+    es: 'Tu cuenta no se ha eliminado: la solicitud no se ha completado.',
+    de: 'Dein Konto wurde nicht gelöscht: Die Anfrage ist fehlgeschlagen.',
+    pt: 'Sua conta não foi excluída: a solicitação não foi concluída.',
+  },
+  // Sans cette porte, « Se déconnecter » était un aller SANS retour : plus aucun
+  // chemin vers la connexion depuis l'app (relecture indépendante, 03/08).
+  ctaSignIn: {
+    fr: 'Se connecter',
+    en: 'Sign in',
+    es: 'Iniciar sesión',
+    de: 'Anmelden',
+    pt: 'Entrar',
   },
   legalTitle: { fr: 'Légal', en: 'Legal', es: 'Legal', de: 'Rechtliches', pt: 'Jurídico' },
   legalPrivacy: {

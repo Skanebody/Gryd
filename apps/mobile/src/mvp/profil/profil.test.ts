@@ -31,12 +31,13 @@ function assertEquals(actual: unknown, expected: unknown, message = 'valeurs dif
 
 const PLEIN: StatsRead = { kind: 'ok', runs: 12, distanceM: 84_300, areaM2: 128_400, lastRunAt: 1_770_000_000_000 };
 const VIDE: StatsRead = { kind: 'ok', runs: 0, distanceM: 0, areaM2: 0, lastRunAt: null };
-const jeu = (p: Partial<StatsInput> = {}): StatsInput => ({ signedIn: true, read: PLEIN, ...p });
+const jeu = (p: Partial<StatsInput> = {}): StatsInput => ({ session: 'signedIn', read: PLEIN, ...p });
 
 const LECTURES: StatsRead[] = [{ kind: 'idle' }, { kind: 'loading' }, { kind: 'failed' }, VIDE, PLEIN];
 function toutesLesEntrees(): StatsInput[] {
   const out: StatsInput[] = [];
-  for (const signedIn of [true, false]) for (const read of LECTURES) out.push({ signedIn, read });
+  for (const session of ['signedIn', 'signedOut', 'restoring'] as const)
+    for (const read of LECTURES) out.push({ session, read });
   return out;
 }
 
@@ -54,7 +55,29 @@ Deno.test('un ÉCHEC de lecture n’est pas un vide non plus', () => {
 });
 
 Deno.test('sans compte, il n’y a pas de « mes » statistiques', () => {
-  assertEquals(statsStatus(jeu({ signedIn: false, read: PLEIN })), 'signedOut');
+  assertEquals(statsStatus(jeu({ session: 'signedOut', read: PLEIN })), 'signedOut');
+});
+
+Deno.test('session EN RESTAURATION → `loading`, JAMAIS « sans compte »', () => {
+  // Défaut trouvé par la relecture indépendante du 03/08 : `signedIn: boolean`
+  // écrasait cet état. À froid, `/profil` affirmait « sans compte » à quelqu'un
+  // qui en a un — ET masquait la section Compte, donc la suppression exigée par
+  // l'App Store devenait introuvable le temps d'une seconde.
+  //
+  // `homeState` documentait ce piège depuis M3. Je l'avais corrigé là-bas et
+  // refait ici : la leçon n'était pas dans le fichier, elle était dans le TYPE.
+  assertEquals(statsStatus(jeu({ session: 'restoring' })), 'loading');
+  assertEquals(statsStatus(jeu({ session: 'restoring', read: PLEIN })), 'loading');
+  assertEquals(statsStatus(jeu({ session: 'restoring', read: { kind: 'failed' } })), 'loading');
+});
+
+Deno.test('INVARIANT : « sans compte » n’est affirmé que sur un signedOut AVÉRÉ', () => {
+  // C'est ce statut qui masque la section Compte. L'affirmer à tort rend la
+  // suppression 5.1.1(v) introuvable.
+  for (const e of toutesLesEntrees()) {
+    if (statsStatus(e) !== 'signedOut') continue;
+    assertEquals(e.session, 'signedOut', `${JSON.stringify(e)} : « sans compte » affirmé sans le savoir`);
+  }
 });
 
 Deno.test('lu et sans sortie → vide ; lu et avec sorties → prêt', () => {

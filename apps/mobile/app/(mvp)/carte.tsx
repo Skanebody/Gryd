@@ -40,6 +40,7 @@ import {
 import { readMyTerritories, readRivalTerritories } from '../../src/mvp/map/readTerritories';
 import type { TerritoryFeatureCollection } from '../../src/mvp/map/territoryGeo';
 import { heroArea } from '../../src/mvp/ui/area';
+import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { recoveryOffer, toSnapshot } from '../../src/mvp/run/persist';
 import { loadActiveRun, loadCurrentRun } from '../../src/lib/runStore';
 import { isSupabaseConfigured } from '../../src/lib/supabase';
@@ -273,6 +274,19 @@ export default function Carte() {
             <Text style={styles.unite}>{t(C.unitM2)}</Text>
             <Text style={styles.heroLabel}>{t(C.mapOwnedLabel)}</Text>
           </View>
+        ) : status === 'loading' && !interrompue ? (
+          // L14 — la FORME de la réponse à « qu'est-ce qui est à moi ? », pas
+          // un sablier. `accessible` + `accessibilityLabel` PORTENT l'annonce
+          // que la lecture est en cours : le skeleton, lui, reste décoratif
+          // (voir l'en-tête de `Skeleton.tsx`) — sinon un VoiceOver n'apprendrait
+          // plus rien pendant tout le chargement, une régression que la version
+          // en texte n'avait pas.
+          <View accessible accessibilityLabel={t(C.mapLoading)} accessibilityLiveRegion="polite">
+            <SkeletonGroup style={styles.heroLigneSkeleton}>
+              <SkeletonBlock width={84} height={fontSizes.hero} />
+              <SkeletonBlock width={32} height={fontSizes.lg} />
+            </SkeletonGroup>
+          </View>
         ) : (
           <Text style={styles.phrase}>{phrase}</Text>
         )}
@@ -340,6 +354,10 @@ const styles = StyleSheet.create({
   // `baseline` : le chiffre domine, l'unité et la légende s'alignent sur son
   // pied — sinon le « m² » flotte au milieu d'un nombre de 64 pt.
   heroLigne: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  // `flex-end` et non `baseline` : sans texte à l'intérieur, deux blocs n'ont
+  // pas de ligne de base à partager — `baseline` les alignerait sur leur bas,
+  // ce qui est déjà ce que `flex-end` fait, mais explicitement.
+  heroLigneSkeleton: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
   hero: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.hero },
   unite: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.lg },
   heroLabel: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.md },

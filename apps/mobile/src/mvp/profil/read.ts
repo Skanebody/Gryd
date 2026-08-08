@@ -82,24 +82,50 @@ export async function readDeletionStatus(): Promise<DeletionStatus | null> {
   }
 }
 
-/** Demande la suppression. Rend `true` si le serveur l'a bien enregistrée. */
-export async function requestDeletion(): Promise<boolean> {
-  if (supabase === null) return false;
+/**
+ * Issue d'une demande de suppression ou d'annulation.
+ *
+ * ⚠️ `done` n'est PAS « l'appel n'a pas jeté ». Voir ci-dessous.
+ */
+export type DeletionAction =
+  | { readonly done: true; readonly status: DeletionStatus }
+  | { readonly done: false };
+
+/**
+ * ⚠️ LE DÉFAUT QUE CETTE FONCTION CORRIGE (relecture indépendante, 03/08).
+ * La version précédente rendait `error === null`. Or la RPC répond
+ * `{ ok: false, reason: 'signed_out' }` AVEC un code 200 : une demande refusée
+ * arrivait donc SANS erreur, et passait pour un succès. Trois issues très
+ * différentes — enregistrée / refusée / réseau mort — rendaient exactement le
+ * même écran, sur l'action la plus irréversible du produit.
+ *
+ * On exige donc la CHARGE UTILE, et on la relit : `done` n'est vrai que si le
+ * serveur confirme `pending === true`. C'est ce que le module legacy exigeait
+ * déjà (`features/account/deletion.ts`) — je ne l'avais pas repris.
+ */
+export async function requestDeletion(): Promise<DeletionAction> {
+  if (supabase === null) return { done: false };
   try {
     const { error } = await supabase.rpc('request_account_deletion');
-    return error === null;
+    if (error !== null) return { done: false };
+    const status = await readDeletionStatus();
+    // Relecture ratée ⇒ on ne sait pas. On ne DÉCLARE pas la suppression faite
+    // sur la foi d'un appel qui n'a pas jeté.
+    return status !== null && status.pending === true ? { done: true, status } : { done: false };
   } catch {
-    return false;
+    return { done: false };
   }
 }
 
-/** Annule une suppression en cours. */
-export async function cancelDeletion(): Promise<boolean> {
-  if (supabase === null) return false;
+/** Annule une suppression en cours. Même exigence, en sens inverse. */
+export async function cancelDeletion(): Promise<DeletionAction> {
+  if (supabase === null) return { done: false };
   try {
     const { error } = await supabase.rpc('cancel_account_deletion');
-    return error === null;
+    if (error !== null) return { done: false };
+    const status = await readDeletionStatus();
+    return status !== null && status.pending !== true ? { done: true, status } : { done: false };
   } catch {
-    return false;
+    return { done: false };
   }
 }

@@ -41,8 +41,21 @@ export type StatsRead =
       readonly lastRunAt: number | null;
     };
 
+/**
+ * ⚠️ TROIS états, pas un booléen — défaut trouvé par la relecture indépendante
+ * du 03/08. `signedIn: boolean` écrasait la RESTAURATION de session : au
+ * démarrage à froid, `/profil` affirmait « sans compte » à quelqu'un qui en a
+ * un, ET masquait la section Compte — donc la suppression exigée par l'App
+ * Store devenait introuvable pendant une seconde.
+ *
+ * `homeState.ts` documente ce piège mot pour mot depuis M3. Je l'avais corrigé
+ * là-bas et refait ici : la leçon n'était pas dans le fichier, elle était dans
+ * le TYPE — un booléen ne peut pas porter trois états.
+ */
+export type ProfilSession = 'signedIn' | 'signedOut' | 'restoring';
+
 export interface StatsInput {
-  readonly signedIn: boolean;
+  readonly session: ProfilSession;
   readonly read: StatsRead;
 }
 
@@ -62,7 +75,10 @@ export type StatsStatus = 'signedOut' | 'loading' | 'failed' | 'empty' | 'ready'
  * et `empty` n'est atteignable qu'une fois toutes écartées.
  */
 export function statsStatus(input: StatsInput): StatsStatus {
-  if (!input.signedIn) return 'signedOut';
+  // La restauration AVANT tout : tant qu'on lit la session, on n'affirme rien —
+  // ni « pas de compte », ni le contraire.
+  if (input.session === 'restoring') return 'loading';
+  if (input.session === 'signedOut') return 'signedOut';
   if (input.read.kind === 'idle' || input.read.kind === 'loading') return 'loading';
   if (input.read.kind === 'failed') return 'failed';
   return input.read.runs > 0 ? 'ready' : 'empty';
