@@ -128,7 +128,8 @@
       ],
       "expo-apple-authentication",
       "@maplibre/maplibre-react-native",
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withoutPushEntitlement"
     ],
     "experiments": {}
   }
