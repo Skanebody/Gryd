@@ -35,7 +35,26 @@ export const LEGAL_ENTITY = {
 } as const;
 
 /**
- * Le canal de contact PUBLIÉ, en une chaîne prête à afficher.
- * Utilisé partout où une page nommait une adresse e-mail inexistante.
+ * Le canal de contact POSTAL. Reste publié à côté de l'e-mail : les mentions
+ * légales doivent porter le siège, et une adresse postale ne tombe jamais.
  */
 export const POSTAL_CONTACT = `${LEGAL_ENTITY.name}, ${LEGAL_ENTITY.address}`;
+
+/**
+ * LE CANAL ÉLECTRONIQUE — ouvert le 09/08/2026, sur décision du fondateur.
+ *
+ * ⚠️ CONDITION D'AFFICHAGE, POSÉE PAR L'EN-TÊTE DE CE FICHIER : « ne les
+ * afficher QUE lorsque la boîte reçoit réellement ». Elle a été VÉRIFIÉE avant
+ * d'écrire cette ligne, pas supposée — `dig MX gryd.run` rend
+ * `mta-gw.infomaniak.ch`, donc le domaine accepte le courrier.
+ *
+ * Ce que cette vérification NE prouve pas, et qu'il faut savoir : un MX dit que
+ * le DOMAINE reçoit, pas que la boîte `hey@` existe. Un envoi réel reste le
+ * seul test complet — à faire avant la soumission App Store, où cette adresse
+ * devient le champ « Support URL » obligatoire.
+ *
+ * Ce que ça débloque : Guideline App Store 1.2 (« published contact
+ * information »), le champ Support d'App Store Connect, l'exercice des droits
+ * RGPD par voie électronique, et la LCEN côté mentions légales.
+ */
+export const CONTACT_EMAIL = 'hey@gryd.run';

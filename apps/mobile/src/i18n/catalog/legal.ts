@@ -60,6 +60,17 @@
  * La région d'hébergement, elle, n'était pas fausse : elle était NON SOURCÉE.
  * Elle l'est maintenant (cf. `LEGAL_HOSTING`).
  *
+ * ─── 09/08/2026 : LE JOUR EN QUESTION EST ARRIVÉ ─────────────────────────────
+ * `hey@gryd.run` est ouvert et `gryd.run` reçoit du courrier (MX vérifié :
+ * `mta-gw.infomaniak.ch`). Le web l'affiche déjà (`apps/web/lib/legal.ts`,
+ * `CONTACT_EMAIL`, mentions légales + CGV). Toutes les clés de contact de ce
+ * fichier (`contactBody`, `cguContactBody`, `privacyResponsableBody2`,
+ * `privacyDroitsBody3`, `privacyMineursBody`, `privacyContactBody`,
+ * `cgvVendeurBody`, `cgvMediationBody1`) nomment désormais l'e-mail EN PREMIER
+ * — c'est le canal que les joueurs utilisent réellement — et le courrier au
+ * siège reste EN SECOND, comme garantie qui ne dépend d'aucune boîte mail.
+ * L'adresse est écrite en dur : un identifiant ne se traduit pas.
+ *
  * ─── 26/07/2026 : LES CGU NE QUALIFIENT PLUS DE FRAUDE CE QUE L'APP LIVRE ────
  * Le vélo est devenu une discipline RÉELLE (décision fondateur du 26/07/2026 :
  * territoires, courses, classements et statistiques SÉPARÉS ; XP et niveau
@@ -264,16 +275,25 @@ export const C = defineCatalog({
   /**
    * ⚠️ NE PAS REMETTRE « depuis la page Support ». `/support` n'a ni adresse
    * e-mail, ni formulaire, ni `mailto:` — ses cartes ouvrent une alerte qui dit
-   * elle-même que la remontée n'est pas transmise. Le canal nommé ici doit être
-   * un canal qui EXISTE : l'adresse du siège, déjà publiée au-dessus.
-   * {address} vient de LEGAL_ENTITY.
+   * elle-même que la remontée n'est pas transmise. {address} vient de
+   * LEGAL_ENTITY.
+   *
+   * ── 09/08/2026 : UN CANAL RÉEL S'AJOUTE, LE COURRIER NE DISPARAÎT PAS ──────
+   * `hey@gryd.run` est ouvert (le domaine `gryd.run` reçoit du courrier, MX
+   * vérifié : `mta-gw.infomaniak.ch`) et le site (`apps/web/lib/legal.ts`,
+   * `CONTACT_EMAIL`) l'affiche déjà sur les mentions légales et les CGV. Deux
+   * documents du même produit ne peuvent pas nommer deux canaux différents :
+   * l'e-mail est écrit ici EN DUR (c'est un identifiant, pas un texte à
+   * traduire) et passe en premier, parce que c'est le canal que les joueurs
+   * utilisent réellement. Le courrier reste en second : c'est la garantie qui
+   * ne dépend d'aucune boîte mail et ne tombe jamais.
    */
   contactBody: {
-    fr: 'Pour toute question, une réclamation ou l’exercice de tes droits, écris-nous par courrier : {name}, {address}.',
-    en: 'For any question, complaint or to exercise your rights, write to us by post: {name}, {address}.',
-    es: 'Para cualquier pregunta, reclamación o para ejercer tus derechos, escríbenos por correo postal: {name}, {address}.',
-    de: 'Bei Fragen, Beschwerden oder zur Ausübung deiner Rechte schreib uns per Post: {name}, {address}.',
-    pt: 'Para qualquer dúvida, reclamação ou para exercer seus direitos, escreva-nos por carta: {name}, {address}.',
+    fr: 'Pour toute question, une réclamation ou l’exercice de tes droits, écris-nous à hey@gryd.run, ou par courrier : {name}, {address}.',
+    en: 'For any question, complaint or to exercise your rights, email us at hey@gryd.run, or write to us by post: {name}, {address}.',
+    es: 'Para cualquier pregunta, reclamación o para ejercer tus derechos, escríbenos a hey@gryd.run, o por correo postal: {name}, {address}.',
+    de: 'Bei Fragen, Beschwerden oder zur Ausübung deiner Rechte schreib uns an hey@gryd.run oder per Post: {name}, {address}.',
+    pt: 'Para qualquer dúvida, reclamação ou para exercer seus direitos, escreva para hey@gryd.run, ou por carta: {name}, {address}.',
   },
 
   // ════════════════════════════════════════════════════════════════════════
@@ -492,7 +512,7 @@ export const C = defineCatalog({
   cguContactHeading: fr5('CONTACT'),
   /** {name} / {address} = LEGAL_ENTITY. Voir le commentaire de `contactBody`. */
   cguContactBody: fr5(
-    'Une question sur ces conditions ? Écris-nous par courrier : {name}, {address}.',
+    'Une question sur ces conditions ? Écris-nous à hey@gryd.run, ou par courrier : {name}, {address}.',
   ),
 
   // ── Politique de confidentialité (RGPD) — DISTINCTE des réglages ─────────
@@ -508,7 +528,7 @@ export const C = defineCatalog({
     'Le responsable de traitement est NEXUS 1993 (SASU), éditrice de l’application GRYD, dont le siège est situé {address}. Nous traitons tes données conformément au Règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés.',
   ),
   privacyResponsableBody2: fr5(
-    '« GRYD » est le nom du produit ; l’entité juridique reste NEXUS 1993. Pour toute question sur tes données ou pour exercer tes droits, écris-nous par courrier à l’adresse du siège ci-dessus. L’export et la suppression de tes données, eux, s’exercent directement dans l’application (Réglages, puis Confidentialité).',
+    '« GRYD » est le nom du produit ; l’entité juridique reste NEXUS 1993. Pour toute question sur tes données ou pour exercer tes droits, écris-nous à hey@gryd.run, ou par courrier à l’adresse du siège ci-dessus. L’export et la suppression de tes données, eux, s’exercent directement dans l’application (Réglages, puis Confidentialité).',
   ),
   privacyDonneesHeading: fr5('LES DONNÉES QUE NOUS COLLECTONS'),
   privacyDonneesBody1: fr5(
@@ -672,7 +692,7 @@ export const C = defineCatalog({
     '· Accès & portabilité : obtenir une copie de tes données dans un format lisible (export).\n· Rectification : corriger une donnée inexacte (pseudo, e-mail).\n· Effacement : supprimer ton compte et tes données, directement depuis l’application (Réglages, puis Confidentialité), avec confirmation. La suppression rend ton profil invisible immédiatement, puis purge tes données serveur et locales.\n· Opposition & limitation : t’opposer à un traitement fondé sur l’intérêt légitime, ou en demander la limitation.\n· Retrait du consentement : couper à tout moment l’accès santé ou les notifications.',
   ),
   privacyDroitsBody3: fr5(
-    'Pour exercer tes droits, utilise l’export et la suppression dans l’application (Réglages, puis Confidentialité), ou écris-nous par courrier à l’adresse du siège. Tu peux aussi introduire une réclamation auprès de la CNIL (Commission nationale de l’informatique et des libertés, cnil.fr).',
+    'Pour exercer tes droits, utilise l’export et la suppression dans l’application (Réglages, puis Confidentialité), ou écris-nous à hey@gryd.run, ou par courrier à l’adresse du siège. Tu peux aussi introduire une réclamation auprès de la CNIL (Commission nationale de l’informatique et des libertés, cnil.fr).',
   ),
   privacySecuriteHeading: fr5('SÉCURITÉ'),
   privacySecuriteBody: fr5(
@@ -680,7 +700,7 @@ export const C = defineCatalog({
   ),
   privacyMineursHeading: fr5('MINEURS'),
   privacyMineursBody: fr5(
-    'GRYD est réservé aux personnes âgées d’au moins {age} ans. Nous ne collectons pas sciemment de données concernant des personnes plus jeunes. Si tu penses qu’un mineur de moins de {age} ans nous a transmis des données, écris-nous par courrier à l’adresse du siège et nous les supprimerons.',
+    'GRYD est réservé aux personnes âgées d’au moins {age} ans. Nous ne collectons pas sciemment de données concernant des personnes plus jeunes. Si tu penses qu’un mineur de moins de {age} ans nous a transmis des données, écris-nous à hey@gryd.run, ou par courrier à l’adresse du siège, et nous les supprimerons.',
   ),
   privacyModifsHeading: fr5('MODIFICATIONS'),
   privacyModifsBody: fr5(
@@ -689,7 +709,7 @@ export const C = defineCatalog({
   privacyContactHeading: fr5('CONTACT'),
   /** {name} / {address} = LEGAL_ENTITY : le canal est nommé ICI, pas renvoyé ailleurs. */
   privacyContactBody: fr5(
-    'Une question sur tes données ? Écris-nous par courrier : {name}, {address}. Tu peux aussi saisir la CNIL (cnil.fr).',
+    'Une question sur tes données ? Écris-nous à hey@gryd.run, ou par courrier : {name}, {address}. Tu peux aussi saisir la CNIL (cnil.fr).',
   ),
   /**
    * Ligne-lien de PIED de la politique (patron `ListRow` de navigation) : le
@@ -736,7 +756,7 @@ export const C = defineCatalog({
   ),
   cgvVendeurHeading: fr5('VENDEUR'),
   cgvVendeurBody: fr5(
-    'Vendeur : {name} ({form}) au capital de {capital}, siège social {address}, immatriculée au RCS de {rcs} sous le numéro {siren}, TVA intracommunautaire {vat}. Contact : par courrier à l’adresse du siège ci-dessus. Le détail complet de l’éditeur figure dans les Mentions légales.',
+    'Vendeur : {name} ({form}) au capital de {capital}, siège social {address}, immatriculée au RCS de {rcs} sous le numéro {siren}, TVA intracommunautaire {vat}. Contact : hey@gryd.run, ou par courrier à l’adresse du siège ci-dessus. Le détail complet de l’éditeur figure dans les Mentions légales.',
   ),
   cgvOffresHeading: fr5('OFFRES & PRIX'),
   cgvOffresBody1: fr5(
@@ -814,7 +834,7 @@ export const C = defineCatalog({
    *    les deux fautes — une promesse au-delà du réel, et un lien inatteignable.
    */
   cgvMediationBody1: fr5(
-    'Toute réclamation peut nous être adressée par courrier, à l’adresse du siège indiquée à l’article Vendeur ; nous nous efforçons de la traiter dans les meilleurs délais.',
+    'Toute réclamation peut nous être adressée à hey@gryd.run, ou par courrier à l’adresse du siège indiquée à l’article Vendeur ; nous nous efforçons de la traiter dans les meilleurs délais.',
   ),
   cgvMediationBody2: fr5(
     'La médiation de la consommation prévue par l’article L612-1 du Code de la consommation est ouverte à tout consommateur en cas de litige non résolu, après une réclamation écrite adressée au vendeur. À ce jour, NEXUS 1993 n’a pas encore désigné de médiateur ; ses coordonnées seront publiées dans les présentes conditions dès sa désignation. Tu conserves à tout moment la faculté de saisir les tribunaux compétents.',

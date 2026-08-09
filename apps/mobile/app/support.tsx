@@ -10,7 +10,10 @@
  *      contrôles ;
  *   4. SIGNALER — une `ListRow` vers le seul signalement RÉEL de l'app ;
  *   5. MES DONNÉES — export et suppression, réels, dans Confidentialité ;
- *   6. l'absence de canal de support, dite en gris, avec le seul contact publié.
+ *   6. LE CANAL DE CONTACT — `hey@gryd.run`, ouverte le 09/08/2026. Cette carte
+ *      nommait l'ABSENCE tant qu'aucune boîte n'existait ; elle nomme désormais
+ *      l'adresse, en gardant la même franchise sur ce qui n'existe toujours pas
+ *      (signalement de zone, contestation de statut).
  *
  * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
  * · LES QUATRE CARDS DE SIGNALEMENT MORTES. « Course non comptée », « Segment
@@ -33,10 +36,13 @@
  *   sans `fontFamily` (donc la fonte système, pas Inter).
  *
  * ─── ÉCARTS ASSUMÉS À LA PLANCHE ──────────────────────────────────────────────
- * · Aucun bouton « Nous écrire » : il n'y a pas d'adresse de contact dans le
- *   dépôt (raison technique : décision produit ouverte, cf. le chantier
- *   transverse « canal de support »). Un `mailto:` vers une adresse inventée
- *   serait un bouton mort de plus, sur l'écran qui en avait quatre.
+ * · Pas de BOUTON « Nous écrire », mais l'adresse est ÉCRITE et lisible.
+ *   L'argument d'origine — « un `mailto:` vers une adresse inventée serait un
+ *   bouton mort de plus » — est levé : l'adresse existe et a été vérifiée (MX).
+ *   Ce qui reste vrai, c'est qu'un `mailto:` échoue en silence sur un appareil
+ *   sans client mail configuré. Une adresse en toutes lettres se recopie
+ *   toujours ; un bouton qui ne s'ouvre pas, jamais. Le bouton viendra avec sa
+ *   gestion d'échec, pas avant.
  * · Cet écran ne fait AUCUNE lecture réseau : il n'a donc ni état vide, ni état
  *   d'échec, ni état de chargement — et il le déclare ici plutôt que d'en
  *   simuler.
@@ -183,9 +189,11 @@ export default function SupportScreen() {
         />
       ))}
 
-      {/* L'ABSENCE, nommée — après les actions, en gris, comme sur `qr.tsx`. Le
-          seul contact publié est l'adresse du siège : on y mène, au lieu de
-          renvoyer vers un canal qui n'existe pas. */}
+      {/* LE CONTACT, nommé — après les actions, en gris : c'est un recours, pas
+          l'action principale de l'écran. La carte garde le même ton qu'avant,
+          quand elle nommait une absence : elle dit d'abord ce qui n'existe
+          TOUJOURS pas (signaler une zone, contester un statut), puis l'adresse
+          qui couvre tout le reste. */}
       <View style={styles.absenceCard}>
         <Text style={styles.absenceTitle}>{t(C.supportNoChannelTitle)}</Text>
         <Text style={styles.absenceBody}>{t(C.supportNoChannelBody)}</Text>

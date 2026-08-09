@@ -1896,19 +1896,26 @@ export const C = defineCatalog({
    * destination — le signalement de joueur, réel depuis Confidentialité. Le
    * quatrième (zone dangereuse) n'en a aucune : on le dit au lieu de le peindre.
    */
+  // ⚠️ 09/08/2026 — CETTE CARTE DISAIT UNE ABSENCE QUI N'EN EST PLUS UNE.
+  // Tant qu'aucune boîte n'existait, nommer le vide était la seule honnêteté
+  // possible. `hey@gryd.run` a été ouverte et VÉRIFIÉE (MX présent), donc le
+  // texte devait suivre : une app qui continue d'annoncer « aucune destination »
+  // pendant que ses mentions légales publient une adresse ment deux fois.
+  // Ce qui n'existe TOUJOURS pas (signaler une zone, contester un statut) reste
+  // dit — la carte change de nouvelle, pas de franchise.
   supportNoChannelTitle: {
-    fr: 'Ce que GRYD ne sait pas encore recevoir',
-    en: 'What GRYD cannot receive yet',
-    es: 'Lo que GRYD todavía no sabe recibir',
-    de: 'Was GRYD noch nicht entgegennehmen kann',
-    pt: 'O que o GRYD ainda não sabe receber',
+    fr: 'Nous écrire',
+    en: 'Write to us',
+    es: 'Escríbenos',
+    de: 'Schreib uns',
+    pt: 'Fale com a gente',
   },
   supportNoChannelBody: {
-    fr: 'Signaler une zone dangereuse, contester un statut de sortie ou écrire au support n’est pas possible depuis l’app : ces remontées n’ont pas de destination. Le seul contact publié est l’adresse du siège, dans les Mentions légales.',
-    en: 'Reporting a dangerous area, contesting an activity status or writing to support is not possible from the app: those messages have no destination. The only published contact is the registered office address, in the Legal notice.',
-    es: 'Reportar una zona peligrosa, impugnar el estado de una actividad o escribir al soporte no es posible desde la app: esos mensajes no tienen destino. El único contacto publicado es la dirección de la sede, en el Aviso legal.',
-    de: 'Eine gefährliche Zone melden, den Status einer Aktivität anfechten oder den Support anschreiben geht aus der App nicht: Diese Meldungen haben kein Ziel. Der einzige veröffentlichte Kontakt ist die Anschrift des Sitzes im Impressum.',
-    pt: 'Denunciar uma zona perigosa, contestar o status de uma atividade ou escrever ao suporte não é possível pelo app: essas mensagens não têm destino. O único contato publicado é o endereço da sede, no Aviso legal.',
+    fr: 'Signaler une zone dangereuse ou contester le statut d’une sortie ne se fait pas encore depuis l’app : ces boutons n’existent pas, plutôt que d’envoyer dans le vide. Pour tout le reste, écris-nous à hey@gryd.run.',
+    en: 'Reporting a dangerous area or contesting an activity status is not possible from the app yet: those buttons do not exist, rather than leading nowhere. For anything else, write to us at hey@gryd.run.',
+    es: 'Reportar una zona peligrosa o impugnar el estado de una actividad todavía no se hace desde la app: esos botones no existen, en vez de no llevar a ninguna parte. Para todo lo demás, escríbenos a hey@gryd.run.',
+    de: 'Eine gefährliche Zone melden oder den Status einer Aktivität anfechten geht aus der App noch nicht: Diese Schaltflächen gibt es nicht, statt ins Leere zu führen. Für alles andere schreib uns an hey@gryd.run.',
+    pt: 'Denunciar uma zona perigosa ou contestar o status de uma atividade ainda não dá para fazer pelo app: esses botões não existem, em vez de não levarem a lugar nenhum. Para todo o resto, escreva para hey@gryd.run.',
   },
   supportLegalCta: {
     fr: 'Voir les Mentions légales',

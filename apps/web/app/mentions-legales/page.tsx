@@ -2,10 +2,13 @@
  * GRYD — Mentions légales (obligation LCEN, loi 2004-575 art. 6-III : tout
  * éditeur d'un service en ligne en France DOIT publier ces informations).
  *
- * ⚠️ TEMPLATE À COMPLÉTER : les champs <Todo> attendent les données légales
- * RÉELLES de la SASU Nexus 1993 (capital, siège, RCS/SIREN, TVA, directeur de la
- * publication, hébergeur du site). Voir GRYD_LEGAL_A_COMPLETER.md. Ne pas publier
- * tant que les <Todo> ne sont pas remplacés — et faire relire par un juriste.
+ * ÉTAT AU 09/08/2026 : plus aucun champ à compléter. Identité (capital, siège,
+ * RCS/SIREN, TVA), directeur de la publication, hébergeur et canal de contact
+ * sont renseignés et VÉRIFIÉS. Reste la relecture par un juriste.
+ *
+ * ⚠️ Le composant `Todo` est CONSERVÉ volontairement : il rend visible, en
+ * chartreuse, tout champ qu'une future section laisserait vide. Le retirer
+ * rendrait un oubli silencieux — c'est le seul garde-fou de cette page.
  *
  * Charte : dark-first, réutilise le module CSS légal partagé.
  */
@@ -13,7 +16,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../components/ui/Icon';
-import { POSTAL_CONTACT } from '../../lib/legal';
+import { CONTACT_EMAIL, POSTAL_CONTACT } from '../../lib/legal';
 import styles from '../confidentialite/legal.module.css';
 
 const LAST_UPDATED = '26 juillet 2026';
@@ -74,7 +77,7 @@ export default function MentionsLegalesPage() {
           <h1 className={styles.heroTitle}>Mentions légales</h1>
           <p className={styles.heroSub}>
             Informations légales relatives à l&rsquo;éditeur et à l&rsquo;hébergement de
-            l&rsquo;application mobile GRYD et du site gryd.run, conformément à
+            l&rsquo;application mobile GRYD et du site public GRYD, conformément à
             l&rsquo;article 6-III de la loi n°&nbsp;2004-575 du 21&nbsp;juin 2004 pour la
             confiance dans l&rsquo;économie numérique (LCEN).
           </p>
@@ -87,9 +90,8 @@ export default function MentionsLegalesPage() {
           <div className={styles.pledge}>
             <p className={styles.pledgeTitle}>À finaliser avant publication</p>
             <p className={styles.pledgeBody}>
-              L&rsquo;identité de la société est renseignée. Reste à compléter le champ
-              surligné (hébergeur du site, selon l&rsquo;hébergement retenu) et à faire relire
-              l&rsquo;ensemble par un professionnel du droit.
+              L&rsquo;identité de la société, l&rsquo;hébergeur et le canal de contact sont
+              renseignés (09/08/2026). Reste la relecture par un professionnel du droit.
             </p>
           </div>
         </header>
@@ -111,7 +113,7 @@ export default function MentionsLegalesPage() {
           <p className={styles.sectionNum}>01</p>
           <h2 className={styles.sectionTitle}>Éditeur du site et de l&rsquo;application</h2>
           <p className={styles.body}>
-            L&rsquo;application GRYD et le site gryd.run sont édités par&nbsp;:
+            L&rsquo;application GRYD et le site public GRYD sont édités par&nbsp;:
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
@@ -137,7 +139,8 @@ export default function MentionsLegalesPage() {
                 doit EXISTER. `support@gryd.run` pointait sur un domaine non acquis
                 (O10) — un mailto mort n'est pas un contact. Voir lib/legal.ts. */}
             <li className={styles.item}>
-              <b>Contact&nbsp;:</b> par courrier, {POSTAL_CONTACT}
+              <b>Contact&nbsp;:</b> <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, ou par
+              courrier, {POSTAL_CONTACT}
             </li>
           </ul>
         </section>
@@ -154,9 +157,17 @@ export default function MentionsLegalesPage() {
         <section id="hebergement" className={styles.section}>
           <p className={styles.sectionNum}>03</p>
           <h2 className={styles.sectionTitle}>Hébergement</h2>
+          {/* ⚠️ « Le site gryd.run » était FAUX : le domaine `gryd.run` n'a
+              AUCUN enregistrement A ni `www` — vérifié au DNS le 09/08/2026. Il
+              ne sert aucun site, il reçoit seulement du courrier. Le site public
+              est servi par GitHub Pages, et c'est LUI que la LCEN oblige à
+              déclarer. Nommer une adresse qui ne sert rien, c'est le même défaut
+              que la boîte e-mail inexistante corrigée dans `lib/legal.ts`. */}
           <p className={styles.body}>
-            Le site gryd.run est hébergé par <Todo>hébergeur du site web — nom, raison sociale</Todo>,{' '}
-            <Todo>adresse de l&rsquo;hébergeur</Todo>, <Todo>téléphone de l&rsquo;hébergeur</Todo>.
+            Le site public de GRYD est hébergé par <b>GitHub, Inc.</b> (service GitHub&nbsp;Pages),
+            88&nbsp;Colin&nbsp;P.&nbsp;Kelly&nbsp;Jr.&nbsp;Street, San&nbsp;Francisco, CA&nbsp;94107,
+            États-Unis. GitHub ne publie pas de numéro de téléphone d&rsquo;assistance&nbsp;; son
+            canal de contact est <a href="https://support.github.com">support.github.com</a>.
           </p>
           <p className={styles.body}>
             Les données applicatives (comptes, courses, territoire) sont hébergées via
@@ -212,7 +223,8 @@ export default function MentionsLegalesPage() {
           <h2 className={styles.sectionTitle}>Contact</h2>
           <p className={styles.body}>
             Pour toute question, une réclamation ou l&rsquo;exercice de tes droits,
-            écris-nous par courrier&nbsp;: <b>{POSTAL_CONTACT}</b>. L&rsquo;export et la
+            écris-nous à <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, ou par
+            courrier&nbsp;: <b>{POSTAL_CONTACT}</b>. L&rsquo;export et la
             suppression de tes données, eux, s&rsquo;exercent directement dans
             l&rsquo;application (Réglages, puis Confidentialité).
           </p>

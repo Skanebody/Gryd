@@ -34,7 +34,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon } from '../components/ui/Icon';
-import { POSTAL_CONTACT } from '../../lib/legal';
+import { CONTACT_EMAIL, POSTAL_CONTACT } from '../../lib/legal';
 import styles from '../confidentialite/legal.module.css';
 
 // Révision du 23 juillet 2026 — AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : retrait des boucliers, packs d'Éclats et Season Pass de la liste des produits vendus.
@@ -165,7 +165,8 @@ export default function CgvPage() {
             {/* Le canal publié doit EXISTER : `support@gryd.run` était un mailto vers
                 un domaine non acquis (O10). Voir lib/legal.ts. */}
             <li className={styles.item}>
-              <b>Contact&nbsp;:</b> par courrier, {POSTAL_CONTACT}
+              <b>Contact&nbsp;:</b> <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, ou par
+              courrier, {POSTAL_CONTACT}
             </li>
           </ul>
           <p className={styles.note}>
@@ -313,17 +314,29 @@ export default function CgvPage() {
           <p className={styles.sectionNum}>08</p>
           <h2 className={styles.sectionTitle}>Réclamations &amp; médiation de la consommation</h2>
           <p className={styles.body}>
-            Toute réclamation peut être adressée par courrier à{' '}
+            Toute réclamation peut être adressée à{' '}
+            <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> ou par courrier à{' '}
             <b>{POSTAL_CONTACT}</b>. En cas de litige non résolu,
             tu peux recourir gratuitement à un médiateur de la consommation (art. L612-1 du Code
             de la consommation)&nbsp;:
           </p>
           <ul className={styles.list}>
+            {/* ⚠️ NE PAS REMPLIR CES DEUX CHAMPS AVANT L'ADHÉSION EFFECTIVE.
+                Nommer un médiateur auquel l'entité n'adhère pas serait pire que
+                le champ vide : le consommateur qui le saisirait serait éconduit,
+                et la CECMC ne reconnaît que les adhésions réelles.
+                L'obligation, elle, EST due : l'art. L612-1 s'applique « à tous
+                les professionnels qui contractent avec des consommateurs,
+                INDÉPENDAMMENT de la présence ou non d'une vente » — donc une app
+                gratuite assortie de CGU est concernée. Vérifié le 09/08/2026.
+                Marche à suivre : souscrire auprès d'un médiateur référencé CECMC
+                (liste officielle : economie.gouv.fr/mediation-conso), puis
+                remplacer ces deux `Todo` par le nom et l'adresse reçus. */}
             <li className={styles.item}>
-              <b>Médiateur&nbsp;:</b> <Todo>nom du médiateur agréé auprès duquel Nexus 1993 adhère</Todo>
+              <b>Médiateur&nbsp;:</b> <Todo>nom du médiateur référencé CECMC auprès duquel Nexus 1993 a souscrit</Todo>
             </li>
             <li className={styles.item}>
-              <b>Coordonnées / site&nbsp;:</b> <Todo>adresse et site du médiateur</Todo>
+              <b>Coordonnées / site&nbsp;:</b> <Todo>adresse postale et site du médiateur</Todo>
             </li>
           </ul>
           <p className={styles.body}>

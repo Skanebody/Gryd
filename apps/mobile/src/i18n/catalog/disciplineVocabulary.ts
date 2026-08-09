@@ -31,6 +31,25 @@ const FAUX_AMIS =
   /en cours|parcours|concours|discours|läuft|Aktivitäts-Feed|build runs|app runs/gi;
 
 /**
+ * ADRESSES — e-mails et URL, retirées AVANT toute détection.
+ *
+ * ⚠️ LE CAS QUI A IMPOSÉ CETTE RÈGLE, le 09/08/2026 : le canal de contact
+ * `hey@gryd.run` a fait crier le garde-fou, parce que le motif anglais
+ * `\bruns?\b` matche le `.run` du domaine. Autrement dit, LE DOMAINE DE LA
+ * MARQUE contient le mot le plus surveillé du vocabulaire.
+ *
+ * Ajouter « gryd.run » aux faux amis aurait réglé ce cas et rien d'autre :
+ * n'importe quel domaine cité un jour (`strava.run`, un lien d'aide, un
+ * `.bike`) rejouerait la même fausse alerte. Une adresse n'est pas de la
+ * PROSE — elle ne s'adresse à personne, elle se recopie. Elle n'a donc aucune
+ * raison d'entrer dans une détection qui juge le TON d'un texte.
+ *
+ * La règle reste stricte sur ce qui compte : « écris-nous à hey@gryd.run pour
+ * ta course » est toujours signalé, parce que « course » est hors de l'adresse.
+ */
+const ADRESSES = /\b[\w.+-]+@[\w.-]+\.\w+|\bhttps?:\/\/\S+|\bwww\.\S+/gi;
+
+/**
  * Mots qui désignent la COURSE À PIED (et ses pratiquants) dans les 5 langues.
  * Les frontières `\b` sont indispensables : sans elles « parcours » et
  * « recorrido » déclencheraient.
@@ -107,7 +126,9 @@ export type PorteeDiscipline = 'neutre' | 'course' | 'velo' | 'les-deux';
  * neutralisation la plus honnête qui soit quand il faut être concret.
  */
 export function porteeDuTexte(texte: string): PorteeDiscipline {
-  const propre = texte.replace(FAUX_AMIS, ' ');
+  // Les ADRESSES d'abord : elles peuvent contenir n'importe quel mot du
+  // vocabulaire sans rien dire de la discipline (voir leur commentaire).
+  const propre = texte.replace(ADRESSES, ' ').replace(FAUX_AMIS, ' ');
   const course = MOTS_COURSE.some((rx) => rx.test(propre));
   const velo = MOTS_VELO.some((rx) => rx.test(propre));
   if (course && velo) return 'les-deux';
