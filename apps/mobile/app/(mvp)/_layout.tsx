@@ -18,6 +18,25 @@
 import { Stack } from 'expo-router';
 import { colors } from '@klaim/shared';
 
+/**
+ * ⚠️ LES ÉCRANS DONT ON NE SORT PAS PAR UN GESTE.
+ *
+ * Le geste de retour iOS est ACTIF par défaut sur une pile native. Or la pile
+ * réelle est `carte → push('/prete') → replace('/course')` : `course` est donc
+ * empilé directement sur `carte`, et un effleurement du bord gauche — en
+ * sortant le téléphone de sa poche, en pleine course — DÉMONTE l'écran. Le
+ * suivi s'arrête (`stopBackgroundUpdates`), et le coureur n'a rien décidé.
+ *
+ * La trace n'est pas perdue (le buffer la propose en « course interrompue »),
+ * mais c'est un accident silencieux sur l'écran le plus long du produit. Le HIG
+ * demande de couper le geste quand la sortie est destructive : une activité en
+ * cours se présente comme un moment à part, pas comme une page qu'on feuillette.
+ *
+ * `resultat` suit la même règle pour la raison inverse : revenir en arrière y
+ * ramènerait sur une course déjà close et déjà envoyée.
+ */
+const SANS_GESTE_RETOUR = ['prete', 'course', 'resultat'] as const;
+
 export default function MvpLayout() {
   return (
     <Stack
@@ -27,6 +46,10 @@ export default function MvpLayout() {
         // L14 : pas d'animation coûteuse entre deux écrans d'onboarding.
         animation: 'fade',
       }}
-    />
+    >
+      {SANS_GESTE_RETOUR.map((nom) => (
+        <Stack.Screen key={nom} name={nom} options={{ gestureEnabled: false }} />
+      ))}
+    </Stack>
   );
 }

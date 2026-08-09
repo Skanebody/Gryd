@@ -201,8 +201,14 @@ export default function Resultat() {
       <Pressable
         style={styles.centre}
         onPress={passer}
+        // ⚠️ `passer` ARRÊTE L'ANIMATION, il ne navigue pas. Cette zone
+        // s'annonçait « VOIR LA CARTE » — le libellé exact du vrai bouton, 40 pt
+        // plus bas. Un utilisateur VoiceOver la rencontre EN PREMIER, tape,
+        // n'entend rien changer, et croit avoir navigué. Deux contrôles
+        // homonymes dont un seul tient sa promesse : c'est le même mensonge que
+        // partout ailleurs, transposé au canal auditif.
         accessibilityRole={fete && !reduit ? 'button' : 'none'}
-        accessibilityLabel={fete && !reduit ? t(C.ctaBackToMap) : undefined}
+        accessibilityLabel={fete && !reduit ? t(C.ctaSkipAnimation) : undefined}
       >
         {/* L'objet signature n'apparaît QUE sur une prise : le montrer sur un
             refus ferait miroiter ce qu'on vient de dire non obtenu. */}

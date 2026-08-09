@@ -217,16 +217,32 @@ export default function Carte() {
               ? t(C.emptyMap)
               : null;
 
+  /**
+   * ⚠️ CHAQUE VALEUR DE `HomeAction` DOIT ÊTRE PEINTE ICI, SAUF `'none'`.
+   *
+   * `signIn` manquait. `homeAction` le rendait pourtant depuis le matin même —
+   * je l'y avais ajouté pour que GO cesse d'être un bouton mort sans compte
+   * (une course sans compte s'enregistre mais ne peut JAMAIS devenir un
+   * territoire). L'écran, lui, ne connaissait pas la valeur : elle tombait dans
+   * le `: null` final, et la carte se retrouvait SANS AUCUN bouton.
+   *
+   * J'avais donc échangé un bouton mort contre un cul-de-sac — et L8 exige
+   * l'inverse : tout état vide porte l'action qui le remplit. Ici c'est de se
+   * connecter, pas de courir. `couture.test.ts` vérifie désormais
+   * l'exhaustivité, parce que la relecture ne l'a pas vue deux fois de suite.
+   */
   const libelleAction =
     action === 'resume'
       ? t(C.ctaResumeRun)
       : action === 'go'
         ? t(C.ctaGo)
-      : action === 'askLocation'
-        ? t(C.obPrimingCta)
-        : action === 'openSettings'
-          ? t(C.obDeniedCta)
-          : null;
+        : action === 'signIn'
+          ? t(C.ctaSignIn)
+          : action === 'askLocation'
+            ? t(C.obPrimingCta)
+            : action === 'openSettings'
+              ? t(C.obDeniedCta)
+              : null;
 
   const lancerAction = useCallback(() => {
     if (action === 'resume') {
@@ -237,6 +253,13 @@ export default function Carte() {
     }
     if (action === 'go') {
       router.push('/prete');
+      return;
+    }
+    // `push` et non `replace` : on vient de la carte, on doit pouvoir y revenir
+    // sans se connecter. `/connexion` porte désormais sa propre sortie, mais
+    // laisser la pile intacte évite d'en dépendre.
+    if (action === 'signIn') {
+      router.push('/connexion');
       return;
     }
     if (action === 'askLocation') {

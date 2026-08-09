@@ -119,6 +119,49 @@ Deno.test('couture — aucun écran (mvp) ne retombe sur un zéro par ??', () =>
  * ÉTAPE 0 : `profil.tsx` construisait `{ signedIn: userId !== null }`, et
  * `homeState` a porté le même défaut jusqu'à M3.
  */
+/**
+ * ④ L'écran doit PEINDRE toutes les décisions que le module pur peut rendre.
+ *
+ * Les trois règles ci-dessus interdisent des TOURNURES. Elles n'ont pas vu le
+ * défaut suivant, qui est de l'ordre de l'EXHAUSTIVITÉ — et c'est le même
+ * matin que je l'ai créé en corrigeant autre chose.
+ *
+ * ÉTAPE 0 : `homeAction` a commencé à rendre `'signIn'` (pour que GO cesse
+ * d'être un bouton mort sans compte). `carte.tsx` ne connaissait pas la valeur :
+ * elle tombait dans le `: null` final du ternaire, et la carte se retrouvait
+ * SANS AUCUN BOUTON. Un bouton mort échangé contre un cul-de-sac — alors que L8
+ * exige que tout état vide porte l'action qui le remplit.
+ *
+ * TypeScript ne peut pas l'attraper : une chaîne de ternaires qui finit par
+ * `: null` est parfaitement typée. Il faudrait un `switch` exhaustif sur un
+ * type union — ce que ce test impose de fait, en lisant les deux fichiers.
+ */
+Deno.test('couture — carte.tsx peint chaque action que homeAction peut rendre', () => {
+  const base = new URL('./map/', import.meta.url);
+  const source = Deno.readTextFileSync(new URL('homeState.ts', base));
+  const debut = source.indexOf('export function homeAction');
+  assert(debut >= 0, 'couture : `homeAction` introuvable — le chemin a changé');
+  // Le corps s'arrête à la première accolade fermante en début de ligne.
+  const fin = source.indexOf('\n}', debut);
+  const corps = codeSeul(source.slice(debut, fin));
+
+  const rendues = new Set<string>();
+  for (const m of corps.matchAll(/return\s+'([a-zA-Z]+)'/g)) rendues.add(m[1]!);
+  assert(rendues.size >= 3, `couture : ${rendues.size} action(s) lue(s), la lecture a échoué`);
+
+  const ecran = codeSeul(
+    Deno.readTextFileSync(new URL('../../app/(mvp)/carte.tsx', import.meta.url)),
+  );
+  // `none` est la SEULE valeur qu'un écran a le droit de ne pas peindre : elle
+  // dit précisément « aucune action honnête n'existe ici ».
+  const oubliees = [...rendues].filter((a) => a !== 'none' && !ecran.includes(`'${a}'`));
+  assert(
+    oubliees.length === 0,
+    `carte.tsx ne traite pas : ${oubliees.join(', ')}. ` +
+      `homeAction rend cette décision, l'écran doit la peindre — sinon l'écran n'a plus d'action du tout.`,
+  );
+});
+
 Deno.test('couture — aucun écran (mvp) ne réduit la session à un booléen', () => {
   for (const { nom, source } of ecrans()) {
     assert(

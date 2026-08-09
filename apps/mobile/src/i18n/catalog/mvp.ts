@@ -231,6 +231,26 @@ export const C = defineCatalog({
   },
   gpsWeak: { fr: 'Signal faible', en: 'Weak signal', es: 'Señal débil', de: 'Schwaches Signal', pt: 'Sinal fraco' },
   gpsGood: { fr: 'Signal franc', en: 'Strong signal', es: 'Señal fuerte', de: 'Starkes Signal', pt: 'Sinal forte' },
+  // Le libellé DIT LE GESTE. Un bouton « Terminer » qui ne réagit pas au tap
+  // serait pris pour un bouton cassé — c'est le mode d'échec de toute cible à
+  // maintenir dont l'étiquette ment sur la façon de l'actionner.
+  ctaFinishHold: {
+    fr: 'Maintenir pour terminer',
+    en: 'Hold to finish',
+    es: 'Mantén para terminar',
+    de: 'Zum Beenden halten',
+    pt: 'Segure para terminar',
+  },
+  // ⚠️ Ne JAMAIS réutiliser `ctaBackToMap` pour ceci : la zone de célébration
+  // s'annonçait « VOIR LA CARTE » à VoiceOver alors qu'elle ne fait qu'arrêter
+  // l'animation — deux contrôles homonymes, dont un qui ne navigue pas.
+  ctaSkipAnimation: {
+    fr: 'Passer l’animation',
+    en: 'Skip animation',
+    es: 'Saltar la animación',
+    de: 'Animation überspringen',
+    pt: 'Pular a animação',
+  },
   ctaCancel: { fr: 'ANNULER', en: 'CANCEL', es: 'CANCELAR', de: 'ABBRECHEN', pt: 'CANCELAR' },
 
   // ══════════ PENDANT — L5 : lisible à bout de souffle, ≤ 8 mots ═══════════

@@ -33,11 +33,11 @@
  * ce qui est exactement ce que garantit never-lose-a-run.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
-import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, motion, radii, spacing } from '@klaim/shared';
 import { gpsGrade, type GpsGrade } from '../../src/mvp/run/countdown';
 import { gauge } from '../../src/mvp/run/gauge';
 import { gaugeHaptic, signalHaptic } from '../../src/mvp/run/feedback';
@@ -311,6 +311,41 @@ export default function Course() {
     });
   }, [points]);
 
+  /**
+   * LE MAINTIEN PROTÉGÉ (voir le commentaire du bouton, plus bas).
+   *
+   * L'haptique encadre le geste : une pulsation LÉGÈRE à l'appui dit « c'est
+   * parti, continue », une MOYENNE au déclenchement dit « c'est fait ». Sans la
+   * première, quelqu'un qui court ne sait pas que le maintien a été pris en
+   * compte et relâche trop tôt ; sans la seconde, il ne sait pas quand lâcher.
+   *
+   * `finished` est vérifié : un `stop()` provoqué par le relâchement rappelle
+   * aussi ce callback, et terminer la course sur un geste ANNULÉ serait
+   * exactement le défaut qu'on corrige.
+   */
+  const maintien = useRef(new Animated.Value(0)).current;
+
+  const commencerMaintien = useCallback(() => {
+    haptics.light();
+    Animated.timing(maintien, {
+      toValue: 1,
+      duration: motion.holdToStopMs,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished !== true) return;
+      haptics.medium();
+      void terminer();
+    });
+  }, [maintien, terminer]);
+
+  const annulerMaintien = useCallback(() => {
+    maintien.stopAnimation();
+    // Retour RAPIDE : le remplissage doit visiblement refluer, sinon un
+    // relâchement accidentel laisse croire que la course part quand même.
+    Animated.timing(maintien, { toValue: 0, duration: 150, useNativeDriver: false }).start();
+  }, [maintien]);
+
   const km = formatKm(traceDistanceM(points));
   // ⚠️ `isFirstCapture` n'est pas passé : cet écran ne sait pas encore si le
   // joueur a déjà capturé (l'info vit dans la lecture de la carte). Le défaut
@@ -375,15 +410,36 @@ export default function Course() {
         <Text style={styles.gps}>{phraseGps}</Text>
       </View>
 
+      {/* ⚠️ MAINTENIR, PAS TAPER. Un tap suffisait à clore ET envoyer la course
+          — sans retour possible. Le pouce à travers le tissu d'une poche, un
+          brassard qui appuie, un appui involontaire à un feu rouge : la sortie
+          était finie. Le HIG demande une intention explicite sur une action
+          irréversible (c'est le modèle Apple Workout).
+          Le token de la solution DORMAIT déjà dans la charte :
+          `motion.holdToStopMs = 1200` — « stop protégé : maintenir 1,2 s ».
+          `useNativeDriver: false` : la valeur pilote une LARGEUR, pas une
+          transformation — le pilote natif ne sait pas animer `width`. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t(C.ctaFinish)}
-        accessibilityState={{ disabled: envoi }}
+        accessibilityLabel={t(C.ctaFinishHold)}
+        // `busy` et non seulement `disabled` : VoiceOver dit alors « en cours »
+        // au lieu de « désactivé », qui ferait croire à un bouton inerte.
+        accessibilityState={{ disabled: envoi, busy: envoi }}
         disabled={envoi}
-        onPress={() => void terminer()}
-        style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+        onPressIn={commencerMaintien}
+        onPressOut={annulerMaintien}
+        style={[styles.cta, envoi && styles.dim]}
       >
-        <Text style={styles.ctaLabel}>{t(C.ctaFinish)}</Text>
+        {/* Le remplissage EST le compte à rebours : sans lui, maintenir un
+            bouton qui ne bouge pas est indiscernable d'un bouton en panne. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.ctaProgression,
+            { width: maintien.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+          ]}
+        />
+        <Text style={styles.ctaLabel}>{envoi ? t(C.ctaFinish) : t(C.ctaFinishHold)}</Text>
       </Pressable>
     </View>
   );
@@ -405,7 +461,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
+    // Sans lui, le remplissage du maintien déborderait du rayon pilule.
+    overflow: 'hidden',
   },
   ctaPressed: { backgroundColor: colors.chartreusePressed },
+  // Le remplissage du maintien : posé DERRIÈRE le libellé (`overflow: hidden`
+  // sur `cta` le borne au rayon pilule), assombri plutôt que teinté — une
+  // seconde couleur ferait croire à un second sens.
+  ctaProgression: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.chartreusePressed,
+  },
+  dim: { opacity: 0.6 },
   ctaLabel: { color: colors.noir, fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '700' },
 });
