@@ -583,6 +583,38 @@ export const C = defineCatalog({
    */
   unitM2: { fr: 'm²', en: 'm²', es: 'm²', de: 'm²', pt: 'm²' },
 
+  // ══════════ LE CHIFFRE HÉROS, DIT D'UN SEUL TENANT (VoiceOver) ════════════
+  // Le chiffre, l'unité et la légende sont TROIS `Text` frères à l'écran —
+  // parce que la typographie l'exige (un nombre de 64 pt, une unité de 20 pt,
+  // une légende grise de 16 pt). Un lecteur d'écran, lui, les rencontrait comme
+  // trois arrêts distincts : « 64 » … « m² » … « à toi ». Le chiffre du jeu
+  // devenait un puzzle. Ces libellés le redisent en UNE phrase.
+  //
+  // ⚠️ L'UNITÉ S'ÉCRIT EN TOUTES LETTRES ICI, et nulle part ailleurs : « m² »
+  // est prononcé « m » par la plupart des synthèses vocales — l'exposant se
+  // perd, et 64 m² se dit « 64 mètres ». Ce n'est pas la même grandeur.
+  a11yAreaOwned: {
+    fr: '{n} mètres carrés, à toi',
+    en: '{n} square metres, yours',
+    es: '{n} metros cuadrados, tuyo',
+    de: '{n} Quadratmeter, die dir gehören',
+    pt: '{n} metros quadrados, seus',
+  },
+  a11yAreaTerritory: {
+    fr: '{n} mètres carrés de territoire',
+    en: '{n} square metres of territory',
+    es: '{n} metros cuadrados de territorio',
+    de: '{n} Quadratmeter Gebiet',
+    pt: '{n} metros quadrados de território',
+  },
+  a11yAreaTaken: {
+    fr: 'Territoire pris : {n} mètres carrés',
+    en: 'Territory taken: {n} square metres',
+    es: 'Territorio conquistado: {n} metros cuadrados',
+    de: 'Gebiet erobert: {n} Quadratmeter',
+    pt: 'Território conquistado: {n} metros quadrados',
+  },
+
   // ══════════ ONBOARDING — L9 : la valeur AVANT la permission ══════════════
   onboardingPriming: {
     fr: 'GRYD dessine ton territoire à partir de ta course. Autorise ta position pour commencer.',

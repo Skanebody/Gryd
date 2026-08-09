@@ -162,6 +162,46 @@ Deno.test('couture — carte.tsx peint chaque action que homeAction peut rendre'
   );
 });
 
+/**
+ * ⑤ Chaque écran doit déclarer sa TRANSITION dans le layout du groupe.
+ *
+ * `app/(mvp)/_layout.tsx` associe un rôle d'animation à chaque route : `fade`
+ * pour les écrans atteints par `replace` (aucun retour possible),
+ * `slide_from_right` pour ceux qu'on empile, `fade_from_bottom` pour le
+ * préflight. Un écran ajouté sans entrée hérite silencieusement du défaut — et
+ * un écran atteint par `replace` qui GLISSE promet une profondeur inexistante.
+ *
+ * Ce n'est pas un test d'esthétique : la transition est la seule chose qui dise
+ * au joueur s'il avance ou s'il revient. Elle se perd sans bruit, d'où ce filet.
+ */
+Deno.test('couture — chaque écran (mvp) déclare sa transition dans le layout', () => {
+  const base = new URL('../../app/(mvp)/', import.meta.url);
+  const fichiers = [...Deno.readDirSync(base)]
+    .filter((e) => e.isFile && e.name.endsWith('.tsx') && e.name !== '_layout.tsx')
+    .map((e) => e.name.replace(/\.tsx$/, ''))
+    .sort();
+  assert(fichiers.length >= 5, `couture : ${fichiers.length} écran(s) lu(s), le chemin est faux`);
+
+  const layout = codeSeul(Deno.readTextFileSync(new URL('_layout.tsx', base)));
+  const debut = layout.indexOf('const TRANSITIONS');
+  assert(debut >= 0, 'couture : `TRANSITIONS` introuvable dans (mvp)/_layout.tsx');
+  const table = layout.slice(debut, layout.indexOf('}', debut));
+  const declarees = [...table.matchAll(/^\s{2}([a-z][a-zA-Z0-9]*):/gm)].map((m) => m[1]!).sort();
+
+  const manquantes = fichiers.filter((f) => !declarees.includes(f));
+  assert(
+    manquantes.length === 0,
+    `écran(s) sans transition déclarée : ${manquantes.join(', ')}. ` +
+      `Un écran atteint par \`replace\` qui glisse promet un retour qui n'existe pas.`,
+  );
+
+  const fantomes = declarees.filter((d) => !fichiers.includes(d));
+  assert(
+    fantomes.length === 0,
+    `transition déclarée pour un écran INEXISTANT : ${fantomes.join(', ')}.`,
+  );
+});
+
 Deno.test('couture — aucun écran (mvp) ne réduit la session à un booléen', () => {
   for (const { nom, source } of ecrans()) {
     assert(

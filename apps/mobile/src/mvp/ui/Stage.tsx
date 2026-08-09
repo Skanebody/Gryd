@@ -52,6 +52,23 @@ const TOUCH_TARGET_PT = 44;
  */
 const VOILE_PALIERS = [0, 0, 0.08, 0.2, 0.36, 0.54, 0.72, 0.88, 0.96, 1] as const;
 
+/**
+ * Interligne du corps, en MULTIPLE de la taille de police.
+ *
+ * ⚠️ IL NE PEUT PAS VIVRE DANS `StyleSheet.create`. Une feuille de style est
+ * STATIQUE : un `lineHeight` numérique y est figé, alors que `fontSize` suit
+ * Dynamic Type. 24 pt tenaient tant que le corps faisait 16 pt — à l'échelle
+ * AX3 (~2,35×) le texte atteint ~38 pt dans le même interligne de 24, et les
+ * lignes se recouvrent. Sur `Stage`, ça touche TOUS les écrans d'entrée à la
+ * fois (bienvenue, priming, refus) : c'est la première chose que voit quelqu'un
+ * qui a agrandi ses polices.
+ *
+ * On le dérive donc de `fontScale`, à chaque rendu. `useWindowDimensions` le
+ * rend réactif : changer la taille système dans les Réglages puis revenir dans
+ * l'app remet l'interligne d'aplomb sans redémarrage.
+ */
+const INTERLIGNE = 1.5;
+
 export interface StageAction {
   /** Déjà traduit. Impératif court (Annexe C). */
   readonly label: string;
@@ -91,7 +108,8 @@ export function Stage({
   readonly photo?: ImageSourcePropType;
 }) {
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
+  const interligne = { lineHeight: Math.round(fontSizes.md * INTERLIGNE * fontScale) };
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
       {photo !== undefined ? (
@@ -102,7 +120,18 @@ export function Stage({
               à la fenêtre, donc `cover` recadre sur une surface plus grande que
               l'écran. Résultat : un gros plan de visage là où la planche montre
               un peloton. */}
-          <Image source={photo} resizeMode="cover" style={[styles.photo, { width, height }]} />
+          <Image
+            source={photo}
+            resizeMode="cover"
+            style={[styles.photo, { width, height }]}
+            // L15 — DÉCORATIVE : elle porte la valeur montrée à l'ŒIL (L9), pas
+            // une information. Sans ces deux props, VoiceOver l'annonçait
+            // (« image ») AVANT le titre, sur `/bienvenue` — le tout premier
+            // écran de l'app, la première seconde. La convention est celle de
+            // `connexion.tsx`, mot pour mot.
+            accessible={false}
+            importantForAccessibility="no-hide-descendants"
+          />
           {/* VOILE DÉGRADÉ — pas un aplat. Un aplat uniforme éteindrait la photo
               partout ; le dégradé ne l'assombrit QUE là où le texte se pose.
               Sans lui, un titre blanc sur un ciel clair devient illisible : ce
@@ -123,15 +152,24 @@ export function Stage({
         showsVerticalScrollIndicator={false}
       >
         {visual}
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.body}>{body}</Text>
+        {/* `header` : sans lui, le rotor « En-têtes » de VoiceOver ne trouve
+            RIEN sur ces écrans — on ne peut pas sauter au titre, il faut
+            balayer depuis le premier élément. */}
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
+        <Text style={[styles.body, interligne]}>{body}</Text>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={cta.label}
-          accessibilityState={{ disabled: cta.busy === true }}
+          // `busy` EN PLUS de `disabled` : le libellé reste, le tap ne part
+          // plus — mais VoiceOver annonçait « désactivé », donc « ce bouton
+          // n'est pas pour toi », alors que l'appel est EN COURS. Deux états
+          // opposés dits par le même mot.
+          accessibilityState={{ disabled: cta.busy === true, busy: cta.busy === true }}
           disabled={cta.busy === true}
           onPress={cta.onPress}
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
@@ -177,7 +215,9 @@ const styles = StyleSheet.create({
   photo: { position: 'absolute', top: 0, left: 0 },
   voile: { ...StyleSheet.absoluteFillObject, flexDirection: 'column' },
   title: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xxl },
-  body: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.md, lineHeight: 24 },
+  // `lineHeight` VOLONTAIREMENT ABSENT : il est dérivé du `fontScale` dans le
+  // composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
+  body: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.md },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: spacing.sm },
   cta: {
     minHeight: TOUCH_TARGET_PT,

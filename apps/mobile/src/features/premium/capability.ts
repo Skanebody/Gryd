@@ -52,7 +52,9 @@ export type PurchaseBlockedReason =
   /** O3 : aucune clé publique pour CETTE plateforme. */
   | 'key_missing'
   /** Une clé SECRÈTE (`sk_…`) a été placée dans une variable client — refusée. */
-  | 'key_is_secret';
+  | 'key_is_secret'
+  /** La clé n'a pas le préfixe de production de sa plateforme (`appl_`/`goog_`). */
+  | 'key_not_production';
 
 export type PurchaseCapability =
   | { readonly available: true; readonly platform: 'ios' | 'android'; readonly apiKey: string }
@@ -69,6 +71,9 @@ export interface PurchaseCapabilityInput {
 
 /** Préfixe des clés SECRÈTES RevenueCat — interdites côté client. */
 const SECRET_KEY_PREFIX = 'sk_';
+/** Préfixes des clés PUBLIQUES de production RevenueCat, par plateforme. */
+const IOS_KEY_PREFIX = 'appl_';
+const ANDROID_KEY_PREFIX = 'goog_';
 
 export function purchasePlatform(os: string): PurchasePlatform {
   if (os === 'ios') return 'ios';
@@ -100,6 +105,24 @@ export function purchaseCapability(input: PurchaseCapabilityInput): PurchaseCapa
   if (apiKey === null) return { available: false, reason: 'key_missing' };
   if (apiKey.startsWith(SECRET_KEY_PREFIX)) {
     return { available: false, reason: 'key_is_secret' };
+  }
+  /**
+   * ⚠️ LA GARDE NE REFUSAIT QUE `sk_`. La valeur réellement présente dans
+   * l'environnement était `test_C…` — elle PASSAIT, et rendait donc les écrans
+   * d'achat vivants alors qu'aucun produit n'existe côté App Store. Un écran
+   * d'abonnement sans produit, c'est un bouton mort en revue (2.1), et un prix
+   * affiché sans achat possible, c'est 3.1.1.
+   *
+   * Une clé RevenueCat de PRODUCTION porte un préfixe de plateforme :
+   * `appl_` sur iOS, `goog_` sur Android. Tout le reste — `test_`, une clé
+   * copiée d'un autre projet, une chaîne de bac à sable — n'est pas une clé
+   * avec laquelle on peut vendre. On exige donc le bon préfixe au lieu
+   * d'énumérer les mauvais : une liste noire se fait toujours contourner par la
+   * valeur qu'on n'avait pas prévue, et c'est exactement ce qui est arrivé ici.
+   */
+  const attendu = platform === 'ios' ? IOS_KEY_PREFIX : ANDROID_KEY_PREFIX;
+  if (!apiKey.startsWith(attendu)) {
+    return { available: false, reason: 'key_not_production' };
   }
 
   return { available: true, platform, apiKey };

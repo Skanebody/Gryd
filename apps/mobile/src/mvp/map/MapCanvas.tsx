@@ -50,7 +50,7 @@ import {
   type FillLayerStyle,
   type LineLayerStyle,
 } from '@maplibre/maplibre-react-native';
-import { colors, fonts, fontSizes, gameColors, spacing, withAlpha } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, radii, spacing, withAlpha } from '@klaim/shared';
 import { grydNightStyleJson } from './nightStyle';
 import { BASEMAP_ATTRIBUTION, type TerritoryFeatureCollection } from './territoryGeo';
 
@@ -194,6 +194,14 @@ export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
+  // ⚠️ CE TEXTE N'A AUCUN FOND GARANTI SANS CE VOILE. `colors.grisFaible`
+  // atteint 4,54:1 sur le NOIR PUR de l'app — mais l'attribution n'est pas
+  // posée sur l'app : elle est posée sur des TUILES, dont la teinte dépend du
+  // fond de carte, du zoom, et de ce qu'il y a sous le coin bas-gauche (un parc
+  // clair, un plan d'eau, un bâtiment). Le contraste mesuré à plat ne dit donc
+  // rien du contraste réel. Un voile local garantit le rapport quelle que soit
+  // la tuile — et il ne coûte qu'un rectangle de 12 pt de haut, sur une mention
+  // qu'on est LÉGALEMENT tenu de rendre lisible (ODbL / CARTO).
   attribution: {
     position: 'absolute',
     left: spacing.sm,
@@ -201,5 +209,8 @@ const styles = StyleSheet.create({
     color: colors.grisFaible,
     fontFamily: fonts.text,
     fontSize: fontSizes.xs,
+    backgroundColor: withAlpha(colors.noir, 0.55),
+    paddingHorizontal: spacing.xxs,
+    borderRadius: radii.sm,
   },
 });

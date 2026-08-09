@@ -32,7 +32,7 @@
  * bouton dit « Terminer », pas « Enregistrer ». La trace attend sur le disque,
  * ce qui est exactement ce que garantit never-lose-a-run.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -137,11 +137,25 @@ export default function Course() {
       if (!vivant) return;
       setGrade(gpsGrade(p.coords.accuracy));
       setPoints((prev) => {
-        // `mergeFixes` et non un `push` : le même relevé peut arriver par le
-        // capteur ET par la file background au moment d'une bascule d'écran.
-        const suite = mergeFixes(prev, [
-          { lng: p.coords.longitude, lat: p.coords.latitude, t: p.timestamp },
-        ]);
+        const fix = { lng: p.coords.longitude, lat: p.coords.latitude, t: p.timestamp };
+        /**
+         * ⚠️ `mergeFixes` RECONSTRUIT UNE `Map` ET RETRIE TOUT LE TABLEAU. À
+         * ~1 Hz sur une heure de course, `n` monte vers 3 600 : chaque nouveau
+         * point retriait un tableau qui grossit, donc un coût qui AUGMENTE avec
+         * la durée — précisément quand la batterie est déjà la plus sollicitée.
+         *
+         * On ne peut pas le remplacer par un simple `push` pour autant : le
+         * commentaire d'origine disait vrai, un même relevé peut arriver par le
+         * capteur ET par la file background lors d'une bascule d'écran.
+         *
+         * D'où la voie rapide : si le relevé est STRICTEMENT plus récent que le
+         * dernier connu, il ne peut être ni un doublon ni un désordre — on
+         * ajoute en O(1). Tout le reste (doublon, arrivée tardive du background)
+         * retombe sur la fusion complète, qui reste la seule à savoir dédupliquer.
+         */
+        const dernier = prev[prev.length - 1];
+        const suite =
+          dernier !== undefined && fix.t > dernier.t ? [...prev, fix] : mergeFixes(prev, [fix]);
         enAttenteRef.current += 1;
         const maintenant = Date.now();
         if (shouldFlush(dernierFlushRef.current, maintenant, enAttenteRef.current)) {
@@ -346,13 +360,26 @@ export default function Course() {
     Animated.timing(maintien, { toValue: 0, duration: 150, useNativeDriver: false }).start();
   }, [maintien]);
 
-  const km = formatKm(traceDistanceM(points));
+  /**
+   * ⚠️ CES DEUX CALCULS SONT EN O(n), ET ILS TOURNAIENT À CHAQUE RENDU.
+   *
+   * `traceDistanceM` somme un haversine sur TOUS les segments ; `gauge` rappelle
+   * `traceLengthM`, donc le fait une seconde fois. Or le chronomètre tique
+   * toutes les 500 ms (`TICK_MS`) et provoque un rendu — sur lequel `points` n'a
+   * PAS changé. Résultat : sur l'écran qu'on regarde une heure, à bout de
+   * souffle, la trace entière était reparcourue quatre fois par seconde pour
+   * rafraîchir un chrono.
+   *
+   * `useMemo` sur `points` supprime la moitié gratuite de ce travail sans
+   * toucher aux algorithmes : le tick ne recalcule plus rien.
+   */
+  const km = useMemo(() => formatKm(traceDistanceM(points)), [points]);
   // ⚠️ `isFirstCapture` n'est pas passé : cet écran ne sait pas encore si le
   // joueur a déjà capturé (l'info vit dans la lecture de la carte). Le défaut
   // prend le seuil le PLUS HAUT, donc la jauge parle plus tard qu'elle ne
   // pourrait pour un premier joueur — se tromper dans ce sens fait dire moins,
   // l'autre ferait promettre une boucle que le moteur refuserait.
-  const jauge = gauge(points);
+  const jauge = useMemo(() => gauge(points), [points]);
 
   // L6 — l'haptique se déclenche sur une TRANSITION, jamais sur un état : la
   // jauge est recalculée à chaque point GPS, et vibrer sur son état ferait

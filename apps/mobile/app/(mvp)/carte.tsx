@@ -22,7 +22,7 @@
  * pas de serveur. C'est le bandeau — jamais la carte — qui dit laquelle.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
@@ -42,6 +42,7 @@ import type { TerritoryFeatureCollection } from '../../src/mvp/map/territoryGeo'
 import { heroArea } from '../../src/mvp/ui/area';
 import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { Panel } from '../../src/mvp/ui/Panel';
+import { useAnnonce } from '../../src/mvp/ui/announce';
 import { recoveryOffer, toSnapshot } from '../../src/mvp/run/persist';
 import { loadActiveRun, loadCurrentRun } from '../../src/lib/runStore';
 import { isSupabaseConfigured } from '../../src/lib/supabase';
@@ -56,6 +57,18 @@ const TOUCH_TARGET_PT = 44;
 /** Zoom d'ouverture sur ma position : le quartier, pas la ville ni la rue. */
 const ZOOM_EGO = 15;
 
+/**
+ * Interligne du corps, en MULTIPLE de la taille de police.
+ *
+ * ⚠️ Il n'est PAS écrit dans `StyleSheet.create` : un `lineHeight` numérique ne
+ * suit pas Dynamic Type, alors que `fontSize` le suit. Figé à 24 pt, il tenait
+ * tant que le corps faisait 16 pt — à l'échelle AX3 (~2,35×) le texte atteint
+ * ~38 pt dans le même interligne de 24, et les lignes se RECOUVRENT. On le
+ * dérive donc du `fontScale` système, à chaque rendu (même dérivation dans
+ * `connexion`, `profil`, `resultat` et `Stage`).
+ */
+const INTERLIGNE = 1.5;
+
 /** Réponse OS → l'état que `homeState` comprend. Sans réponse encore : inconnu. */
 function accesDepuisOS(r: Location.PermissionResponse | null): LocationAccess {
   if (r === null) return 'unknown';
@@ -67,6 +80,8 @@ function accesDepuisOS(r: Location.PermissionResponse | null): LocationAccess {
 
 export default function Carte() {
   const t = useT();
+  const { fontScale } = useWindowDimensions();
+  const interligne = { lineHeight: Math.round(fontSizes.md * INTERLIGNE * fontScale) };
   const { session, loading: sessionLoading } = useSession();
   const [permission, setPermission] = useState<Location.PermissionResponse | null>(null);
   const [read, setRead] = useState<TerritoryRead>({ kind: 'idle' });
@@ -232,6 +247,11 @@ export default function Carte() {
    * connecter, pas de courir. `couture.test.ts` vérifie désormais
    * l'exhaustivité, parce que la relecture ne l'a pas vue deux fois de suite.
    */
+  // iOS n'a pas de « live region » (`accessibilityLiveRegion` est ANDROID) :
+  // sans cette annonce, passer de « lecture en cours » à « échec » change le
+  // texte sans qu'aucun lecteur d'écran ne l'apprenne.
+  useAnnonce(phrase);
+
   const libelleAction =
     action === 'resume'
       ? t(C.ctaResumeRun)
@@ -298,7 +318,11 @@ export default function Carte() {
           en-tête pour pourquoi ce n'est pas un flou). */}
       <Panel edge="top" radius={0} style={[styles.bandeau, { paddingTop: insets.top + spacing.md }]}>
         {chiffre !== null && !interrompue ? (
-          <View style={styles.heroLigne}>
+          // UN SEUL élément d'accessibilité pour LE chiffre du jeu : à l'œil ce
+          // sont trois `Text` (64 pt / 20 pt / 16 pt), à l'oreille c'était trois
+          // arrêts — « 64 » … « m² » … « à toi ». Le label le redit d'un tenant,
+          // unité en toutes lettres (voir `a11yAreaOwned`).
+          <View style={styles.heroLigne} accessible accessibilityLabel={t(C.a11yAreaOwned, { n: chiffre })}>
             <Text style={styles.hero}>{chiffre}</Text>
             <Text style={styles.unite}>{t(C.unitM2)}</Text>
             <Text style={styles.heroLabel}>{t(C.mapOwnedLabel)}</Text>
@@ -317,7 +341,14 @@ export default function Carte() {
             </SkeletonGroup>
           </View>
         ) : (
-          <Text style={styles.phrase}>{phrase}</Text>
+          // `accessibilityLiveRegion` : cette phrase CHANGE sans que l'écran
+          // change — une lecture qui tourne devient un échec, un vide ou « sans
+          // compte ». Sans région vive, le nouvel état s'affichait en silence :
+          // seul `loading` était annoncé, donc VoiceOver entendait « lecture en
+          // cours… » puis plus rien, à jamais.
+          <Text style={[styles.phrase, interligne]} accessibilityLiveRegion="polite">
+            {phrase}
+          </Text>
         )}
       </Panel>
 
@@ -390,7 +421,9 @@ const styles = StyleSheet.create({
   hero: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.hero },
   unite: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.lg },
   heroLabel: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.md },
-  phrase: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md, lineHeight: 24 },
+  // `lineHeight` VOLONTAIREMENT ABSENT ici : il est dérivé du `fontScale` dans
+  // le composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
+  phrase: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md },
   pied: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, gap: spacing.sm },
   cta: {
     minHeight: TOUCH_TARGET_PT,

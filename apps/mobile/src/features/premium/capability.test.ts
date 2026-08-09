@@ -40,6 +40,39 @@ Deno.test('clé SECRÈTE sk_ : refusée, jamais configurée dans le client', () 
   if (!cap.available) assertEquals(cap.reason, 'key_is_secret');
 });
 
+/**
+ * ÉTAPE 0 — le défaut existait, et il était DANS L'ENVIRONNEMENT DE BUILD.
+ *
+ * La garde ne refusait que `sk_`. La valeur réellement posée était `test_C…` :
+ * elle passait, donc `available: true`, donc les écrans d'achat vivants — alors
+ * qu'aucun produit n'existe côté App Store. Un écran d'abonnement sans produit
+ * est un bouton mort en revue (2.1) ; s'il affiche un prix, c'est 3.1.1.
+ *
+ * On exige désormais le préfixe de PRODUCTION plutôt que d'énumérer les
+ * mauvaises valeurs : une liste noire se fait toujours contourner par celle
+ * qu'on n'avait pas prévue — c'est exactement ce qui est arrivé.
+ */
+Deno.test('une clé de TEST (`test_…`) ne rend pas l’achat disponible', () => {
+  const ios = purchaseCapability({ os: 'ios', sdkAvailable: true, iosKey: 'test_CxYzAbCd' });
+  assertEquals(ios.available, false);
+  if (!ios.available) assertEquals(ios.reason, 'key_not_production');
+
+  const android = purchaseCapability({
+    os: 'android',
+    sdkAvailable: true,
+    androidKey: 'test_CxYzAbCd',
+  });
+  assertEquals(android.available, false);
+  if (!android.available) assertEquals(android.reason, 'key_not_production');
+});
+
+Deno.test('la clé doit porter le préfixe de SA plateforme, pas celui de l’autre', () => {
+  // `goog_` sur iOS : plausible par copier-coller, et refusé.
+  const ios = purchaseCapability({ os: 'ios', sdkAvailable: true, iosKey: 'goog_publique' });
+  assertEquals(ios.available, false);
+  if (!ios.available) assertEquals(ios.reason, 'key_not_production');
+});
+
 Deno.test('une clé iOS ne rend pas Android capable (et réciproquement)', () => {
   const android = purchaseCapability({ os: 'android', sdkAvailable: true, iosKey: IOS });
   assertEquals(android.available, false);

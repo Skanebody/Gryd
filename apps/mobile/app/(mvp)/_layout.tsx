@@ -37,18 +37,56 @@ import { colors } from '@klaim/shared';
  */
 const SANS_GESTE_RETOUR = ['prete', 'course', 'resultat'] as const;
 
+/**
+ * LES TRANSITIONS, PAR RÔLE D'ÉCRAN.
+ *
+ * ⚠️ `animation: 'fade'` était posé sur TOUT le groupe. Le commentaire le
+ * justifiait par « pas d'animation coûteuse entre deux écrans D'ONBOARDING » —
+ * mais l'option vivait dans `screenOptions`, donc elle s'appliquait aussi à
+ * `carte → prete → course → resultat` et à `carte → profil`. Conséquence : rien
+ * ne disait plus au joueur s'il AVANÇAIT ou s'il REVENAIT. Aller sur « Toi » et
+ * en repartir produisait exactement la même transition, et le modèle spatial
+ * d'iOS — le nouvel écran vient de la droite, le retour y repart — était effacé.
+ *
+ * Trois rôles, trois traitements :
+ *   · `fade` — écrans atteints par `replace`. Il n'y a AUCUN retour possible
+ *     vers eux : un glissement promettrait une profondeur qui n'existe pas.
+ *   · `slide_from_right` — écrans empilés par `push`, d'où l'on revient. C'est
+ *     le seul cas où la direction porte une information.
+ *   · `fade_from_bottom` — le préflight. Il n'est ni une page ni un retour :
+ *     c'est un moment à part, et venir du bas le dit sans mot.
+ */
+const TRANSITIONS = {
+  bienvenue: 'fade',
+  position: 'fade',
+  connexion: 'fade',
+  carte: 'fade',
+  profil: 'slide_from_right',
+  prete: 'fade_from_bottom',
+  course: 'fade',
+  resultat: 'fade',
+} as const;
+
 export default function MvpLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.noir },
-        // L14 : pas d'animation coûteuse entre deux écrans d'onboarding.
-        animation: 'fade',
+        // Le défaut sert les écrans empilés ; chaque écran nommé ci-dessous le
+        // remplace par son rôle réel.
+        animation: 'slide_from_right',
       }}
     >
-      {SANS_GESTE_RETOUR.map((nom) => (
-        <Stack.Screen key={nom} name={nom} options={{ gestureEnabled: false }} />
+      {Object.entries(TRANSITIONS).map(([nom, animation]) => (
+        <Stack.Screen
+          key={nom}
+          name={nom}
+          options={{
+            animation,
+            gestureEnabled: !(SANS_GESTE_RETOUR as readonly string[]).includes(nom),
+          }}
+        />
       ))}
     </Stack>
   );

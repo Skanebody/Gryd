@@ -272,6 +272,63 @@ Ne **jamais** mettre d'identifiants personnels réels.
 
 ---
 
+### 2.9 — LE COMPTE DE DÉMONSTRATION (arrêté le 09/08/2026)
+
+**Le problème n'est PAS que le relecteur ne peut pas se connecter.** C'était
+l'affirmation d'un premier audit, et elle est trop forte : `signInDoors` sonde
+`isAppleAuthAvailable()`, donc **Sign in with Apple est disponible sur un vrai
+iPhone** — un relecteur peut créer un compte avec son propre Apple ID, sans rien
+nous demander. Seule la voie e-mail est bloquante (`EMAIL_DELIVERY = 'link'`,
+`src/lib/auth.ts` : le code arrive sous forme de LIEN, donc il faut la boîte).
+
+**Le vrai problème est qu'il obtiendra un compte VIDE.** Capturer du territoire
+exige de courir une boucle fermée ; personne ne le fera depuis Cupertino. Un
+relecteur qui ne voit jamais un territoire ne comprend pas pourquoi l'app
+demande la localisation en arrière-plan — et c'est le motif **2.5.4**.
+
+Ce qu'il faut n'est donc pas un compte de démo au sens habituel, mais **un
+compte déjà rempli par une VRAIE course** (aucune donnée fabriquée : c'est la
+trace réelle du fondateur, ce que la constitution exige).
+
+**Les quatre étapes, dans l'ordre :**
+
+1. Créer la boîte **`review@gryd.run`** (Infomaniak, le domaine y est déjà).
+   Séparée de `hey@` : Apple n'a pas à accéder à la boîte de contact.
+2. S'y connecter depuis l'iPhone, par le lien magique.
+3. **Courir une vraie boucle à Rouen avec ce compte.** C'est la même course que
+   l'Annexe D attend pour clore la Phase 1 — une action, deux verrous levés.
+4. App Store Connect → App Review Information : *Sign-in required* **oui**,
+   user `review@gryd.run`, password = **celui du webmail** (GRYD n'a pas de mot
+   de passe ; c'est la boîte qui en a un, pour que le relecteur lise son propre
+   lien). Cette nuance doit être écrite, sinon elle passe pour une erreur.
+
+**⚠️ LA CARTE S'OUVRE SUR LA POSITION DU RELECTEUR**, pas sur Rouen : il ne
+verra rien sur la carte. `readMyStats` lit par `owner_id` et non par zone
+géographique — donc l'écran **« Toi »** affiche la surface possédée où qu'il
+soit. Sans cette phrase dans les notes, il conclut que l'app ne fait rien.
+
+**Bloc à coller tel quel dans App Review Notes** (en anglais — les relecteurs ne
+lisent pas le français) :
+
+```
+SIGN-IN: GRYD has no password. Use "Sign in with Apple", or the demo mailbox:
+  webmail https://mail.infomaniak.com — review@gryd.run / <password>
+  Enter review@gryd.run in the app, then open the webmail to get the sign-in link.
+
+SEEING A TERRITORY WITHOUT RUNNING: capturing ground requires physically
+running a closed loop, which cannot be done during review. The demo account
+already owns a real territory in Rouen, France. The map centres on YOUR
+location, so it will look empty in Cupertino — open the "Toi" tab instead:
+it shows the surface owned, the number of runs and the total distance.
+
+BACKGROUND LOCATION (2.5.4): tracking starts only when a run starts, from the
+run screen, and stops when it ends. The blue indicator stays on during a run by
+design. Without it, locking the screen breaks the trace and the loop can never
+close — closing the loop IS the game.
+
+IN-APP PURCHASES: none. The app is entirely free in this version.
+```
+
 ## 3. App Privacy — nutrition label
 
 Renseigner dans App Store Connect → **App Privacy**.

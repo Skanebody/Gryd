@@ -21,7 +21,16 @@
  * TOUTES les issues (`showsLocalStats`, invariant testé).
  */
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, fontSizes, radii, spacing } from '@klaim/shared';
@@ -43,6 +52,17 @@ import { resultHaptic } from '../../src/mvp/run/feedback';
 import { haptics } from '../../src/lib/haptics';
 
 const TOUCH_TARGET_PT = 44;
+
+/**
+ * Interligne du corps, en MULTIPLE de la taille de police.
+ *
+ * ⚠️ Pas dans `StyleSheet.create` : un `lineHeight` numérique ne suit PAS
+ * Dynamic Type alors que `fontSize` le suit. Figé à 24 pt, il faisait se
+ * recouvrir les lignes dès AX3 (~2,35× : un corps à ~38 pt dans un interligne
+ * de 24) — ici, sur la phrase qui explique un refus, c'est-à-dire exactement le
+ * texte qu'il ne faut pas rendre illisible (L19).
+ */
+const INTERLIGNE = 1.5;
 
 
 /**
@@ -77,6 +97,8 @@ function nombre(v: string | string[] | undefined): number {
 export default function Resultat() {
   const t = useT();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const interligne = { lineHeight: Math.round(fontSizes.md * INTERLIGNE * fontScale) };
   const params = useLocalSearchParams();
   const vue: ResultView = resultView(issueDepuisParam(params.issue));
   const distanceM = nombre(params.distanceM);
@@ -223,7 +245,17 @@ export default function Resultat() {
         ) : null}
 
         {aire !== null ? (
-          <Animated.View style={[styles.bloc, { opacity: opaciteChiffre }]}>
+          // UN SEUL élément d'accessibilité pour le pic du jeu : le titre, le
+          // nombre et l'unité sont trois `Text` à l'œil (échelle typographique),
+          // et c'était trois arrêts à l'oreille — « Territoire pris » … « 64 » …
+          // « m² ». L'unité est dite en toutes lettres dans le label : « m² » se
+          // prononce « m » chez la plupart des synthèses, et 64 m² devenait
+          // 64 mètres.
+          <Animated.View
+            style={[styles.bloc, { opacity: opaciteChiffre }]}
+            accessible
+            accessibilityLabel={t(C.a11yAreaTaken, { n: aire })}
+          >
             <Text style={styles.titre}>{t(C.resTakenTitle)}</Text>
             <View style={styles.ligne}>
               <Text style={styles.hero}>{aire}</Text>
@@ -232,7 +264,7 @@ export default function Resultat() {
           </Animated.View>
         ) : null}
 
-        {phrase !== null ? <Text style={styles.phrase}>{phrase}</Text> : null}
+        {phrase !== null ? <Text style={[styles.phrase, interligne]}>{phrase}</Text> : null}
 
         {/* L19 — TOUJOURS présentes, quelle que soit l'issue. */}
         {km !== null ? (
@@ -260,11 +292,12 @@ const styles = StyleSheet.create({
   ligne: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
   hero: { color: colors.chartreuse, fontFamily: fonts.display, fontSize: fontSizes.hero },
   unite: { color: colors.chartreuse, fontFamily: fonts.text, fontSize: fontSizes.lg },
+  // `lineHeight` VOLONTAIREMENT ABSENT : il est dérivé du `fontScale` dans le
+  // composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
   phrase: {
     color: colors.blanc,
     fontFamily: fonts.text,
     fontSize: fontSizes.md,
-    lineHeight: 24,
     textAlign: 'center',
   },
   stats: { color: colors.gris, fontFamily: fonts.textSemi, fontSize: fontSizes.md },

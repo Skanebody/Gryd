@@ -43,6 +43,7 @@ import {
 } from '../../src/mvp/onboarding/signIn';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
+import { useAnnonce } from '../../src/mvp/ui/announce';
 import { screen } from '../../src/lib/analytics';
 
 const TOUCH_TARGET_PT = 44;
@@ -53,10 +54,21 @@ const VOILE_PALIERS = [0, 0, 0.1, 0.24, 0.42, 0.6, 0.78, 0.9, 0.97, 1] as const;
 /** Là où mène une connexion réussie. */
 const APRES = '/carte';
 
+/**
+ * Interligne du corps, en MULTIPLE de la taille de police.
+ *
+ * ⚠️ Pas dans `StyleSheet.create` : un `lineHeight` numérique ne suit PAS
+ * Dynamic Type alors que `fontSize` le suit. Figé à 24 pt, il faisait se
+ * recouvrir les lignes dès l'échelle AX3 (~2,35× : un corps à ~38 pt dans un
+ * interligne de 24) — sur l'écran dont on ne ressort pas sans succès.
+ */
+const INTERLIGNE = 1.5;
+
 export default function Connexion() {
   const t = useT();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
+  const interligne = { lineHeight: Math.round(fontSizes.md * INTERLIGNE * fontScale) };
   const [appleOk, setAppleOk] = useState(false);
   // ⚠️ `busy` doit se VOIR. Les portes devenaient `disabled` sans le moindre
   // changement visuel : si la feuille système tarde, ou si Google ouvre un
@@ -80,6 +92,10 @@ export default function Connexion() {
       vivant = false;
     };
   }, []);
+
+  // iOS n'a pas de « live region » : sans cette annonce, l'échec de
+  // connexion change le texte sans qu'aucun lecteur ne l'apprenne.
+  useAnnonce(echec ? t(C.signInFailed) : null);
 
   const portes: SignInDoors = signInDoors({
     backend: isSupabaseConfigured,
@@ -128,7 +144,7 @@ export default function Connexion() {
       <View style={[styles.contenu, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.lg }]}>
         <View style={styles.bas}>
           <Text style={styles.titre}>{t(C.signInTitle)}</Text>
-          <Text style={styles.corps}>{t(C.signInBody)}</Text>
+          <Text style={[styles.corps, interligne]}>{t(C.signInBody)}</Text>
 
           {/* AUCUNE porte : on DIT pourquoi — ET on offre la sortie.
               ⚠️ Sans ce bouton, cet écran était un CUL-DE-SAC : on y arrive par
@@ -150,13 +166,25 @@ export default function Connexion() {
             </>
           ) : null}
 
-          {echec ? <Text style={styles.echec}>{t(C.signInFailed)}</Text> : null}
+          {/* RÉGION VIVE : ce texte APPARAÎT après un aller-retour vers une
+              feuille système, sans que rien d'autre ne bouge à l'écran. Sans
+              annonce, quelqu'un qui n'a pas abouti revient sur une page
+              inchangée à l'oreille, et retape sur la même porte. */}
+          {echec ? (
+            <Text style={styles.echec} accessibilityLiveRegion="polite">
+              {t(C.signInFailed)}
+            </Text>
+          ) : null}
 
           {portes.apple ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t(C.signInApple)}
-              accessibilityState={{ disabled: busy }}
+              // `busy` EN PLUS de `disabled` : sans lui, VoiceOver annonce
+              // « désactivé » — c'est-à-dire « cette porte n'est pas pour toi »
+              // — alors que la feuille système est en train de s'ouvrir. Le mot
+              // juste est « occupé », et il dit qu'il faut attendre, pas partir.
+              accessibilityState={{ disabled: busy, busy }}
               disabled={busy}
               onPress={() => void tenter('apple')}
               style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, busy && styles.dim]}
@@ -169,7 +197,8 @@ export default function Connexion() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t(C.signInGoogle)}
-              accessibilityState={{ disabled: busy }}
+              // Même raison que la porte Apple : « occupé », pas « désactivé ».
+              accessibilityState={{ disabled: busy, busy }}
               disabled={busy}
               onPress={() => void tenter('google')}
               style={({ pressed }) => [styles.ctaSecond, (pressed || busy) && styles.dim]}
@@ -243,11 +272,12 @@ const styles = StyleSheet.create({
   contenu: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: spacing.lg },
   bas: { gap: spacing.sm },
   titre: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xxl },
+  // `lineHeight` VOLONTAIREMENT ABSENT : il est dérivé du `fontScale` dans le
+  // composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
   corps: {
     color: colors.gris,
     fontFamily: fonts.text,
     fontSize: fontSizes.md,
-    lineHeight: 24,
     marginBottom: spacing.md,
   },
   echec: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.sm, marginBottom: spacing.xs },

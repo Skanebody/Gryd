@@ -21,7 +21,7 @@
  * l'inverse de ce qu'on veut d'une action irréversible (L17 en miroir).
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
@@ -58,13 +58,27 @@ import { heroArea } from '../../src/mvp/ui/area';
 import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
+import { useAnnonce } from '../../src/mvp/ui/announce';
 import { screen } from '../../src/lib/analytics';
 
 const TOUCH_TARGET_PT = 44;
 
+/**
+ * Interligne du corps, en MULTIPLE de la taille de police.
+ *
+ * ⚠️ Pas dans `StyleSheet.create` : un `lineHeight` numérique ne suit PAS
+ * Dynamic Type alors que `fontSize` le suit. Figé à 24 pt, il faisait se
+ * recouvrir les lignes dès AX3 (~2,35× : un corps à ~38 pt dans un interligne
+ * de 24) — y compris sur la phrase de confirmation de suppression de compte,
+ * la seule décision de l'app qu'on ne peut pas défaire.
+ */
+const INTERLIGNE = 1.5;
+
 export default function Profil() {
   const t = useT();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const interligne = { lineHeight: Math.round(fontSizes.md * INTERLIGNE * fontScale) };
   const { session, loading: sessionLoading } = useSession();
   const userId = session?.user?.id ?? null;
   const [read, setRead] = useState<StatsRead>({ kind: 'idle' });
@@ -124,6 +138,16 @@ export default function Profil() {
    */
   const km = distM !== null ? (Math.round(distM / 10) / 100).toFixed(2).replace('.', ',') : null;
 
+  /**
+   * Les deux statuts qui apparaissent SANS que le joueur n'ait rien touché.
+   * `accessibilityLiveRegion` est une prop Android : sur iOS, seul un appel
+   * explicite annonce quoi que ce soit.
+   */
+  useAnnonce(
+    statut === 'failed' ? t(C.statsFailed) : statut === 'empty' ? t(C.statsEmpty) : null,
+  );
+  useAnnonce(confirmation === 'failed' ? t(C.accountDeleteFailed) : null);
+
   const supprimer = useCallback(async () => {
     const issue = await requestDeletion();
     // ⚠️ `issue` est un OBJET : `if (await requestDeletion())` serait toujours
@@ -143,7 +167,13 @@ export default function Profil() {
         contentContainerStyle={[styles.contenu, { paddingBottom: insets.bottom + spacing.xl }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.titre}>{t(C.profilTitle)}</Text>
+        {/* `header` : sans lui, le rotor « En-têtes » de VoiceOver ne trouve
+            RIEN sur l'écran le plus LONG du MVP — suivi, compte, légal. On ne
+            pouvait pas sauter à « Compte » pour supprimer le sien, il fallait
+            balayer tout le tableau de bord. */}
+        <Text style={styles.titre} accessibilityRole="header">
+          {t(C.profilTitle)}
+        </Text>
 
         {/* ── LE SUIVI ───────────────────────────────────────────────────── */}
         {statut === 'ready' ? (
@@ -154,15 +184,25 @@ export default function Profil() {
                 jeu. `heroArea` rend `null` là, et on le dit en toutes lettres.
                 Le `?? '0'` d'avant court-circuitait précisément cette garde. */}
             {aire !== null ? (
-              <>
+              // UN SEUL élément d'accessibilité pour le chiffre héros. Le
+              // groupe remplace un fragment : le `gap` du parent s'appliquait
+              // entre le bloc et sa légende, il s'applique désormais À
+              // L'INTÉRIEUR du groupe — l'écran ne bouge pas d'un pixel, mais
+              // VoiceOver ne s'arrête plus trois fois (« 64 » … « m² » …
+              // « Territoire ») sur le chiffre du jeu.
+              <View
+                style={styles.heroGroupe}
+                accessible
+                accessibilityLabel={t(C.a11yAreaTerritory, { n: aire })}
+              >
                 <View style={styles.bloc}>
                   <Text style={styles.hero}>{aire}</Text>
                   <Text style={styles.unite}>{t(C.unitM2)}</Text>
                 </View>
                 <Text style={styles.legende}>{t(C.statTerritory)}</Text>
-              </>
+              </View>
             ) : (
-              <Text style={styles.phrase}>{t(C.statsNoTerritory)}</Text>
+              <Text style={[styles.phrase, interligne]}>{t(C.statsNoTerritory)}</Text>
             )}
 
             <View style={styles.ligne}>
@@ -204,7 +244,11 @@ export default function Profil() {
             </SkeletonGroup>
           </View>
         ) : (
-          <Text style={styles.phrase}>
+          // `accessibilityLiveRegion` : cette phrase REMPLACE le skeleton sans
+          // que l'écran change. Seul `loading` était annoncé — donc VoiceOver
+          // disait « lecture en cours… », puis plus jamais rien, que la lecture
+          // ait abouti à un vide, à un échec ou à « sans compte ».
+          <Text style={[styles.phrase, interligne]} accessibilityLiveRegion="polite">
             {statut === 'failed'
               ? t(C.statsFailed)
               : statut === 'signedOut'
@@ -229,7 +273,9 @@ export default function Profil() {
         {/* ── LE COMPTE (App Store 5.1.1(v) + RGPD) ──────────────────────── */}
         {userId !== null ? (
           <>
-            <Text style={styles.section}>{t(C.accountTitle)}</Text>
+            <Text style={styles.section} accessibilityRole="header">
+              {t(C.accountTitle)}
+            </Text>
             <Lien
               label={t(C.accountSignOut)}
               onPress={() => {
@@ -254,7 +300,7 @@ export default function Profil() {
                 que la première demande n'a pas pris. */}
             {compte.kind === 'pending' ? (
               <>
-                <Text style={styles.phrase}>
+                <Text style={[styles.phrase, interligne]}>
                   {t(C.accountDeletePending, { d: String(compte.graceDays) })}
                 </Text>
                 <Lien
@@ -280,7 +326,7 @@ export default function Profil() {
             {compte.kind === 'deletable' ? (
               confirmation === 'asking' ? (
                 <View style={styles.confirmation}>
-                  <Text style={styles.phrase}>
+                  <Text style={[styles.phrase, interligne]}>
                     {t(C.accountDeleteConfirm, { d: String(ACCOUNT_DELETION_GRACE_DAYS) })}
                   </Text>
                   {/* « Annuler » d'abord : sur une action irréversible, la sortie
@@ -301,8 +347,13 @@ export default function Profil() {
                     }}
                     danger
                   />
+                  {/* RÉGION VIVE : la RPC répond `{ ok: false }` avec un code
+                      200 — le refus arrive sans que rien d'autre ne bouge. Non
+                      annoncé, il laissait croire à une suppression réussie. */}
                   {confirmation === 'failed' ? (
-                    <Text style={styles.phrase}>{t(C.accountDeleteFailed)}</Text>
+                    <Text style={[styles.phrase, interligne]} accessibilityLiveRegion="polite">
+                      {t(C.accountDeleteFailed)}
+                    </Text>
                   ) : null}
                 </>
               )
@@ -313,7 +364,9 @@ export default function Profil() {
         ) : null}
 
         {/* ── LE LÉGAL ───────────────────────────────────────────────────── */}
-        <Text style={styles.section}>{t(C.legalTitle)}</Text>
+        <Text style={styles.section} accessibilityRole="header">
+          {t(C.legalTitle)}
+        </Text>
         <Lien label={t(C.legalPrivacy)} onPress={() => router.push('/confidentialite')} />
         <Lien label={t(C.legalConduct)} onPress={() => router.push('/code-conduite')} />
         <Lien label={t(C.legalSupport)} onPress={() => router.push('/support')} />
@@ -363,6 +416,10 @@ const styles = StyleSheet.create({
   contenu: { paddingHorizontal: spacing.lg, gap: spacing.xs },
   titre: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xxl, marginBottom: spacing.md },
   chiffres: { gap: spacing.xs, marginBottom: spacing.md },
+  // Le groupe d'accessibilité du chiffre héros. Il reprend le `gap` que le
+  // parent appliquait entre le bloc et sa légende : l'écran est identique au
+  // pixel près, seul le regroupement à l'oreille change (voir le rendu).
+  heroGroupe: { gap: spacing.xs },
   bloc: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
   // `flex-end` et non `baseline` : sans texte à l'intérieur, deux blocs n'ont
   // pas de ligne de base à partager (même remarque que `carte.tsx`).
@@ -377,7 +434,9 @@ const styles = StyleSheet.create({
   demi: { flex: 1 },
   second: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xl },
   legende: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.sm },
-  phrase: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md, lineHeight: 24 },
+  // `lineHeight` VOLONTAIREMENT ABSENT : il est dérivé du `fontScale` dans le
+  // composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
+  phrase: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md },
   section: {
     color: colors.gris,
     fontFamily: fonts.textSemi,
@@ -392,7 +451,14 @@ const styles = StyleSheet.create({
   // ⚠️ Ce commentaire promettait un rouge que le code n'écrivait pas : la règle
   // était `colors.gris`, donc « Supprimer mon compte » avait exactement l'allure
   // des liens légaux voisins. Le jeton rouge existait déjà (`gameColors.danger`).
-  danger: { color: gameColors.danger },
+  // ⚠️ LA COULEUR NE PEUT PAS ÊTRE LE SEUL SIGNAL (L15). Entre « Exporter mes
+  // données » et « Supprimer mon compte », seule la TEINTE changeait : pour un
+  // daltonien deutan/protan, pour quelqu'un en plein soleil, ou en niveaux de
+  // gris, les deux liens étaient identiques — sur la seule action irréversible
+  // de l'app. La GRAISSE ajoute un signal non coloré, et c'est le plus sobre :
+  // ni icône, ni majuscules, ni bouton plein (l'action la plus grave ne doit
+  // pas devenir la plus visible, voir l'en-tête).
+  danger: { color: gameColors.danger, fontFamily: fonts.textSemi },
   // La confirmation est en RETRAIT, pas en surimpression : une feuille modale
   // rejouerait le défaut de l'`Alert` (une couche qui peut ne pas s'afficher).
   confirmation: {
