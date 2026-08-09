@@ -41,6 +41,7 @@ import { readMyTerritories, readRivalTerritories } from '../../src/mvp/map/readT
 import type { TerritoryFeatureCollection } from '../../src/mvp/map/territoryGeo';
 import { heroArea } from '../../src/mvp/ui/area';
 import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
+import { Panel } from '../../src/mvp/ui/Panel';
 import { recoveryOffer, toSnapshot } from '../../src/mvp/run/persist';
 import { loadActiveRun, loadCurrentRun } from '../../src/lib/runStore';
 import { isSupabaseConfigured } from '../../src/lib/supabase';
@@ -290,7 +291,12 @@ export default function Carte() {
           RN-web et fait crier la console à chaque rendu. Le bandeau laisse
           passer les gestes — sinon il volerait le pan de la carte sur tout le
           haut de l'écran. */}
-      <View style={[styles.bandeau, { paddingTop: insets.top + spacing.md }]}>
+      {/* Le bandeau était posé À NU sur MapLibre. Ça tient tant que le terrain
+          est sombre — mais le TERRITOIRE et le TRACÉ sont peints en chartreuse
+          vive : dès que l'un passe sous le chiffre héros blanc, le chiffre se
+          hache. `Panel` sépare la couche de contenu du terrain (voir son
+          en-tête pour pourquoi ce n'est pas un flou). */}
+      <Panel edge="top" radius={0} style={[styles.bandeau, { paddingTop: insets.top + spacing.md }]}>
         {chiffre !== null && !interrompue ? (
           <View style={styles.heroLigne}>
             <Text style={styles.hero}>{chiffre}</Text>
@@ -313,10 +319,10 @@ export default function Carte() {
         ) : (
           <Text style={styles.phrase}>{phrase}</Text>
         )}
-      </View>
+      </Panel>
 
       {/* ── Que dois-je faire (L1 q.3, L2, L4) ─────────────────────────────── */}
-      <View style={[styles.pied, { paddingBottom: insets.bottom + spacing.lg }]}>
+      <Panel edge="bottom" radius={0} style={[styles.pied, { paddingBottom: insets.bottom + spacing.lg }]}>
         {/* « Réessayer » est un TEXTE, jamais un bouton plein : il ne doit pas
             peser autant que l'action du jeu (L2). Et il n'existe que sur un
             échec — un lien qui ne rejoue rien serait un bouton mort. */}
@@ -358,7 +364,7 @@ export default function Carte() {
             <Text style={styles.ctaLabel}>{libelleAction}</Text>
           </Pressable>
         ) : null}
-      </View>
+      </Panel>
     </View>
   );
 }

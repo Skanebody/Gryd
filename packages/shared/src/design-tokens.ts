@@ -42,6 +42,14 @@ export const colors = {
   blanc35: 'rgba(245,247,244,0.35)', // bordure forte (état actif discret)
   scrim: 'rgba(0,0,0,0.45)', // voile léger sous une couche flottante
   scrimStrong: 'rgba(5,5,5,0.72)', // voile plein d'une modale/sheet
+  /**
+   * N3 — surface posée SUR LA CARTE, et uniquement là (voir `elevation.overMap`).
+   * L'échelle s'arrêtait à `carbone2`, soit +23 de luminance au-dessus du fond.
+   * Mesuré chez RDL : leur palier le plus haut (#2C2C2C) est à +32 au-dessus de
+   * leur fond (#0C0C0C). Sur une carte texturée, +23 ne suffit pas à faire lire
+   * un panneau comme POSÉ DESSUS — il se confond avec le terrain.
+   */
+  carbone3: '#28322A',
 } as const;
 
 /**
@@ -117,7 +125,18 @@ export const fontSizes = { xs: 12, sm: 14, md: 16, lg: 20, xl: 28, xxl: 40, hero
  * ferme les 134 littéraux (les paliers 8 et 12 n'avaient pas de nom → 14 rayons
  * de fait). `card`/`pill` inchangés (rétro-compat).
  */
-export const radii = { sm: 8, control: 12, btn: 18, card: 20, sheet: 28, pill: 999 } as const;
+/**
+ * `btn: 18 → 28` (09/08/2026, décision fondateur, analyse Ron Design Lab).
+ * ⚠️ 18 sur une hauteur de 56 (`sizes.buttonLg`) ne lisait NI une pilule NI un
+ * rectangle franc : un entre-deux sans intention. Relevé chez RDL : 100 % de
+ * leurs boutons sont des pilules — rayon 25-30 mesuré sur des hauteurs 46-61.
+ * 28 = la moitié de 56, donc une vraie pilule pour le CTA principal.
+ *
+ * `tile: 24` — famille de rayons mesurée chez RDL : 24 (17×), 25 (18×), 30
+ * (17×) ; 4, 6, 8 et 12 sont ABSENTS de leur système. Réservé aux panneaux
+ * posés sur la carte, pour ne pas re-skinner les 129 cards existantes.
+ */
+export const radii = { sm: 8, control: 12, btn: 28, tile: 24, card: 20, sheet: 28, pill: 999 } as const;
 
 /**
  * Échelle d'espacement sur grille 4 px (audit UI 2026). AVANT : `cardPadding`
@@ -179,7 +198,15 @@ export const typography = {
   body: { fontFamily: fonts.text, fontSize: fontSizes.sm, fontWeight: '400', letterSpacing: 0, lineHeight: 21 },
   meta: { fontFamily: fonts.textSemi, fontSize: fontSizes.xs, fontWeight: '600', letterSpacing: 0, lineHeight: 17 },
   /** R5 — label de CTA — IDENTIQUE partout (Inter 600). */
-  button: { fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '800', letterSpacing: 0.5, lineHeight: 20 },
+  /**
+   * ⚠️ `fontWeight: '800'` RETIRÉ (09/08/2026) — il n'agissait PAS.
+   * `fonts.textSemi` vaut `Inter_600SemiBold`, une famille NOMMÉE : une telle
+   * famille ignore `fontWeight`, ce que l'en-tête de ce fichier documente déjà.
+   * Les boutons rendaient donc en 600 depuis toujours, et le token annonçait
+   * 800. Le rendu ne change pas — c'est l'INTENTION qui cesse de mentir.
+   * (600 est d'ailleurs exactement la graisse de bouton mesurée chez RDL.)
+   */
+  button: { fontFamily: fonts.textSemi, fontSize: fontSizes.md, letterSpacing: 0.5, lineHeight: 20 },
   /**
    * R6 — valeur / stat / TITRE-NOMBRE HÉROS (Inter Tight 800, tabular). fontSize à
    * l'usage : lg|xl|xxl|hero|heroMax. C'est le rôle du « +0,42 km² » géant des
@@ -189,6 +216,19 @@ export const typography = {
    * composition « grand nombre + petite unité » est un choix d'écran, pas un token.
    */
   stat: { fontFamily: fonts.display, fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
+  /**
+   * ⚠️ Le commentaire ci-dessus disait que « grand nombre + petite unité » est
+   * un choix d'écran, pas un token. La mesure a contredit ça : RDL répète ce
+   * motif SIX fois dans un seul case study (9/km·h, 9:31/time, 39 km/Distance,
+   * Hard/Level…). Six occurrences, ce n'est plus un choix d'écran.
+   *
+   * Et surtout, ils mettent l'unité EN DESSOUS, centrée, en gris — pas à côté.
+   * Le nombre reste seul sur sa ligne, ce qui double sa présence perçue à taille
+   * égale. Nous la posons à côté, ce qui la fait concurrencer le chiffre.
+   */
+  statUnit: { fontFamily: fonts.textMedium, fontSize: fontSizes.sm, letterSpacing: 0, lineHeight: 18 },
+  /** Le label sous une valeur secondaire (« distance », « sorties »). Gris à l'usage. */
+  statLabel: { fontFamily: fonts.text, fontSize: fontSizes.xs, letterSpacing: 0, lineHeight: 16 },
 } as const;
 
 /**
@@ -212,6 +252,45 @@ export const typography = {
  * pas de grosse card) ; groupes de choix = UN segmented control ; détails AU TAP (jamais en
  * sous-cards permanentes) ; chiffres GRANDS.
  */
+/**
+ * LE MATÉRIAU POSÉ SUR LA CARTE — le remplaçant de « Liquid Glass ».
+ * (Analyse mesurée de Ron Design Lab, 09/08/2026.)
+ *
+ * ─── LE CONSTAT QUI FONDE CE BLOC ───────────────────────────────────────────
+ * On cherchait un équivalent au verre d'Apple. La mesure a répondu autre chose :
+ * sur leurs écrans NOIRS, RDL n'utilise AUCUN verre. Les 22 éléments de leur
+ * site portant un `backdrop-filter` sont TOUS posés sur une PHOTO. Sur du noir,
+ * leur matériau est un APLAT plus clair + un BORD D'ATTAQUE DÉGRADÉ — mesuré au
+ * pixel sur leur carte de Live Activity : #181818 → #2C2C2C sur ~8 px source
+ * (≈ 2 pt écran), sans ombre et sans contour.
+ *
+ * C'est une bonne nouvelle : `backdrop-filter` n'existe pas en React Native, et
+ * `expo-blur` ne garantit RIEN au-dessus d'une SurfaceView GL (MapLibre) — donc
+ * exactement notre cas. La version sans dépendance n'est pas un pis-aller :
+ * c'est ce qu'ils font.
+ *
+ * ⚠️ `panelFill` est teinté CARBONE, pas noir neutre : `scrimStrong` éteint la
+ * carte, un voile carbone la laisse lisible dessous. C'est la différence entre
+ * « masquer » et « poser par-dessus ».
+ */
+export const material = {
+  /** Bandeau haut / pied posé sur la carte. */
+  panelFill: 'rgba(13,18,15,0.74)', // carbonDeep @ 74 %
+  /** Sheet de course : là, la carte DOIT cesser de distraire. */
+  panelFillStrong: 'rgba(13,18,15,0.90)',
+  /** Bord d'attaque : la hairline nette, lisible à toute densité. */
+  rimTop: colors.blanc14,
+  /** Idem, panneau au premier plan (sheet modale). */
+  rimTopHi: colors.blanc22,
+  /** Le voile dégradé qui donne son ÉPAISSEUR au bord d'attaque. */
+  rimGradientOpacity: 0.1,
+  /**
+   * Ombre portée. RDL n'en met AUCUNE — mais RDL ne pose rien sur une carte
+   * VIVANTE. Sur un terrain qui défile, un panneau sans ombre flotte mal.
+   */
+  panelShadow: colors.scrim,
+} as const;
+
 export const elevation = {
   /** N0 — Fond global (espace). Ne jamais l'utiliser comme surface d'un bloc. */
   base: colors.noir,
@@ -219,6 +298,11 @@ export const elevation = {
   surface: colors.carbone,
   /** N2 — Interaction : bouton, pill, item de segmented sélectionné, input. */
   raised: colors.carbone2,
+  /**
+   * N3 — RÉSERVÉ au panneau flottant SUR LA CARTE. Interdit dans une page :
+   * ce palier n'existe que pour se détacher d'un terrain qui bouge.
+   */
+  overMap: colors.carbone3,
 } as const;
 export type ElevationLevel = keyof typeof elevation;
 

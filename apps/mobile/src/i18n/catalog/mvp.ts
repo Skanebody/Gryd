@@ -34,15 +34,15 @@ export const C = defineCatalog({
   // « GO » est INVARIANT (override fondateur A-38) : il n'est pas traduit, il
   // est la marque du départ. Les autres sont des verbes, jamais des noms.
   ctaGo: { fr: 'GO', en: 'GO', es: 'GO', de: 'GO', pt: 'GO' },
-  ctaRetake: { fr: 'REPRENDRE', en: 'TAKE BACK', es: 'RECUPERAR', de: 'ZURÜCKHOLEN', pt: 'RETOMAR' },
-  ctaDefend: { fr: 'DÉFENDRE', en: 'DEFEND', es: 'DEFENDER', de: 'VERTEIDIGEN', pt: 'DEFENDER' },
-  ctaShare: { fr: 'PARTAGER', en: 'SHARE', es: 'COMPARTIR', de: 'TEILEN', pt: 'PARTILHAR' },
+  ctaRetake: { fr: 'Reprendre', en: 'Take back', es: 'Recuperar', de: 'Zurückholen', pt: 'Retomar' },
+  ctaDefend: { fr: 'Défendre', en: 'Defend', es: 'Defender', de: 'Verteidigen', pt: 'Defender' },
+  ctaShare: { fr: 'Partager', en: 'Share', es: 'Compartir', de: 'Teilen', pt: 'Partilhar' },
   ctaCloseLoop: {
-    fr: 'FERMER MA BOUCLE',
-    en: 'CLOSE MY LOOP',
-    es: 'CERRAR MI BUCLE',
-    de: 'SCHLEIFE SCHLIESSEN',
-    pt: 'FECHAR MEU CIRCUITO',
+    fr: 'Fermer ma boucle',
+    en: 'Close my loop',
+    es: 'Cerrar mi bucle',
+    de: 'Schleife schließen',
+    pt: 'Fechar meu circuito',
   },
 
   // ══════════ PENDANT LA COURSE — L5 : ≤ 8 mots, lisibles à bout de souffle ══
@@ -251,10 +251,10 @@ export const C = defineCatalog({
     de: 'Animation überspringen',
     pt: 'Pular a animação',
   },
-  ctaCancel: { fr: 'ANNULER', en: 'CANCEL', es: 'CANCELAR', de: 'ABBRECHEN', pt: 'CANCELAR' },
+  ctaCancel: { fr: 'Annuler', en: 'Cancel', es: 'Cancelar', de: 'Abbrechen', pt: 'Cancelar' },
 
   // ══════════ PENDANT — L5 : lisible à bout de souffle, ≤ 8 mots ═══════════
-  ctaFinish: { fr: 'TERMINER', en: 'FINISH', es: 'TERMINAR', de: 'BEENDEN', pt: 'TERMINAR' },
+  ctaFinish: { fr: 'Terminer', en: 'Finish', es: 'Terminar', de: 'Beenden', pt: 'Terminar' },
   unitKm: { fr: 'km', en: 'km', es: 'km', de: 'km', pt: 'km' },
 
   // ══════════ RÉSULTAT — L19 : un refus nomme un FAIT, jamais une faute ════
@@ -325,11 +325,11 @@ export const C = defineCatalog({
     pt: '{km} km · {duree}',
   },
   ctaBackToMap: {
-    fr: 'VOIR LA CARTE',
-    en: 'SEE THE MAP',
-    es: 'VER EL MAPA',
-    de: 'KARTE ANSEHEN',
-    pt: 'VER O MAPA',
+    fr: 'Voir la carte',
+    en: 'See the map',
+    es: 'Ver el mapa',
+    de: 'Karte ansehen',
+    pt: 'Ver o mapa',
   },
 
   // ══════════ NEVER-LOSE-A-RUN — une trace retrouvée se DIT ═══════════════
@@ -343,11 +343,11 @@ export const C = defineCatalog({
     pt: 'Uma corrida não foi finalizada. Ela está esperando por você.',
   },
   ctaResumeRun: {
-    fr: 'REPRENDRE MA COURSE',
-    en: 'RESUME MY RUN',
-    es: 'CONTINUAR MI CARRERA',
-    de: 'LAUF FORTSETZEN',
-    pt: 'CONTINUAR MINHA CORRIDA',
+    fr: 'Reprendre ma course',
+    en: 'Resume my run',
+    es: 'Continuar mi carrera',
+    de: 'Lauf fortsetzen',
+    pt: 'Continuar minha corrida',
   },
   /** Bandeau de la course reprise : le joueur doit savoir qu'il continue. */
   runResumed: {
@@ -611,7 +611,7 @@ export const C = defineCatalog({
     de: 'Du läufst. Deine Spur zieht eine Linie. Schließt sie sich, gehört dir das Innere.',
     pt: 'Você corre. Seu traçado desenha uma linha. Se ela fecha, o interior é seu.',
   },
-  obCta: { fr: 'CONTINUER', en: 'CONTINUE', es: 'CONTINUAR', de: 'WEITER', pt: 'CONTINUAR' },
+  obCta: { fr: 'Continuer', en: 'Continue', es: 'Continuar', de: 'Weiter', pt: 'Continuar' },
 
   // ── Priming (L9) : on explique AVANT que l'OS ne demande ──────────────────
   obPrimingTitle: {
@@ -621,7 +621,7 @@ export const C = defineCatalog({
     de: 'Eine Berechtigung',
     pt: 'Uma única permissão',
   },
-  obPrimingCta: { fr: 'AUTORISER', en: 'ALLOW', es: 'PERMITIR', de: 'ERLAUBEN', pt: 'PERMITIR' },
+  obPrimingCta: { fr: 'Autoriser', en: 'Allow', es: 'Permitir', de: 'Erlauben', pt: 'Permitir' },
   // Refus : jamais un cul-de-sac, jamais un reproche (L8, L19).
   obDeniedTitle: {
     fr: 'Sans position, pas de territoire',
@@ -638,11 +638,11 @@ export const C = defineCatalog({
     pt: 'O GRYD não consegue desenhar seu circuito sem saber onde você corre. Você pode permitir nos ajustes, quando quiser.',
   },
   obDeniedCta: {
-    fr: 'OUVRIR LES RÉGLAGES',
-    en: 'OPEN SETTINGS',
-    es: 'ABRIR AJUSTES',
-    de: 'EINSTELLUNGEN ÖFFNEN',
-    pt: 'ABRIR AJUSTES',
+    fr: 'Ouvrir les réglages',
+    en: 'Open settings',
+    es: 'Abrir ajustes',
+    de: 'Einstellungen öffnen',
+    pt: 'Abrir ajustes',
   },
   obSkip: {
     fr: 'Voir la carte d’abord',
