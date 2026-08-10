@@ -106,7 +106,7 @@ surfaces sont masquées par `flags.arsenal` / `flags.warRoom`
 | **Catégorie principale** | Health & Fitness |
 | **Catégorie secondaire** | Sports |
 | **Tagline** (texte promotionnel) | Cours pour ton crew. Conquiers ta ville. |
-| **Mots-clés** | running, course à pied, territoire, conquête, crew, run club, GPS, carte, fitness, jeu, Paris, Lille, sport |
+| **Mots-clés** | running, course à pied, territoire, conquête, crew, run club, GPS, carte, fitness, jeu, sport ⚠️ « Paris, Lille » retirés — voir la note sous la description |
 | **Description** | voir ci-dessous |
 | **URL de support** | **[FONDATEUR] bloqué par O10 — voir §7** |
 | **URL marketing** | **[FONDATEUR] bloqué par O10 — voir §7** |
@@ -120,7 +120,17 @@ surfaces sont masquées par `flags.arsenal` / `flags.warRoom`
 > grimpe dans la ligue. GRYD transforme chaque sortie running en conquête : la
 > trace GPS de ta course dessine les zones que tu revendiques. Rejoins un run
 > club, coordonne les défenses, et fais grandir ton territoire — le territoire ne
-> s'achète jamais, il se court. Saison 0 : Paris et Lille.
+> s'achète jamais, il se court.
+
+**⚠️ « Saison 0 : Paris et Lille » RETIRÉ le 09/08/2026.** Le MASTER a remplacé
+ce lancement par **Rouen, beachhead unique** (§ « Lancement Paris + Lille →
+Rouen »). La description partait donc vers Apple en nommant deux villes que la
+constitution avait écartées — le motif 2.3.1 exact contre lequel la §1.4
+ci-dessus met en garde, dans le même document. Aucune ville ne la remplace :
+`shouldAutoOpenCommune` ouvre désormais n'importe quelle commune française à la
+première course qui s'y ferme, donc citer une liste serait à nouveau plus étroit
+que le produit. **[FONDATEUR]** : si vous voulez nommer Rouen pour le récit de
+lancement, c'est une décision marketing — pas une correction technique.
 
 **[GATE] 2.3.1 — la description ne nomme aucune fonctionnalité masquée.**
 Relire cette description contre `flags.ts` avant de la coller : elle ne doit citer
@@ -295,14 +305,22 @@ trace réelle du fondateur, ce que la constitution exige).
 1. Créer la boîte **`review@gryd.run`** (Infomaniak, le domaine y est déjà).
    Séparée de `hey@` : Apple n'a pas à accéder à la boîte de contact.
 2. S'y connecter depuis l'iPhone, par le lien magique.
-3. **Courir une vraie boucle à Rouen avec ce compte.** C'est la même course que
-   l'Annexe D attend pour clore la Phase 1 — une action, deux verrous levés.
+3. **Courir une vraie boucle avec ce compte, LÀ OÙ VOUS ÊTES.** Rouen n'est
+   pas une contrainte technique : `shouldAutoOpenCommune` (ingest_run) ouvre la
+   commune automatiquement dès la première course qui s'y ferme, donc n'importe
+   quelle commune française fait l'affaire. ⚠️ La frontière réelle est le PAYS :
+   `reverseGeocodeCommune` interroge `geo.api.gouv.fr`, qui ne connaît que la
+   France — hors de France le géocodage rend `undefined` et `p_city_id` reste
+   NULL. Le territoire n'en dépend pas (`city_id` est nullable partout) mais ce
+   chemin n'a jamais été prouvé par une course réelle : ne pas le découvrir
+   pendant la revue Apple. C'est la même course que l'Annexe D attend pour clore
+   la Phase 1 — une action, deux verrous levés.
 4. App Store Connect → App Review Information : *Sign-in required* **oui**,
    user `review@gryd.run`, password = **celui du webmail** (GRYD n'a pas de mot
    de passe ; c'est la boîte qui en a un, pour que le relecteur lise son propre
    lien). Cette nuance doit être écrite, sinon elle passe pour une erreur.
 
-**⚠️ LA CARTE S'OUVRE SUR LA POSITION DU RELECTEUR**, pas sur Rouen : il ne
+**⚠️ LA CARTE S'OUVRE SUR LA POSITION DU RELECTEUR**, pas sur la vôtre : il ne
 verra rien sur la carte. `readMyStats` lit par `owner_id` et non par zone
 géographique — donc l'écran **« Toi »** affiche la surface possédée où qu'il
 soit. Sans cette phrase dans les notes, il conclut que l'app ne fait rien.
@@ -317,7 +335,7 @@ SIGN-IN: GRYD has no password. Use "Sign in with Apple", or the demo mailbox:
 
 SEEING A TERRITORY WITHOUT RUNNING: capturing ground requires physically
 running a closed loop, which cannot be done during review. The demo account
-already owns a real territory in Rouen, France. The map centres on YOUR
+already owns a real territory in <city>, France. The map centres on YOUR
 location, so it will look empty in Cupertino — open the "Toi" tab instead:
 it shows the surface owned, the number of runs and the total distance.
 
