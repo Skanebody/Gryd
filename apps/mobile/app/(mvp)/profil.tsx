@@ -26,11 +26,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   ACCOUNT_DELETION_GRACE_DAYS,
+  borderState,
   colors,
   fonts,
   fontSizes,
   gameColors,
   spacing,
+  typography,
 } from '@klaim/shared';
 import { useSession } from '../../src/lib/session';
 import { signOut } from '../../src/lib/auth';
@@ -55,6 +57,7 @@ import {
   requestDeletion,
 } from '../../src/mvp/profil/read';
 import { heroArea } from '../../src/mvp/ui/area';
+import { Glyph } from '../../src/mvp/ui/Glyph';
 import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
@@ -196,7 +199,9 @@ export default function Profil() {
                 accessibilityLabel={t(C.a11yAreaTerritory, { n: aire })}
               >
                 <View style={styles.bloc}>
-                  <Text style={styles.hero}>{aire}</Text>
+                  <Text style={styles.hero} numberOfLines={1} adjustsFontSizeToFit>
+                    {aire}
+                  </Text>
                   <Text style={styles.unite}>{t(C.unitM2)}</Text>
                 </View>
                 <Text style={styles.legende}>{t(C.statTerritory)}</Text>
@@ -208,11 +213,11 @@ export default function Profil() {
             <View style={styles.ligne}>
               <View style={styles.demi}>
                 <Text style={styles.second}>{sorties}</Text>
-                <Text style={styles.legende}>{t(C.statRuns)}</Text>
+                <Text style={styles.statLabel}>{t(C.statRuns)}</Text>
               </View>
               <View style={styles.demi}>
                 <Text style={styles.second}>{km}</Text>
-                <Text style={styles.legende}>
+                <Text style={styles.statLabel}>
                   {t(C.statDistance)} · {t(C.unitKm)}
                 </Text>
               </View>
@@ -267,7 +272,7 @@ export default function Profil() {
             sait pas encore, et proposer de se connecter à quelqu'un qui l'est
             déjà est la même faute, dans l'autre sens. */}
         {statut === 'signedOut' ? (
-          <Lien label={t(C.ctaSignIn)} onPress={() => router.push('/connexion')} />
+          <Lien label={t(C.ctaSignIn)} onPress={() => router.push('/connexion')} nav />
         ) : null}
 
         {/* ── LE COMPTE (App Store 5.1.1(v) + RGPD) ──────────────────────── */}
@@ -292,7 +297,7 @@ export default function Profil() {
               // L'export vit sur l'écran legacy de confidentialité, qui le gère
               // déjà. Refaire une surface de portabilité RGPD à la hâte serait
               // exactement le genre de réécriture qu'on ne fait pas sans raison.
-              <Lien label={t(C.accountExport)} onPress={() => router.push('/confidentialite')} />
+              <Lien label={t(C.accountExport)} onPress={() => router.push('/confidentialite')} nav />
             ) : null}
 
             {/* Une demande EN COURS n'offre PAS de re-supprimer : elle DIT le
@@ -367,9 +372,9 @@ export default function Profil() {
         <Text style={styles.section} accessibilityRole="header">
           {t(C.legalTitle)}
         </Text>
-        <Lien label={t(C.legalPrivacy)} onPress={() => router.push('/confidentialite')} />
-        <Lien label={t(C.legalConduct)} onPress={() => router.push('/code-conduite')} />
-        <Lien label={t(C.legalSupport)} onPress={() => router.push('/support')} />
+        <Lien label={t(C.legalPrivacy)} onPress={() => router.push('/confidentialite')} nav />
+        <Lien label={t(C.legalConduct)} onPress={() => router.push('/code-conduite')} nav />
+        <Lien label={t(C.legalSupport)} onPress={() => router.push('/support')} nav />
       </ScrollView>
 
       <Pressable
@@ -380,23 +385,39 @@ export default function Profil() {
         // L6 — la seule cible de l'écran qui ne répondait PAS au doigt : sur un
         // texte gris de 13 pt sans retour visuel, un tap manqué est
         // indiscernable d'un tap ignoré.
+        //
+        // ⚠️ À GAUCHE, PAS À DROITE. Sur iOS le coin haut-gauche est le retour ;
+        // le coin haut-droit est réservé à la validation/au menu. Posé à droite,
+        // ce contrôle occupait la place où le doigt cherche « Modifier » sans
+        // jamais en être un.
         style={({ pressed }) => [styles.retour, { top: insets.top + spacing.sm }, pressed && styles.dim]}
       >
+        <Glyph name="retour" size={18} color={colors.gris} />
         <Text style={styles.retourLabel}>{t(C.ctaBackToMap)}</Text>
       </Pressable>
     </View>
   );
 }
 
-/** Tout est en TEXTE ici — voir l'en-tête : rien ne doit dominer visuellement. */
+/**
+ * Tout est en TEXTE ici — voir l'en-tête : rien ne doit dominer visuellement.
+ *
+ * `nav` distingue les DEUX vocabulaires que ce composant portait sous un seul
+ * style : un lien qui MÈNE ailleurs (chevron + séparateur, liste groupée iOS)
+ * contre un lien qui AGIT ici même (texte nu, comme avant). Un chevron promet
+ * une destination — en mettre un sur « Se déconnecter » ou « Supprimer mon
+ * compte » mentirait sur ce que le tap fait.
+ */
 function Lien({
   label,
   onPress,
   danger,
+  nav,
 }: {
   readonly label: string;
   readonly onPress: () => void;
   readonly danger?: boolean;
+  readonly nav?: boolean;
 }) {
   return (
     <Pressable
@@ -404,9 +425,10 @@ function Lien({
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={spacing.xs}
-      style={({ pressed }) => [styles.item, pressed && styles.dim]}
+      style={({ pressed }) => [styles.item, nav === true && styles.itemNav, pressed && styles.dim]}
     >
       <Text style={[styles.itemLabel, danger === true && styles.danger]}>{label}</Text>
+      {nav === true ? <Glyph name="suite" size={16} color={colors.gris} /> : null}
     </Pressable>
   );
 }
@@ -420,20 +442,28 @@ const styles = StyleSheet.create({
   // parent appliquait entre le bloc et sa légende : l'écran est identique au
   // pixel près, seul le regroupement à l'oreille change (voir le rendu).
   heroGroupe: { gap: spacing.xs },
-  bloc: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
-  // `flex-end` et non `baseline` : sans texte à l'intérieur, deux blocs n'ont
-  // pas de ligne de base à partager (même remarque que `carte.tsx`).
-  blocSkeleton: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
+  // Colonne, pas ligne : le modèle Apple met l'unité SOUS le nombre, pas à
+  // côté — le nombre reste seul sur sa ligne, ce qui double sa présence
+  // perçue à taille égale (voir `typography.statUnit`).
+  bloc: { flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xxs },
+  // Même empilement que `bloc` (nombre au-dessus, unité en dessous) : le
+  // skeleton doit annoncer la FORME réelle, pas une ancienne disposition.
+  blocSkeleton: { flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xxs },
   // Les vrais `second`/`legende` s'empilent SANS gap, portés par leur propre
   // interligne de texte ; deux blocs opaques n'ont pas cet interligne, d'où ce
   // petit espace explicite pour ne pas les souder visuellement.
   legendeSkeleton: { marginTop: spacing.xxs },
   hero: { color: colors.chartreuse, fontFamily: fonts.display, fontSize: fontSizes.hero },
-  unite: { color: colors.chartreuse, fontFamily: fonts.text, fontSize: fontSizes.lg },
+  // `typography.statUnit` + gris, SOUS le nombre — pas chartreuse à côté :
+  // l'unité est une légende, pas une seconde valeur qui concurrence le chiffre.
+  unite: { ...typography.statUnit, color: colors.gris },
   ligne: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.md },
   demi: { flex: 1 },
   second: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.xl },
   legende: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.sm },
+  // Légendes des DEUX stats secondaires (Sorties, Distance) — rôle typo dédié,
+  // distinct de `legende` (qui reste sous le chiffre héros).
+  statLabel: { ...typography.statLabel, color: colors.gris },
   // `lineHeight` VOLONTAIREMENT ABSENT : il est dérivé du `fontScale` dans le
   // composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
   phrase: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md },
@@ -445,6 +475,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   item: { minHeight: TOUCH_TARGET_PT, justifyContent: 'center' },
+  // Ligne de liste groupée iOS : libellé à gauche, chevron à droite (posé par
+  // `Lien` via `Glyph`), séparateur fin entre les lignes qui MÈNENT ailleurs.
+  // Réservé aux `Lien nav` — un lien qui AGIT (se déconnecter, supprimer,
+  // réessayer) reste un texte nu, sans cette ligne ni ce chevron.
+  itemNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: borderState.hairline,
+  },
   itemLabel: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md },
   // Le rouge dit « irréversible ». Il ne CRIE pas : c'est un TEXTE, pas un
   // bouton plein — l'action la plus grave ne doit pas être la plus visible.
@@ -468,7 +509,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     gap: spacing.xxs,
   },
-  retour: { position: 'absolute', right: spacing.lg, minHeight: TOUCH_TARGET_PT, justifyContent: 'center' },
+  retour: {
+    position: 'absolute',
+    left: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    minHeight: TOUCH_TARGET_PT,
+    justifyContent: 'center',
+  },
   retourLabel: { color: colors.gris, fontFamily: fonts.textSemi, fontSize: fontSizes.sm },
   dim: { opacity: 0.6 },
 });

@@ -305,6 +305,37 @@ export default function Course() {
       return;
     }
 
+    /**
+     * ⚠️ FLUSH FINAL — LA TRACE COMPLÈTE, AVANT L'ENVOI.
+     *
+     * Le buffer n'était écrit qu'une fois toutes les `FLUSH_INTERVAL_MS`
+     * (5 000 ms), et à raison : écrire à chaque point coûterait O(n²) sur une
+     * heure de course. Mais sur l'issue `lost`, ce buffer devient la SEULE
+     * trace qui reste — et l'écran de résultat propose désormais de renvoyer
+     * depuis lui. Il renvoyait donc une course amputée de ses ~5 dernières
+     * secondes : parfois exactement le segment qui referme la boucle.
+     *
+     * Une écriture de plus, une seule fois, à l'instant où la course se termine.
+     * ATTENDUE : partir avant qu'elle ait abouti reproduirait le défaut qu'on
+     * corrige, au moment précis où il coûte le plus cher.
+     */
+    await saveActiveRun({
+      runId: runIdRef.current,
+      mode: 'conquete',
+      activity: 'run',
+      startedAt: debutRef.current,
+      fixes: complet.map((q) => ({
+        lat: q.lat,
+        lng: q.lng,
+        ts: q.t,
+        // La précision par point n'est pas conservée en mémoire — seule la
+        // dernière l'était, à l'écriture. On écrit donc « aucune confiance »
+        // plutôt qu'une valeur inventée : c'est déjà la règle du flush courant.
+        accuracy: PRECISION_INCONNUE_M,
+      })),
+      userPausedMs: 0,
+    });
+
     const issue = await sendRun(payload);
 
     // ⚠️ ON N'EFFACE LE BUFFER QUE SI LA COURSE EST EN SÛRETÉ : répondue par le

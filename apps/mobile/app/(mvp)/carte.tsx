@@ -26,7 +26,17 @@ import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
-import { colors, fonts, fontSizes, radii, spacing, EVENTS } from '@klaim/shared';
+import {
+  colors,
+  elevation,
+  fonts,
+  fontSizes,
+  radii,
+  sizes,
+  spacing,
+  typography,
+  EVENTS,
+} from '@klaim/shared';
 import { MapCanvas } from '../../src/mvp/map/MapCanvas';
 import {
   canCenterOnPlayer,
@@ -41,6 +51,7 @@ import { readMyTerritories, readRivalTerritories } from '../../src/mvp/map/readT
 import type { TerritoryFeatureCollection } from '../../src/mvp/map/territoryGeo';
 import { heroArea } from '../../src/mvp/ui/area';
 import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
+import { Glyph } from '../../src/mvp/ui/Glyph';
 import { Panel } from '../../src/mvp/ui/Panel';
 import { useAnnonce } from '../../src/mvp/ui/announce';
 import { recoveryOffer, toSnapshot } from '../../src/mvp/run/persist';
@@ -51,8 +62,8 @@ import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { screen, track } from '../../src/lib/analytics';
 
-/** Cible tactile minimale (L4) — la même que `Stage`. */
-const TOUCH_TARGET_PT = 44;
+/** Cible tactile minimale (L4) — la même que `Stage`, et le même token. */
+const TOUCH_TARGET_PT = sizes.touchTarget;
 
 /** Zoom d'ouverture sur ma position : le quartier, pas la ville ni la rue. */
 const ZOOM_EGO = 15;
@@ -69,6 +80,22 @@ const ZOOM_EGO = 15;
  */
 const INTERLIGNE = 1.5;
 
+/**
+ * Plancher de réduction du chiffre héros, en fraction de sa taille nominale.
+ *
+ * ⚠️ Ce n'est PAS un réglage esthétique, c'est une mesure. `1 240 000` en 64 pt
+ * fait à lui seul ~342 pt de large : sur un iPhone 15 (393 pt moins deux marges
+ * `lg`, moins la place réservée au rond « Toi »), il ne rentre pas. Sans
+ * `adjustsFontSizeToFit`, RN renvoyait la légende à la ligne et l'alignement
+ * `baseline` sautait — le chiffre du jeu se cassait tout seul au moment précis
+ * où il devient gros, c'est-à-dire quand le joueur a le plus gagné.
+ *
+ * 0,5 (donc 32 pt au pire) laisse deux fois la marge nécessaire au plus grand
+ * nombre que `heroArea` sait produire, sans jamais descendre sous une taille où
+ * le chiffre cesserait de dominer (L12).
+ */
+const HERO_MIN_SCALE = 0.5;
+
 /** Réponse OS → l'état que `homeState` comprend. Sans réponse encore : inconnu. */
 function accesDepuisOS(r: Location.PermissionResponse | null): LocationAccess {
   if (r === null) return 'unknown';
@@ -82,6 +109,11 @@ export default function Carte() {
   const t = useT();
   const { fontScale } = useWindowDimensions();
   const interligne = { lineHeight: Math.round(fontSizes.md * INTERLIGNE * fontScale) };
+  // Même raison que `INTERLIGNE`, appliquée aux rôles `stat*` : ils portent un
+  // `lineHeight` FIGÉ (18 et 16) qui tient à l'échelle 1× et rogne le texte dès
+  // qu'on monte en Dynamic Type. On garde le rôle, on suit l'échelle.
+  const ligneUnite = { lineHeight: Math.round(typography.statUnit.lineHeight * fontScale) };
+  const ligneLegende = { lineHeight: Math.round(typography.statLabel.lineHeight * fontScale) };
   const { session, loading: sessionLoading } = useSession();
   const [permission, setPermission] = useState<Location.PermissionResponse | null>(null);
   const [read, setRead] = useState<TerritoryRead>({ kind: 'idle' });
@@ -319,13 +351,30 @@ export default function Carte() {
       <Panel edge="top" radius={0} style={[styles.bandeau, { paddingTop: insets.top + spacing.md }]}>
         {chiffre !== null && !interrompue ? (
           // UN SEUL élément d'accessibilité pour LE chiffre du jeu : à l'œil ce
-          // sont trois `Text` (64 pt / 20 pt / 16 pt), à l'oreille c'était trois
-          // arrêts — « 64 » … « m² » … « à toi ». Le label le redit d'un tenant,
-          // unité en toutes lettres (voir `a11yAreaOwned`).
-          <View style={styles.heroLigne} accessible accessibilityLabel={t(C.a11yAreaOwned, { n: chiffre })}>
-            <Text style={styles.hero}>{chiffre}</Text>
-            <Text style={styles.unite}>{t(C.unitM2)}</Text>
-            <Text style={styles.heroLabel}>{t(C.mapOwnedLabel)}</Text>
+          // sont trois `Text` (le nombre, puis l'unité et la légende aux rôles
+          // `stat*`), à l'oreille c'était trois arrêts — « 64 » … « m² » … « à
+          // toi ». Le label le redit d'un tenant, unité en toutes lettres (voir
+          // `a11yAreaOwned`). ⚠️ Le groupe enveloppe MAINTENANT deux lignes : ne
+          // pas le redescendre sur la seule ligne du nombre, la légende
+          // redeviendrait un arrêt séparé.
+          // La LÉGENDE PASSE SOUS le chiffre. `mvp.ts` la documente depuis
+          // toujours comme « légende SOUS le chiffre héros » — le code, lui, la
+          // posait à côté, et les trois textes sur une seule ligne ne rentraient
+          // pas (voir `HERO_MIN_SCALE`). Reste sur la ligne du haut ce qui forme
+          // une grandeur indivisible : le nombre et son unité.
+          <View style={styles.heroBloc} accessible accessibilityLabel={t(C.a11yAreaOwned, { n: chiffre })}>
+            <View style={styles.heroLigne}>
+              <Text
+                style={styles.hero}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={HERO_MIN_SCALE}
+              >
+                {chiffre}
+              </Text>
+              <Text style={[styles.unite, ligneUnite]}>{t(C.unitM2)}</Text>
+            </View>
+            <Text style={[styles.heroLabel, ligneLegende]}>{t(C.mapOwnedLabel)}</Text>
           </View>
         ) : status === 'loading' && !interrompue ? (
           // L14 — la FORME de la réponse à « qu'est-ce qui est à moi ? », pas
@@ -352,36 +401,29 @@ export default function Carte() {
         )}
       </Panel>
 
+      {/* ── Toi : EN HAUT À DROITE, plus dans la zone du pouce ─────────────── */}
+      {/* Il était empilé À 12 pt AU-DESSUS de GO, en pleine largeur, dans la
+          bande la moins précise de l'écran : deux cibles voisines dont l'une
+          quitte le jeu et l'autre le lance. Sur iOS, le compte se range en haut
+          à droite — et l'y ranger libère le pouce pour la seule action du jeu.
+          Le glyphe ne s'annonce PAS lui-même (voir `Glyph.tsx`) : c'est ce
+          Pressable qui porte le libellé, le même mot qu'avant. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(C.ctaProfil)}
+        onPress={() => router.push('/profil')}
+        hitSlop={spacing.xs}
+        style={({ pressed }) => [
+          styles.profil,
+          { top: insets.top + spacing.md },
+          pressed && styles.profilPressed,
+        ]}
+      >
+        <Glyph name="toi" size={fontSizes.lg} color={colors.blanc} />
+      </Pressable>
+
       {/* ── Que dois-je faire (L1 q.3, L2, L4) ─────────────────────────────── */}
       <Panel edge="bottom" radius={0} style={[styles.pied, { paddingBottom: insets.bottom + spacing.lg }]}>
-        {/* « Réessayer » est un TEXTE, jamais un bouton plein : il ne doit pas
-            peser autant que l'action du jeu (L2). Et il n'existe que sur un
-            échec — un lien qui ne rejoue rien serait un bouton mort. */}
-        {/* Accès à « Toi » — TEXTE, jamais un second bouton plein : GO reste
-            l'unique action primaire de la carte (L2), et le suivi ne se dispute
-            pas la place du jeu. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t(C.ctaProfil)}
-          onPress={() => router.push('/profil')}
-          hitSlop={spacing.sm}
-          style={styles.lien}
-        >
-          <Text style={styles.lienLabel}>{t(C.ctaProfil)}</Text>
-        </Pressable>
-
-        {status === 'failed' ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(C.mapRetry)}
-            onPress={() => void charger()}
-            hitSlop={spacing.sm}
-            style={styles.lien}
-          >
-            <Text style={styles.lienLabel}>{t(C.mapRetry)}</Text>
-          </Pressable>
-        ) : null}
-
         {/* Aucun bouton quand rien de ce que le joueur peut faire ne débloque
             l'état : un CTA qui ne tient pas sa promesse est pire qu'une absence
             de CTA (constitution). */}
@@ -393,6 +435,26 @@ export default function Carte() {
             style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           >
             <Text style={styles.ctaLabel}>{libelleAction}</Text>
+          </Pressable>
+        ) : null}
+
+        {/* « Réessayer » est un TEXTE, jamais un bouton plein : il ne doit pas
+            peser autant que l'action du jeu (L2). Et il n'existe que sur un
+            échec — un lien qui ne rejoue rien serait un bouton mort.
+            Il est SOUS le CTA, et pas au-dessus : la main remonte pour l'action
+            rare, elle tombe sur l'action fréquente. Au-dessus, il s'interposait
+            entre le pouce et GO. Le glyphe dit « ça rejoue » avant la lecture —
+            c'est le sens de l'icône, pas sa décoration (L15). */}
+        {status === 'failed' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(C.mapRetry)}
+            onPress={() => void charger()}
+            hitSlop={spacing.sm}
+            style={styles.lien}
+          >
+            <Glyph name="reessayer" size={fontSizes.md} color={colors.gris} />
+            <Text style={styles.lienLabel}>{t(C.mapRetry)}</Text>
           </Pressable>
         ) : null}
       </Panel>
@@ -407,24 +469,69 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: spacing.lg,
+    paddingLeft: spacing.lg,
+    // La colonne de DROITE est réservée au rond « Toi », qui flotte au-dessus
+    // de ce bandeau. Sans cette réserve, le chiffre héros passerait SOUS le
+    // rond et se ferait rogner par lui — un chevauchement qu'aucune mesure de
+    // texte n'aurait rattrapé, puisque les deux couches s'ignorent.
+    paddingRight: spacing.lg + sizes.touchTarget + spacing.sm,
     paddingBottom: spacing.md,
     pointerEvents: 'none',
   },
-  // `baseline` : le chiffre domine, l'unité et la légende s'alignent sur son
-  // pied — sinon le « m² » flotte au milieu d'un nombre de 64 pt.
-  heroLigne: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  // Le bloc du chiffre : DEUX lignes, jamais trois textes côte à côte. C'est
+  // l'unité d'accessibilité (un seul `accessible` pour toute la grandeur).
+  heroBloc: { alignItems: 'flex-start' },
+  // `baseline` : le chiffre domine, l'unité s'aligne sur son pied — sinon le
+  // « m² » flotte au milieu d'un nombre de 64 pt.
+  heroLigne: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, maxWidth: '100%' },
   // `flex-end` et non `baseline` : sans texte à l'intérieur, deux blocs n'ont
   // pas de ligne de base à partager — `baseline` les alignerait sur leur bas,
   // ce qui est déjà ce que `flex-end` fait, mais explicitement.
   heroLigneSkeleton: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
-  hero: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.hero },
-  unite: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.lg },
-  heroLabel: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.md },
+  // `flexShrink` : sans lui, `adjustsFontSizeToFit` n'a aucune largeur à
+  // respecter — un texte en ligne pousse ses frères hors de l'écran au lieu de
+  // se réduire, et la réduction ne se déclenche jamais.
+  hero: { color: colors.blanc, fontFamily: fonts.display, fontSize: fontSizes.hero, flexShrink: 1 },
+  // L'unité et la légende consomment les rôles `stat*` — l'audit a mesuré que
+  // « grand nombre + petite unité GRISE » est un motif, pas un goût d'écran.
+  // Grises toutes les deux : le blanc est réservé à la GRANDEUR elle-même,
+  // sinon le « m² » se dispute la lecture avec le chiffre.
+  unite: { ...typography.statUnit, color: colors.gris, flexShrink: 0 },
+  heroLabel: { ...typography.statLabel, color: colors.gris },
   // `lineHeight` VOLONTAIREMENT ABSENT ici : il est dérivé du `fontScale` dans
   // le composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
   phrase: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md },
-  pied: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, gap: spacing.sm },
+  // Le rond « Toi » : 44 × 44 pleins (L4), posé SUR la carte, au-dessus du
+  // bandeau. `carbone2` = N2, le niveau des choses qu'on touche ; la bordure
+  // `blanc14` est celle des overlays — elle le détache du terrain quand la
+  // carte passe clair sous lui.
+  profil: {
+    position: 'absolute',
+    right: spacing.lg,
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
+    borderRadius: radii.pill,
+    backgroundColor: elevation.raised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.blanc14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profilPressed: { backgroundColor: colors.carbone },
+  // `box-none` : le pied ne capture RIEN par lui-même, seuls ses contrôles le
+  // font. Il était opaque sur toute la largeur — une bande de 44 pt en travers
+  // du bas volait chaque pan de la carte qui commençait là. Le bandeau du haut
+  // avait eu ce soin (`none`), le pied ne l'avait pas ; ici c'est `box-none` et
+  // non `none`, parce que GO doit rester touchable.
+  pied: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    pointerEvents: 'box-none',
+  },
   cta: {
     minHeight: TOUCH_TARGET_PT,
     borderRadius: radii.pill,
@@ -435,6 +542,15 @@ const styles = StyleSheet.create({
   },
   ctaPressed: { backgroundColor: colors.chartreusePressed },
   ctaLabel: { color: colors.noir, fontFamily: fonts.textSemi, fontSize: fontSizes.md, fontWeight: '700' },
-  lien: { minHeight: TOUCH_TARGET_PT, alignItems: 'center', justifyContent: 'center' },
+  lien: {
+    minHeight: TOUCH_TARGET_PT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xxs,
+    // Le lien reste une cible de 44 pt de HAUT mais plus de LARGE que son
+    // contenu : sous le CTA, une bande pleine largeur re-volerait les gestes.
+    alignSelf: 'center',
+  },
   lienLabel: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.sm },
 });

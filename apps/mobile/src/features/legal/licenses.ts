@@ -93,6 +93,10 @@ export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
   'expo-router': 'MIT',
   'expo-sensors': 'MIT',
   'expo-sharing': 'MIT',
+  // Ajoutée le 09/08/2026 pour `mvp/ui/Glyph.tsx` : le MVP n'avait AUCUNE icône,
+  // et `expo-symbols` rend de vraies SF Symbols côté iOS. Le test des licences
+  // a refusé le build tant qu'elle n'était pas créditée — c'est son travail.
+  'expo-symbols': 'MIT',
   'expo-status-bar': 'MIT',
   'expo-task-manager': 'MIT',
   'expo-web-browser': 'MIT',

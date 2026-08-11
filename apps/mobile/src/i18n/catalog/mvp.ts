@@ -234,6 +234,17 @@ export const C = defineCatalog({
   // Le libellé DIT LE GESTE. Un bouton « Terminer » qui ne réagit pas au tap
   // serait pris pour un bouton cassé — c'est le mode d'échec de toute cible à
   // maintenir dont l'étiquette ment sur la façon de l'actionner.
+  // L'issue `lost` disait « ta course est encore sur cet appareil » et
+  // n'offrait RIEN pour la faire partir : un état d'erreur sans action. Le
+  // renvoi est sans risque, l'idempotence serveur est garantie par le
+  // `clientRunId` (D14) — la même course ne peut pas compter deux fois.
+  ctaRetrySend: {
+    fr: 'Réessayer l’envoi',
+    en: 'Try sending again',
+    es: 'Reintentar el envío',
+    de: 'Erneut senden',
+    pt: 'Tentar enviar de novo',
+  },
   ctaFinishHold: {
     fr: 'Maintenir pour terminer',
     en: 'Hold to finish',

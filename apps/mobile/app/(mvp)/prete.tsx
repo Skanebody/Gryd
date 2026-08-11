@@ -18,14 +18,15 @@
  * certaines traces sont mauvaises.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
-import { colors, fonts, fontSizes, spacing, EVENTS } from '@klaim/shared';
+import { colors, fonts, fontSizes, spacing, iconSizes, EVENTS } from '@klaim/shared';
 import { gpsGrade, isDegradedStart, isDone, remaining, type GpsGrade } from '../../src/mvp/run/countdown';
 import { stopWatch } from '../../src/mvp/run/watch';
 import { haptics } from '../../src/lib/haptics';
+import { Glyph } from '../../src/mvp/ui/Glyph';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { screen, track } from '../../src/lib/analytics';
@@ -35,6 +36,21 @@ const TOUCH_TARGET_PT = 44;
 
 /** Pas du décompte, en ms. Une seconde ; l'affichage arrondit vers le bas. */
 const TICK_MS = 200;
+
+/**
+ * LA PULSATION DU TICK (audit Apple, constat ①) — durées du battement
+ * `Animated.sequence` : montée rapide puis retour en ressort. Locale à cet
+ * écran, comme `TICK_MS` au-dessus : ce n'est ni une constante de jeu
+ * (`game-rules`) ni un token visuel (`design-tokens`), juste le rythme d'une
+ * seule animation.
+ */
+const TICK_SCALE_PEAK = 1.12;
+const TICK_SCALE_UP_MS = 90;
+const TICK_SPRING_FRICTION = 4;
+const TICK_SPRING_TENSION = 60;
+
+/** Force du glyphe signal par qualité — une opacité, pas un texte à lire. */
+const GPS_FORCE: Record<GpsGrade, number> = { good: 1, weak: 0.55, searching: 0.3 };
 
 export default function Prete() {
   const t = useT();
@@ -98,17 +114,80 @@ export default function Prete() {
   }, [ecoule, partir]);
 
   const restant = remaining(ecoule);
+
+  // Reduce Motion (L15) : sondé une fois, comme dans `resultat.tsx`. Seule
+  // l'ANIMATION VISUELLE est désactivée si demandé — l'haptique reste, ce
+  // n'est pas du mouvement.
+  const [reduitMotion, setReduitMotion] = useState(false);
+  useEffect(() => {
+    let vivant = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((r) => {
+        if (vivant) setReduitMotion(r);
+      })
+      .catch(() => undefined);
+    return () => {
+      vivant = false;
+    };
+  }, []);
+
+  // Constat ① — le décompte doit se SENTIR. `haptics.light()` à CHAQUE
+  // changement de seconde (3, 2, 1), plus la pulsation d'échelle du chiffre.
+  //
+  // GARDE-FOU : l'haptique se déclenche sur la TRANSITION, jamais sur l'état
+  // — sinon le tick de 200 ms (`TICK_MS`) rejoue le même retour plusieurs
+  // fois par seconde. On mémorise la dernière seconde AFFICHÉE dans un
+  // `useRef` (le motif de `feedback.ts`, appliqué ici en composant) et on ne
+  // réagit qu'à son changement. `0` en est exclu : le départ a déjà son
+  // `haptics.medium()` propre dans `partir()`, doubler serait un troisième
+  // événement pour un seul geste.
+  const derniereSecondeRef = useRef<number | null>(null);
+  const echelle = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (restant <= 0 || derniereSecondeRef.current === restant) return;
+    derniereSecondeRef.current = restant;
+    haptics.light();
+    if (reduitMotion) return;
+    echelle.setValue(1);
+    Animated.sequence([
+      Animated.timing(echelle, {
+        toValue: TICK_SCALE_PEAK,
+        duration: TICK_SCALE_UP_MS,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(echelle, {
+        toValue: 1,
+        friction: TICK_SPRING_FRICTION,
+        tension: TICK_SPRING_TENSION,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [restant, reduitMotion, echelle]);
+
   const phraseGps =
     grade === 'good' ? t(C.gpsGood) : grade === 'weak' ? t(C.gpsWeak) : t(C.gpsSearching);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.lg }]}>
       <View style={styles.centre}>
-        {/* Le chiffre héros de cet écran (L12) — et il n'y en a qu'un. */}
-        <Text style={styles.compte} accessibilityLiveRegion="polite">
-          {restant}
-        </Text>
-        <Text style={styles.gps}>{phraseGps}</Text>
+        {/* Le chiffre héros de cet écran (L12) — et il n'y en a qu'un.
+            Constat ② : `restant` peut valoir 0 une frame (tick de 200 ms et
+            navigation dans le même cycle) — on ne rend le texte QUE s'il est
+            positif, `countdown.ts` reste seul juge de la valeur. */}
+        <Animated.Text
+          style={[styles.compte, { transform: [{ scale: echelle }] }]}
+          accessibilityLiveRegion="polite"
+        >
+          {restant > 0 ? restant : ''}
+        </Animated.Text>
+        {/* Constat ③ : le glyphe donne l'état en 100 ms, la phrase le garde
+            LISIBLE pour un lecteur d'écran ou qui ne connaît pas le symbole
+            — on ne retire rien, on précède seulement. */}
+        <View style={styles.gpsRow}>
+          <Glyph name="signal" size={iconSizes.sm} color={colors.gris} force={GPS_FORCE[grade]} />
+          <Text style={styles.gps}>{phraseGps}</Text>
+        </View>
       </View>
 
       {/* Annuler est un TEXTE : le départ n'est pas une action à contrebalancer
@@ -131,6 +210,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir, paddingHorizontal: spacing.lg },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   compte: { color: colors.chartreuse, fontFamily: fonts.display, fontSize: fontSizes.heroMax },
+  gpsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
   gps: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.md },
   annuler: { minHeight: TOUCH_TARGET_PT, alignItems: 'center', justifyContent: 'center' },
   annulerLabel: { color: colors.gris, fontFamily: fonts.textSemi, fontSize: fontSizes.sm },
