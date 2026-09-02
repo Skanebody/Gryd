@@ -8,8 +8,10 @@
  * même).
  */
 import {
+  activeElapsedMs,
   FLUSH_INTERVAL_MS,
   recoveryOffer,
+  resumedDeadMs,
   shouldFlush,
   toSnapshot,
   type StoredRunShape,
@@ -97,6 +99,102 @@ Deno.test('LES DEUX buffers comptent — le 2ᵉ kill ne perd pas la 2ᵉ course
   const vraie = toSnapshot('r2', course(40, T0 - 30_000));
   assertEquals(recoveryOffer([rien, vraie], T0), 'resume');
   assertEquals(recoveryOffer([vraie, rien], T0), 'resume');
+});
+
+// ─── Le chrono ne compte JAMAIS le temps où l'app ne tournait pas ───────────
+
+const MIN = 60_000;
+const HEURE = 60 * MIN;
+
+Deno.test('ÉTAPE 0 — 20 min courues, rouvertes 3 h plus tard : le mur disait 3 h 20', () => {
+  // Le défaut, mot pour mot (`course.tsx` : `debutRef.current = stored.startedAt`
+  // puis `Date.now() - debutRef.current`). Une course tuée à 20 min et reprise
+  // 3 h plus tard affichait 3 h 20 — et la même durée servait de stat locale.
+  const depart = T0;
+  const dernierReleve = depart + 20 * MIN; // l'app est tuée ici
+  const reprise = dernierReleve + 3 * HEURE; // le coureur rouvre 3 h plus tard
+
+  // La formule d'AVANT, recalculée telle quelle : voilà le mensonge.
+  assertEquals(reprise - depart, 3 * HEURE + 20 * MIN, 'le chrono du mur ne dit pas 3 h 20');
+
+  // Ce que le module rend maintenant : le temps MORT est mesuré et retranché.
+  const stocke: StoredRunShape = {
+    startedAt: depart,
+    fixes: [{ ts: depart }, { ts: dernierReleve }],
+  };
+  const mort = resumedDeadMs(stocke, reprise);
+  assertEquals(mort, 3 * HEURE, 'le temps mort mesuré n’est pas l’écart réel');
+  assertEquals(activeElapsedMs(depart, mort, reprise), 20 * MIN, 'le chrono ment encore');
+});
+
+Deno.test('le temps mort S’ACCUMULE — un 2ᵉ kill ne rend pas le 1ᵉʳ au chrono', () => {
+  // C'est toute la raison de le PERSISTER. Sans cumul, la deuxième reprise
+  // repartirait du mur et rendrait au chrono les heures de la première.
+  //
+  // Le scénario, dans l'ordre : 5 min courues → kill → 3 h → reprise (temps
+  // mort écrit sur le disque) → 5 min de plus → 2ᵉ kill → 2 h → 2ᵉ reprise.
+  // Au total 10 min courues pour 5 h 10 au mur.
+  const depart = T0;
+  const dernierReleve = depart + 3 * HEURE + 10 * MIN;
+  const reprise = dernierReleve + 2 * HEURE;
+  const stocke: StoredRunShape = {
+    startedAt: depart,
+    fixes: [{ ts: dernierReleve }],
+    deadMs: 3 * HEURE, // temps mort de la première interruption, déjà écrit
+  };
+  assertEquals(reprise - depart, 5 * HEURE + 10 * MIN, 'le mur ne dit pas 5 h 10');
+  assertEquals(resumedDeadMs(stocke, reprise), 5 * HEURE);
+  assertEquals(activeElapsedMs(depart, 5 * HEURE, reprise), 10 * MIN);
+});
+
+Deno.test('aucune interruption → aucun temps mort inventé', () => {
+  // Le cas normal : l'app tourne, le dernier relevé date de l'instant même.
+  // Retrancher quoi que ce soit ici ferait mentir le chrono dans l'autre sens.
+  const depart = T0;
+  const maintenant = depart + 12 * MIN;
+  const stocke: StoredRunShape = { startedAt: depart, fixes: [{ ts: maintenant }] };
+  assertEquals(resumedDeadMs(stocke, maintenant), 0);
+  assertEquals(activeElapsedMs(depart, 0, maintenant), 12 * MIN);
+});
+
+Deno.test('un temps mort ILLISIBLE sur le disque n’est pas cru', () => {
+  // Valeur négative, aberrante ou absente (course écrite par une version
+  // antérieure) : on ne retranche que ce qu'on sait mesurer — l'écart de CETTE
+  // reprise. Croire un `deadMs` négatif ALLONGERAIT le chrono.
+  const depart = T0;
+  const dernierReleve = depart + 5 * MIN;
+  const reprise = dernierReleve + HEURE;
+  const base = { startedAt: depart, fixes: [{ ts: dernierReleve }] };
+  assertEquals(resumedDeadMs({ ...base, deadMs: -9 * HEURE }, reprise), HEURE);
+  assertEquals(resumedDeadMs({ ...base, deadMs: Number.NaN }, reprise), HEURE);
+  assertEquals(resumedDeadMs(base, reprise), HEURE);
+});
+
+Deno.test('une horloge qui RECULE ne fabrique pas de temps mort négatif', () => {
+  // Changement d'heure, resynchro NTP : un écart négatif signifierait « le
+  // dernier relevé est dans le futur ». On ne retranche rien plutôt que
+  // d'ajouter du temps à une course.
+  const depart = T0;
+  const stocke: StoredRunShape = { startedAt: depart, fixes: [{ ts: depart + HEURE }] };
+  assertEquals(resumedDeadMs(stocke, depart + 10 * MIN), 0);
+  assertEquals(resumedDeadMs(stocke, Number.NaN), 0);
+});
+
+Deno.test('sans AUCUN relevé, rien ne prouve qu’une seconde ait été courue', () => {
+  // Le dernier instant CONNU est alors le départ lui-même : tout ce qui a suivi
+  // est du temps qu'aucun point ne vient attester. Se tromper dans ce sens fait
+  // afficher moins ; l'inverse ferait afficher une course qui n'a pas eu lieu.
+  const stocke: StoredRunShape = { startedAt: T0, fixes: [] };
+  assertEquals(resumedDeadMs(stocke, T0 + 3 * HEURE), 3 * HEURE);
+  assertEquals(activeElapsedMs(T0, 3 * HEURE, T0 + 3 * HEURE), 0);
+});
+
+Deno.test('le chrono ACTIF ne descend jamais sous zéro', () => {
+  // Un temps mort plus grand que le mur (horodatages incohérents) rendrait une
+  // durée négative — « −00:12 » à l'écran, et une allure absurde dans les stats.
+  assertEquals(activeElapsedMs(T0, 4 * HEURE, T0 + HEURE), 0);
+  assertEquals(activeElapsedMs(T0, 0, Number.NaN), 0);
+  assertEquals(activeElapsedMs(Number.NaN, 0, T0), 0);
 });
 
 Deno.test('la réduction ne garde AUCUNE position — seulement des horodatages', () => {

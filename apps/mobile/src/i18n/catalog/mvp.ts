@@ -245,6 +245,31 @@ export const C = defineCatalog({
     de: 'Erneut senden',
     pt: 'Tentar enviar de novo',
   },
+  // ══════════ LA VOIX — trois moments, jamais en continu ═══════════════════
+  // Benchmark 2026 (Workout Buddy, Runna) : la voix parle au DÉPART, au moment
+  // clé, à la FIN — jamais en flux. Rendue par synthèse (`expo-speech`), donc
+  // sans asset : c'est ce qui lève l'objection qui laissait L7 sans son.
+  // ⚠️ L5 vaut aussi pour l'oreille : ≤ 8 mots, dits à quelqu'un qui court.
+  // Les deux autres moments réutilisent `runLoopAlmost` et `runLoopClosed`.
+  voiceStart: {
+    fr: 'C’est parti.',
+    en: 'Off you go.',
+    es: 'Vamos.',
+    de: 'Los geht’s.',
+    pt: 'Bora.',
+  },
+  // ══════════ LE PARTAGE — L13, la seule loi encore absente ═══════════════
+  // Trois chiffres figés (modèle Strava), jamais personnalisables : la
+  // contrainte fait la reconnaissabilité. `{m2}` vient de `heroArea`, jamais
+  // d'un calcul de l'écran. Aucun lieu nommé (voir `notifTaken`) : le
+  // territoire se partage, le domicile jamais.
+  shareText: {
+    fr: 'J’ai pris {m2} m² de ma ville en courant. GRYD.',
+    en: 'I took {m2} m² of my city by running. GRYD.',
+    es: 'Me quedé con {m2} m² de mi ciudad corriendo. GRYD.',
+    de: 'Ich habe mir {m2} m² meiner Stadt erlaufen. GRYD.',
+    pt: 'Conquistei {m2} m² da minha cidade correndo. GRYD.',
+  },
   ctaFinishHold: {
     fr: 'Maintenir pour terminer',
     en: 'Hold to finish',
@@ -313,6 +338,17 @@ export const C = defineCatalog({
     de: 'Diese Ausfahrt zählt nicht für das Gebiet. Deine Statistiken bleiben verfügbar.',
     pt: 'Esta saída não contou para o território. Suas estatísticas continuam disponíveis.',
   },
+  // L'envoi EST EN COURS — à distinguer de `resPending`, qui promet un envoi
+  // « dès que possible » alors qu'il a déjà lieu. Deux phrases parce que ce sont
+  // deux faits différents : la première dit que la course est EN ROUTE, la
+  // seconde qu'elle dort dans la file. Aucune des deux n'annonce de territoire.
+  resSending: {
+    fr: 'Course terminée. Envoi en cours.',
+    en: 'Run finished. Sending it now.',
+    es: 'Carrera terminada. Enviándola ahora.',
+    de: 'Lauf beendet. Wird gerade gesendet.',
+    pt: 'Corrida concluída. Enviando agora.',
+  },
   /** Hors ligne : AUCUN verdict n'existe. On ne dit rien du territoire. */
   resPending: {
     fr: 'Course enregistrée. Envoi dès que possible.',
@@ -320,6 +356,17 @@ export const C = defineCatalog({
     es: 'Carrera guardada. Se enviará en cuanto sea posible.',
     de: 'Lauf gespeichert. Wird sobald wie möglich gesendet.',
     pt: 'Corrida salva. Será enviada assim que possível.',
+  },
+  // `resLost` dit « ta course est encore sur cet appareil ». Quand la relecture
+  // du disque ne rend RIEN (stockage HS, buffer déjà purgé), c'est faux — et
+  // c'est le cas exact que la preview web reproduit. Un refus mal expliqué est
+  // le grief n°1 qui a tué Stride : on dit ce qui manque, pas une consolation.
+  resLostNoTrace: {
+    fr: 'L’envoi n’a pas abouti, et aucune trace de cette course n’est restée sur cet appareil.',
+    en: 'The upload did not go through, and no trace of this run remained on this device.',
+    es: 'El envío no se completó y no quedó ningún rastro de esta carrera en este dispositivo.',
+    de: 'Das Senden ist fehlgeschlagen, und auf diesem Gerät ist keine Spur dieses Laufs geblieben.',
+    pt: 'O envio não foi concluído e nenhum rastro desta corrida ficou neste aparelho.',
   },
   resLost: {
     fr: 'L’envoi n’a pas pu être mis en attente. Ta course est encore sur cet appareil.',
@@ -579,6 +626,41 @@ export const C = defineCatalog({
     de: 'Ohne Konto weiß GRYD noch nicht, was dir gehört.',
     pt: 'Sem conta, o GRYD ainda não sabe o que é seu.',
   },
+  /**
+   * UNE COURSE TERMINÉE ATTEND LE RÉSEAU.
+   *
+   * Le résultat le dit déjà au moment où ça arrive ; la carte, elle, se taisait —
+   * et un joueur dont c'était la première boucle y lisait « Ta ville est vierge.
+   * Ferme ta première boucle. » Il venait de la fermer.
+   *
+   * Deux phrases, comme les autres états : le FAIT, puis ce qui va se passer.
+   * L19 — aucun reproche, et rien n'est perdu : la sortie est sur le disque et
+   * repart toute seule. Le même texte sert la phrase principale (rien de tenu
+   * encore) et la note sous le chiffre héros (territoire déjà tenu) : c'est le
+   * MÊME fait, seule sa place change.
+   */
+  mapPending: {
+    fr: 'Une course attend d’être envoyée. Elle partira à la prochaine connexion.',
+    en: 'A run is waiting to be sent. It will go at the next connection.',
+    es: 'Una carrera espera para enviarse. Saldrá con la próxima conexión.',
+    de: 'Ein Lauf wartet auf den Versand. Er wird bei der nächsten Verbindung gesendet.',
+    pt: 'Uma corrida está esperando para ser enviada. Ela vai sair na próxima conexão.',
+  },
+  /**
+   * Le contrôle de recentrage posé sur la carte — libellé de LECTEUR D'ÉCRAN
+   * (le glyphe ne s'annonce jamais lui-même, voir `Glyph.tsx`).
+   *
+   * Volontairement générique : le bouton rejoue le cadrage d'ouverture, qui
+   * vise MON TERRITOIRE quand il est connu et MA POSITION sinon. Un libellé qui
+   * promettrait « mon territoire » mentirait la moitié du temps.
+   */
+  mapRecenter: {
+    fr: 'Recentrer la carte',
+    en: 'Recentre the map',
+    es: 'Centrar el mapa',
+    de: 'Karte zentrieren',
+    pt: 'Centralizar o mapa',
+  },
   /** Légende SOUS le chiffre héros (L12) : le nombre domine, le mot explique. */
   mapOwnedLabel: {
     fr: 'à toi',
@@ -654,7 +736,6 @@ export const C = defineCatalog({
     de: 'Du läufst. Deine Spur zieht eine Linie. Schließt sie sich, gehört dir das Innere.',
     pt: 'Você corre. Seu traçado desenha uma linha. Se ela fecha, o interior é seu.',
   },
-  obCta: { fr: 'Continuer', en: 'Continue', es: 'Continuar', de: 'Weiter', pt: 'Continuar' },
 
   // ── Priming (L9) : on explique AVANT que l'OS ne demande ──────────────────
   obPrimingTitle: {

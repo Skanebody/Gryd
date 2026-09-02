@@ -271,7 +271,14 @@ export default function AuthEmailScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t(C.backA11y)}
-              onPress={() => router.replace('/sign-in')}
+              onPress={() =>
+                // ⚠️ `replace('/sign-in')` en DUR menait au legacy, puis à
+                // `/onboarding` legacy : deux reculs et le joueur sortait du
+                // MVP (audit friction, 02/09/2026). On REVIENT d'où l'on vient
+                // — `/connexion` (MVP) ou `/sign-in` (legacy) — et sans pile
+                // (lien profond) on retombe sur la porte MVP, jamais l'ancienne.
+                router.canGoBack() ? router.back() : router.replace('/connexion')
+              }
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}
             >
               {/* Chevron pointé à gauche (le tracé pointe à droite → miroir). */}
@@ -484,7 +491,14 @@ export default function AuthEmailScreen() {
                 {providerCapableHere ? (
                   <Button
                     label={t(C.existingProviderCta, { provider: existingProvider })}
-                    onPress={() => router.replace('/sign-in')}
+                    onPress={() =>
+                // ⚠️ `replace('/sign-in')` en DUR menait au legacy, puis à
+                // `/onboarding` legacy : deux reculs et le joueur sortait du
+                // MVP (audit friction, 02/09/2026). On REVIENT d'où l'on vient
+                // — `/connexion` (MVP) ou `/sign-in` (legacy) — et sans pile
+                // (lien profond) on retombe sur la porte MVP, jamais l'ancienne.
+                router.canGoBack() ? router.back() : router.replace('/connexion')
+              }
                     variant="ghost"
                     size="md"
                     analyticsId="e07_existing_provider"

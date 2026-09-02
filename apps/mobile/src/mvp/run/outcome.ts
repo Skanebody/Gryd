@@ -11,6 +11,11 @@
  * « aucun territoire » serait affirmer un refus que personne n'a prononcé.
  * L'attente est donc une issue À PART ENTIÈRE, jamais un échec par défaut.
  *
+ * Il y a DEUX attentes, et elles ne disent pas la même chose : la course qui
+ * dort dans la file faute de réseau (`pending`) et celle qui est PARTIE et dont
+ * la réponse n'est pas revenue (`sending`). Les confondre reviendrait à
+ * promettre un envoi « dès que possible » alors qu'il a déjà lieu.
+ *
  * ─── CE QUI EST TOUJOURS VRAI, QUOI QU'AIT DIT LE SERVEUR ───────────────────
  * La distance et la durée viennent de la trace LOCALE. Elles existent avant
  * l'envoi, elles survivent à un refus, elles survivent à l'absence de réseau.
@@ -49,6 +54,27 @@ export type SendResult =
   | { readonly kind: 'lost' };
 
 /**
+ * L'envoi TEL QUE L'ÉCRAN LE VIT : résolu, ou encore en route.
+ *
+ * ─── POURQUOI UN TYPE DE PLUS, ET PAS UNE VARIANTE DE `SendResult` ──────────
+ * `SendResult` répond à « qu'est-ce que la course est devenue ? » — c'est ce
+ * que `sendRun` RÉSOUT, et chacune de ses trois valeurs est un fait acquis.
+ * « Parti, pas encore revenu » n'est pas un fait acquis : c'est un moment. Le
+ * glisser dans `SendResult` obligerait chaque lecteur de ce type (la file
+ * d'envoi, l'écran, les tests) à traiter une valeur que `sendRun` ne rend
+ * jamais.
+ *
+ * ─── POURQUOI CET ÉTAT EXISTE ───────────────────────────────────────────────
+ * L'écran de course ATTENDAIT `sendRun` avant de naviguer : sur un réseau lent,
+ * un coureur à bout de souffle restait devant un bouton grisé, sans borne ni
+ * indicateur. Il navigue désormais IMMÉDIATEMENT, et c'est l'écran de résultat
+ * qui attend la réponse — en le disant. Cet état est ce qu'il peint pendant ce
+ * temps-là : la course est finie, ses stats sont vraies, le verdict n'est pas
+ * connu. Rien de plus.
+ */
+export type SendState = { readonly kind: 'sending' } | SendResult;
+
+/**
  * Ce que l'écran affiche.
  *
  *   · `captured`  — territoire pris, avec son aire. Le pic émotionnel (L7).
@@ -57,6 +83,9 @@ export type SendResult =
  *   · `missing`   — la boucle ne s'est pas refermée, et on sait de combien.
  *   · `noLoop`    — pas de boucle, et aucun manque chiffrable. Aucun reproche.
  *   · `refused`   — la course elle-même n'a pas été retenue (allure, durée…).
+ *   · `sending`   — la course EST PARTIE, la réponse n'est pas revenue. Aucun
+ *     verdict, aucune célébration en avance : la course est finie, ses stats
+ *     sont là, le territoire n'est pas encore une question tranchée.
  *   · `pending`   — pas encore envoyée. AUCUN verdict : on ne dit rien du
  *     territoire, parce qu'on ne sait rien.
  *   · `lost`      — on n'a même pas pu la mettre en file. On le DIT.
@@ -67,6 +96,7 @@ export type ResultView =
   | { readonly kind: 'missing'; readonly missingM: number }
   | { readonly kind: 'noLoop' }
   | { readonly kind: 'refused'; readonly reason: RejectReason | 'narrow' | 'unknown' }
+  | { readonly kind: 'sending' }
   | { readonly kind: 'pending' }
   | { readonly kind: 'lost' };
 
@@ -77,7 +107,12 @@ export type ResultView =
  * raison de ne pas savoir, et aucun verdict négatif n'est prononcé tant qu'un
  * serveur ne l'a pas réellement dit.
  */
-export function resultView(send: SendResult): ResultView {
+export function resultView(send: SendState): ResultView {
+  // EN PREMIER, avant tout ce qui juge : tant que la réponse n'est pas revenue,
+  // aucune des branches ci-dessous n'a de matière. Se replier ici sur `lost` ou
+  // sur « aucun territoire » annoncerait une décision que personne n'a prise —
+  // la faute n°1 de cet écran.
+  if (send.kind === 'sending') return { kind: 'sending' };
   if (send.kind === 'lost') return { kind: 'lost' };
   if (send.kind === 'queued') return { kind: 'pending' };
 

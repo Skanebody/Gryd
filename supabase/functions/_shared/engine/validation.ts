@@ -12,7 +12,13 @@
 import { type Activity, activityRules, DEFAULT_ACTIVITY } from '../game-rules.ts';
 import type { RejectReason, RunPoint } from '../types.ts';
 
-/** Segment continu de points GPS conservés (coupé sur saut > `pointMaxJumpM`). */
+/**
+ * Segment continu de points GPS conservés. Un segment est coupé sur une
+ * DISCONTINUITÉ, spatiale (saut > `pointMaxJumpM`) ou temporelle
+ * (silence > `pointMaxGapS`) : dans les deux cas, rien n'atteste de ce qui
+ * s'est passé entre les deux relevés, donc ni sa distance ni sa durée ne
+ * comptent.
+ */
 export type Segment = RunPoint[];
 
 // Constantes physiques / d'unités — pas des règles de jeu.
@@ -44,20 +50,50 @@ export interface FilterResult {
 }
 
 /**
- * Filtrage des points GPS (§3.2), bornes lues dans la DISCIPLINE :
+ * Filtrage des points GPS (§3.2), bornes lues dans la DISCIPLINE, dans CET
+ * ordre (il n'est pas cosmétique — voir plus bas) :
  *  - précision `acc` > `pointMaxAccuracyM` (si présente) → point rejeté ;
+ *  - timestamp dupliqué ou désordonné (dt ≤ 0) → point rejeté ;
+ *  - silence > `pointMaxGapS` depuis le dernier point CONSERVÉ → segment COUPÉ ;
  *  - saut > `pointMaxJumpM` entre points consécutifs → segment COUPÉ (le
  *    point ouvre un nouveau segment, il n'est pas rejeté) ;
- *  - vitesse instantanée > `pointMaxSpeedKmh` → point rejeté ;
- *  - timestamp dupliqué ou désordonné (dt ≤ 0) → point rejeté.
+ *  - vitesse instantanée > `pointMaxSpeedKmh` → point rejeté.
  * Les points sont triés par timestamp avant traitement. Les segments d'un seul
  * point sont écartés (aucune distance ni durée exploitables).
+ *
+ * ─── POURQUOI UNE COUPURE TEMPORELLE, ET POURQUOI À CETTE PLACE ─────────────
+ * Jusqu'à ce lot, la trace ne se coupait que sur la DISTANCE. Une course tuée
+ * par l'OS à 20 min et reprise 3 h plus tard AU MÊME ENDROIT ne sautait de
+ * nulle part (0 m) : elle restait UN segment de 3 h 20, `computeStats` en
+ * tirait 2 460 s/km et `validateRun` refusait `pace_too_slow` un effort réel.
+ * Reprise 150 m plus loin, le saut spatial coupait et le temps mort
+ * disparaissait par accident : le verdict dépendait de l'ENDROIT où l'app était
+ * morte. Le trou temporel supprime ce hasard — il ne juge AUCUN effort, il
+ * constate que rien n'a été mesuré (`POINT_MAX_GAP_S` documente les deux cas
+ * que le seuil sépare : l'arrêt sur place, qui compte, et l'app suspendue, qui
+ * ne compte pas).
+ *
+ * ORDRE DES VÉRIFICATIONS :
+ *  - APRÈS `dt ≤ 0` : un horodatage dupliqué ou désordonné reste un point
+ *    REJETÉ ; le lire avant en ferait l'ouverture d'un segment (dt ≤ 0 n'est
+ *    jamais > `pointMaxGapS`, mais l'inversion se paierait au premier
+ *    refactor) ;
+ *  - AVANT le saut et la vitesse : après un silence de 3 h, la géométrie ne
+ *    veut plus rien dire. 300 m parcourus pendant ce trou ne sont pas un « saut
+ *    GPS », et la vitesse implicite qu'on en tirerait (0,03 km/h) ferait passer
+ *    pour lente une reprise qui n'a simplement pas été mesurée. La cause
+ *    RÉELLE — le silence — est donc lue en premier.
+ * Le trou se mesure entre deux points CONSERVÉS : un long passage de relevés
+ * tous rejetés (précision hors bornes) est lui aussi une absence de mesure, et
+ * se coupe de la même façon.
  *
  * `activity` absente ⇒ 'run' : comportement historique STRICTEMENT inchangé
  * (les bornes `run` d'ACTIVITY_RULES RÉFÉRENCENT les constantes §3.2 d'origine).
  * À vélo la borne de vitesse monte à 80 km/h : sans elle, chaque point d'un
  * cycliste à 30 km/h serait jeté un par un et la sortie finirait
- * `no_valid_points` — le jeu traiterait un pratiquant honnête en tricheur.
+ * `no_valid_points` — le jeu traiterait un pratiquant honnête en tricheur. Le
+ * trou temporel, lui, vaut PAREIL dans les deux disciplines : un OS ne suspend
+ * pas une app différemment selon qu'on pédale ou qu'on court.
  */
 export function filterPoints(
   points: RunPoint[],
@@ -82,6 +118,13 @@ export function filterPoints(
     }
     const dtS = (p.t - last.t) / MS_PER_S;
     if (dtS <= 0) continue; // dupliqué / désordonné
+    if (dtS > rules.pointMaxGapS) {
+      // Silence trop long : l'app ne mesurait plus. On coupe, le point démarre
+      // le segment suivant — le temps mort quitte le chrono avec la coupure.
+      closeCurrent();
+      current.push(p);
+      continue;
+    }
     const dM = haversineM(last, p);
     if (dM > rules.pointMaxJumpM) {
       // Saut GPS : on coupe le segment, le point démarre le suivant.
@@ -108,8 +151,11 @@ export interface RunStats {
 
 /**
  * Stats agrégées sur les segments conservés. La durée est la somme des durées
- * de segments (le temps des trous coupés par saut GPS n'est pas compté, par
- * cohérence avec la distance qui ne compte pas non plus ces trous).
+ * de segments : le temps d'un trou COUPÉ n'est pas compté — ni celui d'un saut
+ * GPS, ni celui d'un silence > `pointMaxGapS` (app tuée/suspendue) — par
+ * cohérence avec la distance, qui ne compte pas non plus ces trous. Un arrêt
+ * SUR PLACE, lui, reste dans la durée : le trou est sous le seuil, la trace
+ * n'est pas coupée, et ce temps a réellement été vécu en course.
  */
 export function computeStats(segments: Segment[]): RunStats {
   let distanceM = 0;

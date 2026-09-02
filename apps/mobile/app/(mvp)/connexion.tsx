@@ -19,8 +19,28 @@
  *
  * ─── CE QU'IL NE FAIT PAS ───────────────────────────────────────────────────
  * Il ne manipule AUCUN identifiant. Apple et Google ouvrent la feuille système ;
- * l'e-mail mène à l'écran legacy qui gère déjà le code à usage unique. Cet
- * écran choisit une porte, il n'authentifie personne.
+ * l'e-mail mène DIRECTEMENT à `/email` (E07 legacy, le vrai formulaire de lien
+ * magique) — plus à `/sign-in`. Cet écran choisit une porte, il n'authentifie
+ * personne.
+ *
+ * ─── POURQUOI `/email` DIRECTEMENT, ET PAS `/sign-in` (audit friction, 02/09) ─
+ * `/sign-in` rejouait une 2ᵉ liste Apple/Google/e-mail — celle que CET écran
+ * vient d'afficher — puis une 2ᵉ gate d'âge 16+, avant d'atteindre `/email` :
+ * trois écrans pour un seul choix (+4 taps pour un nouveau joueur). Sauter
+ * `/sign-in` est sûr : `app/(auth)/email.tsx` est une route à part entière
+ * (aucun `_layout` ne la protège, `router.push` direct déjà pratiqué ailleurs
+ * dans le dépôt), et elle repose SA PROPRE gate d'âge — pas héritée de
+ * `/sign-in` — parce que c'est elle qui crée le compte (`requestEmailOtp` →
+ * `shouldCreateUser: true`) et qu'un laissez-passer transmis en paramètre de
+ * route serait falsifiable (voir l'entête d'`email.tsx`, §« LE GATE 16+ …
+ * EST POSÉ ICI AUSSI »). Rien n'est donc perdu au saut.
+ * ⚠️ CE QUI RESTE UN DÉFAUT, HORS PÉRIMÈTRE DE CE FICHIER : le chevron retour
+ * d'`/email` fait `router.replace('/sign-in')` en DUR (pas `router.back()`),
+ * qui lui-même ramène à `/onboarding` LEGACY. Un joueur qui recule deux fois
+ * depuis `/email` atterrit donc hors du groupe MVP. Ce n'était pas mieux en
+ * passant par `/sign-in` (même chevron, même destination) — seul le nombre de
+ * taps pour ARRIVER change ici ; corriger la SORTIE d'`email.tsx` exigerait de
+ * toucher ce fichier-là, hors périmètre de ce chantier.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -44,6 +64,7 @@ import {
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { useAnnonce } from '../../src/mvp/ui/announce';
+import { retourCarte } from '../../src/mvp/ui/nav';
 import { screen } from '../../src/lib/analytics';
 
 const TOUCH_TARGET_PT = 44;
@@ -110,7 +131,9 @@ export default function Connexion() {
     setBusy(false);
     const suite = signInOutcome(r);
     if (suite === 'enter') {
-      router.replace(APRES);
+      // Même règle que les sorties : si /connexion a été EMPILÉ sur la carte
+      // (push depuis /carte ou /profil), un replace empilerait une 2e carte.
+      retourCarte(APRES);
       return;
     }
     // `stay` : une ANNULATION. Aucun message — fermer une feuille système est un
@@ -158,7 +181,10 @@ export default function Connexion() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t(C.ctaBackToMap)}
-                onPress={() => router.replace('/carte')}
+                // `retourCarte` REMONTE à la carte poussée depuis `/carte`, ou
+                // la remplace s'il n'y a aucune pile (lien profond) — jamais
+                // les deux à la fois (`mvp/ui/nav.ts`).
+                onPress={() => retourCarte('/carte')}
                 style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
               >
                 <Text style={styles.ctaLabel}>{t(C.ctaBackToMap)}</Text>
@@ -208,10 +234,14 @@ export default function Connexion() {
           ) : null}
 
           {/* L'E-MAIL est le PLANCHER : il ne dépend d'aucune plateforme ni
-              d'aucune clé. Il mène à l'écran legacy qui gère déjà le code à
-              usage unique — cet écran-ci choisit une porte, il n'authentifie
-              personne, et refaire un formulaire de code à la hâte serait
-              exactement le genre de surface qu'on ne réécrit pas sans raison. */}
+              d'aucune clé. Il mène DIRECTEMENT à `/email` (E07 legacy, le vrai
+              formulaire de lien magique) — plus à `/sign-in`, qui rejouait la
+              même liste de portes et une 2e gate d'âge avant d'y arriver
+              (4 taps → 1, audit friction 02/09 ; voir l'entête du fichier).
+              `/email` repose SA PROPRE gate d'âge : rien n'est perdu au saut.
+              Refaire un formulaire de lien magique à la hâte resterait le
+              genre de surface qu'on ne réécrit pas sans raison — seul le
+              CHEMIN pour l'atteindre change ici, pas l'écran lui-même. */}
           {/* Quand l'e-mail est la SEULE porte, il se peint comme une PORTE —
               bouton plein, pas lien gris. `emailIsPrimary` (pur, testé) le
               décide : un écran de connexion sans bouton plein ressemble à une
@@ -220,7 +250,7 @@ export default function Connexion() {
             <Pressable
               accessibilityRole={emailIsPrimary(portes) ? 'button' : 'link'}
               accessibilityLabel={t(C.signInEmail)}
-              onPress={() => router.push('/sign-in')}
+              onPress={() => router.push('/email')}
               hitSlop={spacing.sm}
               style={({ pressed }) =>
                 emailIsPrimary(portes)
@@ -250,7 +280,8 @@ export default function Connexion() {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel={t(C.ctaBackToMap)}
-              onPress={() => router.replace('/carte')}
+              // Même remontée qu'au-dessus — voir `mvp/ui/nav.ts`.
+              onPress={() => retourCarte('/carte')}
               hitSlop={spacing.sm}
               style={({ pressed }) => [styles.lien, pressed && styles.dim]}
             >

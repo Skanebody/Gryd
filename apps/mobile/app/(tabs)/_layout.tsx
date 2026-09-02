@@ -131,9 +131,15 @@ export default function TabsLayout() {
   // Une session existante ne consulte plus rien — voir l'entête.
   if (configured && !session) {
     // ══════════ BASCULE DE LA PORTE D'ENTRÉE — 03/08/2026 ══════════════════
-    // Les écrans sans session sont désormais ceux du MVP : `/bienvenue` (les
-    // deux écrans d'onboarding) puis `/connexion`. La bascule de l'ACCUEIL
-    // avait eu lieu plus tôt dans la journée ; il manquait la porte.
+    // Les écrans sans session sont désormais ceux du MVP : l'onboarding, puis
+    // `/connexion`. La bascule de l'ACCUEIL avait eu lieu plus tôt dans la
+    // journée ; il manquait la porte.
+    //
+    // ⚠️ LA CIBLE A CHANGÉ LE 02/09/2026 : `/bienvenue` n'existe plus, ses deux
+    // écrans ont fusionné en UN (`/position`). Seule la CIBLE bouge ici — la
+    // décision, elle, reste `entryDoor` (pure, testée) et n'a pas été touchée :
+    // elle répond « onboarding | signIn | wait », pas une route. C'est ce qui
+    // permet de déplacer la porte sans rejouer les tests de la décision.
     //
     // Le drapeau lu est CELUI DU MVP (`mvp/onboarding/seen.ts`), pas celui du
     // legacy : ce dernier vit dans un hook d'UI, et ADR-001 interdit à la
@@ -143,11 +149,11 @@ export default function TabsLayout() {
     //
     // La DÉCISION est pure et testée (`entryDoor`) : lecture en cours ⇒ on
     // n'affirme rien, et un drapeau illisible envoie vers l'ONBOARDING — se
-    // tromper de ce côté coûte deux écrans, l'autre sauterait la seule
-    // explication du jeu.
+    // tromper de ce côté coûte UN écran (depuis la fusion), l'autre sauterait
+    // la seule explication du jeu.
     const porte = entryDoor(mvpSeen);
     if (porte === 'wait') return <View style={styles.root} />;
-    return <Redirect href={porte === 'signIn' ? '/connexion' : '/bienvenue'} />;
+    return <Redirect href={porte === 'signIn' ? '/connexion' : '/position'} />;
   }
 
   // ── PORTE DU PREMIER USAGE (E08 → E09 → E10 → carte) ──────────────────────
@@ -193,8 +199,8 @@ export default function TabsLayout() {
   //     nouveau joueur ne peut jamais créer de compte ;
   //   · la PORTE d'onboarding — le drapeau `onboardingDone` vit dans un hook
   //     legacy qu'ADR-001 interdit d'importer depuis la nouvelle UI. Tant qu'un
-  //     drapeau MVP ne le remplace pas, `/bienvenue` et `/position` restent
-  //     atteints par URL directe.
+  //     drapeau MVP ne le remplace pas, `/position` (l'onboarding) reste
+  //     atteint par URL directe.
   // Les deux sont inscrits au BACKLOG. Ce qui bascule aujourd'hui, c'est le
   // PRODUIT : carte → GO → course → résultat.
   return <Redirect href="/carte" />;

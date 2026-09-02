@@ -75,6 +75,70 @@ export function shouldFlush(
 }
 
 /**
+ * ─── LE TEMPS MORT : CE QUE LE CHRONO N'A PAS LE DROIT DE COMPTER ───────────
+ *
+ * Le chrono de la course était `Date.now() - startedAt`. À la reprise d'une
+ * course tuée, `startedAt` est celui de la course d'ORIGINE — donc une sortie
+ * interrompue à 20 min et rouverte 3 h plus tard affichait 3 h 20, et servait
+ * cette durée comme stat locale. C'est un mensonge au sens strict du MASTER :
+ * l'app affirmait un temps que personne n'a couru.
+ *
+ * ─── LA MODÉLISATION, ET POURQUOI CELLE-LÀ ──────────────────────────────────
+ * Le seul instant dont on ait une PREUVE est le dernier relevé écrit sur le
+ * disque : après lui, plus rien n'a été mesuré. L'écart entre ce relevé et la
+ * reprise est donc du temps mort — pas « probablement », par construction.
+ *
+ * Deux imprécisions assumées, et elles vont TOUTES LES DEUX dans le même sens
+ * (afficher moins, jamais plus) :
+ *   · les ~5 s de trace non encore flushées (`FLUSH_INTERVAL_MS`) au moment du
+ *     kill sont comptées comme mortes ;
+ *   · le temps entre le dernier relevé et le kill lui-même l'est aussi.
+ * Se tromper dans l'autre sens rendrait au chrono des heures qui n'ont pas été
+ * courues — exactement le défaut qu'on corrige.
+ */
+
+/** Une valeur de durée relue du disque est-elle croyable ? */
+function dureeCroyable(ms: number | undefined): number {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return 0;
+  return ms;
+}
+
+/**
+ * Temps mort TOTAL d'une course qu'on reprend, à l'instant `now`. PURE.
+ *
+ * Cumule ce qui avait DÉJÀ été mesuré (`deadMs`, écrit sur le disque) et
+ * l'écart de CETTE reprise. Le cumul est toute la raison de persister le champ :
+ * sans lui, une deuxième interruption rendrait au chrono les heures de la
+ * première.
+ *
+ * Sans AUCUN relevé, le dernier instant connu est le départ : rien ne prouve
+ * qu'une seconde ait été courue, et on ne l'invente pas.
+ */
+export function resumedDeadMs(stored: StoredRunShape, now: number): number {
+  const deja = dureeCroyable(stored.deadMs);
+  const dernier = stored.fixes[stored.fixes.length - 1];
+  const dernierInstantConnu = dernier === undefined ? stored.startedAt : dernier.ts;
+  const ecart = now - dernierInstantConnu;
+  // Horloge qui recule, horodatage aberrant : on ne retranche que ce qu'on sait
+  // mesurer. Un écart négatif ALLONGERAIT le chrono.
+  if (!Number.isFinite(ecart) || ecart <= 0) return deja;
+  return deja + ecart;
+}
+
+/**
+ * Durée ACTIVE : le temps au mur, moins le temps mort. PURE.
+ *
+ * C'est elle que le chrono affiche et que la stat de fin annonce — jamais
+ * `now - startedAt`. Bornée à zéro : une durée négative (horodatages
+ * incohérents) s'afficherait « −00:12 » et donnerait une allure absurde.
+ */
+export function activeElapsedMs(startedAt: number, deadMs: number, now: number): number {
+  if (!Number.isFinite(startedAt) || !Number.isFinite(now)) return 0;
+  const actif = now - startedAt - dureeCroyable(deadMs);
+  return actif > 0 ? actif : 0;
+}
+
+/**
  * Ce que l'écran d'accueil doit faire d'une course retrouvée sur le disque.
  *
  *   · `none`   — rien à proposer.
@@ -93,6 +157,12 @@ export type RecoveryOffer = 'none' | 'resume';
 export interface StoredRunShape {
   readonly startedAt: number;
   readonly fixes: readonly { readonly ts: number }[];
+  /**
+   * Temps MORT déjà mesuré (ms) — voir `resumedDeadMs`. OPTIONNEL : une course
+   * écrite par une version antérieure n'en porte pas, et c'est un FAIT (« aucun
+   * temps mort n'a été enregistré »), pas un zéro par défaut.
+   */
+  readonly deadMs?: number;
 }
 
 /** `StoredRun` → la réduction que `crashRecovery` sait juger. PURE. */

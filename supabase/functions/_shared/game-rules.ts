@@ -55,6 +55,55 @@ export const INGEST_MAX_RUNS_PER_HOUR = 30;
 export const POINT_MAX_ACCURACY_M = 25;
 export const POINT_MAX_SPEED_KMH = 25; // au-delà → point rejeté
 export const POINT_MAX_JUMP_M = 100; // saut entre points consécutifs → segment coupé
+/**
+ * TROU TEMPOREL maximal entre deux relevés CONSERVÉS : au-delà, la trace est
+ * COUPÉE (le point suivant OUVRE un nouveau segment, il n'est pas rejeté) —
+ * exactement la mécanique du saut spatial `POINT_MAX_JUMP_M`, sur l'autre axe.
+ *
+ * CE QU'ELLE MESURE : le temps pendant lequel l'app N'A RIEN MESURÉ. Elle ne
+ * juge AUCUN effort — elle constate qu'entre ces deux relevés personne
+ * n'atteste de rien. `computeStats` sommant les durées PAR SEGMENT, un trou
+ * coupé sort du temps de course, comme la distance d'un saut GPS en sort déjà.
+ *
+ * POURQUOI ELLE EXISTE : sans elle, la coupure ne dépendait que de la DISTANCE.
+ * Une sortie tuée par l'OS à 20 min et reprise 3 h plus tard AU MÊME ENDROIT
+ * restait UN segment de 3 h 20 (0 m de saut → aucune coupure) → allure absurde
+ * → `pace_too_slow` sur un effort réel. Reprise 150 m plus loin, le saut
+ * spatial coupait et le temps mort disparaissait par accident : le verdict
+ * dépendait de l'ENDROIT où l'app était morte. C'est ce hasard qu'on supprime.
+ *
+ * LES DEUX CAS QUE 3 MINUTES SÉPARENT — bornes lues sur les cadences RÉELLES du
+ * client (`apps/mobile/app/(mvp)/course.tsx` : `timeInterval: 1000`,
+ * `distanceInterval: 5`) :
+ *  · NE COUPE PAS — l'ARRÊT SUR PLACE, app vivante. Avec un filtre de 5 m, un
+ *    coureur immobile n'émet plus AUCUN relevé : un feu rouge (30-90 s, jusqu'à
+ *    ~2 min sur un grand carrefour ou un cycle manqué) est déjà un trou de
+ *    trace alors que l'app tournait. Ce temps-là a été vécu sur le bitume : il
+ *    compte, et la trace doit rester d'un seul tenant — le polygone d'une
+ *    boucle exige UN segment claimable contigu, donc couper un feu rouge ferait
+ *    perdre la zone. (L'autre provider, `mvp/run/gpsProvider.ts`, tourne en
+ *    `distanceInterval: 0` et ne produit même pas ce trou.)
+ *  · COUPE — l'app NE MESURAIT PLUS : kill par l'OS, suspension iOS écran
+ *    verrouillé sans permission « Toujours », localisation coupée. Le trou se
+ *    compte alors en minutes ou en heures. Le client retranche DÉJÀ exactement
+ *    ce temps-là de son chrono (`mvp/run/persist.ts`, `resumedDeadMs`) : au-delà
+ *    du seuil, écran et serveur annoncent enfin la même durée.
+ *
+ * DEUX CONTRÔLES DE COHÉRENCE :
+ *  · 180 s < `RUN_MIN_DURATION_S` (300 s) — le temps mort qu'un trou NON coupé
+ *    peut encore ajouter reste plus court que la plus courte course qui compte ;
+ *  · sur une sortie de 3 km à 5:00/km, un trou non coupé de 180 s porte l'allure
+ *    à 360 s/km — loin de `RUN_AVG_PACE_MAX_S_KM` (600).
+ *
+ * CE QU'ELLE COÛTE, DIT : un arrêt RÉEL de plus de 3 min (passage à niveau,
+ * longue attente) est coupé. La sortie reste VALIDE — distance intacte, durée
+ * amputée du seul temps d'arrêt — et son couloir reste capturé
+ * (`hexesForSegments` travaille sur TOUS les segments claimables) ; mais si la
+ * coupure tombe au milieu d'une boucle, le polygone n'est pas accordé.
+ * Arbitrage assumé : une sortie valide sans polygone plutôt qu'un effort
+ * honnête refusé. TUNABLE.
+ */
+export const POINT_MAX_GAP_S = 3 * 60;
 /** Allure par segment admise pour le claim : [2:30 ; 12:00] (hors bornes : segment exclu du claim, course conservée). */
 export const SEGMENT_PACE_MIN_S_KM = 2 * 60 + 30;
 export const SEGMENT_PACE_MAX_S_KM = 12 * 60;
@@ -3894,6 +3943,11 @@ export interface ActivityRuleSet {
   readonly pointMaxSpeedKmh: number;
   /** §3.2 — saut entre deux points consécutifs (m) : au-delà, segment COUPÉ. */
   readonly pointMaxJumpM: number;
+  /**
+   * §3.2 — trou TEMPOREL entre deux relevés conservés (s) : au-delà, segment
+   * COUPÉ. Mesure une panne de mesure (app tuée/suspendue), jamais un effort.
+   */
+  readonly pointMaxGapS: number;
   /** §3.2 — précision horizontale max d'un point accepté (m). */
   readonly pointMaxAccuracyM: number;
   /** §3.2 — allure SEGMENT minimale pour claimer (s/km). */
@@ -3948,6 +4002,7 @@ const RUN_RULES: ActivityRuleSet = {
   maxDistanceM: RUN_MAX_DISTANCE_M,
   pointMaxSpeedKmh: POINT_MAX_SPEED_KMH,
   pointMaxJumpM: POINT_MAX_JUMP_M,
+  pointMaxGapS: POINT_MAX_GAP_S,
   pointMaxAccuracyM: POINT_MAX_ACCURACY_M,
   segmentPaceMinSKm: SEGMENT_PACE_MIN_S_KM,
   segmentPaceMaxSKm: SEGMENT_PACE_MAX_S_KM,
@@ -4052,6 +4107,19 @@ export const BIKE_POINT_MAX_SPEED_KMH = 80;
  * permanence par un filtre pensé pour des foulées.
  */
 export const BIKE_POINT_MAX_JUMP_M = 300;
+
+/**
+ * Trou TEMPOREL qui coupe une trace vélo : IDENTIQUE à la course (3 min), et
+ * pour la même raison que la précision l'est déjà — il mesure une PANNE DE
+ * MESURE (app tuée, écran verrouillé, GPS coupé), et un OS ne suspend pas une
+ * app différemment selon qu'on pédale ou qu'on court. Contrairement au saut,
+ * ce seuil n'a donc AUCUNE raison d'être mis à l'échelle de la vitesse : ce qui
+ * change avec elle, c'est la distance parcourue pendant le trou, et elle est
+ * déjà bornée par `BIKE_POINT_MAX_JUMP_M`. Champ présent dans la table pour que
+ * le moteur n'ait QU'UNE source ; le dire évite qu'on le « règle » un jour sans
+ * raison.
+ */
+export const BIKE_POINT_MAX_GAP_S = POINT_MAX_GAP_S;
 
 /**
  * Précision horizontale max d'un point vélo : IDENTIQUE à la course (25 m). La
@@ -4166,6 +4234,7 @@ const BIKE_RULES: ActivityRuleSet = {
   maxDistanceM: BIKE_MAX_DISTANCE_M,
   pointMaxSpeedKmh: BIKE_POINT_MAX_SPEED_KMH,
   pointMaxJumpM: BIKE_POINT_MAX_JUMP_M,
+  pointMaxGapS: BIKE_POINT_MAX_GAP_S,
   pointMaxAccuracyM: BIKE_POINT_MAX_ACCURACY_M,
   segmentPaceMinSKm: BIKE_SEGMENT_PACE_MIN_S_KM,
   segmentPaceMaxSKm: BIKE_SEGMENT_PACE_MAX_S_KM,

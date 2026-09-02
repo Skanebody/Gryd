@@ -20,8 +20,11 @@
  * ─── CE QU'IL NE FAIT PAS ───────────────────────────────────────────────────
  * Aucune I/O, aucun React, aucun Supabase, aucune horloge. Tout entre par les
  * paramètres — c'est ce qui rend testables les états qu'on ne sait pas
- * provoquer à la main (un backend injoignable, une permission bloquée).
+ * provoquer à la main (un backend injoignable, une permission bloquée). Les
+ * deux seuls imports sont des CONSTANTES et un TYPE : rien qui s'exécute.
  */
+import { RUN_MIN_DISTANCE_M } from '@klaim/shared';
+import type { TerritoryFeatureCollection } from './territoryGeo';
 
 /** Le backend est-il seulement JOIGNABLE par ce build ? (`isSupabaseConfigured`) */
 export type BackendReach = 'configured' | 'absent';
@@ -77,6 +80,24 @@ export interface HomeInput {
    * le sache est perdue quand même — c'est tout l'objet de never-lose-a-run.
    */
   readonly interrupted?: boolean;
+  /**
+   * Une course TERMINÉE attend-elle d'être envoyée ? (`lib/pendingUpload.ts`)
+   *
+   * ⚠️ CE N'EST PAS `interrupted`. Une course interrompue n'a jamais été close ;
+   * celle-ci l'est, elle est complète sur le disque, et le SERVEUR ne la connaît
+   * pas encore. La conséquence est exactement celle que ce module existe pour
+   * empêcher : la lecture des territoires est honnête sur ce que le serveur
+   * sait, et le serveur ne sait pas tout.
+   *
+   * `false` couvre DEUX cas — « rien en attente » et « pas encore lu / file
+   * illisible » — et c'est délibéré. `hasPendingUpload()` retombe déjà sur false
+   * quand AsyncStorage jette, avec sa raison écrite : « on n'affiche jamais une
+   * promesse inenvoyable ». En faire une troisième raison de ne pas savoir
+   * bloquerait l'accueil sur « Lecture en cours… » à VIE le jour où le stockage
+   * casse — le spinner infini que L8 interdit, en échange d'un mot qu'on ne peut
+   * de toute façon pas tenir.
+   */
+  readonly pending?: boolean;
 }
 
 /**
@@ -88,10 +109,20 @@ export interface HomeInput {
  *   · `signedOut`   — pas de compte. « À moi » n'a pas encore de sens.
  *   · `loading`     — la lecture est EN COURS. Elle n'affirme rien.
  *   · `failed`      — la lecture a échoué. Elle n'affirme rien non plus.
+ *   · `pending`     — lu « rien », mais une course TERMINÉE attend d'être
+ *                     envoyée : le serveur n'a pas encore tout vu. Le zéro
+ *                     qu'il rend est vrai de lui, pas du joueur.
  *   · `empty`       — lu, et le joueur n'a RIEN. Seul cas où le vide est vrai.
  *   · `owned`       — lu, et il a quelque chose.
  */
-export type HomeStatus = 'unavailable' | 'signedOut' | 'loading' | 'failed' | 'empty' | 'owned';
+export type HomeStatus =
+  | 'unavailable'
+  | 'signedOut'
+  | 'loading'
+  | 'failed'
+  | 'pending'
+  | 'empty'
+  | 'owned';
 
 /**
  * Réponse honnête à « qu'est-ce qui est à moi ? ». PURE.
@@ -111,7 +142,20 @@ export function homeStatus(input: HomeInput): HomeStatus {
   // davantage à conclure que d'attendre la réponse.
   if (input.read.kind === 'idle' || input.read.kind === 'loading') return 'loading';
   if (input.read.kind === 'failed') return 'failed';
-  return input.read.ownedCount > 0 ? 'owned' : 'empty';
+  if (input.read.ownedCount > 0) return 'owned';
+  // ⚠️ DERNIÈRE RAISON DE NE PAS SAVOIR, ET LA PLUS FACILE À OUBLIER : elle ne
+  // vient pas du réseau, elle vient du DISQUE. La lecture a bel et bien abouti,
+  // et elle est honnête — sur ce que le SERVEUR sait. Une course terminée hors
+  // réseau n'y est pas encore arrivée : conclure `empty` ici, c'est dire « Ta
+  // ville est vierge. Ferme ta première boucle. » à quelqu'un qui vient de la
+  // fermer.
+  //
+  // Sa place dans l'ordre n'est pas négociable non plus : APRÈS `owned` — un
+  // territoire tenu reste tenu, l'attente n'annule rien d'acquis, et c'est
+  // `pendingNotice` qui la dit alors — et AVANT `empty`, seul énoncé qu'elle
+  // rendrait faux.
+  if (input.pending === true) return 'pending';
+  return 'empty';
 }
 
 /**
@@ -202,6 +246,29 @@ export function homeAction(input: HomeInput): HomeAction {
 }
 
 /**
+ * Le bandeau doit-il AJOUTER que des courses attendent d'être envoyées ?
+ *
+ * ⚠️ CE N'EST PAS UN DOUBLON DE `homeStatus`. Le statut répond à « qu'est-ce qui
+ * est à moi ? » et ne peut porter qu'UNE réponse ; l'attente, elle, est une
+ * RÉSERVE sur cette réponse, et elle reste vraie pendant que le chiffre héros
+ * s'affiche. Sans cette seconde voix, il aurait fallu choisir entre effacer les
+ * m² du joueur pour cause de réseau coupé, ou taire la course qui attend.
+ *
+ * Elle se tait dans trois cas, et chacun a sa raison :
+ *   · `pending` — la phrase principale le dit DÉJÀ, la répéter serait un doublon ;
+ *   · `unavailable` — ce build ne joint aucun serveur : « elle partira » y serait
+ *     une promesse que rien ne peut tenir, et le bandeau dit déjà le vrai fait ;
+ *   · `signedOut` — le drain s'arrête sur `no_session` (`pendingUpload.ts`).
+ *     Le blocage n'est pas le réseau, c'est le compte — et le bandeau porte
+ *     déjà l'action qui le lève.
+ */
+export function pendingNotice(input: HomeInput): boolean {
+  if (input.pending !== true) return false;
+  const statut = homeStatus(input);
+  return statut === 'owned' || statut === 'loading' || statut === 'failed';
+}
+
+/**
  * L'échec de lecture se rattrape-t-il par un geste SECONDAIRE ?
  *
  * Séparé de l'action primaire exprès : « réessayer » doit rester atteignable
@@ -220,4 +287,177 @@ export function canRetryRead(input: HomeInput): boolean {
  */
 export function canCenterOnPlayer(input: HomeInput): boolean {
   return input.location === 'granted';
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// OÙ LA CARTE REGARDE — LE CADRAGE D'OUVERTURE, ET LUI SEUL
+// ════════════════════════════════════════════════════════════════════════════
+//
+// ─── LE DÉFAUT QUE CETTE SECTION CORRIGE ────────────────────────────────────
+// `MapCanvas` posait sa caméra par `defaultSettings`, c'est-à-dire AU MONTAGE.
+// Or `center` n'arrive JAMAIS au montage : l'écran le lit dans un effet
+// (`getLastKnownPositionAsync`), donc après. Conséquence, pour tout le monde et
+// à chaque ouverture : la carte s'ouvrait sur le repli de ville — Rouen, z12,5 —
+// et `ZOOM_EGO` n'était jamais appliqué. À z12,5, une boucle de quelques
+// centaines de m² tient dans un pixel. L'usage LE PLUS FRÉQUENT de l'app —
+// ouvrir pour REGARDER son territoire — était sans objet.
+//
+// ─── ET LE PIÈGE QU'ELLE NE DOIT PAS ROUVRIR ────────────────────────────────
+// `defaultSettings` n'était pas une erreur, c'était une PARADE. Une caméra
+// CONTRÔLÉE (`centerCoordinate` en prop, recréée à chaque rendu) se bat contre
+// les doigts : chaque re-rendu du parent ré-applique un `easeTo` en plein
+// pincement, et « le zoom revient en arrière ». Ce module ne rend donc PAS une
+// caméra : il rend UNE CIBLE, que les deux forks appliquent IMPÉRATIVEMENT et
+// UNE SEULE FOIS. Après quoi la caméra appartient au joueur, et rien du code ne
+// la touche plus — sauf s'il le demande (le contrôle de recentrage).
+
+/** Un point, en degrés. Ordre de lecture humain ; GeoJSON reste `[lng, lat]`. */
+export interface LngLat {
+  readonly lng: number;
+  readonly lat: number;
+}
+
+/** Deux coins opposés. `sw` = sud-ouest, `ne` = nord-est. */
+export interface MapBounds {
+  readonly sw: LngLat;
+  readonly ne: LngLat;
+}
+
+/**
+ * CE QUE LA CAMÉRA DOIT REGARDER, une fois.
+ *
+ * Deux formes, parce qu'il y a deux vérités différentes : « voici ta surface »
+ * (des BORNES, dont l'échelle se déduit) et « voici où tu es » (un POINT, dont
+ * l'échelle est un choix — le quartier).
+ */
+export type MapFraming =
+  | ({ readonly kind: 'bounds' } & MapBounds)
+  | { readonly kind: 'point'; readonly center: LngLat; readonly zoom: number };
+
+export interface FramingInput {
+  /** Ma surface possédée, telle que la carte la peint. `null` = rien à peindre. */
+  readonly territories: TerritoryFeatureCollection | null;
+  /** Ma position, si — et seulement si — elle est autorisée ET connue. */
+  readonly center: LngLat | null;
+  /** L'échelle d'un cadrage sur MOI : le quartier (`ZOOM_EGO`, côté écran). */
+  readonly zoom: number;
+}
+
+/**
+ * Mètres par degré de latitude. Valeur déjà retenue partout dans ce dépôt
+ * (moteur, zones de confidentialité, ancres de carte) : on ne s'en invente pas
+ * une seconde.
+ */
+const M_PAR_DEGRE_LAT = 111_320;
+
+/**
+ * L'EMPRISE LA PLUS SERRÉE QU'ON S'AUTORISE, en mètres.
+ *
+ * ⚠️ Ce n'est pas un goût, c'est une conséquence des règles du jeu. La plus
+ * petite boucle que GRYD accepte mesure `RUN_MIN_DISTANCE_M` de périmètre ; le
+ * cercle de ce périmètre a `RUN_MIN_DISTANCE_M / π` de diamètre (~255 m). Un
+ * territoire peut être PLUS PETIT que ça — écrasé par sa forme, mordu par un
+ * rival — et `fitBounds` le collerait alors au ras de l'écran : on verrait la
+ * forme sans plus savoir OÙ elle est. Cadrer sur son territoire n'est pas y
+ * coller le nez. En dessous de cette emprise, on élargit AUTOUR du centre :
+ * la forme reste entière, le quartier revient avec elle.
+ */
+const CADRAGE_EMPRISE_MIN_M = RUN_MIN_DISTANCE_M / Math.PI;
+
+/** Sous ce cosinus (≈ 89,4° de latitude) un degré de longitude ne veut plus rien dire. */
+const COS_LAT_PLANCHER = 0.01;
+
+/**
+ * L'emprise de MA surface, ou `null` si elle n'en a pas d'exploitable.
+ *
+ * `null` couvre trois cas et n'en distingue aucun, parce que l'appelant en fait
+ * la même chose : pas de collection (rien n'a été lu), collection vide (le
+ * joueur ne tient rien), sommets inexploitables. Aucun d'eux n'autorise à
+ * pointer une caméra quelque part.
+ */
+export function territoryBounds(collection: TerritoryFeatureCollection | null): MapBounds | null {
+  if (collection === null) return null;
+  let ouest = Number.POSITIVE_INFINITY;
+  let sud = Number.POSITIVE_INFINITY;
+  let est = Number.NEGATIVE_INFINITY;
+  let nord = Number.NEGATIVE_INFINITY;
+  let vus = 0;
+  for (const feature of collection.features) {
+    for (const anneau of feature.geometry.coordinates) {
+      for (const [lng, lat] of anneau) {
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+        vus += 1;
+        if (lng < ouest) ouest = lng;
+        if (lng > est) est = lng;
+        if (lat < sud) sud = lat;
+        if (lat > nord) nord = lat;
+      }
+    }
+  }
+  if (vus === 0) return null;
+  // ⚠️ LIMITE ÉCRITE PLUTÔT QUE MASQUÉE : une surface à cheval sur l'antiméridien
+  // rendrait ici une emprise qui fait le tour de la Terre. On ne la « répare »
+  // pas — la réparer demanderait de deviner de quel côté est le joueur — on
+  // refuse de cadrer, et la carte garde son ouverture. Se taire est honnête ;
+  // montrer la planète pour un pâté de maisons ne l'est pas.
+  if (est - ouest > 180) return null;
+  return { sw: { lng: ouest, lat: sud }, ne: { lng: est, lat: nord } };
+}
+
+/** Élargit une emprise jusqu'à `CADRAGE_EMPRISE_MIN_M`, autour de son centre. */
+function auMoinsUnQuartier(b: MapBounds): MapBounds {
+  const lat = (b.sw.lat + b.ne.lat) / 2;
+  const lng = (b.sw.lng + b.ne.lng) / 2;
+  const cos = Math.max(Math.cos((lat * Math.PI) / 180), COS_LAT_PLANCHER);
+  const demiLat = Math.max((b.ne.lat - b.sw.lat) / 2, CADRAGE_EMPRISE_MIN_M / M_PAR_DEGRE_LAT / 2);
+  const demiLng = Math.max(
+    (b.ne.lng - b.sw.lng) / 2,
+    CADRAGE_EMPRISE_MIN_M / (M_PAR_DEGRE_LAT * cos) / 2,
+  );
+  return {
+    sw: { lng: lng - demiLng, lat: Math.max(lat - demiLat, -90) },
+    ne: { lng: lng + demiLng, lat: Math.min(lat + demiLat, 90) },
+  };
+}
+
+/**
+ * LA CIBLE DU CADRAGE, ou `null` quand il n'y a rien d'honnête à regarder.
+ *
+ * L'ORDRE dit ce que l'app croit être la raison d'ouvrir : MON TERRITOIRE
+ * d'abord, ma position ensuite. On n'ouvre pas GRYD pour se localiser — on
+ * l'ouvre pour voir ce qu'on tient (L1, q.2). Quand la surface est connue, la
+ * position n'ajoute rien au cadrage : le point « Toi » reste peint là où il est,
+ * et le joueur voit d'un coup d'œil s'il en est loin.
+ *
+ * `null` = on ne sait NI ce qu'on tient NI où l'on est. La carte garde alors son
+ * ouverture de ville, qui ne prétend rien (voir `HOME_FALLBACK` dans les forks).
+ */
+export function openingFraming(input: FramingInput): MapFraming | null {
+  const bornes = territoryBounds(input.territories);
+  if (bornes !== null) return { kind: 'bounds', ...auMoinsUnQuartier(bornes) };
+  if (input.center !== null && Number.isFinite(input.zoom)) {
+    return { kind: 'point', center: input.center, zoom: input.zoom };
+  }
+  return null;
+}
+
+/**
+ * LA CLÉ DE VALEUR D'UN CADRAGE — la pièce qui empêche le combat caméra/doigts.
+ *
+ * ⚠️ C'est le cœur du « une seule fois ». `territories` est un OBJET recréé à
+ * chaque lecture ; comparer son IDENTITÉ ferait repartir l'effet à chaque
+ * re-rendu du parent, et la caméra ré-appliquerait un `easeTo` en plein
+ * pincement — précisément le bug que `defaultSettings` évitait. Une chaîne de
+ * NOMBRES, elle, ne change que si la cible change réellement.
+ *
+ * `null` = aucune cible : rien à déclencher.
+ */
+export function framingKey(cadre: MapFraming | null): string | null {
+  if (cadre === null) return null;
+  // 6 décimales ≈ 11 cm : bien en deçà de toute dérive GPS, et assez pour que
+  // deux lectures de la même géométrie rendent la MÊME clé.
+  const n = (v: number): string => v.toFixed(6);
+  return cadre.kind === 'bounds'
+    ? `b:${n(cadre.sw.lng)},${n(cadre.sw.lat)},${n(cadre.ne.lng)},${n(cadre.ne.lat)}`
+    : `p:${n(cadre.center.lng)},${n(cadre.center.lat)},${n(cadre.zoom)}`;
 }

@@ -1,25 +1,54 @@
 /**
- * GRYD — ONBOARDING 2/2 : le PRIMING, puis seulement la demande OS (lot M2).
+ * GRYD — L'ONBOARDING : UN SEUL ÉCRAN (lot M2 ; fusion du 02/09/2026).
  *
- * ─── L9 : LA VALEUR AVANT LA PERMISSION ─────────────────────────────────────
- * Jamais de popup système à froid. Cet écran dit d'abord POURQUOI GRYD a besoin
- * de la position — « il dessine ton territoire à partir de ta course » — et
- * n'appelle l'OS qu'après un geste explicite. Une permission refusée par
- * surprise ne se redemande pas : c'est la seule erreur de cet écran qui soit
- * irréversible.
+ * ─── DEUX ÉCRANS SONT DEVENUS UN ────────────────────────────────────────────
+ * Il y avait `/bienvenue` PUIS `/position`. Le premier disait le jeu (« tu
+ * cours, ta trace dessine une ligne, si elle se referme l'intérieur est à
+ * toi »), le second disait pourquoi GRYD a besoin de la position. Deux écrans,
+ * deux taps — et UN SEUL argument, coupé en deux : montrer ce qu'on gagne, puis
+ * demander de quoi le dessiner. Le tap de « Continuer » ne faisait choisir
+ * RIEN ; il ne faisait qu'annoncer l'écran suivant, et un tap qui ne fait rien
+ * choisir ne se paie pas.
+ *
+ * L9 pose un PLAFOND (« ≤ 3 écrans avant la carte »), pas un objectif : être
+ * sous le plafond n'a jamais été une raison d'y rester. L'audit de friction
+ * comptait 9 taps du premier lancement à la première course ; cette fusion en
+ * rend un, et l'argument ne perd rien — il se lit d'un seul regard au lieu de
+ * deux. Le HIG (« Designing for games ») demande un onboarding « fast, fun, and
+ * optional » : un écran dont le seul rôle est d'amener au suivant échoue aux
+ * trois mots à la fois.
+ *
+ * ⚠️ Le FICHIER reste `position.tsx`, donc la route reste `/position`. Renommer
+ * aurait touché la garde d'entrée, l'audit de routes et la table des
+ * transitions pour un gain nul : c'est le contenu qui a fusionné, pas l'adresse.
+ *
+ * ─── L'ORDRE SUR L'ÉCRAN, ET POURQUOI CET ORDRE ─────────────────────────────
+ * De haut en bas : la photo, l'objet, le jeu, la demande, l'action.
+ *   · la PHOTO (`assets/onboarding/`) dit CE QUE C'EST — des gens qui courent
+ *     en ville, reconnaissable en une demi-seconde, avant le moindre mot ;
+ *   · `TerritoryMark` dit CE QU'ON OBTIENT — un contour fermé, l'objet
+ *     signature. Il est montré AVANT la demande : c'est lui qui donne la valeur
+ *     que L9 exige de montrer avant de demander quoi que ce soit ;
+ *   · `obTitle` / `obBody` disent LE JEU, en trois phrases ;
+ *   · et seulement là, la demande — courte, en dessous, subordonnée.
+ *
+ * Aucune feuille système ne s'ouvre sans un geste explicite. Une permission
+ * refusée par surprise ne se redemande pas : c'est la seule erreur de cet écran
+ * qui soit irréversible.
  *
  * ─── AUCUN CUL-DE-SAC, DANS AUCUNE DES TROIS ISSUES ─────────────────────────
- * La décision vit dans `permissionOutcome` (PUR, testé) : accordée → la carte ;
+ * La décision vit dans `permissionOutcome` (PUR, testé) : accordée → la suite ;
  * refusée mais redemandable → on repropose ; refusée définitivement → et
  * seulement là — les réglages système. Peindre « Ouvrir les réglages » sur un
  * refus redemandable enverrait chercher un interrupteur qui n'existe pas encore.
  *
  * Et « Voir la carte d'abord » reste TOUJOURS offert : refuser est un choix
  * légitime, la carte a un état vide honnête, et en faire une rançon serait un
- * dark pattern (L17).
+ * dark pattern (L17). C'est aussi le « optional » du HIG — cet écran n'est pas
+ * un péage.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { Stage } from '../../src/mvp/ui/Stage';
@@ -32,7 +61,7 @@ import { EVENTS } from '@klaim/shared';
 import { screen, track } from '../../src/lib/analytics';
 
 /**
- * Là où mène la fin de l'onboarding — la carte, dans tous les cas.
+ * Là où mène la fin de l'onboarding.
  *
  * Depuis M10, c'est la CONNEXION : l'onboarding se termine, et la carte demande
  * un compte pour dire ce qui est à toi. Envoyer directement à la carte ferait
@@ -56,13 +85,46 @@ const APRES = '/connexion';
  */
 const SANS_COMPTE = '/carte';
 
-export default function Position() {
+/**
+ * Taille de l'objet signature SUR CET ÉCRAN — 120 et non 200 (son défaut).
+ *
+ * L'écran fusionné porte désormais quatre blocs au lieu de deux (objet, titre,
+ * corps, demande) au-dessus d'un CTA ancré. À 200, l'objet mangeait la moitié
+ * de la colonne et poussait le jeu hors du premier regard : c'est exactement
+ * l'inverse de ce que la fusion cherchait. À 120 il reste lisible comme forme —
+ * c'est un contour, pas un détail — et laisse le haut de la photo intact.
+ */
+const MARQUE_PT = 120;
+
+/**
+ * Au-delà de cette échelle de police, l'objet signature CÈDE LA PLACE au texte.
+ *
+ * ⚠️ Ce n'est pas une préférence. Le contenu défile (`Stage`), donc à l'échelle
+ * AX3 le premier écran-plein deviendrait un DESSIN décoratif de 120 pt, et il
+ * faudrait faire défiler pour lire le titre. Quelqu'un qui a agrandi ses polices
+ * a demandé du texte, pas une illustration — le HIG demande précisément de
+ * retirer les images décoratives aux tailles d'accessibilité.
+ *
+ * 1,5 n'est pas un chiffre choisi : c'est la frontière `isAccessibilityCategory`
+ * d'iOS, qui tombe entre `xxxLarge` (~1,35×) et `accessibilityMedium` (~1,65×).
+ * Le seuil suit donc la bascule que le système opère déjà.
+ */
+const ECHELLE_SANS_MARQUE = 1.5;
+
+export default function Onboarding() {
   const t = useT();
+  const { fontScale } = useWindowDimensions();
   const [issue, setIssue] = useState<PermissionOutcome | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // UN SEUL écran, donc UN SEUL événement d'écran. `permission_primed` marquait
+  // le passage de `/bienvenue` à `/position` : cette étape n'existe plus, et la
+  // garder ferait un palier d'entonnoir converti à 100 % par construction —
+  // du bruit, pas une mesure. Le RÉSULTAT de la demande reste tracé, lui, par
+  // `permission_location` ci-dessous : l'entonnoir « onboarding vu → permission
+  // décidée » est intact, et il est même plus juste qu'avant.
   useEffect(() => {
-    screen('permission_primed');
+    screen('onboarding_started');
   }, []);
 
   const demander = useCallback(async () => {
@@ -76,9 +138,10 @@ export default function Position() {
       // qui divergeraient à la première analyse. Même information, un seul nom.
       track(EVENTS.permissionLocation, { result: suite });
       if (suite === 'granted') {
-        // Le drapeau se pose ICI, à la sortie de l'onboarding — pas à son
-        // entrée. Le poser au montage marquerait « vu » quelqu'un qui a fermé
-        // l'app au premier écran, et lui ferait manquer l'explication du jeu.
+        // Le drapeau se pose ICI, à la SORTIE de l'onboarding — jamais au
+        // montage. Le poser à l'entrée marquerait « vu » quelqu'un qui a fermé
+        // l'app sur la première seconde, et lui ferait manquer l'explication du
+        // jeu pour toujours.
         await markOnboardingSeen();
         router.replace(APRES);
         return;
@@ -94,16 +157,30 @@ export default function Position() {
     }
   }, []);
 
+  // ⚠️ `issue === null` tant que l'OS n'a pas répondu. L'écran ne SUPPOSE jamais
+  // l'autorisation : il ne peint la suite qu'après la réponse, et la seule
+  // chose qu'il montre entre-temps est `busy` (voir `Stage`).
   const refuse = issue === 'retry' || issue === 'settings';
 
   return (
     <Stage
-      // Le MÊME objet qu'à l'écran précédent : c'est ce que la permission sert
-      // à dessiner. Il disparaît sur un refus — on ne fait pas miroiter ce
-      // qu'on vient de dire inaccessible.
-      visual={refuse ? undefined : <TerritoryMark size={160} />}
-      title={refuse ? t(C.obDeniedTitle) : t(C.obPrimingTitle)}
-      body={refuse ? t(C.obDeniedBody) : t(C.onboardingPriming)}
+      // LA PHOTO, conservée telle quelle. Elle reste AUSSI sur le refus : c'est
+      // le même écran, et la faire disparaître produirait un clignotement noir
+      // au moment précis où l'on annonce une mauvaise nouvelle. Ce qu'on ne
+      // fait pas miroiter après un refus, c'est le TERRITOIRE — pas la course.
+      photo={require('../../assets/onboarding/e01-crew.jpg')}
+      // L'objet signature disparaît sur un refus : on ne fait pas miroiter ce
+      // qu'on vient de dire inaccessible. Et il cède la place au texte dès que
+      // les polices système passent en taille d'accessibilité.
+      visual={
+        refuse || fontScale >= ECHELLE_SANS_MARQUE ? undefined : <TerritoryMark size={MARQUE_PT} />
+      }
+      title={refuse ? t(C.obDeniedTitle) : t(C.obTitle)}
+      body={refuse ? t(C.obDeniedBody) : t(C.obBody)}
+      // LA DEMANDE, subordonnée au jeu — c'est tout l'ordre de L9. Elle
+      // disparaît sur un refus : `obDeniedBody` porte alors déjà la raison, et
+      // la répéter sous le message de refus la transformerait en insistance.
+      note={refuse ? undefined : { label: t(C.obPrimingTitle), body: t(C.onboardingPriming) }}
       cta={{
         // Sur un refus REDEMANDABLE, le bon geste reste « Autoriser » : envoyer
         // aux réglages pour un dialogue qu'on peut rouvrir est une corvée.
@@ -114,8 +191,8 @@ export default function Position() {
       link={{
         // Le drapeau se pose AUSSI sur cette sortie : « voir la carte d'abord »
         // est une façon légitime de terminer l'onboarding, pas une évasion. Ne
-        // pas le poser ferait revenir les deux écrans à chaque ouverture, à
-        // quelqu'un qui a justement dit qu'il voulait passer.
+        // pas le poser ferait revenir l'écran à chaque ouverture, à quelqu'un
+        // qui a justement dit qu'il voulait passer.
         label: t(C.obSkip),
         onPress: () => {
           void markOnboardingSeen();

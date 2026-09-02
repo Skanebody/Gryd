@@ -75,6 +75,10 @@ export function TerritoryMark({
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
+      // ⚠️ Mesuré en preview : sur react-native-web, les deux props ci-dessus ne
+      // produisent AUCUN `aria-hidden` — le SVG restait exposé aux lecteurs
+      // d'écran web. `aria-hidden` (RN 0.76) se traduit sur les deux plateformes.
+      aria-hidden
       style={{ alignSelf: 'center', width: size, height: size }}
     >
       <Svg viewBox="0 0 168 168" width={size} height={size}>

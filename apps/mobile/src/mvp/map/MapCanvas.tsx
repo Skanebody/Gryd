@@ -32,13 +32,31 @@
  * Le seul lissage du produit est celui de la SURFACE (`smoothRing`), et il ne
  * touche jamais cette ligne.
  *
+ * ─── LA CAMÉRA : UNE FOIS, PUIS PLUS JAMAIS ─────────────────────────────────
+ * `defaultSettings` ne s'applique qu'au MONTAGE — et `center` n'arrive qu'après
+ * (l'écran le lit dans un effet). La carte ouvrait donc TOUJOURS sur le repli de
+ * ville, pour tout le monde : `ZOOM_EGO` n'était jamais appliqué et une boucle
+ * de quelques centaines de m² tenait dans un pixel.
+ *
+ * La parade n'est PAS de rendre la caméra contrôlée. Une prop `centerCoordinate`
+ * recréée à chaque rendu ré-applique un `easeTo` en plein pincement, et « le zoom
+ * revient en arrière » — c'est le bug que `defaultSettings` évitait, et il ne
+ * doit pas revenir. Donc : `defaultSettings` pour le montage, PLUS un appel
+ * IMPÉRATIF déclenché UNE SEULE FOIS, à la première cible réelle. La garde est
+ * un `useRef` booléen, et le déclencheur une CLÉ DE VALEUR (`framingKey`), jamais
+ * l'identité de `territories` — qui, elle, change à chaque lecture.
+ *
+ * Après ce cadrage, la caméra appartient au joueur. Le seul code qui la touche
+ * encore est `recadrer()`, et il ne part que d'un tap.
+ *
  * ─── CE QU'IL NE DÉCIDE PAS ─────────────────────────────────────────────────
  * Il ne décide RIEN. Ni s'il y a un territoire (`homeState`), ni quoi dire quand
- * il n'y en a pas (l'écran). Il reçoit une géométrie ou `null`, et `null` ne
- * signifie jamais « vide » ici : il signifie « rien à peindre », ce qui est vrai
- * pendant un chargement comme après un échec. C'est l'écran, seul, qui parle.
+ * il n'y en a pas (l'écran), ni OÙ REGARDER (`openingFraming`, du même module
+ * pur). Il reçoit une géométrie ou `null`, et `null` ne signifie jamais « vide »
+ * ici : il signifie « rien à peindre », ce qui est vrai pendant un chargement
+ * comme après un échec. C'est l'écran, seul, qui parle.
  */
-import { useMemo } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
@@ -47,10 +65,22 @@ import {
   MapView,
   ShapeSource,
   UserLocation,
+  type CameraRef,
   type FillLayerStyle,
   type LineLayerStyle,
 } from '@maplibre/maplibre-react-native';
-import { colors, fonts, fontSizes, gameColors, radii, spacing, withAlpha } from '@klaim/shared';
+import {
+  colors,
+  fonts,
+  fontSizes,
+  gameColors,
+  motion,
+  radii,
+  sizes,
+  spacing,
+  withAlpha,
+} from '@klaim/shared';
+import { framingKey, openingFraming, type MapFraming } from './homeState';
 import { grydNightStyleJson } from './nightStyle';
 import { BASEMAP_ATTRIBUTION, type TerritoryFeatureCollection } from './territoryGeo';
 
@@ -66,6 +96,17 @@ export interface MapCanvasProps {
   readonly rivals?: TerritoryFeatureCollection | null;
   /** Peindre le point de position ? Faux tant que l'OS n'a rien accordé. */
   readonly showUser: boolean;
+}
+
+/**
+ * Ce que l'écran peut demander à la carte — rien de plus.
+ *
+ * Une SEULE méthode, et elle ne prend aucun paramètre : l'écran ne choisit pas
+ * où la caméra va (ce serait rouvrir la porte à un pilotage continu), il demande
+ * seulement à REJOUER le cadrage que `openingFraming` a déjà décidé.
+ */
+export interface MapCanvasHandle {
+  readonly recadrer: () => void;
 }
 
 const SOURCE_ID = 'gryd-mvp-territoires';
@@ -89,7 +130,20 @@ const TRACE_CORE_W = 4;
  */
 const HOME_FALLBACK = { lng: 1.0993, lat: 49.4431, zoom: 12.5 } as const;
 
-export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }: MapCanvasProps) {
+/**
+ * Marge autour de l'emprise cadrée, en points — `[haut, droite, bas, gauche]`.
+ *
+ * Le bandeau du haut et le pied du bas sont posés SUR la carte : cadrer au ras
+ * des bornes glisserait le tiers du territoire sous eux. `sizes.buttonLg` est la
+ * hauteur d'un bloc de commande, donc l'ordre de grandeur de ce que chacun
+ * couvre ; les côtés gardent la marge d'écran.
+ */
+const CADRAGE_MARGE_PT = [sizes.buttonLg, spacing.lg, sizes.buttonLg, spacing.lg];
+
+export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function MapCanvas(
+  { center, zoom, territories, trace, rivals, showUser },
+  ref,
+) {
   // Mémoïsés : un nouvel objet de style à chaque rendu force MapLibre à
   // recompiler ses couches, et la carte perd ses images (perf, L14).
   const fill = useMemo<FillLayerStyle>(
@@ -137,6 +191,65 @@ export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }
 
   const ouverture = center ?? HOME_FALLBACK;
 
+  // ── LA CAMÉRA, UNE SEULE FOIS ────────────────────────────────────────────
+  const cameraRef = useRef<CameraRef | null>(null);
+  /** A-t-on DÉJÀ cadré ? Une fois vrai, plus rien du code ne bouge la caméra. */
+  const cadreFait = useRef(false);
+  /** La cible la plus récente, pour le recentrage À LA DEMANDE (jamais auto). */
+  const cibleRef = useRef<MapFraming | null>(null);
+
+  const cible = openingFraming({ territories, center, zoom });
+  // ⚠️ LA CLÉ, PAS L'OBJET. `territories` est recréé à chaque lecture ; un effet
+  // qui dépendrait de son identité repartirait à chaque re-rendu du parent et
+  // ré-appliquerait la caméra pendant que le joueur pince.
+  const cleCible = framingKey(cible);
+
+  const appliquer = useCallback((cadre: MapFraming | null): boolean => {
+    const camera = cameraRef.current;
+    if (camera === null || cadre === null) return false;
+    if (cadre.kind === 'bounds') {
+      camera.fitBounds(
+        [cadre.ne.lng, cadre.ne.lat],
+        [cadre.sw.lng, cadre.sw.lat],
+        CADRAGE_MARGE_PT,
+        motion.transitionMs,
+      );
+      return true;
+    }
+    camera.setCamera({
+      centerCoordinate: [cadre.center.lng, cadre.center.lat],
+      zoomLevel: cadre.zoom,
+      animationMode: 'easeTo',
+      animationDuration: motion.transitionMs,
+    });
+    return true;
+  }, []);
+
+  // Le miroir est déclaré AVANT l'effet de cadrage : les effets s'exécutent dans
+  // l'ordre de déclaration, donc la cible lue plus bas est celle du rendu commis.
+  useEffect(() => {
+    cibleRef.current = cible;
+  });
+
+  useEffect(() => {
+    if (cadreFait.current || cleCible === null) return;
+    // ⚠️ LE DRAPEAU NE SE LÈVE QUE SI L'ORDRE EST PARTI. React attache les refs
+    // pendant la phase de commit, donc AVANT cet effet : la caméra est là.
+    // C'est une ceinture, pas un trou — mais marquer « cadré » sans avoir cadré
+    // consommerait l'unique tour, et la carte resterait à jamais sur Rouen.
+    if (appliquer(cibleRef.current)) cadreFait.current = true;
+  }, [cleCible, appliquer]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      recadrer: () => {
+        appliquer(cibleRef.current);
+      },
+    }),
+    [appliquer],
+  );
+
   return (
     <View style={styles.root}>
       <MapView
@@ -147,9 +260,12 @@ export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }
         attributionEnabled={false}
         logoEnabled={false}
       >
-        {/* `defaultSettings` = appliqué au MONTAGE seulement. Une caméra
-            CONTRÔLÉE se battrait contre les doigts du joueur à chaque rendu. */}
+        {/* `defaultSettings` = appliqué au MONTAGE seulement, et il le reste :
+            une caméra CONTRÔLÉE se battrait contre les doigts du joueur à
+            chaque rendu. Ce qui manquait n'était pas une prop, c'était l'ordre
+            IMPÉRATIF donné une fois — voir l'effet de cadrage plus haut. */}
         <Camera
+          ref={cameraRef}
           defaultSettings={{
             centerCoordinate: [ouverture.lng, ouverture.lat],
             zoomLevel: center ? zoom : HOME_FALLBACK.zoom,
@@ -190,7 +306,7 @@ export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }
       </Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },

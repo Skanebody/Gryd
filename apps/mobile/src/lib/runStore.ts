@@ -48,6 +48,24 @@ export interface StoredRun {
   fixes: RawFix[];
   /** Cumul des pauses MANUELLES déjà écoulées (ms) — le chrono reprend juste. */
   userPausedMs: number;
+  /**
+   * Cumul du temps MORT (ms) : celui pendant lequel l'app NE TOURNAIT PAS
+   * (kill, batterie, OS). Mesuré à chaque reprise comme l'écart entre le dernier
+   * relevé écrit ici et l'instant de la reprise — voir `mvp/run/persist.ts`
+   * (`resumedDeadMs`), qui porte la règle et ses tests.
+   *
+   * ⚠️ DISTINCT de `userPausedMs`, et pas par prudence : celui-là est une
+   * DÉCISION du coureur (il a appuyé sur pause), celui-ci est une absence
+   * d'application. Les fondre dans le même champ ferait lire une pause volontaire
+   * là où il y a eu un crash — et le tracker historique (`features/run/gps`)
+   * incrémente déjà `userPausedMs` pour son propre compte.
+   *
+   * OPTIONNEL : une course écrite avant l'existence de ce champ n'en porte pas,
+   * et c'est un fait (« aucun temps mort n'a été enregistré »), pas un zéro.
+   * Persisté pour survivre à un SECOND kill : sans cela, la deuxième reprise
+   * rendrait au chrono les heures perdues à la première.
+   */
+  deadMs?: number;
 }
 
 async function readRun(key: string): Promise<StoredRun | null> {

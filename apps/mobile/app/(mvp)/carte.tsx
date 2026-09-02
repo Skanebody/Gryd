@@ -21,10 +21,10 @@
  * différentes : je n'ai rien pris, la lecture tourne, elle a échoué, il n'y a
  * pas de serveur. C'est le bandeau — jamais la carte — qui dit laquelle.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
 import {
   colors,
@@ -37,12 +37,14 @@ import {
   typography,
   EVENTS,
 } from '@klaim/shared';
-import { MapCanvas } from '../../src/mvp/map/MapCanvas';
+import { MapCanvas, type MapCanvasHandle } from '../../src/mvp/map/MapCanvas';
 import {
   canCenterOnPlayer,
   heroAreaM2,
   homeAction,
   homeStatus,
+  openingFraming,
+  pendingNotice,
   type HomeInput,
   type LocationAccess,
   type TerritoryRead,
@@ -55,6 +57,7 @@ import { Glyph } from '../../src/mvp/ui/Glyph';
 import { Panel } from '../../src/mvp/ui/Panel';
 import { useAnnonce } from '../../src/mvp/ui/announce';
 import { recoveryOffer, toSnapshot } from '../../src/mvp/run/persist';
+import { hasPendingUpload } from '../../src/lib/pendingUpload';
 import { loadActiveRun, loadCurrentRun } from '../../src/lib/runStore';
 import { isSupabaseConfigured } from '../../src/lib/supabase';
 import { useSession } from '../../src/lib/session';
@@ -114,6 +117,7 @@ export default function Carte() {
   // qu'on monte en Dynamic Type. On garde le rôle, on suit l'échelle.
   const ligneUnite = { lineHeight: Math.round(typography.statUnit.lineHeight * fontScale) };
   const ligneLegende = { lineHeight: Math.round(typography.statLabel.lineHeight * fontScale) };
+  const ligneNote = { lineHeight: Math.round(fontSizes.sm * INTERLIGNE * fontScale) };
   const { session, loading: sessionLoading } = useSession();
   const [permission, setPermission] = useState<Location.PermissionResponse | null>(null);
   const [read, setRead] = useState<TerritoryRead>({ kind: 'idle' });
@@ -122,6 +126,9 @@ export default function Carte() {
   const [rivaux, setRivaux] = useState<TerritoryFeatureCollection | null>(null);
   const [position, setPosition] = useState<{ lng: number; lat: number } | null>(null);
   const [interrompue, setInterrompue] = useState(false);
+  const [enAttente, setEnAttente] = useState(false);
+  /** La carte, pour le SEUL ordre que l'écran lui donne : recadrer. */
+  const carte = useRef<MapCanvasHandle | null>(null);
 
   const userId = session?.user?.id ?? null;
   const acces = accesDepuisOS(permission);
@@ -132,6 +139,7 @@ export default function Carte() {
     read,
     location: acces,
     interrupted: interrompue,
+    pending: enAttente,
   };
   const status = homeStatus(etat);
   const action = homeAction(etat);
@@ -202,6 +210,103 @@ export default function Carte() {
     void charger();
   }, [charger]);
 
+  /**
+   * LA DÉCONNEXION VIDE LA CARTE.
+   *
+   * `retourCarte` (`mvp/ui/nav.ts`) REMONTE désormais à CETTE instance après
+   * « Se déconnecter » (`profil.tsx`) au lieu d'en empiler une seconde neuve —
+   * qui, elle, serait repartie de zéro gratuitement. En repeignant la MÊME
+   * instance, elle doit désormais faire elle-même ce qu'un remontage faisait
+   * pour rien : oublier ce qu'elle savait. Sans ce videur, `formes`/`trace`/
+   * `rivaux`/`read` restent ceux du compte qui vient de partir — `charger` se
+   * tait dès `userId === null`, donc rien ne les efface jamais tout seul — et
+   * la carte peindrait les territoires de quelqu'un d'autre à la prochaine
+   * personne qui rouvre l'app sur cet appareil, ou à celui qui vient de se
+   * déconnecter lui-même.
+   *
+   * `homeStatus` retombe ensuite sur `signedOut`, comme il sait déjà le faire
+   * pour un compte qui n'a jamais rien lu — c'est lui qui porte l'affichage,
+   * ce videur ne fait que ne plus mentir en dessous.
+   */
+  useEffect(() => {
+    if (userId !== null) return;
+    setFormes(null);
+    setTrace(null);
+    setRivaux(null);
+    setRead({ kind: 'idle' });
+  }, [userId]);
+
+  /**
+   * SAIT-ON DÉJÀ QUELQUE CHOSE, LÀ, MAINTENANT ? Portée par une RÉFÉRENCE et
+   * non par une dépendance directe de `relireAuFocus` : `read.kind` change PAR
+   * `relireAuFocus` elle-même (son `setRead`, plus bas), et `useFocusEffect`
+   * (plus bas encore) rejoue la fonction qu'on lui passe dès qu'elle change
+   * D'IDENTITÉ pendant que l'écran est au premier plan. La mettre en
+   * dépendance créerait donc une boucle — lire, `setRead`, nouvelle identité,
+   * relire, `setRead`… — exactement ce que la garde « un focus = une lecture »
+   * interdit.
+   */
+  const lectureConnueRef = useRef(false);
+  useEffect(() => {
+    lectureConnueRef.current = read.kind === 'ok';
+  }, [read.kind]);
+
+  /**
+   * LA MOITIÉ MANQUANTE DE « REMONTER, PAS EMPILER ».
+   *
+   * `retourCarte` remonte désormais à CETTE instance plutôt que d'en empiler
+   * une seconde — mais `charger` (ci-dessus) ne tourne qu'au montage
+   * (`useEffect([charger])`). Sans cette relecture, remonter après une capture
+   * afficherait le territoire D'AVANT la boucle qu'on vient de fermer : la
+   * carte mentirait par omission sur ce que le joueur vient d'obtenir.
+   *
+   * ⚠️ UN TERRITOIRE DÉJÀ CONNU RESTE AFFICHÉ PENDANT LA VÉRIFICATION.
+   * Repasser par `{ kind: 'loading' }` ferait réapparaître le squelette sur un
+   * chiffre acquis, pour une relecture qui ne fait souvent que CONFIRMER ce
+   * qu'on sait déjà — un aller-retour vers « Toi » ne doit pas faire clignoter
+   * la carte. La forme choisie ici est la plus honnête des deux : ce qu'on
+   * sait reste affiché, une lecture tourne en silence derrière lui.
+   *
+   * ⚠️ UN ÉCHEC DE CETTE RELECTURE N'EFFACE PAS UN ACQUIS RÉEL. Le serveur ne
+   * s'est pas dédit : seule CETTE vérification n'a pas abouti. `charger`, lui,
+   * efface bien sur un échec — mais le sien est le PREMIER essai, qui n'a rien
+   * d'acquis à protéger. Les deux fonctions répondent à deux questions
+   * différentes : « que sait-on pour la première fois ? » et « ce qu'on sait
+   * tient-il encore ? ».
+   */
+  const relireAuFocus = useCallback(async () => {
+    if (userId === null || !isSupabaseConfigured) return;
+    if (!lectureConnueRef.current) {
+      void charger();
+      return;
+    }
+    const r = await readMyTerritories(userId);
+    if (r.kind === 'failed') return;
+    setFormes(r.collection);
+    setTrace(r.trace);
+    setRead({ kind: 'ok', ownedCount: r.ownedCount, areaM2: r.areaM2 });
+    const autres = await readRivalTerritories(userId);
+    setRivaux(autres.kind === 'ok' ? autres.collection : null);
+  }, [userId, charger]);
+
+  /**
+   * ⚠️ UN FOCUS = UNE LECTURE — PAS DEUX. Le tout premier focus coïncide avec
+   * le montage, où l'effet de chargement initial (`useEffect([charger])`
+   * ci-dessus) s'en charge déjà : relire ici aussi doublerait l'appel réseau
+   * pour ce même focus. `focusInitialRef` saute donc UNIQUEMENT ce premier
+   * appel ; tout retour ultérieur sur l'écran relit pour de vrai.
+   */
+  const focusInitialRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!focusInitialRef.current) {
+        focusInitialRef.current = true;
+        return;
+      }
+      void relireAuFocus();
+    }, [relireAuFocus]),
+  );
+
   useEffect(() => {
     screen('map');
     // L'Annexe B nomme cet événement `map_viewed`. La taxonomie du dépôt a DÉJÀ
@@ -239,6 +344,44 @@ export default function Carte() {
     };
   }, []);
 
+  /**
+   * LA MOITIÉ MANQUANTE DE L'HONNÊTETÉ HORS-LIGNE.
+   *
+   * Une course terminée sans réseau part en file (`lib/pendingUpload.ts`) et le
+   * résultat le dit. La carte, elle, ne lisait JAMAIS cette file : elle
+   * réaffichait l'ancien territoire sans un mot sur la sortie qui attend — un
+   * mensonge par omission, puisqu'elle affirmait un état qu'elle savait
+   * incomplet.
+   *
+   * ⚠️ `useFocusEffect` ET NON `useEffect` : cet écran reste monté dans la pile,
+   * et le fait naît précisément quand on REVIENT d'une fin de course. Au
+   * montage seulement, il n'aurait été lu qu'une fois, avant d'exister.
+   *
+   * `hasPendingUpload` retombe sur `false` quand le stockage est illisible, avec
+   * sa raison écrite là-bas : « on n'affiche jamais une promesse inenvoyable ».
+   *
+   * ⚠️ LIMITE ÉCRITE PLUTÔT QUE MASQUÉE : le drain part aussi tout seul au
+   * RETOUR AU PREMIER PLAN (`app/_layout.tsx`), sans repasser par un focus de
+   * route. Si la sortie part pendant qu'on regarde la carte, la note reste
+   * affichée jusqu'à la prochaine venue sur l'écran. Elle était vraie quand on
+   * l'a lue, et elle n'annonce rien de faux — au pire, elle annonce trop
+   * longtemps une course déjà arrivée. Écouter `AppState` ne fermerait pas le
+   * trou : on relirait la file AVANT que le drain, asynchrone, ne l'ait vidée.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      let vivant = true;
+      hasPendingUpload()
+        .then((attend) => {
+          if (vivant) setEnAttente(attend);
+        })
+        .catch(() => undefined);
+      return () => {
+        vivant = false;
+      };
+    }, []),
+  );
+
   const demanderPosition = useCallback(async () => {
     const r = await Location.requestForegroundPermissionsAsync().catch(() => null);
     setPermission(r);
@@ -261,9 +404,24 @@ export default function Carte() {
           ? t(C.mapLoading)
           : status === 'failed'
             ? t(C.mapFailed)
-            : status === 'empty'
-              ? t(C.emptyMap)
-              : null;
+            : // Le serveur a répondu « rien », et il a raison : il n'a pas encore
+              // vu la course qui dort sur le disque. Dire « Ta ville est vierge »
+              // ici, c'est le dire à quelqu'un qui vient de fermer sa boucle.
+              status === 'pending'
+              ? t(C.mapPending)
+              : status === 'empty'
+                ? t(C.emptyMap)
+                : null;
+
+  /**
+   * LA SECONDE VOIX DU BANDEAU — jamais un remplacement.
+   *
+   * Un état « en attente » n'annule pas ce qui est acquis : quand un territoire
+   * est déjà tenu, le chiffre héros RESTE et c'est cette note qui porte le fait.
+   * `pendingNotice` décide seul de son apparition — y compris de son SILENCE là
+   * où « elle partira » serait une promesse intenable (sans serveur, sans compte).
+   */
+  const noteAttente = pendingNotice(etat) ? t(C.mapPending) : null;
 
   /**
    * ⚠️ CHAQUE VALEUR DE `HomeAction` DOIT ÊTRE PEINTE ICI, SAUF `'none'`.
@@ -282,7 +440,12 @@ export default function Carte() {
   // iOS n'a pas de « live region » (`accessibilityLiveRegion` est ANDROID) :
   // sans cette annonce, passer de « lecture en cours » à « échec » change le
   // texte sans qu'aucun lecteur d'écran ne l'apprenne.
-  useAnnonce(phrase);
+  //
+  // ⚠️ LA NOTE ENTRE DANS L'ANNONCE, elle aussi. Elle apparaît APRÈS coup (une
+  // lecture disque) sans que rien d'autre ne change à l'écran : laissée dehors,
+  // aucun lecteur d'écran n'apprendrait jamais qu'une course attend.
+  const dits = [phrase, noteAttente].filter((x): x is string => x !== null);
+  useAnnonce(dits.length === 0 ? null : dits.join(' '));
 
   const libelleAction =
     action === 'resume'
@@ -324,9 +487,19 @@ export default function Carte() {
 
   const insets = useSafeAreaInsets();
 
+  /**
+   * Y a-t-il seulement quelque chose à recadrer ?
+   *
+   * Même fonction que celle qui décide du cadrage dans `MapCanvas` — c'est
+   * VOULU : l'affichage du contrôle se dérive de la capacité RÉELLE de la
+   * carte, pas d'un drapeau parallèle qui pourrait diverger d'elle.
+   */
+  const cadrable = openingFraming({ territories: formes, center: position, zoom: ZOOM_EGO }) !== null;
+
   return (
     <View style={styles.root}>
       <MapCanvas
+        ref={carte}
         center={position}
         zoom={ZOOM_EGO}
         // `formes` n'est jamais une liste vide « par défaut » : il vaut `null`
@@ -399,6 +572,16 @@ export default function Carte() {
             {phrase}
           </Text>
         )}
+
+        {/* La course qui attend le réseau s'AJOUTE, elle ne remplace pas : le
+            chiffre héros reste au-dessus, parce qu'un envoi en attente n'a rien
+            retiré au joueur. Grise et en corps `sm` pour la même raison — c'est
+            une réserve sur la grandeur, pas un titre qui la concurrence (L12). */}
+        {noteAttente !== null ? (
+          <Text style={[styles.note, ligneNote]} accessibilityLiveRegion="polite">
+            {noteAttente}
+          </Text>
+        ) : null}
       </Panel>
 
       {/* ── Toi : EN HAUT À DROITE, plus dans la zone du pouce ─────────────── */}
@@ -414,13 +597,43 @@ export default function Carte() {
         onPress={() => router.push('/profil')}
         hitSlop={spacing.xs}
         style={({ pressed }) => [
-          styles.profil,
+          styles.rond,
           { top: insets.top + spacing.md },
-          pressed && styles.profilPressed,
+          pressed && styles.rondPresse,
         ]}
       >
         <Glyph name="toi" size={fontSizes.lg} color={colors.blanc} />
       </Pressable>
+
+      {/* ── Recentrer : le SEUL geste qui rend la caméra au code ──────────── */}
+      {/* Après le cadrage d'ouverture, `MapCanvas` ne touche plus jamais la
+          caméra — c'est ce qui empêche le pilotage automatique de se battre
+          avec les doigts. Le prix de cette règle, c'est qu'un joueur parti
+          explorer n'a plus de chemin de retour : ce bouton est ce chemin, et il
+          ne part que d'un tap.
+
+          Il n'existe QUE s'il y a quelque chose à recadrer — sans territoire ni
+          position, il n'aurait rien à viser, et un bouton qui ne fait rien est
+          exactement ce que la constitution appelle un bouton mort.
+
+          Rangé SOUS « Toi », dans la colonne que le bandeau réserve déjà : deux
+          contrôles ronds du même gabarit, hors de la zone du pouce, hors du
+          chemin de GO. */}
+      {cadrable ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(C.mapRecenter)}
+          onPress={() => carte.current?.recadrer()}
+          hitSlop={spacing.xs}
+          style={({ pressed }) => [
+            styles.rond,
+            { top: insets.top + spacing.md + TOUCH_TARGET_PT + spacing.sm },
+            pressed && styles.rondPresse,
+          ]}
+        >
+          <Glyph name="signal" size={fontSizes.lg} color={colors.blanc} />
+        </Pressable>
+      ) : null}
 
       {/* ── Que dois-je faire (L1 q.3, L2, L4) ─────────────────────────────── */}
       <Panel edge="bottom" radius={0} style={[styles.pied, { paddingBottom: insets.bottom + spacing.lg }]}>
@@ -501,11 +714,18 @@ const styles = StyleSheet.create({
   // `lineHeight` VOLONTAIREMENT ABSENT ici : il est dérivé du `fontScale` dans
   // le composant (voir `INTERLIGNE`). Le remettre ici le re-figerait.
   phrase: { color: colors.blanc, fontFamily: fonts.text, fontSize: fontSizes.md },
-  // Le rond « Toi » : 44 × 44 pleins (L4), posé SUR la carte, au-dessus du
-  // bandeau. `carbone2` = N2, le niveau des choses qu'on touche ; la bordure
-  // `blanc14` est celle des overlays — elle le détache du terrain quand la
-  // carte passe clair sous lui.
-  profil: {
+  // La note « une course attend » : sous le chiffre, jamais à sa place. `gris`
+  // et `sm` — le même rang que la légende « à toi », parce que c'est le même
+  // objet grammatical : un qualificatif de la grandeur, pas un second titre.
+  note: { color: colors.gris, fontFamily: fonts.text, fontSize: fontSizes.sm, marginTop: spacing.xs },
+  // LE GABARIT DES DEUX RONDS DE LA CARTE — « Toi » et « Recentrer » : 44 × 44
+  // pleins (L4), posés SUR la carte, au-dessus du bandeau. `carbone2` = N2, le
+  // niveau des choses qu'on touche ; la bordure `blanc14` est celle des overlays
+  // — elle les détache du terrain quand la carte passe clair sous eux.
+  // UN SEUL style pour les deux : deux contrôles empilés dans la même colonne
+  // qui divergeraient d'un pixel se verraient immédiatement. Le `top` reste à
+  // l'usage, c'est la seule chose qui les distingue.
+  rond: {
     position: 'absolute',
     right: spacing.lg,
     width: sizes.touchTarget,
@@ -517,7 +737,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profilPressed: { backgroundColor: colors.carbone },
+  rondPresse: { backgroundColor: colors.carbone },
   // `box-none` : le pied ne capture RIEN par lui-même, seuls ses contrôles le
   // font. Il était opaque sur toute la largeur — une bande de 44 pt en travers
   // du bas volait chaque pan de la carte qui commençait là. Le bandeau du haut

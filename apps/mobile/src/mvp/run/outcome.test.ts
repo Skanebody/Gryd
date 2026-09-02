@@ -8,7 +8,14 @@
  *   · annoncer une aire qui SURESTIME le gain — un mensonge chiffré, donc celui
  *     que le joueur retient, annonce à son crew et met dans une carte de partage.
  */
-import { resultAreaM2, resultView, showsLocalStats, type SendResult, type ServerVerdict } from './outcome';
+import {
+  resultAreaM2,
+  resultView,
+  showsLocalStats,
+  type SendResult,
+  type SendState,
+  type ServerVerdict,
+} from './outcome';
 
 declare const Deno: { test(nom: string, fn: () => void | Promise<void>): void };
 
@@ -34,6 +41,40 @@ Deno.test('course EN FILE → `pending`, jamais « aucun territoire »', () => {
 
 Deno.test('même la mise en file échouée se DIT, elle ne se maquille pas', () => {
   assertEquals(resultView({ kind: 'lost' }).kind, 'lost');
+});
+
+// ─── L'ENVOI PARTI, PAS ENCORE REVENU ───────────────────────────────────────
+
+Deno.test('ÉTAPE 0 — l’envoi EN COURS est un état, il n’était NULLE PART', () => {
+  // AVANT ce lot, cet état n'existait pas dans le type : l'écran de course
+  // AWAITAIT `sendRun` avant de naviguer, bouton grisé à 0,6, sans timeout ni
+  // borne. `resultView` ne connaissait donc que des issues DÉJÀ tranchées.
+  // Conséquence : il n'y avait rien d'honnête à peindre entre le maintien de
+  // 1,2 s et la réponse du serveur — le seul repli disponible aurait été
+  // `lost`, c'est-à-dire annoncer « ta course est encore sur cet appareil »
+  // d'une course qui est précisément en train d'en partir.
+  //
+  // Ce test ne COMPILAIT pas avant l'ajout de la variante : c'est sa preuve
+  // d'étape 0.
+  assertEquals(resultView({ kind: 'sending' }).kind, 'sending');
+});
+
+Deno.test('un envoi en cours n’annonce NI territoire NI refus', () => {
+  // La faute n°1 documentée en tête de `resultat.tsx` : « aucun territoire »
+  // sur une course dont personne n'a encore jugé quoi que ce soit.
+  const v = resultView({ kind: 'sending' });
+  assertEquals(resultAreaM2(v), null, 'un m² sort d’un état qui ne sait rien');
+  assert(
+    v.kind !== 'noLoop' && v.kind !== 'refused' && v.kind !== 'captured',
+    'un envoi en cours a reçu un verdict que personne n’a prononcé',
+  );
+});
+
+Deno.test('les stats locales survivent aussi à l’attente de la réponse (L19)', () => {
+  // La course est FINIE et mesurée : distance et durée existent avant même que
+  // le serveur ait décroché. Les cacher le temps d'un aller-retour réseau ferait
+  // croire qu'on attend le serveur pour savoir combien on a couru.
+  assert(showsLocalStats(resultView({ kind: 'sending' })));
 });
 
 // ─── La capture ─────────────────────────────────────────────────────────────
@@ -105,7 +146,8 @@ Deno.test('forme trop étroite : un fait de géométrie, dit comme tel', () => {
 
 // ─── Les invariants ─────────────────────────────────────────────────────────
 
-const TOUTES: SendResult[] = [
+const TOUTES: SendState[] = [
+  { kind: 'sending' },
   { kind: 'queued' },
   { kind: 'lost' },
   repondu(PRISE),

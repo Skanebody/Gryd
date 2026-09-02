@@ -57,7 +57,10 @@ const SANS_GESTE_RETOUR = ['prete', 'course', 'resultat'] as const;
  *     c'est un moment à part, et venir du bas le dit sans mot.
  */
 const TRANSITIONS = {
-  bienvenue: 'fade',
+  // ⚠️ `bienvenue` A DISPARU D'ICI le 02/09/2026, avec son écran : l'onboarding
+  // a fusionné ses deux écrans en un seul (`position.tsx`). Une transition
+  // laissée pour un écran inexistant n'est pas inoffensive — `couture.test.ts`
+  // la refuse précisément parce qu'elle fait croire qu'une route existe encore.
   position: 'fade',
   connexion: 'fade',
   carte: 'fade',

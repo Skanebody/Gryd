@@ -9,15 +9,24 @@
  * Il partage avec le fork natif tout ce qui décide (`homeState`, `territoryGeo`)
  * et ne duplique que le collage à la bibliothèque. La différence de rendu du
  * point de position est assumée et documentée plus bas.
+ *
+ * ─── LA CAMÉRA : MÊME RÈGLE QUE LE NATIF, MÊME DÉCIDEUR ─────────────────────
+ * Le `center` passé au constructeur est lu UNE fois, au montage — et il vaut
+ * `null` à ce moment-là, puisque l'écran lit la position dans un effet. Sans
+ * l'ordre impératif ci-dessous, la preview du fondateur ouvrait donc toujours
+ * sur le repli de ville. La cible vient du même module pur que le natif
+ * (`openingFraming`), elle est appliquée UNE SEULE FOIS, sur une CLÉ DE VALEUR,
+ * et plus rien ne bouge la caméra ensuite sauf `recadrer()`.
  */
-import { useEffect, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Map as MapLibreMap, Marker, type StyleSpecification } from 'maplibre-gl';
-import { colors, fonts, fontSizes, gameColors, spacing, withAlpha } from '@klaim/shared';
+import { colors, fonts, fontSizes, gameColors, motion, sizes, spacing, withAlpha } from '@klaim/shared';
+import { framingKey, openingFraming, type MapFraming } from './homeState';
 import { grydNightStyle } from './nightStyle';
 import { BASEMAP_ATTRIBUTION, type TerritoryFeatureCollection } from './territoryGeo';
-import type { MapCanvasProps } from './MapCanvas';
+import type { MapCanvasHandle, MapCanvasProps } from './MapCanvas';
 
 const SOURCE_ID = 'gryd-mvp-territoires';
 const SOURCE_TRACE = 'gryd-mvp-trace';
@@ -30,10 +39,31 @@ const HOME_FALLBACK = { lng: 1.0993, lat: 49.4431, zoom: 12.5 } as const;
  *  chaque cycle ferait clignoter la carte. Une collection vide ne peint rien. */
 const RIEN: TerritoryFeatureCollection = { type: 'FeatureCollection', features: [] };
 
-export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }: MapCanvasProps) {
+/** Marge autour de l'emprise cadrée, en points — voir le fork natif. */
+const CADRAGE_MARGE_PT = {
+  top: sizes.buttonLg,
+  right: spacing.lg,
+  bottom: sizes.buttonLg,
+  left: spacing.lg,
+};
+
+export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function MapCanvas(
+  { center, zoom, territories, trace, rivals, showUser },
+  ref,
+) {
   const hoteRef = useRef<HTMLDivElement | null>(null);
   const carteRef = useRef<MapLibreMap | null>(null);
   const pointRef = useRef<Marker | null>(null);
+  /** A-t-on DÉJÀ cadré ? Une fois vrai, plus rien du code ne bouge la caméra. */
+  const cadreFait = useRef(false);
+  /** La cible la plus récente, pour le recentrage À LA DEMANDE (jamais auto). */
+  const cibleRef = useRef<MapFraming | null>(null);
+
+  const cible = openingFraming({ territories, center, zoom });
+  // ⚠️ LA CLÉ, PAS L'OBJET — même raison que le fork natif : `territories` est
+  // recréé à chaque lecture, et dépendre de son identité relancerait la caméra
+  // à chaque re-rendu, en plein geste.
+  const cleCible = framingKey(cible);
 
   // Montage UNIQUE. La caméra d'ouverture est lue ici et n'est jamais réimposée
   // ensuite : une caméra contrôlée se battrait contre les gestes du joueur.
@@ -157,6 +187,53 @@ export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }
     pointRef.current = new Marker({ element: puce }).setLngLat([center.lng, center.lat]).addTo(carte);
   }, [showUser, center]);
 
+  const appliquer = useCallback((cadre: MapFraming | null): boolean => {
+    const carte = carteRef.current;
+    if (carte === null || cadre === null) return false;
+    if (cadre.kind === 'bounds') {
+      carte.fitBounds(
+        [
+          [cadre.sw.lng, cadre.sw.lat],
+          [cadre.ne.lng, cadre.ne.lat],
+        ],
+        { padding: CADRAGE_MARGE_PT, duration: motion.transitionMs },
+      );
+      return true;
+    }
+    carte.easeTo({
+      center: [cadre.center.lng, cadre.center.lat],
+      zoom: cadre.zoom,
+      duration: motion.transitionMs,
+    });
+    return true;
+  }, []);
+
+  // Miroir déclaré AVANT l'effet de cadrage : les effets partent dans l'ordre de
+  // déclaration, la cible lue plus bas est donc celle du rendu commis.
+  useEffect(() => {
+    cibleRef.current = cible;
+  });
+
+  useEffect(() => {
+    if (cadreFait.current || cleCible === null) return;
+    // ⚠️ LE DRAPEAU NE SE LÈVE QUE SI L'ORDRE EST PARTI. React attache les refs
+    // et exécute l'effet de montage AVANT cet effet-ci (ordre de déclaration),
+    // donc la carte existe ; c'est une ceinture, pas un trou. Mais si elle
+    // n'existait pas, marquer « cadré » consommerait l'unique tour pour rien —
+    // et la carte resterait à jamais sur son ouverture de ville.
+    if (appliquer(cibleRef.current)) cadreFait.current = true;
+  }, [cleCible, appliquer]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      recadrer: () => {
+        appliquer(cibleRef.current);
+      },
+    }),
+    [appliquer],
+  );
+
   return (
     <View style={styles.root}>
       {/* `any` : l'hôte DOM n'a pas d'équivalent RN, et c'est la seule ligne du
@@ -166,7 +243,7 @@ export function MapCanvas({ center, zoom, territories, trace, rivals, showUser }
       <Text style={styles.attribution}>{BASEMAP_ATTRIBUTION}</Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },

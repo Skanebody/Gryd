@@ -2,19 +2,28 @@
  * GRYD — LE RÉSULTAT : le pic émotionnel, ou le refus qui n'accuse pas (M7).
  *
  * ─── CE QUE CET ÉCRAN NE FAIT PAS ───────────────────────────────────────────
- * Il ne DÉCIDE rien. L'envoi a eu lieu dans l'écran de course, et l'issue lui
- * est passée telle quelle ; `outcome.resultView` (pur, testé) dit ce qu'on a le
- * droit d'afficher. Ce fichier ne fait que peindre.
+ * Il ne DÉCIDE rien. `outcome.resultView` (pur, testé) dit ce qu'on a le droit
+ * d'afficher de l'issue reçue. Ce fichier ne fait que peindre.
  *
- * Une seule chose s'y AJOUTE, et elle n'est pas un jugement : sur `lost` — et
- * sur `lost` seulement — l'écran peut REJOUER l'envoi. Il ne réinterprète rien,
- * il redonne la même charge, avec le même `clientRunId`, à la même fonction
- * d'envoi ; c'est `resultView` qui tranche ce qu'on affiche de la réponse.
+ * ─── CE QU'IL FAIT EN PLUS, ET QUI N'EST PAS UN JUGEMENT ────────────────────
+ * Il ENVOIE — parce que l'écran de course ne le fait plus. `sendRun` y était
+ * attendu AVANT la navigation, sans timeout ni borne : un coureur à bout de
+ * souffle restait devant un bouton grisé pendant que le réseau ramait. Cet
+ * écran s'ouvre donc dans l'état `sending`, relit la trace du disque (écrite
+ * juste avant la navigation, MÊME `runId`) et remplace l'attente par le verdict
+ * quand il arrive. Le joueur, lui, voit tout de suite sa course terminée et ses
+ * stats — et peut partir quand il veut : l'envoi ne le retient pas.
+ *
+ * Sur `lost`, il peut REJOUER cet envoi. Rien n'est réinterprété : la même
+ * charge, le même `clientRunId`, la même fonction — c'est `resultView` qui
+ * tranche ce qu'on affiche de la réponse.
  *
  * ─── LES DEUX FAUTES QUI COÛTERAIENT LE PLUS CHER ICI ───────────────────────
- * 1. Annoncer « aucun territoire » sur une course PAS ENCORE ENVOYÉE. Personne
- *    n'a rien refusé : ce serait inventer un verdict, et décourager quelqu'un
- *    qui a peut-être tout gagné. L'attente est une issue à part entière.
+ * 1. Annoncer « aucun territoire » sur une course PAS ENCORE ENVOYÉE, ou dont
+ *    l'envoi est EN ROUTE. Personne n'a rien refusé : ce serait inventer un
+ *    verdict, et décourager quelqu'un qui a peut-être tout gagné. L'attente est
+ *    une issue à part entière — et il y en a deux, qui ne disent pas la même
+ *    chose (`pending` dort dans la file, `sending` est en vol).
  * 2. Annoncer une aire qui SURESTIME le gain (`interiorPartial`). C'est le
  *    chiffre que le joueur retient, annonce à son crew et met dans une carte de
  *    partage : un mensonge chiffré voyage plus loin que tous les autres.
@@ -37,14 +46,15 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { colors, fonts, fontSizes, iconSizes, radii, spacing, typography } from '@klaim/shared';
-import { resultView, type ResultView, type SendResult } from '../../src/mvp/run/outcome';
+import { resultView, type ResultView, type SendState } from '../../src/mvp/run/outcome';
 import { formatChrono } from '../../src/mvp/run/trace';
 import { buildRunPayload, type RunPayload } from '../../src/mvp/run/payload';
 import { sendRun } from '../../src/mvp/run/sendRun';
 import { clearActiveRun, clearCurrentRun, loadActiveRun } from '../../src/lib/runStore';
 import { heroArea } from '../../src/mvp/ui/area';
+import { retourCarte } from '../../src/mvp/ui/nav';
 import {
   CELEBRATION_MS,
   FILL,
@@ -53,7 +63,9 @@ import {
   OUTLINE_SCALE,
 } from '../../src/mvp/ui/celebration';
 import { Glyph } from '../../src/mvp/ui/Glyph';
+import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { TerritoryMark } from '../../src/mvp/ui/TerritoryMark';
+import { useAnnonce } from '../../src/mvp/ui/announce';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
 import { screen } from '../../src/lib/analytics';
@@ -96,12 +108,14 @@ const STAT = { ...typography.stat, fontVariant: [...typography.stat.fontVariant]
  * ne sait pas ce qu'il est advenu de ta course ». Se tromper vers un refus
  * annoncerait au joueur une décision que personne n'a prise.
  */
-function issueDepuisParam(brut: string | string[] | undefined): SendResult {
+function issueDepuisParam(brut: string | string[] | undefined): SendState {
   const texte = Array.isArray(brut) ? brut[0] : brut;
   if (typeof texte !== 'string' || texte.length === 0) return { kind: 'lost' };
   try {
-    const parsed = JSON.parse(texte) as SendResult;
-    if (parsed.kind === 'queued' || parsed.kind === 'lost') return { kind: parsed.kind };
+    const parsed = JSON.parse(texte) as SendState;
+    if (parsed.kind === 'sending' || parsed.kind === 'queued' || parsed.kind === 'lost') {
+      return { kind: parsed.kind };
+    }
     if (parsed.kind === 'answered' && typeof parsed.verdict === 'object' && parsed.verdict !== null) {
       return parsed;
     }
@@ -109,6 +123,35 @@ function issueDepuisParam(brut: string | string[] | undefined): SendResult {
   } catch {
     return { kind: 'lost' };
   }
+}
+
+/**
+ * La trace du disque → la charge à envoyer. `null` = rien d'envoyable.
+ *
+ * ⚠️ AUCUN IDENTIFIANT N'EST FABRIQUÉ. La trace attend sur le disque avec SON
+ * `runId` (écrit par l'écran de course juste avant de naviguer), et c'est celui
+ * d'un premier envoi comme d'un renvoi : la clé d'idempotence D14 garantit
+ * qu'une course ne peut pas compter deux fois. En générer un ici créerait le
+ * doublon que cette clé existe pour empêcher.
+ *
+ * `buildRunPayload` est le MÊME constructeur que celui de la course : deux
+ * façons de fabriquer la charge finiraient par diverger, et l'écart ne se
+ * verrait qu'au 400 du serveur.
+ */
+async function chargeDuDisque(): Promise<RunPayload | null> {
+  const stocke = await loadActiveRun();
+  if (stocke === null) return null;
+  return buildRunPayload({
+    clientRunId: stocke.runId,
+    startedAt: stocke.startedAt,
+    points: stocke.fixes.map((f) => ({
+      lat: f.lat,
+      lng: f.lng,
+      ts: f.ts,
+      accuracy: f.accuracy,
+    })),
+    activity: stocke.activity,
+  });
 }
 
 function nombre(v: string | string[] | undefined): number {
@@ -136,7 +179,7 @@ export default function Resultat() {
    * qu'un envoi a réellement rendue. `resultView` reste seul juge de ce qui
    * s'affiche.
    */
-  const [issue, setIssue] = useState<SendResult>(() => issueDepuisParam(params.issue));
+  const [issue, setIssue] = useState<SendState>(() => issueDepuisParam(params.issue));
   const vue: ResultView = resultView(issue);
   const distanceM = nombre(params.distanceM);
   const dureeMs = nombre(params.dureeMs);
@@ -320,13 +363,10 @@ export default function Resultat() {
    * rien proposer pour la faire partir — un état d'erreur sans issue, ce que le
    * HIG (« Error States : Retry action ») refuse.
    *
-   * ⚠️ AUCUN IDENTIFIANT N'EST FABRIQUÉ ICI. C'est précisément parce que la
-   * course est `lost` que le buffer `runStore` n'a PAS été purgé (voir
-   * `course.tsx`) : la trace y attend avec SON `runId`, celui qui a déjà servi
-   * au premier essai. On renvoie donc la même clé d'idempotence, et D14 garantit
-   * qu'une course ne peut pas compter deux fois. Générer un identifiant ici —
-   * ou rejouer une charge reconstruite à la volée — créerait le doublon que
-   * cette clé existe pour empêcher.
+   * ⚠️ AUCUN IDENTIFIANT N'EST FABRIQUÉ. C'est précisément parce que la course
+   * est `lost` que le buffer `runStore` n'a PAS été purgé : la trace y attend
+   * avec SON `runId`, celui du premier essai — voir `chargeDuDisque`, qui porte
+   * cette règle pour les deux envois.
    *
    * ⚠️ ET AUCUN BOUTON MORT : le lien n'apparaît que si une charge ENVOYABLE
    * a réellement été relue du disque. Une trace absente, illisible ou trop
@@ -346,27 +386,9 @@ export default function Resultat() {
   useEffect(() => {
     if (vue.kind !== 'lost') return;
     let vivant = true;
-    loadActiveRun()
-      .then((stocke) => {
+    chargeDuDisque()
+      .then((charge) => {
         if (!vivant) return;
-        if (stocke === null) {
-          setRenvoi('indisponible');
-          return;
-        }
-        // `buildRunPayload` est le MÊME constructeur que celui de la course :
-        // deux façons de fabriquer la charge finiraient par diverger, et
-        // l'écart ne se verrait qu'au 400 du serveur.
-        const charge = buildRunPayload({
-          clientRunId: stocke.runId,
-          startedAt: stocke.startedAt,
-          points: stocke.fixes.map((f) => ({
-            lat: f.lat,
-            lng: f.lng,
-            ts: f.ts,
-            accuracy: f.accuracy,
-          })),
-          activity: stocke.activity,
-        });
         chargeRef.current = charge;
         setRenvoi(charge === null ? 'indisponible' : 'possible');
       })
@@ -378,15 +400,18 @@ export default function Resultat() {
     };
   }, [vue.kind]);
 
-  const renvoyer = useCallback(async () => {
-    const charge = chargeRef.current;
-    if (charge === null || renvoi === 'envoi') return;
-    setRenvoi('envoi');
-    haptics.light();
+  /**
+   * Envoyer, puis POSER L'ISSUE. Le seul endroit qui écrit `issue`.
+   *
+   * Partagé par le premier envoi (état `sending`) et par le renvoi manuel : ce
+   * sont le même geste, et deux copies auraient fini par purger le buffer selon
+   * deux règles différentes.
+   */
+  const resoudre = useCallback(async (charge: RunPayload) => {
     const suite = await sendRun(charge);
     // Le buffer n'est effacé QUE si la course est en sûreté — répondue ou mise
-    // en file. Même arbitrage que `course.tsx`, et pour la même raison : sur un
-    // second `lost`, ce buffer reste le dernier filet.
+    // en file. Sur un `lost`, ce buffer reste le dernier filet, et il porte la
+    // charge que le renvoi relira.
     if (suite.kind !== 'lost') {
       await Promise.all([clearActiveRun(), clearCurrentRun()]);
     }
@@ -395,26 +420,114 @@ export default function Resultat() {
     // renvoi qui laisserait le lien figé sur « en cours » se lirait en panne.
     setRenvoi(suite.kind === 'lost' ? 'possible' : 'indisponible');
     setIssue(suite);
-  }, [renvoi]);
+  }, []);
 
-  const phrase =
-    vue.kind === 'captured'
-      ? vue.assisted
-        ? t(C.resAssisted)
-        : null
-      : vue.kind === 'takenNoArea'
-        ? t(C.resTakenNoArea)
-        : vue.kind === 'missing'
-          ? t(C.verifyGap, { m: String(vue.missingM) })
-          : vue.kind === 'noLoop'
-            ? t(C.resNoLoop)
-            : vue.kind === 'refused'
-              ? vue.reason === 'narrow'
-                ? t(C.resNarrow)
-                : t(C.resRefused)
-              : vue.kind === 'pending'
-                ? t(C.resPending)
-                : t(C.resLost);
+  /**
+   * ─── LE PREMIER ENVOI, DEPUIS ICI ─────────────────────────────────────────
+   *
+   * Il avait lieu dans l'écran de course, AWAITÉ avant la navigation. `sendRun`
+   * n'a ni timeout ni `AbortController` : le joueur restait donc bloqué sur la
+   * course, bouton grisé, pour une durée que rien ne bornait. Ici, il voit sa
+   * course terminée et ses stats pendant que l'envoi se fait — et il peut
+   * partir : rien ne le retient.
+   *
+   * ⚠️ UNE SEULE FOIS (`envoiLanceRef`). L'effet se rejoue à chaque changement
+   * de `vue.kind` ; sans ce garde-fou, un remontage renverrait la course.
+   */
+  const envoiLanceRef = useRef(false);
+  useEffect(() => {
+    if (vue.kind !== 'sending' || envoiLanceRef.current) return;
+    envoiLanceRef.current = true;
+    void (async () => {
+      const charge = await chargeDuDisque().catch(() => null);
+      chargeRef.current = charge;
+      if (charge === null) {
+        /**
+         * Rien d'envoyable sur le disque, alors que l'écran de course venait
+         * d'y écrire la trace complète : le stockage est hors service. Dans ce
+         * monde-là, la mise en file (même stockage) échouerait aussi — `lost`
+         * est donc exactement ce qui se serait passé, et c'est la seule issue
+         * qui dit « on ne sait pas ce qu'il est advenu de ta course ». On ne
+         * prononce surtout pas de verdict de territoire.
+         */
+        if (monteRef.current) setIssue({ kind: 'lost' });
+        return;
+      }
+      if (monteRef.current) setRenvoi('envoi');
+      await resoudre(charge);
+    })();
+  }, [vue.kind, resoudre]);
+
+  const renvoyer = useCallback(async () => {
+    const charge = chargeRef.current;
+    if (charge === null || renvoi === 'envoi') return;
+    setRenvoi('envoi');
+    haptics.light();
+    await resoudre(charge);
+  }, [renvoi, resoudre]);
+
+  /**
+   * LA PHRASE DE L'ISSUE — un `switch` EXHAUSTIF, et pas une chaîne de ternaires.
+   *
+   * ⚠️ La chaîne se terminait par `: t(C.resLost)`, un fourre-tout parfaitement
+   * typé : toute issue non traitée y tombait et s'affichait « ta course est
+   * encore sur cet appareil ». C'est exactement le défaut que la couture a
+   * attrapé sur la carte (`homeAction` rendait une action que l'écran ne
+   * peignait pas) — ici il aurait été pire, parce que le fourre-tout AFFIRME
+   * quelque chose de faux au lieu de ne rien afficher.
+   *
+   * Le `never` final le rend impossible : ajouter une issue à `ResultView` sans
+   * lui écrire sa phrase ne compile plus.
+   */
+  const phraseDeLIssue = (v: ResultView): string | null => {
+    switch (v.kind) {
+      // La capture parle d'elle-même par son chiffre : une phrase de plus
+      // volerait l'attention au seul nombre qui compte (L12). Sauf si GRYD a
+      // refermé à la place du joueur — ça, il faut le DIRE.
+      case 'captured':
+        return v.assisted ? t(C.resAssisted) : null;
+      case 'takenNoArea':
+        return t(C.resTakenNoArea);
+      case 'missing':
+        return t(C.verifyGap, { m: String(v.missingM) });
+      case 'noLoop':
+        return t(C.resNoLoop);
+      case 'refused':
+        return v.reason === 'narrow' ? t(C.resNarrow) : t(C.resRefused);
+      case 'sending':
+        return t(C.resSending);
+      case 'pending':
+        return t(C.resPending);
+      case 'lost':
+        // « Ta course est encore sur cet appareil » n'est vrai QUE si la relecture
+        // du disque a rendu une charge. `indisponible` = rien n'est resté
+        // (stockage HS, buffer purgé) : on le dit tel quel, sans consolation
+        // fausse — c'est le refus inexpliqué qui a tué Stride.
+        return renvoi === 'indisponible' ? t(C.resLostNoTrace) : t(C.resLost);
+      default: {
+        const jamais: never = v;
+        return jamais;
+      }
+    }
+  };
+  const phrase = phraseDeLIssue(vue);
+
+  /**
+   * L'ANNONCE DU VERDICT, à l'oreille (L15 par la bande).
+   *
+   * VoiceOver lit l'écran à l'arrivée : il entendait donc « Envoi en cours »,
+   * puis plus rien — le verdict remplace le texte SANS navigation, et aucun
+   * lecteur d'écran n'apprend qu'il est arrivé. Quelqu'un qui explore au doigt
+   * resterait persuadé que ça charge encore.
+   *
+   * `useAnnonce` ne dit rien de la PREMIÈRE valeur (elle vient d'être lue) et
+   * pousse chaque changement. Sur une capture non assistée, `phrase` est `null`
+   * — c'est le nombre qui porte la nouvelle : on annonce donc le libellé du
+   * chiffre héros, celui-là même que la zone porte déjà.
+   */
+  const aAnnoncer =
+    vue.kind === 'captured' && aire !== null ? t(C.a11yAreaTaken, { n: aire }) : phrase;
+  useAnnonce(aAnnoncer);
 
   // La distance vient de la trace locale : `formatKm` refuse le zéro nu, donc
   // une course sans mètre parcouru n'affiche pas « 0,00 km ».
@@ -475,6 +588,22 @@ export default function Resultat() {
 
         {phrase !== null ? <Text style={[styles.phrase, interligne]}>{phrase}</Text> : null}
 
+        {/* L'ATTENTE SE VOIT, ET ELLE NE PROMET RIEN.
+            Une ligne pulsée, à la place et à la hauteur de la PHRASE de verdict
+            qui va la remplacer — la forme du contenu à venir, jamais sa valeur
+            (L14, et l'en-tête de `Skeleton.tsx`).
+            ⚠️ CE N'EST PAS UN SKELETON DE CÉLÉBRATION : ni la marque de
+            territoire, ni le bloc du chiffre héros ne sont esquissés. Les
+            dessiner en avance ferait miroiter une prise que personne n'a encore
+            accordée — la faute n°1 de cet écran, prise par l'autre bout.
+            DÉCORATIVE : `SkeletonGroup` la masque aux lecteurs d'écran, qui
+            entendent la phrase juste au-dessus puis le verdict (`useAnnonce`). */}
+        {vue.kind === 'sending' ? (
+          <SkeletonGroup>
+            <SkeletonBlock width="60%" height={fontSizes.md} />
+          </SkeletonGroup>
+        ) : null}
+
         {/* L19 — TOUJOURS présentes, quelle que soit l'issue. */}
         {km !== null ? (
           <Text style={styles.stats}>{t(C.resStats, { km, duree: formatChrono(dureeMs) })}</Text>
@@ -511,7 +640,10 @@ export default function Resultat() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t(C.ctaBackToMap)}
-        onPress={() => router.replace('/carte')}
+        // `retourCarte` REMONTE à la carte déjà en dessous (`carte → push('/prete')
+        // → replace('/course') → replace('/resultat')`) au lieu d'en empiler une
+        // seconde — voir `mvp/ui/nav.ts`.
+        onPress={() => retourCarte('/carte')}
         style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
       >
         <Text style={styles.ctaLabel}>{t(C.ctaBackToMap)}</Text>

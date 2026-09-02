@@ -70,6 +70,8 @@ const KNOWN_ORPHANS = new Map([
   // (`app/(tabs)/_layout.tsx` y redirige quiconque n'a pas de session). C'est
   // précisément ce que leur ancienne entrée annonçait devoir arriver — les
   // laisser aurait fait de l'audit un tampon plutôt qu'une surveillance.
+  // ⚠️ `/bienvenue` N'EXISTE PLUS DEPUIS LE 02/09/2026 : ses deux écrans ont
+  // fusionné dans `/position`, qui est désormais l'onboarding entier.
   [
     '/course-live',
     'Live Run LEGACY — devenu orphelin PAR LA BASCULE du 03/08/2026, et c’est ' +
@@ -227,12 +229,18 @@ const orphans = [...routes.keys()].filter((r) => (inbound.get(r)?.size ?? 0) ===
  * l'onboarding si le drapeau n'est pas posé, la connexion s'il l'est, la carte
  * si une session existe.
  *
+ * ⚠️ L'onboarding, c'est `/position` DEPUIS LE 02/09/2026 — `/bienvenue` a
+ * fusionné dedans et son fichier a disparu. Laisser l'ancienne route ici aurait
+ * donné le pire des deux : une racine de parcours qui ne mène à RIEN (donc un
+ * graphe d'atteignabilité calculé depuis un néant) pendant que le vrai
+ * onboarding serait compté comme orphelin.
+ *
  * ⚠️ `/` N'EN FAIT PAS PARTIE, et c'est tout le sujet : la garde y redirige
  * AVANT que `(tabs)/index.tsx` ne rende. L'inscrire ici rouvrirait tout l'arbre
  * legacy par la porte même qu'on vient de condamner, et cet audit recommencerait
  * à s'auto-satisfaire.
  */
-const ENTRY_ROUTES = ['/bienvenue', '/connexion', '/carte'];
+const ENTRY_ROUTES = ['/position', '/connexion', '/carte'];
 
 /**
  * Ce qui DOIT rester atteignable, sous peine de refus App Store ou d'infraction.
@@ -242,7 +250,12 @@ const REQUIRED_REACHABLE = new Map([
   ['/confidentialite', 'politique de confidentialité + export RGPD (portabilité)'],
   ['/code-conduite', 'CGU / règles de communauté'],
   ['/support', 'contact d’assistance — exigé par l’App Store'],
-  ['/sign-in', 'la connexion : sans elle, aucun compte ne peut être créé'],
+  // ⚠️ `/sign-in` (legacy) a été remplacé ici le 02/09/2026 par les DEUX écrans
+  // MVP qui portent réellement l'obligation : `/connexion` choisit la porte,
+  // `/email` crée le compte ET pose la gate d'âge 16+ (RGPD) — c'est lui qu'il
+  // faut garder atteignable, pas l'ancien écran qui le doublait.
+  ['/connexion', 'la porte de connexion MVP : sans elle, aucun compte ne peut être créé'],
+  ['/email', 'le formulaire de lien magique + la gate d’âge 16+ (RGPD) : l’obligation vit ICI'],
 ]);
 
 // fichier → routes qu'il désigne, puis route → routes (le graphe de navigation).

@@ -58,6 +58,7 @@ import {
 } from '../../src/mvp/profil/read';
 import { heroArea } from '../../src/mvp/ui/area';
 import { Glyph } from '../../src/mvp/ui/Glyph';
+import { retourCarte } from '../../src/mvp/ui/nav';
 import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
@@ -287,9 +288,14 @@ export default function Profil() {
                 // ATTENDU avant de naviguer : la carte relit la session au
                 // montage, et partir trop tôt la lui faisait lire ENCORE
                 // connectée — elle peignait alors un état déjà faux.
+                // `retourCarte` REMONTE à la carte déjà en dessous (poussée
+                // depuis `/carte`) au lieu d'en empiler une seconde qui
+                // afficherait — sans la vider — les territoires du compte qui
+                // vient de partir (voir `mvp/ui/nav.ts` et le videur d'état de
+                // `carte.tsx`, déclenché par `userId === null`).
                 void (async () => {
                   await signOut();
-                  router.replace('/carte');
+                  retourCarte('/carte');
                 })();
               }}
             />
@@ -380,7 +386,9 @@ export default function Profil() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t(C.ctaBackToMap)}
-        onPress={() => router.replace('/carte')}
+        // `retourCarte` REMONTE à la carte poussée depuis `/carte` au lieu d'en
+        // empiler une seconde (`mvp/ui/nav.ts`).
+        onPress={() => retourCarte('/carte')}
         hitSlop={spacing.sm}
         // L6 — la seule cible de l'écran qui ne répondait PAS au doigt : sur un
         // texte gris de 13 pt sans retour visuel, un tap manqué est

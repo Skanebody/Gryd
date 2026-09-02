@@ -25,12 +25,18 @@
  *   · au MONTAGE, cet écran REPREND une course trouvée sur le disque au lieu
  *     d'en commencer une nouvelle. Repartir de zéro par-dessus une trace
  *     survivante l'écraserait — le buffer aurait fait son travail pour rien ;
- *   · « TERMINER » efface le buffer. Ne pas l'effacer ferait reproposer
- *     indéfiniment une course déjà close.
+ *   · « TERMINER » écrit la trace COMPLÈTE une dernière fois, puis passe la
+ *     main. Le buffer n'est effacé qu'une fois la course en sûreté — et ce
+ *     n'est plus cet écran qui le sait (voir ci-dessous).
  *
- * ⚠️ Ce que ça ne fait PAS encore : ENVOYER. Rien à l'écran ne le promet — le
- * bouton dit « Terminer », pas « Enregistrer ». La trace attend sur le disque,
- * ce qui est exactement ce que garantit never-lose-a-run.
+ * ─── CE QUE CET ÉCRAN N'ATTEND PLUS ─────────────────────────────────────────
+ * ⚠️ IL N'ENVOIE PAS. Il l'a fait, et c'était un blocage : `sendRun` était
+ * attendu ICI avant de naviguer, sans timeout ni borne, bouton grisé — un
+ * coureur à bout de souffle devant un écran qui ne dit rien. La navigation part
+ * désormais IMMÉDIATEMENT après le maintien, dans l'état `sending` ; l'écran de
+ * résultat relit la trace du disque et attend la réponse, en le disant.
+ *
+ * Le temps mort (kill, batterie) est retranché du chrono : voir `tempsMortRef`.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -49,9 +55,9 @@ import {
   stopBackgroundUpdates,
 } from '../../src/mvp/run/gpsProvider';
 import { stopWatch } from '../../src/mvp/run/watch';
-import { shouldFlush } from '../../src/mvp/run/persist';
+import { activeElapsedMs, resumedDeadMs, shouldFlush } from '../../src/mvp/run/persist';
 import { buildRunPayload } from '../../src/mvp/run/payload';
-import { sendRun } from '../../src/mvp/run/sendRun';
+import type { SendState } from '../../src/mvp/run/outcome';
 import {
   clearActiveRun,
   clearCurrentRun,
@@ -81,6 +87,13 @@ function nouvelId(): string {
 /** Rafraîchissement du chrono. 500 ms : la seconde ne saute jamais. */
 const TICK_MS = 500;
 
+/**
+ * L'issue passée au résultat quand l'envoi VIENT DE PARTIR.
+ *
+ * Constante et non un objet reconstruit : c'est une valeur, pas une décision.
+ */
+const ENVOI_EN_COURS: SendState = { kind: 'sending' };
+
 /** Le capteur, réglé pour une trace — pas pour une position ponctuelle. */
 const SUIVI = {
   accuracy: Location.Accuracy.BestForNavigation,
@@ -96,15 +109,26 @@ export default function Course() {
   const [ecouleMs, setEcouleMs] = useState(0);
   const [reprise, setReprise] = useState(false);
   const debutRef = useRef<number>(Date.now());
+  /**
+   * TEMPS MORT — celui pendant lequel l'app NE TOURNAIT PAS.
+   *
+   * Le chrono était `Date.now() - debutRef.current`, et `debutRef` reprend le
+   * `startedAt` de la course d'origine : une sortie tuée à 20 min et rouverte
+   * 3 h plus tard affichait 3 h 20. L'app affirmait un temps que personne
+   * n'avait couru — la définition même du mensonge que la constitution
+   * interdit. La règle (mesure, cumul, garde-fous) vit dans `persist.ts`, PURE
+   * et testée ; ici on ne fait que la porter et l'écrire sur le disque.
+   */
+  const tempsMortRef = useRef(0);
   // Identité de la course, FIXÉE au premier écrit et jamais régénérée : c'est
   // la clé d'idempotence qu'`ingest_run` attend. En changer à la reprise ferait
   // compter deux fois la même sortie.
   const runIdRef = useRef<string>(nouvelId());
   const dernierFlushRef = useRef<number | null>(null);
   const enAttenteRef = useRef(0);
-  // Un envoi en cours ne se relance pas : deux `TERMINER` enverraient deux fois
-  // la même course. L'idempotence serveur (D14) l'absorberait, mais l'écran, lui,
-  // partirait deux fois vers le résultat.
+  // Une clôture en cours ne se relance pas : deux `TERMINER` partiraient deux
+  // fois vers le résultat. Elle ne dure plus que le temps des écritures locales
+  // (drain + flush final) — l'envoi, lui, a quitté cet écran.
   const [envoi, setEnvoi] = useState(false);
   const envoiRef = useRef(false);
 
@@ -121,6 +145,11 @@ export default function Course() {
         if (!vivant || stored === null || stored.fixes.length === 0) return;
         runIdRef.current = stored.runId;
         debutRef.current = stored.startedAt;
+        // ⚠️ AVANT le premier tick : l'écart entre le dernier relevé écrit et
+        // maintenant est du temps que l'app n'a pas vécu. Il se CUMULE avec
+        // celui d'une interruption antérieure (`stored.deadMs`) — sinon un
+        // deuxième kill rendrait au chrono les heures perdues au premier.
+        tempsMortRef.current = resumedDeadMs(stored, Date.now());
         setPoints(stored.fixes.map((f) => ({ lng: f.lng, lat: f.lat, t: f.ts })));
         setReprise(true);
       })
@@ -158,7 +187,20 @@ export default function Course() {
           dernier !== undefined && fix.t > dernier.t ? [...prev, fix] : mergeFixes(prev, [fix]);
         enAttenteRef.current += 1;
         const maintenant = Date.now();
-        if (shouldFlush(dernierFlushRef.current, maintenant, enAttenteRef.current)) {
+        /**
+         * ⚠️ PLUS AUCUNE ÉCRITURE UNE FOIS « TERMINER » ENGAGÉ.
+         *
+         * Le flush final écrit la trace COMPLÈTE — les points de l'écran ET la
+         * file background vidée — et c'est elle que l'écran de résultat relit
+         * pour ENVOYER. Un relevé qui arriverait entre ce flush et le démontage
+         * réécrirait le disque depuis le seul état de l'écran, sans les points
+         * de la file : la course partirait amputée de sa fin, c'est-à-dire
+         * souvent du segment qui referme la boucle.
+         */
+        const aEcrire =
+          !envoiRef.current &&
+          shouldFlush(dernierFlushRef.current, maintenant, enAttenteRef.current);
+        if (aEcrire) {
           dernierFlushRef.current = maintenant;
           enAttenteRef.current = 0;
           // `accuracy` est OBLIGATOIRE dans un `RawFix` : la jauge et le trust
@@ -180,6 +222,10 @@ export default function Course() {
               accuracy: i === suite.length - 1 ? (p.coords.accuracy ?? PRECISION_INCONNUE_M) : PRECISION_INCONNUE_M,
             })),
             userPausedMs: 0,
+            // Écrit à CHAQUE flush : ce qui n'est pas sur le disque est ce
+            // qu'un second kill emporterait — et le temps mort emporté
+            // reviendrait gonfler le chrono à la reprise suivante.
+            deadMs: tempsMortRef.current,
           };
           void saveActiveRun(stored);
         }
@@ -252,23 +298,31 @@ export default function Course() {
   }, [draguer]);
 
   useEffect(() => {
-    const id = setInterval(() => setEcouleMs(Date.now() - debutRef.current), TICK_MS);
+    const id = setInterval(
+      () => setEcouleMs(activeElapsedMs(debutRef.current, tempsMortRef.current, Date.now())),
+      TICK_MS,
+    );
     return () => clearInterval(id);
   }, []);
 
   /**
    * Clore la course.
    *
-   * ⚠️ ON ATTEND l'effacement AVANT de naviguer, et ce n'est pas de la
-   * prudence gratuite : la version `void clear(); router.replace()` a été
-   * écrite d'abord, et la preview l'a démentie. L'accueil remonte et lit le
-   * buffer immédiatement — c'est-à-dire AVANT que l'effacement asynchrone
-   * n'atterrisse. Il reproposait alors « Une course n'a pas été terminée »
-   * pour la course qu'on venait justement de terminer, et « Reprendre »
-   * ouvrait une trace déjà effacée.
+   * ⚠️ QUAND ON EFFACE LE BUFFER, ON ATTEND L'EFFACEMENT AVANT DE NAVIGUER, et
+   * ce n'est pas de la prudence gratuite : la version `void clear();
+   * router.replace()` a été écrite d'abord, et la preview l'a démentie.
+   * L'accueil remonte et lit le buffer immédiatement — c'est-à-dire AVANT que
+   * l'effacement asynchrone n'atterrisse. Il reproposait alors « Une course n'a
+   * pas été terminée » pour la course qu'on venait justement de terminer, et
+   * « Reprendre » ouvrait une trace déjà effacée.
    *
    * LES DEUX CLÉS, parce que l'accueil lit LES DEUX (`recoveryOffer`) : n'en
    * effacer qu'une laisserait l'autre reproposer éternellement un fantôme.
+   *
+   * Ne reste ici qu'un seul cas d'effacement — le GO annulé avant le premier
+   * pas, qui n'a rien à envoyer. Sur une vraie course, le buffer est la charge
+   * que l'écran de résultat va relire : c'est LUI qui l'efface, et seulement une
+   * fois la course en sûreté.
    */
   const terminer = useCallback(async () => {
     if (envoiRef.current) return;
@@ -287,8 +341,15 @@ export default function Course() {
     );
 
     const distanceM = traceDistanceM(complet);
-    const dureeMs = Date.now() - debutRef.current;
+    // La durée ACTIVE, celle qu'on affichait pendant la course. La stat de fin
+    // ne peut pas dire autre chose que le chrono que le coureur regardait.
+    const dureeMs = activeElapsedMs(debutRef.current, tempsMortRef.current, Date.now());
 
+    // Construit ICI pour une seule question : y a-t-il seulement quelque chose
+    // à envoyer ? La charge réellement transmise est rebâtie par l'écran de
+    // résultat depuis le disque, avec le MÊME `buildRunPayload` et les mêmes
+    // points — deux constructeurs différents finiraient par diverger, et l'écart
+    // ne se verrait qu'au 400 du serveur.
     const payload = buildRunPayload({
       clientRunId: runIdRef.current,
       startedAt: debutRef.current,
@@ -317,7 +378,8 @@ export default function Course() {
      *
      * Une écriture de plus, une seule fois, à l'instant où la course se termine.
      * ATTENDUE : partir avant qu'elle ait abouti reproduirait le défaut qu'on
-     * corrige, au moment précis où il coûte le plus cher.
+     * corrige, au moment précis où il coûte le plus cher — et c'est aussi ce
+     * disque que l'écran de résultat relit pour ENVOYER (voir plus bas).
      */
     await saveActiveRun({
       runId: runIdRef.current,
@@ -334,22 +396,33 @@ export default function Course() {
         accuracy: PRECISION_INCONNUE_M,
       })),
       userPausedMs: 0,
+      deadMs: tempsMortRef.current,
     });
 
-    const issue = await sendRun(payload);
-
-    // ⚠️ ON N'EFFACE LE BUFFER QUE SI LA COURSE EST EN SÛRETÉ : répondue par le
-    // serveur, ou acceptée dans la file d'envoi. Sur `lost`, la file a refusé —
-    // le buffer `runStore` est alors le DERNIER filet, et l'effacer perdrait
-    // pour de bon une course que le joueur vient de courir.
-    if (issue.kind !== 'lost') {
-      await Promise.all([clearActiveRun(), clearCurrentRun()]);
-    }
-
+    /**
+     * ⚠️ ON N'ATTEND PLUS L'ENVOI POUR NAVIGUER.
+     *
+     * `const issue = await sendRun(payload)` était ici, AVANT le `replace` — et
+     * `sendRun` n'a ni timeout ni `AbortController`. Sur un réseau lent, un
+     * coureur à bout de souffle restait donc devant un bouton grisé à 0,6,
+     * pendant une durée que rien ne bornait, sans savoir si ça avançait. Sur
+     * 100 % des courses.
+     *
+     * L'envoi part maintenant DEPUIS l'écran de résultat, qui relit la trace du
+     * disque qu'on vient d'écrire (même `runId`, donc même clé d'idempotence
+     * D14) et remplace l'état `sending` par le verdict à son arrivée. Le joueur
+     * voit immédiatement que sa course est finie et ce qu'il a parcouru ; il
+     * peut même quitter l'écran, l'envoi continue.
+     *
+     * ⚠️ ET DONC : LE BUFFER N'EST PAS EFFACÉ ICI. Il l'est par l'écran de
+     * résultat, et seulement quand la course est en sûreté (répondue ou en
+     * file). L'effacer avant l'envoi supprimerait la seule trace qui reste — et
+     * la charge que l'envoi doit relire.
+     */
     router.replace({
       pathname: '/resultat',
       params: {
-        issue: JSON.stringify(issue),
+        issue: JSON.stringify(ENVOI_EN_COURS),
         distanceM: String(Math.round(distanceM)),
         dureeMs: String(dureeMs),
       },

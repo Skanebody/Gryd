@@ -43,7 +43,7 @@
 | Écran | État | Preuve |
 |---|---|---|
 | Connexion | **OPÉRATIONNEL** | `app/(mvp)/connexion.tsx` + `mvp/onboarding/signIn.ts` (11 tests, les 8 combinaisons de capacité balayées). Portes DÉRIVÉES de la capacité réelle : Apple sondé (pas déduit de l'OS), Google selon client id, e-mail comme plancher. Aucun identifiant manipulé — l'e-mail mène à l'écran legacy qui gère déjà le code. Photo du fondateur conservée |
-| Onboarding (2 écrans + priming) | **OPÉRATIONNEL** | `app/(mvp)/bienvenue.tsx`, `position.tsx` ; `permission.test.ts` 8/8 (les 3 issues + le défaut prudent) ; captures 375×812 |
+| Onboarding (UN écran : jeu + priming) | **OPÉRATIONNEL** | `app/(mvp)/position.tsx` ; `permission.test.ts` 8/8 (les 3 issues + le défaut prudent) ; captures 375×812. ⚠️ FUSION du 02/09/2026 : `bienvenue.tsx` est SUPPRIMÉE — ses deux écrans n'en font plus qu'un (L9 est un plafond, pas un objectif ; HIG « fast, fun, and optional »). La capture d'avant montre donc DEUX écrans qui n'existent plus : à refaire au prochain `ux-gate` |
 | Home Map (empty + actif) | **OPÉRATIONNEL** | `app/(mvp)/carte.tsx` + `mvp/map/homeState.ts` (18 tests, balayage exhaustif des 72 entrées) + `territoryGeo.ts` (11) + `ui/area.ts` (7) ; fond `mvp/map/nightStyle.ts` ; capture de l'état `unavailable` |
 | Préflight + décompte | **OPÉRATIONNEL** | `app/(mvp)/prete.tsx` + `mvp/run/countdown.ts` (6 tests) ; un seul tap depuis la carte (L3) ; capture |
 | Live Run | **OPÉRATIONNEL** | `app/(mvp)/course.tsx` + `trace.ts` (9) + `gauge.ts` (7) + `persist.ts` (10) : chrono, distance, jauge de fermeture et NEVER-LOSE-A-RUN réels. Preuve bout en bout en preview : buffer planté → `/carte` annonce et offre → reprise à 0,43 km avec chrono CONTINU depuis le vrai départ → TERMINER → buffers vides, plus aucune offre. SUIVI EN ARRIÈRE-PLAN câblé (`mvp/run/gpsProvider.ts`, déplacé) : écran éteint compris, avec fusion dédupliquée des deux sources (`mergeFixes`, 4 tests) et un dernier drain avant l'envoi |
@@ -56,14 +56,17 @@
 > décision du parcours (`app/(tabs)/_layout.tsx`), et la reprise après crash mène
 > désormais à `/course` (MVP) : les deux écrans lisent le même buffer, donc une
 > course interrompue avant la bascule se reprend quand même.
-> **BASCULE COMPLÈTE le 03/08** — `/` ouvre sur `/bienvenue`. Parcours entier en
-> MVP : onboarding → priming → connexion → carte → GO → décompte → course →
-> résultat. `/bienvenue` et `/position` sont SORTIS de `KNOWN_ORPHANS` : ils ont
-> une vraie porte.
+> **BASCULE COMPLÈTE le 03/08** — `/` ouvre sur l'onboarding. Parcours entier en
+> MVP : onboarding → connexion → carte → GO → décompte → course → résultat.
+> L'onboarding est SORTI de `KNOWN_ORPHANS` : il a une vraie porte.
+> ⚠️ La porte visait `/bienvenue` jusqu'au 02/09/2026 ; depuis la fusion elle
+> vise `/position`, l'écran unique. `ENTRY_ROUTES` de `scripts/audit-routes.mjs`
+> a suivi — sans quoi l'audit aurait calculé l'atteignabilité depuis une route
+> qui n'existe plus.
 > ⚠️ RESTE LEGACY : le FORMULAIRE de code à usage unique (`/sign-in`), vers
 > lequel « Continuer par e-mail » renvoie — une surface d'authentification ne se
 > réécrit pas à la hâte. Et l'ancienne PORTE d'onboarding (`onboardingDone` vit dans un hook legacy qu'ADR-001 interdit
-> d'importer). `/bienvenue` et `/position` restent donc atteints par URL directe.
+> d'importer).
 > ⚠️ NON VÉRIFIÉ À L'ÉCRAN : la bascule demande une session, et je n'ai pas de
 > compte — même preuve manquante que le reste.
 > **Backend PROD au 03/08/2026** : migrations `0107→0112` APPLIQUÉES (prod était à

@@ -31,6 +31,7 @@ espagnol (+ de/pt existants : gelés, FR/EN seuls maintenus) · zones interdites
 - ~~**Drapeau d'onboarding MVP**~~ — **FAIT le 03/08/2026** (`mvp/onboarding/seen.ts`, clé propre). Les lignes `KNOWN_ORPHANS` de `/bienvenue` et `/position` ont bien disparu, comme leur entrée l'annonçait. Effet de bord assumé : qui avait vu l'ANCIEN onboarding reverra les deux écrans MVP une fois — deux écrans, une seule fois, contre une dépendance permanente vers un hook legacy.
 - ~~**La reprise legacy au lancement détourne les routes `(mvp)`.**~~ RÉGLÉ par la bascule du 03/08 : elle mène désormais à `/course`.
 - ~~La reprise legacy détourne les routes `(mvp)`~~ · ~~Bascule d'entrée du groupe `(mvp)`~~ — **FAITS le 03/08/2026**, tous les deux. La reprise mène à `/course`, l'app ouvre sur `/bienvenue`, et les lignes `KNOWN_ORPHANS` correspondantes ont bien disparu comme elles l'annonçaient.
+- ⚠️ **Les deux lignes ci-dessus citent `/bienvenue`, qui N'EXISTE PLUS depuis le 02/09/2026** : les deux écrans d'onboarding ont fusionné dans `/position`. Les entrées restent telles quelles — ce sont des faits DATÉS, et réécrire un journal en effacerait la seule utilité. La porte d'entrée (`app/(tabs)/_layout.tsx`) et `ENTRY_ROUTES` (`scripts/audit-routes.mjs`) visent désormais `/position`.
 
 ## Dettes héritées à ne pas perdre
 - `territories.owner_id` polymorphe : purge OK depuis 0111 ; l'arbitrage produit « supprimer vs relâcher » est tranché (suppression) et testé.

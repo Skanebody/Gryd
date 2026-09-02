@@ -48,8 +48,7 @@ quand le backend manque ; il ne l'était pas ici. `homeAction` rend `signIn`.
 
 | # | Écran | Route | Capture |
 |---|---|---|---|
-| 1 | Onboarding | `/bienvenue` | ✅ |
-| 2 | Priming permission | `/position` | ✅ (nominal + refus) |
+| 1+2 | Onboarding **et** priming permission — les deux écrans du 03/08 ont FUSIONNÉ le 02/09/2026 (`/bienvenue` supprimée). Le numéro 2 reste vacant plutôt que renuméroté : les autres numéros sont cités ailleurs dans ce document | `/position` | ✅ (nominal + refus) |
 | 3 | Home Map — vide | `/carte` | ✅ (états `unavailable`, `signedOut`, `interrupted`) |
 | 3b | Profil : suivi + compte + légal | `/profil` | ✅ **après correction** — 9 constats de la relecture indépendante (① ② ⑤ ⑥ ⑦ ⑧ ⑨ ⑪ ⑫). La capture d'avant montrait un écran conforme ; c'est le code qui ne l'était pas |
 | 3c | Connexion | `/connexion` | ✅ **après correction** — ③ ④ ⑬ ⑭. La capture ne pouvait pas montrer le défaut : l'absence de SORTIE ne se voit sur aucune image fixe |
