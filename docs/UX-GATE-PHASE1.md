@@ -1,4 +1,4 @@
-# UX-GATE — Phase 1, les 8 écrans (L1–L19)
+# UX-GATE — Phase 1, les 7 écrans (L1–L19)
 
 > **Portée** : les écrans du groupe `(mvp)`, au 03/08/2026.
 > **Méthode** : relecture loi par loi contre le code et contre des captures
@@ -62,15 +62,15 @@ quand le backend manque ; il ne l'était pas ici. `homeAction` rend `signIn`.
 
 | Loi | Verdict | Preuve / réserve |
 |---|---|---|
-| **L1** — 3 questions en < 1 s | ✅ | `homeState` répond aux trois : la carte (où), une phrase ou un chiffre (à moi), une action dérivée de la capacité réelle (quoi faire). Sans autorisation, la carte ouvre sur la ville et ne peint AUCUN point — elle ne prétend pas savoir où l'on est |
+| **L1** — 3 questions en < 1 s | ✅ **après correction (02/09)** | `homeState` répond aux trois. ⚠️ « Où suis-je ? » était FAUX jusqu'au 02/09 : `defaultSettings` n'est lu qu'au montage et `center` arrivait après — la carte ouvrait sur Rouen z12,5 pour tout le monde, `ZOOM_EGO` n'était jamais appliqué (audit de friction, P8). Désormais `openingFraming()` (pur, testé) cadre le TERRITOIRE s'il existe, sinon la position, appliqué UNE SEULE FOIS (clé de valeur + `useRef`) — le test de couture interdit toute caméra en prop. Sans autorisation, la carte ne peint toujours AUCUN point |
 | **L2** — une action primaire | ✅ | `Stage` n'accepte qu'un `cta` (objet, pas tableau) : un second bouton de même poids est impossible à écrire. Sur `/carte` et `/course`, les sorties secondaires sont des TEXTES |
 | **L3** — 2 taps max jusqu'au départ | ✅ | La bascule d'entrée a eu lieu (03/08) : un joueur connecté ouvre sur `/carte`. Ouvrir n'est pas un tap, il en reste UN — GO — et le préflight se déroule seul, sans « confirmer ». Parcours rejoué en preview de bout en bout |
 | **L4** — zone du pouce, ≥ 44 pt | ✅ | CTA dans un `footer` SŒUR du contenu défilant (donc ancré quoi qu'on mette au-dessus) ; `minHeight: 44` sur chaque cible |
 | **L5** — Live Run ≤ 5 infos, ≤ 8 mots | ✅ | 4 blocs : distance (ou chrono), chrono, jauge, signal. `mvp.test.ts` vérifie la limite de 8 mots sur les 5 langues |
 | **L6** — feedback < 100 ms, haptique | ✅ | `ctaPressed` sur chaque bouton ; haptique aux 4 événements de jeu du MVP (départ, quasi-fermeture, fermeture, perte de signal, capture) via `feedback.ts`. ⚠️ Déclenchée sur TRANSITION et non sur état : sur l'état, le téléphone vibrerait ~1 ×/s pendant tout le retour |
-| **L7** — célébration 2–3 s, skippable | ⚠️ **PARTIEL** (le son) | La chorégraphie en TROIS TEMPS est faite — contour qui se stabilise (avec dépassement puis retour) → remplissage → gain, 2,2 s. Skippable au tap, désactivée sous Reduce Motion, haptique `success`. Les bornes sont dans `mvp/ui/celebration.ts`, **testées** (5 tests) : ni la relecture ni la capture ne peuvent attraper un chevauchement, l'aller-retour d'une capture dépassant la durée de la séquence. **Manque le SON**, faute d'asset — et un son bâclé vaudrait moins que son absence |
+| **L7** — célébration 2–3 s, skippable | ⚠️ **PARTIEL** (le son en poche) | La chorégraphie en TROIS TEMPS est faite — contour qui se stabilise (avec dépassement puis retour) → remplissage → gain, 2,2 s. Skippable au tap, désactivée sous Reduce Motion, haptique `success`. Les bornes sont dans `mvp/ui/celebration.ts`, **testées** (5 tests) : ni la relecture ni la capture ne peuvent attraper un chevauchement, l'aller-retour d'une capture dépassant la durée de la séquence. **Le SON est arrivé le 02/09 par la VOIX** (`expo-speech`, synthèse — donc aucun asset) : trois moments, jamais en continu — départ (`voiceStart`, pas à la reprise), boucle fermable, boucle fermée ; décision PURE `gaugeVoice` avec mémoire (une phrase au plus une fois par course, « presque » ne revient jamais après « fermée »), `stop()` avant chaque phrase pour ne jamais dire une chose devenue fausse. ⚠️ **LIMITE CONNUE, NON MASQUÉE** : `expo-speech` ne pose aucune `AVAudioSession` et `UIBackgroundModes` = `location` seul → la voix est probablement COUPÉE écran verrouillé et par le switch silencieux, et n'offre AUCUN ducking (surface d'options vérifiée : `language/pitch/rate/voice`, rien d'autre). Elle marche écran allumé. Le cas « téléphone en poche » est le premier point à entendre sur iPhone ; s'il est muet, le correctif est un config plugin (`.playback`+`.spokenAudio` + mode `audio`) — une déclaration qu'Apple relit, décidée seulement après l'écoute, pas avant |
 | **L8** — aucun écran vide | ✅ | `emptyMap` porte l'action qui la remplit, et `mvp.test.ts` vérifie qu'elle contient bien DEUX phrases (constat + action) |
-| **L9** — onboarding ≤ 3, valeur avant permission | ✅ | 2 écrans. L9 pose un plafond, pas un objectif : le jeu tient en une phrase. La forme signature est montrée AVANT toute demande |
+| **L9** — onboarding ≤ 3, valeur avant permission | ✅ | **1 écran** depuis le 02/09 (`/position`) : `/bienvenue` et le priming portaient le même argument coupé en deux — fusionnés (−1 tap, −1 écran pour 100 % des nouveaux joueurs, vérifié en preview). L9 pose un plafond, pas un objectif. La forme signature et la photo du fondateur sont montrées AVANT toute demande |
 | **L10** — progressive disclosure | ✅ | Aucune mécanique n'est expliquée avant de servir : la jauge n'apparaît qu'une fois la trace candidate, le décompte ne parle que du signal |
 | **L11** — une seule cible | — | Sans objet au MVP : ni objectif du jour ni rival (Phase 2) |
 | **L12** — un chiffre héros | ✅ | Un seul par écran, et JAMAIS un zéro nu : `heroArea` et `heroAreaM2` rendent `null` hors d'un état qui sait ; sur la course, le chrono est le héros tant qu'aucun mètre n'est parcouru |
@@ -81,6 +81,20 @@ quand le backend manque ; il ne l'était pas ici. `homeAction` rend `signIn`.
 | **L17** — zéro dark pattern | ✅ | « Voir la carte d'abord » toujours offert au priming ; « Annuler » disponible jusqu'au bout du décompte ; aucun compte à rebours factice ; un refus de permission background n'arrête pas la course |
 | **L18** — i18n dès le 1ᵉʳ commit | ✅ | Aucun texte en dur ; `Entry` = `Record<Locale, string>` COMPLET, donc une clé sans ses 5 langues est une erreur TypeScript ; `registre.test.ts` vérifie jusqu'au registre (le portugais est brésilien) |
 | **L19** — l'app n'accuse jamais | ✅ | Testé : aucun mot d'accusation sur les 5 langues, le manque se dit en MÈTRES, et un INVARIANT vérifie que les stats locales sont affichées dans les 13 issues de résultat — y compris les refus |
+
+## Ce que l'audit de FRICTION a trouvé (02/09) — et que les audits d'écran ne pouvaient pas voir
+
+Quatre audits jugeaient des ÉCRANS ; celui-ci a rejoué huit PARCOURS. Trois de ses
+constats étaient des mensonges au sens constitutionnel, tous corrigés et vérifiés :
+
+| | Constat | Ce qu'un joueur vivait | Correctif |
+|---|---|---|---|
+| P8 | la caméra ne regardait jamais le joueur | l'usage le plus fréquent — ouvrir pour REGARDER son territoire — sans objet | cadrage une seule fois, décideur pur, recentrage 44×44 |
+| P1/P2 | `await sendRun` avant de naviguer, sans timeout ni indicateur | un coureur à bout de souffle devant un bouton grisé, durée non bornée | navigation immédiate en état `sending`, résolution sur `/resultat` |
+| P3 | `Date.now() − startedAt` après un kill | 20 min de course + 3 h de kill = **3 h 20 affiché** | `activeElapsedMs` / `deadMs` persisté ; et côté serveur `POINT_MAX_GAP_S` (une reprise sur place était REFUSÉE `pace_too_slow`) |
+| P4 | la carte muette sur une course en file | l'ancien territoire, sans un mot sur la course qui attend | état `pending`, après `owned`, avant `empty` |
+| P1 | la porte e-mail traversait `/sign-in` legacy | +4 taps, 2ᵉ gate d'âge, chevron qui fuyait vers l'onboarding legacy | `/email` direct (sa gate 16+ prouvée), retour d'où l'on vient |
+| P2/P7 | `replace('/carte')` depuis une pile où la carte est déjà là | deux MapLibre en mémoire, l'ancienne périmée au geste retour | `retourCarte()` : `dismissTo` ; la carte relit au focus et vide à la déconnexion |
 
 ## Ce qui reste à prouver, et qui ne peut pas l'être ici
 

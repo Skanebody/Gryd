@@ -34,7 +34,7 @@
  * qu'on ajoute après un « non » — ce sont des faits mesurés, affichés dans
  * TOUTES les issues (`showsLocalStats`, invariant testé).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -47,6 +47,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { colors, fonts, fontSizes, iconSizes, radii, spacing, typography } from '@klaim/shared';
 import { resultView, type ResultView, type SendState } from '../../src/mvp/run/outcome';
 import { formatChrono } from '../../src/mvp/run/trace';
@@ -65,6 +67,12 @@ import {
 import { Glyph } from '../../src/mvp/ui/Glyph';
 import { SkeletonBlock, SkeletonGroup } from '../../src/mvp/ui/Skeleton';
 import { TerritoryMark } from '../../src/mvp/ui/TerritoryMark';
+import { ShareCard, SHARE_CARD_W } from '../../src/mvp/ui/ShareCard';
+import {
+  estFichierPartageable,
+  shareTracePath,
+  type SharePoint,
+} from '../../src/mvp/share/trace';
 import { useAnnonce } from '../../src/mvp/ui/announce';
 import { C } from '../../src/i18n/catalog/mvp';
 import { useT } from '../../src/i18n/store';
@@ -99,6 +107,41 @@ const INTERLIGNE = 1.5;
  */
 const STAT = { ...typography.stat, fontVariant: [...typography.stat.fontVariant] };
 
+/**
+ * Type du fichier remis à la feuille de partage. PAS des nombres magiques : ce
+ * sont les identifiants normalisés d'un PNG sur chaque plateforme — `mimeType`
+ * pour l'`Intent` Android, `UTI` pour iOS. Sans eux, le système devine d'après
+ * l'extension et certaines cibles refusent le fichier.
+ */
+const MIME_PNG = 'image/png';
+const UTI_PNG = 'public.png';
+
+/**
+ * ─── L'ÉTAT DU PARTAGE (L13) ────────────────────────────────────────────────
+ *
+ * Cinq valeurs, parce que « pas de bouton » et « bouton qui ne marchera pas »
+ * ne sont pas la même chose :
+ *   · `inconnu`     — on ne sait pas encore si la plateforme sait partager, ni
+ *                     si la card a pu être gravée. AUCUN bouton : promettre un
+ *                     partage avant de savoir, c'est le bouton mort que la
+ *                     constitution interdit.
+ *   · `impossible`  — pas de feuille de partage, pas de tracé publiable, ou la
+ *                     capture a échoué. Aucun bouton non plus, et RIEN n'est
+ *                     dit : personne n'a rien promis, il n'y a pas d'échec à
+ *                     annoncer.
+ *   · `pret`        — la card EXISTE, sur le disque, prête à partir. Le lien
+ *                     apparaît, et le tap n'attend rien.
+ *   · `envoi`       — la feuille s'ouvre. `busy` à l'oreille, atténué à l'œil.
+ *   · `echec`       — le partage a été refusé par le système APRÈS un tap.
+ *                     Là, une promesse a été faite : le lien reste, et il DIT
+ *                     qu'il faut réessayer.
+ */
+type EtatPartage =
+  | { readonly kind: 'inconnu' }
+  | { readonly kind: 'impossible' }
+  | { readonly kind: 'pret'; readonly uri: string }
+  | { readonly kind: 'envoi'; readonly uri: string }
+  | { readonly kind: 'echec'; readonly uri: string };
 
 /**
  * L'issue de l'envoi transite par l'URL, sérialisée.
@@ -383,13 +426,44 @@ export default function Resultat() {
     'inconnu',
   );
 
+  /**
+   * ─── LES POINTS, RETENUS AVANT LA PURGE ───────────────────────────────────
+   *
+   * La card de partage a besoin du TRACÉ, et le tracé n'existe qu'ici : dès que
+   * l'envoi aboutit, `resoudre` efface le buffer du disque (`clearActiveRun`),
+   * parce qu'une course en sûreté côté serveur n'a plus à traîner sur
+   * l'appareil. Après ça, plus rien n'est relisible — et c'est très bien ainsi.
+   *
+   * Cet état retient donc les points À L'INSTANT où la charge est relue, avant
+   * l'envoi. Ce n'est PAS une seconde source de vérité : c'est la même charge
+   * que `chargeRef`, tenue par une valeur d'état parce qu'un `ref` ne
+   * redéclenche aucun rendu — et qu'il faut bien que la card se dessine.
+   *
+   * ⚠️ Conséquence assumée : une issue reçue directement par l'URL (navigation
+   * rejouée, lien profond) n'a JAMAIS de tracé, puisque aucune relecture n'a eu
+   * lieu. Il n'y a alors pas de bouton de partage. C'est la seule réponse
+   * honnête : on ne fabrique pas une forme qu'on n'a pas.
+   */
+  const [tracePartage, setTracePartage] = useState<readonly SharePoint[] | null>(null);
+
+  /**
+   * Le SEUL endroit qui pose la charge relue — ref (pour le renvoi) et points
+   * (pour la card) à la fois. Deux affectations séparées finiraient par
+   * diverger : un chemin qui met à jour l'une sans l'autre donnerait un bouton
+   * de partage sans tracé, ou un tracé sans renvoi possible.
+   */
+  const retenirCharge = useCallback((charge: RunPayload | null) => {
+    chargeRef.current = charge;
+    setTracePartage(charge === null ? null : charge.points);
+  }, []);
+
   useEffect(() => {
     if (vue.kind !== 'lost') return;
     let vivant = true;
     chargeDuDisque()
       .then((charge) => {
         if (!vivant) return;
-        chargeRef.current = charge;
+        retenirCharge(charge);
         setRenvoi(charge === null ? 'indisponible' : 'possible');
       })
       .catch(() => {
@@ -398,7 +472,7 @@ export default function Resultat() {
     return () => {
       vivant = false;
     };
-  }, [vue.kind]);
+  }, [vue.kind, retenirCharge]);
 
   /**
    * Envoyer, puis POSER L'ISSUE. Le seul endroit qui écrit `issue`.
@@ -440,7 +514,9 @@ export default function Resultat() {
     envoiLanceRef.current = true;
     void (async () => {
       const charge = await chargeDuDisque().catch(() => null);
-      chargeRef.current = charge;
+      // ⚠️ AVANT `resoudre`, qui purgera le buffer : c'est la seule fenêtre où
+      // les points existent encore (voir `tracePartage`).
+      retenirCharge(charge);
       if (charge === null) {
         /**
          * Rien d'envoyable sur le disque, alors que l'écran de course venait
@@ -456,7 +532,7 @@ export default function Resultat() {
       if (monteRef.current) setRenvoi('envoi');
       await resoudre(charge);
     })();
-  }, [vue.kind, resoudre]);
+  }, [vue.kind, resoudre, retenirCharge]);
 
   const renvoyer = useCallback(async () => {
     const charge = chargeRef.current;
@@ -532,6 +608,160 @@ export default function Resultat() {
   // La distance vient de la trace locale : `formatKm` refuse le zéro nu, donc
   // une course sans mètre parcouru n'affiche pas « 0,00 km ».
   const km = distanceM > 0 ? (Math.round(distanceM / 10) / 100).toFixed(2).replace('.', ',') : null;
+  const chrono = formatChrono(dureeMs);
+
+  /**
+   * ═══ LE PARTAGE EN UN TAP (L13) ═══════════════════════════════════════════
+   *
+   * ─── QUAND LA CARD EXISTE, ET QUAND ELLE N'EXISTE PAS ────────────────────
+   * UNIQUEMENT sur `captured`. Trois raisons, et chacune suffirait :
+   *   · on ne partage pas une déception (refus, boucle manquée) ;
+   *   · on ne partage pas une course que le serveur n'a pas tranchée
+   *     (`sending`, `pending`, `lost`) : ce serait annoncer un territoire que
+   *     personne n'a accordé ;
+   *   · `takenNoArea` est EXCLU alors qu'il s'agit bien d'une prise — parce que
+   *     son aire n'est justement PAS connue. La card est faite de trois
+   *     chiffres dont les m² sont le héros, et `shareText` les réclame
+   *     (`{m2}`). Il faudrait donc soit inventer le nombre (« un mensonge
+   *     chiffré voyage plus loin que tous les autres », en-tête de cet écran),
+   *     soit publier une card amputée du seul chiffre qui fait sa forme. Ni
+   *     l'un ni l'autre : pas de card. Le jour où une phrase de partage sans
+   *     m² existera dans le catalogue, ce cas pourra rouvrir.
+   *
+   * Et il faut TOUT le reste : les points retenus avant la purge, un tracé qui
+   * survive au masquage des extrémités, la distance et le chrono. Chaque
+   * élément manquant retire le bouton — jamais ne le remplit d'un repli.
+   */
+  // `useMemo` : `shareTracePath` fait tourner un Douglas-Peucker sur toute la
+  // trace. Recalculé à chaque rendu, il repasserait sur ~2 000 points à chaque
+  // image du décompte — pendant la seule animation que le joueur regarde.
+  const cheminTrace = useMemo(
+    () => (tracePartage === null ? null : shareTracePath(tracePartage)),
+    [tracePartage],
+  );
+  const cardPossible =
+    vue.kind === 'captured' && aire !== null && km !== null && cheminTrace !== null;
+
+  const [partage, setPartage] = useState<EtatPartage>({ kind: 'inconnu' });
+  const carteRef = useRef<View>(null);
+  const captureLanceeRef = useRef(false);
+
+  /**
+   * LA CAPACITÉ RÉELLE DE LA PLATEFORME, DEMANDÉE — jamais supposée.
+   *
+   * TROIS valeurs, pas deux — même raison que `reduit` plus haut : `null` = « le
+   * système n'a pas encore répondu ». Un booléen à `false` par défaut ferait
+   * graver la card avant de savoir si elle a la moindre chance de partir ;
+   * un booléen à `true` peindrait un lien qui n'ouvrirait rien.
+   *
+   * `isAvailableAsync` est faux sur le web de bureau (pas de `navigator.share`)
+   * et peut l'être ailleurs — un lien peint sans cette réponse serait le bouton
+   * mort que la constitution interdit : « l'affichage se dérive de la capacité
+   * RÉELLE de la plateforme ». Une lecture qui ÉCHOUE vaut `false` : on retire
+   * le lien plutôt que de promettre sans savoir.
+   */
+  const [partageDispo, setPartageDispo] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!cardPossible || partageDispo !== null) return;
+    let vivant = true;
+    const repondre = (dispo: boolean): void => {
+      if (!vivant) return;
+      setPartageDispo(dispo);
+      // Pas de feuille de partage sur cette plateforme : l'état le DIT, plutôt
+      // que de rester « inconnu » pour toujours. Aucun message pour autant —
+      // rien n'avait été promis.
+      if (!dispo) setPartage({ kind: 'impossible' });
+    };
+    Sharing.isAvailableAsync()
+      .then(repondre)
+      .catch(() => repondre(false));
+    return () => {
+      vivant = false;
+    };
+  }, [cardPossible, partageDispo]);
+
+  /**
+   * LA GRAVURE, PENDANT QUE LE JOUEUR REGARDE SA CÉLÉBRATION.
+   *
+   * L13 dit « card pré-générée pendant l'écran de résultat » : c'est ici que ça
+   * se joue. La card est montée hors écran, `onLayout` dit qu'elle a une
+   * taille, et on la rasterise tout de suite. Au tap, il ne reste que
+   * l'ouverture de la feuille — donc aucune attente à habiller.
+   *
+   * ⚠️ `useRenderInContext` : la card est HORS VIEWPORT, et la stratégie iOS par
+   * défaut (`drawViewHierarchyInRect`) capture ce qui est à l'écran — elle
+   * rendrait une image vide. `renderInContext` dessine le calque, qu'il soit
+   * visible ou non. `collapsable={false}` joue le même rôle côté Android, où
+   * une vue sans style propre est aplatie hors de l'arbre natif.
+   *
+   * ⚠️ Aucune option `quality` : elle n'est lue que par les formats à PERTE
+   * (jpg), et le PNG est sans perte. La passer donnerait l'illusion d'un
+   * réglage qui n'agit pas.
+   */
+  const graver = useCallback(async () => {
+    if (captureLanceeRef.current) return;
+    captureLanceeRef.current = true;
+    try {
+      const uri = await captureRef(carteRef, {
+        format: 'png',
+        result: 'tmpfile',
+        useRenderInContext: true,
+      });
+      if (!monteRef.current) return;
+      // Une capture WEB rend une `data:` URI, que la feuille de partage
+      // refusera : ce n'est pas une card, c'est un bouton mort en devenir.
+      setPartage(estFichierPartageable(uri) ? { kind: 'pret', uri } : { kind: 'impossible' });
+    } catch {
+      // La card n'a pas pu être gravée. Rien n'avait été promis : pas de lien,
+      // et surtout pas de message d'erreur pour une action que personne n'a
+      // demandée.
+      if (monteRef.current) setPartage({ kind: 'impossible' });
+    }
+  }, []);
+
+  /**
+   * LE TEXTE QUI ACCOMPAGNE — dans la seule mesure où la plateforme le permet.
+   *
+   * ⚠️ `expo-sharing` partage un FICHIER, pas un message : ses options sont
+   * `mimeType` (Android), `UTI` (iOS) et `dialogTitle` (Android et web). Il n'y
+   * a AUCUN champ de texte remis à l'app cible — sur iOS, la phrase ne peut
+   * donc pas voyager avec l'image, et rien ici ne prétend le contraire. Le
+   * chiffre, lui, est GRAVÉ DANS LA CARD : c'est ce qui fait que le partage dit
+   * quelque chose sur toutes les plateformes.
+   */
+  const textePartage = aire === null ? null : t(C.shareText, { m2: aire });
+
+  const partager = useCallback(async () => {
+    if (partage.kind !== 'pret' && partage.kind !== 'echec') return;
+    if (textePartage === null) return;
+    const uri = partage.uri;
+    setPartage({ kind: 'envoi', uri });
+    haptics.light();
+    try {
+      await Sharing.shareAsync(uri, {
+        mimeType: MIME_PNG,
+        UTI: UTI_PNG,
+        dialogTitle: textePartage,
+      });
+      if (monteRef.current) setPartage({ kind: 'pret', uri });
+    } catch {
+      // L6 — l'échec se SENT. Et il se voit : le lien change de libellé plutôt
+      // que de disparaître, parce qu'ici une promesse avait été faite.
+      haptics.error();
+      if (monteRef.current) setPartage({ kind: 'echec', uri });
+    }
+  }, [partage, textePartage]);
+
+  const partageVisible =
+    partage.kind === 'pret' || partage.kind === 'envoi' || partage.kind === 'echec';
+  // ⚠️ CLÉ MANQUANTE, ASSUMÉE : le catalogue MVP n'a aucune phrase pour « le
+  // partage n'a pas abouti ». En employer une d'un autre domaine (`mapFailed`,
+  // `signInFailed`) affirmerait quelque chose de faux — la faute exacte que le
+  // `switch` de `phraseDeLIssue` existe pour empêcher. En attendant qu'une clé
+  // soit écrite, l'échec se dit par ce que l'app A DÉJÀ : le glyphe d'échec et
+  // un libellé qui redevient « Réessayer ».
+  const libellePartage = partage.kind === 'echec' ? t(C.shareFailed) : t(C.ctaShare);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.lg }]}>
@@ -606,9 +836,66 @@ export default function Resultat() {
 
         {/* L19 — TOUJOURS présentes, quelle que soit l'issue. */}
         {km !== null ? (
-          <Text style={styles.stats}>{t(C.resStats, { km, duree: formatChrono(dureeMs) })}</Text>
+          <Text style={styles.stats}>{t(C.resStats, { km, duree: chrono })}</Text>
         ) : null}
       </Pressable>
+
+      {/* ═══ LA CARD, GRAVÉE HORS ÉCRAN ═══════════════════════════════════════
+          Elle est montée le temps d'être mesurée puis rasterisée, et disparaît
+          ensuite : `partage` quitte `inconnu`, la condition tombe. Le joueur ne
+          la voit jamais à l'écran — il la découvre dans la feuille de partage.
+
+          `left: -SHARE_CARD_W * 2` la sort du viewport SANS l'aplatir : une
+          opacité nulle, elle, ferait capturer une image transparente sur iOS.
+          `pointerEvents="none"` pour que rien de tout ça n'intercepte le tap
+          qui passe la célébration. */}
+      {cardPossible && cheminTrace !== null && aire !== null && km !== null &&
+      partageDispo === true && partage.kind === 'inconnu' ? (
+        <View style={styles.horsEcran} pointerEvents="none">
+          <View
+            ref={carteRef}
+            collapsable={false}
+            onLayout={() => {
+              void graver();
+            }}
+          >
+            <ShareCard path={cheminTrace} area={aire} km={km} chrono={chrono} />
+          </View>
+        </View>
+      ) : null}
+
+      {/* L2 — « Voir la carte » RESTE l'action primaire. Le partage est un
+          LIEN : il prolonge la joie, il ne dispute pas la sortie de l'écran.
+          Il n'existe que quand la card est réellement sur le disque et que la
+          plateforme sait ouvrir une feuille de partage — voir `EtatPartage`.
+          L15 — pas de glyphe sur l'état normal (le vocabulaire de `Glyph` n'en
+          a pas pour le partage) : le libellé porte le sens seul, ce qui est la
+          forme la plus sûre. Sur l'échec, le glyphe s'ajoute AU libellé. */}
+      {partageVisible ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={libellePartage}
+          // `busy` en plus de `disabled` : VoiceOver dit « en cours » au lieu de
+          // « désactivé », qui ferait croire à un lien inerte.
+          accessibilityState={{
+            disabled: partage.kind === 'envoi',
+            busy: partage.kind === 'envoi',
+          }}
+          disabled={partage.kind === 'envoi'}
+          onPress={() => {
+            void partager();
+          }}
+          style={({ pressed }) => [
+            styles.lien,
+            (pressed || partage.kind === 'envoi') && styles.lienAttenue,
+          ]}
+        >
+          {partage.kind === 'echec' ? (
+            <Glyph name="echec" size={iconSizes.sm} color={colors.blanc} />
+          ) : null}
+          <Text style={styles.lienLabel}>{libellePartage}</Text>
+        </Pressable>
+      ) : null}
 
       {/* L2 — UNE seule action primaire. « Voir la carte » la garde ; le renvoi
           est un LIEN : il répare un échec, il ne concurrence pas la sortie de
@@ -701,4 +988,13 @@ const styles = StyleSheet.create({
   // l'écran de course pour un envoi en cours.
   lienAttenue: { opacity: 0.6 },
   lienLabel: { color: colors.blanc, fontFamily: fonts.textSemi, fontSize: fontSizes.md },
+  /**
+   * LA CARD, HORS DU VIEWPORT.
+   *
+   * Elle est POSITIONNÉE ailleurs, pas rendue invisible : sur iOS, capturer une
+   * hiérarchie dont l'opacité est nulle rend une image vide. Décalée de deux
+   * largeurs, elle est hors de l'écran sur n'importe quel appareil — et
+   * `useRenderInContext` la dessine quand même (voir `graver`).
+   */
+  horsEcran: { position: 'absolute', left: -SHARE_CARD_W * 2, top: 0 },
 });

@@ -263,6 +263,15 @@ export const C = defineCatalog({
   // contrainte fait la reconnaissabilité. `{m2}` vient de `heroArea`, jamais
   // d'un calcul de l'écran. Aucun lieu nommé (voir `notifTaken`) : le
   // territoire se partage, le domicile jamais.
+  // L'echec d'un partage APRES un tap ne peut pas etre un silence, ni un
+  // « Reessayer » generique : on dit ce qui n'a pas marche ET ce qui est acquis.
+  shareFailed: {
+    fr: 'Le partage n’a pas abouti. Ta capture est enregistrée.',
+    en: 'Sharing did not go through. Your capture is saved.',
+    es: 'No se pudo compartir. Tu conquista está guardada.',
+    de: 'Das Teilen hat nicht geklappt. Deine Eroberung ist gespeichert.',
+    pt: 'O compartilhamento não deu certo. Sua conquista está salva.',
+  },
   shareText: {
     fr: 'J’ai pris {m2} m² de ma ville en courant. GRYD.',
     en: 'I took {m2} m² of my city by running. GRYD.',

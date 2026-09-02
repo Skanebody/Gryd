@@ -1,5 +1,5 @@
 /**
- * GRYD — QUAND LE TÉLÉPHONE VIBRE. PUR (lot M9).
+ * GRYD — QUAND LE TÉLÉPHONE VIBRE, ET QUAND IL PARLE. PUR (lot M9).
  *
  * ─── L6 : HAPTIQUE SUR CHAQUE ÉVÉNEMENT DE JEU ──────────────────────────────
  * « départ, quasi-fermeture, fermeture, capture, zone perdue ». C'est la loi la
@@ -79,5 +79,75 @@ export function signalHaptic(
 export function resultHaptic(kind: string): HapticKind | null {
   if (kind === 'captured') return 'success';
   if (kind === 'takenNoArea') return 'light';
+  return null;
+}
+
+// ══════════ LA VOIX — le seul canal qui atteint un téléphone en poche ═══════
+//
+// ─── POURQUOI ELLE EXISTE ───────────────────────────────────────────────────
+// L'haptique ci-dessus et la jauge à l'écran partagent le même angle mort :
+// elles supposent une main sur le téléphone ou un œil dessus. Or on court le
+// bras ballant, écran éteint, appareil au brassard ou dans une poche. La voix
+// est le seul canal qui traverse ça.
+//
+// ─── ET POURQUOI ELLE SE TAIT ───────────────────────────────────────────────
+// Exactement parce qu'elle traverse tout : ce qui atteint quelqu'un qui ne
+// regarde pas peut aussi le harceler. TROIS phrases par course, jamais un flux.
+// `runMetersLeft` n'est délibérément PAS de la partie : « 180 m restants » lu à
+// chaque relevé GPS serait la version sonore du supplice décrit en tête de
+// fichier, et un coureur qui court n'a pas à être commenté.
+
+/**
+ * Ce que la voix peut dire — des CLÉS du catalogue, jamais du texte (L18).
+ *
+ * Les trois moments, et c'est TOUT : le départ, la boucle devenue fermable, la
+ * boucle fermée.
+ */
+export type VoiceCue = 'voiceStart' | 'runLoopAlmost' | 'runLoopClosed';
+
+/** Les deux que la JAUGE peut dire — le départ n'est pas une transition. */
+export type GaugeVoiceCue = Exclude<VoiceCue, 'voiceStart'>;
+
+/**
+ * La phrase de DÉPART, ou rien. PURE.
+ *
+ * Une REPRISE ne s'annonce pas « C'est parti » : la course avait déjà commencé,
+ * parfois des kilomètres plus tôt. Le dire démentirait à voix haute ce que
+ * l'écran affirme au même instant (`runResumed`), et l'app ne se contredit pas
+ * d'un canal à l'autre.
+ */
+export function startVoice(reprise: boolean): Extract<VoiceCue, 'voiceStart'> | null {
+  return reprise ? null : 'voiceStart';
+}
+
+/**
+ * La phrase due au passage `avant` → `apres`, sachant ce qui a DÉJÀ été dit. PURE.
+ *
+ * ─── LA TRANSITION NE SUFFIT PAS ICI (contrairement à l'haptique) ───────────
+ * `gauge()` n'a AUCUNE hystérésis : `closed` et `almost` sortent tels quels du
+ * verdict (`gauge.ts`). À trois mètres du seuil, le bruit normal du GPS fait
+ * donc basculer l'état plusieurs fois en dix secondes. Une pulsation survit à
+ * ça — elle dure vingt millisecondes. Une voix, non : elle bégaierait
+ * « Boucle fermée / presque fermée / fermée » sur le dernier virage.
+ *
+ * D'où le troisième argument : chaque phrase est dite AU PLUS UNE FOIS par
+ * course. C'est la mémoire qui rend la règle tenable, pas la transition seule.
+ *
+ * ─── ET ON NE RÉTROGRADE JAMAIS À VOIX HAUTE ────────────────────────────────
+ * Après « Boucle fermée », « Boucle presque fermée » serait une correction
+ * dite dans l'oreille de quelqu'un qui vient d'entendre une bonne nouvelle —
+ * un reproche que L19 interdit. `missing` et `silent` ne parlent pas non plus :
+ * s'éloigner n'est pas un événement, et une voix qui annonce un problème
+ * pendant l'effort est une semonce.
+ */
+export function gaugeVoice(
+  avant: GaugePhase,
+  apres: GaugePhase,
+  dejaDit: GaugeVoiceCue | null,
+): GaugeVoiceCue | null {
+  // Un état stable ne parle pas : la jauge est recalculée à chaque point GPS.
+  if (avant === apres) return null;
+  if (apres === 'closed') return dejaDit === 'runLoopClosed' ? null : 'runLoopClosed';
+  if (apres === 'almost') return dejaDit === null ? 'runLoopAlmost' : null;
   return null;
 }

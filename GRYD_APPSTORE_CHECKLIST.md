@@ -68,7 +68,9 @@ public + vérifier l'unicité du nom dans App Store Connect.
 ### 1.2 Icône & splash
 
 - [ ] **Icône App Store 1024×1024**, sans alpha, sans coins arrondis appliqués.
-      Fond `#0A0B09`, marque chartreuse `#B4FF0D` — jamais de chartreuse sur clair.
+      Fond `colors.noir` = `#060907`, marque `colors.chartreuse` = `#C2FF23` (tokens de
+      `packages/shared/src/design-tokens.ts`) — jamais de chartreuse sur clair.
+      ⚠️ Les valeurs précédentes (`#0A0B09`, `#B4FF0D`) n'étaient PAS les tokens.
 - [ ] Assets `icon` / `ios.icon` présents dans `app.json` avant build.
 - [ ] Splash : fond `#0A0B09`, `resizeMode: contain`.
 
@@ -83,11 +85,17 @@ surfaces sont masquées par `flags.arsenal` / `flags.warRoom`
 
 Écrans capturables, parce qu'ils existent sans drapeau :
 
-1. **Carte** — territoire par rôle (chartreuse = moi, orange = rival, violet = contesté).
-2. **Course en cours** — trace GPS héros, objectif, progression.
-3. **Post-course** — « Course validée » + zones capturées.
-4. **Crew** — l'écran crew réel (roster, signaux).
-5. **Profil / Confidentialité** — export et suppression de compte visibles.
+⚠️ Liste réécrite le 02/09/2026 : la précédente citait un écran **Crew** qui ne
+rend plus (`(tabs)/_layout.tsx` redirige vers `/carte` avant tout onglet) et un
+« objectif » qui n'existe pas au MVP. Une capture d'un écran absent est une
+promesse 2.3.3 non tenue. Les six écrans capturables, parce qu'ils sont servis :
+
+1. **Onboarding** (`/position`) — la photo, la marque, une seule autorisation.
+2. **Carte** (`/carte`) — le territoire cadré, le chiffre héros, GO.
+3. **Préflight** (`/prete`) — le décompte et le signal.
+4. **Course** (`/course`) — chrono, distance, jauge, signal : quatre blocs, pas cinq.
+5. **Résultat** (`/resultat`) — la capture avec le gain qui se compte, ou le refus qui n'accuse pas.
+6. **Toi** (`/profil`) — suivi, export et suppression de compte visibles.
 
 - [ ] **iPhone 6,9"** — 1320×2868. **Obligatoire.**
 - [ ] iPhone 6,5" — 1284×2778 (si OS anciens ciblés).
@@ -105,22 +113,31 @@ surfaces sont masquées par `flags.arsenal` / `flags.warRoom`
 | **Sous-titre** | Conquiers ta ville en courant |
 | **Catégorie principale** | Health & Fitness |
 | **Catégorie secondaire** | Sports |
-| **Tagline** (texte promotionnel) | Cours pour ton crew. Conquiers ta ville. |
+| **Tagline** (texte promotionnel) | Cours. Ferme la boucle. Prends ta ville. ⚠️ « pour ton crew » retiré le 02/09/2026 : aucun crew au MVP |
 | **Mots-clés** | running, course à pied, territoire, conquête, crew, run club, GPS, carte, fitness, jeu, sport ⚠️ « Paris, Lille » retirés — voir la note sous la description |
 | **Description** | voir ci-dessous |
-| **URL de support** | **[FONDATEUR] bloqué par O10 — voir §7** |
-| **URL marketing** | **[FONDATEUR] bloqué par O10 — voir §7** |
-| **URL politique de confidentialité** | **[FONDATEUR] bloqué par O10 — voir §7** (champ **obligatoire**) |
-| **URL conditions (CGU)** | **[FONDATEUR] bloqué par O10 — voir §7** |
+| **URL de support** | **[VALEUR]** `https://skanebody.github.io/Gryd/mentions-legales/` — la page publie `hey@gryd.run` (canal ouvert le 09/08/2026, MX vérifié) |
+| **URL marketing** | **[VALEUR]** `https://skanebody.github.io/Gryd/` |
+| **URL politique de confidentialité** | **[VALEUR]** `https://skanebody.github.io/Gryd/confidentialite/` (champ **obligatoire**) — **[GATE] la version EN LIGNE date du 26/07** : redéployer (`bash scripts/deploy-web-ghpages.sh`, action publique → accord du fondateur) puis `curl -s <url> \| grep -c 'hey@gryd.run'` doit rendre ≥ 1 |
+| **URL conditions (CGU)** | **[VALEUR]** `https://skanebody.github.io/Gryd/conditions/` — même GATE de redéploiement |
 
 **[VALEUR] Description :**
 
-> Jeu de conquête de territoire par la course à pied. Cours dans ta ville pour
-> capturer des zones sur la carte, défends ton territoire avec ton crew, et
-> grimpe dans la ligue. GRYD transforme chaque sortie running en conquête : la
-> trace GPS de ta course dessine les zones que tu revendiques. Rejoins un run
-> club, coordonne les défenses, et fais grandir ton territoire — le territoire ne
-> s'achète jamais, il se court.
+> Cours, ferme une boucle, et l'intérieur est à toi. GRYD transforme chaque
+> sortie en conquête : ta trace GPS dessine sur la carte le territoire que tu
+> prends, mètre carré par mètre carré. Ta ville s'ouvre dès ta première course —
+> n'importe quelle commune de France. Ton territoire est public, ton tracé reste
+> privé. Tout est gratuit : le territoire ne s'achète jamais, il se court.
+
+**⚠️ Description RÉÉCRITE le 02/09/2026.** La précédente promettait « défends ton
+territoire avec ton crew », « grimpe dans la ligue », « rejoins un run club,
+coordonne les défenses » — trois fonctions ABSENTES du binaire (crews et ligue
+sont Phase 2, `flags.season` fermé). C'est le motif 2.3.1 exact que le [GATE]
+ci-dessous décrit, dans le même paragraphe. La nouvelle version ne nomme que ce
+que le build fait : la boucle, le territoire, l'ouverture par présence, la vie
+privée du tracé, la gratuité. « Ton tracé reste privé » est une promesse TENUE
+par le code (polygone public, polyline masquée, extrémités masquées) — et c'est
+le motif de désinstallation n°1 documenté chez Stride.
 
 **⚠️ « Saison 0 : Paris et Lille » RETIRÉ le 09/08/2026.** Le MASTER a remplacé
 ce lancement par **Rouen, beachhead unique** (§ « Lancement Paris + Lille →
@@ -412,6 +429,17 @@ Statuts au 26/07/2026, alignés sur `docs/APP_STORE_CONFORMITE.md`.
 ---
 
 ## 5. Anti-steering (3.1.1)
+
+**[GATE] Aucune clé RevenueCat dans les environnements de build — VÉRIFIÉ le 02/09/2026.**
+`eas env:list --environment preview` et `--environment production` (⚠️ sans
+`--non-interactive`, que cette sous-commande refuse) ne listent que
+`EXPO_PUBLIC_POSTHOG_HOST/KEY` et `EXPO_PUBLIC_SUPABASE_URL/ANON_KEY`. La clé
+`test_C…` relevée par l'audit du 02/09 n'existe QUE dans le `.env` local
+(gitignoré) : aucun build n'a jamais embarqué de clé d'achat. Double filet côté
+code depuis le 09/08 : `purchaseCapability()` EXIGE le préfixe de production
+(`appl_`/`goog_`) — une clé de test ne rend plus jamais un écran d'achat vivant.
+À rejouer avant chaque soumission : la commande ci-dessus, puis vérifier que
+`REVENUECAT` n'apparaît pas.
 
 **Question :** un écran mobile renvoie-t-il vers un paiement WEB externe pour un
 bien numérique ?

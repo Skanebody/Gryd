@@ -46,8 +46,15 @@ import * as Location from 'expo-location';
 import { colors, fonts, fontSizes, motion, radii, spacing } from '@klaim/shared';
 import { gpsGrade, type GpsGrade } from '../../src/mvp/run/countdown';
 import { gauge } from '../../src/mvp/run/gauge';
-import { gaugeHaptic, signalHaptic } from '../../src/mvp/run/feedback';
+import {
+  gaugeHaptic,
+  gaugeVoice,
+  signalHaptic,
+  startVoice,
+  type GaugeVoiceCue,
+} from '../../src/mvp/run/feedback';
 import { haptics } from '../../src/lib/haptics';
+import { say, stopSpeaking } from '../../src/mvp/run/voice';
 import { formatChrono, formatKm, mergeFixes, traceDistanceM, type TracePoint } from '../../src/mvp/run/trace';
 import {
   requestBackgroundPermission,
@@ -134,6 +141,10 @@ export default function Course() {
 
   useEffect(() => {
     screen('run_live');
+    // La voix ne SURVIT pas à l'écran. Une phrase encore en cours au moment où
+    // « TERMINER » nous envoie au résultat continuerait de décrire une course
+    // déjà finie, par-dessus l'écran qui annonce son issue.
+    return () => stopSpeaking();
   }, []);
 
   // REPRISE — avant tout enregistrement. Une course trouvée sur le disque est
@@ -142,7 +153,22 @@ export default function Course() {
     let vivant = true;
     loadActiveRun()
       .then((stored) => {
-        if (!vivant || stored === null || stored.fixes.length === 0) return;
+        if (!vivant) return;
+        const reprend = stored !== null && stored.fixes.length > 0;
+        /**
+         * ⚠️ LA VOIX DE DÉPART ATTEND CE `then`, ET C'EST TOUT L'INTÉRÊT.
+         *
+         * `reprise` est un état posé APRÈS la lecture du disque : au montage il
+         * vaut encore `false`. Parler « C'est parti » au montage dirait donc
+         * systématiquement le contraire de ce que l'écran affiche une poignée de
+         * millisecondes plus tard (`runResumed`). On ne parle qu'une fois qu'on
+         * SAIT — et si la lecture échoue (`catch` plus bas), on se tait : ne
+         * rien dire est une lacune, dire un départ qui n'en est pas un est un
+         * mensonge.
+         */
+        const depart = startVoice(reprend);
+        if (depart !== null) say(C[depart]);
+        if (!reprend) return;
         runIdRef.current = stored.runId;
         debutRef.current = stored.startedAt;
         // ⚠️ AVANT le premier tick : l'écart entre le dernier relevé écrit et
@@ -485,14 +511,38 @@ export default function Course() {
   // l'autre ferait promettre une boucle que le moteur refuserait.
   const jauge = useMemo(() => gauge(points), [points]);
 
-  // L6 — l'haptique se déclenche sur une TRANSITION, jamais sur un état : la
-  // jauge est recalculée à chaque point GPS, et vibrer sur son état ferait
-  // trembler le téléphone en continu. `feedback.ts` (pur, testé) décide.
+  /**
+   * L6 — l'haptique se déclenche sur une TRANSITION, jamais sur un état : la
+   * jauge est recalculée à chaque point GPS, et vibrer sur son état ferait
+   * trembler le téléphone en continu. `feedback.ts` (pur, testé) décide.
+   *
+   * ⚠️ LA VIBRATION ET LA VOIX PARTAGENT CE SEUL EFFET, et ce n'est pas une
+   * économie de lignes : `jaugePrecRef` est ÉCRASÉE ici. Un second effet sur
+   * `jauge.kind` lirait donc une valeur déjà écrasée par le premier et croirait
+   * qu'aucune transition n'a eu lieu — la voix serait muette pour toute la
+   * course, sans qu'aucun test d'écran ne puisse le voir. Les deux canaux
+   * lisent le MÊME `avant`.
+   *
+   * La voix ne suit pas exactement la vibration : elle garde en plus ce qu'elle
+   * a DÉJÀ dit (`voixDiteRef`), parce que la jauge n'a pas d'hystérésis et
+   * qu'une phrase répétée à chaque tremblement du GPS serait insupportable là
+   * où une pulsation passe inaperçue. Cette règle-là est testée dans
+   * `feedback.test.ts` ; ici on ne fait que la porter.
+   */
   const jaugePrecRef = useRef<typeof jauge.kind>('silent');
+  const voixDiteRef = useRef<GaugeVoiceCue | null>(null);
   useEffect(() => {
-    const quoi = gaugeHaptic(jaugePrecRef.current, jauge.kind);
+    const avant = jaugePrecRef.current;
     jaugePrecRef.current = jauge.kind;
+
+    const quoi = gaugeHaptic(avant, jauge.kind);
     if (quoi !== null) haptics[quoi]();
+
+    const phrase = gaugeVoice(avant, jauge.kind, voixDiteRef.current);
+    if (phrase !== null) {
+      voixDiteRef.current = phrase;
+      say(C[phrase]);
+    }
   }, [jauge.kind]);
 
   const gradePrecRef = useRef<GpsGrade>('searching');

@@ -97,6 +97,7 @@ export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
   // et `expo-symbols` rend de vraies SF Symbols côté iOS. Le test des licences
   // a refusé le build tant qu'elle n'était pas créditée — c'est son travail.
   'expo-symbols': 'MIT',
+  'expo-speech': 'MIT',
   'expo-status-bar': 'MIT',
   'expo-task-manager': 'MIT',
   'expo-web-browser': 'MIT',
