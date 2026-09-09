@@ -87,6 +87,7 @@ export function RunPreflight({ preflight, requestedActivity }: { preflight: Pref
   }, [count, shared, activity, choice.ready, choice.saving, ownerKey]);
   const cancel = () => { setCount(null); preflight.cancel(); router.back(); };
   const begin = async () => { if (await choice.save(shared)) setCount(3); };
+  const autoPause = preflight.autoPause.value(activity);
   const sport = activity === 'run' ? (fr ? 'Course' : 'Run') : (fr ? 'Vélo' : 'Ride');
   const otherSport = activity === 'run' ? (fr ? 'Vélo' : 'Ride') : (fr ? 'Course' : 'Run');
   const audience = shared ? (fr ? 'Terrain partagé' : 'Shared terrain') : (fr ? 'Sortie privée' : 'Private activity');
@@ -127,6 +128,20 @@ export function RunPreflight({ preflight, requestedActivity }: { preflight: Pref
             le joueur l'apprenait après avoir déjà perdu des points, sur un
             écran où il court. Une fois, ici, avec le refus offert au même
             endroit — un refus est une réponse, pas un report. */}
+        {/* §8.2 — LA PAUSE AUTOMATIQUE SE RÈGLE ICI, PAS EN COURANT.
+            Elle était appliquée aux deux disciplines sans réglage : un coureur
+            voyait son chrono se figer au feu rouge sans l'avoir demandé. Rien
+            n'est affiché tant que la préférence n'est pas lue — un interrupteur
+            posé sur une valeur supposée serait un réglage inventé. */}
+        {autoPause !== null && <View style={s.privacy}>
+          <View style={s.audienceTitle}><GrydIcon name="pause" size={18} color={c.surface} /><Text style={s.label}>{fr ? 'Pause automatique' : 'Auto-pause'}</Text></View>
+          <Switch accessibilityLabel={fr ? 'Mettre le chrono en pause aux arrêts' : 'Pause the clock when you stop'} value={autoPause}
+            onValueChange={value => preflight.autoPause.set(activity, value)}
+            trackColor={{ true: c.accent, false: c.darkSurfaceMuted }} thumbColor={autoPause ? c.carbon : c.surface} ios_backgroundColor={c.darkSurfaceMuted} />
+        </View>}
+        {autoPause !== null && <Text style={s.small}>{autoPause
+          ? (fr ? 'Le chrono se fige quand tu t’arrêtes. Le temps affiché est ton temps en mouvement.' : 'The clock freezes when you stop. The time shown is your moving time.')
+          : (fr ? 'Le chrono tourne du départ à l’arrivée, arrêts compris.' : 'The clock runs from start to finish, stops included.')}</Text>}
         {preflight.background?.offer && <View style={s.backgroundOffer}>
           <Text style={s.label}>{fr ? 'Enregistrer écran verrouillé' : 'Record with the screen locked'}</Text>
           <Text style={s.small}>{fr ? 'Sans cette autorisation, GRYD n’enregistre que lorsque l’app est ouverte. Tu peux la donner maintenant ou t’en passer.' : 'Without this permission GRYD only records while the app is open. You can grant it now or do without.'}</Text>

@@ -17,7 +17,7 @@ import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.t
 import { activityRules } from '@klaim/shared';
 import type { RawFix } from './engine/gps.ts';
 import { haversineM } from './engine/validation.ts';
-import { buildIngestPayload, computeSnapshot, type RunPipelineState } from './runPipeline.ts';
+import { autoPauseDefault2026, buildIngestPayload, computeSnapshot, type RunPipelineState } from './runPipeline.ts';
 
 /** Mètres par degré de latitude (projection locale) — pas une règle de jeu. */
 const M_PER_DEG_LAT = 111_195;
@@ -221,4 +221,39 @@ Deno.test('temps mort : une valeur absurde n’allonge jamais le chrono', () => 
     assert(snap.activeS <= sane, `deadMs ${deadMs} ne doit pas rallonger le chrono`);
     assert(snap.activeS >= 0, 'le chrono ne devient jamais négatif');
   }
+});
+
+/**
+ * ─── ÉTAPE 0 (recette R2C, constat 11) ─────────────────────────────────────
+ * La pause automatique figeait le chrono pour les DEUX disciplines, sans
+ * réglage. Le cahier §8.2 la veut « désactivée par défaut » à pied : un coureur
+ * voyait son temps s'arrêter au feu rouge sans l'avoir demandé, et son chrono
+ * cessait d'être celui de sa montre.
+ */
+Deno.test('pause automatique : le défaut suit le cahier §8.2, discipline par discipline', () => {
+  assertEquals(autoPauseDefault2026('run'), false);
+  assertEquals(autoPauseDefault2026('bike'), true);
+});
+
+Deno.test('pause automatique : désactivée, le chrono compte le temps écoulé', () => {
+  // Une trace qui s'arrête franchement au milieu : 60 s de course, 120 s
+  // d'arrêt sur place, puis plus rien.
+  const moving = straightLine(60, 10);
+  const stopped: RawFix[] = Array.from({ length: 120 }, (_, i) => ({
+    lat: moving[59]!.lat, lng: moving[59]!.lng, ts: T0 + 60_000 + i * 1_000, accuracy: 6,
+  }));
+  const fixes = [...moving, ...stopped];
+  const now = T0 + 180_000;
+  const withPause = computeSnapshot({ ...stateOf(fixes, 'run'), autoPause: true }, now).activeS;
+  const without = computeSnapshot({ ...stateOf(fixes, 'run'), autoPause: false }, now).activeS;
+  assert(without > withPause, 'sans pause automatique, le temps à l’arrêt reste compté');
+  assertEquals(Math.round(without), 180, 'le temps écoulé est celui de la montre');
+});
+
+Deno.test('pause automatique : elle ne touche QUE le temps, jamais la distance', () => {
+  const fixes = straightLine(120, 10);
+  const now = T0 + 120_000;
+  const on = computeSnapshot({ ...stateOf(fixes, 'run'), autoPause: true }, now);
+  const off = computeSnapshot({ ...stateOf(fixes, 'run'), autoPause: false }, now);
+  assertEquals(off.distanceM, on.distanceM, 'la dérive à l’arrêt reste filtrée dans les deux cas');
 });

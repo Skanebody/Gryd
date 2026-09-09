@@ -84,6 +84,7 @@ import {
 } from '../../src/features/motivation/labels';
 import { C } from '../../src/i18n/catalog/motivation';
 import { useT } from '../../src/i18n/store';
+import { useSession } from '../../src/lib/session';
 
 /** Icône de tête par type. Seul `solo` est servi aujourd'hui (cf. en-tête). */
 const TYPE_ICON = { solo: 'aujourdhui', crew: 'crew', rivalry: 'cible' } as const;
@@ -154,6 +155,10 @@ function Row({ c }: { c: ChallengeCard }) {
  */
 function EmptyState({ reason }: { reason: Exclude<ChallengesEmptyReason, 'none'> }) {
   const t = useT();
+  // `configured` = un backend existe. Sans lui, `/sign-in` renvoie à la carte :
+  // proposer « Se connecter » serait un bouton mort. Même garde que
+  // `historique.tsx` et `activite.tsx`, qui la portaient déjà.
+  const { configured } = useSession();
   const signedOut = reason === 'signedOut';
   const noneActive = reason === 'noneActive';
   const title = noneActive
@@ -170,7 +175,7 @@ function EmptyState({ reason }: { reason: Exclude<ChallengesEmptyReason, 'none'>
     <Card style={styles.stateCard}>
       <Text style={styles.stateTitle}>{t(title)}</Text>
       <Text style={styles.stateBody}>{t(body)}</Text>
-      {signedOut ? (
+      {signedOut && configured ? (
         <View style={styles.stateAction}>
           <Button
             variant="ghost"

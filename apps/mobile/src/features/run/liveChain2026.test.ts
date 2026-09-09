@@ -373,3 +373,49 @@ Deno.test('course : la fermeture se dit et se sent, sur la transition et une seu
   assert(core.includes('stopSpeaking()'), 'plus un mot au démontage de la sortie');
   assert(!/say\(\s*['"`]/.test(core), 'aucune phrase en dur : la voix parle le catalogue (L18)');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 11 — PAUSE AUTOMATIQUE, PROMESSE SANS COMPTE, PORTES /sign-in
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `computeSnapshot` retranchait toujours les pauses automatiques, pour
+ * les deux disciplines. Le cahier §8.2 la veut « désactivée par défaut, réglage
+ * personnel » en course, et seulement « proposée » à vélo : un coureur voyait
+ * donc son chrono se figer aux feux sans l'avoir demandé, et sans pouvoir le
+ * refuser.
+ */
+Deno.test('sortie : la pause automatique suit le cahier, et se règle', () => {
+  const pipeline = code('./gps/runPipeline.ts');
+  assert(pipeline.includes('export function autoPauseDefault2026'), 'le défaut par discipline est nommé et testé');
+  assert(pipeline.includes('autoPause ? autoPauseMs : 0'), 'désactivée, elle ne fige plus le chrono');
+  const preflight = code('./gps/RunPreflight.tsx');
+  assert(preflight.includes('autoPause'), 'le réglage se pose avant la sortie, pas en courant');
+});
+
+/**
+ * ÉTAPE 0 : « Ta première sortie peut se faire sans compte. » laissait croire à
+ * une limite d'essai — alors que la vraie règle est ailleurs : sans compte, RIEN
+ * n'est capturé, jamais, et tout reste sur l'appareil.
+ */
+Deno.test('carte : sans compte, la phrase dit la vraie règle', () => {
+  const map = code('../refonte/MapHome.tsx');
+  assert(!map.includes('première sortie peut se faire sans compte'), 'la fausse limite d’essai disparaît');
+  assert(map.includes('ne prennent aucun terrain'), 'la vraie règle est dite');
+});
+
+/**
+ * ÉTAPE 0 : sans backend, `/sign-in` redirige sur `/` — un bouton mort.
+ * `historique`, `activite` et le détail d'activité gardaient déjà leur porte
+ * par `configured` ; la carte et les défis, non.
+ */
+Deno.test('portes : aucune invitation à se connecter sans backend pour l’honorer', () => {
+  for (const path of ['../refonte/MapHome.tsx', '../refonte/RunResult.tsx']) {
+    const screen = code(path);
+    const at = screen.indexOf("router.push('/sign-in')");
+    assert(at > 0, `${path} : la porte doit exister`);
+    assert(screen.slice(0, at).includes('configured'), `${path} : et être gardée par \`configured\``);
+  }
+  const challenges = code('../../../app/challenges/index.tsx');
+  assert(challenges.includes('configured'), 'les défis aussi');
+});

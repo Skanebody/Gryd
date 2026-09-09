@@ -135,6 +135,17 @@ export interface PreflightApi {
    */
   background: { offer: boolean; allow: () => void; decline: () => void } | null;
   /**
+   * PAUSE AUTOMATIQUE, réglée AVANT la sortie (cahier §8.2 : « désactivée par
+   * défaut, réglage personnel » à pied ; « proposée » à vélo). Une préférence
+   * PAR DISCIPLINE : les deux mondes n'ont ni le même besoin ni le même défaut.
+   * `value` rend `null` tant que le stockage n'a pas répondu — on n'affiche
+   * alors aucun état plutôt qu'un état supposé.
+   */
+  autoPause: {
+    value: (activity: Activity) => boolean | null;
+    set: (activity: Activity, value: boolean) => void;
+  };
+  /**
    * Démarre la course RÉELLE (tracker + capteurs). Appelé À LA FIN du compte à
    * rebours uniquement. Idempotent (jamais deux trackers).
    *

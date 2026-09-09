@@ -59,6 +59,18 @@ import { sampleEvenly, splitAndSampleAtGaps } from './traceSample';
 const MS_PER_S = 1_000;
 
 /**
+ * LE DÉFAUT DE PAUSE AUTOMATIQUE, PAR DISCIPLINE (cahier §8.2).
+ *
+ * « Course à pied : désactivée par défaut, réglage personnel. Vélo : proposée
+ * pour arrêts, sans combler les trous GPS. » Ce n'est pas une règle de jeu (elle
+ * ne décide ni capture, ni point, ni distance — seulement quel temps s'affiche),
+ * elle ne vit donc pas dans `game-rules.ts`. Elle est PURE et testée ici.
+ */
+export function autoPauseDefault2026(activity: Activity): boolean {
+  return activity === 'bike';
+}
+
+/**
  * Une durée relue du disque (ou d'une horloge système) est-elle MESURABLE ?
  * `0` sinon — on ne retranche jamais ce qu'on ne sait pas mesurer, et une valeur
  * négative ALLONGERAIT le chrono au lieu de le corriger.
@@ -211,6 +223,20 @@ export interface RunPipelineState {
    * Les fondre ferait lire une pause volontaire là où il y a eu un crash.
    */
   readonly deadMs?: number;
+  /**
+   * PAUSE AUTOMATIQUE — fige-t-elle le chrono aux arrêts ?
+   *
+   * Cahier §8.2 : « désactivée par défaut, réglage personnel » à pied,
+   * « proposée pour arrêts » à vélo. Elle était appliquée à TOUT LE MONDE, sans
+   * réglage : un coureur voyait son chrono s'arrêter au feu rouge sans l'avoir
+   * demandé, et son « temps » n'était plus celui de sa montre.
+   *
+   * Elle ne touche QUE le temps. Le filtrage de la dérive GPS à l'arrêt, lui,
+   * reste toujours actif : ce n'est pas une préférence, c'est une correction du
+   * bruit du capteur (sans elle, cinq minutes à l'arrêt ajouteraient des mètres
+   * que personne n'a courus). Absente ⇒ le défaut de la discipline.
+   */
+  readonly autoPause?: boolean;
   /** Instant de début de la pause manuelle EN COURS, `null` si aucune. */
   readonly userPausedSinceTs: number | null;
   /** La course est clôturée (le tracker n'accepte plus rien). */
@@ -262,10 +288,11 @@ export function computeSnapshot(state: RunPipelineState, nowTs: number): Tracker
     state.userPausedMs +
     (state.userPausedSinceTs !== null ? Math.max(0, nowTs - state.userPausedSinceTs) : 0);
   const autoPauseMs = pauses.reduce((s, p) => s + p.durationS * MS_PER_S, 0);
+  const autoPause = state.autoPause ?? autoPauseDefault2026(state.activity);
   // Le temps où l'app ne tournait pas ne se court pas (voir `deadMs`).
   const activeS = Math.max(
     0,
-    (nowTs - state.startedAt - userPauseMs - autoPauseMs - measurableMs(state.deadMs)) / MS_PER_S,
+    (nowTs - state.startedAt - userPauseMs - (autoPause ? autoPauseMs : 0) - measurableMs(state.deadMs)) / MS_PER_S,
   );
 
   // Pause auto EN COURS : le dernier intervalle détecté court jusqu'au
@@ -273,6 +300,7 @@ export function computeSnapshot(state: RunPipelineState, nowTs: number): Tracker
   const lastKept = smoothed[smoothed.length - 1];
   const lastPause = pauses[pauses.length - 1];
   const autoPausedNow =
+    autoPause &&
     lastKept !== undefined && lastPause !== undefined && lastPause.endTs >= lastKept.ts &&
     signal !== 'lost';
 

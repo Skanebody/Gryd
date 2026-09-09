@@ -65,6 +65,7 @@ import { RunTracker, type TrackerSnapshot } from './tracker';
 import { saveLocalActivity2026, type LocalActivity2026 } from '../../refonte/localActivities';
 import { canResumeInterrupted } from './runActivity';
 import { backgroundOfferSeen, markBackgroundOfferSeen } from './backgroundOffer';
+import { loadAutoPause2026, saveAutoPause2026 } from './autoPausePref';
 import { gaugePhaseFromClosure2026, VOICE_LINE_2026 } from './liveVoice';
 import { loopClosurePhase } from './engine/loopClosure';
 import { gaugeHaptic, gaugeVoice, signalHaptic, startVoice, type GaugePhase, type GaugeVoiceCue } from '../../../mvp/run/feedback';
@@ -144,6 +145,16 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
   const gaugePhaseRef = useRef<GaugePhase>('silent');
   const gaugeSaidRef = useRef<GaugeVoiceCue | null>(null);
   const signalRef = useRef<'searching' | 'weak' | 'good'>('searching');
+  /**
+   * Préférence de PAUSE AUTOMATIQUE par discipline (cahier §8.2), chargée à
+   * l'amorce pour les DEUX mondes : le préflight laisse corriger la discipline
+   * jusqu'au dernier moment, et `confirmStart` doit rester synchrone jusqu'à sa
+   * garde anti-double-tracker — il ne peut donc rien aller lire au moment du GO.
+   */
+  const autoPauseRef = useRef<Record<Activity, boolean> | null>(null);
+  // La VALEUR vit dans le ref (lisible synchroniquement au GO) ; ce compteur ne
+  // sert qu'à redemander un rendu quand elle arrive ou change.
+  const [, bumpAutoPause] = useState(0);
 
   const [kind, setKind] = useState<'starting' | 'preflight' | 'unavailable' | 'real'>('starting');
   const [reason, setReason] = useState<RunUnavailableReason>('position-unavailable');
@@ -423,6 +434,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       // joueur l'apprenait après avoir déjà perdu des points, sur un écran où
       // il court. On la pose une fois, à l'amorce, quand elle est utile — et
       // jamais à froid : il y a une sortie qui commence derrière.
+      const [runAutoPause, bikeAutoPause] = await Promise.all([loadAutoPause2026('run'), loadAutoPause2026('bike')]);
+      if (!alive) return;
+      autoPauseRef.current = { run: runAutoPause, bike: bikeAutoPause };
+      bumpAutoPause(n => n + 1);
       const bg = adapter.background;
       if (bg !== null) {
         bgGrantedRef.current = await bg.checkGranted();
@@ -802,6 +817,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       startedAt: Date.now(),
       recordingOwnerId,
       sharedMapParticipation,
+      // Préférence DE CETTE DISCIPLINE, lue à l'amorce (cahier §8.2). `undefined`
+      // si le stockage n'a pas répondu : le pipeline applique alors le défaut du
+      // cahier, jamais une valeur au hasard.
+      autoPause: autoPauseRef.current?.[activity],
     });
     trackerRef.current = tracker;
     // This anchor is optional for recording. Offline starts stay in the journal
@@ -873,6 +892,16 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         // jamais une permission introuvable.
         background: adapter.background === null ? null
           : { offer: bgOfferAtStart, allow: offerBackgroundAtStart, decline: declineBackgroundAtStart },
+        // §8.2 — la pause automatique se règle AVANT la sortie, par discipline.
+        autoPause: {
+          value: (forActivity: Activity) => autoPauseRef.current?.[forActivity] ?? null,
+          set: (forActivity: Activity, value: boolean) => {
+            if (autoPauseRef.current === null) return;
+            autoPauseRef.current = { ...autoPauseRef.current, [forActivity]: value };
+            bumpAutoPause(n => n + 1);
+            void saveAutoPause2026(forActivity, value);
+          },
+        },
         confirmStart,
         cancel,
       },

@@ -75,6 +75,11 @@ export interface TrackerInit {
   deadMs?: number;
   /** Reprise/fusion : pas déjà comptés par le tracker précédent. */
   initialSteps?: number;
+  /**
+   * Pause automatique du CHRONO (cahier §8.2) — préférence du joueur pour
+   * CETTE discipline, lue au départ. Absente ⇒ le défaut de la discipline.
+   */
+  autoPause?: boolean;
 }
 
 export class RunTracker {
@@ -96,6 +101,8 @@ export class RunTracker {
   private userPausedMsTotal: number;
   /** Temps mort cumulé (ms) — hérité d'une reprise, jamais fabriqué ici. */
   private deadMsTotal: number;
+  /** Préférence de pause automatique, figée au départ comme la discipline. */
+  readonly autoPause: boolean | undefined;
   /** Pas hérités d'un tracker précédent (reprise/fusion). */
   private stepBase: number;
   /** Pas comptés par L'ABONNEMENT courant (cumulés depuis watchStepCount). */
@@ -115,6 +122,7 @@ export class RunTracker {
     this.fixes = [...(init.initialFixes ?? [])];
     this.userPausedMsTotal = init.userPausedMs ?? 0;
     this.deadMsTotal = init.deadMs ?? 0;
+    this.autoPause = init.autoPause;
     this.stepBase = init.initialSteps ?? 0;
   }
 
@@ -216,6 +224,7 @@ export class RunTracker {
       startedAt: this.startedAt,
       userPausedMs: this.userPausedMsTotal,
       deadMs: this.deadMsTotal,
+      autoPause: this.autoPause,
       userPausedSinceTs: this.userPaused ? this.userPauseStartedTs : null,
       finished: this.finished,
     };

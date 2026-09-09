@@ -53,7 +53,7 @@ export default function MapHome() {
    */
   const mapReady = realMapAvailable();
   const motion = useControlMotion2026();
-  const { session } = useSession();
+  const { session, configured } = useSession();
   const { gate } = useRunSession();
   const choice = useRecordingChoice2026();
   const [roleFilters, setRoleFilters] = useState<Record<TerritoryRole2026, boolean>>({ mine: true, crew: true, others: true });
@@ -251,7 +251,13 @@ export default function MapHome() {
           <View style={s.titleRow}><Text style={s.sheetTitle}>{sheet === 'layers' ? text('Couches', 'Layers') : text('Terrains', 'Terrains')}</Text><Pressable style={s.close} onPress={() => setSheet(null)} accessibilityRole="button" accessibilityLabel={text('Fermer', 'Close')}><GrydIcon name="close" size={19} /></Pressable></View>
           <ScrollView>
             {sheet === 'layers' ? <>
-              {ownership.signedOut ? <Pressable accessibilityRole="button" onPress={() => { setSheet(null); router.push('/sign-in'); }} style={s.optionRow}><View style={{flex:1,gap:4}}><Text style={s.optionText}>{text('Retrouver mes terrains', 'Find my territories')}</Text><Text style={s.sheetStatus}>{text('Ta première sortie peut se faire sans compte.', 'You can record your first activity without an account.')}</Text></View><GrydIcon name="chevronRight" size={18} /></Pressable> : ownership.loading ? <Text style={s.sheetNote}>{text('Chargement des terrains…', 'Loading territories…')}</Text> : !ownership.failed && ownership.features.length === 0 ? <Text style={s.sheetNote}>{text('Aucun terrain partagé dans cette vue.', 'No shared terrain in this view.')}</Text> : null}
+              {/* Sans compte, la règle n'est pas « une sortie d'essai » : c'est
+                  que RIEN n'est capturé, jamais. « Ta première sortie peut se
+                  faire sans compte » laissait croire à une limite d'essai — et
+                  cachait la seule chose qui compte ici. La porte n'existe que
+                  si un backend peut l'honorer (sans lui, /sign-in renvoie à la
+                  carte : un bouton mort). */}
+              {ownership.signedOut ? (configured ? <Pressable accessibilityRole="button" onPress={() => { setSheet(null); router.push('/sign-in'); }} style={s.optionRow}><View style={{flex:1,gap:4}}><Text style={s.optionText}>{text('Retrouver mes terrains', 'Find my territories')}</Text><Text style={s.sheetStatus}>{text('Sans compte, tes sorties restent sur cet appareil et ne prennent aucun terrain.', 'Without an account your outings stay on this device and take no terrain.')}</Text></View><GrydIcon name="chevronRight" size={18} /></Pressable> : <Text style={s.sheetNote}>{text('Sans compte, tes sorties restent sur cet appareil et ne prennent aucun terrain.', 'Without an account your outings stay on this device and take no terrain.')}</Text>) : ownership.loading ? <Text style={s.sheetNote}>{text('Chargement des terrains…', 'Loading territories…')}</Text> : !ownership.failed && ownership.features.length === 0 ? <Text style={s.sheetNote}>{text('Aucun terrain partagé dans cette vue.', 'No shared terrain in this view.')}</Text> : null}
               {!mapReady && <Text style={s.sheetNote}>{text('Le fond de carte n’est pas disponible sur cette version de l’app. Les terrains et les tracés restent affichés, sans fond.', 'The map background is unavailable on this build. Terrain and routes are still drawn, without a base map.')}</Text>}
               {mapReady && <View style={s.basemaps}>{(['color', 'dark', 'satellite'] as const).map((key, i) => <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: basemap === key }} aria-checked={basemap === key} onPress={() => setBasemap(key)} style={[s.basemap, basemap === key && s.basemapSelected]}>
                 <View style={[s.swatch, { backgroundColor: key === 'dark' ? c.carbon : key === 'satellite' ? c.rival : c.surfaceMuted }]}><GrydIcon name="map" size={32} color={key === 'color' ? c.ink : c.darkInk} /></View>
@@ -267,6 +273,12 @@ export default function MapHome() {
               {choice.failed ? <Pressable accessibilityRole="button" style={s.optionRow} onPress={() => void choice.reload()}><Text style={s.optionText}>{text('Charger le choix de confidentialité · Réessayer', 'Load privacy choice · Retry')}</Text></Pressable> : choice.saveFailed ? <Text accessibilityRole="alert" style={s.sheetNote}>{text('Choix non enregistré. Réessaie.', 'Choice not saved. Try again.')}</Text> : null}
               <View style={s.optionRow}><Text style={s.optionText}>{text('Atténuer les autres terrains', 'Soften other terrains')}</Text><Switch accessibilityLabel={text('Atténuer les autres terrains', 'Soften other terrains')} value={attenuate} onValueChange={setAttenuate} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} ios_backgroundColor={c.border} /></View>
               <Pressable style={s.optionRow} onPress={() => setSheet('list')} accessibilityRole="button"><Text style={s.optionText}>{text('Terrains visibles', 'Visible terrains')}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
+              {/* ADR-013 §2.1 — la SEULE porte du classement de commune. Elle vit
+                  dans la feuille (toujours atteignable en un geste) et non dans le
+                  panneau de zone, qui n'existe que si un terrain est sélectionné :
+                  la porte disparaîtrait exactement quand la commune est vide, or
+                  c'est là que l'écran a le plus à dire (« Premier ici »). */}
+              <Pressable style={s.optionRow} onPress={() => { setSheet(null); router.push('/classement-commune'); }} accessibilityRole="button"><Text style={s.optionText}>{text('Ta commune, cette semaine', 'Your town, this week')}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
               <Pressable style={s.optionRow} onPress={() => { setSheet(null); router.push('/calcul-zones'); }} accessibilityRole="button"><Text style={s.optionText}>{text('Comprendre les boucles', 'How loops work')}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
             </> : ownership.loading ? <Text style={s.sheetNote}>{text('Chargement des terrains…', 'Loading terrains…')}</Text> : ownership.failed ? <Pressable style={s.optionRow} onPress={ownership.reload}><Text style={s.optionText}>{text('Réessayer', 'Try again')}</Text></Pressable> : ownership.features.length === 0 ? <Text style={s.sheetNote}>{ownership.signedOut ? text('Connecte-toi pour voir les terrains partagés.', 'Sign in to see shared terrains.') : text('Aucun terrain partagé dans cette zone.', 'No shared terrain in this area.')}</Text> : visibleFeatures.map(f => <Pressable key={f.properties.id} style={s.optionRow} onPress={() => { setSelectedId(f.properties.id); setSheet(null); }} accessibilityRole="button"><Text style={s.optionText}>{territoryOwnerLabel2026(f, fr)}</Text><Text style={s.optionText}>{area(f.properties.areaM2)} km²</Text></Pressable>)}
           </ScrollView>
