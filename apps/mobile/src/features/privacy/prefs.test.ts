@@ -57,21 +57,18 @@ Deno.test('LES RÉGLAGES SUPPRIMÉS NE SURVIVENT PAS À UNE RELECTURE', () => {
     whoSeesStatus: 'nobody',
   });
   const prefs = parsePrivacyPrefs(legacy);
-  assertEquals(Object.keys(prefs).sort(), ['maskEndpoints', 'profileVisibility']);
-  // Les deux réglages qui AGISSENT, eux, sont relus fidèlement.
-  assertEquals(prefs.profileVisibility, 'crew');
+  assertEquals(Object.keys(prefs).sort(), ['maskEndpoints']);
+  // Le seul réglage qui AGIT ici, lui, est relu fidèlement.
   assertEquals(prefs.maskEndpoints, false);
 });
 
-Deno.test('visibilité inconnue → défaut, jamais la valeur brute', () => {
-  assertEquals(
-    parsePrivacyPrefs('{"profileVisibility":"followers"}').profileVisibility,
-    DEFAULT_PRIVACY.profileVisibility,
-  );
-  assertEquals(
-    parsePrivacyPrefs('{"profileVisibility":7}').profileVisibility,
-    DEFAULT_PRIVACY.profileVisibility,
-  );
+Deno.test('`profileVisibility` ne revient pas par le stockage : il est SERVEUR', () => {
+  // 10/09/2026 — la visibilité du profil est écrite dans `user_profiles` par la
+  // RPC 0135 et lue par 0126. Si une relecture la ré-injectait ici, le
+  // téléphone porterait de nouveau une valeur concurrente de celle du serveur.
+  const prefs = parsePrivacyPrefs('{"profileVisibility":"crew","maskEndpoints":false}');
+  assertEquals('profileVisibility' in prefs, false);
+  assertEquals('profileVisibility' in DEFAULT_PRIVACY, false);
 });
 
 Deno.test('maskEndpoints d’un autre type ne peut pas OUVRIR le plancher', () => {
@@ -85,14 +82,14 @@ Deno.test('maskEndpoints d’un autre type ne peut pas OUVRIR le plancher', () =
 });
 
 Deno.test('applyPatch ne crée aucune clé et n’en perd aucune', () => {
-  const base: PrivacyPrefs = { profileVisibility: 'private', maskEndpoints: true };
+  const base: PrivacyPrefs = { maskEndpoints: true };
   const next = applyPatch(base, { maskEndpoints: false });
-  assertEquals(next, { profileVisibility: 'private', maskEndpoints: false });
+  assertEquals(next, { maskEndpoints: false });
   // L'état d'origine n'est pas muté (la persistance dérive du RÉSULTAT).
   assertEquals(base.maskEndpoints, true);
 });
 
 Deno.test('un aller-retour sérialisation → lecture est stable', () => {
-  const prefs: PrivacyPrefs = { profileVisibility: 'friends', maskEndpoints: false };
+  const prefs: PrivacyPrefs = { maskEndpoints: false };
   assertEquals(parsePrivacyPrefs(JSON.stringify(prefs)), prefs);
 });

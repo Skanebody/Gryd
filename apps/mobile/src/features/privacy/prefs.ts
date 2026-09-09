@@ -23,34 +23,23 @@
  *  · `maskEndpoints` — RÉELLEMENT consommé (`app/partage.tsx` masque les
  *    extrémités de la trace partagée). C'est le seul réglage de cette page qui
  *    change quelque chose aujourd'hui.
- *  · `profileVisibility` — consommé en LECTURE par deux écrans recalés
- *    (`app/(tabs)/profil.tsx`, `app/profil-edit.tsx`) qui le REFLÈTENT et
- *    renvoient ici : le retirer laisserait deux écrans afficher une valeur que
- *    plus personne ne peut changer. L'écran dit en clair l'étendue RÉELLE de ce
- *    choix — GRYD n'expose encore aucun profil à un autre joueur.
+ *
+ * ═══ ONZIÈME RÉGLAGE PARTI LE 10/09/2026 : `profileVisibility` ══════════════
+ * Il est devenu une décision SERVEUR. `user_profiles.profile_visibility` existe
+ * depuis 0011 et `territory_owner_identity_2026` (0126) la LIT pour décider si
+ * le nom du propriétaire d'un territoire s'affiche chez un autre joueur : un
+ * miroir AsyncStorage à côté n'était pas un réglage, c'était une seconde source
+ * de vérité que le serveur ignorait. La lecture et l'écriture vivent désormais
+ * dans `./audience.ts` + `./audienceStore.ts` (RPC 0135). Ce module ne garde que
+ * ce qui est VRAIMENT local : le masquage appliqué au moment du partage.
  *
  * Le toggle maître « Mode privé » a disparu avec eux : verrouiller « tout » quand
  * il ne reste que deux réglages n'est plus une commande, c'est une figure de
  * style — et sa card affirmait « tout est verrouillé » sur un `every()` de
  * valeurs purement LOCALES, alors que rien n'est envoyé au serveur.
  */
-import type { ProfileVisibility } from '@klaim/shared';
-
-/** Les valeurs admises de `profileVisibility` (source : @klaim/shared). */
-export const PROFILE_VISIBILITIES: readonly ProfileVisibility[] = [
-  'public',
-  'crew',
-  'friends',
-  'private',
-];
-
-/** Préférences de confidentialité persistées — uniquement ce qui AGIT. */
+/** Préférences de confidentialité persistées — uniquement ce qui AGIT ICI. */
 export interface PrivacyPrefs {
-  /**
-   * Visibilité du profil. Reflétée par le Profil et l'édition de profil ; aucune
-   * exposition réelle à un autre joueur n'existe encore (l'écran le dit).
-   */
-  profileVisibility: ProfileVisibility;
   /**
    * Masquer départ & arrivée sur la trace PARTAGÉE. Seul réglage de la page qui
    * a un effet observable aujourd'hui (`app/partage.tsx`).
@@ -59,9 +48,7 @@ export interface PrivacyPrefs {
 }
 
 /**
- * Défauts — DÉCISION FONDATEUR 20/07/2026 : « tout le monde par défaut » sur la
- * visibilité sociale (une conquête que personne d'extérieur ne voit ne recrute
- * personne), SAUF le plancher qui ne s'ouvre pas :
+ * Défaut — le plancher qui ne s'ouvre pas.
  *
  * `maskEndpoints` reste FERMÉ. Le départ et l'arrivée d'une course révèlent
  * l'ADRESSE du coureur — c'est le risque documenté n°1 des apps de running. Une
@@ -70,7 +57,6 @@ export interface PrivacyPrefs {
  * de cause ; l'app ne le fait pas à sa place.
  */
 export const DEFAULT_PRIVACY: PrivacyPrefs = {
-  profileVisibility: 'public',
   maskEndpoints: true,
 };
 
@@ -97,12 +83,7 @@ export function parsePrivacyPrefs(raw: string | null): PrivacyPrefs {
   }
   if (parsed === null || typeof parsed !== 'object') return DEFAULT_PRIVACY;
   const o = parsed as Record<string, unknown>;
-  const vis = o.profileVisibility;
   return {
-    profileVisibility:
-      typeof vis === 'string' && (PROFILE_VISIBILITIES as readonly string[]).includes(vis)
-        ? (vis as ProfileVisibility)
-        : DEFAULT_PRIVACY.profileVisibility,
     maskEndpoints:
       typeof o.maskEndpoints === 'boolean' ? o.maskEndpoints : DEFAULT_PRIVACY.maskEndpoints,
   };

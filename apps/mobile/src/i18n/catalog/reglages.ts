@@ -1059,19 +1059,20 @@ export const C = defineCatalog({
     pt: 'AJUSTES · SEUS DADOS',
   },
   /**
-   * TROISIÈME version de ce sous-titre, et la première qui soit vérifiable.
-   * La v1 promettait « tout est fermé par défaut » (faux depuis l'ouverture du
-   * 20/07). La v2 promettait trois protections — mais deux d'entre elles
-   * (position en direct, données de santé) décrivaient des INTERRUPTEURS sans
-   * consommateur : elles étaient vraies par accident, pas par construction.
-   * Celle-ci ne décrit que ce que le code fait, aujourd'hui, dans ce build.
+   * QUATRIÈME version, et la première qui ne mente plus (10/09/2026).
+   * La v3 affirmait « GRYD n’expose ton profil ni tes sorties à aucun autre
+   * joueur … ni profil public, ni fil d’activité ». C’était FAUX depuis le
+   * backend 2026 : 0126 inscrit le nom et le crew du propriétaire sur les
+   * territoires de la carte, 0124 ouvre le profil, le fil et les commentaires
+   * du crew, 0127 la conversation du crew. Ce sous-titre nomme donc les TROIS
+   * expositions réelles, et dit lesquelles les réglages ci-dessous gouvernent.
    */
   privSubtitle: {
-    fr: 'GRYD n’expose ton profil ni tes sorties à aucun autre joueur pour l’instant : il n’y a ni profil public, ni fil d’activité. La seule chose que tu peux publier toi-même, c’est un partage — et ses extrémités sont floutées par défaut.',
-    en: 'GRYD does not expose your profile or your activities to any other player yet: there is no public profile and no activity feed. The only thing you can publish yourself is a share — and its endpoints are blurred by default.',
-    es: 'GRYD todavía no expone tu perfil ni tus actividades a ningún otro jugador: no hay perfil público ni feed de actividad. Lo único que puedes publicar tú es un compartido — y sus extremos se difuminan por defecto.',
-    de: 'GRYD zeigt dein Profil und deine Aktivitäten bisher keinem anderen Spieler: Es gibt weder ein öffentliches Profil noch einen Aktivitäts-Feed. Das Einzige, was du selbst veröffentlichen kannst, ist eine geteilte Aktivität — und deren Enden sind standardmäßig unscharf.',
-    pt: 'O GRYD ainda não expõe seu perfil nem suas atividades a nenhum outro jogador: não existe perfil público nem feed de atividade. A única coisa que você mesmo pode publicar é um compartilhamento — e as pontas dele ficam borradas por padrão.',
+    fr: 'Trois choses peuvent te rendre visible : ton nom et ton crew inscrits sur les territoires que tu tiens, ton profil ouvert à d’autres joueurs, et ce que tu publies toi-même dans le fil et la conversation de ton crew. Les réglages ci-dessous gouvernent les deux premières — la troisième ne part que si tu publies.',
+    en: 'Three things can make you visible: your name and crew shown on the territories you hold, your profile opened to other players, and whatever you publish yourself in your crew feed and conversation. The settings below govern the first two — the third only leaves if you publish.',
+    es: 'Tres cosas pueden hacerte visible: tu nombre y tu crew inscritos en los territorios que mantienes, tu perfil abierto a otros jugadores, y lo que publicas tú mismo en el muro y la conversación de tu crew. Los ajustes de abajo gobiernan los dos primeros — el tercero solo sale si publicas.',
+    de: 'Drei Dinge können dich sichtbar machen: dein Name und deine Crew auf den Gebieten, die du hältst, dein für andere Spieler geöffnetes Profil, und was du selbst im Feed und in der Unterhaltung deiner Crew veröffentlichst. Die Einstellungen unten steuern die ersten beiden — das Dritte geht nur weg, wenn du es veröffentlichst.',
+    pt: 'Três coisas podem te tornar visível: seu nome e seu crew inscritos nos territórios que você mantém, seu perfil aberto a outros jogadores, e o que você mesmo publica no feed e na conversa do seu crew. Os ajustes abaixo governam os dois primeiros — o terceiro só sai se você publicar.',
   },
   // ── Libellés de visibilité du profil (ex-`features/privacy/labels.ts`, FR en
   //    dur : c'était la valeur affichée dans l'en-tête de la card) ──
@@ -1104,17 +1105,19 @@ export const C = defineCatalog({
     pt: 'Só eu',
   },
   /**
-   * L'étendue RÉELLE du réglage de visibilité. Sans cette phrase, la card
-   * laisserait croire que « Moi seul » retire quelque chose à quelqu'un — alors
-   * qu'aucun écran ne montre encore un profil à un autre joueur, et que le choix
-   * n'est enregistré que sur ce téléphone (aucun miroir serveur, O1).
+   * L'étendue RÉELLE du réglage de visibilité (réécrite le 10/09/2026).
+   * L'ancienne phrase disait « ce choix … ne cache rien à personne aujourd'hui »
+   * et « il ne suivra pas sur un autre appareil » : DEUX affirmations fausses
+   * depuis 0126, qui lit `user_profiles.profile_visibility` pour décider si le
+   * nom du propriétaire s'affiche sur un territoire, et depuis 0135, qui écrit
+   * ce choix sur le COMPTE et non sur le téléphone.
    */
   visScopeNote: {
-    fr: 'Ce choix est enregistré sur ce téléphone et repris par ton profil. Il ne cache rien à personne aujourd’hui — GRYD ne montre encore aucun profil à un autre joueur — et il ne suivra pas sur un autre appareil.',
-    en: 'This choice is stored on this phone and mirrored on your profile. It hides nothing from anyone today — GRYD does not show any profile to another player yet — and it will not follow you to another device.',
-    es: 'Esta elección se guarda en este teléfono y se refleja en tu perfil. Hoy no oculta nada a nadie — GRYD todavía no muestra ningún perfil a otro jugador — y no te seguirá a otro dispositivo.',
-    de: 'Diese Wahl wird auf diesem Handy gespeichert und in deinem Profil gespiegelt. Sie verbirgt heute vor niemandem etwas — GRYD zeigt noch keinem anderen Spieler ein Profil — und sie wandert nicht auf ein anderes Gerät mit.',
-    pt: 'Essa escolha fica guardada neste telefone e aparece no seu perfil. Hoje ela não esconde nada de ninguém — o GRYD ainda não mostra nenhum perfil a outro jogador — e não vai junto para outro aparelho.',
+    fr: 'Ce choix part sur ton compte : le serveur l’applique et il te suit sur tous tes appareils. Il décide qui peut ouvrir ton profil, et qui voit ton nom sur les territoires que tu tiens.',
+    en: 'This choice goes to your account: the server enforces it and it follows you on every device. It decides who can open your profile, and who sees your name on the territories you hold.',
+    es: 'Esta elección va a tu cuenta: el servidor la aplica y te acompaña en todos tus dispositivos. Decide quién puede abrir tu perfil y quién ve tu nombre en los territorios que mantienes.',
+    de: 'Diese Wahl geht an dein Konto: Der Server setzt sie durch und sie gilt auf allen deinen Geräten. Sie entscheidet, wer dein Profil öffnen kann und wer deinen Namen auf den Gebieten sieht, die du hältst.',
+    pt: 'Esta escolha vai para a sua conta: o servidor a aplica e ela segue você em todos os aparelhos. Ela decide quem pode abrir o seu perfil e quem vê o seu nome nos territórios que você mantém.',
   },
   /** Ce que « masquer départ & arrivée » fait EXACTEMENT, avec la vraie valeur. */
   maskScopeNote: {
@@ -2335,16 +2338,16 @@ export const C = defineCatalog({
     pt: 'SEGURANÇA',
   },
 
-  /** Étiquette « à venir » posée là où une exposition croisée (O1) manque. */
-  soonPill: {
-    fr: 'Bientôt',
-    en: 'Soon',
-    es: 'Pronto',
-    de: 'Bald',
-    pt: 'Em breve',
-  },
-
-  // ── VISIBILITÉ : deux réglages de la planche, en attente de O1 ──────────────
+  // ── VISIBILITÉ : réglages RÉELS depuis 0135 (10/09/2026) ───────────────────
+  //
+  // « Mes territoires portent mon nom » n'est plus une coque « Bientôt » : il
+  // écrit `user_profiles.discreet_mode` (inversé), la colonne que 0126 lit pour
+  // décider si le nom et le crew du propriétaire s'affichent sur la carte.
+  //
+  // « Apparaître dans les classements » A ÉTÉ RETIRÉ, libellé compris : aucun
+  // classement n'existe dans le produit 2026. Peindre « Bientôt » sur un
+  // réglage dont l'objet n'existe pas, c'est promettre une fonctionnalité par
+  // un écran de confidentialité.
   territoryNameTitle: {
     fr: 'Mes territoires portent mon nom',
     en: 'My territories carry my name',
@@ -2369,28 +2372,90 @@ export const C = defineCatalog({
     de: 'Sonst würden sie ohne deinen Namen erscheinen.',
     pt: 'Caso contrário, apareceriam sem o seu nome.',
   },
-  leaderboardVisibleTitle: {
-    fr: 'Apparaître dans les classements',
-    en: 'Appear in the leaderboards',
-    es: 'Aparecer en las clasificaciones',
-    de: 'In den Ranglisten erscheinen',
-    pt: 'Aparecer nas classificações',
+
+  /** Ce que l'interrupteur du nom gouverne EXACTEMENT (colonne `discreet_mode`,
+   *  lue par `territory_owner_identity_2026`). */
+  territoryNameGovernNote: {
+    fr: 'Quand il est fermé, la carte affiche les territoires que tu tiens sans ton nom ni ton crew, pour tout le monde.',
+    en: 'When it is off, the map shows the territories you hold without your name or your crew, for everyone.',
+    es: 'Cuando está cerrado, el mapa muestra los territorios que mantienes sin tu nombre ni tu crew, para todo el mundo.',
+    de: 'Wenn er aus ist, zeigt die Karte die Gebiete, die du hältst, ohne deinen Namen und ohne deine Crew — für alle.',
+    pt: 'Quando está desligado, o mapa mostra os territórios que você mantém sem seu nome nem seu crew, para todo mundo.',
   },
-  leaderboardVisibleConseq: {
-    fr: 'Sinon, tu es compté anonymement.',
-    en: 'Otherwise you’re counted anonymously.',
-    es: 'Si no, cuentas de forma anónima.',
-    de: 'Sonst zählst du anonym.',
-    pt: 'Caso contrário, você conta de forma anônima.',
+
+  // ── VISIBILITÉ : les QUATRE états de la lecture serveur (0135) ─────────────
+  //    Ces réglages viennent du COMPTE : « je lis », « pas de compte »,
+  //    « je n'ai pas pu lire » et « lu » sont quatre phrases différentes, et
+  //    aucune ne se déguise en « tout est fermé ».
+  audienceReading: {
+    fr: 'Lecture de tes réglages…',
+    en: 'Reading your settings…',
+    es: 'Leyendo tus ajustes…',
+    de: 'Deine Einstellungen werden gelesen…',
+    pt: 'Lendo seus ajustes…',
   },
-  /** Pourquoi ces deux réglages sont « Bientôt » : l'exposition croisée n'existe
-   *  pas encore, donc rien à gouverner AUJOURD'HUI (la vérité, sans dark pattern). */
-  visibilitySoonNote: {
-    fr: 'Personne ne voit encore tes territoires ni les classements des autres joueurs : ces deux réglages s’activeront dès que ce sera le cas.',
-    en: 'No one sees your territories or other players’ leaderboards yet: these two settings will switch on as soon as that changes.',
-    es: 'Nadie ve todavía tus territorios ni las clasificaciones de otros jugadores: estos dos ajustes se activarán en cuanto eso cambie.',
-    de: 'Noch sieht niemand deine Gebiete oder die Ranglisten anderer Spieler: Diese beiden Einstellungen greifen, sobald sich das ändert.',
-    pt: 'Ninguém vê ainda seus territórios nem as classificações de outros jogadores: estes dois ajustes serão ativados assim que isso mudar.',
+  audienceFailedTitle: {
+    fr: 'Réglages non lus',
+    en: 'Settings not loaded',
+    es: 'Ajustes no leídos',
+    de: 'Einstellungen nicht geladen',
+    pt: 'Ajustes não lidos',
+  },
+  audienceFailedBody: {
+    fr: 'On n’a pas pu lire tes réglages de visibilité. Rien n’a changé sur ton compte — c’est une lecture qui a échoué, pas un réglage qui s’est fermé.',
+    en: 'We could not read your visibility settings. Nothing changed on your account — a read failed, no setting closed itself.',
+    es: 'No pudimos leer tus ajustes de visibilidad. Nada cambió en tu cuenta: falló una lectura, no se cerró ningún ajuste.',
+    de: 'Deine Sichtbarkeits-Einstellungen konnten nicht gelesen werden. Auf deinem Konto hat sich nichts geändert — ein Lesevorgang ist fehlgeschlagen, keine Einstellung hat sich geschlossen.',
+    pt: 'Não foi possível ler seus ajustes de visibilidade. Nada mudou na sua conta — uma leitura falhou, nenhum ajuste se fechou.',
+  },
+  audienceRetry: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  audienceSignedOutTitle: {
+    fr: 'Sans compte',
+    en: 'No account',
+    es: 'Sin cuenta',
+    de: 'Ohne Konto',
+    pt: 'Sem conta',
+  },
+  audienceSignedOutBody: {
+    fr: 'Ces réglages vivent sur ton compte. Sans compte, GRYD ne publie rien de toi : ni profil, ni territoire, ni publication.',
+    en: 'These settings live on your account. Without one, GRYD publishes nothing of yours: no profile, no territory, no post.',
+    es: 'Estos ajustes viven en tu cuenta. Sin cuenta, GRYD no publica nada tuyo: ni perfil, ni territorio, ni publicación.',
+    de: 'Diese Einstellungen liegen auf deinem Konto. Ohne Konto veröffentlicht GRYD nichts von dir: kein Profil, kein Gebiet, keinen Beitrag.',
+    pt: 'Estes ajustes ficam na sua conta. Sem conta, o GRYD não publica nada seu: nem perfil, nem território, nem publicação.',
+  },
+  audienceNoProfileTitle: {
+    fr: 'Aucun profil enregistré',
+    en: 'No profile saved',
+    es: 'Sin perfil guardado',
+    de: 'Kein Profil gespeichert',
+    pt: 'Nenhum perfil salvo',
+  },
+  audienceNoProfileBody: {
+    fr: 'Tant que tu n’as pas de profil, rien n’est exposé : la carte n’inscrit ni ton nom ni ton crew sur tes territoires, et personne ne peut ouvrir ton profil. Ces réglages s’ouvrent avec lui.',
+    en: 'Until you have a profile, nothing is exposed: the map writes neither your name nor your crew on your territories, and no one can open your profile. These settings open with it.',
+    es: 'Mientras no tengas perfil, nada queda expuesto: el mapa no inscribe ni tu nombre ni tu crew en tus territorios, y nadie puede abrir tu perfil. Estos ajustes se abren con él.',
+    de: 'Solange du kein Profil hast, wird nichts gezeigt: Die Karte schreibt weder deinen Namen noch deine Crew auf deine Gebiete, und niemand kann dein Profil öffnen. Diese Einstellungen öffnen sich mit ihm.',
+    pt: 'Enquanto você não tiver um perfil, nada fica exposto: o mapa não inscreve seu nome nem seu crew nos seus territórios, e ninguém pode abrir seu perfil. Estes ajustes abrem junto com ele.',
+  },
+  audienceCreateProfile: {
+    fr: 'Créer mon profil',
+    en: 'Create my profile',
+    es: 'Crear mi perfil',
+    de: 'Profil anlegen',
+    pt: 'Criar meu perfil',
+  },
+  audienceSaveFailed: {
+    fr: 'Rien n’a été enregistré : ton réglage n’a pas changé sur ton compte. Vérifie ta connexion et réessaie.',
+    en: 'Nothing was saved: your setting did not change on your account. Check your connection and try again.',
+    es: 'No se guardó nada: tu ajuste no cambió en tu cuenta. Revisa tu conexión e inténtalo otra vez.',
+    de: 'Nichts wurde gespeichert: Deine Einstellung hat sich auf deinem Konto nicht geändert. Prüfe deine Verbindung und versuch es erneut.',
+    pt: 'Nada foi salvo: seu ajuste não mudou na sua conta. Verifique sua conexão e tente de novo.',
   },
 
   // ── ZONES PROTÉGÉES : zones nommées (domicile/travail) — pas encore d'écran
@@ -2526,28 +2591,28 @@ export const C = defineCatalog({
     de: 'Veröffentlichungsverzögerung der Eroberungen',
     pt: 'Atraso na publicação das capturas',
   },
-  /** Valeur illustrative de la planche (1 h) — copie descriptive, aucune logique
-   *  ne la consomme, donc ce n'est pas une constante de jeu. */
+  /**
+   * LE DÉLAI EXISTE VRAIMENT (10/09/2026). Il était peint « 1 h · Bientôt » :
+   * deux erreurs. `capture_events_2026.publish_after` est écrit à chaque
+   * capture par `ingest_run` (refonte2026.ts) à partir de
+   * `TERRITORY_RULES_2026.publicationDelayMinutes`, et `get_ownership_2026`
+   * n'expose que les captures `published`. La valeur est donc interpolée depuis
+   * la constante — jamais recopiée ici, sinon elle dériverait au premier
+   * arbitrage.
+   */
   publishDelayValue: {
-    fr: '1 h',
-    en: '1 h',
-    es: '1 h',
-    de: '1 Std.',
-    pt: '1 h',
+    fr: '{min} min',
+    en: '{min} min',
+    es: '{min} min',
+    de: '{min} Min.',
+    pt: '{min} min',
   },
   publishDelayConseq: {
-    fr: 'Tes captures deviendront visibles par les autres 1 h après ta sortie.',
-    en: 'Your captures will become visible to others 1 hour after your activity.',
-    es: 'Tus capturas serán visibles para los demás 1 h después de tu actividad.',
-    de: 'Deine Eroberungen werden 1 Std. nach deiner Aktivität für andere sichtbar.',
-    pt: 'Suas capturas ficarão visíveis para os outros 1 h após sua atividade.',
-  },
-  publishDelaySoonNote: {
-    fr: 'Aucun autre joueur ne voit encore tes captures : ce délai s’activera quand ce sera le cas.',
-    en: 'No other player sees your captures yet: this delay will switch on when that changes.',
-    es: 'Ningún otro jugador ve aún tus capturas: este retardo se activará cuando eso cambie.',
-    de: 'Noch sieht kein anderer Spieler deine Eroberungen: Diese Verzögerung greift, sobald sich das ändert.',
-    pt: 'Nenhum outro jogador vê ainda suas capturas: este atraso será ativado quando isso mudar.',
+    fr: 'Tes captures ne deviennent visibles par les autres joueurs que {min} minutes après la fin de ta sortie. Ce délai s’applique à tout le monde ; il ne se règle pas.',
+    en: 'Your captures only become visible to other players {min} minutes after your activity ends. This delay applies to everyone; it is not adjustable.',
+    es: 'Tus capturas solo son visibles para los demás jugadores {min} minutos después de terminar tu actividad. Este retardo se aplica a todos; no se ajusta.',
+    de: 'Deine Eroberungen werden für andere Spieler erst {min} Minuten nach dem Ende deiner Aktivität sichtbar. Diese Verzögerung gilt für alle; sie lässt sich nicht einstellen.',
+    pt: 'Suas capturas só ficam visíveis para os outros jogadores {min} minutos após o fim da sua atividade. Esse atraso vale para todo mundo; não é ajustável.',
   },
   notifByCategoryTitle: {
     fr: 'Notifications par catégorie',

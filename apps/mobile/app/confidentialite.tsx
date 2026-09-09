@@ -90,7 +90,6 @@ import {
   spacing,
   typography,
   type IconName,
-  type ProfileVisibility,
 } from '@klaim/shared';
 import { C } from '../src/i18n/catalog/reglages';
 import { useT } from '../src/i18n/store';
@@ -111,8 +110,16 @@ import { Button } from '../src/ui/Button';
 import { Icon } from '../src/ui/Icon';
 import { ListRow } from '../src/ui/ListRow';
 import { SectionLabel } from '../src/ui/SectionLabel';
-import { PROFILE_VISIBILITIES } from '../src/features/privacy/prefs';
 import { usePrivacyPrefs } from '../src/features/privacy/store';
+import {
+  PROFILE_VISIBILITY_VALUES,
+  nameOnTerritories,
+  withNameOnTerritories,
+  withProfileVisibility,
+  type PrivacyAudience,
+  type ProfileVisibilityValue,
+} from '../src/features/privacy/audience';
+import { usePrivacyAudience } from '../src/features/privacy/audienceStore';
 import { DisclosureCard, Note, SelectPills, SwitchRow } from '../src/features/privacy/ui';
 // Le masquage partagé vient de la MÊME constante que le rendu : la note ne peut
 // donc plus annoncer une distance différente de celle qui est réellement
@@ -123,7 +130,11 @@ import { slotsLeft, zoneEditPlan } from '../src/features/privacy/zoneEdit';
 import { removeZone, saveZone } from '../src/features/privacy/zonesWrite';
 import { resolveLocation } from '../src/features/map/locationState';
 import { LOCATION_PROVIDER } from '../src/features/onboarding/locate';
-import { PRIVACY_ZONE_DEFAULT_RADIUS_M, PRIVACY_ZONES_MAX } from '@klaim/shared';
+import {
+  PRIVACY_ZONE_DEFAULT_RADIUS_M,
+  PRIVACY_ZONES_MAX,
+  TERRITORY_RULES_2026,
+} from '@klaim/shared';
 import {
   REPORT_REASONS,
   REPORT_REVIEW_HOURS,
@@ -139,7 +150,7 @@ import {
 import { useRealCrew } from '../src/features/crew/real';
 
 /** Libellés de visibilité — traduits (ils étaient en français en dur). */
-const VISIBILITY_ENTRY: Record<ProfileVisibility, Entry> = {
+const VISIBILITY_ENTRY: Record<ProfileVisibilityValue, Entry> = {
   public: C.visPublic,
   crew: C.visCrew,
   friends: C.visFriends,
@@ -177,6 +188,28 @@ export default function ConfidentialiteScreen() {
 
   const [targetPseudo, setTargetPseudo] = useState('');
   const [reportReason, setReportReason] = useState<ReportReason>('spam');
+
+  // ── RÉGLAGES D'AUDIENCE, LUS ET ÉCRITS SUR LE COMPTE (0135) ───────────────
+  // Ils ne vivent plus en AsyncStorage : `profile_visibility` et
+  // `discreet_mode` sont EXACTEMENT les colonnes que `territory_owner_identity_2026`
+  // (0126) lit pour décider si ton nom et ton crew s'affichent sur un territoire.
+  // Un échec d'écriture n'est jamais silencieux : `audienceError` le dit.
+  const audience = usePrivacyAudience();
+  const [audienceError, setAudienceError] = useState<Entry | null>(null);
+
+  /** Écrit les trois réglages et n'affiche que le verdict du SERVEUR. */
+  const saveAudience = async (next: PrivacyAudience): Promise<void> => {
+    setAudienceError(null);
+    const out = await audience.save(next);
+    if (out.kind === 'saved') {
+      haptics.success();
+      return;
+    }
+    // « pas de profil » n'est pas un échec : la carte d'état le dit déjà, et
+    // pousser une erreur par-dessus ferait deux messages pour une situation.
+    if (out.kind === 'profile-required') return;
+    setAudienceError(C.audienceSaveFailed);
+  };
 
   useEffect(() => {
     screen('privacy_settings');
@@ -471,40 +504,107 @@ export default function ConfidentialiteScreen() {
 
       <SectionLabel style={styles.kicker}>{t(C.secVisibilite)}</SectionLabel>
 
-      <DisclosureCard
-        icon="profil"
-        title={t(C.profilVisiblePar)}
-        value={t(VISIBILITY_ENTRY[prefs.profileVisibility])}
-        open={openKey === 'profile'}
-        onToggle={() => toggle('profile')}
-      >
-        <SelectPills
-          options={PROFILE_VISIBILITIES.map((v) => ({ value: v, label: t(VISIBILITY_ENTRY[v]) }))}
-          value={prefs.profileVisibility}
-          onChange={(v) => void update({ profileVisibility: v })}
-        />
-        <Note>{t(C.visScopeNote)}</Note>
-      </DisclosureCard>
+      {/* ═══ LES RÉGLAGES D'AUDIENCE VIENNENT DU COMPTE (0135) ═══════════════
+          Ils étaient écrits en AsyncStorage seul, alors que le serveur décidait
+          déjà depuis `user_profiles` : 0126 lit `profile_visibility` ET
+          `discreet_mode` pour inscrire (ou non) ton nom et ton crew sur les
+          territoires que les autres joueurs voient. Un réglage qui ne quittait
+          pas le téléphone ne gouvernait rien — l'écran affichait un choix, le
+          serveur en appliquait un autre.
+          LES QUATRE ÉTATS SONT DISTINCTS : lecture, pas de compte, échec de
+          lecture, et lu. Aucun ne se déguise en « tout est fermé ». */}
+      {audience.read.status === 'loading' ? (
+        <Text style={styles.stateInline}>{t(C.audienceReading)}</Text>
+      ) : audience.read.status === 'signed-out' ? (
+        <View style={styles.stateCard}>
+          <Text style={styles.stateTitle}>{t(C.audienceSignedOutTitle)}</Text>
+          <Text style={styles.stateBody}>{t(C.audienceSignedOutBody)}</Text>
+          {configured ? (
+            <View style={styles.actionGap}>
+              <Button
+                variant="ghost"
+                size="md"
+                label={t(C.identitySignInLabel)}
+                onPress={() => router.push('/sign-in')}
+              />
+            </View>
+          ) : null}
+        </View>
+      ) : audience.read.status === 'failed' ? (
+        <View style={styles.stateCard}>
+          <Text style={styles.stateTitle}>{t(C.audienceFailedTitle)}</Text>
+          <Text style={styles.stateBody}>{t(C.audienceFailedBody)}</Text>
+          <View style={styles.actionGap}>
+            <Button
+              variant="ghost"
+              size="md"
+              label={t(C.audienceRetry)}
+              onPress={audience.reload}
+            />
+          </View>
+        </View>
+      ) : !audience.read.audience.hasProfile ? (
+        /* AUCUN PROFIL : les deux contrôles échoueraient à tous les coups
+           (`profile_required`). On ne peint donc AUCUN bouton mort — on dit
+           l'état réel, qui est aussi le plus fermé, et on montre la porte. */
+        <View style={styles.stateCard}>
+          <Text style={styles.stateTitle}>{t(C.audienceNoProfileTitle)}</Text>
+          <Text style={styles.stateBody}>{t(C.audienceNoProfileBody)}</Text>
+          <View style={styles.actionGap}>
+            <Button
+              variant="ghost"
+              size="md"
+              label={t(C.audienceCreateProfile)}
+              onPress={() => {
+                haptics.light();
+                router.push('/profil-edit');
+              }}
+            />
+          </View>
+        </View>
+      ) : (
+        <>
+          <DisclosureCard
+            icon="profil"
+            title={t(C.profilVisiblePar)}
+            value={t(VISIBILITY_ENTRY[audience.read.audience.profileVisibility])}
+            open={openKey === 'profile'}
+            onToggle={() => toggle('profile')}
+          >
+            <SelectPills
+              options={PROFILE_VISIBILITY_VALUES.map((v) => ({
+                value: v,
+                label: t(VISIBILITY_ENTRY[v]),
+              }))}
+              value={audience.read.audience.profileVisibility}
+              onChange={(v) => {
+                if (audience.read.status !== 'ready' || audience.saving) return;
+                void saveAudience(withProfileVisibility(audience.read.audience, v));
+              }}
+            />
+            <Note>{t(C.visScopeNote)}</Note>
+          </DisclosureCard>
 
-      {/* Deux réglages de la planche dont l'effet suppose une visibilité CROISÉE
-          (O1) : coque fidèle, mais NON interactive et marquée « Bientôt » — jamais
-          un interrupteur qui prétendrait gouverner une exposition inexistante. La
-          conséquence de jeu est écrite en sous-titre (fidèle à la planche). */}
-      <PendingSwitchRow
-        title={t(C.territoryNameTitle)}
-        conseq={
-          crewName !== null
-            ? t(C.territoryNameConseqCrew, { crew: crewName })
-            : t(C.territoryNameConseqSolo)
-        }
-        soonLabel={t(C.soonPill)}
-      />
-      <PendingSwitchRow
-        title={t(C.leaderboardVisibleTitle)}
-        conseq={t(C.leaderboardVisibleConseq)}
-        soonLabel={t(C.soonPill)}
-      />
-      <Note>{t(C.visibilitySoonNote)}</Note>
+          {/* RÉEL depuis 0135 : cet interrupteur écrit `discreet_mode` (inversé),
+              la colonne que 0126 lit. Il remplace une coque « Bientôt » alors que
+              le nom du propriétaire était DÉJÀ publié sur la carte. */}
+          <SwitchRow
+            title={t(C.territoryNameTitle)}
+            subtitle={
+              crewName !== null
+                ? t(C.territoryNameConseqCrew, { crew: crewName })
+                : t(C.territoryNameConseqSolo)
+            }
+            value={nameOnTerritories(audience.read.audience)}
+            onValueChange={(shown) => {
+              if (audience.read.status !== 'ready' || audience.saving) return;
+              void saveAudience(withNameOnTerritories(audience.read.audience, shown));
+            }}
+          />
+          <Note>{t(C.territoryNameGovernNote)}</Note>
+          {audienceError !== null ? <Note>{t(audienceError)}</Note> : null}
+        </>
+      )}
 
       <SectionLabel style={styles.kicker}>{t(C.secZonesProtegees)}</SectionLabel>
 
@@ -690,17 +790,21 @@ export default function ConfidentialiteScreen() {
         </View>
       </DisclosureCard>
 
-      {/* Délai de publication des captures (planche) : suppose que d'autres
-          joueurs VOIENT tes captures (O1) — pas encore le cas. Coque fidèle avec
-          la valeur illustrative « 1 h », mais NON interactive et « Bientôt ». */}
-      <PendingRow
+      {/* LE DÉLAI DE PUBLICATION EXISTE (10/09/2026). Il était peint
+          « 1 h · Bientôt » : deux mensonges d'un coup. `ingest_run` écrit
+          `capture_events_2026.publish_after = fin de sortie +
+          TERRITORY_RULES_2026.publicationDelayMinutes` et `get_ownership_2026`
+          n'expose que les captures `published` — le délai s'applique DÉJÀ, et
+          il vaut 30 min, pas 1 h.
+          Ce n'est PAS un réglage : il est le même pour tout le monde. Donc une
+          ligne d'INFORMATION (pas d'interrupteur, pas de puce « Bientôt », rien
+          à taper), avec la valeur dérivée de la constante. */}
+      <FactRow
         icon="reglages"
         title={t(C.publishDelayTitle)}
-        value={t(C.publishDelayValue)}
-        conseq={t(C.publishDelayConseq)}
-        soonLabel={t(C.soonPill)}
+        value={t(C.publishDelayValue, { min: TERRITORY_RULES_2026.publicationDelayMinutes })}
+        detail={t(C.publishDelayConseq, { min: TERRITORY_RULES_2026.publicationDelayMinutes })}
       />
-      <Note>{t(C.publishDelaySoonNote)}</Note>
 
       {/* Notifications par catégorie (planche) : réglage RÉEL — route existante,
           poussée vers la section notifications des paramètres. Pas de bouton mort. */}
@@ -879,73 +983,31 @@ function TrustBanner({ text }: { text: string }) {
 }
 
 /**
- * Interrupteur EN ATTENTE : la COQUE fidèle d'un réglage que la planche montre
- * activable, mais dont l'effet suppose une visibilité croisée qui n'existe pas
- * encore (O1). On dessine le shell du toggle en position PROTECTRICE, dimmé et
- * NON interactif (ni `Pressable`, ni `onPress`), doublé d'une puce « Bientôt » :
- * impossible de le confondre avec un contrôle actif, et rien ne prétend gouverner
- * une exposition inexistante. La conséquence de jeu est écrite sous le titre.
+ * Ligne de FAIT : icône + titre + valeur réelle + son explication. NON
+ * interactive parce qu'il n'y a rien à régler — pas parce que ce serait
+ * « bientôt ». Elle remplace l'ancienne `PendingRow` et sa puce, qui peignait
+ * en « à venir » un délai de publication DÉJÀ appliqué par `ingest_run`.
  */
-function PendingSwitchRow({
-  title,
-  conseq,
-  soonLabel,
-}: {
-  title: string;
-  conseq: string;
-  soonLabel: string;
-}) {
-  return (
-    <View accessible accessibilityLabel={`${title}. ${conseq} ${soonLabel}.`} style={styles.pendingRow}>
-      <View style={styles.pendingText}>
-        {/* Aucun `numberOfLines` : un réglage s'enroule, jamais coupé (§A.9). */}
-        <Text style={styles.pendingTitle}>{title}</Text>
-        <Text style={styles.pendingConseq}>{conseq}</Text>
-      </View>
-      <View style={styles.pendingRight}>
-        <View style={styles.soonPill}>
-          <Text style={styles.soonPillText}>{soonLabel}</Text>
-        </View>
-        {/* Shell dimmé, en position « on » (défaut protecteur de la planche). */}
-        <View style={styles.switchShellDim}>
-          <View style={styles.switchKnobDim} />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-/**
- * Ligne EN ATTENTE avec valeur (planche fidèle) : icône + titre + valeur
- * illustrative + puce « Bientôt », et une conséquence de jeu optionnelle. NON
- * interactive — même raison que `PendingSwitchRow`.
- */
-function PendingRow({
+function FactRow({
   icon,
   title,
   value,
-  conseq,
-  soonLabel,
+  detail,
 }: {
   icon: IconName;
   title: string;
-  value?: string;
-  conseq?: string;
-  soonLabel: string;
+  value: string;
+  detail: string;
 }) {
-  const a11y = `${title}${value ? `, ${value}` : ''}${conseq ? `. ${conseq}` : ''} ${soonLabel}.`;
   return (
-    <View accessible accessibilityLabel={a11y} style={styles.pendingRow}>
+    <View accessible accessibilityLabel={`${title}, ${value}. ${detail}`} style={styles.pendingRow}>
       <Icon name={icon} size={iconSizes.md} color={colors.gris} />
       <View style={styles.pendingText}>
         <Text style={styles.pendingTitle}>{title}</Text>
-        {conseq ? <Text style={styles.pendingConseq}>{conseq}</Text> : null}
+        <Text style={styles.pendingConseq}>{detail}</Text>
       </View>
       <View style={styles.pendingRight}>
-        {value ? <Text style={styles.pendingValue}>{value}</Text> : null}
-        <View style={styles.soonPill}>
-          <Text style={styles.soonPillText}>{soonLabel}</Text>
-        </View>
+        <Text style={styles.pendingValue}>{value}</Text>
       </View>
     </View>
   );
@@ -1085,41 +1147,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontVariant: ['tabular-nums'],
   },
-  soonPill: {
-    borderWidth: 1,
-    borderColor: borderState.hairline,
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  soonPillText: {
-    ...typography.meta,
-    color: colors.gris,
-    fontSize: fontSizes.xs,
-    letterSpacing: 0.5,
-  },
-  // Shell du toggle en attente : géométrie de `features/privacy/ui` (44×26/20),
-  // en position « on », mais fondu à 40 % — il montre l'état protecteur par
-  // défaut sans jamais se donner pour un contrôle qu'on peut basculer.
-  switchShellDim: {
-    width: 44,
-    height: 26,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse40,
-    borderWidth: 1,
-    borderColor: colors.chartreuse,
-    padding: 2,
-    justifyContent: 'center',
-    opacity: 0.4,
-  },
-  switchKnobDim: {
-    width: 20,
-    height: 20,
-    borderRadius: radii.pill,
-    backgroundColor: colors.chartreuse,
-    alignSelf: 'flex-end',
-  },
-
   // ── Card d'ÉTAT (pas connecté / échec) : surface N1 sans contour, titre blanc,
   // corps gris, AU PLUS un CTA — le patron des vingt écrans recalés. ──
   stateCard: {
