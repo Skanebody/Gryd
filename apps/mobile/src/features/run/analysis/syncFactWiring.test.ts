@@ -74,12 +74,15 @@ Deno.test(
   () => {
     // Sans backend (`supabase === null`) et sans session, `uploadOrQueue` sort
     // AVANT toute requête : rien ne part, donc rien ne doit être annoncé.
-    const noBackend = CORE_SRC.indexOf("if (supabase === null) return 'none'");
-    const noSession = CORE_SRC.indexOf('if (sessionRef.current === null)');
-    const publish = publishIndex(CORE_SRC, 'upload_started');
-    assert(noBackend >= 0 && noSession >= 0, 'les gardes de `uploadOrQueue` ont changé de forme');
+    const core = codeOf(CORE_SRC);
+    const direct = core.slice(core.indexOf('const uploadOrQueue'));
+    const noBackend = direct.indexOf('if (supabase === null ||');
+    const noSession = direct.indexOf('if (sessionRef.current === null)');
+    const localOnly = direct.indexOf("if (payload.recordingOwnerId === null) return 'local'");
+    const publish = publishIndex(direct, 'upload_started');
+    assert(noBackend >= 0 && noSession >= 0 && localOnly >= 0, 'les gardes backend, session et essai local doivent exister');
     assert(
-      publish > noBackend && publish > noSession,
+      publish > noBackend && publish > noSession && publish > localOnly,
       '`upload_started` est passé AVANT une garde : il annoncerait un envoi qui ne part jamais',
     );
   },
@@ -106,11 +109,13 @@ Deno.test('BRANCHEMENT — le journal est OUVERT AU NOM de la course qui démarr
   // précédente : tout ce qui se publiait ENSUITE — le drain de la file à chaque
   // retour au premier plan, la clôture d'une course écartée d'un tap — entrait
   // au journal de la course en cours. Purger ne suffit pas ; il faut NOMMER.
-  const construct = CORE_SRC.indexOf('trackerRef.current = tracker;');
-  const open = CORE_SRC.indexOf('beginSyncFactRun(tracker.runId);');
+  const start = CORE_SRC.slice(CORE_SRC.indexOf('const confirmStart = useCallback('));
+  const construct = start.indexOf('trackerRef.current = tracker;');
+  const open = start.indexOf('beginSyncFactRun(tracker.runId);');
+  const sensors = start.indexOf('await startSensors()');
   assert(construct >= 0, 'confirmStart ne construit plus le tracker de cette façon');
   assert(
-    open > construct && open - construct < 800,
+    open > construct && sensors > open,
     'le journal n’est plus ouvert au nom de la course, là où son `runId` naît (confirmStart) : ' +
       'il redeviendrait anonyme, et adopterait les faits de n’importe quelle autre sortie',
   );
@@ -212,7 +217,7 @@ Deno.test('BRANCHEMENT — le stockage ne peut plus ÉCRASER une file qu’il n�
   const code = codeOf(PENDING_SRC);
   assert(
     /planEnqueue\(read, payload, Date\.now\(\)\)/.test(code) &&
-      /planRemoval\(await readQueue\(\), entry\.payload\.clientRunId\)/.test(code),
+      /mutateQueue2026\(async \(\) => \{[\s\S]*const fresh = await readQueue\(\);[\s\S]*planRemoval\(fresh, entry\.payload\.clientRunId\)/.test(code),
     'le stockage n’écrit plus via un plan de lisibilité : une lecture disque ratée pourrait de ' +
       'nouveau écraser la file entière (mise en file) ou la vider (retrait après verdict)',
   );

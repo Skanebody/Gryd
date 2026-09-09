@@ -45,6 +45,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
+import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
 
 // Ferme proprement la popup d'auth au retour dans l'app (deep link scheme "gryd", cf. app.json).
 WebBrowser.maybeCompleteAuthSession();
@@ -248,7 +249,9 @@ export async function signInWithGoogle(): Promise<AuthResult> {
  * courrier que le web, et l'écran doit le dire au lieu de réclamer six chiffres
  * que personne ne reçoit. Repassera à `'code'` avec un SMTP personnalisé.
  */
-export const EMAIL_DELIVERY: 'link' | 'code' = 'link';
+export const EMAIL_DELIVERY: 'link' | 'code' = emailDelivery2026(
+  process.env.EXPO_PUBLIC_EMAIL_AUTH_MODE,
+);
 
 export async function requestEmailOtp(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
@@ -258,10 +261,34 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
     options: {
       shouldCreateUser: true,
       // Retour vers l'app par son scheme (déclaré dans l'`uri_allow_list`).
-      emailRedirectTo: 'gryd://',
+      emailRedirectTo: 'gryd://callback',
     },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  return { ok: true };
+}
+
+/** Termine réellement le retour du lien e-mail, y compris sur iOS/Android. */
+export async function completeAuthCallback(url: string | null): Promise<AuthResult> {
+  if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
+  const callback = parseAuthCallback2026(url);
+  if (callback.kind === 'error') {
+    return { ok: false, reason: 'auth_error', message: callback.message };
+  }
+  const result = callback.kind === 'pkce'
+    ? await supabase.auth.exchangeCodeForSession(callback.code)
+    : callback.kind === 'tokens'
+      ? await supabase.auth.setSession({
+          access_token: callback.accessToken,
+          refresh_token: callback.refreshToken,
+        })
+      : await supabase.auth.getSession();
+  if (result.error || !result.data.session) {
+    return { ok: false, reason: 'auth_error', message: result.error?.message };
+  }
+  identify(result.data.session.user.id);
+  track(EVENTS.signupCompleted, { method: 'email_otp' satisfies SignInMethod });
+  void markSignupT0();
   return { ok: true };
 }
 

@@ -45,7 +45,7 @@
  * regardée ; ici, on se contente de dire la vérité sur QUI part.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FunctionsHttpError } from '@supabase/supabase-js';
+import { FunctionsHttpError, type Session } from '@supabase/supabase-js';
 import type { IngestRunRequest, IngestRunResponse } from '@klaim/shared';
 import { emitRunResultAnalytics } from './activation';
 import { EVENTS, track } from './analytics';
@@ -62,11 +62,14 @@ import {
   hasPendingRun,
   isPermanentHttpStatus,
   parsePendingQueue,
+  pendingEntriesForOwner2026,
+  pendingOwnerConflict2026,
   planEnqueue,
   planRemoval,
   serializePendingQueue,
 } from './pendingUploadQueue';
 import { supabase } from './supabase';
+import { readLocalActivities2026, saveLocalActivity2026, resumeConsentedLocalActivityUploads2026 } from '../features/refonte/localActivities';
 
 /**
  * P0 C2 (MVP_CHANGESET) — un REJET DÉFINITIF du serveur n'est pas une panne réseau.
@@ -162,8 +165,17 @@ async function writeQueue(queue: readonly PendingEntry[], clearLegacy: boolean):
  * buffer runStore (dernier filet) : c'est précisément pourquoi refuser ne
  * détruit rien.
  */
-export async function queuePendingUpload(payload: IngestRunRequest): Promise<boolean> {
+// Every read/modify/write of the queue shares this lock, including adoption and drain.
+let queueMutation2026: Promise<unknown> = Promise.resolve();
+function mutateQueue2026<T>(work: () => Promise<T>): Promise<T> {
+  const next = queueMutation2026.then(work, work); queueMutation2026 = next.then(() => undefined, () => undefined); return next;
+}
+export function queuePendingUpload(payload: IngestRunRequest): Promise<boolean> {
+  return mutateQueue2026(() => queuePendingUploadUnlocked(payload));
+}
+async function queuePendingUploadUnlocked(payload: IngestRunRequest): Promise<boolean> {
   const read = await readQueue();
+  if (pendingOwnerConflict2026(read.queue, payload)) return false;
   // La règle « on n'écrit jamais une file qu'on n'a pas pu relire » est PURE et
   // testée (`planEnqueue`, pendingUploadQueue.ts) : ce module ne fait que l'I/O.
   const plan = planEnqueue(read, payload, Date.now());
@@ -330,6 +342,8 @@ const EMPTY_REPORT: DrainReport = { remaining: [], sent: [], rejected: [], stopp
 
 async function retryPendingUploadOnce(): Promise<DrainReport> {
   if (supabase === null) return EMPTY_REPORT; // garanti par l'appelant ; requis pour le narrowing TS
+  const session = await currentSession();
+  if (session) await resumeConsentedLocalActivityUploads2026(session.user.id).catch(() => 0);
   const { queue, hadLegacy, readable } = await readQueue();
   // File illisible : on ne sait pas ce qu'il y a à envoyer, et surtout on n'a
   // rien le droit d'y écrire (migration comprise). Rapport VIDE = « rien
@@ -337,14 +351,13 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
   if (!readable) return EMPTY_REPORT;
   if (queue.length === 0) {
     // Rien à envoyer : on en profite pour retirer un slot v1 vide/corrompu.
-    if (hadLegacy) await writeQueue([], true);
+    if (hadLegacy) await mutateQueue2026(async () => { const fresh = await readQueue(); if (fresh.readable) await writeQueue(fresh.queue, fresh.hadLegacy); });
     return EMPTY_REPORT;
   }
   // La migration est actée dès maintenant : la file v2 contient déjà l'entrée
   // v1, l'écrire avant le premier envoi évite de la reperdre sur un kill.
-  if (hadLegacy) await writeQueue(queue, true);
+  if (hadLegacy) await mutateQueue2026(async () => { const fresh = await readQueue(); if (fresh.readable) await writeQueue(fresh.queue, fresh.hadLegacy); });
 
-  const session = await currentSession();
   // Pas de session : on retentera connecté. Rien n'est perdu — la file entière
   // RESTE, et le rapport le dit explicitement plutôt que de passer pour un
   // rejeu qui n'aurait rien trouvé à envoyer.
@@ -354,6 +367,9 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
 
   const send = async (payload: IngestRunRequest): Promise<SendVerdict> => {
     if (supabase === null) return 'retry_later';
+    if (payload.recordingOwnerId !== session.user.id) return 'retry_later';
+    const sendingSession = await currentSession();
+    if (sendingSession?.user.id !== session.user.id) return 'no_session';
     try {
       // ── UNE REPRISE RÉELLEMENT PARTIE, ENTRÉE PAR ENTRÉE ──────────────────
       // Publié juste AVANT l'appel réseau, jamais avant de savoir qu'on appelle :
@@ -365,8 +381,9 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
       // traitait l'entrée de QUELQU'UN D'AUTRE — un travail affiché qui n'avait
       // pas lieu pour cette sortie-là.
       publishSyncFact({ kind: 'retry_started' }, payload.clientRunId);
-      const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
+      const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload, headers: { Authorization: `Bearer ${sendingSession.access_token}` } });
       if (error) {
+        if (httpStatusOf(error) === 401 || httpStatusOf(error) === 403) return 'retry_later';
         if (!isPermanentRejection(error)) return 'retry_later'; // hors-ligne/5xx/429
         // Jugé et refusé : sortir de la file (sinon retry infini silencieux) et
         // le DIRE — au moins à la mesure (claim_result est l'event d'issue de
@@ -374,6 +391,9 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
         // côté serveur, il a déjà statué.
         const status = httpStatusOf(error);
         console.warn('[pendingUpload] course rejetée définitivement par le serveur :', status);
+        const local = await readLocalActivities2026();
+        const saved = local.find(item => item.clientRunId === payload.clientRunId && item.ownerId === session.user.id);
+        if (saved && !await saveLocalActivity2026({ ...saved, pending: false })) return 'retry_later';
         track(EVENTS.claimResult, {
           outcome: 'rejected_permanent',
           http: status ?? 0,
@@ -388,6 +408,9 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
       // conquêtes rurales restent invisibles. Même source-unique que le chemin
       // live.
       const result = (data ?? null) as IngestRunResponse | null;
+      const local = await readLocalActivities2026();
+      const saved = local.find(item => item.clientRunId === payload.clientRunId && item.ownerId === session.user.id);
+      if (saved && !await saveLocalActivity2026({ ...saved, pending: false, result })) return 'retry_later';
       if (result) emitRunResultAnalytics(result, 'pending_retry');
       return 'sent';
     } catch {
@@ -404,16 +427,25 @@ async function retryPendingUploadOnce(): Promise<DrainReport> {
     // effacé. `planRemoval` refuse ; la conséquence est bornée et connue :
     // l'entrée déjà partie reste en file et sera renvoyée une fois de trop,
     // neutre côté serveur par idempotence `clientRunId` (D14).
-    const plan = planRemoval(await readQueue(), entry.payload.clientRunId);
-    if (!plan.write) return;
-    await writeQueue(plan.queue, false);
+    await mutateQueue2026(async () => {
+      const fresh = await readQueue();
+      const current = fresh.queue.find(item => item.payload.clientRunId === entry.payload.clientRunId);
+      if (current?.payload.recordingOwnerId !== session.user.id) return;
+      const plan = planRemoval(fresh, entry.payload.clientRunId);
+      if (!plan.write) return;
+      await writeQueue(plan.queue, false);
+    });
   };
 
-  return await drainPendingQueue(queue, send, onSettled);
+  // A different account's old entry must neither upload nor block this account's FIFO.
+  const ownedQueue = pendingEntriesForOwner2026(queue, session.user.id);
+  const report = await drainPendingQueue(ownedQueue, send, onSettled);
+  const settled = new Set([...report.sent, ...report.rejected]);
+  return { ...report, remaining: queue.filter(entry => !settled.has(entry.payload.clientRunId)) };
 }
 
 /** Session courante, ou null (une auth injoignable n'est pas une raison de crasher). */
-async function currentSession(): Promise<unknown | null> {
+async function currentSession(): Promise<Session | null> {
   if (supabase === null) return null;
   try {
     const { data } = await supabase.auth.getSession();

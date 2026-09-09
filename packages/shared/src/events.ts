@@ -34,6 +34,7 @@ export const EVENTS = {
   // atteinte, avec le délai) et `run_start_degraded` (départ pris sans elle).
   runPreflightViewed: 'run_preflight_viewed', // props: { readiness: 'ready'|'approximate', platform, requested }
   runStart: 'run_start',
+  runStartTap: 'run_start_tap',
   runAutosave: 'run_autosave',
   runCancelAttempt: 'run_cancel_attempt',
   runComplete: 'run_complete', // props: { distance, duration, source }

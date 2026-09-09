@@ -116,7 +116,8 @@ export function readProStatus(
 
   const productId = typeof entry.productIdentifier === 'string' ? entry.productIdentifier : null;
   const expiresAtMs = parseIsoMs(entry.expirationDate);
-  const expired = expiresAtMs !== null && expiresAtMs <= nowMs;
+  const invalidExpiry = entry.expirationDate !== null && entry.expirationDate !== undefined && expiresAtMs === null;
+  const expired = invalidExpiry || (expiresAtMs !== null && expiresAtMs <= nowMs);
 
   if (entry.isActive !== true || expired) {
     // Un droit éteint SANS date connue n'est pas « expiré » : on ne date pas ce
@@ -150,5 +151,5 @@ export function managementUrlOf(info: CustomerInfoLike): string | null {
   const url = info.managementURL;
   if (typeof url !== 'string') return null;
   const v = url.trim();
-  return v.startsWith('http') ? v : null;
+  return /^https?:\/\//i.test(v) ? v : null;
 }

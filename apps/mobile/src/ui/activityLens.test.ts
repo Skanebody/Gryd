@@ -359,52 +359,38 @@ Deno.test('les lectures globales DISENT qu’elles le sont (sinon le prochain ag
 
 // ─── 7. LES TROIS SURFACES PROPAGÉES BASCULENT UNE LECTURE, PAS UNE ÉTIQUETTE ─
 
-const PROPAGATED: readonly { path: string; label: string; hook: string }[] = [
-  {
-    path: '../../app/(tabs)/classement.tsx',
-    label: 'Classement (E11/E12)',
-    hook: 'useSeasonLeaderboard(activity)',
-  },
-  { path: '../../app/historique.tsx', label: 'Historique', hook: 'useMyRunHistory(activity)' },
-  { path: '../../app/performance.tsx', label: 'Statistiques (E18)', hook: 'useStats(activity)' },
-];
+const SPORT_JOURNALS = ['../features/refonte/ProfileHomeScreen.tsx', '../features/refonte/ProfileStatsScreen.tsx'];
 
-Deno.test('les trois surfaces portent le commutateur et sa mémoire par onglet', async () => {
-  for (const s of PROPAGATED) {
-    const src = await source(s.path);
-    assert(
-      src.includes('useActivityLens('),
-      `${s.label} : ni mémoire par onglet, ni éligibilité dérivée (flags.bike + verrou de sortie)`,
-    );
-    assert(src.includes('<ActivitySwitch'), `${s.label} : aucun commutateur rendu`);
-    assert(
-      src.includes('switchVisible'),
-      `${s.label} : le commutateur n’est pas retiré quand il ne doit pas exister`,
-    );
+Deno.test('2026 : journal et statistiques proposent explicitement course et vélo', async () => {
+  for (const path of SPORT_JOURNALS) {
+    const src = await source(path);
+    const sharedSelector = src.includes('<ProfileSegments') && src.includes('value={activity}');
+    const inlineSelector = src.includes('accessibilityRole="tab"') && src.includes('selected: activity === value') && src.includes('setActivity(value)');
+    assert(sharedSelector || inlineSelector, `${path} : le sport affiché suit le sélecteur`);
+    assert(src.includes("key: 'run'") && src.includes("key: 'bike'") || src.includes("(['run', 'bike'] as const)"), `${path} : les deux sports restent accessibles`);
+    assert(src.includes("useState<Activity>('run')"), `${path} : état de lecture explicite, indépendant du suivi actif`);
   }
 });
 
 Deno.test('chaque surface PASSE sa lentille à sa lecture (sinon elle ne fait que réétiqueter)', async () => {
-  for (const s of PROPAGATED) {
-    const src = await source(s.path);
-    assert(
-      src.includes(s.hook),
-      `${s.label} : la lecture n’est pas bornée à la lentille — attendu « ${s.hook} »`,
-    );
+  for (const path of SPORT_JOURNALS) {
+    const src = await source(path);
+    assert(src.includes('useProfileJournal(activity)'), `${path} : la lecture suit le sport du sélecteur`);
   }
+  const journal = await source('../features/refonte/ProfileJournal.ts');
+  assert(journal.includes('useMyRunHistory(activity)') && journal.includes('run.activity === activity'),
+    'les activités distantes et locales sont filtrées sur le même sport');
+  const history = await source('../../app/historique.tsx');
+  assert(history.includes('useMyRunHistory(activity)'), 'l’ancienne route historique garde sa discipline');
 });
 
-Deno.test('l’état vide VÉLO propose une action RÉELLE, qui déclare sa discipline', async () => {
-  // Le vide vélo n'est plus « une fonctionnalité manquante » mais le début de ce
-  // joueur : il DOIT donc porter un geste. Et ce geste doit déclarer `bike` —
-  // un CTA qui partirait sur un départ non déclaré rejouerait exactement le
-  // scénario « il rentre chez lui avec 0 zone ».
-  for (const s of PROPAGATED) {
-    const src = await source(s.path);
-    assert(
-      src.includes("startSortieHref('bike')"),
-      `${s.label} : l’état vide vélo n’offre aucun départ DÉCLARÉ vélo`,
-    );
+Deno.test('2026 : les états vides du Profil ramènent à la Carte, qui possède le départ', async () => {
+  // Le cahier §10 retire le bouton de départ du Profil. La Carte permet de
+  // choisir le sport avant de démarrer ; consulter des stats ne le change pas.
+  for (const path of SPORT_JOURNALS) {
+    const src = await source(path);
+    assert(src.includes("router.push('/(tabs)')"), `${path} : l’état vide offre un retour réel à la Carte`);
+    assert(!src.includes('startSortieHref('), `${path} : le départ appartient à la Carte`);
   }
 });
 
@@ -445,7 +431,9 @@ Deno.test('plus AUCUN écran n’affirme que le vélo n’est pas enregistré', 
     'aún no cronometra',
   ];
   const surfaces = [
-    ...PROPAGATED.map((p) => p.path),
+    ...SPORT_JOURNALS,
+    '../../app/historique.tsx',
+    '../../app/(tabs)/classement.tsx',
     '../features/map/BattleMapOverlays.tsx',
     '../i18n/catalog/map.ts',
     '../i18n/catalog/historique.ts',

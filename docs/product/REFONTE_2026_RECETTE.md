@@ -36,9 +36,9 @@ Cette passe du 9 septembre remplace les mentions historiques ci-dessous d’un o
 - Carte : départ, recentrage et lieu prioritaires ; états secondaires dans Couches ; légende seulement si des terrains sont affichés. Navigation à trois icônes accessibles, sélection animée, cibles fixes de 44 px.
 - Crew : prochain rendez-vous réel avant la conversation, RSVP serveur direct, export `.ics` d’une inscription relue, filtres de contributions des membres. Changement de crew et navigation invalident les réponses périmées.
 - Matière translucide commune, recadrage de la photo du Profil, 19 icônes distinctes dans les réglages, nouvelle icône 5v5, moments de niveau/badge/objet confirmés serveur et réduction du mouvement respectée.
-- Migration **0117** : le nom privé de l’organisateur n’est plus exposé par la RPC des rendez-vous ; pseudo public utilisé lorsque le profil n’est pas visible. **Correctif non déployé**.
+- Migration **0128** : le nom privé de l’organisateur n’est plus exposé par la RPC des rendez-vous ; pseudo public utilisé lorsque le profil n’est pas visible. **Correctif non déployé**.
 
-Validation finale du code : **2 385 tests mobiles réussis**, **13 tests SQL sociaux réussis** (dont régression de visibilité reproduite sans 0117), typecheck des quatre workspaces et exports Expo web/iOS réussis. Ces nombres n’additionnent pas les sous-suites d’agents aux suites complètes. La recette navigateur finale est consignée dans [la note d’expérience](GRYD_EXPERIENCE_SANS_FRICTION_2026_09.md).
+Validation finale du code : **2 385 tests mobiles réussis**, **13 tests SQL sociaux réussis** (dont régression de visibilité reproduite sans 0128), typecheck des quatre workspaces et exports Expo web/iOS réussis. Ces nombres n’additionnent pas les sous-suites d’agents aux suites complètes. La recette navigateur finale est consignée dans [la note d’expérience](GRYD_EXPERIENCE_SANS_FRICTION_2026_09.md).
 
 L’e-mail reste actuellement un **lien réel** : le code OTP est implémenté mais exige la configuration conjointe des templates Supabase `confirmation` et `magic_link` et du build. Les identifiants Google sont absents. Aucun accès d’administration Supabase n’est disponible sur ce poste ; aucun paramètre distant, achat, envoi d’e-mail ou compte réel n’a été créé. Le serveur, les retours OAuth/e-mail de bout en bout et les appareils natifs restent à recetter.
 
@@ -56,7 +56,7 @@ L’e-mail reste actuellement un **lien réel** : le code OTP est implémenté m
 
 Recette visuelle : profils à 320×639 et 390×844 points CSS réels, menu nommé sans débordement horizontal ; Crew, carte, panneau Couches, Sources et aperçus GRYD+ contrôlés dans le navigateur. L’état invité ne contient aucune activité factice. Les planches isolées de modèles utilisent des fixtures QA explicitement étiquetées.
 
-**Aucun déploiement distant.** Migrations 0112–0114 préparées ; PostGIS, GPS terrain, Storage HTTP, achats Store, partage natif et notifications collectives restent à valider ou compléter selon leur périmètre. [Territoires](../qa/GRYD_TERRITORY_2026_0112_VALIDATION.md) · [Social](GRYD_SOCIAL_2026_API.md) · [Objets et ventes](GRYD_OBJECT_EXPORT_2026_IMPLEMENTATION.md).
+**Aucun déploiement distant.** Migrations 0123–0125 préparées ; PostGIS, GPS terrain, Storage HTTP, achats Store, partage natif et notifications collectives restent à valider ou compléter selon leur périmètre. [Territoires](../qa/GRYD_TERRITORY_2026_0123_VALIDATION.md) · [Social](GRYD_SOCIAL_2026_API.md) · [Objets et ventes](GRYD_OBJECT_EXPORT_2026_IMPLEMENTATION.md).
 
 ## Direction visuelle et comparaison
 
@@ -83,7 +83,7 @@ Résultat final : **2 290 tests mobiles réussis, 0 échec** ; typecheck de tous
 | Domaine | Ce qui fonctionne dans l’implémentation | Limites de validation ou de portée |
 |---|---|---|
 | Carte et navigation | Carte · Crew · Profil ; Course/Vélo ; lieu, départ, couches et lecture de possession par emprise ; états vides explicites. | Lecture territoriale exige les migrations et fonctions correspondantes. Aucun test de charge 200k ni sortie GPS terrain. |
-| Capture | Boucles polygonales, ruptures de segments, intersections, discipline, capture autoritaire, gain net distinct de la surface parcourue. | Migration0107 et assertions géographiques non exécutées dans PostGIS sur ce poste. Recomposition de référence par discipline, pas une architecture de charge certifiée. |
+| Capture | Boucles polygonales, ruptures de segments, intersections, discipline, capture autoritaire, gain net distinct de la surface parcourue. | Migration0118 et assertions géographiques non exécutées dans PostGIS sur ce poste. Recomposition de référence par discipline, pas une architecture de charge certifiée. |
 | Sortie et journal | Enregistrement conservé au-dessus de la navigation, pause/fin, archive locale, file persistante, fusion dédupliquée et statuts de synchronisation. | GPS arrière-plan, permission retirée, téléphone verrouillé et reprise après arrêt OS à recetter sur iOS/Android. Historique serveur chargé limité aux 200 dernières sorties. |
 | Adoption des activités invitées | Rattachement explicite au compte avec consentement ; propriétaire persisté avant mise en file ; reprise, déduplication et confidentialité conservées. | Une activité sans données d’ingestion suffisantes reste locale ; aucun GPS ou droit territorial n’est inventé. Recette après installation/connexion sur appareil à compléter. |
 | Résultat et partage | Résultat fondé sur archive ou vrai relevé de fin ; aucun résultat créé depuis les seules valeurs d’URL ; données de résultat, trace et partage rattachées au propriétaire. Vérification du compte avant remise au système. | Vérification native des fichiers, destinations et interruptions nécessaire. |
@@ -99,7 +99,7 @@ Contrats détaillés : [progression et saisons](GRYD_PROGRESSION_2026_API.md), [
 
 ## Serveur : ordre de livraison et limites
 
-Les migrations 0107–0114 et les fonctions associées forment un ensemble. Appliquer 0112 pour la lecture territoriale, 0113 pour le social et les rendez-vous, 0114 avant les fonctions RevenueCat mises à jour. Le nouvel ingest appelle **stage_game_activity_2026** défini dans 0111 : ne pas déployer ce point d’entrée avant les migrations requises. Les copies partagées sont générées par scripts/sync-game-rules.mjs.
+Les migrations 0118–0125 et les fonctions associées forment un ensemble. Appliquer 0123 pour la lecture territoriale, 0124 pour le social et les rendez-vous, 0125 avant les fonctions RevenueCat mises à jour. Le nouvel ingest appelle **stage_game_activity_2026** défini dans 0122 : ne pas déployer ce point d’entrée avant les migrations requises. Les copies partagées sont générées par scripts/sync-game-rules.mjs.
 
 Les harnais PGlite exécutent du vrai SQL PostgreSQL/WASM avec les rôles et fixtures nécessaires. Ils valident notamment les règles de calendrier, d’accès, de consentement et de score. Ils **n’exécutent pas PostGIS**. Le harnais géographique refuse les bases distantes et retourne explicitement un état non exécuté quand aucune base locale PostGIS n’est disponible. Ce poste ne possède pas cette base ; les assertions spatiales ne sont pas présentées comme réussies.
 

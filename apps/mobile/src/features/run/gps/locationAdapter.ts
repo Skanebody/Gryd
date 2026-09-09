@@ -40,7 +40,8 @@ export type RunUnavailableReason =
   /** Aucune API de géolocalisation ici (navigateur trop ancien, page non sécurisée). */
   | 'no-sensor'
   /** Autorisation ni accordée ni refusée : le capteur n'a rendu aucune position. */
-  | 'position-unavailable';
+  | 'position-unavailable'
+  | 'storage-unavailable';
 
 /** Issue de la demande de position au démarrage de la course. `coarseOnly` (E06)
  *  = position grossière accordée (iOS approximate / Android coarse) ; optionnel,

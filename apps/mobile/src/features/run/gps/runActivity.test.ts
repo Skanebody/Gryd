@@ -18,8 +18,8 @@
  *   1. aucun fichier de `features/run/**` ne lit la préférence de carte ;
  *   2. la déclaration arrive par le CHEMIN qui lance (paramètre d'URL), donc
  *      d'un écran qui a dû l'écrire ;
- *   3. le PRÉFLIGHT l'AFFICHE pendant le décompte et laisse la corriger, avant
- *      qu'aucun tracker n'existe.
+ *   3. le PRÉFLIGHT l'AFFICHE pendant le décompte annulable. Le cahier 2026
+ *      place le choix du sport sur la Carte, avant le départ.
  * Retirer l'une des trois rouvre exactement le défaut d'origine.
  *
  * ─── POURQUOI DES GARDE-FOUS DE SOURCE ─────────────────────────────────────
@@ -34,7 +34,6 @@
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { ACTIVITIES, DEFAULT_ACTIVITY } from '@klaim/shared';
-import { RUN_GPS_COPY } from '../../../i18n/catalog/runGps.ts';
 import {
   canResumeInterrupted,
   parseStartActivity,
@@ -209,7 +208,7 @@ Deno.test('le module de déclaration ne lit RIEN — aucune source asynchrone', 
 Deno.test('confirmStart EXIGE une discipline (pas de départ muet)', async () => {
   const code = await readCode('./gateTypes.ts');
   assert(
-    /confirmStart:\s*\(\s*activity:\s*Activity\s*\)/.test(code),
+    /confirmStart:\s*\(\s*activity:\s*Activity\s*[,)]/.test(code),
     'PreflightApi.confirmStart doit prendre la discipline en PARAMÈTRE OBLIGATOIRE : ' +
       'un `confirmStart: () => void` laisse le cœur la deviner à nouveau',
   );
@@ -229,7 +228,7 @@ Deno.test('TrackerInit.activity est OBLIGATOIRE et n’est résolu par aucun dé
 Deno.test('le cœur de course ne lit la discipline nulle part — il la REÇOIT', async () => {
   const code = await readCode('./useRealRunCore.ts');
   assert(
-    /const confirmStart = useCallback\(async \(activity: Activity\)/.test(code),
+    /const confirmStart = useCallback\(async \(activity: Activity\s*[,)]/.test(code),
     'confirmStart reçoit la discipline de son appelant',
   );
   assertEquals(
@@ -253,11 +252,16 @@ Deno.test('la route de course LIT la discipline déclarée et la transmet au pr�
 
 Deno.test('le préflight DÉCLARE la discipline qu’il a lui-même affichée', async () => {
   const code = await readCode('./RunPreflight.tsx');
-  assert(
-    code.includes('confirmStart(activityRef.current)'),
-    'le départ doit passer la discipline COURANTE de l’écran — ni une constante ' +
-      'de module, ni un appel à vide',
-  );
+  const calls = [...code.matchAll(/confirm\.current\(\s*([^,()]+)\s*,\s*([^,()]+)\s*\)/g)];
+  assertEquals(calls.length, 1, 'un seul point du préflight peut confirmer le départ');
+  assertEquals(calls[0]?.[1]?.trim(), 'requestedActivity',
+    'le départ doit passer la discipline COURANTE de l’écran — ni une constante de module, ni un appel à vide');
+  assertEquals(calls[0]?.[2]?.trim(), 'consent',
+    'le consentement est relu au départ, pas repris depuis un ancien rendu');
+  const consentRead = code.indexOf('const consent = choice.currentConsent();');
+  const rejectedConsent = code.indexOf('if (consent === null) { setCount(null); return; }');
+  assert(consentRead >= 0 && rejectedConsent > consentRead && rejectedConsent < calls[0]!.index!,
+    'la discipline déclarée ne part qu’après la vérification du choix durable du propriétaire actuel');
   assertEquals(
     code.includes('confirmStart()'),
     false,
@@ -265,36 +269,21 @@ Deno.test('le préflight DÉCLARE la discipline qu’il a lui-même affichée', 
   );
 });
 
-Deno.test('le préflight MONTRE ce qui va être enregistré, et laisse le démentir', async () => {
+Deno.test('2026 : le préflight montre le sport déclaré et laisse annuler le départ', async () => {
   const code = await readCode('./RunPreflight.tsx');
-  // C'est ICI que se joue la différence entre « informer le départ » et
-  // « décider à la place du joueur ». Sans cet affichage, une discipline
-  // déclarée par l'URL redeviendrait une décision silencieuse — le défaut du
-  // 25/07 avec un autre émetteur.
-  assert(
-    code.includes('preflightActivityKicker'),
-    'la ligne « ce qui va être enregistré » est la promesse d’honnêteté de l’écran',
-  );
-  assert(code.includes('ACTIVITY_LABELS'), 'la discipline doit être LISIBLE, pas seulement connue');
-  assert(
-    /onPress=\{\(\) => \{[\s\S]{0,120}onDeclare\(a\)/.test(code),
-    'chaque discipline doit être atteignable d’un tap — un affichage sans ' +
-      'correction possible laisserait le joueur devant un fait accompli',
-  );
-  assert(
-    /setCountdownRun\(/.test(code),
-    'corriger doit RELANCER le décompte : partir à 1 seconde d’un changement ' +
-      'donnerait le sentiment d’un choix volé',
-  );
+  assert(code.includes("requestedActivity === 'run'"), 'le libellé lit le sport demandé');
+  for (const label of ['Course', 'Run', 'Vélo', 'Ride']) assert(code.includes(label), label);
+  assert(code.includes('onPress={cancel}'), 'le décompte doit rester annulable');
+  assert(/const cancel = \(\) => \{ setCount\(null\); preflight.cancel\(\); router.back\(\);/.test(code),
+    'annuler interrompt le décompte et revient au choix sur la Carte (§10 et G07)');
 });
 
 Deno.test('une sortie ne change JAMAIS de discipline une fois partie', async () => {
-  const code = await readCode('./RunPreflight.tsx');
-  assert(
-    /if \(startedRef\.current \|\| stepIdx === null \|\| next === activity\) return;/.test(code),
-    'la correction doit être refusée après le GO (le tracker existe) et après ' +
-      'une annulation (plus aucun décompte à relancer)',
-  );
+  const preflight = await readCode('./RunPreflight.tsx');
+  const tracker = await readCode('./tracker.ts');
+  assert(preflight.includes('if (!started.current)'), 'le décompte ne démarre qu’un tracker');
+  assert(tracker.includes('readonly activity: Activity'), 'le tracker garde le sport de sa création');
+  assert(!preflight.includes('setActivity('), 'le préflight ne réécrit pas le sport pendant le départ');
 });
 
 Deno.test('l’écran LIVE dit en permanence quelle discipline est enregistrée', async () => {
@@ -302,29 +291,10 @@ Deno.test('l’écran LIVE dit en permanence quelle discipline est enregistrée'
   // « Un coureur ne doit jamais découvrir après coup que sa sortie est partie
   // en vélo, ni l'inverse. » Le libellé d'état ne suffit pas : en pause ou en
   // recherche GPS, il ne nomme plus la discipline.
-  assert(code.includes('ACTIVITY_LABELS[activity]'), 'la pill de discipline doit être rendue');
-  assert(
-    code.includes('a11yLiveActivity'),
-    'et nommée en toutes lettres au lecteur d’écran (le libellé visible est un invariant)',
-  );
-  // 26/07/2026 — le libellé d'état ne se choisit plus par un ternaire local :
-  // il vient de `RUN_GPS_COPY`, la table par discipline qui porte AUSSI les
-  // treize autres surfaces de cet écran qui nommaient l'effort (limite
-  // d'enregistrement, aide arrière-plan, libellés lus à voix haute…). Le
-  // garde-fou suit la structure au lieu de citer une clé : c'est la table qui
-  // doit être lue, et le Record exhaustif qui empêche une discipline muette.
-  assert(
-    /RUN_GPS_COPY\[run\.activity\]/.test(code),
-    '« EN COURSE » pendant une sortie vélo est faux au sens littéral : le ' +
-      'libellé d’état doit venir de la table par discipline',
-  );
-  assert(
-    code.includes('copy.statusFinished') && code.includes('copy.status'),
-    'les DEUX états qui nomment l’effort (en cours, terminé) suivent la discipline',
-  );
-  // …et la table donne bien deux mots différents (le reste est verrouillé
-  // exhaustivement par `i18n/catalog/runGps.test.ts`).
-  assertEquals(RUN_GPS_COPY.bike.status.fr === RUN_GPS_COPY.run.status.fr, false);
+  assert(code.includes("run.activity === 'run'"), 'le libellé lit le tracker effectif');
+  for (const label of ["'Course'", "'Run'", "'Vélo'", "'Ride'"]) assert(code.includes(label), label);
+  assert(code.includes('liveRateDisplay(run.activity,'), 'allure ou vitesse suit le sport enregistré');
+  assert(!code.includes('<ActivitySwitch'), 'aucun changement de sport une fois le suivi commencé');
 });
 
 // ─── 7. Le drapeau vélo dit ce qu'il fait, et rien de plus ──────────────────

@@ -40,6 +40,8 @@ export const RUNNER_SCALE_ZOOM = 14.6;
  * Constante de RENDU (ce module ne porte aucune règle de jeu).
  */
 export const CITY_SCALE_ZOOM = 11.2;
+/** Chosen search destination: show walkable streets, without asserting a GPS position. */
+export const PLACE_DETAIL_ZOOM = 13.5;
 
 /** Caméra par défaut de la Battle Map réelle (onglet Carte). */
 export const EGO_CAMERA = {

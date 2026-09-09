@@ -189,8 +189,6 @@
   border-radius: var(--radius-pill);
   padding: 4px 9px;
   background: color-mix(in srgb, var(--noir) 84%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 /* « En danger » : pulse ennemi discret. */
@@ -220,8 +218,6 @@
   border: 1px solid var(--or);
   border-radius: 16px;
   background: color-mix(in srgb, var(--noir) 88%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -349,4 +345,3 @@
 .dotNeutral {
   background: var(--ligne);
 }
-

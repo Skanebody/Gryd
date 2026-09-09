@@ -12,7 +12,6 @@
  * Lecture statique au bundle (contrainte Expo : les env EXPO_PUBLIC_* sont
  * inlinées) — pas de flip à chaud, c'est assumé pour un pilote.
  */
-import { SEASON_CLOSE_SCHEDULED } from '@klaim/shared';
 
 const FULL_SURFACE = process.env.EXPO_PUBLIC_FULL_SURFACE === '1';
 
@@ -52,40 +51,12 @@ const FULL_SURFACE = process.env.EXPO_PUBLIC_FULL_SURFACE === '1';
  */
 
 export const flags = {
-  /**
-   * Surface SAISON — planches E11 « Classement local » et E12 « Saison & rang »
-   * (`app/(tabs)/classement.tsx`), E59/E60 (`app/season.tsx`) et E61
-   * (`app/fin-saison.tsx`). Les trois écrans se gardent avec CE drapeau, et les
-   * deux seules portes qui y mènent (liste de liens + section Progression du
-   * Profil) sont conditionnées par lui : le fermer ne laisse aucun lien mort.
-   *
-   * ─── IL N'EST PLUS UN BOOLÉEN, IL EST UNE DÉRIVATION (01/08/2026) ──────────
-   * Il valait `true` en dur depuis la Vague 1. Entre-temps, la migration `0106`
-   * a DÉPLANIFIÉ `gryd_season_close` : plus aucune saison ne se clôture toute
-   * seule. La surface est alors devenue le mensonge le plus coûteux de l'app,
-   * parce qu'il GRANDIT : l'en-tête de E11 affiche « Se termine dans {n} j »
-   * calculé sur `seasons.ends_at`, une échéance que plus rien n'honore — passé
-   * ce jour-là, l'écran promet « Se termine aujourd'hui », tous les jours, pour
-   * toujours. Et E12/E61 énonçaient les « règles de remise à zéro » d'un reset
-   * qui n'efface plus rien.
-   *
-   * Il DÉRIVE donc de `SEASON_CLOSE_SCHEDULED` (game-rules, source unique du
-   * fait). Replanifier le job et repasser cette constante à `true` rouvre la
-   * surface du même geste — on ne peut plus rouvrir l'un sans l'autre, ni
-   * oublier de rouvrir. C'était précisément le risque d'un drapeau indépendant.
-   *
-   * ─── ON RETIRE LA PORTE, ON NE SUPPRIME RIEN ──────────────────────────────
-   * Aucun écran, aucune table, aucun moteur n'est retiré. `season_scores`
-   * continue d'accumuler côté serveur, les badges de palier restent acquis, et
-   * l'historique sera INTACT au jour de la réouverture. Ce que le joueur perd,
-   * c'est l'accès à un tableau que la densité actuelle rend désert — et un
-   * onglet désert enseigne qu'un jeu est mort alors qu'il est jeune.
-   *
-   * `EXPO_PUBLIC_FULL_SURFACE=1` reste l'échappatoire interne, la même que pour
-   * `warRoom` et `arsenal` : elle rouvre la surface pour inspecter les écrans
-   * sans rien affirmer au joueur.
-   */
-  season: FULL_SURFACE || SEASON_CLOSE_SCHEDULED,
+  // ⚠️ `season` A DISPARU LE 09/09/2026 (ADR-012). Il gardait la surface Saison
+  // legacy (E11/E12/E59-E61) et dérivait de `SEASON_CLOSE_SCHEDULED`. Le cahier
+  // de septembre remplace cette surface par son parcours de saison (`/season` →
+  // `features/refonte/SeasonJourneyScreen`), sans drapeau ; les anciennes routes
+  // ré-aiguillent (`src/lib/flags.test.ts`). Ce que ce parcours doit à un job de
+  // clôture reste à recetter (docs/STATUS.md).
   /** Missions / War Room (la route (tabs)/warroom et ses liens d'entrée). */
   warRoom: FULL_SURFACE,
   /** Arsenal / boutique (skins, objets capés, GRYD Club). */

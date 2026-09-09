@@ -40,6 +40,7 @@ export type BadgeFamilyId =
   | 'routes'
   | 'crew'
   | 'performance'
+  | 'healthy'
   | 'saison'
   | 'verified'
   | 'secret';
@@ -84,6 +85,7 @@ export const BADGE_FAMILIES: readonly BadgeFamilyDef[] = [
   { id: 'routes', name: 'Routes', color: BADGE_FAMILY_COLORS.routes },
   { id: 'crew', name: 'Crew', color: BADGE_FAMILY_COLORS.crew },
   { id: 'performance', name: 'Performance', color: BADGE_FAMILY_COLORS.performance },
+  { id: 'healthy', name: 'Récupération', color: BADGE_FAMILY_COLORS.healthy },
   { id: 'saison', name: 'Saison', color: BADGE_FAMILY_COLORS.saison },
   { id: 'verified', name: 'Verified', color: BADGE_FAMILY_COLORS.verified },
 ] as const;

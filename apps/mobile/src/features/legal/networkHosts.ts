@@ -35,6 +35,8 @@
  * distinction n'est pas cosmétique : elle décide de ce que le test EXIGE.
  */
 export type HostKind =
+  /** Citation textuelle embarquée (licences), sans ouverture ni requête réseau. */
+  | 'documentation'
   /**
    * Destinataire de données lors du fonctionnement normal : il DOIT être nommé
    * dans la politique (§ « Partage & sous-traitants »).
@@ -78,6 +80,8 @@ export interface ExternalHost {
  * le 27/07/2026 et tenus par `networkHosts.test.ts`.
  */
 export const EXTERNAL_HOSTS: readonly ExternalHost[] = [
+  { host: 'github.com', kind: 'documentation', why: 'Copyright Manrope dans features/legal/fontLicense.ts : texte embarqué sans lien actif ni requête.' },
+  { host: 'scripts.sil.org', kind: 'documentation', why: 'Référence OFL conservée dans la licence Manrope embarquée, sans requête à cet hôte.' },
   // ── Destinataires : à nommer dans la politique ──────────────────────────────
   {
     host: 'eu.i.posthog.com',

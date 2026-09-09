@@ -19,22 +19,12 @@
  */
 import type { IngestRunResponse } from '@klaim/shared';
 
-let lastResult: IngestRunResponse | null = null;
-
-/** Arme le résultat serveur (appelé par useRealRun après un ingest_run 'sent'). */
-export function setLastRunResult(result: IngestRunResponse | null): void {
-  lastResult = result;
+import { createOwnedRunMemory2026, type RunOwnerScope2026 } from './resultOwner2026';
+const memory = createOwnedRunMemory2026<IngestRunResponse>();
+export function setLastRunResult(result: IngestRunResponse | null, scope: RunOwnerScope2026): void {
+  if (result) memory.set(result, scope); else memory.clear();
 }
-
-/**
- * Purge le verdict précédent. À appeler AU DÉPART d'une course, jamais à
- * l'arrivée : entre les deux, l'écran de résultat doit encore pouvoir le lire.
- */
-export function clearLastRunResult(): void {
-  lastResult = null;
-}
-
-/** Résultat serveur de la dernière course, ou null (hors session / non jugée). */
-export function getLastRunResult(): IngestRunResponse | null {
-  return lastResult;
+export function clearLastRunResult(): void { memory.clear(); }
+export function getLastRunResult(ownerId?: string | null, clientRunId?: string): IngestRunResponse | null {
+  return memory.get(ownerId, clientRunId);
 }

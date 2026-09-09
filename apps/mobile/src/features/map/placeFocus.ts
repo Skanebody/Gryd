@@ -29,6 +29,7 @@ import { useSyncExternalStore } from 'react';
 import type { LatLngPoint } from './realAnchors';
 
 export interface PlaceFocusRequest {
+  readonly label?: string;
   /** Ticket croissant. `0` = aucune demande depuis le lancement. */
   readonly ticket: number;
   readonly point: LatLngPoint;
@@ -47,9 +48,9 @@ const listeners = new Set<() => void>();
  * choix — jamais pendant la frappe : la carte ne suit pas la saisie, elle
  * répond à une décision.
  */
-export function requestPlaceFocus(point: LatLngPoint, zoom: number): void {
+export function requestPlaceFocus(point: LatLngPoint, zoom: number, label?: string): void {
   if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
-  current = { ticket: current.ticket + 1, point: { ...point }, zoom };
+  current = { ticket: current.ticket + 1, point: { ...point }, zoom, label };
   for (const listener of listeners) listener();
 }
 

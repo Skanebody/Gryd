@@ -30,9 +30,11 @@
  * défaut de conformité, pas une fonctionnalité.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import { refreshServerGrydPlusAccess } from './useGrydPlusAccess';
 import { useSession } from '../../lib/session';
 import {
-  configurePurchases,
+  observeCustomerInfo,
   fetchCurrentOffering,
   fetchCustomerInfo,
   purchasePremiumPackage,
@@ -45,7 +47,7 @@ import { readPurchaseHistory, type PurchaseRecord } from './purchaseHistory';
 import {
   defaultOfferPeriod,
   isPurchasable,
-  readOffers,
+  readSubscriptionOffers2026,
   yearlySavingsPercent,
   type OfferPeriod,
   type PackageLike,
@@ -122,172 +124,92 @@ export interface UsePremiumResult {
 export function usePremium(): UsePremiumResult {
   const { session, loading: sessionLoading, configured } = useSession();
   const userId = session?.user?.id ?? null;
-
+  const owner = useRef(userId); owner.current = userId;
+  const actionLock = useRef(false);
+  const [loadedOwner, setLoadedOwner] = useState<string | null>(null);
   const capability = useMemo(() => purchasesCapability(), []);
   const [status, setStatus] = useState<PremiumStatus>('loading');
-  const [offering, setOffering] = useState<readonly PackageLike[] | null>(null);
+  const [offering, setOffering] = useState<readonly PackageLike[]>([]);
   const [offers, setOffers] = useState<readonly PremiumOffer[]>([]);
   const [selected, setSelected] = useState<OfferPeriod | null>(null);
   const [info, setInfo] = useState<CustomerInfoLike | null>(null);
   const [busy, setBusy] = useState<'purchase' | 'restore' | null>(null);
   const [lastResult, setLastResult] = useState<PremiumActionResult | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  /** Empêche un `setState` après démontage (écran quitté pendant la requête). */
+  const [now, setNow] = useState(Date.now());
   const alive = useRef(true);
-
+  const reload = useCallback(() => setReloadKey(value => value + 1), []);
   useEffect(() => {
     alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') { setNow(Date.now()); reload(); } });
+    return () => { alive.current = false; clearInterval(timer); subscription.remove(); };
+  }, [reload]);
   useEffect(() => {
     let cancelled = false;
-
-    async function load(): Promise<void> {
-      if (sessionLoading) {
-        setStatus('loading');
-        return;
-      }
-      if (!capability.available) {
-        setStatus('unavailable');
-        return;
-      }
-      if (userId === null) {
-        // Pas de compte : rien à lire, et surtout rien à vendre (cf. entête).
-        setStatus('signedOut');
-        return;
-      }
-      setStatus('loading');
-      const configured = await configurePurchases(userId);
-      if (cancelled) return;
-      if (!configured) {
-        setStatus('error');
-        return;
-      }
-      try {
-        const [current, customerInfo] = await Promise.all([
-          fetchCurrentOffering(),
-          fetchCustomerInfo(),
-        ]);
-        if (cancelled) return;
-        const read = readOffers(current);
-        setOffering(current?.availablePackages ?? null);
-        setOffers(read);
-        setSelected(defaultOfferPeriod(read));
-        setInfo(customerInfo);
-        setStatus(read.length === 0 ? 'empty' : 'ready');
-      } catch {
-        if (cancelled) return;
-        // On ne sait pas s'il existe des offres : on n'en invente aucune.
-        setStatus('error');
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
+    setInfo(null); setOffers([]); setOffering([]); setSelected(null); setLastResult(null); setBusy(null); setLoadedOwner(null);
+    if (sessionLoading) { setStatus('loading'); return; }
+    if (!userId) { setStatus('signedOut'); return; }
+    if (!capability.available) { setStatus('unavailable'); return; }
+    setStatus('loading');
+    const unobserve = observeCustomerInfo(userId, customerInfo => {
+      if (!cancelled && owner.current === userId) { setInfo(customerInfo); setLoadedOwner(userId); }
+    });
+    void Promise.allSettled([fetchCurrentOffering(userId), fetchCustomerInfo(userId)]).then(([current, customer]) => {
+      if (cancelled || owner.current !== userId) return;
+      setLoadedOwner(userId);
+      if (customer.status === 'fulfilled') setInfo(customer.value);
+      if (current.status !== 'fulfilled') { setStatus('error'); return; }
+      const read = readSubscriptionOffers2026(current.value);
+      setOffering(current.value?.availablePackages ?? []); setOffers(read); setSelected(defaultOfferPeriod(read));
+      setStatus(read.length ? 'ready' : 'empty');
+    });
+    return () => { cancelled = true; unobserve(); };
   }, [capability, sessionLoading, userId, reloadKey]);
-
-  const pro = useMemo<ProStatus | null>(
-    () => (info ? readProStatus(info, PRO_ENTITLEMENT_ID, Date.now()) : null),
-    [info],
-  );
-
-  /**
-   * E75. On distingue « pas lu » de « lu et vide » à la source : sans
-   * `allPurchaseDatesByProduct`, le SDK n'a rien dit — `null`. Avec le champ,
-   * même vide, il a répondu — tableau (éventuellement vide).
-   */
-  const purchases = useMemo<readonly PurchaseRecord[] | null>(() => {
-    if (!info || info.allPurchaseDatesByProduct == null) return null;
-    return readPurchaseHistory(info);
-  }, [info]);
-
-  const selectedOffer = useMemo(
-    () => offers.find((o) => o.period === selected) ?? null,
-    [offers, selected],
-  );
-
-  /** Le package SDK correspondant à l'offre choisie (identité par packageId). */
-  const selectedPackage = useMemo<PackageLike | null>(() => {
-    if (!selectedOffer || !offering) return null;
-    return offering.find((p) => p.identifier === selectedOffer.packageId) ?? null;
-  }, [offering, selectedOffer]);
-
+  const ownInfo = loadedOwner === userId ? info : null;
+  const ownOffers = loadedOwner === userId ? offers : [];
+  const pro = useMemo<ProStatus | null>(() => ownInfo ? readProStatus(ownInfo, PRO_ENTITLEMENT_ID, now) : null, [ownInfo, now]);
+  const purchases = useMemo<readonly PurchaseRecord[] | null>(() => ownInfo?.allPurchaseDatesByProduct == null ? null : readPurchaseHistory(ownInfo), [ownInfo]);
+  const selectedOffer = ownOffers.find(offer => offer.period === selected) ?? null;
+  const selectedPackage = offering.find(pkg => pkg.identifier === selectedOffer?.packageId) ?? null;
   const purchaseSelected = useCallback(async (): Promise<PremiumActionResult | null> => {
-    if (busy !== null) return null;
-    // Garde de dernier recours : aucun achat sans PRIX CONNU (offerings.ts).
-    if (!selectedOffer || !isPurchasable(selectedOffer) || !selectedPackage) return null;
-    setBusy('purchase');
-    setLastResult(null);
-    const outcome = await purchasePremiumPackage(selectedPackage);
-    if (!alive.current) return null;
+    if (actionLock.current || !userId || owner.current !== userId || loadedOwner !== userId || !selectedOffer || selectedOffer.period === 'lifetime' || !isPurchasable(selectedOffer) || !selectedPackage) return null;
+    actionLock.current = true; setBusy('purchase'); setLastResult(null);
+    const actionOwner = userId;
+    const outcome = await purchasePremiumPackage(selectedPackage, actionOwner);
+    actionLock.current = false;
+    if (!alive.current || owner.current !== actionOwner) return null;
     setBusy(null);
+    if (outcome.kind === 'cancelled') return null;
+    let result: PremiumActionResult;
     if (outcome.kind === 'purchased') {
-      setInfo(outcome.customerInfo);
-      // ── ON RELIT LE DROIT, ON NE LE DÉDUIT PAS DU SILENCE DU SDK ─────────
-      // Exactement le contrôle que `restore` faisait déjà 30 lignes plus bas
-      // (`readProStatus(...)`) : le module savait vérifier, et ne vérifiait pas
-      // sur le seul chemin où de l'argent est engagé. C'est la MÊME lecture que
-      // celle qui pilote `ProBanner` — les deux ne peuvent donc plus diverger.
+      setInfo(outcome.customerInfo); setLoadedOwner(actionOwner);
       const granted = readProStatus(outcome.customerInfo, PRO_ENTITLEMENT_ID, Date.now());
-      const result: PremiumActionResult =
-        granted.kind === 'active' ? { kind: 'purchased' } : { kind: 'purchase_pending' };
-      setLastResult(result);
-      return result;
-    }
-    // 'cancelled' : aucun message, aucun event — fermer la feuille du Store
-    // n'est pas une panne (même doctrine que `isSilentFailure`, lib/auth.ts).
-    if (outcome.kind === 'failed') {
-      const result: PremiumActionResult = { kind: 'failed' };
-      setLastResult(result);
-      return result;
-    }
-    return null;
-  }, [busy, selectedOffer, selectedPackage]);
-
+      result = granted.kind === 'active' ? { kind: 'purchased' } : { kind: 'purchase_pending' };
+      void refreshServerGrydPlusAccess().catch(() => false);
+    } else result = { kind: 'failed' };
+    setLastResult(result); return result;
+  }, [userId, loadedOwner, selectedOffer, selectedPackage]);
   const restore = useCallback(async (): Promise<PremiumActionResult | null> => {
-    if (busy !== null) return null;
-    setBusy('restore');
-    setLastResult(null);
-    const outcome = await restorePremiumPurchases();
-    if (!alive.current) return null;
+    if (actionLock.current || !userId || owner.current !== userId || !capability.available) return null;
+    actionLock.current = true; setBusy('restore'); setLastResult(null);
+    const actionOwner = userId;
+    const outcome = await restorePremiumPurchases(actionOwner);
+    actionLock.current = false;
+    if (!alive.current || owner.current !== actionOwner) return null;
     setBusy(null);
-    if (outcome.kind !== 'restored') {
-      const result: PremiumActionResult = { kind: 'failed' };
-      setLastResult(result);
-      return result;
+    let result: PremiumActionResult = { kind: 'failed' };
+    if (outcome.kind === 'restored') {
+      setInfo(outcome.customerInfo); setLoadedOwner(actionOwner);
+      const restored = readProStatus(outcome.customerInfo, PRO_ENTITLEMENT_ID, Date.now());
+      result = restored.kind === 'active' ? { kind: 'restored' } : { kind: 'nothing_to_restore' };
+      void refreshServerGrydPlusAccess().catch(() => false);
     }
-    setInfo(outcome.customerInfo);
-    const restored = readProStatus(outcome.customerInfo, PRO_ENTITLEMENT_ID, Date.now());
-    const result: PremiumActionResult =
-      restored.kind === 'active' ? { kind: 'restored' } : { kind: 'nothing_to_restore' };
-    setLastResult(result);
-    return result;
-  }, [busy]);
-
-  const select = useCallback((period: OfferPeriod) => setSelected(period), []);
-  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
-
-  return {
-    status,
-    blockedReason: capability.available ? null : capability.reason,
-    canSignIn: configured && userId === null && !sessionLoading,
-    offers,
-    selected,
-    selectedOffer,
-    savingsPercent: yearlySavingsPercent(offers),
-    pro,
-    purchases,
-    managementUrl: info ? managementUrlOf(info) : null,
-    busy,
-    lastResult,
-    select,
-    reload,
-    purchaseSelected,
-    restore,
-  };
+    setLastResult(result); return result;
+  }, [userId, capability]);
+  return { status: sessionLoading ? 'loading' : !userId ? 'signedOut' : loadedOwner !== userId && capability.available ? 'loading' : status,
+    blockedReason: capability.available ? null : capability.reason, canSignIn: configured && !userId && !sessionLoading,
+    offers: ownOffers, selected: loadedOwner === userId ? selected : null, selectedOffer, savingsPercent: yearlySavingsPercent(ownOffers), pro, purchases,
+    managementUrl: ownInfo ? managementUrlOf(ownInfo) : null, busy, lastResult,
+    select: period => { if (period !== 'lifetime') setSelected(period); }, reload, purchaseSelected, restore };
 }

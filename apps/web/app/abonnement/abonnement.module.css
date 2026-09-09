@@ -287,16 +287,14 @@
   padding: 26px 24px;
 }
 
-/* Highlight abonnement (Club) : contour + halo chartreuse (porte le seul CTA primaire). */
+/* L'abonnement se distingue par son contour, sans halo de surface. */
 .planHighlight {
   border-color: var(--ch40);
-  box-shadow: 0 0 40px var(--ch14);
 }
 
 /* Founder : accent or (édition limitée, usage « badge Fondateur » autorisé). */
 .planFounder {
   border-color: color-mix(in srgb, var(--or) 30%, transparent);
-  box-shadow: 0 0 32px var(--or-14);
 }
 
 .planHead {

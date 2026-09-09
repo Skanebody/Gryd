@@ -320,14 +320,9 @@ Deno.test('sans abonnement, sans étage, ou sans gain : repli en standard, et on
 
 // ─── 6. GARDES ANTI-DÉCOR : les copies locales suivent bien les sources ──────
 
-Deno.test('sanity — les largeurs d’aperçu et les aspects recopiés sont ceux du code', () => {
-  const partage = Deno.readTextFileSync(new URL('../../../app/partage.tsx', import.meta.url));
-  for (const [ratio, w] of Object.entries(PREVIEW_WIDTH_PT)) {
-    assert(
-      new RegExp(`${ratio}:\\s*${w}\\b`).test(partage),
-      `PREVIEW_WIDTH.${ratio} n’est plus ${w} dans app/partage.tsx : ce test ne mesure plus rien`,
-    );
-  }
+Deno.test('legacy — les aspects restent ceux du renderer historique', () => {
+  // The 2026 screen renders the same 1080px output for every account. Legacy
+  // size fixtures above exercise only this retained optional export planner.
   const shareCard = Deno.readTextFileSync(
     new URL('../../ui/game/ShareCard.tsx', import.meta.url),
   );

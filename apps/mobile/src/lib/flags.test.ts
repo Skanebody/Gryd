@@ -26,6 +26,13 @@
  * `SEASON_CLOSE_SCHEDULED` / `SEASON_RESET_KEEPS`. Le jour où le fondateur
  * replanifie le job, ces tests suivent le fait au lieu de bloquer le travail —
  * c'est la différence entre figer un APPEL et garder une RÈGLE.
+ *
+ * ─── 09/09/2026 — ADR-012 ────────────────────────────────────────────────────
+ * La surface Saison legacy (E11/E12/E59-E61) et `flags.season` sont RETIRÉS :
+ * le cahier de septembre sert son propre parcours (`/season`). La section 1
+ * garde la trace du drapeau disparu, la section 4 les routes ré-aiguillées ;
+ * les sections 2 et 3 (moteur et copie legacy) restent des règles vivantes tant
+ * que les catalogues existent.
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { SEASON_CLOSE_SCHEDULED, SEASON_RESET_KEEPS } from '@klaim/shared';
@@ -34,28 +41,17 @@ import { C as SAISON } from '../i18n/catalog/saison.ts';
 import { C as FIN_SAISON } from '../i18n/catalog/finSaison.ts';
 import { flags } from './flags.ts';
 
-// ─── 1. La porte dérive du fait, elle n'est plus un booléen indépendant ───────
+// ─── 1. La porte legacy est RETIRÉE, pas rouverte en dur (ADR-012, 09/09/2026) ──
 
-Deno.test('surface Saison fermée tant qu aucune saison ne se clôture', () => {
-  // `EXPO_PUBLIC_FULL_SURFACE` n'est pas posé sous Deno : on lit donc la valeur
-  // dérivée pure. Si un jour la constante repasse à `true`, cette assertion
-  // s'inverse d'elle-même — elle décrit le lien, pas l'état.
-  assertEquals(
-    flags.season,
-    SEASON_CLOSE_SCHEDULED,
-    'flags.season doit DÉRIVER de SEASON_CLOSE_SCHEDULED — une porte vers un décompte que rien n honore est un mensonge qui grandit tout seul',
-  );
-});
-
-Deno.test('flags.ts ne redéclare pas la saison en dur', async () => {
+Deno.test('flags.season n existe plus — la porte legacy ne se rouvre pas en douce', async () => {
+  // Jusqu'au 09/09/2026, `flags.season` DÉRIVAIT de `SEASON_CLOSE_SCHEDULED` :
+  // une porte vers un décompte que rien n'honore est un mensonge qui grandit
+  // tout seul. Le cahier de septembre a retiré la surface entière ; un drapeau
+  // qui reviendrait en littéral (`season: true`) rouvrirait la porte legacy
+  // sans le fait moteur. On garde donc la trace de sa disparition.
+  assert(!('season' in flags), 'flags.season est revenu — la surface Saison legacy est retirée (ADR-012)');
   const src = await Deno.readTextFile(new URL('./flags.ts', import.meta.url));
-  // La dérivation doit être VISIBLE dans la source : `season: true` recopié à la
-  // main rendrait le test ci-dessus vert par coïncidence le jour où la constante
-  // passerait à `true`, puis faux pour toujours ensuite.
-  assert(
-    /season:\s*FULL_SURFACE\s*\|\|\s*SEASON_CLOSE_SCHEDULED/.test(src),
-    'la surface Saison doit dériver de SEASON_CLOSE_SCHEDULED, jamais être un littéral',
-  );
+  assert(!/^\s*season:\s*/m.test(src), 'flags.ts redéclare `season:` — la porte legacy ne se rouvre pas en dur');
 });
 
 // ─── 2. Tant que rien ne clôture, rien ne doit pouvoir détruire ──────────────
@@ -124,57 +120,65 @@ Deno.test('aucune copie de saison ne promet la libération des zones capturées'
   }
 });
 
-// ─── 4. Fermer la porte ne laisse aucun lien mort ────────────────────────────
+// ─── 4. La surface Saison legacy est RETIRÉE, pas masquée (ADR-012, 09/09/2026) ──
 
 /**
- * Les TROIS écrans de la surface Saison se gardent sur `flags.season`. Sans
- * cette garde, fermer la porte du Profil laisserait les routes atteignables au
- * deep link (et `/fin-saison` par le bouton de `/season`) : une surface
- * « retirée » qu'une URL rouvre n'est pas retirée.
+ * Jusqu'au 09/09/2026, trois écrans (E11 `(tabs)/classement`, E59/E60 `season`,
+ * E61 `fin-saison`) se gardaient sur `flags.season`, et le Profil n'y menait que
+ * derrière la même garde : fermer la porte ne laissait aucun lien mort.
+ *
+ * Le cahier de septembre (rang 0 depuis l'ADR-012) remplace cette surface par
+ * SON parcours de saison (`features/refonte/SeasonJourneyScreen`, servi par
+ * `/season`), sans drapeau. Les autres routes ne sont plus des écrans : ce sont
+ * des ré-aiguillages INCONDITIONNELS vers `/season`. L'invariant survit sous
+ * une autre forme — aucune route retirée ne rend un écran à moitié legacy, et
+ * le chemin nommé du Profil vers la saison existe toujours.
  */
-const ECRANS_SAISON = [
+const RETIREES_VERS_SEASON = [
   '../../app/(tabs)/classement.tsx',
-  '../../app/season.tsx',
   '../../app/fin-saison.tsx',
+  '../../app/aujourdhui.tsx',
 ] as const;
 
-Deno.test('les trois écrans de saison redirigent quand la surface est fermée', async () => {
-  for (const chemin of ECRANS_SAISON) {
+/** Un fichier de route qui n'est qu'une ré-exportation → le module qu'il sert. */
+async function moduleServi(cheminRoute: string): Promise<string> {
+  const url = new URL(cheminRoute, import.meta.url);
+  const src = await Deno.readTextFile(url);
+  const m = src.match(/^export\s*\{[^}]*\}\s*from\s*'([^']+)'/m);
+  const brut = m?.[1];
+  if (brut === undefined) return src;
+  const cible = /\.tsx?$/.test(brut) ? brut : `${brut}.tsx`;
+  return await Deno.readTextFile(new URL(cible, url));
+}
+
+Deno.test('les routes de saison retirées ré-aiguillent sans condition vers /season', async () => {
+  for (const chemin of RETIREES_VERS_SEASON) {
     const src = await Deno.readTextFile(new URL(chemin, import.meta.url));
     assert(
-      /if\s*\(!flags\.season\)\s*return\s*<Redirect/.test(src),
-      `${chemin} doit rediriger tant que la surface Saison est fermée`,
+      /return\s*<Redirect\s+href="\/season"\s*\/>/.test(src),
+      `${chemin} doit ré-aiguiller vers /season : une route retirée qui rend encore un écran est une surface à moitié legacy`,
     );
+    assert(!/flags\.season/.test(src), `${chemin} lit flags.season, un drapeau qui n'existe plus (ADR-012)`);
   }
+  // Et la cible est un VRAI écran : la ré-exportation de `/season` se résout.
+  const season = await moduleServi('../../app/season.tsx');
+  assert(/export (default )?function|export const/.test(season), '/season doit servir un module qui existe');
 });
 
-Deno.test('le Profil ne pousse vers le classement que derrière la garde', async () => {
-  const src = await Deno.readTextFile(new URL('../../app/(tabs)/profil.tsx', import.meta.url));
-  // Les deux seules portes vers /classement de toute l'app vivent ici. Chacune
-  // doit être précédée, dans les 400 caractères qui la couvrent, par la garde —
-  // on vérifie qu'AUCUNE poussée n'est nue, pas qu'elles sont au bon endroit.
-  const poussees = [...src.matchAll(/router\.push\('\/classement'\)/g)];
-  assert(poussees.length > 0, 'le Profil doit rester le chemin nommé vers la Saison');
-  for (const poussee of poussees) {
-    const amont = src.slice(Math.max(0, poussee.index - 400), poussee.index);
-    assert(
-      amont.includes('flags.season'),
-      'une poussée vers /classement sans garde flags.season est un lien vers une route masquée',
-    );
-  }
+Deno.test('le Profil reste le chemin nommé vers la saison', async () => {
+  const src = await moduleServi('../../app/(tabs)/profil.tsx');
+  const poussees = [...src.matchAll(/router\.push\('\/season'\)/g)];
+  assert(poussees.length > 0, "le Profil (ou le module qu'il sert) doit pousser vers /season");
 });
 
-Deno.test('le rang local n est affiché que si son tableau est atteignable', async () => {
-  const src = await Deno.readTextFile(new URL('../../app/(tabs)/profil.tsx', import.meta.url));
-  // Ligne d'identité (« CREW · ville · #rang ») et ShareCard : les deux seules
-  // surfaces qui montrent une place locale. Un rang tiré d'un tableau que l'app
-  // n'ouvre plus est l'équivalent informationnel d'un bouton mort.
+Deno.test('le Profil ne peint aucun rang tiré du tableau legacy retiré', async () => {
+  const src = await moduleServi('../../app/(tabs)/profil.tsx');
+  // `(tabs)/classement` n'est plus un tableau : un rang qui en serait tiré serait
+  // l'équivalent informationnel d'un bouton mort (un chiffre dont la source ne
+  // s'ouvre plus). Le jour où un rang local revient, il devra venir du parcours
+  // de saison du cahier — et ce test devra le dire.
   assert(
-    /const rankProgress =\s*\n?\s*flags\.season &&/.test(src),
-    'rankProgress doit être gardé par flags.season',
-  );
-  assert(
-    /const hasSeasonRank = flags\.season &&/.test(src),
-    'hasSeasonRank (ShareCard) doit être gardé par flags.season',
+    !/seasonRankProgress|hasSeasonRank/.test(src),
+    'le Profil peint un rang du tableau legacy retiré (seasonRankProgress / hasSeasonRank)',
   );
 });

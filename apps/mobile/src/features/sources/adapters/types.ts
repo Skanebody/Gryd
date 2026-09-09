@@ -20,6 +20,7 @@
  * décision capture/stats reste 100 % serveur (strava_import / ingest_run).
  */
 import type { Entry } from '../../../i18n/types';
+import type { Activity } from '@klaim/shared';
 import type { SourceTrustLevel } from '../catalog';
 
 /** État réel d'une source — les 4 états AMENDEMENT-15 + « prêt à connecter ». */
@@ -55,7 +56,7 @@ export interface SourceAdapter {
   /** Niveau de confiance GRYD Verify de la source (copy, décision serveur). */
   trustLevel: SourceTrustLevel;
   /** Lance la connexion réelle (OAuth…) ; retourne l'état résultant. */
-  connect(): Promise<SourceAdapterSnapshot>;
+  connect(options?: { activity: Activity }): Promise<SourceAdapterSnapshot>;
   /** Coupe la liaison locale (oubli du token appareil). */
   disconnect(): Promise<SourceAdapterSnapshot>;
   /** État réel courant, sans effet de bord. */

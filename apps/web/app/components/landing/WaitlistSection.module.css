@@ -112,7 +112,6 @@
 /* Or = badge Fondateur uniquement (état de jeu, AMENDEMENT-05 §1). */
 .chipDotOr {
   background: var(--or);
-  box-shadow: 0 0 8px var(--or-14);
 }
 
 /* ── Villes de la Saison 0, NOMMÉES (plus de jauge de remplissage) ─────────── */

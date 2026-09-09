@@ -44,7 +44,6 @@ const TEMPLATES_SRC = Deno.readTextFileSync(new URL('./templates.tsx', import.me
 const SHARECARD_SRC = Deno.readTextFileSync(
   new URL('../../ui/game/ShareCard.tsx', import.meta.url),
 );
-const PARTAGE_SRC = Deno.readTextFileSync(new URL('../../../app/partage.tsx', import.meta.url));
 
 /* ════════════════════════════════════════════════════════════════════════════
  * 1. LE CÂBLAGE : QUEL DÉFI SUR QUEL TEMPLATE
@@ -221,7 +220,7 @@ Deno.test('six événements, six défis DISTINCTS dans chaque langue', () => {
 
 // ─── LE MODÈLE DE LARGEUR (mesuré sur la source, pas estimé) ────────────────
 // Preview la PLUS ÉTROITE = format story (la preview EST le média exporté).
-const PREVIEW_STORY_WIDTH = 232; // app/partage.tsx — PREVIEW_WIDTH.story
+const PREVIEW_STORY_WIDTH = 232; // Historical minimum supported by the legacy ShareCard.
 const PILL_BORDER = 1.5; // ShareCard.tsx — styles.challengePill.borderWidth
 const LETTER_SPACING = 2; // ShareCard.tsx — styles.challengeText.letterSpacing
 /** Chasse moyenne d'une capitale grasse — la constante que ShareCard emploie déjà. */
@@ -248,13 +247,11 @@ Deno.test('§A.9 : aucun défi ne déborde la capsule, dans aucune des cinq lang
   }
 });
 
-Deno.test('anti-décor : le modèle de largeur colle encore à ce que la capsule rend', () => {
+Deno.test('legacy : la capsule reste lisible à sa largeur historique minimale', () => {
   // Sans ces gardes, la borne resterait verte en décrivant une capsule qui
   // n'existe plus (autre fonte, autre largeur de preview, capsule qui déborde).
-  assert(
-    /story:\s*232,/.test(PARTAGE_SRC),
-    'la preview story ne fait plus 232 pt : la borne de longueur décrit une autre carte',
-  );
+  // /partage now uses SharePoster2026 with no challenge capsule. These bounds
+  // still cover the retained legacy renderer, not the new composition width.
   assert(
     /challengePill:\s*\{[^}]*alignSelf:\s*'stretch'/.test(SHARECARD_SRC),
     'la capsule n’est plus pleine largeur : le calcul de largeur utile ne tient plus',

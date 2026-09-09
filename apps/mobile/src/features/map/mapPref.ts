@@ -27,12 +27,12 @@
  */
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
+import type { Activity } from '@klaim/shared';
 import {
   activityStorageKey,
-  parseActivity,
   type ActivitySurface,
 } from '../../ui/activityLens';
+import { createActivityPreferenceSlot2026, ensureActivityPreferenceSlot2026, chooseActivityPreferenceSlot2026, type ActivityPreferenceSlot2026 } from './activityPreferenceSlot2026';
 import { BASEMAP_KEYS, MAP_BASEMAP_STYLES, type BasemapKey } from './mapStyle';
 
 /** Clé de persistance du réglage « Fond de carte ». */
@@ -260,41 +260,19 @@ export function useMap3d(): {
  */
 export type MapActivity = Activity;
 
-/** Un emplacement de préférence : sa valeur, sa lecture LAZY, ses abonnés. */
-interface ActivitySlot {
-  value: Activity;
-  load: Promise<void> | null;
-  listeners: Set<(value: Activity) => void>;
-}
-
 /** Un emplacement PAR SURFACE — créé à la demande, jamais partagé entre écrans. */
-const activitySlots = new Map<ActivitySurface, ActivitySlot>();
+const activitySlots = new Map<ActivitySurface, ActivityPreferenceSlot2026>();
 
-function slotOf(surface: ActivitySurface): ActivitySlot {
+function slotOf(surface: ActivitySurface): ActivityPreferenceSlot2026 {
   const existing = activitySlots.get(surface);
   if (existing) return existing;
-  // Défaut imposé : la course à pied — la seule discipline que GRYD chronomètre.
-  const created: ActivitySlot = { value: DEFAULT_ACTIVITY, load: null, listeners: new Set() };
+  const created = createActivityPreferenceSlot2026();
   activitySlots.set(surface, created);
   return created;
 }
 
 function ensureActivityLoaded(surface: ActivitySurface): Promise<void> {
-  const slot = slotOf(surface);
-  if (!slot.load) {
-    slot.load = AsyncStorage.getItem(activityStorageKey(surface))
-      .then((raw) => {
-        const parsed = parseActivity(raw);
-        if (parsed !== null && parsed !== slot.value) {
-          slot.value = parsed;
-          for (const l of slot.listeners) l(parsed);
-        }
-      })
-      .catch(() => {
-        // Best effort : stockage indisponible → défaut (Run).
-      });
-  }
-  return slot.load;
+  return ensureActivityPreferenceSlot2026(slotOf(surface), () => AsyncStorage.getItem(activityStorageKey(surface)));
 }
 
 /** Lit la lentille persistée d'une surface (défaut Run si absente/illisible). */
@@ -305,13 +283,7 @@ export async function getActivityPref(surface: ActivitySurface): Promise<Activit
 
 /** Fixe la lentille d'UNE surface, notifie ses abonnés et la persiste. */
 export function setActivityPref(surface: ActivitySurface, value: Activity): void {
-  const slot = slotOf(surface);
-  if (value === slot.value) return;
-  slot.value = value;
-  // La valeur en mémoire fait foi désormais — inutile de relire le stockage.
-  slot.load = Promise.resolve();
-  for (const l of slot.listeners) l(value);
-  void AsyncStorage.setItem(activityStorageKey(surface), value).catch(() => {});
+  chooseActivityPreferenceSlot2026(slotOf(surface), value, next => AsyncStorage.setItem(activityStorageKey(surface), next));
 }
 
 /**

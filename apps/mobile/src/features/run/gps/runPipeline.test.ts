@@ -70,6 +70,23 @@ Deno.test('30 km/h : la borne de VITESSE lue est bien celle de la discipline', (
   assert(activityRules('bike').pointMaxSpeedKmh > 30, 'la borne vélo doit être > 30 km/h');
 });
 
+Deno.test('2026 : une pause brève reste une rupture jusqu’au payload serveur', () => {
+  // A two-second pause is shorter than the GPS gap threshold. Only the
+  // explicit recorder boundary prevents a fictitious connector at resume.
+  const before = straightLine(30, 10);
+  const after = straightLine(30, 10).map((fix, index) => ({
+    ...fix, ts: T0 + (32 + index) * 1_000,
+    lat: fix.lat + 0.001, ...(index === 0 ? { breakBefore: true as const } : {}),
+  }));
+  const state = stateOf([...before, ...after], 'run');
+  const snapshot = computeSnapshot(state, T0 + 62_000);
+  assertEquals(snapshot.traceSegments.length, 2, 'la reprise ne doit pas joindre les fragments');
+  const payload = buildIngestPayload(state, { clientRunId: 'pause-case', stepCount: 0 });
+  const resumed = payload.points.find(point => point.breakBefore === true);
+  assert(resumed !== undefined, 'la décimation ne doit pas effacer breakBefore');
+  assertEquals(resumed.t, after[0]!.ts, 'la rupture doit porter le vrai instant de reprise');
+});
+
 Deno.test('sortie VÉLO : la trace est gardée ENTIÈRE et la distance live est vraie', () => {
   const snap = computeSnapshot(stateOf(BIKE_FIXES, 'bike'), NOW);
   // Aucun point sacrifié : les 300 fixes passent les bornes du vélo.

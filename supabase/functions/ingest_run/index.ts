@@ -1,7 +1,9 @@
 /**
- * GRYD — Edge Function ingest_run (SPEC §6.3, AMENDEMENT-02 §2/§3/§4).
+ * GRYD — Edge Function ingest_run. Active ruleset: September 2026.1.
+ * The sole registered handler dispatches to refonte2026.ts. The former handler
+ * below is unregistered historical code, retained for existing audit tests.
  *
- * Pipeline : auth JWT → idempotence (user_id, client_run_id) → validation §3.2
+ * Historical pipeline (not active): auth JWT → idempotence → validation §3.2
  * → hexing H3 → lecture état (hexes, privacy, no-capture, densité) →
  * decideClaims (pur) → RPC claim_hexes (application atomique) → mécaniques
  * badges (météo Open-Meteo fail-open, événement, avant-poste/route V0) →
@@ -16,6 +18,7 @@
  * `celebration` persisté avec replayed:true, sans AUCUN recalcul.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { ingestRefonte2026 } from './refonte2026.ts';
 import { cellToLatLng, latLngToCell } from 'npm:h3-js@^4.1';
 import {
   type Activity,
@@ -2564,7 +2567,8 @@ async function isReturningPlayer(userId: string, runId: string, now: Date): Prom
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
-Deno.serve(async (req: Request): Promise<Response> => {
+/** Unregistered legacy handler, retained only to audit historical decisions. */
+async function legacyIngestRun(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   // Auth JWT (le client appelle avec son access token Supabase).
@@ -4050,6 +4054,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.error('ingest_run:', err);
     return json({ error: 'internal_error' }, 500);
   }
+}
+
+// The only registered entry point. Legacy code above cannot mutate new possession.
+Deno.serve(async (req: Request): Promise<Response> => {
+  if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+  if (!jwt) return json({ error: 'missing_authorization' }, 401);
+  const { data, error } = await supabase.auth.getUser(jwt);
+  if (error || !data?.user) return json({ error: 'invalid_token' }, 401);
+  let body: unknown;
+  try { body = await req.json(); } catch { return json({ error: 'invalid_json' }, 400); }
+  if (!isIngestRunRequest(body)) return json({ error: 'invalid_payload' }, 400);
+  return await ingestRefonte2026(supabase, data.user.id, body);
 });
 
 // ─── Étapes du handler ───────────────────────────────────────────────────────

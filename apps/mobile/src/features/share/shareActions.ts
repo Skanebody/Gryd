@@ -16,7 +16,8 @@
  * Le second n'est jamais annoncé comme un PNG.
  */
 import { Platform, Share } from 'react-native';
-import { captureRef } from 'react-native-view-shot';
+import { captureRef, releaseCapture } from 'react-native-view-shot';
+import { guardedShareAsset2026 } from './guardedShare2026';
 import * as Sharing from 'expo-sharing';
 import type { ShareDemoData } from './templates';
 import type { ExportPlan, ExportQualityId } from './clubExport';
@@ -84,7 +85,8 @@ export function clipboardAvailable(): boolean {
  * `ok:false` seulement si RIEN n'a pu être copié ni partagé (l'UI n'affiche alors
  * pas « copié » — honnêteté).
  */
-export async function copyText(text: string): Promise<ShareActionResult> {
+export async function copyText(text: string, authorized: () => boolean = () => true): Promise<ShareActionResult> {
+  if (!authorized()) return { ok: false, reason: 'dismissed' };
   if (Platform.OS === 'web') {
     try {
       const nav = (globalThis as { navigator?: Navigator }).navigator;
@@ -95,7 +97,7 @@ export async function copyText(text: string): Promise<ShareActionResult> {
     } catch {
       // tombe sur le partage web
     }
-    return openShareSheet(text);
+    return authorized() ? openShareSheet(text, authorized) : { ok: false, reason: 'dismissed' };
   }
   const clip = getClipboard();
   if (clip) {
@@ -106,7 +108,7 @@ export async function copyText(text: string): Promise<ShareActionResult> {
       // tombe sur la feuille système
     }
   }
-  return openShareSheet(text);
+  return authorized() ? openShareSheet(text, authorized) : { ok: false, reason: 'dismissed' };
 }
 
 /**
@@ -123,21 +125,19 @@ export async function copyText(text: string): Promise<ShareActionResult> {
 export async function shareAsImage(
   target: unknown,
   fallbackMessage: string,
+  authorized: () => boolean = () => true,
+  confirmBeforeDelivery?: () => Promise<boolean>,
 ): Promise<ShareActionResult> {
-  if (Platform.OS === 'web' || target == null) return openShareSheet(fallbackMessage);
-  try {
-    const uri = await captureRef(target as Parameters<typeof captureRef>[0], {
-      format: 'png',
-      quality: 1,
-    });
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' });
-      return { ok: true, via: 'image' };
-    }
-  } catch (e) {
-    console.warn('[share] export image échoué, filet texte :', e);
-  }
-  return openShareSheet(fallbackMessage);
+  if (!authorized()) return { ok: false, reason: 'dismissed' };
+  if (Platform.OS === 'web' || target == null) return openShareSheet(fallbackMessage, authorized);
+  return guardedShareAsset2026<ShareActionResult>({
+    authorized, confirmBeforeDelivery,
+    capture: () => captureRef(target as Parameters<typeof captureRef>[0], { format: 'png', quality: 1 }),
+    available: Sharing.isAvailableAsync,
+    deliver: async uri => { await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' }); return { ok: true, via: 'image' }; },
+    release: releaseCapture,
+    fallback: () => openShareSheet(fallbackMessage, authorized),
+  });
 }
 
 /**
@@ -209,25 +209,23 @@ export async function shareCardImage(
 export async function shareStickerImage(
   target: unknown,
   fallbackText: string,
+  authorized: () => boolean = () => true,
+  confirmBeforeDelivery?: () => Promise<boolean>,
 ): Promise<ShareActionResult> {
-  if (Platform.OS === 'web' || target == null) return copyText(fallbackText);
-  try {
-    const uri = await captureRef(target as Parameters<typeof captureRef>[0], {
-      format: 'png', // seul format à canal alpha — le JPEG aplatirait le fond
-      quality: 1,
-      result: 'tmpfile',
-    });
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' });
-      return { ok: true, via: 'image' };
-    }
-  } catch (e) {
-    console.warn('[share] sticker PNG échoué, filet texte :', e);
-  }
-  return copyText(fallbackText);
+  if (!authorized()) return { ok: false, reason: 'dismissed' };
+  if (Platform.OS === 'web' || target == null) return copyText(fallbackText, authorized);
+  return guardedShareAsset2026<ShareActionResult>({
+    authorized, confirmBeforeDelivery,
+    capture: () => captureRef(target as Parameters<typeof captureRef>[0], { format: 'png', quality: 1, result: 'tmpfile' }),
+    available: Sharing.isAvailableAsync,
+    deliver: async uri => { await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'GRYD' }); return { ok: true, via: 'image' }; },
+    release: releaseCapture,
+    fallback: () => copyText(fallbackText, authorized),
+  });
 }
 
-export async function openShareSheet(message: string): Promise<ShareActionResult> {
+export async function openShareSheet(message: string, authorized: () => boolean = () => true): Promise<ShareActionResult> {
+  if (!authorized()) return { ok: false, reason: 'dismissed' };
   if (Platform.OS === 'web') {
     try {
       const nav = (

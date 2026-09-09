@@ -1,626 +1,282 @@
-/**
- * GRYD — E07 « Connexion par e-mail » (spec produit UI/UX complète, l.735).
- *
- * Layout imposé par la planche, dans cet ordre : retour · titre · champ e-mail ·
- * CTA `RECEVOIR LE LIEN` · clavier e-mail · AUCUNE demande de mot de passe en
- * première intention. Les cinq états nommés par la spec sont tous rendus (repères
- * ÉTAT 1…5 dans le JSX) : lien envoyé, e-mail invalide, compte existant avec
- * fournisseur externe, lien expiré, renvoi après délai.
- *
- * ═══ CET ÉCRAN N'EST PAS UN SECOND CHEMIN D'AUTHENTIFICATION ════════════════
- * Il EXTRAIT le filet e-mail qui vivait replié dans `app/(auth)/sign-in*.tsx`,
- * il ne le duplique pas. L'envoi passe par le MÊME `requestEmailOtp`
- * (`src/lib/auth.ts:253`, `auth.web.ts:134` — `supabase.auth.signInWithOtp`,
- * `shouldCreateUser: true`, `emailRedirectTo: 'gryd://'`), qui émet déjà
- * `signup_started`. Aucune ligne d'auth n'est réécrite ici : cet écran PEINT,
- * il ne parle pas à GoTrue autrement que par ce module.
- *
- * Les décisions (forme d'adresse, motif d'échec, décompte de renvoi, verdict du
- * lien ouvert) sont PURES et vivent dans `src/features/account/emailLink.ts`,
- * testées en Deno. Rien de ce qui se décide ici ne se décide dans du JSX.
- *
- * ═══ LE GATE 16+ RESTE DEVANT LA CRÉATION, ET IL EST POSÉ ICI AUSSI ═════════
- * `requestEmailOtp` envoie `shouldCreateUser: true` : CET écran crée des comptes.
- * Apple 5.1.1 / RGPD mineurs interdisent d'en créer un pour un mineur — le gate
- * doit donc précéder l'envoi, pas seulement l'écran d'où l'on vient.
- *
- * POURQUOI PAS UN SIMPLE « on arrive de /sign-in, donc c'est passé » : parce que
- * cet écran est atteignable directement (URL sur le bundle web, lien profond,
- * reprise de pile) et parce qu'un laissez-passer transmis en paramètre de route
- * serait falsifiable — un gate légal ne se délègue pas au client appelant.
- *
- * POURQUOI PAS UNE REDIRECTION VERS /sign-in QUAND L'ÂGE EST INCONNU : c'est
- * EXACTEMENT la faute déjà commise et corrigée le 21/07/2026 (voir l'entête de
- * sign-in.tsx). `useOnboardingState` est un état PAR MONTAGE : arriver ici relit
- * le stockage, et si celui-ci ne retient rien (navigation privée, localStorage
- * bloqué, données purgées) la relecture rendrait `false` à chaque fois →
- * /email → /sign-in → /email… en boucle. La question est donc reposée EN PLACE,
- * sans navigation : au pire un tap de plus, jamais une porte fermée. Et la
- * lecture EN COURS ne peint ni le champ (ce serait ouvrir la création sans gate)
- * ni la question (ce serait la poser à quelqu'un qui y a déjà répondu) — c'est
- * borné à 3 s par le store, jamais un écran mort.
- *
- * ═══ CE QUE CET ÉCRAN N'AFFIRME JAMAIS (constitution §1) ════════════════════
- * · Il ne dit pas si l'adresse EXISTE : la même adresse connecte ou crée
- *   (`shouldCreateUser: true`), et `whatHappens` le dit une fois, sans deviner.
- * · Il ne devine pas de fournisseur : `existing_provider` n'est rendu que si le
- *   SERVEUR l'a nommé (classifyEmailLinkFailure) — jamais depuis un domaine.
- * · Il n'annonce « lien envoyé » qu'après un `ok: true` du serveur ; pendant
- *   l'envoi il dit « Envoi… », ce qui n'affirme rien.
- * · Il n'affiche le raccourci « Continuer avec {provider} » que si ce
- *   fournisseur est RÉELLEMENT utilisable ici (§2 : aucun bouton mort) — sinon
- *   il garde l'explication, qui reste vraie, et retire le raccourci.
- *
- * ═══ SUSPENS ASSUMÉS, DATÉS DU 27/07/2026 ══════════════════════════════════
- * · ROUTE. Le fichier vit dans le groupe `(auth)`, dont expo-router retire le
- *   segment : l'URL réelle est **`/email`**, pas `/auth/email` comme l'écrit la
- *   spec. Aligner l'URL demanderait de renommer le dossier `(auth)` (donc de
- *   toucher `sign-in`, `_layout.tsx` et tous les `router.push('/sign-in')`) —
- *   hors périmètre de ce chantier. La route est nommée ici pour que personne ne
- *   la croie déjà conforme.
- * · ÉTAT 4 « lien expiré ». Il est rendu dès que l'écran reçoit
- *   `error_code=otp_expired` (paramètres de route). Mais `emailRedirectTo` vaut
- *   `'gryd://'` (racine) dans `src/lib/auth.ts:261`, et `app/_layout.tsx` ne
- *   route aujourd'hui que les liens d'invitation crew : RIEN ne conduit encore
- *   ce retour jusqu'ici. L'état est donc PRÊT et NON CÂBLÉ de bout en bout —
- *   les deux fichiers à changer sont hors périmètre.
- * · ÉTAT 3 « compte existant avec fournisseur externe ». Codé et testé comme un
- *   mapping, JAMAIS observé : `signInWithOtp` envoie le lien sans jamais dire
- *   qu'une identité Apple/Google porte déjà l'adresse (cf. emailLink.ts).
- * · L'écran est LIEN, pas code, parce que `EMAIL_DELIVERY === 'link'`
- *   (`src/lib/auth.ts:251` — l'expéditeur par défaut du plan gratuit refuse un
- *   gabarit portant `{{ .Token }}`). C'est pour ça que /sign-in n'y route que
- *   dans ce mode et garde son étape « code » pour l'autre.
- */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Redirect, router } from 'expo-router';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSizes, fonts, iconSizes, radii, sizes, spacing, typography } from '@klaim/shared';
+import { colors, fonts, spacing } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/authEmail';
+import { C as AuthC } from '../../src/i18n/catalog/auth';
 import { useT } from '../../src/i18n/store';
-import type { Entry } from '../../src/i18n/types';
-import { Button } from '../../src/ui/Button';
-import { Icon } from '../../src/ui/Icon';
-import { SectionLabel } from '../../src/ui/SectionLabel';
 import { AGE } from '../../src/features/onboarding/content';
-import { SignInPhotoBackdrop } from '../../src/features/onboarding/SignInPhotoBackdrop';
+import { useOnboardingState } from '../../src/features/onboarding/store';
+import { rememberOnboardingCompletion2026 } from '../../src/features/onboarding/sessionCompletion2026';
 import {
-  STORAGE_UNAVAILABLE_NOTICE,
-  useOnboardingState,
-} from '../../src/features/onboarding/store';
-import {
-  canResend,
   classifyEmailLinkFailure,
   isEmailShapeValid,
-  linkVerdictFromParams,
   normalizeEmail,
   resendSecondsLeft,
-  type EmailLinkVerdict,
-  type ExternalProvider,
 } from '../../src/features/account/emailLink';
-import { EVENTS, track } from '../../src/lib/analytics';
-import {
-  GOOGLE_CAPABLE,
-  isAppleAuthAvailable,
-  requestEmailOtp,
-} from '../../src/lib/auth';
+import { EMAIL_DELIVERY, requestEmailOtp, verifyEmailOtp } from '../../src/lib/auth';
 import { useSession } from '../../src/lib/session';
+import { Button } from '../../src/ui/Button';
+import { GrydMark } from '../../src/ui/gryd/GrydMark';
+import { GrydIcon } from '../../src/ui/gryd/GrydIcon';
+import { TranslucentControl2026 } from '../../src/ui/gryd/Surface2026';
 
-/** Motif d'échec → la phrase montrée. Les deux viennent du même verdict pur. */
-const FAILURE_COPY: Readonly<Record<'invalid_email' | 'rate_limited' | 'network' | 'unknown', Entry>> =
-  {
-    invalid_email: C.errorInvalidEmail,
-    rate_limited: C.errorRateLimited,
-    network: C.errorNetwork,
-    unknown: C.errorUnknown,
-  };
+type Step = 'email' | 'age' | 'sent' | 'code';
 
-/** Cadence du décompte de renvoi : une seconde. Ce n'est pas une règle de jeu. */
-const COUNTDOWN_TICK_MS = 1000;
-
-/** Ce qui a été envoyé, et quand — la base du décompte (ÉTAT 1 + ÉTAT 5). */
-interface SentLink {
-  readonly email: string;
-  readonly at: number;
-  /** Le dernier envoi était-il un RENVOI ? (confirmation discrète, ÉTAT 5) */
-  readonly resent: boolean;
-}
-
-export default function AuthEmailScreen() {
+export default function EmailAuthScreen() {
   const insets = useSafeAreaInsets();
   const t = useT();
   const { session, loading, configured } = useSession();
-  const params = useLocalSearchParams<{
-    error?: string;
-    error_code?: string;
-    error_description?: string;
-  }>();
-
+  const { state: onboarding, update } = useOnboardingState();
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<Entry | null>(null);
-  const [existingProvider, setExistingProvider] = useState<ExternalProvider | null>(null);
-  const [sent, setSent] = useState<SentLink | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  /** Capacité RÉELLE des fournisseurs ICI — jamais déduite de l'apparence (§2). */
-  const [appleCapable, setAppleCapable] = useState(false);
-
-  // ÉTAT 4 — verdict du lien OUVERT, lu UNE fois : les paramètres de route ne
-  // changent pas sous nos pieds, et re-tracker à chaque rendu gonflerait le KPI.
-  const [verdict] = useState<EmailLinkVerdict | null>(() => linkVerdictFromParams(params));
-  const verdictTracked = useRef(false);
-
-  const {
-    state: onboarding,
-    status: storageStatus,
-    persistenceFailed,
-    update: updateOnboarding,
-  } = useOnboardingState();
-  // « Moins de 16 » : LOCAL et terminal pour cette vue. Rien n'est persisté (on
-  // n'enregistre pas qu'un visiteur s'est dit mineur) et le retour reste ouvert.
+  const [error, setError] = useState<string | null>(null);
+  const [sentAt, setSentAt] = useState(0);
+  const [now, setNow] = useState(Date.now());
   const [ageDeclined, setAgeDeclined] = useState(false);
+  const mounted = useRef(true);
+  const inFlight = useRef(false);
+
+  useEffect(() => () => { mounted.current = false; }, []);
 
   useEffect(() => {
-    if (verdict === null || verdictTracked.current) return;
-    verdictTracked.current = true;
-    track(EVENTS.authEmailLinkOpened, { result: verdict });
-  }, [verdict]);
+    if (step !== 'sent' && step !== 'code') return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [step]);
 
-  useEffect(() => {
-    let alive = true;
-    void isAppleAuthAvailable().then((ok) => {
-      if (alive) setAppleCapable(ok);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // ÉTAT 5 — le décompte ne tourne QUE tant qu'il sert : il s'arrête dès que le
-  // renvoi est armé (un intervalle qui survit à son utilité réveille l'écran
-  // pour rien). Aucune animation n'est en jeu — Reduce Motion n'a rien à couper.
-  //
-  // ⚠️ LA CONDITION D'ARRÊT LIT `now`, PAS `Date.now()`. Écrite avec l'horloge
-  // fraîche, elle pouvait couper l'intervalle quelques millisecondes AVANT que
-  // le rendu (qui, lui, lit `now`) tombe à zéro : le décompte se figeait alors
-  // sur « Renvoyer dans 1 s » et le bouton ne s'armait JAMAIS. Le rendu et
-  // l'arrêt doivent lire la même horloge, sinon ils ne parlent pas du même
-  // instant.
-  useEffect(() => {
-    if (sent === null) return;
-    if (resendSecondsLeft(sent.at, now) === 0) return;
-    const id = setInterval(() => setNow(Date.now()), COUNTDOWN_TICK_MS);
-    return () => clearInterval(id);
-  }, [sent, now]);
-
-  const send = useCallback(
-    async (address: string, resend: boolean) => {
-      setBusy(true);
-      setFailure(null);
-      setExistingProvider(null);
-      const result = await requestEmailOtp(address);
-      if (result.ok) {
-        track(EVENTS.authEmailLinkSent, { resend });
-        setSent({ email: address, at: Date.now(), resent: resend });
-        setNow(Date.now());
-        setBusy(false);
-        return;
-      }
-      const why = classifyEmailLinkFailure(result.message);
-      track(EVENTS.authEmailLinkFailed, { reason: why.reason });
-      if (why.reason === 'existing_provider') {
-        // Le module pur ne rend `existing_provider` QUE si le serveur a nommé le
-        // fournisseur (sinon il rend `unknown`) : ce `provider` est toujours là.
-        if (why.provider) setExistingProvider(why.provider);
-      } else {
-        setFailure(FAILURE_COPY[why.reason]);
-      }
-      setBusy(false);
-    },
-    [],
-  );
-
-  // ⚠️ Règle des hooks : tous déclarés AVANT ces returns.
-  // Restauration de session EN COURS → fond noir muet. Un chargement n'affirme
-  // rien : ni « connecte-toi », ni « tu es connecté » (parité sign-in).
   if (loading) return <View style={styles.root} />;
-  // Déjà connecté → la carte. Sans backend (O1), l'envoi échouerait TOUJOURS :
-  // peindre le CTA ici serait le bouton mort de la constitution §2.
   if (session || !configured) return <Redirect href="/" />;
 
-  const ageDeclared = onboarding.ageConfirmed;
-  const ageUnknown = storageStatus === 'reading' && !ageDeclared;
-  const askAge = !ageDeclared && !ageUnknown;
+  const deliveryCopy = EMAIL_DELIVERY === 'code' ? AuthC.otpCreatesOrSignsIn : C.whatHappens;
 
-  const address = normalizeEmail(email);
-  const shapeOk = isEmailShapeValid(email);
-  const secondsLeft = sent ? resendSecondsLeft(sent.at, now) : 0;
-  const resendArmed = sent !== null && canResend(sent.at, now);
-  const providerCapableHere =
-    existingProvider === 'Apple' ? appleCapable : existingProvider === 'Google' ? GOOGLE_CAPABLE : false;
+  const request = async () => {
+    if (inFlight.current) return;
+    const normalized = normalizeEmail(email);
+    if (!isEmailShapeValid(normalized)) {
+      setError(t(C.errorInvalidEmail));
+      return;
+    }
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    let result;
+    try {
+      result = await requestEmailOtp(normalized);
+    } catch {
+      inFlight.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        setError(t(C.errorNetwork));
+      }
+      return;
+    }
+    inFlight.current = false;
+    if (!mounted.current) return;
+    setBusy(false);
+    if (!result.ok) {
+      const failure = classifyEmailLinkFailure(result.message);
+      setError(t(
+        failure.reason === 'invalid_email' ? C.errorInvalidEmail :
+        failure.reason === 'rate_limited' ? C.errorRateLimited :
+        failure.reason === 'network' ? C.errorNetwork : C.errorUnknown,
+      ));
+      return;
+    }
+    setEmail(normalized);
+    setSentAt(Date.now());
+    setNow(Date.now());
+    setStep(EMAIL_DELIVERY === 'code' ? 'code' : 'sent');
+  };
 
-  /** ÉTAT 4 : tant que le lien ouvert a rendu « expiré », le CTA le dit. */
-  const ctaLabel = verdict === 'expired' ? t(C.expiredCta) : t(C.cta);
+  const beginRequest = () => {
+    if (!isEmailShapeValid(email)) {
+      setError(t(C.errorInvalidEmail));
+      return;
+    }
+    if (onboarding.ageConfirmed) void request();
+    else setStep('age');
+  };
 
-  return (
-    <SignInPhotoBackdrop>
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+  const confirmAge = () => {
+    void update({ ageConfirmed: true });
+    setAgeDeclined(false);
+    void request();
+  };
+
+  const verify = async () => {
+    if (!/^\d{6}$/.test(code) || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    let result;
+    try {
+      result = await verifyEmailOtp(email, code);
+    } catch {
+      inFlight.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        setError(t(C.errorNetwork));
+      }
+      return;
+    }
+    inFlight.current = false;
+    if (!mounted.current) return;
+    setBusy(false);
+    if (!result.ok) setError(t(AuthC.errorSignInFailed));
+  };
+
+  const seconds = sentAt ? resendSecondsLeft(sentAt, now) : 0;
+  const guest = () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    rememberOnboardingCompletion2026(true);
+    void update({ onboardingDone: true, reachedStep: 'map' });
+    router.replace('/');
+  };
+
+  return <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── HAUT : retour + titre (spec E07, dans l'ordre) ─────────────── */}
-          <View>
+        <View style={styles.brandRow}>
+          <GrydMark variant="symbol" size={24} color={colors.chartreuse} />
+          <TranslucentControl2026 tone="dark" style={styles.backSurface}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t(C.backA11y)}
-              onPress={() =>
-                // ⚠️ `replace('/sign-in')` en DUR menait au legacy, puis à
-                // `/onboarding` legacy : deux reculs et le joueur sortait du
-                // MVP (audit friction, 02/09/2026). On REVIENT d'où l'on vient
-                // — `/connexion` (MVP) ou `/sign-in` (legacy) — et sans pile
-                // (lien profond) on retombe sur la porte MVP, jamais l'ancienne.
-                router.canGoBack() ? router.back() : router.replace('/connexion')
-              }
+              accessibilityState={{ disabled: busy }}
+              aria-disabled={busy}
+              disabled={busy}
+              // Sans pile (lien profond, ou `callback.tsx` qui REMPLACE vers ici),
+              // `back()` ne ferait rien : un bouton mort. On retombe sur l'entree.
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}
             >
-              {/* Chevron pointé à gauche (le tracé pointe à droite → miroir). */}
-              <View style={styles.backMirror}>
-                <Icon name="chevron" size={iconSizes.lg} color={colors.gris} />
-              </View>
+              <GrydIcon name="chevronLeft" size={18} color={colors.blanc} />
+              <Text style={styles.backText}>{t(C.backLabel)}</Text>
             </Pressable>
-            {/* HERO COURT, ET C'EST UNE CONTRAINTE, PAS UN GOÛT : le fond photo
-                n'est voilé qu'en haut (`SCRIM_TOP_H = 22 %` dans
-                SignInPhotoBackdrop) — en dessous, les visages du crew forment
-                une bande CLAIRE. Un hero de trois blocs y débordait, et le
-                sous-titre gris tombait sur cette bande (contraste interdit par
-                la charte). Le kicker et le titre tiennent dans le voile ; TOUT
-                le reste vit en bas, sur l'aplat carbone plein. */}
-            <View style={styles.hero}>
-              <SectionLabel style={styles.kicker}>{t(C.kicker)}</SectionLabel>
-              <Text style={styles.title} accessibilityRole="header">
-                {sent ? t(C.sentTitle) : t(C.title)}
-              </Text>
+          </TranslucentControl2026>
+        </View>
+        <View style={styles.heading}>
+          <Text style={styles.kicker}>{t(C.kicker)}</Text>
+          <Text accessibilityRole="header" style={styles.title}>
+            {step === 'sent' ? t(C.sentTitle) : t(C.title)}
+          </Text>
+          <Text style={styles.subtitle}>{t(deliveryCopy)}</Text>
+        </View>
+
+        <TranslucentControl2026 tone="dark" style={styles.panel}>
+          <View style={styles.panelContent}>
+            {step === 'email' ? <>
+              <Text style={styles.fieldLabel}>{t(C.emailLabel)}</Text>
+              <TextInput
+                accessibilityLabel={t(C.emailLabel)}
+                style={styles.input}
+                value={email}
+                onChangeText={(value) => { setEmail(value); setError(null); }}
+                placeholder={t(C.emailPlaceholder)}
+                placeholderTextColor={colors.gris}
+                keyboardType="email-address"
+                textContentType="emailAddress"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+              />
+              <Button size="md"
+                label={EMAIL_DELIVERY === 'code' ? t(AuthC.otpRequestCta) : t(C.cta)}
+                onPress={beginRequest}
+                loading={busy}
+                disabled={!email.trim()}
+                analyticsId="auth_email_request"
+              />
+            </> : null}
+
+            {step === 'age' ? <>
+              <Text style={styles.panelTitle}>{t(ageDeclined ? AGE.blockedTitle : AGE.title)}</Text>
+              <Text style={styles.note}>{t(ageDeclined ? AGE.blockedTagline : AGE.tagline)}</Text>
+              <Text style={styles.note}>{t(AuthC.ageAccountOnly)}</Text>
+              {!ageDeclined ? <Button size="md" label={t(AGE.confirm)} onPress={confirmAge} loading={busy} /> : null}
+              {!ageDeclined ? <Button label={t(AGE.under)} onPress={() => setAgeDeclined(true)} variant="ghost" size="md" disabled={busy} /> : null}
+            </> : null}
+
+            {step === 'sent' ? <>
+              <Text style={styles.panelTitle}>{t(C.sentBody, { email })}</Text>
+              <Text style={styles.note}>{t(C.sentHint)}</Text>
+              <Button
+                label={seconds > 0 ? t(C.resendCountdown, { s: seconds }) : t(C.resendCta)}
+                onPress={() => void request()}
+                disabled={seconds > 0}
+                loading={busy}
+                variant="ghost"
+                size="md"
+              />
+              <Button label={t(C.sentChangeEmail)} onPress={() => setStep('email')} variant="ghost" size="md" disabled={busy} />
+            </> : null}
+
+            {step === 'code' ? <>
+              <Text style={styles.panelTitle}>{t(AuthC.otpSent, { email })}</Text>
+              <Text style={styles.fieldLabel}>{t(AuthC.otpFieldA11y)}</Text>
+              <TextInput
+                accessibilityLabel={t(AuthC.otpFieldA11y)}
+                style={[styles.input, styles.code]}
+                value={code}
+                onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                maxLength={6}
+              />
+              <Button size="md" label={t(AuthC.otpVerifyCta)} onPress={() => void verify()} disabled={code.length !== 6} loading={busy} />
+              <Button
+                label={seconds > 0 ? t(C.resendCountdown, { s: seconds }) : t(AuthC.otpResendCta)}
+                onPress={() => void request()}
+                disabled={seconds > 0}
+                variant="ghost"
+                size="md"
+              />
+            </> : null}
+
+            {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+            <View style={styles.guestBlock}>
+              <Button label={t(AuthC.guestCta)} onPress={guest} variant="ghost" size="md" disabled={busy} />
+              <Text style={styles.note}>{t(AuthC.guestNote)}</Text>
             </View>
           </View>
-
-          {/* ── BAS : UNE branche à la fois ────────────────────────────────── */}
-          <View style={styles.actions}>
-            {ageDeclined ? (
-              /* Moins de 16 : terminal ICI (rien à créer), mais le retour reste
-                 ouvert. Aucun champ, aucun CTA — on ne peint pas une porte. */
-              <>
-                <Text style={styles.gateTitle}>{t(AGE.blockedTitle)}</Text>
-                <Text style={styles.note}>{t(AGE.blockedTagline)}</Text>
-              </>
-            ) : ageUnknown ? (
-              /* Lecture EN COURS du gate : on n'affirme rien et on ne peint
-                 rien. Le titre porte l'écran ; borné à 3 s par le store. */
-              null
-            ) : askAge ? (
-              <>
-                <Text style={styles.gateTitle}>{t(AGE.title)}</Text>
-                <Text style={styles.note}>{t(AGE.tagline)}</Text>
-                {/* L'UNIQUE CTA chartreuse tant que la question est posée (§A4) :
-                    le champ e-mail n'existe pas encore, donc aucun conflit. */}
-                <Button
-                  label={t(AGE.confirm)}
-                  accessibilityLabel={t(AGE.confirmA11y)}
-                  onPress={() => void updateOnboarding({ ageConfirmed: true })}
-                  variant="primary"
-                  size="lg"
-                  analyticsId="e07_age_confirm"
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t(AGE.under)}
-                  onPress={() => setAgeDeclined(true)}
-                  style={({ pressed }) => [styles.link, pressed && styles.pressed]}
-                >
-                  <Text style={styles.linkLabel}>{t(AGE.under)}</Text>
-                </Pressable>
-              </>
-            ) : sent ? (
-              /* ═══ ÉTAT 1 · LIEN ENVOYÉ (+ ÉTAT 5 · RENVOI APRÈS DÉLAI) ═════
-                 Le serveur a dit oui. On dit ce que le lien fait et ce qu'il ne
-                 fait pas — appareil, durée de vie, usage unique — puis on arme
-                 le renvoi À LA CADENCE DU SERVEUR. */
-              <>
-                <Text style={styles.subtitle}>{t(C.sentBody, { email: sent.email })}</Text>
-                <Text style={styles.note}>{t(C.sentHint)}</Text>
-                <Text style={styles.note}>{t(C.sentSpamHint)}</Text>
-                {sent.resent ? <Text style={styles.note}>{t(C.resendDone)}</Text> : null}
-                {/* ÉTAT 5 — le bouton n'est pas « grisé sans raison » : tant que
-                    le serveur refuserait, l'attente est DITE en secondes. Un
-                    bouton daté n'est pas un bouton mort (constitution §2). */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    resendArmed ? t(C.resendCta) : t(C.resendCountdown, { s: secondsLeft })
-                  }
-                  accessibilityState={{ disabled: !resendArmed || busy }}
-                  disabled={!resendArmed || busy}
-                  onPress={() => void send(sent.email, true)}
-                  style={({ pressed }) => [styles.link, pressed && styles.pressed]}
-                >
-                  <Text style={resendArmed ? styles.linkLabel : styles.noteCentered}>
-                    {busy
-                      ? t(C.ctaBusy)
-                      : resendArmed
-                        ? t(C.resendCta)
-                        : t(C.resendCountdown, { s: secondsLeft })}
-                  </Text>
-                </Pressable>
-                {/* Sortie de l'état « envoyé » : l'adresse était fausse. */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t(C.sentChangeEmail)}
-                  onPress={() => {
-                    setSent(null);
-                    setFailure(null);
-                  }}
-                  style={({ pressed }) => [styles.link, pressed && styles.pressed]}
-                >
-                  <Text style={styles.linkLabel}>{t(C.sentChangeEmail)}</Text>
-                </Pressable>
-              </>
-            ) : (
-              /* ═══ LE FORMULAIRE — et ce qui l'entoure ═══════════════════════ */
-              <>
-                {/* ÉTAT 4 · LIEN EXPIRÉ — constaté à l'OUVERTURE, souvent dans
-                    une autre session : on le dit à froid, sans supposer qu'on
-                    connaît encore l'adresse, et on rouvre le champ. */}
-                {verdict === 'expired' ? (
-                  <View style={styles.notice}>
-                    <Text style={styles.gateTitle}>{t(C.expiredTitle)}</Text>
-                    <Text style={styles.note}>{t(C.expiredBody)}</Text>
-                  </View>
-                ) : null}
-                {verdict === 'invalid' ? (
-                  <Text style={styles.noteCentered} accessibilityRole="alert">
-                    {t(C.errorLinkInvalid)}
-                  </Text>
-                ) : null}
-
-                {/* LA PROMESSE, puis LE FAIT — les deux avant la saisie.
-                    « aucune demande de mot de passe en première intention » est
-                    une règle de la spec ; ici c'est une phrase LISIBLE, sinon le
-                    joueur attend un champ mot de passe qui ne viendra pas et
-                    croit l'écran cassé. `whatHappens` dit ensuite ce que le lien
-                    fait vraiment — connecter OU créer — sans jamais affirmer
-                    que le compte existe (l'écran ne le sait pas). */}
-                <Text style={styles.subtitle}>{t(C.subtitle)}</Text>
-                <Text style={styles.noteCentered}>{t(C.whatHappens)}</Text>
-
-                {/* Champ 56 pt à LABEL PERSISTANT (planche E21) : un placeholder
-                    seul disparaît à la première frappe et le champ ne dit plus
-                    ce qu'il attend. Un seul texte = label affiché + nom a11y.
-                    AUCUN champ mot de passe — la spec l'exclut en première
-                    intention, et le flux n'en a aucun usage. */}
-                <Text style={styles.fieldLabel}>{t(C.emailLabel)}</Text>
-                <TextInput
-                  accessibilityLabel={t(C.emailLabel)}
-                  style={styles.input}
-                  value={email}
-                  onChangeText={(next) => {
-                    setEmail(next);
-                    // Une frappe efface le reproche : le message d'erreur ne
-                    // survit pas à la correction qu'il a provoquée.
-                    if (failure) setFailure(null);
-                  }}
-                  placeholder={t(C.emailPlaceholder)}
-                  placeholderTextColor={colors.gris}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                  textContentType="emailAddress"
-                  keyboardType="email-address" // clavier e-mail (spec E07)
-                  inputMode="email"
-                  returnKeyType="send"
-                  onSubmitEditing={() => {
-                    if (!shapeOk) {
-                      // ÉTAT 2 · E-MAIL INVALIDE — refus de FORME, constaté sans
-                      // appel réseau. Il ne dit PAS que l'adresse n'existe pas.
-                      setFailure(C.errorInvalidEmail);
-                      track(EVENTS.authEmailLinkFailed, { reason: 'invalid_email' });
-                      return;
-                    }
-                    void send(address, false);
-                  }}
-                  autoFocus
-                />
-
-                {/* L'UNIQUE CTA chartreuse de l'écran (§A4). Il n'est pas grisé
-                    sur une adresse incomplète : il est ACTIF et REFUSE en
-                    disant pourquoi — un bouton qui ne réagit pas fait conclure
-                    que l'app est cassée. */}
-                <Button
-                  label={busy ? t(C.ctaBusy) : ctaLabel}
-                  onPress={() => {
-                    if (!shapeOk) {
-                      setFailure(C.errorInvalidEmail);
-                      track(EVENTS.authEmailLinkFailed, { reason: 'invalid_email' });
-                      return;
-                    }
-                    void send(address, false);
-                  }}
-                  variant="primary"
-                  size="lg"
-                  loading={busy}
-                  analyticsId="e07_request_link"
-                />
-
-              </>
-            )}
-
-            {/* ═══ CE QUI VAUT POUR TOUTES LES BRANCHES ═══════════════════════
-                Les deux surfaces d'échec vivent ICI, pas dans le formulaire :
-                un envoi peut échouer depuis le formulaire ET depuis l'état
-                « lien envoyé » (le RENVOI passe par le même chemin, et c'est lui
-                qui se fait refuser par la cadence serveur). Rendues dans la
-                branche « formulaire », elles auraient été invisibles pour un
-                renvoi rate-limité — le joueur aurait tapé « Renvoyer » et
-                n'aurait RIEN vu se passer. */}
-
-            {/* ÉTAT 3 · COMPTE EXISTANT AVEC FOURNISSEUR EXTERNE — rendu
-                UNIQUEMENT si le serveur a nommé le fournisseur. Le raccourci
-                n'apparaît que si ce fournisseur marche RÉELLEMENT ici (§2) ;
-                l'explication, elle, reste vraie dans tous les cas. */}
-            {existingProvider ? (
-              <View style={styles.notice}>
-                <Text style={styles.note} accessibilityRole="alert">
-                  {t(C.errorExistingProvider, { provider: existingProvider })}
-                </Text>
-                {providerCapableHere ? (
-                  <Button
-                    label={t(C.existingProviderCta, { provider: existingProvider })}
-                    onPress={() =>
-                // ⚠️ `replace('/sign-in')` en DUR menait au legacy, puis à
-                // `/onboarding` legacy : deux reculs et le joueur sortait du
-                // MVP (audit friction, 02/09/2026). On REVIENT d'où l'on vient
-                // — `/connexion` (MVP) ou `/sign-in` (legacy) — et sans pile
-                // (lien profond) on retombe sur la porte MVP, jamais l'ancienne.
-                router.canGoBack() ? router.back() : router.replace('/connexion')
-              }
-                    variant="ghost"
-                    size="md"
-                    analyticsId="e07_existing_provider"
-                  />
-                ) : null}
-              </View>
-            ) : null}
-
-            {/* ÉTAT 2 + échecs de transport. `alert` : un message qui apparaît
-                en silence n'existe pas pour un lecteur d'écran. */}
-            {failure ? (
-              <Text style={styles.error} accessibilityRole="alert">
-                {t(failure)}
-              </Text>
-            ) : null}
-
-            {/* L'ÉTAT QU'ON NE PEUT PAS RETENIR SE DIT. Sans cette ligne, le
-                joueur redonnerait sa réponse d'âge à chaque lancement sans
-                jamais comprendre pourquoi. */}
-            {persistenceFailed ? <Text style={styles.note}>{t(STORAGE_UNAVAILABLE_NOTICE)}</Text> : null}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SignInPhotoBackdrop>
-  );
+        </TranslucentControl2026>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </View>;
 }
 
-/** Interligne du titre : serré, comme le hero de /sign-in (mesure de composition). */
-const TITLE_LINE_RATIO = 1.05;
-/** Largeur de lecture confortable du sous-titre — ~60 caractères. */
-const SUBTITLE_MAX_WIDTH = 320;
-
 const styles = StyleSheet.create({
-  // Fallback de restauration de session : fond noir muet, jamais d'écran blanc.
-  root: { flex: 1, backgroundColor: colors.noir, paddingHorizontal: spacing.xl },
-  kav: { flex: 1, paddingHorizontal: spacing.xl },
-  scrollContent: { flexGrow: 1, justifyContent: 'space-between' },
-  // Retour : cible 44×44 RÉELLE (pas un hitSlop qui simule la taille), gris
-  // discret, jamais un 2e CTA. marginLeft négatif = recalage optique du glyphe.
-  back: {
-    width: sizes.touchTarget,
-    height: sizes.touchTarget,
-    marginLeft: -10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backMirror: { transform: [{ scaleX: -1 }] },
-  pressed: { opacity: 0.7 },
-  hero: { marginTop: spacing.lg },
-  kicker: { marginBottom: spacing.md },
-  // Titre au palier `xl` et non `hero`/`xxl` : il doit tenir DANS le voile haut
-  // (22 % de la hauteur) même en allemand et en espagnol, où il passe à deux
-  // lignes. Un titre plus gros mordrait sur la bande claire de la photo.
-  title: {
-    color: colors.blanc,
-    fontFamily: fonts.display, // Inter Tight 800 — la famille porte la graisse
-    fontSize: fontSizes.xl,
-    lineHeight: fontSizes.xl * TITLE_LINE_RATIO,
-    letterSpacing: -0.8,
-  },
-  // Vit EN BAS, sur l'aplat carbone (jamais sur la photo) : centré comme le
-  // reste du bloc d'actions, largeur de lecture bornée.
-  subtitle: {
-    color: colors.blanc,
-    fontFamily: fonts.text,
-    fontSize: fontSizes.sm,
-    lineHeight: fontSizes.sm * 1.45,
-    textAlign: 'center',
-    alignSelf: 'center',
-    maxWidth: SUBTITLE_MAX_WIDTH,
-  },
-  actions: { gap: spacing.sm },
-  // Bloc d'annonce (lien expiré, fournisseur externe) : jamais une card DANS une
-  // card (§A) — c'est un simple groupe de texte espacé, sans fond ni bordure.
-  notice: { gap: spacing.xs },
-  gateTitle: { ...typography.cardTitle, color: colors.blanc }, // R3 — Inter Tight 600
-  note: {
-    color: colors.gris,
-    fontFamily: fonts.text,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.45,
-  },
-  noteCentered: {
-    color: colors.gris,
-    fontFamily: fonts.text,
-    fontSize: fontSizes.xs,
-    lineHeight: fontSizes.xs * 1.45,
-    textAlign: 'center',
-  },
-  // Champ 56 pt à label persistant (planche E21) — même patron que /profil-edit.
-  fieldLabel: {
-    color: colors.gris,
-    fontFamily: fonts.textSemi,
-    fontSize: fontSizes.xs,
-    letterSpacing: 2,
-  },
-  input: {
-    height: sizes.buttonLg,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.grisLigne,
-    backgroundColor: colors.carbone2,
-    color: colors.blanc,
-    fontFamily: fonts.text,
-    paddingHorizontal: spacing.lg,
-    fontSize: fontSizes.md,
-  },
-  // Liens secondaires (renvoyer, changer d'adresse, « moins de 16 ») : plancher
-  // tactile RÉEL de 44 px, gris, jamais un 2e CTA chartreuse.
-  link: { minHeight: sizes.touchTarget, alignItems: 'center', justifyContent: 'center' },
-  linkLabel: {
-    color: colors.blanc,
-    fontFamily: fonts.textMedium,
-    fontSize: fontSizes.sm,
-    textAlign: 'center',
-    textDecorationLine: 'underline',
-  },
-  error: {
-    color: colors.blanc,
-    fontFamily: fonts.text,
-    fontSize: fontSizes.sm,
-    textAlign: 'center',
-    marginTop: spacing.xxs,
-  },
+  root: { flex: 1, backgroundColor: colors.noir },
+  content: { flexGrow: 1, width: '100%', maxWidth: 540, alignSelf: 'center', paddingHorizontal: 18, gap: 18 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  backSurface: { borderRadius: 22, overflow: 'hidden' },
+  back: { position: 'relative', zIndex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13 },
+  backText: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 18 },
+  pressed: { opacity: 0.68 },
+  heading: { gap: 8 },
+  kicker: { color: colors.gris, fontFamily: fonts.mono, fontSize: 12, letterSpacing: 1 },
+  title: { color: colors.blanc, fontFamily: fonts.displayBold, fontSize: 20, lineHeight: 26, letterSpacing: -0.4 },
+  subtitle: { color: colors.gris, fontFamily: fonts.text, fontSize: 14, lineHeight: 20 },
+  panel: { marginTop: 'auto', borderRadius: 24, overflow: 'hidden' },
+  panelContent: { position: 'relative', zIndex: 1, padding: 18, gap: 12 },
+  panelTitle: { color: colors.blanc, fontFamily: fonts.displayBold, fontSize: 17, lineHeight: 23 },
+  fieldLabel: { color: colors.blanc, fontFamily: fonts.textSemi, fontSize: 13, lineHeight: 18 },
+  input: { minHeight: 52, borderRadius: 12, borderWidth: 1, borderColor: colors.blanc22, backgroundColor: colors.carbone2, color: colors.blanc, paddingHorizontal: 16, fontFamily: fonts.text, fontSize: 16 },
+  code: { textAlign: 'center', fontFamily: fonts.mono, fontSize: 20, letterSpacing: 5 },
+  note: { color: colors.gris, fontFamily: fonts.text, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  error: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19 },
+  guestBlock: { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.grisLigne, gap: 8 },
 });

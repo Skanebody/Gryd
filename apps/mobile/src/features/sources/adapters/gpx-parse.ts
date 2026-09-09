@@ -9,8 +9,8 @@
  * <trkpt lat lon>…<time>…</time>. Testable directement (gpx-parse.test.ts).
  *
  * Contrat RunPoint (@klaim/shared) : { lat, lng, t (epoch ms), acc? }. Le GPX ne
- * porte PAS d'accuracy horizontale → acc laissé absent (traité « bon » côté
- * serveur, comme HealthKit). L'altitude <ele> n'est pas un RunPoint (le moteur
+ * porte PAS d'accuracy horizontale → acc laissé absent ; cette importation
+ * n'établit pas une preuve de capture serveur en 2026. L'altitude <ele> n'est pas un RunPoint (le moteur
  * territorial est 2D) : on l'ignore proprement.
  */
 import type { RunPoint } from '@klaim/shared';
@@ -52,6 +52,8 @@ export function parseGpx(xml: string): GpxParseResult {
   const points: RunPoint[] = [];
   let trackpointCount = 0;
   let skipped = 0;
+  let previousEnd = 0;
+  let breakBefore = false;
 
   if (typeof xml !== 'string' || xml.length === 0) {
     return { points, trackpointCount, skipped };
@@ -60,6 +62,8 @@ export function parseGpx(xml: string): GpxParseResult {
   TRKPT_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = TRKPT_RE.exec(xml)) !== null) {
+    if (points.length > 0 && /<\/?(?:trkseg|trk)\b/i.test(xml.slice(previousEnd, m.index))) breakBefore = true;
+    previousEnd = TRKPT_RE.lastIndex;
     trackpointCount += 1;
     // Groupe 1 = attributs d'un <trkpt … />, groupe 2 = attributs de l'ouvrant,
     // groupe 3 = contenu (où vit <time>). Un seul des deux blocs est défini.
@@ -70,14 +74,16 @@ export function parseGpx(xml: string): GpxParseResult {
     const lonMatch = LON_RE.exec(attrs);
     const latRaw = latMatch?.[1];
     const lonRaw = lonMatch?.[1];
-    if (latRaw === undefined || lonRaw === undefined) {
+    if (latRaw === undefined || lonRaw === undefined || latRaw.trim() === '' || lonRaw.trim() === '') {
       skipped += 1;
+      if (points.length > 0) breakBefore = true;
       continue;
     }
     const lat = Number(latRaw);
     const lng = Number(lonRaw);
     if (!isLat(lat) || !isLon(lng)) {
       skipped += 1;
+      if (points.length > 0) breakBefore = true;
       continue;
     }
 
@@ -87,10 +93,12 @@ export function parseGpx(xml: string): GpxParseResult {
       // Pas d'horodatage exploitable : inutilisable pour l'allure (§3.2) — on
       // compte honnêtement plutôt que d'inventer un timestamp.
       skipped += 1;
+      if (points.length > 0) breakBefore = true;
       continue;
     }
 
-    points.push({ lat, lng, t });
+    points.push({ lat, lng, t, ...(breakBefore ? { breakBefore: true as const } : {}) });
+    breakBefore = false;
   }
 
   return { points, trackpointCount, skipped };

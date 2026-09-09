@@ -10,6 +10,8 @@
  * RevenueCat retente tant qu'il ne reçoit pas un 2xx : on n'acquitte (200)
  * que ce qui est appliqué ou volontairement ignoré.
  */
+import { premiumWebhookOwners2026 } from '../_shared/premium2026.ts';
+import { syncPremiumOwner2026 } from '../_shared/premium2026_io.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { SEASON_DURATION_WEEKS } from '../_shared/game-rules.ts';
 import { secretsMatch } from '../_shared/secret.ts';
@@ -50,7 +52,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: 'invalid_payload' }, 400);
   }
 
+  // September: sync the authoritative subscriber snapshot for every account event,
+  // including TRANSFER, refunds, expiry and deferred product changes. Legacy packs
+  // below keep their historical handling but can never grant GRYD+.
+  const event2026 = event as Record<string, unknown>;
+  const owners = premiumWebhookOwners2026(event2026);
+  if (owners.length > 0 && event.type !== 'TEST') {
+    if (typeof event.id !== 'string' || !event.id || typeof event2026.event_timestamp_ms !== 'number' || !Number.isSafeInteger(event2026.event_timestamp_ms) || event2026.event_timestamp_ms <= 0) return json({ error: 'invalid_event_clock' }, 400);
+    try {
+      for (const owner of owners) await syncPremiumOwner2026(supabase, owner, event.id, event2026.event_timestamp_ms);
+    } catch { return json({ error: 'premium_sync_unavailable' }, 503); }
+  }
   const decision = mapRevenueCatEvent(event);
+  if (decision.kind === 'club_on' || decision.kind === 'club_off') return json({ applied: 'premium_snapshot_2026' });
   if (decision.kind === 'ignore') {
     // Acquitté : RC ne doit pas retenter un event qu'on ignore volontairement.
     return json({ ignored: true, reason: decision.reason });
@@ -103,15 +117,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // ── Application de la décision ────────────────────────────────────────────
     switch (decision.kind) {
-      case 'club_on':
-      case 'club_off': {
-        const { error } = await supabase
-          .from('users')
-          .update({ is_club: decision.kind === 'club_on' })
-          .eq('id', decision.userId);
-        if (error) throw new Error(`users is_club update: ${error.message}`);
-        break;
-      }
       case 'credit_eclats':
       case 'starter_pack':
       case 'founder_pack': {

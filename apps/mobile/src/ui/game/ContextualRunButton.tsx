@@ -151,16 +151,10 @@ export function FloatingActionButton({
   disabled = false,
   accessibilityLabel,
 }: FloatingActionButtonProps) {
-  const pulse = usePulse(!disabled, 1.04);
   const { scale, onPressIn, onPressOut } = usePressScale(0.95);
 
   return (
     <View style={styles.fabWrap} pointerEvents="box-none">
-      {/* Halo pulsant discret derrière la capsule (le CTA « respire »). */}
-      <Animated.View
-        style={[styles.fabHalo, { transform: [{ scale: pulse }] }]}
-        pointerEvents="none"
-      />
       <Animated.View style={{ transform: [{ scale }] }}>
         <Pressable
           accessibilityRole="button"
@@ -316,17 +310,6 @@ const styles = StyleSheet.create({
 
   // --- Bouton d'action FLOTTANT (AMENDEMENT-29) : capsule chartreuse ----------
   fabWrap: { alignItems: 'center', justifyContent: 'center' },
-  // Halo pulsant : disque chartreuse translucide un peu plus large que la pill.
-  fabHalo: {
-    position: 'absolute',
-    left: -10,
-    right: -10,
-    top: -6,
-    bottom: -6,
-    borderRadius: 40,
-    backgroundColor: gameColors.crew,
-    opacity: 0.18,
-  },
   fab: {
     minHeight: 56,
     minWidth: 168,
@@ -337,12 +320,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     backgroundColor: gameColors.crew,
-    // Ombre portée douce (le CTA flotte au-dessus de la carte / des listes).
-    shadowColor: colors.noir,
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
   },
   fabLeading: { alignItems: 'center', justifyContent: 'center' },
   // Libellé NOIR sur chartreuse (jamais l'inverse — charte contraste).

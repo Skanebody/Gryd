@@ -1,118 +1,165 @@
-/**
- * GRYD — navigation basse PERSISTANTE : une BARRE D'ONGLETS toujours visible,
- * EXACTEMENT trois destinations en 1 tap — Carte · Crew · Profil (spec §2.1,
- * arbitrage A2, LOT 5 — 27/07/2026). « Saison » (/classement) et « Missions »
- * (/warroom) restent des écrans ENTIERS, atteignables par des chemins nommés
- * ailleurs (Profil pour Saison ; Aujourd'hui/Paramètres pour Missions
- * aujourd'hui — un accès direct depuis la Carte est hors périmètre de ce
- * chantier, cf. `./tabs.ts`) : ce ne sont plus des onglets de CETTE barre.
- * Onglet actif = trait chartreuse + icône PLEINE + label gras +
- * accessibilityState selected — jamais la couleur seule.
- *
- * Les TROIS destinations et leurs libellés viennent de `./tabs.ts` (module PUR,
- * testé sous Deno) : c'est la SOURCE UNIQUE, pour qu'un test sur ce fichier
- * fasse foi sur ce qui est réellement rendu ici (pas une liste dupliquée qui
- * pourrait diverger). « Profil » colle aux planches E02/E03/E15 et se traduit
- * dans les 5 langues ; « Crew » reste invariant (jamais traduit).
- *
- * Le DÉPART de course n'est PAS dans la nav (override fondateur) : c'est le
- * bouton GO, rendu UNIQUEMENT sur la Carte — pill au-dessus de cette barre quand
- * la sheet est compacte, rond ancré au bord haut de la sheet quand elle est
- * déployée (planche E02). La barre reste un simple rang d'onglets espacés.
- *
- * ─── EN SUSPENS (déclaré, pas maquillé) ─────────────────────────────────────
- * §2.1 : « tap sur l'onglet actif = remonter en tête ou recentrer la carte ».
- * Non câblé ici : recentrer la Carte ou remonter le scroll de Crew/Profil
- * exige de toucher ces écrans, hors périmètre EXCLUSIF de ce chantier (Carte
- * interdite, Profil limité à l'entrée Saison). `go()` ne fait donc rien de
- * plus qu'avant sur un tap d'onglet déjà actif — pas de régression, mais pas
- * la remontée promise par la spec.
- */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, fontSizes, spacing, type IconName } from '@klaim/shared';
-import { Icon } from '../../ui/Icon';
-import { NAV_BAR_HEIGHT } from './metrics';
+import { refonteColors as c, fonts } from '@klaim/shared';
+import { GrydIcon, type GrydIconName } from '../../ui/gryd/GrydIcon';
+import { SlidingSelection2026, useControlMotion2026 } from '../../ui/gryd/Motion2026';
+import { TranslucentBackdrop2026 } from '../../ui/gryd/TranslucentBackdrop2026';
+import { MapTranslucent2026 } from '../../ui/gryd/MapTranslucent2026';
+import {
+  NAV_BAR_HEIGHT,
+  NAV_BOTTOM_GAP,
+  NAV_MAP_BAR_HEIGHT,
+  NAV_MAP_BOTTOM_GAP,
+  NAV_MAP_MAX_WIDTH,
+} from './metrics';
 import { NAV_TABS, isTabActive, resolveTabLabel } from './tabs';
 import { useT } from '../../i18n/store';
 
-interface ResolvedTab {
+export type MapNavigationAction2026 = {
   label: string;
-  href: string;
-  icon: IconName;
-}
+  onPress: () => void;
+  disabled?: boolean;
+  busy?: boolean;
+};
 
-export function GrydNavBar() {
+/** Three stable destinations, with the map's contextual start action in the same dock. */
+export function GrydNavBar({ mapAction }: { mapAction?: MapNavigationAction2026 }) {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const t = useT();
+  const motion = useControlMotion2026();
+  const icons: GrydIconName[] = ['map', 'crew', 'profile'];
+  const overMap = pathname === '/';
+  const integrated = overMap && mapAction !== undefined;
+  const [railWidth, setRailWidth] = useState(integrated ? 132 : 188);
+  const selectedIndex = Math.max(0, NAV_TABS.findIndex(tab => isTabActive(pathname, tab.href)));
+  const [focusedHref, setFocusedHref] = useState<string | null>(null);
+  const [hoveredHref, setHoveredHref] = useState<string | null>(null);
+  const [actionFocused, setActionFocused] = useState(false);
+  const blocked = !!mapAction?.disabled || !!mapAction?.busy;
 
-  /** EXACTEMENT trois — `NAV_TABS` (./tabs.ts) est la source unique testée. */
-  const tabs: readonly ResolvedTab[] = NAV_TABS.map((tab) => ({
-    href: tab.href,
-    icon: tab.icon,
-    label: resolveTabLabel(tab, t),
-  }));
+  return <View
+    pointerEvents="box-none"
+    style={[
+      s.anchor,
+      overMap ? s.mapAnchor : s.regularAnchor,
+      { bottom: insets.bottom + (overMap ? NAV_MAP_BOTTOM_GAP : NAV_BOTTOM_GAP) },
+    ]}
+  >
+    <View testID={overMap ? 'gryd-map-dock' : undefined} style={[
+      s.bar,
+      overMap ? s.mapBarHeight : s.regularBarHeight,
+      integrated ? s.integratedBar : s.compactBar,
+      overMap ? s.mapBar : s.lightBar,
+    ]}>
+      {overMap
+        ? <MapTranslucent2026 radius={30} tone="dark" />
+        : <TranslucentBackdrop2026 tone="light" radius={30} />}
 
-  const go = (href: string) => {
-    if (pathname !== href) router.navigate(href);
-  };
-
-  const renderTab = (item: ResolvedTab) => {
-    const active = isTabActive(pathname, item.href);
-    return (
-      <Pressable
-        key={item.href}
-        accessibilityRole="tab"
-        accessibilityState={{ selected: active }}
-        accessibilityLabel={item.label}
-        onPress={() => go(item.href)}
-        style={({ pressed }) => [styles.tabItem, pressed && styles.pressed]}
+      <View
+        accessibilityRole="tablist"
+        onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
+        style={[s.rail, overMap ? s.mapRail : s.regularRail]}
       >
-        <View style={[styles.activeBar, active && styles.activeBarOn]} />
-        <Icon
-          name={item.icon}
-          size={20}
-          color={active ? colors.chartreuse : colors.gris}
-          active={active}
+        <SlidingSelection2026
+          index={selectedIndex}
+          count={3}
+          width={railWidth}
+          color={overMap ? c.surface : c.ink}
+          inset={overMap ? 4 : 0}
         />
-        <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
-          {item.label}
-        </Text>
-      </Pressable>
-    );
-  };
+        {NAV_TABS.map((tab, index) => {
+          const active = isTabActive(pathname, tab.href);
+          const label = resolveTabLabel(tab, t);
+          const focused = focusedHref === tab.href;
+          return <View key={tab.href} style={s.slot}>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              aria-selected={active}
+              accessibilityLabel={label}
+              onFocus={() => setFocusedHref(tab.href)}
+              onBlur={() => setFocusedHref(null)}
+              onHoverIn={() => setHoveredHref(tab.href)}
+              onHoverOut={() => setHoveredHref(null)}
+              onPress={() => router.navigate(tab.href)}
+              style={({ pressed }) => [
+                s.tab,
+                focused && {
+                  borderColor: overMap
+                    ? (active ? c.ink : c.surface)
+                    : (active ? c.surface : c.ink),
+                },
+                pressed && s.pressed,
+                pressed && motion && s.pressedMotion,
+              ]}
+            >
+              <GrydIcon
+                name={icons[index] ?? 'map'}
+                size={22}
+                active={active}
+                color={active ? (overMap ? c.ink : c.surface) : (overMap ? c.darkInk : c.ink)}
+              />
+            </Pressable>
+            {Platform.OS === 'web' && (hoveredHref === tab.href || focused) ? <View pointerEvents="none" style={s.tooltip}>
+              <Text style={s.tooltipText}>{label}</Text>
+            </View> : null}
+          </View>;
+        })}
+      </View>
 
-  // Barre d'onglets persistante — ancrée au bord bas, pleine largeur, onglets réguliers.
-  return (
-    <View style={[styles.bar, { paddingBottom: insets.bottom }]}>{tabs.map(renderTab)}</View>
-  );
+      {integrated && mapAction ? <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={mapAction.label}
+        accessibilityState={{ disabled: blocked, busy: !!mapAction.busy }}
+        aria-disabled={blocked}
+        aria-busy={!!mapAction.busy}
+        disabled={blocked}
+        onFocus={() => setActionFocused(true)}
+        onBlur={() => setActionFocused(false)}
+        onPress={mapAction.onPress}
+        style={({ pressed }) => [
+          s.mapAction,
+          actionFocused && s.actionFocus,
+          blocked && s.blocked,
+          pressed && s.pressed,
+          pressed && motion && s.pressedMotion,
+        ]}
+      >
+        {mapAction.busy ? <ActivityIndicator size="small" color={c.ink} /> : null}
+        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} ellipsizeMode="clip" style={s.mapActionText}>
+          {mapAction.label}
+        </Text>
+      </Pressable> : null}
+    </View>
+  </View>;
 }
 
-const styles = StyleSheet.create({
-  bar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    backgroundColor: colors.carbone,
-    borderTopWidth: 1,
-    borderTopColor: colors.grisLigne,
-  },
-  tabItem: {
-    flex: 1,
-    height: NAV_BAR_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xxs,
-  },
-  pressed: { opacity: 0.7 },
-  /** Trait actif : présence/absence = canal non-couleur (en plus icône pleine + gras). */
-  activeBar: { width: 28, height: 3, borderRadius: 2, backgroundColor: 'transparent' },
-  activeBarOn: { backgroundColor: colors.chartreuse },
-  tabLabel: { color: colors.gris, fontFamily: fonts.textSemi, fontSize: fontSizes.xs, fontWeight: '600' },
-  tabLabelActive: { color: colors.chartreuse, fontWeight: '700' },
+const s = StyleSheet.create({
+  anchor: { position: 'absolute', alignItems: 'center', zIndex: 20 },
+  regularAnchor: { left: 20, right: 20 },
+  mapAnchor: { left: 16, right: 16 },
+  bar: { position: 'relative', flexDirection: 'row', alignItems: 'center', padding: 4, gap: 4, borderRadius: 30, borderWidth: 1 },
+  regularBarHeight: { height: NAV_BAR_HEIGHT },
+  mapBarHeight: { height: NAV_MAP_BAR_HEIGHT },
+  compactBar: { width: 188, maxWidth: '100%' },
+  integratedBar: { width: '100%', maxWidth: NAV_MAP_MAX_WIDTH },
+  mapBar: { borderWidth: 0, backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
+  lightBar: { borderColor: 'rgba(60,60,60,0.2)', backgroundColor: 'transparent' },
+  rail: { position: 'relative', flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  regularRail: { width: '100%', height: 44 },
+  mapRail: { minWidth: 148, height: 52, paddingHorizontal: 4 },
+  slot: { flex: 1, minWidth: 44, position: 'relative', zIndex: 1 },
+  tab: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent', borderRadius: 24 },
+  tooltip: { position: 'absolute', bottom: 56, alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: c.ink },
+  tooltipText: { fontFamily: fonts.textMedium, fontSize: 11, color: c.darkInk },
+  mapAction: { zIndex: 1, flexShrink: 1, minWidth: 104, maxWidth: 142, height: 48, borderRadius: 24, paddingHorizontal: 12, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent, borderWidth: 2, borderColor: 'transparent' },
+  mapActionText: { flexShrink: 1, color: c.ink, fontFamily: fonts.textSemi, fontSize: 14, lineHeight: 18, textAlign: 'center' },
+  actionFocus: { borderColor: c.surface },
+  blocked: { opacity: 0.46 },
+  pressed: { opacity: 0.74 },
+  pressedMotion: { transform: [{ scale: 0.96 }] },
 });

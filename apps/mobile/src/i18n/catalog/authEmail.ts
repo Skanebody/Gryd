@@ -41,6 +41,13 @@ export const C = defineCatalog({
     de: 'Zurück zu den anderen Anmeldewegen',
     pt: 'Voltar às outras formas de entrar',
   },
+  backLabel: {
+    fr: 'Retour',
+    en: 'Back',
+    es: 'Volver',
+    de: 'Zurück',
+    pt: 'Voltar',
+  },
   kicker: {
     fr: 'PAR E-MAIL',
     en: 'BY EMAIL',
@@ -105,11 +112,11 @@ export const C = defineCatalog({
   // ─── Le CTA (unique, §A4) ──────────────────────────────────────────────────
   /** Spec E07 : `RECEVOIR LE LIEN`. Court dans les 5 langues — jamais tronqué. */
   cta: {
-    fr: 'RECEVOIR LE LIEN',
-    en: 'GET THE LINK',
-    es: 'RECIBIR EL ENLACE',
-    de: 'LINK ERHALTEN',
-    pt: 'RECEBER O LINK',
+    fr: 'Recevoir le lien',
+    en: 'Get the link',
+    es: 'Recibir el enlace',
+    de: 'Link erhalten',
+    pt: 'Receber o link',
   },
   /** Envoi en vol : on n'affirme RIEN tant que le serveur n'a pas répondu. */
   ctaBusy: {

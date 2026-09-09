@@ -1,0 +1,5 @@
+{
+  "emulatedBrowserPreference": "prefers-reduced-transparency: reduce",
+  "dark": "rgb(10, 10, 10)",
+  "light": "rgb(255, 255, 255)"
+}

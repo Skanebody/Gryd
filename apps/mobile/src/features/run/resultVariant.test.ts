@@ -1,3 +1,4 @@
+import { captureExplanation2026, type CaptureReceipt2026 } from '../refonte/captureReceipt2026.ts';
 /**
  * GRYD — LES SIX RÉSULTATS SONT ATTEIGNABLES, ET AUCUN N'INVENTE UN CHIFFRE.
  *
@@ -394,7 +395,7 @@ Deno.test('surface surévaluée : sans signal, rien ne change (aucune régressio
 // `setup/setupChain.test.ts` et `boot/splashE00.source.test.ts`).
 
 const RESULT_SCREEN = Deno.readTextFileSync(
-  new URL('../../../app/course-result.tsx', import.meta.url),
+  new URL('../refonte/RunResult.tsx', import.meta.url),
 ).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 Deno.test('course-result : plus aucune garde `capReached` locale sur la surface', () => {
@@ -406,19 +407,18 @@ Deno.test('course-result : plus aucune garde `capReached` locale sur la surface'
   );
 });
 
-Deno.test('course-result : la surface partagée EST la surface affichée', () => {
+Deno.test('2026 : résultat et partage reçoivent le même gain net publié par le serveur', () => {
   assert(
-    /const shareArea\s*=\s*\n?\s*composition\.areaM2 !== null \? formatArea\(/.test(RESULT_SCREEN),
-    'le partage doit lire `composition.areaM2` — la décision de composeResult — et ' +
-      'ne rien re-filtrer, sinon les deux surfaces reprennent deux niveaux d’honnêteté',
+    RESULT_SCREEN.includes("const gain = territory?.status === 'published' ? territory.newTerrainM2 : null"),
+    'le gain doit être la différence géométrique publiée, jamais la surface de boucle',
   );
   assert(
-    RESULT_SCREEN.includes('areaOverstated:'),
-    'l’écran doit transmettre le fait `areaOverstated` au moteur pur',
+    RESULT_SCREEN.includes('territory2026: territory'),
+    'le partage doit recevoir le même verdict territorial versionné',
   );
   assert(
-    RESULT_SCREEN.includes('serverResult?.interiorPartial === true'),
-    'le fait doit venir du VERDICT SERVEUR (`interiorPartial`), jamais d’une déduction client',
+    RESULT_SCREEN.includes('const territory = result?.territory2026'),
+    'le verdict territorial vient du serveur',
   );
 });
 
@@ -431,21 +431,23 @@ Deno.test('course-result : la conclusion verify ne repasse pas par le booléen f
     'la conclusion verify est redevenue binaire : `partial` et `valid` y racontent ' +
       'de nouveau la même chose, et `partial` y ment (« capture pleine »)',
   );
-  assert(
-    RESULT_SCREEN.includes("composition.verify === 'partialExcluded'"),
-    'la ligne de conclusion doit lire les TROIS états du moteur pur (composition.verify)',
-  );
-  assert(
-    RESULT_SCREEN.includes('t(C.verifyPartial)'),
-    'l’état `partialExcluded` doit avoir SA copie — pas celle de `valid`, pas celle d’un refus',
-  );
+  assert(RESULT_SCREEN.includes('captureExplanation2026(territory, fr)'), 'le résultat doit utiliser les verdicts distincts du modèle');
+  const verdict = (status: CaptureReceipt2026['status']) => captureExplanation2026({ ruleset: '2026.1', status,
+    loopAreaM2: 0, newTerrainM2: null, alreadyOwnedM2: null, neutralTakenM2: null, takenFromOthersM2: null }, true);
+  const pending = verdict('pending'); const scheduled = verdict('scheduled');
+  assert(pending?.title === 'Terrain en attente' && scheduled?.title === 'Boucle validée · publication différée',
+    'en analyse et validé mais non publié doivent conserver des conclusions distinctes');
+  assert(verdict('private')?.title === 'Sortie privée' && verdict('no_loop')?.title === 'Aucune boucle admissible',
+    'absence de consentement et absence de boucle ne sont pas le même refus');
+  assert(verdict('published') === null, 'un résultat publié garde son gain historique, jamais une copie de refus');
 });
 
-Deno.test('course-result : E33 montre les points crew RÉELS, et se tait sur zéro', () => {
+Deno.test('2026 : une capture ordinaire ne fabrique pas de points de défi', () => {
+  // Le cahier sépare terrain, XP et défis : les points existent seulement
+  // dans un match consenti. Les anciens crew_points par capture sont retirés.
   assert(
-    RESULT_SCREEN.includes('composition.crewBoundary.crewPoints > 0'),
-    'les points crew de la fermeture doivent être peints, et uniquement au-dessus de zéro ' +
-      '(« Crew +0 pts » est le zéro nu que la constitution interdit)',
+    !RESULT_SCREEN.includes('crewPoints') && !RESULT_SCREEN.includes('crew_points'),
+    'le résultat ne doit pas prolonger l’ancien score crew par capture',
   );
 });
 

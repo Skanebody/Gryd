@@ -1,0 +1,919 @@
+{
+  "results": [
+    {
+      "route": "/sign-in",
+      "width": 390,
+      "url": "/sign-in",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "CONNEXION\nRetrouve ton terrain\nTon compte relie tes courses, tes zones et ton crew à tous tes appareils.\nConnecte-toi.\nC"
+    },
+    {
+      "route": "/email",
+      "width": 390,
+      "url": "/email",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Retour\nPAR E-MAIL\nTon adresse e-mail\nUn lien de connexion : il te connecte si ton compte existe, il le crée sinon.\nAdres"
+    },
+    {
+      "route": "/callback",
+      "width": 390,
+      "url": "/callback",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Ce retour de connexion n’est plus valide. Demande un nouveau lien.\nContinuer avec un e-mail\nContinuer sans compte"
+    },
+    {
+      "route": "/onboarding?replay=1",
+      "width": 390,
+      "url": "/onboarding",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "La ville est ton terrain.\nÀ pied ou à vélo, chaque boucle laisse ta marque.\nExplorer la carte\nComment jouer"
+    },
+    {
+      "route": "/",
+      "width": 390,
+      "url": "/",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-light",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "© OpenStreetMap © CARTO\nFrance\nCourir"
+    },
+    {
+      "route": "/crew",
+      "width": 390,
+      "url": "/crew",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Crew\nCOURSE / VÉLO\nRejoindre un crew\nDes rendez-vous, un groupe et des sorties à partager.\nMe connecter\nUn rendez-vous. "
+    },
+    {
+      "route": "/profil",
+      "width": 390,
+      "url": "/profil",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Profil\nInvité\nSur cet appareil\nConnexion\nTon mouvement.\nTout commence dehors.\nUne sortie. Le début de ton histoire.\nOuvr"
+    },
+    {
+      "route": "/parametres",
+      "width": 390,
+      "url": "/parametres",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Réglages\nCompte, confidentialité et préférences.\nCompte\nCompte & connexion\nModifier mon profil\nConfidentialité & données"
+    },
+    {
+      "route": "/parametres/compte",
+      "width": 390,
+      "url": "/parametres/compte",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Compte\nRÉGLAGES\nIDENTIFIANTS\nSe connecter\nTon profil et ton crew te suivront partout\nGRYD ne permet pas encore de change"
+    },
+    {
+      "route": "/profil-edit",
+      "width": 390,
+      "url": "/profil-edit",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Modifier le profil\nConnecte-toi pour enregistrer ton identité.\nConnexion"
+    },
+    {
+      "route": "/season",
+      "width": 390,
+      "url": "/season",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Progression\nSaison\nParcours\nAPERÇU\nUne saison, 12 étapes.\n6 semaines · Course et vélo\nPremier objet · aperçu\nPremière af"
+    },
+    {
+      "route": "/arsenal",
+      "width": 390,
+      "url": "/arsenal",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Collection\nMes objets\nCollections\nDes éditions à garder.\nDes objets gagnés au fil des sorties, conservés dans ton compte"
+    },
+    {
+      "route": "/badges",
+      "width": 390,
+      "url": "/badges",
+      "overflow": false,
+      "effects": [],
+      "material": [],
+      "text": "BADGES & SOUVENIRS\nBadges\nLes souvenirs de tes sorties.\nMes badges\nCatalogue\nTon histoire t’attend.\nRetrouve ici les bad"
+    },
+    {
+      "route": "/abonnement",
+      "width": 390,
+      "url": "/abonnement",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Mon abonnement\nGRYD+\nConnecte-toi pour retrouver ton abonnement.\nMe connecter\nHistorique d’achats\nL’historique n’est pas"
+    },
+    {
+      "route": "/premium",
+      "width": 390,
+      "url": "/premium",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "GRYD+\nGRYD · ÉDITION PLUS\nUne autre dimension\npour tes sorties.\nAnalyse. Compose. Garde une trace.\nDÉ\n01\nComparer\nTes so"
+    },
+    {
+      "route": "/performance",
+      "width": 390,
+      "url": "/performance",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Statistiques\nCourse\nVélo\n7 jours\n28 jours\nTes sorties, en chiffres.\nDistance, durée et jours actifs apparaîtront après t"
+    },
+    {
+      "route": "/sources",
+      "width": 390,
+      "url": "/sources",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Sources et appareils\nRetrouve tes sorties au même endroit.\nEnregistre avec GRYD ou ajoute un fichier de ta montre.\nEnreg"
+    },
+    {
+      "route": "/faq",
+      "width": 390,
+      "url": "/faq",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Questions fréquentes\nTOUT SIMPLEMENT\nOn t’explique.\nUne sortie sans boucle compte-t-elle ?\nComment gagner du terrain ?\nQ"
+    },
+    {
+      "route": "/a-propos",
+      "width": 390,
+      "url": "/a-propos",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "À propos\nGRYD\nCours. Roule.\nFais grandir\nton terrain.\nUne sortie qui te fait du bien, une trace dont tu es fier, une ave"
+    },
+    {
+      "route": "/langue",
+      "width": 390,
+      "url": "/langue",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Langue\nRÉGLAGES · LANGUE\nToute l’app change immédiatement. Par défaut, GRYD suit la langue de ton téléphone.\nFrançais\nLa"
+    },
+    {
+      "route": "/legal/cgu",
+      "width": 390,
+      "url": "/legal/cgu",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Conditions d’utilisation\nCONDITIONS · UTILISATION\nMis à jour le 27/07/2026\nVersion française de référence — seul le text"
+    },
+    {
+      "route": "/legal/cgv",
+      "width": 390,
+      "url": "/legal/cgv",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Conditions de vente\nCONDITIONS · VENTE\nMis à jour le 27/07/2026\nVersion française de référence — seul le texte français "
+    },
+    {
+      "route": "/legal/confidentialite",
+      "width": 390,
+      "url": "/legal/confidentialite",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Politique de confidentialité\nPOLITIQUE · RGPD\nMis à jour le 27/07/2026\nVersion française de référence — seul le texte fr"
+    },
+    {
+      "route": "/legal/licences",
+      "width": 390,
+      "url": "/legal/licences",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Licences open source\nOPEN SOURCE · LICENCES\nMis à jour le 27/07/2026\nVersion française de référence — seul le texte fran"
+    },
+    {
+      "route": "/course-result",
+      "width": 390,
+      "url": "/course-result",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "La trace n’est pas disponible sur cet appareil.\nRécapitulatif\nAucune sortie\n—\nDistance · km\n—\nDurée\n—\nAllure · /km\nAucun"
+    },
+    {
+      "route": "/route-planner",
+      "width": 390,
+      "url": "/route-planner",
+      "overflow": false,
+      "effects": [],
+      "material": [],
+      "text": "Planifier une boucle\nConquérir · RUN\nDépart\nMa position\nLe tracé s’affichera ici.\nFormats\nRecommandée · 3,0 km\nCourte · "
+    },
+    {
+      "route": "/crew-conversation",
+      "width": 390,
+      "url": "/crew-conversation",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Conversation\nLa conversation du groupe.\nRejoins un crew pour préparer vos sorties et échanger entre membres.\nVoir les cr"
+    },
+    {
+      "route": "/sign-in",
+      "width": 320,
+      "url": "/sign-in",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "CONNEXION\nRetrouve ton terrain\nTon compte relie tes courses, tes zones et ton crew à tous tes appareils.\nConnecte-toi.\nC"
+    },
+    {
+      "route": "/email",
+      "width": 320,
+      "url": "/email",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Retour\nPAR E-MAIL\nTon adresse e-mail\nUn lien de connexion : il te connecte si ton compte existe, il le crée sinon.\nAdres"
+    },
+    {
+      "route": "/callback",
+      "width": 320,
+      "url": "/callback",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Ce retour de connexion n’est plus valide. Demande un nouveau lien.\nContinuer avec un e-mail\nContinuer sans compte"
+    },
+    {
+      "route": "/onboarding?replay=1",
+      "width": 320,
+      "url": "/onboarding",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "La ville est ton terrain.\nÀ pied ou à vélo, chaque boucle laisse ta marque.\nExplorer la carte\nComment jouer"
+    },
+    {
+      "route": "/",
+      "width": 320,
+      "url": "/",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-light",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-map-translucent-dark",
+          "fill": "rgba(0, 0, 0, 0)",
+          "blur": "none",
+          "shadow": "none"
+        },
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "© OpenStreetMap © CARTO\nFrance\nCourir"
+    },
+    {
+      "route": "/crew",
+      "width": 320,
+      "url": "/crew",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-dark",
+          "fill": "rgba(10, 10, 10, 0.78)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Crew\nCOURSE / VÉLO\nRejoindre un crew\nDes rendez-vous, un groupe et des sorties à partager.\nMe connecter\nUn rendez-vous. "
+    },
+    {
+      "route": "/profil",
+      "width": 320,
+      "url": "/profil",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Profil\nInvité\nSur cet appareil\nConnexion\nTon mouvement.\nTout commence dehors.\nUne sortie. Le début de ton histoire.\nOuvr"
+    },
+    {
+      "route": "/parametres",
+      "width": 320,
+      "url": "/parametres",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Réglages\nCompte, confidentialité et préférences.\nCompte\nCompte & connexion\nModifier mon profil\nConfidentialité & données"
+    },
+    {
+      "route": "/season",
+      "width": 320,
+      "url": "/season",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Progression\nSaison\nParcours\nAPERÇU\nUne saison, 12 étapes.\n6 semaines · Course et vélo\nPremier objet · aperçu\nPremière af"
+    },
+    {
+      "route": "/arsenal",
+      "width": 320,
+      "url": "/arsenal",
+      "overflow": false,
+      "effects": [],
+      "material": [
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        },
+        {
+          "id": "gryd-translucent-light",
+          "fill": "rgba(255, 255, 255, 0.88)",
+          "blur": "none",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+        }
+      ],
+      "text": "Collection\nMes objets\nCollections\nDes éditions à garder.\nDes objets gagnés au fil des sorties, conservés dans ton compte"
+    }
+  ],
+  "failures": []
+}

@@ -52,6 +52,7 @@ import { DEFAULT_ACTIVITY, type Activity } from '@klaim/shared';
 import type { IngestRunResponse, RunStatus } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
+import { ownSnapshot2026 } from '../refonte/localActivityModel2026';
 
 /**
  * Fenêtre de lecture. L'écran promet « TOUS tes parcours » : une troncature
@@ -190,8 +191,9 @@ export function useMyRunHistory(activity: Activity = DEFAULT_ACTIVITY): MyRunHis
    * `loading` au lieu d'afficher une frame de courses à pied sous l'étiquette
    * vélo (l'effet ne rejoue qu'APRÈS la peinture).
    */
-  const [read, setRead] = useState<{ activity: Activity; entries: RealRunEntry[] } | null>(null);
-  const runs = read !== null && read.activity === activity ? read.entries : null;
+  const [read, setRead] = useState<{ ownerId: string; value: { activity: Activity; entries: RealRunEntry[] } } | null>(null);
+  const ownRead = ownSnapshot2026(read, userId);
+  const runs = ownRead !== null && ownRead.activity === activity ? ownRead.entries : null;
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -226,7 +228,7 @@ export function useMyRunHistory(activity: Activity = DEFAULT_ACTIVITY): MyRunHis
         setFailed(true);
         return;
       }
-      setRead({ activity, entries: (data as RunRow[]).map(toRealRunEntry) });
+      setRead({ ownerId: userId, value: { activity, entries: (data as RunRow[]).map(toRealRunEntry) } });
     })().catch(() => {
       if (cancelled) return;
       setRead(null);

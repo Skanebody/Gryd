@@ -73,6 +73,8 @@ export type RejectReason =
 
 /** Un point GPS brut envoyé par le client (ou issu d'une route HealthKit). */
 export interface RunPoint {
+  /** Discontinuity: never close a loop across this point. */
+  breakBefore?: true;
   lat: number;
   lng: number;
   /** Timestamp epoch ms. */
@@ -110,6 +112,12 @@ export interface EuCity {
 
 /** Requête d'ingestion — idempotente par (user, clientRunId). */
 export interface IngestRunRequest {
+  /** Account bound at start. Null is a local trial, never uploaded automatically. */
+  recordingOwnerId?: string | null;
+  /** September 2026: online recording anchor issued by the server. */
+  recordingSessionId?: string;
+  /** Explicit consent to shared territory; absent means private. */
+  sharedMapParticipation?: boolean;
   /** UUID généré côté client AVANT la course : clé d'idempotence (retry offline safe). */
   clientRunId: string;
   source: RunSource;
@@ -190,6 +198,17 @@ export interface HexClaimResult {
 
 /** Payload de célébration renvoyé au client (< 3 s après la fin de course). */
 export interface IngestRunResponse {
+  territory2026?: {
+    ruleset: string;
+    status: 'private' | 'pending' | 'scheduled' | 'published' | 'no_loop';
+    reason?: string;
+    loopAreaM2: number;
+    newTerrainM2: number | null;
+    alreadyOwnedM2: number | null;
+    neutralTakenM2: number | null;
+    takenFromOthersM2: number | null;
+    publishAfter?: string | null;
+  };
   runId: string;
   status: RunStatus;
   rejectReason?: RejectReason;

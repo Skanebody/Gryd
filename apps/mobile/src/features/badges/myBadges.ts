@@ -29,6 +29,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { type BadgeMetric } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
+import { isResultOwnerCurrent2026 } from '../run/resultOwner2026';
+import { useResultOwner2026 } from '../run/useResultOwner2026';
+import type { MomentReadScope2026 } from '../refonte/progressMomentLedger2026';
+import { progressMomentLedger2026 } from '../refonte/progressMomentStore2026';
 
 /**
  * D'où vient la collection affichée :
@@ -38,10 +42,13 @@ import { supabase } from '../../lib/supabase';
 export type BadgesSource = 'server' | 'none';
 
 export interface MyBadges {
+  readScope: MomentReadScope2026 | null;
   /** Clés (badge_key) des badges débloqués. */
   unlockedIds: ReadonlySet<string>;
   /** badge_key → date FR affichable (« 12 juin 2026 »). */
   unlockedDates: ReadonlyMap<string, string>;
+  /** Raw server timestamps, never parsed from a translated date or compared with the phone clock. */
+  unlockedAt: ReadonlyMap<string, string>;
   /** Valeur d'une métrique de progression (0 par défaut). */
   stat: (metric: BadgeMetric) => number;
   source: BadgesSource;
@@ -58,8 +65,10 @@ export interface MyBadges {
 
 /** Collection inconnue/vide — aucun badge inventé, toutes les jauges à 0. */
 const NO_BADGES = {
+  readScope: null,
   unlockedIds: new Set<string>() as ReadonlySet<string>,
   unlockedDates: new Map<string, string>() as ReadonlyMap<string, string>,
+  unlockedAt: new Map<string, string>() as ReadonlyMap<string, string>,
   stat: () => 0,
 } as const;
 
@@ -81,13 +90,16 @@ function formatFrDate(iso: string): string {
 }
 
 interface RemoteBadges {
+  ownerId: string;
+  ownerEpoch: number;
   unlockedIds: Set<string>;
   unlockedDates: Map<string, string>;
+  unlockedAt: Map<string, string>;
   /** Colonne user_stats (snake_case) → valeur numérique. */
   stats: Record<string, number>;
 }
 
-async function fetchRemoteBadges(userId: string): Promise<RemoteBadges | null> {
+async function fetchRemoteBadges(userId: string, epoch: number): Promise<RemoteBadges | null> {
   if (!supabase) return null;
 
   const [badgesResult, statsResult] = await Promise.all([
@@ -100,10 +112,12 @@ async function fetchRemoteBadges(userId: string): Promise<RemoteBadges | null> {
   const rows = (badgesResult.data ?? []) as { badge_key?: unknown; earned_at?: unknown }[];
   const unlockedIds = new Set<string>();
   const unlockedDates = new Map<string, string>();
+  const unlockedAt = new Map<string, string>();
   for (const r of rows) {
     if (typeof r.badge_key !== 'string') continue;
     unlockedIds.add(r.badge_key);
     if (typeof r.earned_at === 'string') {
+      if (Number.isFinite(Date.parse(r.earned_at))) unlockedAt.set(r.badge_key, r.earned_at);
       const label = formatFrDate(r.earned_at);
       if (label) unlockedDates.set(r.badge_key, label);
     }
@@ -118,7 +132,7 @@ async function fetchRemoteBadges(userId: string): Promise<RemoteBadges | null> {
     }
   }
 
-  return { unlockedIds, unlockedDates, stats };
+  return { ownerId: userId, ownerEpoch: epoch, unlockedIds, unlockedDates, unlockedAt, stats };
 }
 
 /**
@@ -127,6 +141,7 @@ async function fetchRemoteBadges(userId: string): Promise<RemoteBadges | null> {
  */
 export function useMyBadges(): MyBadges {
   const { session, configured, loading: sessionLoading } = useSession();
+  const { ownerId: authorityOwner, epoch } = useResultOwner2026();
   const [remote, setRemote] = useState<RemoteBadges | null>(null);
   const [failed, setFailed] = useState(false);
   const [remoteLoading, setRemoteLoading] = useState(false);
@@ -136,7 +151,7 @@ export function useMyBadges(): MyBadges {
   const userId = session?.user.id ?? null;
 
   useEffect(() => {
-    if (!configured || !userId || !supabase) {
+    if (!configured || !userId || !supabase || authorityOwner !== userId) {
       setRemote(null);
       setFailed(false);
       setRemoteLoading(false);
@@ -145,30 +160,36 @@ export function useMyBadges(): MyBadges {
     let alive = true;
     setRemoteLoading(true);
     setFailed(false);
-    void fetchRemoteBadges(userId)
+    void fetchRemoteBadges(userId, epoch)
       .then((data) => {
+        if (!alive || !isResultOwnerCurrent2026(userId, epoch)) return;
+        if (alive && data) void progressMomentLedger2026.baseline(userId, 'badges', {
+          items: [...data.unlockedIds].map(id => ({ id, earnedAt: data.unlockedAt.get(id) ?? '' })),
+        }, () => alive && isResultOwnerCurrent2026(userId, epoch));
         if (alive) setRemote(data);
       })
       .catch(() => {
-        if (!alive) return;
+        if (!alive || !isResultOwnerCurrent2026(userId, epoch)) return;
         setRemote(null);
         setFailed(true);
       })
       .finally(() => {
-        if (alive) setRemoteLoading(false);
+        if (alive && isResultOwnerCurrent2026(userId, epoch)) setRemoteLoading(false);
       });
     return () => {
       alive = false;
     };
-  }, [configured, userId, tick]);
+  }, [configured, userId, tick, authorityOwner, epoch]);
 
   return useMemo<MyBadges>(() => {
-    const loading = sessionLoading || remoteLoading;
-    if (remote) {
+    const loading = sessionLoading || remoteLoading || !!userId && authorityOwner !== userId;
+    if (userId && authorityOwner === userId && remote?.ownerId === userId && remote.ownerEpoch === epoch) {
       const stats = remote.stats;
       return {
+        readScope: { ownerId: remote.ownerId, epoch: remote.ownerEpoch },
         unlockedIds: remote.unlockedIds,
         unlockedDates: remote.unlockedDates,
+        unlockedAt: remote.unlockedAt,
         stat: (metric: BadgeMetric) => stats[camelToSnake(metric)] ?? 0,
         source: 'server',
         loading,
@@ -177,5 +198,5 @@ export function useMyBadges(): MyBadges {
       };
     }
     return { ...NO_BADGES, source: 'none', loading, failed, reload };
-  }, [remote, sessionLoading, remoteLoading, failed, reload]);
+  }, [userId, remote, sessionLoading, remoteLoading, failed, reload, authorityOwner, epoch]);
 }

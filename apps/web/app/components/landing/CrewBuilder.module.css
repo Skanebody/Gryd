@@ -99,7 +99,6 @@
   padding: 26px 24px;
   transition:
     border-color 225ms ease-out,
-    box-shadow 225ms ease-out,
     background-color 225ms ease-out;
 }
 
@@ -192,9 +191,9 @@
 }
 
 /*
- * Variantes de style — différenciées par glow/relief DANS la palette
+ * Variantes de style — différenciées par fond et contour DANS la palette
  * (jamais de teinte or/argent : écart charte du brouillon corrigé).
- * carbon = mat · gold = halo blanc · neon = halo chartreuse (mon crew) ·
+ * carbon = mat · gold = contour blanc · neon = contour chartreuse (mon crew) ·
  * ghost = contour pointillé translucide.
  */
 .variantCarbon {
@@ -203,12 +202,10 @@
 
 .variantGold {
   border-color: color-mix(in srgb, var(--blanc) 26%, transparent);
-  box-shadow: 0 0 30px color-mix(in srgb, var(--blanc) 8%, transparent);
 }
 
 .variantNeon {
   border-color: var(--ch40);
-  box-shadow: 0 0 36px var(--ch14);
 }
 
 .variantGhost {

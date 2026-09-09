@@ -13,6 +13,9 @@ export * from './sectorName';
 export * from './streak';
 export * from './habits';
 export * from './season';
+export * from './calendar2026';
+export * from './progression2026';
+export * from './challenges2026';
 // Moteur PUR du référentiel de villes (recherche, disque d'aire de jeu).
 // ⚠️ `cities-eu.ts` — la DONNÉE (7 870 villes, 346 Ko / 177 Ko gzip, MESURÉS sur
 // le fichier livré) — n'est VOLONTAIREMENT

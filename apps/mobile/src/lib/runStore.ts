@@ -29,6 +29,9 @@ const BG_FIXES_KEY = 'gryd.activeRun.bgFixes.v1';
 
 /** Course active persistée (source de vérité de la reprise après kill). */
 export interface StoredRun {
+  recordingOwnerId?: string | null;
+  recordingSessionId?: string;
+  sharedMapParticipation?: boolean;
   /** UUID local généré AVANT la course — clé d'idempotence d'ingest_run. */
   runId: string;
   mode: RunMode;
@@ -90,11 +93,13 @@ async function readRun(key: string): Promise<StoredRun | null> {
   }
 }
 
-async function writeRun(key: string, run: StoredRun): Promise<void> {
+async function writeRun(key: string, run: StoredRun): Promise<boolean> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(run));
+    return true;
   } catch {
-    // Stockage plein/indisponible : la course continue en mémoire (jamais bloquant).
+    // The caller preserves its in-memory recording when this write fails.
+    return false;
   }
 }
 
@@ -104,7 +109,7 @@ export async function loadActiveRun(): Promise<StoredRun | null> {
 }
 
 /** Écrit (remplace) la course active — appelé par le flush périodique du tracker. */
-export async function saveActiveRun(run: StoredRun): Promise<void> {
+export async function saveActiveRun(run: StoredRun): Promise<boolean> {
   return writeRun(ACTIVE_RUN_KEY, run);
 }
 
@@ -122,7 +127,7 @@ export async function clearActiveRun(): Promise<void> {
  * ici tant que le coureur n'a pas tranché (reprendre/enregistrer) — un 2ᵉ kill
  * ne perd jamais la nouvelle course. Purgée à la décision et à la fin de course.
  */
-export async function saveCurrentRun(run: StoredRun): Promise<void> {
+export async function saveCurrentRun(run: StoredRun): Promise<boolean> {
   return writeRun(CURRENT_RUN_KEY, run);
 }
 

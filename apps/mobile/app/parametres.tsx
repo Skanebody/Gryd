@@ -1,88 +1,56 @@
-/**
- * GRYD — PARAMÈTRES (écran poussé depuis le Profil).
- *
- * ─── ORDRE DE COMPOSITION ─────────────────────────────────────────────────────
- *   1. En-tête `StackScreen` : retour + kicker mono gris + titre display ;
- *   2. TROIS groupes, chacun ouvert par un `SectionLabel` (kicker canonique) ;
- *   3. Dans chaque groupe, des `ListRow` — plaque d'icône, libellé, sous-libellé,
- *      chevron — séparées par l'ESPACE, jamais par un cadre.
- *
- * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
- * · LE COMPOSANT `Row` LOCAL. Il dupliquait `src/ui/ListRow` au pixel près
- *   (même géométrie, même carré d'icône 36, même chevron gris) avec ses propres
- *   styles — donc sa propre dérive à la prochaine retouche. La primitive existe :
- *   on l'utilise.
- * · LES QUINZE CADRES PERMANENTS. Chaque ligne portait `borderWidth: 1` : quand
- *   tout est encadré, un cadre ne signale plus rien (règle 80/20, `Card.tsx`).
- *   `ListRow` pose une surface N1 sans contour, séparée par la marge.
- * · LES DEUX `numberOfLines={1}` NUS sur le libellé et le détail. En allemand
- *   comme en portugais, « Verbundene Quellen » et son sous-titre dépassent
- *   375 px : RN coupait en `tail`, donc « … ». `ListRow` laisse les deux
- *   s'enrouler (règle 9).
- * · LES QUATRE BLOCS DE LISTE ÉCRITS À LA MAIN (parcours, explicabilité, langue
- *   ajoutés hors du catalogue). Ils fabriquaient trois sur-titres de plus pour
- *   trois lignes. Tout vit maintenant dans `SETTINGS_GROUPS`, seule source.
- * · LES STYLES TYPO LOCAUX (`fontSize` + `fontWeight` sans `fontFamily`, donc la
- *   fonte SYSTÈME au lieu d'Inter). `ListRow` et `SectionLabel` portent les rôles.
- *
- * ─── ÉCARTS ASSUMÉS À LA PLANCHE ──────────────────────────────────────────────
- * · Pas de photo ni de bloc d'identité en tête : l'identité vit dans le Profil,
- *   et la relire ici demanderait une seconde lecture de session pour un écran
- *   qui n'est que de la navigation.
- * · Aucun des QUATRE états n'est rendu ici, et c'est délibéré : cet écran ne
- *   fait AUCUNE lecture réseau. Il n'affiche que des routes qui existent —
- *   il ne peut donc être ni vide, ni en échec, ni en cours de lecture.
- */
-import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { SETTINGS_GROUPS, type SettingsRow } from '../src/features/settings/sections';
-import { C } from '../src/i18n/catalog/reglages';
-import { useT } from '../src/i18n/store';
+import { fonts, refonteColors as c } from '@klaim/shared';
+import { signOut } from '../src/lib/auth';
+import { useSession } from '../src/lib/session';
 import { screen } from '../src/lib/analytics';
-import { ListRow } from '../src/ui/ListRow';
-import { SectionLabel } from '../src/ui/SectionLabel';
-import { StackScreen } from '../src/ui/StackScreen';
+import { ProfileButton, ProfileLink, ProfilePage, ProfileSection, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
+import { SETTINGS_GLYPHS } from '../src/ui/gryd/glyphs';
+import { TranslucentControl2026 } from '../src/ui/gryd/Surface2026';
 
-/** Cible d'une ligne : sous-page interne, ou route existante. */
-function pushRow(row: SettingsRow): void {
-  if (row.section !== undefined) router.push(`/parametres/${row.section}`);
-  else if (row.href !== undefined) router.push(row.href);
+export default function SettingsScreen() {
+  const copy = useRefonteCopy();
+  const { session } = useSession();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
+  useEffect(() => { screen('parametres'); }, []);
+  return <ProfilePage tone="light" title={copy('Réglages', 'Settings')} back>
+    <Text style={local.intro}>{copy('Compte, confidentialité et préférences.', 'Account, privacy and preferences.')}</Text>
+    <ProfileSection tone="light" title={copy('Compte', 'Account')} />
+    <TranslucentControl2026 tone="light" style={local.group}>
+    <ProfileLink tone="light" title={copy('Compte & connexion', 'Account & sign-in')} grydIcon={SETTINGS_GLYPHS.accountConnection} onPress={() => router.push('/parametres/compte')} />
+    <ProfileLink tone="light" title={copy('Modifier mon profil', 'Edit my profile')} grydIcon={SETTINGS_GLYPHS.editProfile} onPress={() => router.push('/profil-edit')} />
+    <ProfileLink tone="light" title={copy('Confidentialité & données', 'Privacy & data')} subtitle={copy('Visibilité, export et suppression', 'Visibility, export and deletion')} grydIcon={SETTINGS_GLYPHS.privacyData} onPress={() => router.push('/confidentialite')} />
+    <ProfileLink tone="light" title={copy('Notifications', 'Notifications')} grydIcon={SETTINGS_GLYPHS.notifications} onPress={() => router.push('/parametres/notifications')} />
+    <ProfileLink tone="light" title={copy('Abonnement & achats', 'Subscription & purchases')} grydIcon={SETTINGS_GLYPHS.subscription} onPress={() => router.push('/abonnement')} />
+    </TranslucentControl2026>
+    <ProfileSection tone="light" title={copy('Tes sorties', 'Your outings')} />
+    <TranslucentControl2026 tone="light" style={local.group}>
+    <ProfileLink tone="light" title={copy('Sources & appareils', 'Sources & devices')} grydIcon={SETTINGS_GLYPHS.sourcesDevices} onPress={() => router.push('/sources')} />
+    <ProfileLink tone="light" title={copy('Mon journal', 'My journal')} grydIcon={SETTINGS_GLYPHS.journal} onPress={() => router.push('/(tabs)/profil')} />
+    <ProfileLink tone="light" title={copy('Ma collection', 'My collection')} grydIcon={SETTINGS_GLYPHS.collection} onPress={() => router.push('/arsenal')} />
+    <ProfileLink tone="light" title={copy('Mon crew', 'My crew')} grydIcon={SETTINGS_GLYPHS.crew} onPress={() => router.push('/(tabs)/crew')} />
+    </TranslucentControl2026>
+    <ProfileSection tone="light" title={copy('Aide et informations', 'Help and information')} />
+    <TranslucentControl2026 tone="light" style={local.group}>
+    <ProfileLink tone="light" title={copy('Langue', 'Language')} grydIcon={SETTINGS_GLYPHS.language} onPress={() => router.push('/langue')} />
+    <ProfileLink tone="light" title={copy('Comment ça marche', 'How it works')} grydIcon={SETTINGS_GLYPHS.howItWorks} onPress={() => router.push('/calcul-zones')} />
+    <ProfileLink tone="light" title={copy('Revoir la découverte', 'Replay the introduction')} grydIcon={SETTINGS_GLYPHS.replayDiscovery} onPress={() => router.push('/onboarding?replay=1')} />
+    <ProfileLink tone="light" title={copy('Questions fréquentes', 'Frequently asked questions')} grydIcon={SETTINGS_GLYPHS.faq} onPress={() => router.push('/faq')} />
+    <ProfileLink tone="light" title={copy('Aide & signalement', 'Help & reporting')} grydIcon={SETTINGS_GLYPHS.support} onPress={() => router.push('/support')} />
+    <ProfileLink tone="light" title={copy('À propos & mentions légales', 'About & legal notice')} grydIcon={SETTINGS_GLYPHS.about} onPress={() => router.push('/a-propos')} />
+    <ProfileLink tone="light" title={copy('Conditions d’utilisation', 'Terms of use')} grydIcon={SETTINGS_GLYPHS.terms} onPress={() => router.push('/legal/cgu')} />
+    <ProfileLink tone="light" title={copy('Politique de confidentialité', 'Privacy policy')} grydIcon={SETTINGS_GLYPHS.privacyPolicy} onPress={() => router.push('/legal/confidentialite')} />
+    <ProfileLink tone="light" title={copy('Crédits des données', 'Data credits')} grydIcon={SETTINGS_GLYPHS.dataCredits} onPress={() => router.push('/credits-donnees')} />
+    <ProfileLink tone="light" title={copy('Licences logicielles', 'Software licences')} grydIcon={SETTINGS_GLYPHS.licenses} onPress={() => router.push('/legal/licences')} />
+    </TranslucentControl2026>
+    {session ? <View style={local.signOut}><ProfileButton tone="light" label={copy('Me déconnecter', 'Sign out')} secondary busy={signingOut} onPress={() => {
+      setSigningOut(true); setSignOutFailed(false);
+      void signOut().then(result => { if (!result.ok) setSignOutFailed(true); else router.replace('/(tabs)/profil'); }).catch(() => setSignOutFailed(true)).finally(() => setSigningOut(false));
+    }} /></View> : null}
+    {signOutFailed ? <Text accessibilityRole="alert" style={local.meta}>{copy('La déconnexion n’a pas abouti. Réessaie.', 'Sign-out did not complete. Try again.')}</Text> : null}
+  </ProfilePage>;
 }
 
-export default function ParametresScreen() {
-  const t = useT();
-  useEffect(() => {
-    screen('parametres');
-  }, []);
-
-  return (
-    <StackScreen title={t(C.paramsTitle)} icon="reglages" kicker={t(C.paramsKicker)}>
-      {SETTINGS_GROUPS.map((group) => (
-        <View key={group.id}>
-          <SectionLabel style={styles.kicker}>{t(group.label)}</SectionLabel>
-          {group.rows.map((row) => (
-            <ListRow
-              key={row.section ?? row.href}
-              icon={row.icon}
-              label={t(row.label)}
-              sublabel={t(row.detail)}
-              chevron
-              onPress={() => pushRow(row)}
-            />
-          ))}
-        </View>
-      ))}
-    </StackScreen>
-  );
-}
-
-/** Rythme vertical d'un sur-titre de section : il appartient à la PAGE
- *  (`SectionLabel` n'impose aucune marge), et il est le MÊME sur tous les écrans
- *  de réglages pour qu'ils se lisent comme un seul écran. */
-const KICKER_TOP = 24;
-const KICKER_BOTTOM = 10;
-
-const styles = StyleSheet.create({
-  kicker: { marginTop: KICKER_TOP, marginBottom: KICKER_BOTTOM },
-});
+const local = StyleSheet.create({ intro: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.muted, paddingTop: 8, paddingBottom: 2 }, group: { position: 'relative', borderRadius: 24, paddingHorizontal: 18, paddingVertical: 4 }, signOut: { alignSelf: 'flex-start', marginTop: 16, marginBottom: 12 }, meta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted } });

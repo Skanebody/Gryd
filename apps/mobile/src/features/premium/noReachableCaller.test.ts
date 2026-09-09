@@ -12,8 +12,10 @@
  * que l'appel NE PARTE PAS — et ça, ça se vérifie.
  *
  * ─── CE QU'IL VERROUILLE ────────────────────────────────────────────────────
- * La liste EXACTE des écrans qui touchent au SDK. Elle est aujourd'hui de deux,
- * tous deux derrière un drapeau fermé (`flags.arsenal`, `flags.paidOffer`).
+ * La liste EXACTE des écrans qui touchent au SDK. Elle est de quatre depuis le
+ * 09/09/2026 : deux legacy derrière un drapeau fermé (`flags.arsenal`,
+ * `flags.paidOffer`), deux du cahier de septembre derrière la CAPACITÉ d'achat
+ * (`capability.ts` : sans clé de production, le SDK n'est jamais configuré).
  * Si un troisième apparaît, ce test rougit — et il faudra soit le mettre
  * derrière un drapeau, soit mettre à jour les déclarations de confidentialité.
  *
@@ -37,7 +39,22 @@ function assertEquals(actual: unknown, expected: unknown, message = 'valeurs dif
  * Les SEULS fichiers autorisés à toucher au SDK, hors `features/premium/`.
  * Les deux sont derrière un drapeau FERMÉ au lancement (ADR-011).
  */
-const AUTORISES = new Set(['app/arsenal.tsx', 'app/premium.tsx']);
+const AUTORISES = new Set([
+  'app/arsenal.tsx',
+  'app/premium.tsx',
+  // ─── Cahier de septembre 2026 (ADR-012, rang 0) — son §16.1 vend GRYD+ ──────
+  // Ces deux écrans du cahier lisent `usePremium`. L'appel tiers ne part
+  // TOUJOURS PAS : `features/premium/capability.ts` refuse toute clé qui n'est
+  // pas une clé de production (`appl_` / `goog_`), et aucune clé n'est posée
+  // dans les environnements EAS — `usePremium` rend alors `status: 'unavailable'`
+  // avec sa raison, que `ProfilePremiumScreen` affiche (aucun bouton mort).
+  // Le jour où une clé est posée, les réponses « App Privacy » DOIVENT déclarer
+  // l'identifiant utilisateur et l'historique d'achat partagés avec RevenueCat
+  // (GRYD_APPSTORE_CHECKLIST.md §5) — ce test ne le vérifie pas : il ne fait
+  // que NOMMER qui parle au SDK, pour que ce jour-là ne passe pas inaperçu.
+  'app/abonnement.tsx',
+  'src/features/refonte/ProfilePremiumScreen.tsx',
+]);
 
 const RACINE = new URL('../../../', import.meta.url);
 
@@ -50,7 +67,7 @@ async function fichiers(rel: string, out: string[] = []): Promise<string[]> {
   return out;
 }
 
-Deno.test('ADR-011 : AUCUN écran inattendu ne touche au SDK d’achat', async () => {
+Deno.test('ADR-011 → ADR-012 : AUCUN écran inattendu ne touche au SDK d’achat', async () => {
   const tous = [...(await fichiers('app/')), ...(await fichiers('src/'))];
   const coupables: string[] = [];
   for (const f of tous) {

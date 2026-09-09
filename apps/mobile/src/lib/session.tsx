@@ -7,6 +7,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { initialTokenProbe } from '../features/boot/bootSequence';
+import { setResultOwner2026 } from '../features/run/resultOwner2026';
 import { cancelAccountDeletion } from '../features/account/deletion';
 
 export interface SessionState {
@@ -52,26 +53,37 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [deletionCancelled, setDeletionCancelled] = useState(false);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) { setResultOwner2026(null); return; }
+    let revision = 0;
+    let alive = true;
+    setResultOwner2026(undefined);
     supabase.auth
       .getSession()
-      .then(({ data }) => setSession(data.session))
-      .finally(() => setLoading(false));
+      .then(({ data }) => {
+        if (!alive || revision !== 0) return;
+        setResultOwner2026(data.session?.user.id ?? null); setSession(data.session);
+      }).catch(() => { if (alive && revision === 0) setResultOwner2026(undefined); })
+      .finally(() => { if (alive) setLoading(false); });
     const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
+      revision++;
+      setResultOwner2026(next?.user.id ?? null);
       setSession(next);
+      setLoading(false);
       // « Toute reconnexion annule la suppression » (0046) — mais UNIQUEMENT sur
       // une authentification RÉELLE. Surtout PAS sur `INITIAL_SESSION` (session
       // restaurée au lancement) : sinon ouvrir l'app une seule fois pendant les
       // 30 jours empêcherait la suppression de jamais aboutir, alors que
       // l'utilisateur la croit programmée. Demander la suppression déconnecte,
       // donc revenir passe forcément par un vrai SIGNED_IN.
+      setDeletionCancelled(false);
       if (event === 'SIGNED_IN' && next) {
+        const authRevision = revision;
         void cancelAccountDeletion().then(({ restored }) => {
-          if (restored) setDeletionCancelled(true);
-        });
+          if (alive && revision === authRevision && restored) setDeletionCancelled(true);
+        }).catch(() => {});
       }
     });
-    return () => listener.subscription.unsubscribe();
+    return () => { alive = false; listener.subscription.unsubscribe(); setResultOwner2026(undefined); };
   }, []);
 
   return (

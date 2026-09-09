@@ -48,62 +48,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Entry } from '../../i18n/types';
+import { rememberOnboardingCompletion2026 } from './sessionCompletion2026';
 
-/** Chemin d'activation choisi à l'étape 4 (funnel : sync vs run — §4). */
-export type OnboardingPath = 'sync' | 'run' | null;
-
-export interface OnboardingState {
-  /** L'onboarding a été mené jusqu'au bout (compte fait ou différé assumé). */
-  onboardingDone: boolean;
-  /** La 1re capture démo a eu lieu (la valeur est donnée). */
-  firstCaptureDone: boolean;
-  /**
-   * Age-gate 16+ (Apple 5.1.1 / mineurs) — MÉMOIRE d'une auto-déclaration déjà
-   * faite, pour ne pas la redemander à chaque écran.
-   *
-   * ⚠ Ce n'est PAS un laissez-passer d'écran. Il est lu par les surfaces qui
-   * CRÉENT un compte, pour savoir s'il faut poser la question ; `false` (ou
-   * illisible) veut dire « repose la question », jamais « ferme la porte ».
-   */
-  ageConfirmed: boolean;
-  /** Chemin d'activation retenu (analytics/reprise). */
-  path: OnboardingPath;
-  /**
-   * DERNIÈRE ÉTAPE ATTEINTE — « quitter et reprendre » (demande fondateur).
-   * L'étape vivait dans un `useState` local : fermer l'app renvoyait à l'écran 1,
-   * quoi qu'on ait déjà vu et compris.
-   *
-   * Typé `string | null` VOLONTAIREMENT, et non `OnboardingStep` : le disque
-   * peut contenir le nom d'une étape d'une version antérieure (`hook`, `learn`…).
-   * C'est l'écran qui valide la valeur contre la liste courante ; une étape
-   * inconnue n'est pas une erreur, c'est un flow qui a changé — on repart du
-   * début plutôt que de rendre un écran qui n'existe plus.
-   */
-  reachedStep: string | null;
-  /**
-   * VILLE CHOISIE À LA MAIN (écran ville, avant tout compte). Elle sert à deux
-   * choses, et à rien d'autre : rappeler son nom sur l'écran profil, et CADRER
-   * la carte d'arrivée. Un cadrage n'est pas un contenu — aucune zone, aucun
-   * propriétaire, aucun classement n'en découle.
-   *
-   * L'id ET le nom sont gardés : l'id est la clé (FK `city_zones` le jour où le
-   * profil serveur sera écrit), le nom est ce que le serveur affichait au moment
-   * du choix — le réinventer depuis l'id demanderait une table locale de noms.
-   */
-  cityId: string | null;
-  cityName: string | null;
-}
-
-/** Défaut : rien vu, rien capturé — un pur nouveau visiteur. */
-export const DEFAULT_ONBOARDING_STATE: OnboardingState = {
-  onboardingDone: false,
-  firstCaptureDone: false,
-  ageConfirmed: false,
-  path: null,
-  reachedStep: null,
-  cityId: null,
-  cityName: null,
-};
+import { createOnboardingPatchQueue2026, decodeOnboardingState2026, DEFAULT_ONBOARDING_STATE, type OnboardingState, type OnboardingRead2026 } from './onboardingPersistence2026';
+export { DEFAULT_ONBOARDING_STATE } from './onboardingPersistence2026';
+export type { OnboardingState, OnboardingPath } from './onboardingPersistence2026';
 
 /**
  * Ce que vaut la lecture du stockage local.
@@ -175,53 +124,18 @@ function settleWithin<T>(start: () => Promise<T>): Promise<Settled<T>> {
   });
 }
 
-type ReadOutcome = { readonly ok: true; readonly state: OnboardingState } | { readonly ok: false };
-
-/**
- * Lecture initiale. Distingue explicitement « rien de stocké » (réponse : pur
- * nouveau visiteur) de « illisible » (pas une réponse).
- *
- * Un blob CORROMPU compte comme illisible, pas comme des défauts : prétendre
- * lire `ageConfirmed: false` dans un JSON qu'on n'a pas su parser serait
- * inventer une réponse. La prochaine écriture le remplacera de toute façon.
- */
-async function readState(): Promise<ReadOutcome> {
+/** Unknown/corrupt storage remains unknown; no consent is manufactured. */
+async function readState(): Promise<OnboardingRead2026> {
   const read = await settleWithin(() => AsyncStorage.getItem(STORAGE_KEY));
-  if (!read.ok) return { ok: false };
-  if (read.value === null) return { ok: true, state: DEFAULT_ONBOARDING_STATE };
-  try {
-    const parsed = JSON.parse(read.value) as Partial<OnboardingState>;
-    return { ok: true, state: { ...DEFAULT_ONBOARDING_STATE, ...parsed } };
-  } catch {
-    return { ok: false };
-  }
+  return read.ok ? decodeOnboardingState2026(read.value) : { ok: false };
 }
 
-/**
- * File d'écriture SÉRIALISÉE. Deux `update()` peuvent partir dans le même tick
- * (le gate d'âge, puis la sortie du flow). Chaque patch est fusionné depuis
- * `stateRef`, donc le SECOND contient déjà le premier : si les deux écritures se
- * croisaient et que la première atterrissait en dernier, le stockage garderait
- * un état PLUS ANCIEN.
- *
- * Retourne `true` seulement si l'écriture a vraiment abouti — c'est cette valeur
- * qui alimente `persistenceFailed`, donc la phrase montrée au joueur.
- */
-let writeQueue: Promise<void> = Promise.resolve();
-
-function writeState(state: OnboardingState): Promise<boolean> {
-  const payload = JSON.stringify(state);
-  const attempt: Promise<boolean> = writeQueue
-    .then(() => settleWithin(() => AsyncStorage.setItem(STORAGE_KEY, payload)))
-    .then((r) => r.ok);
-  // Une écriture qui pend (résolue `false` par le délai) ne doit pas geler la
-  // file : la suivante repart derrière elle, quoi qu'il arrive.
-  writeQueue = attempt.then(
-    () => undefined,
-    () => undefined,
-  );
-  return attempt;
-}
+// Shared across all hook instances. The disk is reread after the preceding
+// patch, so a delayed onboarding completion cannot erase a newer age/city choice.
+const writePatch = createOnboardingPatchQueue2026(readState, async state => {
+  const result = await settleWithin(() => AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)));
+  return result.ok;
+});
 
 export interface OnboardingStore {
   /**
@@ -243,7 +157,7 @@ export interface OnboardingStore {
    */
   persistenceFailed: boolean;
   /** Patch partiel + persistance. La promesse résout après la tentative d'écriture. */
-  update: (patch: Partial<OnboardingState>) => Promise<void>;
+  update: (patch: Partial<OnboardingState>) => Promise<boolean>;
 }
 
 /**
@@ -258,7 +172,7 @@ export function useOnboardingState(): OnboardingStore {
   // Miroir synchrone de l'état courant : la persistance NE DÉPEND JAMAIS du
   // timing de l'updater setState. Une sortie de flow enchaîne update() puis
   // router.replace() (démontage immédiat) : l'updater fonctionnel serait alors
-  // abandonné et writeState persisterait les défauts.
+  // abandonné. La persistance ne reçoit désormais que le patch explicite.
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -271,9 +185,9 @@ export function useOnboardingState(): OnboardingStore {
    * silencieusement annulée, y compris une déclaration d'âge.
    *
    * On mémorise donc ce que CE MONTAGE a décidé. La lecture ne fournit plus que
-   * le FOND : les décisions de la session gagnent toujours. Et comme l'écriture
-   * partie avant la lecture avait été calculée depuis les DÉFAUTS (elle a donc
-   * pu écraser des champs stockés qu'on ignorait), on republie la fusion.
+   * le FOND : les décisions de la session gagnent toujours. La file relit
+   * séparément le disque avant chaque patch ; elle n’écrit jamais ces défauts
+   * sur un état encore inconnu.
    */
   const decidedRef = useRef<Partial<OnboardingState>>({});
   const mountedRef = useRef(true);
@@ -293,11 +207,7 @@ export function useOnboardingState(): OnboardingStore {
       stateRef.current = merged;
       setState(merged);
       setStatus('ready');
-      if (Object.keys(decided).length > 0) {
-        void writeState(merged).then((ok) => {
-          if (mountedRef.current && !ok) setPersistenceFailed(true);
-        });
-      }
+
     });
     return () => {
       mountedRef.current = false;
@@ -305,6 +215,7 @@ export function useOnboardingState(): OnboardingStore {
   }, []);
 
   const update = useCallback(async (patch: Partial<OnboardingState>) => {
+    if (typeof patch.onboardingDone === 'boolean') rememberOnboardingCompletion2026(patch.onboardingDone);
     // Décision de session : elle prime sur la lecture, même si celle-ci arrive
     // après (voir decidedRef ci-dessus).
     decidedRef.current = { ...decidedRef.current, ...patch };
@@ -313,8 +224,9 @@ export function useOnboardingState(): OnboardingStore {
     const next: OnboardingState = { ...stateRef.current, ...patch };
     stateRef.current = next;
     setState(next);
-    const persisted = await writeState(next);
+    const persisted = await writePatch(patch);
     if (mountedRef.current && !persisted) setPersistenceFailed(true);
+    return persisted;
   }, []);
 
   return { state, status, persistenceFailed, update };

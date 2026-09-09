@@ -189,7 +189,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "GRYD ouvre ta photothèque uniquement au moment où tu choisis toi-même une photo de profil. Aucune photo n'est parcourue ni lue automatiquement, et la photo que tu sélectionnes reste sur ton téléphone. Mettre une photo n'est jamais obligatoire : tu peux rester derrière ton pseudo.",
+          "photosPermission": "GRYD ouvre la photothèque lorsque tu choisis une photo pour ton profil ou un souvenir de sortie. Seule la photo choisie est utilisée. Ajouter une photo est facultatif.",
           "cameraPermission": false,
           "microphonePermission": false
         }

@@ -237,6 +237,10 @@ export interface RealMapProps {
   onPress?: (event: RealMapPressEvent) => void;
   /** Zoom courant, notifié à chaque mouvement de caméra (seuils UI §4bis). */
   onZoomChange?: (zoom: number) => void;
+  /** Settled camera, for bounded ownership reads and preserving exploration. */
+  onCameraSettled?: (camera: RealMapCamera) => void;
+  /** Explicit user gesture only; programmatic camera animations do not fire it. */
+  onCameraGesture?: () => void;
   /**
    * Style NATIF chargé : un flyTo lancé AVANT cet événement peut être perdu par
    * le natif (retour terrain 20/07 : caméra restée sur le fallback Paris alors
@@ -348,8 +352,12 @@ const TERRITORY_QUERY_BASE_IDS: readonly string[] = [
   // Ligne de capture invisible LARGE (§3 P2) : élargit la cible tactile des
   // zones-couloirs fines — interrogée EN PREMIER (elle est peinte tout au fond).
   'terr-hit-line',
+  'terr-personal-fill-fill',
+  'terr-personal-fill-line',
   'terr-crew-fill-fill',
+  'terr-crew-fill-line',
   'terr-rival-fill-fill',
+  'terr-rival-fill-line',
   'terr-contested-fill-fill',
   'terr-crew-casing-line',
   'terr-crew-core-line',
@@ -501,6 +509,8 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     markers,
     onPress,
     onZoomChange,
+    onCameraSettled,
+    onCameraGesture,
     onStyleLoaded,
     attributionCompact = true,
     basemap,
@@ -752,8 +762,13 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
           setOffline(false);
           onStyleLoaded?.();
         }}
+        onRegionWillChange={feature => { if (feature.properties.isUserInteraction) onCameraGesture?.(); }}
         onRegionIsChanging={(feature) => onZoomChange?.(feature.properties.zoomLevel)}
-        onRegionDidChange={(feature) => onZoomChange?.(feature.properties.zoomLevel)}
+        onRegionDidChange={(feature) => {
+          onZoomChange?.(feature.properties.zoomLevel);
+          const [lng, lat] = feature.geometry.coordinates;
+          if (lng !== undefined && lat !== undefined) onCameraSettled?.({ lng, lat, zoom: feature.properties.zoomLevel });
+        }}
         onPress={(feature) => {
           if (!onPress || feature.geometry.type !== 'Point') return;
           const [lng, lat] = feature.geometry.coordinates;
@@ -767,7 +782,7 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
           const view = mapViewRef.current;
           if (view && typeof sx === 'number' && typeof sy === 'number') {
             void view
-              .queryRenderedFeaturesAtPoint([sx, sy], undefined, TERRITORY_QUERY_LAYER_IDS)
+              .queryRenderedFeaturesAtPoint([sx, sy], undefined, [...new Set([...TERRITORY_QUERY_LAYER_IDS, ...geojsonLayers.filter(layer => layer.id.startsWith('terr-')).flatMap(layer => [ ...(layer.fillColor ? [`${layer.id}-fill`] : []), ...(layer.lineColor ? [`${layer.id}-line`] : []) ])])])
               .then((fc) => onPress({ lng, lat, zoneId: firstZoneId(fc?.features) }))
               .catch(() => onPress({ lng, lat, zoneId: null }));
           } else {

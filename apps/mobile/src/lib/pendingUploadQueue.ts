@@ -321,3 +321,11 @@ export async function drainPendingQueue(
   }
   return { remaining, sent, rejected, stoppedBy: 'empty' };
 }
+
+/** A queue may retain several accounts; only an exact owner match can be sent. */
+export function pendingEntriesForOwner2026(queue: readonly PendingEntry[], userId: string): PendingEntry[] {
+  return userId ? queue.filter(entry => entry.payload.recordingOwnerId === userId) : [];
+}
+export function pendingOwnerConflict2026(queue: readonly PendingEntry[], payload: IngestRunRequest): boolean {
+  return queue.some(entry => entry.payload.clientRunId === payload.clientRunId && entry.payload.recordingOwnerId !== payload.recordingOwnerId);
+}

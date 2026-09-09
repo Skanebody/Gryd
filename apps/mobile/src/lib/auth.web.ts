@@ -43,6 +43,7 @@
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
+import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
 
 export type SignInMethod = 'apple' | 'google' | 'email_otp';
 
@@ -129,7 +130,9 @@ export async function signInWithGoogle(): Promise<AuthResult> {
  * envoyé. Le jour où un SMTP personnalisé est configuré, le gabarit peut porter
  * `{{ .Token }}` et cette constante repasse à `'code'` — l'écran suit tout seul.
  */
-export const EMAIL_DELIVERY: 'link' | 'code' = 'link';
+export const EMAIL_DELIVERY: 'link' | 'code' = emailDelivery2026(
+  process.env.EXPO_PUBLIC_EMAIL_AUTH_MODE,
+);
 
 export async function requestEmailOtp(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
@@ -143,10 +146,34 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
       // est la seule que cet écran connaisse avec certitude. Elle est déclarée
       // dans l'`uri_allow_list` du projet — sans ça, Supabase refuserait la
       // redirection et le lien retomberait sur le site.
-      emailRedirectTo: typeof window === 'undefined' ? undefined : window.location.origin,
+      emailRedirectTo: typeof window === 'undefined' ? undefined : `${window.location.origin}/callback`,
     },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  return { ok: true };
+}
+
+/** Termine un retour PKCE/implicite, ou récupère la session déjà lue par le client web. */
+export async function completeAuthCallback(url: string | null): Promise<AuthResult> {
+  if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
+  const callback = parseAuthCallback2026(url);
+  if (callback.kind === 'error') {
+    return { ok: false, reason: 'auth_error', message: callback.message };
+  }
+  const result = callback.kind === 'pkce'
+    ? await supabase.auth.exchangeCodeForSession(callback.code)
+    : callback.kind === 'tokens'
+      ? await supabase.auth.setSession({
+          access_token: callback.accessToken,
+          refresh_token: callback.refreshToken,
+        })
+      : await supabase.auth.getSession();
+  if (result.error || !result.data.session) {
+    return { ok: false, reason: 'auth_error', message: result.error?.message };
+  }
+  identify(result.data.session.user.id);
+  track(EVENTS.signupCompleted, { method: 'email_otp' satisfies SignInMethod });
+  void markSignupT0();
   return { ok: true };
 }
 

@@ -1,0 +1,6 @@
+{
+  "planner": "http://localhost:8081/route-planner?activity=bike",
+  "departure": "http://localhost:8081/course-live?mode=conquete&activity=bike",
+  "errors": [],
+  "noRealGps": true
+}

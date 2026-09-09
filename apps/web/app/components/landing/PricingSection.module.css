@@ -113,7 +113,6 @@
 
 .rarityLegend {
   border-color: color-mix(in srgb, var(--or) 30%, transparent);
-  box-shadow: 0 0 32px var(--or-14);
 }
 
 .rarityLegend .rarityChip {
@@ -138,7 +137,6 @@
   border: 1px solid var(--ch40);
   border-radius: var(--radius-card);
   padding: 18px 22px;
-  box-shadow: 0 0 32px var(--ch14);
 }
 
 .freeTitle {
@@ -314,10 +312,9 @@
   padding: 26px 24px;
 }
 
-/* Highlight Club : contour + halo chartreuse (CTA primaire de la section). */
+/* Le contour identifie l'offre mise en avant, sans halo de surface. */
 .highlight {
   border-color: var(--ch40);
-  box-shadow: 0 0 40px var(--ch14);
 }
 
 .coming {

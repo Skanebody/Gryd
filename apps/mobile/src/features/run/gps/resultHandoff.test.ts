@@ -103,3 +103,10 @@ Deno.test('fin hors-ligne : « queued » n’existe que si l’envoi attend vrai
   // toujours présente ferait croire à un booléen là où il n'y en a pas.
   assertEquals(throughUrl(courseResultParams(finished({ uploadQueued: false }))).get('queued'), null);
 });
+
+Deno.test('2026 : le résultat retrouve précisément l’archive locale, même sans compte', () => {
+  const query = throughUrl(courseResultParams(finished({ localId: 'local-trial-2026', uploadQueued: false })));
+  assertEquals(query.get('localId'), 'local-trial-2026');
+  assertEquals(query.get('queued'), null, 'un essai local ne prétend pas attendre une synchronisation');
+  assertEquals(throughUrl(courseResultParams(finished())).get('localId'), null, 'aucune archive inventée pour un ancien appelant');
+});

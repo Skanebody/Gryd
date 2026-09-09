@@ -31,6 +31,7 @@ const RUN_SENT = courseResultParams({
   distanceM: 5_000,
   durationS: 1_500,
   uploadQueued: false,
+  localId: 'recorded-run-2026',
 });
 
 Deno.test('la liste blanche couvre EXACTEMENT les clés de la fin de course', () => {
@@ -56,6 +57,12 @@ Deno.test('LA DISCIPLINE SURVIT à la traversée (le défaut historique)', () =>
 Deno.test('le relais ressort à l’identique — aucune clé perdue, aucune ajoutée', () => {
   assertEquals(forwardableParams(BIKE_QUEUED), BIKE_QUEUED);
   assertEquals(forwardableParams(RUN_SENT), RUN_SENT);
+});
+
+Deno.test('l’analyse transmet l’identité de la vraie sortie locale et ne la reconstruit pas depuis ses mesures', () => {
+  assertEquals(forwardableParams(RUN_SENT).localId, 'recorded-run-2026');
+  assertEquals(forwardableParams({ dist: '5000', dur: '1500' }).localId, undefined);
+  assertEquals(forwardableParams({ localId: ['recorded-run-2026', 'other'] }).localId, 'recorded-run-2026');
 });
 
 Deno.test('« queued » reste ABSENT quand la sortie est partie (jamais « 0 »)', () => {

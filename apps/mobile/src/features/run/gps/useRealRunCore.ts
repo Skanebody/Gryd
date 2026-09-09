@@ -55,10 +55,13 @@ import {
 import type { LiveRunMode } from '../simulation';
 import { clearLastRunResult, setLastRunResult } from '../runResult';
 import { clearFinishedTrace, setFinishedTrace } from '../finishedTrace';
+import { clearFinishedActivity2026, setFinishedActivity2026 } from '../finishedActivity2026';
+import { currentResultOwner2026 } from '../resultOwner2026';
 import { HTTP_STATUS_NONE } from '../analysis/analysisMachine';
 import { beginSyncFactRun, publishSyncFact } from '../analysis/syncFactBus';
 import { recordRun } from '../runJournal';
 import { RunTracker, type TrackerSnapshot } from './tracker';
+import { saveLocalActivity2026, type LocalActivity2026 } from '../../refonte/localActivities';
 import { canResumeInterrupted } from './runActivity';
 import type { RealRunGate } from './gateTypes';
 import type { RunLocationAdapter, RunUnavailableReason, RunWatchHandle } from './locationAdapter';
@@ -71,6 +74,8 @@ const UI_TICK_MS = 1_000;
 const FLUSH_EVERY_TICKS = 30;
 /** Re-vérification de la permission (autorisation coupée en course) tous les N ticks. */
 const PERMISSION_CHECK_EVERY_TICKS = 10;
+/** Network bound only: the durable local recording is already saved. */
+const FINISH_UPLOAD_TIMEOUT_MS = 15_000;
 
 /**
  * Discipline d'une course RESTAURÉE (reprise après kill / clôture d'orpheline).
@@ -84,6 +89,20 @@ const PERMISSION_CHECK_EVERY_TICKS = 10;
  */
 function storedActivity(stored: StoredRun): Activity {
   return stored.activity ?? DEFAULT_ACTIVITY;
+}
+
+function archiveFor(tracker: RunTracker, finishedAt: number): LocalActivity2026 | null {
+  // Legacy buffers without an owner are not guest recordings. Keep the exact
+  // evidence in recovery storage rather than attributing it to a later user.
+  if (tracker.recordingOwnerId === undefined) return null;
+  const snap = tracker.snapshot(finishedAt);
+  return {
+    clientRunId: tracker.runId, ownerId: tracker.recordingOwnerId,
+    activity: tracker.activity, distanceM: snap.distanceM, durationS: snap.activeS,
+    startedAt: new Date(tracker.startedAt).toISOString(), finishedAt: new Date(finishedAt).toISOString(),
+    pending: tracker.recordingOwnerId != null, traceSegments: snap.traceSegments,
+    uploadPayload: tracker.buildPayload(),
+  };
 }
 
 export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): RealRunGate {
@@ -134,6 +153,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     const t = trackerRef.current;
     if (t === null || finishedRef.current) return;
     const run: StoredRun = {
+      recordingOwnerId: t.recordingOwnerId,
+      recordingSessionId: t.recordingSessionId,
+      sharedMapParticipation: t.sharedMapParticipation,
       runId: t.runId,
       mode: t.mode,
       // E14 : la discipline suit la course dans le stockage — une sortie vélo
@@ -164,8 +186,13 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
    *  - 'none'   : pas de backend/session (aucun envoi attendu).
    */
   const uploadOrQueue = useCallback(
-    async (payload: IngestRunRequest): Promise<'sent' | 'rejected' | 'queued' | 'lost' | 'none'> => {
-      if (supabase === null) return 'none'; // aucun backend configuré
+    async (payload: IngestRunRequest, receiveResult?: (result: IngestRunResponse | null) => void): Promise<'sent' | 'rejected' | 'queued' | 'lost' | 'local'> => {
+      if (payload.recordingOwnerId === null) return 'local';
+      // Unscoped legacy payloads remain recoverable but are never uploaded
+      // under whichever account happens to sign in next.
+      if (payload.recordingOwnerId === undefined) return (await queuePendingUpload(payload)) ? 'queued' : 'lost';
+      if (supabase === null || (payload.recordingOwnerId !== undefined &&
+        (payload.recordingOwnerId !== sessionRef.current?.user.id || payload.recordingOwnerId !== currentResultOwner2026()))) return (await queuePendingUpload(payload)) ? 'queued' : 'lost';
       if (sessionRef.current === null) {
         // P0 C3 — session tombée EN COURS de course : on ne purge JAMAIS une vraie
         // course sans l'avoir mise à l'abri. En file : retryPendingUpload exige une
@@ -180,12 +207,13 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         // fait par `syncFactBus` — sans lui, sa phase `uploading` restait
         // structurellement inatteignable (cf. syncFactBus.ts).
         publishSyncFact({ kind: 'upload_started' }, payload.clientRunId);
-        const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
+        const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload, timeout: FINISH_UPLOAD_TIMEOUT_MS });
         if (!error) {
           // O1 Pass 3 : la réponse du serveur (seul juge) n'est plus jetée — elle
           // est armée pour que course-result affiche les VRAIS points/zones/badges.
           const result = (data ?? null) as IngestRunResponse | null;
-          setLastRunResult(result);
+          if (payload.recordingOwnerId !== undefined) setLastRunResult(result, { ownerId: payload.recordingOwnerId, clientRunId: payload.clientRunId });
+          receiveResult?.(result);
           // Le serveur a RÉPONDU sans erreur : le verdict est rendu. Ce fait est
           // émis même quand `data` est creux — `getLastRunResult()` vaudrait alors
           // `null` et E27, qui ne lit que lui, se serait déclaré « issue illisible »
@@ -249,6 +277,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // Idem pour le TRACÉ : la course N+1 ne doit jamais dessiner le parcours de
     // la course N sur son écran de résultat (même mensonge, version géométrie).
     clearFinishedTrace();
+    clearFinishedActivity2026();
     // ⚠ LES FAITS DE SYNCHRO NE SE PURGENT PLUS ICI (27/07/2026). Leur journal
     // n'est plus anonyme : il APPARTIENT à un `clientRunId`, et il s'ouvre là
     // où cette identité naît — `confirmStart`, qui construit le tracker (et
@@ -274,6 +303,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
   // ─── Démarrage GO-first : permission → restauration → capteurs ────────────
   useEffect(() => {
     let alive = true;
+    mountedRef.current = true;
     (async () => {
       // La SOURCE DE POSITION répond « accordé » ou la RAISON exacte du refus.
       // Aucune branche ne fabrique de course : sans position, il n'y a pas de
@@ -303,11 +333,22 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
             activity: storedActivity(stored),
             initialFixes: stored.fixes,
           });
-          closer.finish(Date.now());
-          await uploadOrQueue(closer.buildPayload());
+          const endedAt = stored.fixes.reduce((latest, f) => Math.max(latest, f.ts), stored.startedAt);
+          closer.finish(endedAt);
+          const archive = archiveFor(closer, endedAt);
+          const saved = archive ? await saveLocalActivity2026(archive) : false;
+          let serverResult: IngestRunResponse | null = null;
+          const outcome = await uploadOrQueue(closer.buildPayload(), result => { serverResult = result; });
+          if (archive && outcome === 'sent') await saveLocalActivity2026({ ...archive, pending: false, result: serverResult });
+          else if (archive && outcome === 'rejected') await saveLocalActivity2026({ ...archive, pending: false });
+          if (outcome === 'lost' || (!saved && outcome !== 'sent' && outcome !== 'queued')) {
+            setReason('storage-unavailable'); setKind('unavailable'); return;
+          }
         }
         stored = orphan;
-        await saveActiveRun(orphan); // l'orpheline prend la clé de reprise
+        if (!await saveActiveRun(orphan)) {
+          setReason('storage-unavailable'); setKind('unavailable'); return;
+        }
         await clearCurrentRun();
         if (!alive) return;
       }
@@ -322,7 +363,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         // La distance est relue AUX BORNES DE SA PROPRE DISCIPLINE : une sortie
         // vélo retrouvée ne doit pas être re-mesurée à 25 km/h (elle afficherait
         // « 0,0 km retrouvés » et le joueur croirait sa sortie perdue).
-        setRestoreFound({ distanceM: probe.snapshot(Date.now()).distanceM, activity });
+        if (stored.recordingOwnerId !== undefined && stored.recordingOwnerId === currentResultOwner2026()) {
+          setRestoreFound({ distanceM: probe.snapshot(Date.now()).distanceM, activity });
+        }
       }
 
       // E06 PRÉFLIGHT — acquisition RÉUSSIE : on S'ARRÊTE ici, le tracker n'est
@@ -436,12 +479,15 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // la fusion soit impossible même si un futur appelant oubliait la règle.
     // Fusionner une course à pied dans une sortie vélo écrirait des kilomètres
     // d'un monde dans l'autre — la somme interdite par la séparation stricte E14.
-    if (!canResumeInterrupted(storedActivity(stored), current.activity)) return;
+    if (!canResumeInterrupted(storedActivity(stored), current.activity) || stored.recordingOwnerId !== current.recordingOwnerId) return;
     void (async () => {
       const bg = await drainBackground();
       current.stopPedometer();
       trackerRef.current = new RunTracker({
         runId: stored.runId, // idempotence : on reste LA même course côté serveur
+        recordingOwnerId: stored.recordingOwnerId,
+        recordingSessionId: stored.recordingSessionId,
+        sharedMapParticipation: stored.sharedMapParticipation,
         mode: stored.mode,
         // La discipline de la course REPRISE, jamais celle d'un réglage lu à
         // l'instant T : c'est la même sortie, elle ne change pas de monde en
@@ -461,9 +507,14 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       void trackerRef.current.startPedometer();
       pendingStoredRef.current = null;
       setRestoreFound(null);
-      await clearCurrentRun(); // la sauvegarde CURRENT est fusionnée → obsolète
       setSnapshot(trackerRef.current.snapshot(Date.now()));
       await flush();
+      // Keep CURRENT if the merged ACTIVE write could not be persisted.
+      const merged = trackerRef.current;
+      if (await saveActiveRun({ runId: merged.runId, recordingOwnerId: merged.recordingOwnerId,
+        recordingSessionId: merged.recordingSessionId, sharedMapParticipation: merged.sharedMapParticipation,
+        mode: merged.mode, activity: merged.activity, startedAt: merged.startedAt,
+        fixes: [...merged.rawFixes], userPausedMs: merged.userPausedMs })) await clearCurrentRun();
     })();
   }, [drainBackground, flush]);
 
@@ -478,7 +529,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         activity: storedActivity(stored),
         initialFixes: [...stored.fixes, ...bg],
       });
-      closer.finish(Date.now());
+      const endedAt = closer.rawFixes.reduce((latest, f) => Math.max(latest, f.ts), stored.startedAt);
+      closer.finish(endedAt);
+      const archive = archiveFor(closer, endedAt);
+      const saved = archive ? await saveLocalActivity2026(archive) : false;
       // Hors-ligne : payload en file (idempotent) — la course clôturée
       // n'écrase jamais la course EN COURS et n'est jamais perdue en silence.
       //
@@ -489,12 +543,15 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       // (syncFactBus). Sans cette identité, un « Ignorer » suivi d'un envoi
       // réussi faisait afficher à E27, à l'arrivée, les trois étapes
       // « terminé » — pour une sortie qui, elle, venait de partir en file.
-      await uploadOrQueue(closer.buildPayload());
+      let serverResult: IngestRunResponse | null = null;
+      const outcome = await uploadOrQueue(closer.buildPayload(), result => { serverResult = result; });
+      if (archive && outcome === 'sent') await saveLocalActivity2026({ ...archive, pending: false, result: serverResult });
+      else if (archive && outcome === 'rejected') await saveLocalActivity2026({ ...archive, pending: false });
+      if (outcome === 'lost' || (!saved && outcome !== 'sent' && outcome !== 'queued')) return;
       await clearActiveRun();
       pendingStoredRef.current = null;
       setRestoreFound(null);
-      await clearCurrentRun(); // la course courante repasse sur la clé ACTIVE
-      await flush(); // la course courante reprend la main sur le buffer
+      await flush(); // Write ACTIVE before considering CURRENT obsolete.
     })();
   }, [drainBackground, flush, uploadOrQueue]);
 
@@ -502,6 +559,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     distanceM: number;
     durationS: number;
     uploadQueued: boolean;
+    localId?: string;
   }> => {
     const t = trackerRef.current;
     if (t === null || finishedRef.current) {
@@ -512,10 +570,17 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     t.finish(now); // stoppe aussi le podomètre
     stopSensors();
     const snap = t.snapshot(now);
+    const localActivity = archiveFor(t, now);
+    if (!localActivity) { finishedRef.current = false; throw new Error('unknown_recording_owner'); }
+    const localSaved = await saveLocalActivity2026(localActivity);
+    const finalBuffer: StoredRun = { runId: t.runId, recordingOwnerId: t.recordingOwnerId,
+      recordingSessionId: t.recordingSessionId, sharedMapParticipation: t.sharedMapParticipation,
+      mode: t.mode, activity: t.activity, startedAt: t.startedAt, fixes: [...t.rawFixes], userPausedMs: t.userPausedMs };
+    const bufferSaved = pendingStoredRef.current === null ? await saveActiveRun(finalBuffer) : await saveCurrentRun(finalBuffer);
     // Le VRAI tracé mesuré SURVIT jusqu'au Résultat (pic peak-end §25) : sans ça
     // il mourait ici. Armé avant la navigation ; purgé au départ de la course
     // suivante (clearFinishedTrace dans startSensors), comme le verdict serveur.
-    setFinishedTrace(snap.tracePoints);
+    if (t.recordingOwnerId !== undefined) setFinishedTrace(snap.tracePoints, snap.traceSegments, { ownerId: t.recordingOwnerId, clientRunId: t.runId });
     // JOURNAL LOCAL : cette course terminée nourrit la SÉRIE hors-ligne/pré-O1
     // (computeStreak sur les timestamps de l'appareil). Best effort, jamais fatal.
     void recordRun(now);
@@ -530,25 +595,37 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // Idempotent par clientRunId. Hors-ligne : le payload est mis en FILE
     // (jamais purgé sans être à l'abri), renvoyé silencieusement au prochain
     // lancement/fin de course.
-    const upload = await uploadOrQueue(t.buildPayload());
+    let serverResult: IngestRunResponse | null = null;
+    const upload = await uploadOrQueue(t.buildPayload(), result => { serverResult = result; });
+    const completedActivity = { ...localActivity, pending: upload === 'queued' || upload === 'lost', result: serverResult };
+    let archiveSaved = localSaved;
+    if (upload === 'sent' || upload === 'rejected') archiveSaved = await saveLocalActivity2026(completedActivity) || localSaved;
     if (upload === 'sent') {
       // Une course précédente attend peut-être encore son envoi : on en profite.
       void retryPendingUpload();
     }
     // Purge des clés de CETTE course — sauf si le payload n'est NULLE PART
     // ailleurs ('lost' : stockage KO, le buffer reste le dernier filet).
-    if (upload !== 'lost') {
+    if (upload === 'sent' || upload === 'queued' || (upload !== 'lost' && localSaved)) {
       await clearCurrentRun();
       // Une course interrompue encore en attente de choix garde son buffer :
       // elle sera re-proposée au prochain GO (jamais effacée sans décision).
       if (pendingStoredRef.current === null) await clearActiveRun();
     }
+    if (upload !== 'sent' && upload !== 'queued' && !localSaved && !bufferSaved) {
+      finishedRef.current = false;
+      throw new Error('recording_not_durable');
+    }
+    if (t.recordingOwnerId !== undefined) setFinishedActivity2026({
+      activity: completedActivity, archiveSaved, recoverySaved: bufferSaved || upload === 'queued' || upload === 'sent',
+    });
     return {
       distanceM: snap.distanceM,
       durationS: snap.activeS,
       // Message discret « Course enregistrée — envoi dès que possible » —
       // anti-shame, jamais bloquant.
       uploadQueued: upload === 'queued' || upload === 'lost',
+      localId: t.runId,
     };
   }, [stopSensors, uploadOrQueue]);
 
@@ -567,15 +644,29 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
    * qui précédait le préflight : `confirmStart` reste SYNCHRONE jusqu'à la garde
    * `trackerRef.current`, donc la fenêtre de double construction reste fermée.
    */
-  const confirmStart = useCallback(async (activity: Activity) => {
-    if (trackerRef.current !== null) return;
+  const confirmStart = useCallback(async (activity: Activity, sharedMapParticipation = false) => {
+    const recordingOwnerId = currentResultOwner2026();
+    if (trackerRef.current !== null || recordingOwnerId === undefined) return;
     const tracker = new RunTracker({
       runId: Crypto.randomUUID(),
       mode,
       activity,
       startedAt: Date.now(),
+      recordingOwnerId,
+      sharedMapParticipation,
     });
     trackerRef.current = tracker;
+    // This anchor is optional for recording. Offline starts stay in the journal
+    // with pending territory; the client never invents an attestation.
+    if (supabase && recordingOwnerId !== null && sessionRef.current?.user.id === recordingOwnerId) {
+      void supabase.rpc('begin_recording_2026', { p_client_run_id: tracker.runId, p_activity: activity })
+        .then(({ data, error }) => {
+          if (!error && typeof data?.id === 'string' && trackerRef.current === tracker) {
+            tracker.recordingSessionId = data.id;
+            void flush();
+          }
+        });
+    }
     // LE JOURNAL DE SYNCHRO S'OUVRE ICI, AU NOM DE CETTE SORTIE. C'est le point
     // exact où son identité (`runId` = `clientRunId` du payload) naît. Sans
     // propriétaire nommé, le journal recevait tout ce que l'appareil publiait —
@@ -609,7 +700,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     setSnapshot(tracker.snapshot(Date.now()));
     setKind('real');
     void flush();
-  }, [mode, adapter, startSensors, stopSensors, flush]);
+  }, [mode, adapter, startSensors, stopSensors, flush, session]);
 
   /**
    * E06 — compte à rebours annulé avant le départ : aucun tracker n'a été
@@ -661,7 +752,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
               // Disciplines différentes ⇒ pas de « Reprendre » : l'action
               // n'existe pas plutôt que d'exister et d'échouer (aucun bouton
               // mort). La clôture, elle, reste toujours possible.
-              resume: canResumeInterrupted(restoreFound.activity, t.activity)
+              resume: canResumeInterrupted(restoreFound.activity, t.activity) && pendingStoredRef.current?.recordingOwnerId === t.recordingOwnerId
                 ? resumeStored
                 : null,
               discard: discardStored,

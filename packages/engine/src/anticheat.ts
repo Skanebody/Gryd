@@ -337,6 +337,8 @@ function legsOf(points: readonly RunPoint[]): Leg[] {
   for (let i = 1; i < sorted.length; i++) {
     const a = sorted[i - 1]!;
     const b = sorted[i]!;
+    // An explicit unrecorded interval is neither measured speed nor a GPS jump.
+    if (b.breakBefore === true) continue;
     const dtS = (b.t - a.t) / MS_PER_S;
     if (dtS <= 0) continue;
     const distM = haversineM(a, b);

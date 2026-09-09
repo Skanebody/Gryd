@@ -426,7 +426,7 @@ Deno.test('BRANCHEMENT — le stockage n’écrit QUE sur un plan, jamais sur un
       'écraser la file par une entrée unique',
   );
   assert(
-    /planRemoval\(await readQueue\(\), entry\.payload\.clientRunId\)/.test(code),
+    /const fresh = await readQueue\(\);[\s\S]*planRemoval\(fresh, entry\.payload\.clientRunId\)/.test(code),
     'le retrait après verdict ne passe plus par `planRemoval` : une relecture ratée en plein drain ' +
       'écrirait une file VIDE',
   );

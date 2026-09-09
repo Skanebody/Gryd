@@ -3,43 +3,52 @@
  * Toute couleur hors tokens = bug. Jamais de chartreuse sur fond clair (contraste 1,2:1).
  */
 
-// ─── PALETTE §3.2 de la SPEC PRODUIT v1.0 (26/07/2026, source de vérité, D-19) ──
-// Historique du rôle « chartreuse » : #B4FF0D (charte d'origine) → #C9FF38
-// (« Night Print / B amendée », D-04) → **#C2FF23** (spec §3.2, D-19). Règle du
-// fondateur : « prends le dernier ». Les NOMS de tokens sont CONSERVÉS → toute
-// l'app se re-skinne sans renommage.
-// Toute couleur hors tokens = bug. Jamais de chartreuse sur fond clair (1,19:1).
-// Chartreuse en QUOTA 8–10 % de l'écran.
-//
-// ⚠️ UN SEUL ÉCART À §3.2, ET IL EST MESURÉ : `grisFaible`. La spec donne
-// `--gryd-text-faint: #667068`, qui ne fait que **3,89:1** sur `--gryd-bg`
-// #060907 — donc SOUS le seuil AA 4,5:1 que la spec elle-même impose en §15
-// (« contraste AA minimum pour le texte »). Les deux sections se contredisent ;
-// l'accessibilité tranche. `#707B72` conserve la teinte (+9,4 % de luminance) et
-// passe à **4,54:1**. Ne pas « corriger » vers #667068 sans re-mesurer.
+// Direction du 9 septembre 2026 : les alias historiques restent disponibles,
+// avec des valeurs neutres. Noir, blanc et chartreuse sont partagés par les écrans.
+// Le chartreuse s'emploie sur fond sombre, ou comme fond de bouton à texte noir.
+/** GRYD studio direction — founder override, 9 September 2026.
+ * Neutral black/white values; chartreuse is the sole chromatic accent.
+ * Compatibility aliases keep existing screens in the same palette.
+ */
+const translucentDark2026 = 'rgba(10,10,10,0.78)';
+const translucentLight2026 = 'rgba(255,255,255,0.88)';
+
+export const refonteColors = {
+  canvas: '#F5F5F5', surface: '#FFFFFF', surfaceMuted: '#EBEBEB',
+  ink: '#101010', muted: '#666666', border: '#DEDEDE', accent: '#B4FF0D',
+  forest: '#151515', rival: '#858585', water: '#DEDEDE', carbon: '#0A0A0A',
+  darkSurface: '#171717', darkSurfaceMuted: '#292929', floating: 'rgba(23,23,23,0.96)',
+  translucentDark: translucentDark2026, translucentLight: translucentLight2026,
+  // Compatibility aliases for map consumers. All floating controls now share
+  // the same flat, blur-free material.
+  mapTranslucentDark: translucentDark2026, mapTranslucentLight: translucentLight2026,
+  darkInk: '#FAFAFA', darkMuted: '#A3A3A3', error: '#666666',
+  scrim: 'rgba(10,10,10,0.48)', shadow: 'rgba(0,0,0,0.08)',
+} as const;
+
 export const colors = {
-  noir: '#060907', // --gryd-bg — fond principal (N0)
-  carbonImmersive: '#060907', // immersif : live, splash, capture (= bg, spec sans palier dédié)
-  carbonDeep: '#0D120F', // --gryd-surface-1 — surfaces profondes (fonds de HUD/coffre)
-  carbone: '#151C17', // --gryd-surface-2 — cards, sheets (N1)
-  carbone2: '#1D251F', // --gryd-surface-3 — surélevé, désactivé (N2)
-  blanc: '#F5F7F5', // --gryd-text — texte principal, icônes (18,58:1)
-  gris: '#9CA59E', // --gryd-text-muted — texte secondaire, labels (7,90:1)
-  grisFaible: '#707B72', // --gryd-text-faint AJUSTÉ AA (4,54:1) — cf. l'avertissement ci-dessus
-  grisLigne: '#2A342D', // --gryd-border — séparateurs 1 px
-  chartreuse: '#C2FF23', // --gryd-primary / --gryd-run — accent unique (16,78:1)
-  chartreusePressed: '#6F9800', // --gryd-primary-dark — état PRESSÉ du CTA
+  noir: '#0A0A0A', // --gryd-bg — fond principal (N0)
+  carbonImmersive: '#0A0A0A', // immersif : live, splash, capture (= bg, spec sans palier dédié)
+  carbonDeep: '#111111', // --gryd-surface-1 — surfaces profondes (fonds de HUD/coffre)
+  carbone: '#191919', // --gryd-surface-2 — cards, sheets (N1)
+  carbone2: '#242424', // --gryd-surface-3 — surélevé, désactivé (N2)
+  blanc: '#FAFAFA', // --gryd-text — texte principal, icônes
+  gris: '#A3A3A3', // --gryd-text-muted — texte secondaire, labels
+  grisFaible: '#858585', // --gryd-text-faint AJUSTÉ AA
+  grisLigne: '#303030', // --gryd-border — séparateurs 1 px
+  chartreuse: '#B4FF0D', // --gryd-primary / --gryd-run — accent unique
+  chartreusePressed: '#ACDB2E', // --gryd-primary-dark — état PRESSÉ du CTA
   // Remplissage de MON territoire. Fill de possession (LOD carte) : « Moi » à
   // 16–17 %, jamais un aplat lourd (la trace reste dominante). Spec §3.9 : 18–24 %.
-  chartreuse14: 'rgba(194,255,35,0.16)', // remplissage de MON territoire (fill possession)
-  chartreuse40: 'rgba(194,255,35,0.40)', // contours de territoire, glows
-  eau: '#0D1112', // fond de carte : eau (bleu pétrole désaturé)
+  chartreuse14: 'rgba(180,255,13,0.16)', // remplissage de MON territoire (fill possession)
+  chartreuse40: 'rgba(180,255,13,0.40)', // contours de territoire, glows
+  eau: '#141414', // fond de carte : eau (gris profond)
   // Déclinaisons ALPHA du blanc + scrims (§ charte : tokens, jamais rgba inliné) —
   // bordures/overlays translucides des HUD (course-live, FAB, scrims de modale).
-  blanc12: 'rgba(245,247,244,0.12)', // bordure hairline renforcée
-  blanc14: 'rgba(245,247,244,0.14)', // bordure de FAB/overlay
-  blanc22: 'rgba(245,247,244,0.22)', // bordure marquée
-  blanc35: 'rgba(245,247,244,0.35)', // bordure forte (état actif discret)
+  blanc12: 'rgba(250,250,250,0.12)', // bordure hairline renforcée
+  blanc14: 'rgba(250,250,250,0.14)', // bordure de FAB/overlay
+  blanc22: 'rgba(250,250,250,0.22)', // bordure marquée
+  blanc35: 'rgba(250,250,250,0.35)', // bordure forte (état actif discret)
   scrim: 'rgba(0,0,0,0.45)', // voile léger sous une couche flottante
   scrimStrong: 'rgba(5,5,5,0.72)', // voile plein d'une modale/sheet
   /**
@@ -63,15 +72,15 @@ export const colors = {
  */
 export const mapTokens = {
   // Opacité MESURÉE sur la planche V1-selection8 (PORT OUEST) à ~0,15 ; la teinte,
-  // elle, DÉRIVE du token courant (#C2FF23 depuis D-19) — jamais un hex en dur.
+  // elle, DÉRIVE du token courant (#B4FF0D depuis D-19) — jamais un hex en dur.
   // Spec §3.9 demande 18-24 % : à re-mesurer au lot carte, pas ici.
   mineFill: colors.chartreuse14,
   mineStroke: colors.chartreuse40,
-  foeFill: 'rgba(250,250,247,0.06)', // + motif par crew (8 motifs), jamais par teinte
-  foeStroke: 'rgba(250,250,247,0.22)',
-  neutralStroke: 'rgba(250,250,247,0.05)',
-  roads: 'rgba(250,250,247,0.07)',
-  parks: 'rgba(250,250,247,0.03)',
+  foeFill: 'rgba(250,250,250,0.06)', // + motif par crew (8 motifs), jamais par teinte
+  foeStroke: 'rgba(250,250,250,0.22)',
+  neutralStroke: 'rgba(250,250,250,0.05)',
+  roads: 'rgba(250,250,250,0.07)',
+  parks: 'rgba(250,250,250,0.03)',
   water: colors.eau,
 } as const;
 
@@ -83,23 +92,16 @@ export const mapTokens = {
  * la graisse. On expose donc une famille par graisse utile ; un style choisit la
  * bonne et n'ajoute JAMAIS de fontWeight par-dessus.
  *
- * ── ÉCART DE FONTE ASSUMÉ (planches Vague 1) ─────────────────────────────────
- * Les planches titrent en « HIGH CRUISER » (repli Syncopate) — grotesque large,
- * capitales condensées. CE FICHIER DE FONTE EST ABSENT DU DÉPÔT : le code titre
- * DÉLIBÉRÉMENT en Inter Tight (`display`/`displayBold`/`displaySemi` ci-dessous),
- * son stand-in. On ne fabrique pas la fonte manquante (ce serait mentir sur le
- * rendu). POINT D'ACCROCHE UNIQUE : le jour où High Cruiser (ou Syncopate) arrive
- * dans `apps/mobile/assets/fonts` + `lib/fonts.ts`, il suffit de repointer les
- * TROIS familles d'affichage ci-dessous — aucun écran ne nomme une fonte en dur,
- * ils passent tous par `fonts.display*` / `typography.*`. C'est le seul endroit à
- * changer. (Écart CONSTATÉ, pas résolu : cf. mandat « la doc ne promet jamais
- * au-delà du code ».)
+ * Septembre 2026 : Manrope pour les titres et chiffres, Inter pour la lecture.
+ * Manrope est embarquée via Expo Google Fonts sous SIL OFL 1.1. Elle traduit
+ * la géométrie de la référence sans prétendre utiliser la fonte Lufga absente.
  */
 export const fonts = {
-  // ⤷ HIGH CRUISER (planches) → aujourd'hui Inter Tight (fonte de titre absente du dépôt).
-  display: 'InterTight_800ExtraBold', // hero / display / victoire
-  displayBold: 'InterTight_700Bold', // H1 / H2 / titres forts (720/700)
-  displaySemi: 'InterTight_600SemiBold', // titres de sheet / card (650)
+  displayRegular: 'Manrope_400Regular',
+  displayMedium: 'Manrope_500Medium',
+  display: 'Manrope_800ExtraBold', // hero / display / victoire
+  displayBold: 'Manrope_700Bold', // H1 / H2 / titres forts (720/700)
+  displaySemi: 'Manrope_600SemiBold', // titres de sheet / card (650)
   text: 'Inter_400Regular', // corps
   textMedium: 'Inter_500Medium', // corps fort / secondaire (500)
   textSemi: 'Inter_600SemiBold', // labels, boutons, méta (600/650)
@@ -343,54 +345,17 @@ export const motion = {
 } as const;
 
 /**
- * AMENDEMENT-08 §2 — palette FONCTIONNELLE de jeu (Game UI « scènes de jeu »).
- * Chaque couleur lit un ÉTAT DE JEU, jamais une décoration, jamais un CTA/nav
- * générique (le CTA primaire reste la chartreuse, ton crew/action).
- * Réutilise les couleurs de conflit AMENDEMENT-05 + 3 ajouts (verify/danger/carbon).
+ * Compatibility roles, September 2026 palette. A role is expressed by its
+ * icon, label and pattern; no per-crew color or multicolor reward hierarchy.
  */
 export const gameColors = {
-  /** Ton crew / action / gain — la chartreuse unique de la charte (`--gryd-run`). */
-  crew: colors.chartreuse,
-  /**
-   * VÉLO — `--gryd-bike` (spec §3.2). Deux univers strictement séparés (§1.2) :
-   * la teinte ne se MÉLANGE jamais à celle du run, elle la remplace quand la
-   * lentille Bike est active. Ne jamais additionner une surface Run et Bike.
-   */
-  bike: '#9DDB24',
-  /** Rival / attaque subie ou menée — `--gryd-rival` (spec §3.2). */
-  rival: '#FF643C',
-  /** Contesté / défense — `--gryd-defense` (spec §3.2). */
-  contested: '#8064FF',
-  /** Victoire / or / récompense de saison — `--gryd-gold` (spec §3.2). */
-  gold: '#F6C34F',
-  /** GRYD Verify / info de confiance — `--gryd-info` (spec §3.2). */
-  verify: '#4A9EFF',
-  /**
-   * Territoire PROTÉGÉ — bleu ÉLECTRIQUE (AMENDEMENT-37 §5). DISSOCIÉ de `verify`
-   * (#6FB7FF, réservé au GRYD Verify) : le protégé est un ÉTAT de zone (bouclier),
-   * pas une info de confiance. Teinte franche, lisible sur fond sombre.
-   */
-  electricBlue: '#4A9EFF', // `--gryd-info` — liseré défense/vérifié
-  /** Danger / decay urgent — abandon, erreur critique seule. Pas de rôle §3.2 dédié. */
-  danger: '#FF4D57',
-  /** Confirmation HORS capture — `--gryd-success` (spec §3.2). Jamais pour un claim. */
-  successMint: '#48D597',
-  /**
-   * Dégradé / avertissement NON bloquant (E06 préflight « position approximative »,
-   * signal GPS incertain) — ambre. Distinct de `gold` (victoire/récompense) et de
-   * `danger` (bloquant, rouge) : la triade planche mint→ambre→rouge. Toujours
-   * icône + libellé, jamais couleur seule.
-   */
-  warn: '#F2B744', // `--gryd-warning` (spec §3.2)
-  /** Surfaces profondes de scène de jeu (cartes HUD, fonds de coffre) — `--gryd-surface-1`. */
-  carbon: '#0D120F',
-  /**
-   * Déclinaisons ALPHA (§ charte : toute couleur hors tokens = bug — les washes/
-   * bordures translucides passent par un TOKEN, jamais un rgba littéral inliné).
-   * Dérivées des teintes de rôle ci-dessus.
-   */
-  verifySoft: 'rgba(74,141,255,0.28)', // #4A8DFF @ 28 % — bordure/wash d'info de confiance
-  dangerSoft: 'rgba(255,77,87,0.16)', // #FF4D57 @ 16 % — wash de decay/urgent
+  crew: colors.chartreuse, bike: colors.chartreuse,
+  rival: colors.gris, contested: colors.blanc, gold: colors.blanc,
+  verify: colors.blanc, electricBlue: colors.blanc, danger: colors.blanc,
+  successMint: colors.chartreuse, warn: colors.gris,
+  carbon: colors.carbonDeep,
+  verifySoft: 'rgba(250,250,250,0.28)',
+  dangerSoft: 'rgba(250,250,250,0.16)',
 } as const;
 export type GameColorName = keyof typeof gameColors;
 
@@ -488,7 +453,7 @@ export type FoePattern = (typeof foePatterns)[number];
 //  · -selection10 (E04) SAINT-RÉMY = rival ; -selection13 (E08) zone reprise = MOI.
 //
 // Ce qui compose une zone sur la planche :
-//  ① CONTOUR ÉPAIS à la couleur du RÔLE — MESURÉ #C9FF38 EXACT (moi), #FF7043 EXACT
+//  ① CONTOUR ÉPAIS à la couleur du RÔLE — MESURÉ #B4FF0D EXACT (moi), #FF7043 EXACT
 //     (rival) : ce sont `colors.chartreuse` et `gameColors.rival` au pixel près.
 //  ② LISERÉ INTERNE : un 2ᵉ trait PLUS FIN, en RETRAIT vers l'intérieur du contour.
 //     MESURÉ chartreuse @ ~0,45 (≈ `chartreuse40`), largeur ~1 pt, retrait ~7 pt.
@@ -498,7 +463,7 @@ export type FoePattern = (typeof foePatterns)[number];
 //  ③ REMPLISSAGE faible de la MÊME teinte — MESURÉ moi @ ~0,15 (= `chartreuse14`),
 //     rival @ ~0,10.
 //  ④ NOM DE LA ZONE écrit DEDANS, capitales espacées, couleur du rôle, centré —
-//     MESURÉ « PORT OUEST » ~10 pt de corps, +0,15 em, #C9FF38 plein.
+//     MESURÉ « PORT OUEST » ~10 pt de corps, +0,15 em, #B4FF0D plein.
 //
 // Ces VALEURS DE STYLE sont des tokens (jamais en dur dans un écran, CLAUDE.md) ;
 // `territoryPaint()` en est la fonction pure de dérivation (rôle → teintes), testée
@@ -561,7 +526,7 @@ export function territoryPaint(role: SectorRoleColorKey): TerritoryPaint {
   switch (role) {
     case 'mine':
       return {
-        stroke: withAlpha(colors.chartreuse, 0.9), // contour ~plein (MESURÉ #C9FF38 solide)
+        stroke: withAlpha(colors.chartreuse, 0.9), // contour ~plein (MESURÉ #B4FF0D solide)
         fill: colors.chartreuse14, // MESURÉ @ ~0,15
         label: colors.chartreuse, // nom en chartreuse plein (MESURÉ)
         lisere: colors.chartreuse40, // 2ᵉ trait @ 0,40 (MESURÉ ~0,45) — SIGNATURE

@@ -61,6 +61,8 @@ const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
 /** Fix GPS brut reçu du capteur (expo-location, montre, simulation). */
 export interface RawFix {
+  /** First recorded fix after a pause/resume: never invent the missing edge. */
+  breakBefore?: true;
   lat: number;
   lng: number;
   /** Timestamp epoch ms. */
@@ -115,6 +117,7 @@ export type GpsSignalState = 'ok' | 'weak' | 'lost';
  * Nettoie une trace brute (ordre d'application) :
  *  1. champs non finis → 'invalid' ; accuracy > GPS_ACCURACY_MAX_M → 'accuracy' ;
  *  2. dt ≤ 0 (dupliqué/désordonné après tri) → 'timestamp' ;
+ *     reprise explicite → nouvelle ancre, aucun calcul à travers la pause ;
  *  3. saut > `pointMaxJumpM` en < GPS_SIGNAL_LOST_AFTER_S → 'teleport' ;
  *     vitesse implicite > `pointMaxSpeedKmh` (§3.2, DISCIPLINE) → 'speed'.
  *     Après GPS_REANCHOR_AFTER_REJECTS rejets consécutifs contre la même
@@ -148,8 +151,11 @@ export function cleanTrace(
   const sorted = [...fixes].sort((a, b) => a.ts - b.ts);
   const kept: CleanFix[] = [];
   let consecutiveRejects = 0;
+  let pendingExplicitBreak = false;
 
   for (const f of sorted) {
+    // A rejected first fix after resume must not erase the segment boundary.
+    if (f.breakBefore === true) pendingExplicitBreak = true;
     if (
       !Number.isFinite(f.lat) || !Number.isFinite(f.lng) ||
       !Number.isFinite(f.ts) || !Number.isFinite(f.accuracy)
@@ -163,7 +169,8 @@ export function cleanTrace(
     }
     const last = kept[kept.length - 1];
     if (last === undefined) {
-      kept.push({ ...f });
+      kept.push(pendingExplicitBreak ? { ...f, breakBefore: true, gapBefore: true } : { ...f });
+      pendingExplicitBreak = false;
       continue;
     }
     const dtS = (f.ts - last.ts) / MS_PER_S;
@@ -171,9 +178,15 @@ export function cleanTrace(
       rejected.timestamp++;
       continue;
     }
+    if (pendingExplicitBreak) {
+      kept.push({ ...f, breakBefore: true, gapBefore: true });
+      pendingExplicitBreak = false;
+      consecutiveRejects = 0;
+      continue;
+    }
     const dM = haversineM(last, f);
     const vMs = dM / dtS;
-    const gap = dtS > GPS_SIGNAL_LOST_AFTER_S;
+    const gap = f.breakBefore === true || dtS > GPS_SIGNAL_LOST_AFTER_S;
     // Téléportation / vitesse implausible (bornes §3.2). À travers un trou de
     // signal, seul le critère vitesse joue (une vraie traversée de tunnel
     // avance de plusieurs centaines de mètres à vitesse de course plausible).
@@ -553,5 +566,7 @@ export function signalState(
 /** RawFix/CleanFix → RunPoint (types.ts) : { lat, lng, ts→t, accuracy→acc }.
  * À appeler sur la trace nettoyée + décimée — le serveur reste seul juge. */
 export function rawFixesToRunPoints(fixes: readonly RawFix[]): RunPoint[] {
-  return fixes.map((f) => ({ lat: f.lat, lng: f.lng, t: f.ts, acc: f.accuracy }));
+  return fixes.map((f) => ({ lat: f.lat, lng: f.lng, t: f.ts, acc: f.accuracy,
+    ...(f.breakBefore || (f as CleanFix).gapBefore ? { breakBefore: true as const } : {}),
+  }));
 }

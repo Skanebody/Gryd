@@ -66,6 +66,7 @@ export const DECLARED_LICENSE_FAMILIES: readonly LicenseId[] = [
  * n'a pas de champ `license`.
  */
 export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
+  '@expo-google-fonts/manrope': 'MIT AND OFL-1.1',
   '@expo-google-fonts/inter': 'MIT AND OFL-1.1',
   '@expo-google-fonts/inter-tight': 'MIT AND OFL-1.1',
   '@expo-google-fonts/jetbrains-mono': 'MIT AND OFL-1.1',

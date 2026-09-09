@@ -128,19 +128,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { router, useLocalSearchParams } from 'expo-router';
 import { goBack } from '../src/lib/nav';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  borderState,
-  colors,
-  elevation,
-  fontSizes,
-  iconSizes,
-  radii,
-  sizes,
-  spacing,
-  typography,
-  type Activity,
-  type IconName,
-} from '@klaim/shared';
+import { fonts, refonteColors as c, type Activity, type IconName } from '@klaim/shared';
 import { ACTIVITY_LABELS } from '../src/ui/activityLens';
 import {
   parseStartActivity,
@@ -151,10 +139,10 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { Button } from '../src/ui/Button';
-import { SectionLabel } from '../src/ui/SectionLabel';
-import { Segmented } from '../src/ui/game/Segmented';
+import { GrydIcon } from '../src/ui/gryd';
+import { defineCatalog } from '../src/i18n/types';
 import { formatKm } from '../src/ui/format';
-import { SheetMetrics, type SheetMetric } from '../src/features/map/SheetMetrics';
+import { type SheetMetric } from '../src/features/map/SheetMetrics';
 import { ToastHost, useToast } from '../src/features/social/Toast';
 import { RoutePlannerMap } from '../src/features/route/RoutePlannerMap';
 import { PLANNER_INTENTION_LABELS, generatedReasons } from '../src/features/route/generator';
@@ -189,15 +177,6 @@ import { t as tNow, useT } from '../src/i18n/store';
 
 /** Hauteur de la carte — MESURE DE COMPOSITION, pas une règle de jeu. */
 const MAP_HEIGHT = 250;
-
-/**
- * Le rôle typo R6 (`typography.stat`), rendu ÉTALABLE dans un StyleSheet.
- * Le token porte `fontVariant` en LECTURE SEULE, et `TextStyle` l'attend mutable :
- * `{ ...typography.stat }` ne compile pas. On recopie le tableau plutôt que de
- * réécrire famille, graisse et approche à la main — le rôle reste la source
- * unique, et une évolution de la charte se propage ici sans intervention.
- */
-const STAT = { ...typography.stat, fontVariant: [...typography.stat.fontVariant] };
 
 /**
  * Écart (km) en deçà duquel un format est considéré comme « celui en cours ».
@@ -277,23 +256,17 @@ function suggestionWhy(s: RouteSuggestion): string | null {
   return tNow(C.whyDefaultUnknown, { km });
 }
 
-/** En-tête de section : icône grise + kicker canonique + (option) lien texte à droite. */
-function SectionHead({
-  icon,
-  label,
-  right,
-}: {
-  icon: IconName;
-  label: string;
-  right?: React.ReactNode;
+const UI = defineCatalog({ title: { fr: 'Planifier une boucle', en: 'Plan a loop', es: 'Planificar un circuito', de: 'Runde planen', pt: 'Planejar uma volta' } });
+
+function SectionHead({ icon, label, right }: { icon: IconName; label: string; right?: React.ReactNode }) {
+  return <View style={styles.sectionHead}><Icon name={icon} size={18} color={c.darkMuted} /><Text style={styles.sectionTitle}>{label}</Text>{right}</View>;
+}
+
+/** Same choice callbacks as the former segment group, presented as open rows. */
+function PlannerChoices<Id extends string>({ options, value, onChange, accessibilityLabel }: {
+  options: readonly { id: Id; label: string; icon?: IconName }[]; value: Id; onChange: (id: Id) => void; accessibilityLabel: string;
 }) {
-  return (
-    <View style={styles.sectionHead}>
-      <Icon name={icon} size={iconSizes.sm} color={colors.gris} />
-      <SectionLabel>{label}</SectionLabel>
-      {right}
-    </View>
-  );
+  return <View accessibilityRole="tablist" accessibilityLabel={accessibilityLabel}>{options.map(option => <Pressable key={option.id} accessibilityRole="tab" accessibilityState={{ selected: option.id === value }} accessibilityLabel={option.label} onPress={() => { if (option.id === value) return; haptics.light(); onChange(option.id); }} style={({ pressed }) => [styles.choice, pressed && styles.pressed]}>{option.icon ? <Icon name={option.icon} size={18} color={c.darkMuted} /> : null}<Text style={[styles.choiceText, option.id === value && styles.choiceSelected]}>{option.label}</Text><GrydIcon name={option.id === value ? 'check' : 'chevronRight'} size={17} color={option.id === value ? c.darkInk : c.darkMuted} /></Pressable>)}</View>;
 }
 
 export default function RoutePlannerScreen() {
@@ -716,408 +689,59 @@ export default function RoutePlannerScreen() {
 
   return (
     <View style={styles.root}>
-      {/* ── 1 · EN-TÊTE : retour · kicker · KPI · une ligne de contexte ── */}
-      <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
-        <View style={styles.topBar}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(C.back)}
-            hitSlop={12}
-            onPress={() => goBack()}
-            style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-          >
-            <View style={styles.mirror}>
-              <Icon name="chevron" size={iconSizes.lg} color={colors.blanc} />
-            </View>
-          </Pressable>
-          {/* Kicker gris (loi 2) — la chartreuse ne se dépense pas sur un
-              sur-titre. `SectionLabel` met en capitales par le style, pas dans la
-              chaîne : les lecteurs d'écran épellent les capitales littérales. */}
-          <SectionLabel style={styles.kicker}>{kickerText}</SectionLabel>
-          <View style={styles.back} />
-        </View>
-        {/* Le KPI n'existe QUE s'il y a un tracé mesuré. « — » en 40 px serait la
-            valeur nulle interdite : sans boucle, il n'y a pas de distance. */}
-        {route && routeKm !== null ? (
-          <View style={styles.kpiRow}>
-            <Text style={styles.kpi} numberOfLines={1} adjustsFontSizeToFit>
-              {routeKm} <Text style={styles.kpiUnit}>KM</Text>
-            </Text>
-            {routing ? (
-              /* Le SEUL compteur qui tourne encore : un recalcul est réellement
-                 en vol pendant que le tracé courant reste affiché. */
-              <ActivityIndicator size="small" color={colors.chartreuse} style={styles.kpiSpin} />
-            ) : null}
-          </View>
-        ) : null}
-        <Text style={styles.summary}>{summaryText}</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t(C.back)} onPress={() => goBack()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><GrydIcon name="chevronLeft" size={20} color={c.darkInk} /></Pressable>
+        <Text style={styles.title}>{t(UI.title)}</Text>
+        <View style={styles.back}><GrydIcon name={activity} size={20} color={c.darkMuted} accessibilityLabel={activityName} /></View>
       </View>
-
-      {/* ── 2 · CARTE : tracé réel uniquement — sinon l'état, en toutes lettres ── */}
-      <View style={styles.mapWrap}>
-        {route && origin ? (
-          <RoutePlannerMap route={route} origin={origin.point} />
-        ) : (
-          <View style={styles.mapEmpty}>
-            <Icon name="carte" size={iconSizes.lg} color={colors.gris} />
-            {/* Trois branches, trois phrases VRAIES : on cherche la position /
-                un calcul est réellement en vol / il n'y a rien à peindre encore.
-                « Calcul de l'itinéraire… » ne s'affiche jamais quand aucun calcul
-                ne tourne, et la RAISON de l'absence est dite juste au-dessus (ligne
-                de contexte) et juste en dessous (note du champ DÉPART). */}
-            <Text style={styles.stateInline}>
-              {gps === 'locating'
-                ? t(C.locating)
-                : routing
-                  ? t(C.mapComputing)
-                  : t(C.mapPreviewEmpty)}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <ScrollView
-        style={styles.panel}
-        contentContainerStyle={styles.panelContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ── 3 · DÉPART : label honnête par état, tappable pour (re)localiser ── */}
-        <SectionHead icon="pin" label={t(C.secStart)} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={gps === 'error' ? t(C.retryLocation) : t(C.a11yRecenter)}
-          onPress={recentrer}
-          style={({ pressed }) => [styles.originRow, pressed && styles.pressed]}
-        >
-          <Icon
-            name="gps"
-            size={iconSizes.sm}
-            color={gps === 'ok' ? colors.chartreuse : colors.gris}
-          />
-          <Text style={styles.originLabel} numberOfLines={1} adjustsFontSizeToFit>
-            {originLabel}
-          </Text>
-          <Icon
-            name="cible"
-            size={iconSizes.md}
-            color={gpsPending ? colors.gris : colors.chartreuse}
-          />
+      <ScrollView style={styles.panel} contentContainerStyle={styles.panelContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Text style={styles.kicker}>{kickerText}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={gps === 'error' ? t(C.retryLocation) : t(C.a11yRecenter)} onPress={recentrer} style={({ pressed }) => [styles.originRow, pressed && styles.pressed]}>
+          <GrydIcon name="location" size={18} color={gps === 'ok' ? c.accent : c.darkMuted} />
+          <View style={styles.originCopy}><Text style={styles.originKicker}>{t(C.secStart)}</Text><Text style={styles.originLabel}>{originLabel}</Text></View>
+          {gps === 'locating' ? <ActivityIndicator size="small" color={c.darkInk} /> : <GrydIcon name="arrowUpRight" size={18} color={gpsPending ? c.darkMuted : c.darkInk} />}
         </Pressable>
-        <Text style={styles.hint}>{originHint}</Text>
+        {gps === 'error' ? <Text style={styles.hint}>{originHint}</Text> : null}
+        {route && origin ? <View style={styles.mapWrap}><RoutePlannerMap route={route} origin={origin.point} />{routing ? <View style={styles.routingState}><ActivityIndicator size="small" color={c.darkInk} /><Text style={styles.stateInline}>{t(C.mapComputing)}</Text></View> : null}</View> : <View style={styles.mapEmpty}><GrydIcon name="route" size={24} color={c.darkMuted} /><Text style={styles.emptyTitle}>{gps === 'locating' ? t(C.locating) : routing ? t(C.mapComputing) : t(C.mapPreviewEmpty)}</Text></View>}
+        {metrics.length > 0 ? <View style={styles.metricsWrap} testID="planner-metrics">{metrics.map(metric => <View key={metric.key} style={styles.metric}><Text style={styles.metricValue}>{metric.value}</Text><Text style={styles.metricLabel}>{metric.label}</Text></View>)}</View> : null}
+        {route ? <Text style={styles.hint}>{summaryText}</Text> : null}
 
-        {/* ── 4 · MÉTRIQUES : UN bloc à séparateurs, aucun contenant (loi 3).
-             Seules les mesures SOURCÉES y entrent — la longueur réellement
-             routée, et la durée si l'allure du joueur a été mesurée. Le gain en
-             km² et la difficulté de la planche restent absents (cf. écarts). ── */}
-        {metrics.length > 0 ? (
-          // Enveloppe de MISE EN PAGE seulement (une marge, aucun fond, aucun
-          // contour) : le rythme vertical appartient à l'écran, et `SheetMetrics`
-          // doit rester sans contenant. Elle n'est posée que s'il y a des
-          // métriques, sinon elle laisserait un blanc là où le bloc a disparu.
-          <View style={styles.metricsWrap}>
-            <SheetMetrics metrics={metrics} testID="planner-metrics" />
-          </View>
-        ) : null}
-
-        {/* ── 5 · POURQUOI CETTE COURSE — faits vérifiables + provenance ──
-             Pas de section supplémentaire (§A : 1 écran = 1 décision) : la
-             provenance tient en UNE ligne sous les puces. Elle s'affiche dès que
-             la suggestion a résolu, même sans tracé — c'est une propriété de la
-             proposition, pas du routage. */}
-        {reasons.length > 0 ? (
-          <>
-            <SectionHead icon="info" label={t(disciplineCopy.why)} />
-            <View style={styles.reasonRow}>
-              {reasons.map((reason) => (
-                <View key={reason.fr} style={styles.reason}>
-                  <Text style={styles.reasonText}>{t(reason)}</Text>
-                </View>
-              ))}
-            </View>
-          </>
-        ) : null}
-        {whyLine !== null ? <Text style={styles.hint}>{whyLine}</Text> : null}
-
-        {/* ── 6 · FORMATS : la distance change, l'objectif reste ── */}
         <SectionHead icon="route" label={t(C.secFormats)} />
-        <Segmented
-          options={planOptions}
-          value={selectedPlanKey}
-          onChange={selectPreset}
-          tone="surface"
-          scrollable
-          accessibilityLabel={t(C.a11yFormatsGroup)}
-        />
+        <PlannerChoices options={planOptions} value={selectedPlanKey} onChange={selectPreset} accessibilityLabel={t(C.a11yFormatsGroup)} />
+        {whyLine !== null ? <Text style={styles.hint}>{whyLine}</Text> : null}
+        {reasons.length > 0 ? <View style={styles.reasonRow}>{reasons.map(reason => <View key={reason.fr} style={styles.reason}><GrydIcon name="check" size={13} color={c.darkMuted} /><Text style={styles.reasonText}>{t(reason)}</Text></View>)}</View> : null}
 
-        {/* ── 7 · AJUSTER : le détail est AU TAP, replié par défaut (loi 16) ── */}
-        {origin ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: adjustOpen }}
-            accessibilityLabel={t(disciplineCopy.adjust)}
-            onPress={() => {
-              haptics.light();
-              setAdjustOpen((o) => !o);
-            }}
-            style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}
-          >
-            <Icon name="reglages" size={iconSizes.sm} color={colors.gris} />
-            <Text style={styles.adjustLabel}>{t(disciplineCopy.adjust)}</Text>
-            <View style={adjustOpen ? styles.chevUp : styles.chevDown}>
-              <Icon name="chevron" size={iconSizes.sm} color={colors.gris} />
-            </View>
-          </Pressable>
-        ) : null}
-
-        {origin && adjustOpen ? (
-          <View style={styles.adjustBody}>
-            <SectionHead icon="cible" label={t(C.secObjective)} />
-            <Segmented
-              options={objectiveOptions}
-              value={intention}
-              onChange={selectIntention}
-              tone="surface"
-              accessibilityLabel={t(disciplineCopy.objectiveA11y)}
-            />
-
-            <SectionHead icon="reglages" label={t(C.secExactDistance)} />
-            <View style={styles.stepper}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t(C.a11yDecreaseDistance)}
-                onPress={() => stepDistance(-bounds.stepKm)}
-                style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.stepSign}>−</Text>
-              </Pressable>
-              <View style={styles.stepValue}>
-                <TextInput
-                  value={distanceDraft}
-                  onChangeText={onDistanceType}
-                  onBlur={onDistanceBlur}
-                  keyboardType="decimal-pad"
-                  selectTextOnFocus
-                  accessibilityLabel={t(C.a11yDistanceKm)}
-                  style={styles.stepInput}
-                  placeholderTextColor={colors.gris}
-                />
-                <Text style={styles.stepUnit}>km</Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t(C.a11yIncreaseDistance)}
-                onPress={() => stepDistance(bounds.stepKm)}
-                style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.stepSign}>+</Text>
-              </Pressable>
-            </View>
-            {/* Les DEUX bornes sont formatées : le plafond vélo (210,975 km)
-                s'écrirait sinon avec ses trois décimales de dérivation. */}
-            <Text style={styles.hint}>
-              {t(C.distanceRangeHint, {
-                min: formatKm(bounds.minKm) ?? '',
-                max: formatKm(bounds.maxKm) ?? '',
-              })}
-            </Text>
-
-            {/* En-tête de section + LIEN TEXTE à droite (loi 7) — jamais un
-                bouton plein, jamais un contour permanent. */}
-            <SectionHead
-              icon="boucle_fermee"
-              label={t(C.secOtherLoops)}
-              right={
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t(C.a11yRegenerate)}
-                  hitSlop={12}
-                  onPress={shuffleNearby}
-                  style={({ pressed }) => [styles.sectionLink, pressed && styles.pressed]}
-                >
-                  <Text style={styles.sectionLinkLabel}>{t(C.regenerate)}</Text>
-                </Pressable>
-              }
-            />
-            {nearbyLoading ? (
-              <Text style={styles.stateInline}>{t(C.loopsComputing)}</Text>
-            ) : loopOptions.length === 0 ? (
-              <Text style={styles.stateInline}>{t(C.loopsUnavailable)}</Text>
-            ) : (
-              <Segmented
-                options={loopOptions}
-                value={route?.id ?? ''}
-                onChange={adoptNearby}
-                tone="surface"
-                scrollable
-                accessibilityLabel={t(C.a11yLoopsGroup)}
-              />
-            )}
+        {origin ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: adjustOpen }} accessibilityLabel={t(disciplineCopy.adjust)} onPress={() => { haptics.light(); setAdjustOpen(o => !o); }} style={({ pressed }) => [styles.adjustHead, pressed && styles.pressed]}><GrydIcon name="settings" size={18} color={c.darkMuted} /><Text style={styles.adjustLabel}>{t(disciplineCopy.adjust)}</Text><GrydIcon name={adjustOpen ? 'minus' : 'plus'} size={18} color={c.darkMuted} /></Pressable> : null}
+        {origin && adjustOpen ? <View style={styles.adjustBody}>
+          <SectionHead icon="cible" label={t(C.secObjective)} />
+          <PlannerChoices options={objectiveOptions} value={intention} onChange={selectIntention} accessibilityLabel={t(disciplineCopy.objectiveA11y)} />
+          <SectionHead icon="reglages" label={t(C.secExactDistance)} />
+          <View style={styles.stepper}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t(C.a11yDecreaseDistance)} onPress={() => stepDistance(-bounds.stepKm)} style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}><GrydIcon name="minus" size={20} color={c.darkInk} /></Pressable>
+            <View style={styles.stepValue}><TextInput value={distanceDraft} onChangeText={onDistanceType} onBlur={onDistanceBlur} keyboardType="decimal-pad" selectTextOnFocus accessibilityLabel={t(C.a11yDistanceKm)} style={styles.stepInput} placeholderTextColor={c.darkMuted} /><Text style={styles.stepUnit}>km</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel={t(C.a11yIncreaseDistance)} onPress={() => stepDistance(bounds.stepKm)} style={({ pressed }) => [styles.stepBtn, pressed && styles.pressed]}><GrydIcon name="plus" size={20} color={c.darkInk} /></Pressable>
           </View>
-        ) : null}
+          <Text style={styles.hint}>{t(C.distanceRangeHint, { min: formatKm(bounds.minKm) ?? '', max: formatKm(bounds.maxKm) ?? '' })}</Text>
+          <SectionHead icon="boucle_fermee" label={t(C.secOtherLoops)} right={<Pressable accessibilityRole="button" accessibilityLabel={t(C.a11yRegenerate)} onPress={shuffleNearby} style={({ pressed }) => [styles.sectionLink, pressed && styles.pressed]}><Text style={styles.sectionLinkLabel}>{t(C.regenerate)}</Text></Pressable>} />
+          {nearbyLoading ? <Text style={styles.stateInline}>{t(C.loopsComputing)}</Text> : loopOptions.length === 0 ? <Text style={styles.stateInline}>{t(C.loopsUnavailable)}</Text> : <PlannerChoices options={loopOptions} value={route?.id ?? ''} onChange={adoptNearby} accessibilityLabel={t(C.a11yLoopsGroup)} />}
+        </View> : null}
       </ScrollView>
-
-      {/* ── 8 · BARRE BASSE : microcopie + LE bouton unique (§A4).
-           Il n'est JAMAIS grisé : quand partir est impossible, il porte le geste
-           qui débloque (localiser, recalculer). Voir features/route/plannerCta.ts. ── */}
-      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.ctaMicro}>{ctaMicro}</Text>
-        <Button
-          label={ctaLabel}
-          onPress={onCtaPress}
-          variant="primary"
-          // Le lecteur d'écran entend CE QUI VA ÊTRE ENREGISTRÉ, comme sur le GO
-          // de la Carte : « Conquérir · sortie vélo — démarrer ». Un verbe nu
-          // laisserait le seul indice de discipline à un kicker visuel.
-          accessibilityLabel={
-            cta === 'start'
-              ? t(C.a11yStart, { verb: `${intentionLabel} · ${activityName}` })
-              : ctaLabel
-          }
-          loading={cta === 'routing' || gps === 'locating'}
-          analyticsId={ctaAnalyticsId}
-        />
+        <View style={styles.ctaButton}><Button label={ctaLabel} onPress={onCtaPress} variant="primary" size="md" accessibilityLabel={cta === 'start' ? t(C.a11yStart, { verb: `${intentionLabel} · ${activityName}` }) : ctaLabel} loading={cta === 'routing' || gps === 'locating'} analyticsId={ctaAnalyticsId} /></View>
       </View>
-
       <ToastHost state={toast} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.noir },
-  header: { paddingHorizontal: spacing.cardPadding, paddingBottom: spacing.sm },
-  topBar: { flexDirection: 'row', alignItems: 'center' },
-  back: {
-    width: sizes.touchTarget,
-    height: sizes.touchTarget,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mirror: { transform: [{ scaleX: -1 }] },
-  kicker: { flex: 1, textAlign: 'center' },
-
-  kpiRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing.xxs },
-  // Loi 10 : un chiffre a une typo de chiffre. Le rôle R6 porte famille, graisse,
-  // approche et chiffres tabulaires — seule la taille reste à l'usage.
-  kpi: { ...STAT, color: colors.blanc, fontSize: fontSizes.xxl },
-  kpiUnit: { ...STAT, color: colors.gris, fontSize: fontSizes.lg },
-  kpiSpin: { marginLeft: spacing.xs, marginBottom: spacing.xs },
-  summary: { ...typography.meta, color: colors.gris, marginTop: spacing.xxs },
-
-  // La carte se sépare du reste par l'ESPACE et par sa propre matière : un
-  // contour permanent en plus n'aurait signalé aucun état (loi 8).
-  mapWrap: { height: MAP_HEIGHT },
-  mapEmpty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.noir,
-  },
-
-  panel: { flex: 1 },
-  panelContent: {
-    paddingHorizontal: spacing.cardPadding,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  sectionLink: {
-    marginLeft: 'auto',
-    minHeight: sizes.touchTarget,
-    justifyContent: 'center',
-  },
-  sectionLinkLabel: { ...typography.meta, color: colors.chartreuse },
-
-  // ── DÉPART : une LIGNE scannable (loi 6), pas une boîte encadrée ──
-  originRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: sizes.touchTarget,
-    paddingVertical: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: borderState.hairline,
-  },
-  originLabel: { ...typography.itemTitle, flex: 1, color: colors.blanc },
-
-  hint: { ...typography.meta, color: colors.gris, marginTop: spacing.xs },
-  metricsWrap: { marginTop: spacing.md },
-  /** Ligne d'état grise, NON tapable — jamais un compteur qui tourne à vide. */
-  stateInline: { ...typography.meta, color: colors.gris },
-
-  reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  // Pastille de fait : surface N1 SANS contour (le contour est réservé aux états).
-  reason: {
-    paddingVertical: spacing.xxs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: elevation.surface,
-  },
-  reasonText: { ...typography.meta, color: colors.blanc },
-
-  // ── AJUSTER : ligne d'accordéon, séparée par un filet, jamais une pilule bordée ──
-  adjustHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.lg,
-    minHeight: sizes.touchTarget,
-    borderBottomWidth: 1,
-    borderBottomColor: borderState.hairline,
-  },
-  adjustLabel: { ...typography.itemTitle, flex: 1, color: colors.blanc },
-  chevDown: { transform: [{ rotate: '90deg' }] },
-  chevUp: { transform: [{ rotate: '-90deg' }] },
-  adjustBody: { marginTop: spacing.xxs },
-
-  // ── Pas de distance : trois contrôles N2, aucun contour permanent ──
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  stepBtn: {
-    width: sizes.buttonMd,
-    height: sizes.buttonMd,
-    borderRadius: radii.control,
-    backgroundColor: elevation.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepSign: { ...STAT, color: colors.chartreuse, fontSize: fontSizes.lg },
-  stepValue: {
-    flex: 1,
-    height: sizes.buttonMd,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xxs,
-    borderRadius: radii.control,
-    backgroundColor: elevation.raised,
-  },
-  stepInput: {
-    ...STAT,
-    color: colors.blanc,
-    fontSize: fontSizes.lg,
-    textAlign: 'right',
-    minWidth: 54, // largeur de « 50,0 » — évite que le champ danse à la frappe
-    padding: 0,
-  },
-  stepUnit: { ...typography.itemTitle, color: colors.gris },
-
-  ctaBar: {
-    paddingHorizontal: spacing.cardPadding,
-    paddingTop: spacing.sm,
-    gap: spacing.xs,
-    backgroundColor: colors.noir,
-    borderTopWidth: 1,
-    borderTopColor: borderState.hairline,
-  },
-  ctaMicro: { ...typography.meta, color: colors.gris, textAlign: 'center' },
-  pressed: { opacity: 0.7 },
+  root: { flex: 1, backgroundColor: c.carbon }, header: { paddingHorizontal: 20, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { flex: 1, fontFamily: fonts.displayRegular, fontSize: 18, lineHeight: 24, color: c.darkInk }, kicker: { fontFamily: fonts.text, fontSize: 11, lineHeight: 17, color: c.darkMuted, marginBottom: 10 },
+  panel: { flex: 1 }, panelContent: { paddingHorizontal: 20, paddingBottom: 24 }, originRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.darkSurfaceMuted }, originCopy: { flex: 1, paddingVertical: 10, gap: 3 }, originKicker: { fontFamily: fonts.text, fontSize: 10, lineHeight: 15, color: c.darkMuted }, originLabel: { fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, color: c.darkInk },
+  mapWrap: { height: MAP_HEIGHT, marginHorizontal: -20, marginTop: 16, backgroundColor: c.darkSurface }, mapEmpty: { minHeight: 116, paddingHorizontal: 20, paddingVertical: 26, gap: 12, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: c.darkSurfaceMuted }, emptyTitle: { flex: 1, fontFamily: fonts.text, fontSize: 13, lineHeight: 20, color: c.darkMuted }, routingState: { position: 'absolute', left: 16, top: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.carbon, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 16 },
+  metricsWrap: { flexDirection: 'row', gap: 24, paddingTop: 18 }, metric: { flex: 1, gap: 4 }, metricValue: { fontFamily: fonts.displayRegular, fontSize: 25, lineHeight: 31, fontVariant: ['tabular-nums'], color: c.darkInk }, metricLabel: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 22, marginBottom: 6 }, sectionTitle: { flex: 1, fontFamily: fonts.displayRegular, fontSize: 16, lineHeight: 22, color: c.darkInk }, sectionLink: { minHeight: 44, justifyContent: 'center' }, sectionLinkLabel: { fontFamily: fonts.text, fontSize: 12, color: c.darkInk }, choice: { minHeight: 52, flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: c.darkSurfaceMuted }, choiceText: { flex: 1, fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.darkMuted }, choiceSelected: { fontFamily: fonts.textMedium, color: c.darkInk },
+  hint: { fontFamily: fonts.text, fontSize: 12, lineHeight: 19, color: c.darkMuted, marginTop: 10 }, stateInline: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted }, reasonRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 6, marginTop: 14 }, reason: { flexDirection: 'row', alignItems: 'center', gap: 5 }, reasonText: { fontFamily: fonts.text, fontSize: 11, lineHeight: 17, color: c.darkMuted },
+  adjustHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, marginTop: 22, borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.darkSurfaceMuted }, adjustLabel: { flex: 1, fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, color: c.darkInk }, adjustBody: { paddingBottom: 8 }, stepper: { flexDirection: 'row', alignItems: 'center', gap: 12 }, stepBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.darkSurface }, stepValue: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderBottomWidth: 1, borderColor: c.darkSurfaceMuted }, stepInput: { fontFamily: fonts.displayRegular, fontSize: 23, lineHeight: 30, color: c.darkInk, textAlign: 'right', minWidth: 54, padding: 0 }, stepUnit: { fontFamily: fonts.text, fontSize: 13, color: c.darkMuted },
+  ctaButton: { flexShrink: 1, maxWidth: '65%' }, ctaBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, gap: 10, backgroundColor: c.carbon, borderTopWidth: 1, borderColor: c.darkSurfaceMuted }, ctaMicro: { flex: 1, fontFamily: fonts.text, fontSize: 11, lineHeight: 17, color: c.darkMuted }, pressed: { opacity: 0.7 },
 });
