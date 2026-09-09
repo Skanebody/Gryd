@@ -256,6 +256,100 @@ export const C = defineCatalog({
     de: 'Anmeldung fehlgeschlagen. Versuch es nochmal — dein Lauf geht dadurch nie verloren.',
     pt: 'Não foi possível entrar. Tente de novo — sua corrida nunca vai se perder por isso.',
   },
+  /**
+   * CAPACITÉ ABSENTE, PAS PANNE (10/09/2026). `isAvailableAsync()` a répondu non
+   * — ou le module natif manque au build : réessayer ne changera JAMAIS rien sur
+   * cet appareil. Lui servir « Réessaie » (ce que faisait le booléen `failed`
+   * unique de l'écran) envoyait le joueur cogner contre un mur. On nomme donc la
+   * porte qui, elle, existe.
+   */
+  errorAppleUnavailable: {
+    fr: 'Sign in with Apple n’est pas proposé sur cet appareil. Continue avec un e-mail.',
+    en: 'Sign in with Apple isn’t offered on this device. Continue with email instead.',
+    es: 'Sign in with Apple no está disponible en este dispositivo. Continúa con un e-mail.',
+    de: 'Sign in with Apple wird auf diesem Gerät nicht angeboten. Nimm eine E-Mail.',
+    pt: 'O Sign in with Apple não é oferecido neste aparelho. Continue com um e-mail.',
+  },
+  /** O1 : aucun backend. Ne devrait pas atteindre cet écran — mais s'il y arrive, il le dit. */
+  errorNoBackend: {
+    fr: 'Le serveur n’est pas configuré sur cette version. Aucun compte ne peut être créé ici.',
+    en: 'The server isn’t configured in this build. No account can be created here.',
+    es: 'El servidor no está configurado en esta versión. Aquí no se puede crear ninguna cuenta.',
+    de: 'Der Server ist in dieser Version nicht eingerichtet. Hier lässt sich kein Konto anlegen.',
+    pt: 'O servidor não está configurado nesta versão. Nenhuma conta pode ser criada aqui.',
+  },
+
+  // ─── Retour de lien magique : quatre faits, quatre phrases ────────────────
+  /**
+   * AUCUNE URL N'EST ARRIVÉE. Ce n'est ni un lien mort ni une panne réseau :
+   * l'app s'est ouverte sur l'écran de retour sans que le système lui remette
+   * quoi que ce soit (lien ouvert dans un autre navigateur, retour manuel sur
+   * l'écran, app relancée). On ne conseille donc pas « demande un nouveau lien »
+   * — le précédent est peut-être encore valide, ailleurs.
+   */
+  callbackNoReturn: {
+    fr: 'Aucun retour de connexion n’est arrivé jusqu’ici. Ouvre le lien depuis ton e-mail, sur cet appareil.',
+    en: 'No sign-in return reached the app. Open the link from your email, on this device.',
+    es: 'Aquí no llegó ningún retorno de acceso. Abre el enlace desde tu e-mail, en este dispositivo.',
+    de: 'Hier ist keine Anmelde-Rückmeldung angekommen. Öffne den Link aus deiner E-Mail, auf diesem Gerät.',
+    pt: 'Nenhum retorno de acesso chegou até aqui. Abra o link pelo seu e-mail, neste aparelho.',
+  },
+
+  // ─── Bandeaux de session (rendus par app/(tabs)/_layout.tsx) ──────────────
+  /**
+   * « Toute reconnexion annule la suppression » (0046). Le fait était CALCULÉ
+   * (`session.tsx`, `deletionCancelled`) et ACQUITTABLE — mais aucun écran ne le
+   * rendait : un compte en attente de suppression était restauré EN SILENCE par
+   * une simple reconnexion. On ne restaure jamais un compte sans le dire.
+   */
+  deletionCancelledTitle: {
+    fr: 'Ta suppression de compte est annulée',
+    en: 'Your account deletion is cancelled',
+    es: 'Se ha cancelado la eliminación de tu cuenta',
+    de: 'Deine Kontolöschung ist abgebrochen',
+    pt: 'A exclusão da sua conta foi cancelada',
+  },
+  deletionCancelledBody: {
+    fr: 'Te reconnecter annule la suppression en cours. Ton compte et tes zones sont conservés. Tu peux la redemander dans Confidentialité.',
+    en: 'Signing back in cancels the pending deletion. Your account and your zones are kept. You can request it again in Privacy.',
+    es: 'Volver a iniciar sesión cancela la eliminación pendiente. Tu cuenta y tus zonas se conservan. Puedes pedirla de nuevo en Privacidad.',
+    de: 'Die erneute Anmeldung bricht die laufende Löschung ab. Konto und Zonen bleiben erhalten. Du kannst sie unter Datenschutz erneut anfordern.',
+    pt: 'Entrar de novo cancela a exclusão pendente. Sua conta e suas zonas ficam guardadas. Você pode pedi-la de novo em Privacidade.',
+  },
+  /**
+   * Le jeton n'a pas pu être rafraîchi : `supabase-js` émet `SIGNED_OUT` et
+   * l'app retombait en visiteur SANS un mot — le joueur croyait avoir perdu son
+   * compte. Distinct d'une déconnexion demandée (elle, personne ne la commente).
+   */
+  sessionExpiredTitle: {
+    fr: 'Ta session a expiré',
+    en: 'Your session has expired',
+    es: 'Tu sesión ha caducado',
+    de: 'Deine Sitzung ist abgelaufen',
+    pt: 'Sua sessão expirou',
+  },
+  sessionExpiredBody: {
+    fr: 'Tu n’as pas été déconnecté par erreur et rien n’est perdu : reconnecte-toi pour retrouver tes zones.',
+    en: 'You weren’t signed out by mistake and nothing is lost: sign in again to get your zones back.',
+    es: 'No se te ha cerrado la sesión por error y no se pierde nada: vuelve a entrar para recuperar tus zonas.',
+    de: 'Du wurdest nicht versehentlich abgemeldet und nichts ist verloren: Melde dich erneut an, um deine Zonen zurückzubekommen.',
+    pt: 'Você não foi desconectado por engano e nada se perdeu: entre de novo para recuperar suas zonas.',
+  },
+  sessionExpiredCta: {
+    fr: 'Me reconnecter',
+    en: 'Sign in again',
+    es: 'Volver a entrar',
+    de: 'Erneut anmelden',
+    pt: 'Entrar de novo',
+  },
+  /** Un bandeau qui ne se ferme pas est une bannière publicitaire. */
+  noticeDismiss: {
+    fr: 'J’ai compris',
+    en: 'Got it',
+    es: 'Entendido',
+    de: 'Verstanden',
+    pt: 'Entendi',
+  },
 
   // ─── Verify Hub : entête ───────────────────────────────────────────────────
   sourcesKicker: {

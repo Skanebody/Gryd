@@ -44,35 +44,32 @@ import { EVENTS, identify, resetAnalytics, track } from './analytics';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
+import {
+  isSilentFailure2026,
+  type AuthFailureReason2026,
+  type AuthResult2026,
+} from '../features/account/authFailure2026';
 
 export type SignInMethod = 'apple' | 'google' | 'email_otp';
 
-export type AuthFailureReason =
-  | 'supabase_not_configured'
-  | 'google_not_configured'
-  | 'apple_not_available'
-  | 'cancelled'
-  | 'no_identity_token'
-  | 'auth_error'
-  /** Propre au web : le fournisseur n'a pas de chemin utilisable ici (cf. entête). */
-  | 'web_unsupported';
-
-export type AuthResult =
-  | { ok: true }
-  | { ok: false; reason: AuthFailureReason; message?: string };
-
 /**
- * UNE ANNULATION N'EST PAS UN ÉCHEC — parité stricte avec auth.ts (voir sa
- * docstring pour le raisonnement). `web_unsupported` s'y ajoute ICI : il ne
- * décrit pas une panne mais l'absence d'un chemin, et l'écran ne peint de toute
- * façon pas le bouton correspondant — s'il l'appelait quand même, accuser une
- * « connexion impossible » serait faux.
+ * ⚠️ PLUS DE COPIE (10/09/2026). Ce fichier redéclarait le motif d'échec et sa
+ * règle de silence — la parité que l'entête réclame était donc tenue à la main,
+ * et elle avait déjà lâché : `auth.ts` documentait `web_unsupported` sans le
+ * traiter. Les deux vivent désormais dans `features/account/authFailure2026.ts`
+ * (module PUR, testé sous Deno) et les deux plateformes le réexportent.
  */
+export type AuthFailureReason = AuthFailureReason2026;
+export type AuthResult = AuthResult2026;
+
+/** Voir `isSilentFailure2026` — la règle vit là-bas, une seule fois. */
 export function isSilentFailure(result: AuthResult): boolean {
-  return !result.ok && (result.reason === 'cancelled' || result.reason === 'web_unsupported');
+  return isSilentFailure2026(result);
 }
 
 /** Aucun Sign in with Apple dans un navigateur — capacité NULLE (parité auth.ts). */
+export const APPLE_PLATFORM = false;
+
 export async function isAppleAuthAvailable(): Promise<boolean> {
   return false;
 }
@@ -130,8 +127,18 @@ export async function signInWithGoogle(): Promise<AuthResult> {
  * envoyé. Le jour où un SMTP personnalisé est configuré, le gabarit peut porter
  * `{{ .Token }}` et cette constante repasse à `'code'` — l'écran suit tout seul.
  */
+/**
+ * ⚠️ `false` EN DUR, ET C'EST LE POINT. Le second argument est la PREUVE que le
+ * gabarit e-mail du projet envoie un code à six chiffres. Aucune source n'est
+ * capable de la produire aujourd'hui : le gabarit est global au projet, il porte
+ * un LIEN, et l'API de gestion refuse de le changer sur le plan hébergé avec
+ * l'expéditeur par défaut. Tant que ce littéral vaut `false`, poser
+ * `EXPO_PUBLIC_EMAIL_AUTH_MODE=code` ne fait plus réclamer à l'écran un code que
+ * l'e-mail ne contient pas.
+ */
 export const EMAIL_DELIVERY: 'link' | 'code' = emailDelivery2026(
   process.env.EXPO_PUBLIC_EMAIL_AUTH_MODE,
+  false,
 );
 
 export async function requestEmailOtp(email: string): Promise<AuthResult> {

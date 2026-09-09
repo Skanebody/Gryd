@@ -23,11 +23,19 @@
  * l'entitlement « Sign in with Apple » du profil de provisionnement, pas d'une
  * variable d'environnement. Il n'existe donc pas de troisième variable à lire.
  * Ce qui manquait n'était pas un `EXPO_PUBLIC_APPLE_*` (il n'en existe pas) mais
- * la VÉRIFICATION que le module natif répond sur cet appareil : `Platform.OS ===
- * 'ios'` est vrai sur un build sans l'entitlement, où `signInAsync` échoue à
- * 100 %. `isAvailableAsync()` interroge le système et tranche pour de vrai —
- * c'est la garde de capacité qui manquait, et elle vaut mieux qu'une 3ᵉ variable
- * qui n'aurait rien prouvé.
+ * la VÉRIFICATION que le module natif répond sur cet appareil. `isAvailableAsync()`
+ * interroge le système : c'est la garde de capacité qui manquait, et elle vaut
+ * mieux qu'une 3ᵉ variable qui n'aurait rien prouvé.
+ *
+ * ⚠️ CE QU'`isAvailableAsync` NE DIT PAS (corrigé le 10/09/2026 — l'entête
+ * précédente lui prêtait ce pouvoir). Elle répond « ce SYSTÈME propose Sign in
+ * with Apple » (iOS 13+, module natif présent) — elle NE VÉRIFIE PAS
+ * l'entitlement « Sign in with Apple » du profil de provisionnement. Un build
+ * sans cet entitlement peut donc rendre `true` ici et échouer à `signInAsync`.
+ * Conséquence tenue à l'écran : `apple_not_available` (capacité absente —
+ * réessayer ne changera jamais rien) et `auth_error` (le système a dit oui, la
+ * tentative a échoué — réessayer a du sens) ne disent PAS la même phrase, cf.
+ * `features/account/authFailure2026.ts`.
  * (Le pendant Supabase — Services ID + secret Apple côté serveur — est réel mais
  * INVISIBLE du client : il ressort en `auth_error` à l'échange de token, pas en
  * capacité peignable. On ne peut pas le sonder, donc on ne prétend pas le lire.)
@@ -46,49 +54,58 @@ import { EVENTS, identify, resetAnalytics, track } from './analytics';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
+import {
+  isSilentFailure2026,
+  type AuthFailureReason2026,
+  type AuthResult2026,
+} from '../features/account/authFailure2026';
 
 // Ferme proprement la popup d'auth au retour dans l'app (deep link scheme "gryd", cf. app.json).
 WebBrowser.maybeCompleteAuthSession();
 
 export type SignInMethod = 'apple' | 'google' | 'email_otp';
 
-export type AuthFailureReason =
-  | 'supabase_not_configured' // O1 : pas de backend → mode dev, carte en accès direct
-  | 'google_not_configured' // O2 : aucun client id Google POUR CETTE plateforme
-  | 'apple_not_available' // le système ne propose pas Sign in with Apple ici
-  | 'cancelled' // l'utilisateur a fermé la feuille d'auth — jamais un mur (§4.1)
-  | 'no_identity_token'
-  | 'auth_error';
-
-export type AuthResult =
-  | { ok: true }
-  | { ok: false; reason: AuthFailureReason; message?: string };
-
 /**
- * UNE ANNULATION N'EST PAS UN ÉCHEC. Fermer la feuille Apple ou la popup Google
- * est un geste banal, volontaire, non erroné : le joueur qui change d'avis ne
- * doit pas lire « Connexion impossible. Réessaie », qui lui impute une panne
- * inexistante. `app/(auth)/sign-in.tsx` le savait déjà (son `failureMessage`
- * renvoie `null` sur `cancelled`) ; ce prédicat existe pour que TOUTE surface
- * applique la même règle sans la réécrire — et sans oublier `web_unsupported`,
- * qui n'est pas une panne non plus mais l'absence d'un chemin (auth.web.ts).
- *
- * Contrat : `true` ⇒ l'écran ne montre AUCUN message d'erreur, et il ne sort pas
- * non plus (rien n'a réussi) — il reste exactement où il était.
+ * ⚠️ LE MOTIF D'ÉCHEC A DÉMÉNAGÉ (10/09/2026) — il vit dans
+ * `features/account/authFailure2026.ts`, module PUR. Raison : ce fichier-ci
+ * importe `expo-apple-authentication` au niveau module, donc rien de ce qu'il
+ * définit n'est typecheckable sous Deno ; le type était condamné à être
+ * DUPLIQUÉ dans `auth.web.ts`, et les deux copies avaient déjà divergé (voir
+ * `isSilentFailure2026`). Réexporté ici pour que les appelants ne changent pas.
  */
+export type AuthFailureReason = AuthFailureReason2026;
+export type AuthResult = AuthResult2026;
+
+/** Voir `isSilentFailure2026` — la règle vit là-bas, une seule fois. */
 export function isSilentFailure(result: AuthResult): boolean {
-  return !result.ok && result.reason === 'cancelled';
+  return isSilentFailure2026(result);
 }
 
 /**
  * CAPACITÉ APPLE — probe RUNTIME, pas une déduction de plateforme.
  * `Platform.OS === 'ios'` dit sur quel OS on tourne ; il ne dit PAS que Sign in
- * with Apple est utilisable (entitlement absent du profil, iOS < 13, simulateur
- * sans compte Apple). `isAvailableAsync()` interroge le système. C'est cette
- * garde qui manquait côté Apple, là où Google avait déjà la sienne.
+ * with Apple est proposé par cet appareil (iOS < 13, module natif absent du
+ * build). `isAvailableAsync()` interroge le système. C'est cette garde qui
+ * manquait côté Apple, là où Google avait déjà la sienne.
+ *
+ * ⚠️ ELLE NE COUVRE PAS L'ENTITLEMENT du profil de provisionnement : un build
+ * qui en manque peut répondre `true` ici et échouer à `signInAsync`. Ce cas-là
+ * ressort en `auth_error`, pas en `apple_not_available` — et les deux se disent
+ * différemment à l'écran (`features/account/authFailure2026.ts`).
  */
+/**
+ * LA PLATEFORME PEUT-ELLE, EN PRINCIPE, PROPOSER APPLE ? Lecture SYNCHRONE.
+ *
+ * Elle ne remplace pas `isAppleAuthAvailable()` (qui interroge le système) : elle
+ * répond à une autre question, posée AVANT le premier rendu — « faut-il réserver
+ * la place du bouton Apple ? ». Sans elle, l'écran se peint sans le bouton, la
+ * sonde répond quelques dizaines de ms plus tard, et tout le panneau saute sous
+ * le doigt du joueur au moment précis où il vise un bouton.
+ */
+export const APPLE_PLATFORM: boolean = Platform.OS === 'ios';
+
 export async function isAppleAuthAvailable(): Promise<boolean> {
-  if (Platform.OS !== 'ios') return false;
+  if (!APPLE_PLATFORM) return false;
   try {
     return await AppleAuthentication.isAvailableAsync();
   } catch {
@@ -249,8 +266,18 @@ export async function signInWithGoogle(): Promise<AuthResult> {
  * courrier que le web, et l'écran doit le dire au lieu de réclamer six chiffres
  * que personne ne reçoit. Repassera à `'code'` avec un SMTP personnalisé.
  */
+/**
+ * ⚠️ `false` EN DUR, ET C'EST LE POINT. Le second argument est la PREUVE que le
+ * gabarit e-mail du projet envoie un code à six chiffres. Aucune source n'est
+ * capable de la produire aujourd'hui : le gabarit est global au projet, il porte
+ * un LIEN, et l'API de gestion refuse de le changer sur le plan hébergé avec
+ * l'expéditeur par défaut. Tant que ce littéral vaut `false`, poser
+ * `EXPO_PUBLIC_EMAIL_AUTH_MODE=code` ne fait plus réclamer à l'écran un code que
+ * l'e-mail ne contient pas.
+ */
 export const EMAIL_DELIVERY: 'link' | 'code' = emailDelivery2026(
   process.env.EXPO_PUBLIC_EMAIL_AUTH_MODE,
+  false,
 );
 
 export async function requestEmailOtp(email: string): Promise<AuthResult> {

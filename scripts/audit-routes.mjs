@@ -182,7 +182,12 @@ const KNOWN_ORPHANS = new Map([
   ['/activite', 'porte perdue : le legacy `app/(tabs)/index.tsx:279` (9d1b9e7) — la Carte de septembre n’a pas de cloche'],
   ['/appel', 'porte perdue : `app/course-result.tsx:1350` (9d1b9e7) — course-result.tsx est devenu une ré-exportation de RunResult'],
   ['/challenges', 'porte perdue : `app/aujourdhui.tsx:256` (9d1b9e7) — /aujourdhui est devenu une route de compatibilité'],
-  ['/course/analyse', 'porte perdue : `src/features/run/gps/RealCourseLive.tsx:713` (9d1b9e7) — la fin de course va droit à /course-result (RealCourseLive.tsx:41)'],
+  // ⚠️ `/course/analyse` EST SORTIE D'ICI le 10/09/2026 : elle a retrouvé sa
+  // porte (`src/features/run/gps/RealCourseLive.tsx:52`, commit 8671834 — « la
+  // fin de course ouvre G11 »). Une exemption qui survit à son motif est pire
+  // qu'une absence d'exemption : l'audit cesse de surveiller la route, et
+  // personne ne le voit. Le script sort d'ailleurs en erreur sur ce cas
+  // (« À NETTOYER »), et c'est ce qui l'a fait remarquer.
   ['/defi', 'porte perdue : `app/amis.tsx:415` (9d1b9e7) — /amis a été réécrit autour de /member'],
   ['/map/prepare', 'portes perdues : `app/map/missions/[missionId].tsx:82` et `app/zone-attaquee/[contestId].tsx:283` (9d1b9e7) — les deux sont devenues des routes de compatibilité'],
   ['/qr', 'portes perdues : `app/(tabs)/profil.tsx:289` et `app/amis.tsx:336` (9d1b9e7) — les deux fichiers ont été réécrits par le cahier'],

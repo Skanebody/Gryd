@@ -308,6 +308,8 @@ export const AGE = {
   /** Écran de blocage si &lt; 16 (pas de chemin vers l'avant). */
   blockedTitle: C.ageBlockedTitle,
   blockedTagline: C.ageBlockedTagline,
+  /** La SEULE sortie du mur : revenir à la question. Jamais vers la carte. */
+  notMe: C.ageNotMe,
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════

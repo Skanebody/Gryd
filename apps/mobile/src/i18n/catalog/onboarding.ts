@@ -168,6 +168,25 @@ export const C = defineCatalog({
     de: 'GRYD ist erst ab 16 verfügbar. Wir halten dir deine Stadt warm.',
     pt: 'O GRYD não está disponível antes dos 16. Guardamos sua cidade para você.',
   },
+  /**
+   * LA SEULE SORTIE DU MUR (10/09/2026) — et il en fallait une.
+   *
+   * Le mur d'âge s'affichait au-dessus d'un « Continuer sans compte » qui
+   * ouvrait toute l'app : la phrase « GRYD n'est pas accessible avant 16 ans »
+   * était démentie par le bouton posé juste dessous. La sortie a donc été
+   * retirée — et un refus qui n'a AUCUNE issue enferme celui qui a tapé à côté.
+   * « Ce n'est pas moi » ramène à la question, sans rien affirmer sur son âge.
+   *
+   * Formulation choisie plutôt que « Je me suis trompé » : elle ne demande pas
+   * au joueur d'avouer une faute pour récupérer l'accès.
+   */
+  ageNotMe: {
+    fr: 'Ce n’est pas moi',
+    en: 'That’s not me',
+    es: 'No soy yo',
+    de: 'Das bin ich nicht',
+    pt: 'Não sou eu',
+  },
   // ⚠️ `ageBackToCity` RETIRÉE le 27/07/2026 (planches E01b) : elle était la
   // sortie de la question d'âge posée EN PLACE devant l'écran VILLE, et l'écran
   // ville a quitté l'onboarding (la planche 06 place pseudo et ville au premier
