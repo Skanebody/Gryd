@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import * as Crypto from 'expo-crypto';
@@ -16,10 +16,27 @@ export function CrewConversationScreen2026() {
   const { session, loading } = useSession(); const epoch = useSocialEpoch2026();
   return <CrewConversationGate key={`${epoch}:${loading ? 'restoring' : session?.user.id ?? 'guest'}`} />;
 }
+/**
+ * ─── QUATRE ÉTATS, ET DEUX QUI ÉTAIENT FONDUS (10/09/2026) ─────────────────
+ * `!session || !crew.crew` traitait « pas connecté » et « pas de crew » comme
+ * une seule situation : on proposait « Voir les crews » à quelqu'un qui n'a pas
+ * de compte, et on lui expliquait comment rejoindre un crew avant de lui dire
+ * qu'il faut d'abord se connecter. Ce sont deux faits différents, deux phrases
+ * différentes et deux gestes différents — la règle des quatre états distincts
+ * vaut ici comme ailleurs.
+ */
 function CrewConversationGate() {
   const { session, loading } = useSession(); const crew = useRealCrew(); const copy = useRefonteCopy();
-  if (loading || (crew.loading && !crew.crew)) return <ProfilePage tone="light" title={copy('Conversation', 'Conversation')} back backHref="/(tabs)/crew"><ActivityIndicator color={c.ink} /></ProfilePage>;
-  if (!session || !crew.crew) return <ProfilePage tone="light" title={copy('Conversation', 'Conversation')} back backHref="/(tabs)/crew"><View style={styles.panel}><Text style={styles.title}>{crew.loadFailed ? copy('Crew indisponible', 'Crew unavailable') : copy('La conversation du groupe.', 'Your group conversation.')}</Text><Text style={styles.body}>{crew.loadFailed ? copy('Impossible de retrouver ton crew pour le moment.', 'Your crew could not be loaded right now.') : copy('Rejoins un crew pour préparer vos sorties et échanger entre membres.', 'Join a crew to plan activities and talk with fellow members.')}</Text><ProfileButton tone="light" label={crew.loadFailed ? copy('Réessayer', 'Retry') : copy('Voir les crews', 'View crews')} onPress={crew.loadFailed ? crew.reload : () => router.push('/(tabs)/crew')} /></View></ProfilePage>;
+  const page = (children: ReactNode) => <ProfilePage tone="light" title={copy('Conversation', 'Conversation')} back backHref="/(tabs)/crew">{children}</ProfilePage>;
+  // 1. LECTURE EN COURS — n'affirme rien, ni sur le compte ni sur le crew.
+  if (loading || (crew.loading && !crew.crew)) return page(<ActivityIndicator color={c.ink} />);
+  // 2. PAS CONNECTÉ — le seul geste utile est la connexion. Ne PAS proposer de
+  //    rejoindre un crew : il n'y a pas encore de compte pour en être membre.
+  if (!session) return page(<View style={styles.panel}><Text style={styles.title}>{copy('Réservé aux membres du crew', 'Crew members only')}</Text><Text style={styles.body}>{copy('La conversation reste entre les membres. Connecte-toi pour retrouver la tienne.', 'The conversation stays between members. Sign in to find yours.')}</Text><ProfileButton tone="light" label={copy('Connexion', 'Sign in')} onPress={() => router.push('/sign-in')} /></View>);
+  // 3. LECTURE ÉCHOUÉE — on n'a rien établi : ni « pas de crew », ni « crew ».
+  if (crew.loadFailed) return page(<View style={styles.panel}><Text style={styles.title}>{copy('Crew indisponible', 'Crew unavailable')}</Text><Text style={styles.body}>{copy('Impossible de retrouver ton crew pour le moment.', 'Your crew could not be loaded right now.')}</Text><ProfileButton tone="light" label={copy('Réessayer', 'Retry')} onPress={crew.reload} /></View>);
+  // 4. CONNECTÉ, SANS CREW — une affirmation VRAIE, et son geste.
+  if (!crew.crew) return page(<View style={styles.panel}><Text style={styles.title}>{copy('La conversation du groupe.', 'Your group conversation.')}</Text><Text style={styles.body}>{copy('Rejoins un crew pour préparer vos sorties et échanger entre membres.', 'Join a crew to plan activities and talk with fellow members.')}</Text><ProfileButton tone="light" label={copy('Voir les crews', 'View crews')} onPress={() => router.push('/(tabs)/crew')} /></View>);
   return <Conversation key={`${session.user.id}:${crew.crew.id}`} crewId={crew.crew.id} suspended={crew.loading} />;
 }
 function Conversation({ crewId, suspended }: { crewId: string; suspended: boolean }) {

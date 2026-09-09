@@ -10,9 +10,9 @@ import { GrydIcon } from '../../ui/gryd';
 import { TranslucentBackdrop2026 } from '../../ui/gryd/TranslucentBackdrop2026';
 import { brandImagery } from '../../ui/gryd/brandImagery';
 import { CREW_ROLE_E } from '../../i18n/catalog/crew';
-import { socialError2026 } from '../social/social2026Model';
+import { myReaction2026, socialError2026 } from '../social/social2026Model';
 import { socialRpc2026, useSocialRead2026 } from '../social/social2026Data';
-import type { SocialPerson2026, SocialPost2026 } from '../social/social2026Model';
+import type { SocialPerson2026, SocialPost2026, SocialReactionKind2026 } from '../social/social2026Model';
 import { SocialAvatar2026, SocialPostCard2026 } from '../social/SocialPostCard2026';
 import { CREW_SPORTING_ROLES_2026, isCrewSportingRole2026, sportingRoleLabel2026, type CrewSportingRole2026 } from '../crew/crewConversation2026';
 import { resolveCrewJoinCode2026 } from '../crew/joinInput2026';
@@ -124,10 +124,13 @@ function CrewHomeContents() {
     } catch { if (isResultOwnerCurrent2026(owner, epoch)) setRsvpError(copy('L’inscription n’a pas abouti. Réessaie.', 'Registration did not complete. Try again.')); }
     finally { rsvpLock.current = false; if (isResultOwnerCurrent2026(owner, epoch)) setRsvpBusy(false); }
   }
-  async function encourage(post: SocialPost2026) {
+  // §13.4 : la réaction porte un NOM (encouragement, merci, à la prochaine).
+  // La carte dit laquelle a été tapée ; sans ce paramètre, taper « merci »
+  // enregistrait un encouragement — un bouton qui ment sur son propre effet.
+  async function encourage(post: SocialPost2026, kind: SocialReactionKind2026) {
     if (!social.owner || reactionLock.current) return;
     reactionLock.current = true; setReactionBusy(true); setReactionError(null);
-    try { await socialRpc2026(social.owner, 'social_react_2026', { p_post_id: post.id, p_reacted: !post.reacted }); social.reload(); }
+    try { await socialRpc2026(social.owner, 'social_react_2026', { p_post_id: post.id, p_kind: kind, p_reacted: myReaction2026(post) !== kind }); social.reload(); }
     catch (cause) { setReactionError(socialError2026(String(cause), locale === 'en')); }
     finally { reactionLock.current = false; setReactionBusy(false); }
   }
@@ -210,7 +213,7 @@ function CrewHomeContents() {
           </View>
           {announcement ? <View style={local.announcement}><View style={local.cardHeading}><Text style={local.cardLabel}>{copy('Annonce', 'Announcement')}</Text><GrydIcon name="bell" size={20} color={c.muted} /></View><Text style={local.body}>{announcement.body}</Text><ProfileLink tone="light" title={copy('Voir les annonces', 'View announcements')} icon="feed" onPress={() => router.push('/crew-activite')} /></View> : null}
           <View><ProfileSection tone="light" title={copy('Partagé avec le crew', 'Shared with your crew')} action={copy('Tout voir', 'View all')} onPress={() => router.push({ pathname: '/crew-feed', params: { activity: feedActivity } })} /><ProfileSegments tone="light" value={feedActivity} onChange={setFeedActivity} options={[{ key: 'run', label: copy('Course', 'Run') }, { key: 'bike', label: copy('Vélo', 'Ride') }]} /></View>
-          {social.status === 'loading' ? <View style={local.state}><ActivityIndicator color={c.ink} /><Text style={local.copy}>{copy('Lecture des publications…', 'Loading posts…')}</Text></View> : social.status === 'failed' ? <View style={local.state}><ProfileLink tone="light" title={copy('Le fil est indisponible · Réessayer', 'Feed unavailable · Retry')} icon="historique" onPress={social.reload} /></View> : recent.length ? recent.map(post => <View key={post.id} style={local.socialSurface}><SocialPostCard2026 post={post} tone="light" busy={reactionBusy} onReact={() => void encourage(post)} onOpen={() => router.push({ pathname: '/crew-feed', params: { activity: feedActivity, postId: post.id } })} /></View>) : <View style={local.state}><GrydIcon name="camera" size={24} color={c.ink} /><Text style={local.rowTitle}>{copy('Le fil attend vos sorties', 'Your outings belong here')}</Text><Text style={local.copy}>{copy('Les sorties partagées avec le crew apparaîtront ici.', 'Activities shared with the crew will appear here.')}</Text></View>}
+          {social.status === 'loading' ? <View style={local.state}><ActivityIndicator color={c.ink} /><Text style={local.copy}>{copy('Lecture des publications…', 'Loading posts…')}</Text></View> : social.status === 'failed' ? <View style={local.state}><ProfileLink tone="light" title={copy('Le fil est indisponible · Réessayer', 'Feed unavailable · Retry')} icon="historique" onPress={social.reload} /></View> : recent.length ? recent.map(post => <View key={post.id} style={local.socialSurface}><SocialPostCard2026 post={post} tone="light" busy={reactionBusy} onReact={kind => void encourage(post, kind)} onOpen={() => router.push({ pathname: '/crew-feed', params: { activity: feedActivity, postId: post.id } })} /></View>) : <View style={local.state}><GrydIcon name="camera" size={24} color={c.ink} /><Text style={local.rowTitle}>{copy('Le fil attend vos sorties', 'Your outings belong here')}</Text><Text style={local.copy}>{copy('Les sorties partagées avec le crew apparaîtront ici.', 'Activities shared with the crew will appear here.')}</Text></View>}
           {reactionError ? <Text accessibilityRole="alert" style={local.body}>{reactionError}</Text> : null}
           <ProfileLink tone="light" title={copy('Choisir une sortie dans mon journal', 'Choose an activity from my journal')} icon="historique" onPress={() => router.push('/(tabs)/profil')} />
         </> : <>
