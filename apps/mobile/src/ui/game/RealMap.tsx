@@ -45,6 +45,12 @@ const VIEWBOX_SIZE = 1000;
 const FALLBACK_PADDING = 84;
 const FALLBACK_CAMERA_ZOOM = 14.6;
 const FALLBACK_ATTRIBUTION = '© GRYD';
+/**
+ * Ce que dit le repli, en toutes lettres. Ce n'est pas une carte : c'est le
+ * dessin de ce que GRYD a mesuré, sans fond. Bilingue à la main comme le reste
+ * de `ui/game` (ce composant est rendu hors de tout fournisseur i18n).
+ */
+const MAP_UNAVAILABLE_NOTICE = 'Fond de carte indisponible sur cette version · Map background unavailable on this build';
 
 type RealMapNativeModule = typeof import('./RealMapNative');
 type BoundsBox = {
@@ -238,28 +244,18 @@ function ExpoGoMapFallback({
       })),
     [mapBounds, markers],
   );
-  const attribution = basemap ? basemapAttribution(basemap) : FALLBACK_ATTRIBUTION;
-
+  // AUCUNE ATTRIBUTION ICI. Elle signait « © OpenStreetMap © CARTO » un dessin
+  // qui ne contient pas une seule de leurs tuiles : créditer une source qu'on
+  // n'affiche pas est un mensonge sur la provenance (et une fausse conformité).
+  // La ligne dit ce qui manque, à la place.
   return (
     <View style={[styles.root, style]} testID={testID}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}>
+        {/* Fond NU. Les diagonales claires qui vivaient ici imitaient des rues :
+            un décor qui se lit comme une carte est une carte inventée. Ce qui
+            reste dessiné ci-dessous — tracés, terrains, marqueurs — a été
+            RÉELLEMENT mesuré ou rendu par le serveur. */}
         <Rect width={VIEWBOX_SIZE} height={VIEWBOX_SIZE} fill={colors.noir} />
-        {Array.from({ length: 12 }, (_, index) => (
-          <Path
-            key={`grid-a-${index}`}
-            d={`M ${index * 120 - 240} 0 L ${index * 120 + 280} ${VIEWBOX_SIZE}`}
-            stroke={withAlpha(colors.blanc, 0.08)}
-            strokeWidth={2}
-          />
-        ))}
-        {Array.from({ length: 12 }, (_, index) => (
-          <Path
-            key={`grid-b-${index}`}
-            d={`M ${index * 120 + 280} 0 L ${index * 120 - 240} ${VIEWBOX_SIZE}`}
-            stroke={withAlpha(colors.blanc, 0.05)}
-            strokeWidth={2}
-          />
-        ))}
         {geojsonLayers.flatMap((layer) =>
           layerPaths(layer, mapBounds).flatMap((path, index) => {
             const key = `${layer.id}-${index}`;
@@ -334,9 +330,25 @@ function ExpoGoMapFallback({
         </View>
       ))}
 
-      {attributionCompact ? <Text style={styles.attribution}>{attribution}</Text> : null}
+      {attributionCompact ? (
+        <Text style={styles.attribution}>{MAP_UNAVAILABLE_NOTICE}</Text>
+      ) : null}
     </View>
   );
+}
+
+/**
+ * LE FOND DE CARTE EST-IL RÉELLEMENT RENDU SUR CE BUILD ?
+ *
+ * « Aucun bouton mort : l'affichage se dérive de la capacité RÉELLE de la
+ * plateforme. » Sans module natif (Expo Go, liaison MapLibre cassée), la carte
+ * se replie sur un dessin SVG dont la caméra n'existe pas : `flyTo` et
+ * `fitBounds` y sont vides. Les écrans lisent donc cette capacité pour ne pas
+ * peindre « Me recentrer », un recadrage ou une bascule de fond qui
+ * n'aboutiraient nulle part.
+ */
+export function realMapAvailable(): boolean {
+  return !isExpoGo() && loadNativeMap() !== null;
 }
 
 export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(props, ref) {

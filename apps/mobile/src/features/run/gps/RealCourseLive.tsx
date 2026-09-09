@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, refonteColors as c } from '@klaim/shared';
 import { useLocale } from '../../../i18n/store';
 import { GrydIcon } from '../../../ui/gryd';
-import { RealMap, type RealMapCamera, type RealMapGeoJSONLayer, type RealMapRef } from '../../../ui/game/RealMap';
+import { RealMap, realMapAvailable, type RealMapCamera, type RealMapGeoJSONLayer, type RealMapRef } from '../../../ui/game/RealMap';
 import { liveRateDisplay } from './liveRate';
 import { courseResultParams } from './resultHandoff';
 import type { RealRunApi } from './gateTypes';
@@ -22,6 +22,9 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const paused = snapshot.phase === 'paused-user';
   const rate = liveRateDisplay(run.activity, snapshot.paceSPerKm, fr ? ',' : '.');
   const mapRef = useRef<RealMapRef>(null);
+  // Sans module natif, `flyTo` est vide : le bouton de recentrage serait allumé
+  // et sans effet. On ne le peint pas (« aucun bouton mort »).
+  const mapReady = realMapAvailable();
   const lastSegment = snapshot.traceSegments[snapshot.traceSegments.length - 1];
   const lastPoint = lastSegment?.[lastSegment.length - 1];
   const camera: RealMapCamera = lastPoint ? { ...lastPoint, zoom: 16 } : { lng: 2.5, lat: 46.6, zoom: 3.9 };
@@ -51,7 +54,7 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         <Pressable style={s.minimize} accessibilityRole="button" accessibilityLabel={fr ? 'Réduire le suivi, continuer à enregistrer' : 'Minimise tracking, keep recording'} onPress={() => router.push('/')}><GrydIcon name="chevronDown" size={22} color={c.darkInk} /></Pressable>
       </View>
       {!lastPoint && <View style={s.traceEmpty} pointerEvents="none"><GrydIcon name="location" size={22} color={c.darkMuted} /><Text style={s.traceLabel}>{fr ? 'En attente des premiers points GPS' : 'Waiting for the first GPS points'}</Text></View>}
-      {lastPoint && <Pressable style={s.recenter} accessibilityRole="button" accessibilityLabel={fr ? 'Recentrer sur le dernier point enregistré' : 'Centre on the last recorded point'} onPress={() => mapRef.current?.flyTo(camera)}><GrydIcon name="location" size={21} color={c.darkInk} /></Pressable>}
+      {lastPoint && mapReady && <Pressable style={s.recenter} accessibilityRole="button" accessibilityLabel={fr ? 'Recentrer sur le dernier point enregistré' : 'Centre on the last recorded point'} onPress={() => mapRef.current?.flyTo(camera)}><GrydIcon name="location" size={21} color={c.darkInk} /></Pressable>}
     </View>
     <View style={[s.dock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <View style={s.status}><View style={[s.dot, (paused || snapshot.signal !== 'ok') && s.dotMuted]} /><Text style={s.statusText}>{paused ? (fr ? 'En pause' : 'Paused') : (fr ? 'Enregistrement' : 'Recording')}</Text></View>

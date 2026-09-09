@@ -181,3 +181,37 @@ Deno.test('détail : une sortie de septembre se lit dans son reçu, pas dans les
     'Points est écrit à zéro en dur par le serveur 2026 : ce n’est pas un fait à afficher');
   assert(detail.includes('captureAreaLabel2026(m2, locale'), 'les surfaces passent par le module testé');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 8 — LA CARTE QUAND LE MODULE NATIF MANQUE
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `ui/game/RealMap.tsx` repliait sur un fond noir DÉCORÉ (deux
+ * familles de diagonales claires qui imitent des rues) et signait ce dessin
+ * « © OpenStreetMap © CARTO » — une attribution pour des tuiles que personne
+ * n'avait chargées. `flyTo` et `fitBounds` y étaient vides : « Me recentrer »,
+ * le recadrage et la bascule de fond restaient allumés et ne faisaient rien.
+ */
+Deno.test('carte : sans module natif, aucun décor et aucune attribution empruntée', () => {
+  const map = code('../../ui/game/RealMap.tsx');
+  assert(!/grid-a-|grid-b-/.test(map), 'le repli ne dessine plus de fausses rues');
+  const fallback = map.slice(map.indexOf('function ExpoGoMapFallback'));
+  assert(!fallback.includes('basemapAttribution('),
+    'on ne signe pas OpenStreetMap/CARTO sans afficher une seule de leurs tuiles');
+  assert(map.includes('export function realMapAvailable()'),
+    'les écrans doivent pouvoir dériver leurs contrôles de la capacité RÉELLE');
+});
+
+/**
+ * ÉTAPE 0 : les trois écrans de la chaîne peignaient « Me recentrer » /
+ * « Recentrer sur le dernier point » quel que soit le build. Sur un build sans
+ * module natif, ces boutons appelaient un `flyTo` vide — « aucun bouton mort »
+ * exige que l'affichage se dérive de la capacité réelle de la plateforme.
+ */
+Deno.test('carte : les contrôles de caméra n’existent que là où la caméra existe', () => {
+  for (const path of ['../refonte/MapHome.tsx', './gps/RealCourseLive.tsx']) {
+    const screen = code(path);
+    assert(screen.includes('realMapAvailable()'), `${path} doit lire la capacité réelle`);
+  }
+});

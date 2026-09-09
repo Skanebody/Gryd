@@ -4,7 +4,7 @@ import { AppState, Linking, Platform, Modal, Pressable, ScrollView, StyleSheet, 
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, refonteColors as c, type Activity } from '@klaim/shared';
-import { RealMap, type RealMapCamera, type RealMapGeoJSONLayer, type RealMapRef } from '../../ui/game/RealMap';
+import { RealMap, realMapAvailable, type RealMapCamera, type RealMapGeoJSONLayer, type RealMapRef } from '../../ui/game/RealMap';
 import { GrydIcon, type GrydIconName } from '../../ui/gryd/GrydIcon';
 import { GrydSwitch as Switch } from '../../ui/gryd/GrydSwitch';
 import { MapTranslucent2026 } from '../../ui/gryd/MapTranslucent2026';
@@ -45,6 +45,13 @@ export default function MapHome() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const fr = useLocale() === 'fr';
+  /**
+   * LA CAPACITÉ RÉELLE DE CE BUILD. Sans module natif, la carte se replie sur
+   * un dessin dont la caméra n'existe pas : « Me recentrer » et la bascule de
+   * fond appelleraient un `flyTo` vide. On ne les peint donc pas — « aucun
+   * bouton mort », et l'affichage se dérive de ce que la plateforme sait faire.
+   */
+  const mapReady = realMapAvailable();
   const motion = useControlMotion2026();
   const { session } = useSession();
   const { gate } = useRunSession();
@@ -177,7 +184,7 @@ export default function MapHome() {
     <View pointerEvents="box-none" style={[s.tools, { bottom }]}>
       <MapControl icon="layers" label={text('Couches', 'Layers')} onPress={() => setSheet('layers')} />
       <MapControl icon="route" label={text('Préparer un parcours', 'Plan a route')} onPress={() => router.push(`/route-planner?activity=${activity}`)} />
-      <MapControl icon="location" disabled={locating} label={locating ? text('Localisation en cours', 'Locating') : text('Me recentrer', 'Find my location')} onPress={() => void locate(true)} />
+      {mapReady && <MapControl icon="location" disabled={locating} label={locating ? text('Localisation en cours', 'Locating') : text('Me recentrer', 'Find my location')} onPress={() => void locate(true)} />}
     </View>
     <View pointerEvents="box-none" style={[s.overlayAnchor, { bottom, maxHeight: overlayHeight }]}>
       <ScrollView style={s.overlayScroll} contentContainerStyle={s.overlayStack} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -216,10 +223,11 @@ export default function MapHome() {
           <ScrollView>
             {sheet === 'layers' ? <>
               {ownership.signedOut ? <Pressable accessibilityRole="button" onPress={() => { setSheet(null); router.push('/sign-in'); }} style={s.optionRow}><View style={{flex:1,gap:4}}><Text style={s.optionText}>{text('Retrouver mes terrains', 'Find my territories')}</Text><Text style={s.sheetStatus}>{text('Ta première sortie peut se faire sans compte.', 'You can record your first activity without an account.')}</Text></View><GrydIcon name="chevronRight" size={18} /></Pressable> : ownership.loading ? <Text style={s.sheetNote}>{text('Chargement des terrains…', 'Loading territories…')}</Text> : !ownership.failed && ownership.features.length === 0 ? <Text style={s.sheetNote}>{text('Aucun terrain partagé dans cette vue.', 'No shared terrain in this view.')}</Text> : null}
-              <View style={s.basemaps}>{(['color', 'dark', 'satellite'] as const).map((key, i) => <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: basemap === key }} aria-checked={basemap === key} onPress={() => setBasemap(key)} style={[s.basemap, basemap === key && s.basemapSelected]}>
+              {!mapReady && <Text style={s.sheetNote}>{text('Le fond de carte n’est pas disponible sur cette version de l’app. Les terrains et les tracés restent affichés, sans fond.', 'The map background is unavailable on this build. Terrain and routes are still drawn, without a base map.')}</Text>}
+              {mapReady && <View style={s.basemaps}>{(['color', 'dark', 'satellite'] as const).map((key, i) => <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: basemap === key }} aria-checked={basemap === key} onPress={() => setBasemap(key)} style={[s.basemap, basemap === key && s.basemapSelected]}>
                 <View style={[s.swatch, { backgroundColor: key === 'dark' ? c.carbon : key === 'satellite' ? c.rival : c.surfaceMuted }]}><GrydIcon name="map" size={32} color={key === 'color' ? c.ink : c.darkInk} /></View>
                 <Text style={s.optionText}>{[text('Clair', 'Light'), text('Noir', 'Dark'), 'Satellite'][i]}</Text>
-              </Pressable>)}</View>
+              </Pressable>)}</View>}
               <Text style={s.sheetNote}>{text('Une nuance par propriétaire. Trait plein : solo ou affiliation masquée. Pointillés : membre d’un crew. Chaque terrain reste individuel.', 'A shade per owner. Solid line: solo or hidden affiliation. Dashes: crew member. Every territory remains individually owned.')}</Text><Text style={s.sheetNote}>{text('Afficher les terrains', 'Show terrain')}</Text>
               {(['mine','crew','others'] as const).map(role => <View key={role} style={s.optionRow}><View style={s.filterLabel}><RoleLine role={role} light /><Text style={s.optionText}>{territoryRoleLabel2026(role, fr)}</Text></View><Switch value={roleFilters[role]} onValueChange={value => setRoleFilters(current => ({ ...current, [role]: value }))} accessibilityLabel={territoryRoleLabel2026(role, fr)} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} /></View>)}
               {session && <Text style={s.sheetNote}>{ownership.signedOut ? text('Connecte-toi pour retrouver ton crew.', 'Sign in to find your crew.') : ownership.loading ? text('Lecture du crew…', 'Loading crew…') : ownership.failed ? text('Crew indisponible avec les terrains.', 'Crew unavailable with terrain.') : ownership.crew ? `${text('Crew actuel', 'Current crew')} : ${ownership.crew.name}. ${text('Chaque terrain appartient à son joueur.', 'Each terrain belongs to its player.')}` : text('Aucun crew actif trouvé pour ton compte.', 'No active crew found for your account.')}</Text>}
