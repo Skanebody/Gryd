@@ -35,6 +35,27 @@ export const TERRITORY_RULES_2026 = {
   // alors que la validation sportive l'acceptait — deux vérités, un joueur volé.
 } as const;
 
+/**
+ * Lecture de la carte partagée (`get_ownership_2026`, migration 0157). Budgets
+ * OPÉRATIONNELS et non règles de jeu : ils ne changent AUCUNE possession ni
+ * aucune surface annoncée, seulement ce qu'une requête a le droit de coûter et
+ * la finesse du TRAIT affiché (§5.5 règle 7 : la simplification est visuelle,
+ * la géométrie métier reste séparée).
+ *
+ * Cette RPC est appelée par le client : elle ne peut pas se faire injecter ces
+ * bornes sans lui laisser choisir son propre plafond. Les littéraux vivent donc
+ * dans la migration, et supabase/tests/ownership_read_2026.pglite.test.mjs
+ * échoue si l'un des deux dérive de l'autre.
+ */
+export const MAP_READ_RULES_2026 = {
+  /** Plafond de zones renvoyées pour une fenêtre. Au-delà, la réponse le DIT. */
+  maxFeaturesPerViewport: 1_500,
+  /** Tolérance de simplification, en PIXELS d'écran au zoom demandé. */
+  simplifyScreenPixels: 1,
+  /** Zoom à partir duquel la géométrie métier est servie telle quelle. */
+  fullDetailMinZoom: 15,
+} as const;
+
 export const PROGRESSION_RULES_2026 = {
   minimumMovementSecondsPerDay: 10 * 60,
   xpPerActiveDay: 100,
