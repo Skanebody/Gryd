@@ -11,12 +11,18 @@
  * §2.1 de la spec unifiée, catégorique : la barre basse a EXACTEMENT trois
  * onglets, toujours — pas un interrupteur qui peut en ajouter un 4ᵉ.
  *
- * « Saison » n'est PAS retirée du jeu : `/classement` reste un ÉCRAN et une
- * ROUTE entiers (fichier `app/(tabs)/classement.tsx`, toujours déclaré dans
- * `_layout.tsx` pour ses métadonnées de titre) — seule sa PRÉSENCE DANS LA
- * BARRE disparaît. Le Profil porte les chemins qui y mènent (raccourci
- * « Saison › » de la liste de liens + lien de la section Progression, tous
- * deux déjà présents dans `app/(tabs)/profil.tsx`, gardés par `flags.season`).
+ * « Saison » n'est PAS retirée du jeu — seule sa PRÉSENCE DANS LA BARRE
+ * disparaît. Le Profil porte le chemin qui y mène.
+ *
+ * ⚠️ MISE À JOUR DU 10/09/2026 : ce paragraphe décrivait un état qui n'existe
+ * plus. `/classement` n'est PLUS un écran : `app/(tabs)/classement.tsx` est
+ * devenu une route de COMPATIBILITÉ qui redirige vers `/season` (cahier de
+ * septembre), et `app/(tabs)/profil.tsx` fait une ligne — une ré-exportation de
+ * `src/features/refonte/ProfileHomeScreen`. Le « raccourci Saison › gardé par
+ * `flags.season` » qu'on lisait ici n'existe donc nulle part. Le chemin réel est
+ * `ProfileHomeScreen.tsx:104`, un lien vers `/season` (niveau + XP), sans
+ * drapeau. La route `/classement` reste déclarée dans `(tabs)/_layout.tsx` pour
+ * ses métadonnées de titre, et c'est tout ce qu'elle est.
  * « Missions » (`/warroom`) n'a JAMAIS été dans la barre — rien ne change pour
  * cette route ici.
  *

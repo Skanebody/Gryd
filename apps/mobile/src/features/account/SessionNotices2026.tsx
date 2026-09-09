@@ -65,7 +65,7 @@ export function SessionNotices2026() {
       <View accessibilityRole="alert" style={styles.card}>
         <View style={styles.head}>
           {/* Motif + libellé, jamais la couleur seule (L15). */}
-          <GrydIcon name={deletion ? 'bouclier' : 'alerte'} size={20} color={colors.chartreuse} />
+          <GrydIcon name={deletion ? 'shield' : 'info'} size={20} color={colors.chartreuse} />
           <Text accessibilityRole="header" style={styles.title}>{t(title)}</Text>
         </View>
         <Text style={styles.body}>{t(body)}</Text>
