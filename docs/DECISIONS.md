@@ -134,3 +134,45 @@ la porte »). Ce qui garde la promesse, ici, c'est le drapeau et ce document.
 
 ### Remplace
 ADR-005 (« monétisation parquée post-MVP ») reste vrai mais devient plus faible que nécessaire : ce n'est plus un report, c'est un choix de produit pour le lancement.
+
+## ADR-012 — 2026-09-09 — Le cahier de septembre 2026 remplace le MASTER PROMPT
+
+**Décision fondateur, mot pour mot : « Le cahier de septembre remplace le MASTER. »**
+Question posée : Codex a produit une refonte complète parallèle (`docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md`, v1.0 du 08/09/2026 — 3 destinations Carte · Crew · Profil, Course + Vélo, boucle polygonale, XP par journées actives) **sans jamais avoir lu `GRYD_MASTER_PROMPT.md`**, et elle contredit la constitution sur la porte d'entrée, la palette, les seuils de boucle et le pipeline d'ingestion. Qu'est-ce qui fait autorité ?
+
+### Ce qui change : le rang 0
+Le rang 0 passe au **cahier de septembre**. Le MASTER descend au rang d'**archive et de référence technique** — conservé, jamais supprimé ; l'encart de renvoi ajouté en tête ce jour est la seule modification autorisée (§12.11 levé pour ce seul encart, rien n'est retiré).
+⚠️ **Le cahier n'est pas sur cette branche.** Il vit sur `codex/refonte-2026-09` (`a5b2b0d`) et doit être **rapatrié** dans `docs/product/`. Tant qu'il ne l'est pas, `main` n'a pas de rang 0 lisible : c'est le premier travail dû.
+
+### Ce qui NE change PAS — vérifié point par point DANS le cahier
+1. **L'app ne ment jamais / 4 états distincts** — CONSERVÉ. G26 : « Liste avec état réel : connecté, synchronisation en attente, action nécessaire, indisponible » et « employer *Aucune donnée disponible* plutôt qu'un diagnostic faux » ; §8.2 : « Aucun champ vide n'est remplacé par une fréquence cardiaque, une puissance ou des calories inventées ». L19 aussi (§5.2) : « Une sortie sans boucle doit être présentée comme *5,2 km enregistrés*, jamais comme un échec. »
+2. **Tout claim décidé serveur · RLS partout** — CONSERVÉ. §18.4 : « RLS et droits d'écriture interdisent au client de s'attribuer propriété, XP ou achats. » §18.2, invariants : CaptureEvent « aucune décision du client seul » ; Entitlement « Un écran n'accorde jamais un droit en local à lui seul ».
+3. **Zéro donnée factice** — CONSERVÉ, avec **une nuance à trancher**. §6.5 : « Aucun faux crew, faux adversaire, fausse activité ou faux nombre de membres ne doit combler une carte vide » ; G03 : « Pas de grande capitale affichée par défaut comme si l'utilisateur s'y trouvait ». MAIS §17.5 autorise « des fixtures identifiées et isolées » pour la revue App Store et §17.3 « des données de démonstration clairement préparées pour ce contexte », là où CLAUDE.md est catégorique. **Tension ouverte, non tranchée ici.**
+4. **Aucun bouton mort** — CONSERVÉ. §17.5 : « Tous les boutons de P1 mènent à un résultat réel ; aucune page *bientôt* dans le parcours principal » ; §19.1 : « ne pas mettre un onglet décoratif pour faire croire qu'elle fonctionne » ; G24 : « Pas de pastilles rouges permanentes ni de faux stocks restants ».
+5. **Une doc ne promet jamais au-delà du code** — CONSERVÉ, et le cahier se l'applique à lui-même. En-tête : « Il ne décrit pas une application déjà reconstruite ou validée sur l'App Store » ; §18.6 : « Aucune n'a été mesurée sur l'application par ce document » ; §20 : « Ce travail documentaire n'a pas exécuté une recette de l'application » ; §12.4 : « Les fonctions P2 ne doivent pas figurer comme disponibles sur la fiche App Store de P1. »
+6. **Migration jamais réécrite** — NON CONTREDIT : le cahier ne traite pas le sujet ; son §19.2 parle de migration de **données** (règles versionnées `legacy` / `2026.1`, essai réversible, retour arrière). L'interdit reste entier — et devient le point dur de l'intégration (conséquence 2).
+7. **Anti-pay-to-win strict (règle 10)** — CONSERVÉ et durci. §16.2 : « Capture, reprise, défis et chances de victoire → Strictement identiques » ; §4.2 : « Pas de capture multipliée par l'abonnement, de protection achetable ou de boost XP » ; §7.2 : « Le niveau ne change aucun calcul de capture ou de match » ; recette n° 22 : « Joueur payant et gratuit, mêmes activités → Même capture, même XP, mêmes points de défi ». Annexe B : « GRYD ne reprend pas une probabilité de récompense augmentée par le paiement. »
+
+### Tensions ouvertes — CONSTATÉES, PAS TRANCHÉES
+- **ADR-011 (100 % gratuit)** contre §16.1 : le cahier **vend** dès P1 (GRYD+ 5,99 €/mois · 49,99 €/an ; collections 1,99 / 3,99 / 7,99 €). Ce n'est pas du pay-to-win (point 7), c'est l'inverse d'ADR-011 — qui exigeait lui-même « un ADR à part » pour ouvrir un catalogue. La décision du fondateur porte sur le MASTER, pas nommément sur ADR-011.
+- **ADR-010** (la propriété = les cellules H3 ; `territories` = la mémoire de la course) contre §5.3 + §5.5-8 (« une boucle valide revendique son polygone admissible » ; « H3 peut subsister comme index spatial interne ; il ne décide plus des captures en parallèle »). Les deux exigent UNE seule vérité territoriale et choisissent l'inverse l'une de l'autre.
+- **ADR-008** (`#C2FF23`, échelle neutre VERTE `#060907` / `#151C17` …, `grisFaible` corrigé à `#707B72` pour AA) contre la direction visuelle Codex du 09/09 (`#B4FF0D`, neutres GRIS `#0A0A0A` / `#171717` / `#292929`), qui remplace elle-même le §10.2 du cahier (`#C9FF38`). L'écart porte sur l'échelle neutre autant que sur l'accent. Le §10.2 impose de « mesurer le contraste de chaque paire effectivement utilisée » : cette exigence-là est compatible avec la méthode d'ADR-008.
+- **ADR-006** (Rouen, beachhead unique) contre §15.3 (« Paris et Lille sont les villes historiques du projet, à confirmer par la présence de capitaines engagés ») et l'`AGENTS.md` de Codex (« Saison 0 focalisée Paris + Lille »).
+- **ADR-002** (reset de Saison 0 = total festif) contre §6.6 (« son état à la clôture est archivé comme souvenir de saison, sans reset forcé de toute la carte »).
+- **ADR-003** : les deltas Annexe A perdent leur objet — §5.3 supprime le bouclier (« Il n'y a ni bouclier, ni contestation de 18 heures, ni défense achetable, ni dette de connexion ») et le decay ; §5.5 change les seuils (fermeture 25 m course / 40 m vélo · 800 m / 2 km · 5 000 m² / 20 000 m²). La règle « une seule source de constantes » (`game-rules.ts`), elle, n'est pas contredite.
+
+### Conséquences immédiates
+1. **Codex n'a jamais vu le MASTER.** Son Annexe A liste le corpus consulté : ni `GRYD_MASTER_PROMPT.md`, ni `docs/DECISIONS.md`, ni `docs/STATUS.md` n'y figurent. Tout ce qu'il déclare « remplacé » l'est par rapport au corpus de **juillet**, pas au régime du 02/08.
+2. **Collision de migrations, sur des migrations DÉJÀ APPLIQUÉES.** Prod est à **0112** (`supabase migration list` le 09/09/2026, local = remote). La branche Codex porte `0107 → 0117` sous d'autres noms : `0107_refonte_2026_polygon_authority` … `0112_refonte_2026_territory_read_model` occupent six numéros appliqués en prod. Conséquence : **renumérotation en 0118+** (ses propres `0113`–`0117` tiennent déjà les slots suivants). ⚠️ Au 09/09 elle n'est **pas faite** : `a5b2b0d` porte toujours 0107–0117, et aucun fichier `0118+` n'existe dans le dépôt. Un fichier appliqué ne se réécrit pas.
+3. **Les déclarations d'autorité de Codex précèdent la décision.** Son `AGENTS.md` (priorité 0) et son `SOURCE_OF_TRUTH_REGISTER.md` (D-20 : « le cahier de septembre devient la référence produit et de réalisation », `AGENTS.md` au rang 1, code au rang 2) ont été écrits **avant** que la question soit posée au fondateur et **sans** connaître le MASTER : à relire à la lumière d'ADR-012, pas à recopier. Aucun des deux n'est sur cette branche. ⚠️ D-20 ne mentionne pas `docs/DECISIONS.md` — divergence de hiérarchie à réconcilier.
+4. **La ligne MASTER se réconcilie, elle ne se jette pas.** Les commits depuis le 02/09 (accessibilité, honnêteté d'affichage, `POINT_MAX_GAP_S` avec `ingest_run` redéployée le 09/09, manifeste de confidentialité, contact `hey@gryd.run`) portent des correctifs réels, certains déployés. Décompte de 32 commits repris du relevé de session, non recompté ici.
+5. **Rien n'est recetté.** `REFONTE_2026_RECETTE.md` le dit lui-même : « aucun déploiement distant, achat réel ou test GPS sur appareil n'a été réalisé » ; les harnais PGlite « n'exécutent pas PostGIS » ; la migration `0117` est un « correctif non déployé ». Aucune ligne de `docs/STATUS.md` ne bouge sur cette base.
+
+### Ordre d'autorité RÉVISÉ (reporté dans `CLAUDE.md`)
+```text
+0. docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md   (le cahier — à rapatrier)
+1. docs/DECISIONS.md                                (ADR datés ; ADR-012 en tête)
+2. GRYD_MASTER_PROMPT.md + docs/SPEC-*.md           (archives et références techniques)
+3. Tout le reste                                    (ARCHIVES, jamais une source)
+```
+Le passage de `docs/DECISIONS.md` au rang 1 est **mécanique** : c'est là que vivent les décisions du fondateur, dont celle-ci. Les interdits listés ci-dessus **survivent au déclassement du MASTER** : ils sont repris par le cahier, ils n'en dépendaient pas.

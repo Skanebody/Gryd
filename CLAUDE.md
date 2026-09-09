@@ -2,17 +2,23 @@
 
 Jeu mobile : courir → fermer une boucle → territoire sur la carte. MVP Saison 0 **Rouen**.
 
-## Constitution (ordre strict — §1 du MASTER)
-1. **`GRYD_MASTER_PROMPT.md`** (racine) — la constitution. Ne jamais contredire.
-2. **`docs/DECISIONS.md`** — ADR datés. **ADR-001 (hybride)** : UI mobile reconstruite à neuf ;
-   `packages/engine` + `packages/shared` + `supabase/` CONSERVÉS mais rien n'est « fait »
-   sans re-preuve (`docs/STATUS.md` démarre 100 % ABSENT).
-3. `docs/SPEC-CORE / SPEC-UX / SPEC-GEO / SPEC-SHARE .md` — specs par domaine.
-4. Tout le reste (AMENDEMENT-*, anciennes specs, REPRISE_SESSION) = **ARCHIVES** : documentation
+## Constitution (ordre strict — ADR-012 du 09/09/2026)
+0. **`docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md`** — le cahier de septembre. Rang 0 depuis
+   **ADR-012** (décision fondateur : « le cahier de septembre remplace le MASTER »). ⚠️ Il vit sur
+   `codex/refonte-2026-09` et reste **à rapatrier** : tant qu'il n'est pas dans `docs/product/`,
+   cette branche n'a pas de rang 0 lisible.
+1. **`docs/DECISIONS.md`** — ADR datés. **ADR-012** : rang 0 au cahier, interdits qui survivent,
+   tensions ouvertes (ADR-002/003/006/008/010/011), collision de migrations 0107–0112.
+   **ADR-001 (hybride)** : UI mobile reconstruite à neuf ; `packages/engine` + `packages/shared` +
+   `supabase/` CONSERVÉS mais rien n'est « fait » sans re-preuve (`docs/STATUS.md` démarre 100 % ABSENT).
+2. **`GRYD_MASTER_PROMPT.md`** (racine) + `docs/SPEC-CORE / SPEC-UX / SPEC-GEO / SPEC-SHARE .md` —
+   **archives et références techniques** depuis ADR-012. Conservés, jamais supprimés ; opposables
+   tant qu'ils ne contredisent pas le rang 0.
+3. Tout le reste (AMENDEMENT-*, anciennes specs, REPRISE_SESSION) = **ARCHIVES** : documentation
    du code conservé, jamais une source de décision nouvelle. Branche d'archive complète :
    `archive/pre-master-2026-08`.
 
-## Interdits hérités qui restent constitutionnels (repris par le MASTER §12)
+## Interdits hérités qui restent constitutionnels (MASTER §12, repris par le cahier — ADR-012)
 - **L'app ne ment jamais** : données réelles ou VIDES ; 4 états distincts (pas connecté / vide /
   échec / en cours) ; jamais un « 0 » nu, un spinner infini ni un repli inventé (L8, L14, L19).
 - **Tout claim est décidé serveur** ; écriture client interdite sur les tables de jeu ; RLS partout.

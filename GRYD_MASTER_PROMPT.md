@@ -1,3 +1,7 @@
+> **Remplacé le 09/09/2026 par le cahier de septembre (ADR-012).** Conservé comme archive et référence technique.
+> Rang 0 : `docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md` — décision et périmètre exact : `docs/DECISIONS.md`, ADR-012.
+> Les interdits du §12 listés dans `CLAUDE.md` restent constitutionnels : le cahier les reprend, ils ne tombent pas avec ce fichier.
+
 # GRYD — MASTER PROMPT ORCHESTRATEUR v1.0
 > Fichier d'instructions pour Claude Code. À placer à la racine du repo.
 > Première commande à exécuter : « Lis GRYD_MASTER_PROMPT.md en entier, puis exécute la Phase 0. »

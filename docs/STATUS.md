@@ -5,6 +5,12 @@
 > preuve `qa-verify` exécutée dans le contexte MVP fait passer une ligne à
 > PARTIEL ou OPÉRATIONNEL — avec le lien vers la preuve (test, capture, log).
 
+> **09/09/2026 — la ligne produit a changé (ADR-012)** : le cahier de septembre passe au rang 0, le MASTER
+> devient archive ; le tableau ci-dessous décrit encore le périmètre MASTER et n'a pas été réécrit, et
+> l'intégration cahier Codex ↔ ligne du 02/09 est **EN COURS, NON RECETTÉE** — la recette de Codex dit
+> elle-même « aucun déploiement distant, achat réel ou test GPS sur appareil n'a été réalisé » et ses
+> harnais PGlite « n'exécutent pas PostGIS ». Aucune ligne de ce tableau ne bouge sur cette base.
+
 | Fonctionnalité (périmètre IN, §7) | État | Preuve |
 |---|---|---|
 | Onboarding 3 écrans + priming permissions | **ABSENT** | — |
