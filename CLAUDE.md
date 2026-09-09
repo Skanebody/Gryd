@@ -60,8 +60,9 @@ scripts/         sync-game-rules.mjs (shared+engine → _shared/ + copies mobile
   comparer en PLAGE de 1 ms.
 
 ## Backend
-Projet Supabase `gryd` (`sydwxwwirinjoheeodcg`) — migrations appliquées jusqu'à `0106` en prod,
-`0107-0111` committées non appliquées. Cursor pousse sur le même projet : toujours
+Projet Supabase `gryd` (`sydwxwwirinjoheeodcg`) — migrations appliquées jusqu'à **`0112`** en prod
+(vérifié `supabase migration list` le 09/09/2026 : local = remote). `ingest_run` redéployée le 09/09
+(`POINT_MAX_GAP_S`). Cursor pousse sur le même projet : toujours
 `supabase migration list` avant un push. Secrets : jamais en dur ; `scratchpad-secrets.local`
 (gitignored). Base réelle : 3 comptes, 0 donnée de jeu.
 
