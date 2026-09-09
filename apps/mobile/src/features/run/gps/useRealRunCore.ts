@@ -64,6 +64,7 @@ import { resumedDeadTimeMs } from './runPipeline';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import { saveLocalActivity2026, type LocalActivity2026 } from '../../refonte/localActivities';
 import { canResumeInterrupted } from './runActivity';
+import { backgroundOfferSeen, markBackgroundOfferSeen } from './backgroundOffer';
 // La MÊME fenêtre que la décision de démarrage (`app/_layout.tsx` la consomme
 // déjà par `decideCrashRecoveryNavigation`). Deux fenêtres différentes
 // donneraient un écran de reprise ouvert par le boot puis refusé par l'écran.
@@ -149,6 +150,13 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     fresh: boolean;
   } | null>(null);
   const [permissionRevoked, setPermissionRevoked] = useState(false);
+  /**
+   * L'enregistrement écran verrouillé est-il à PROPOSER avant le départ ? Vrai
+   * seulement quand la plateforme sait le faire, que la permission n'est pas
+   * déjà accordée, et qu'on ne l'a jamais demandée sur cet appareil. Un refus
+   * est une réponse : on ne la repose pas à chaque sortie.
+   */
+  const [bgOfferAtStart, setBgOfferAtStart] = useState(false);
 
   /**
    * Persiste l'état courant. Tant qu'une reprise « Course interrompue
@@ -394,6 +402,21 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       // course fantôme (rien n'a été construit). Une course interrompue chargée
       // ci-dessus reste proposée en reprise, intacte.
       setCoarseOnly(acquired.coarseOnly ?? false);
+      // G07 — LA QUESTION DE L'ARRIÈRE-PLAN SE POSE ICI, PAS EN COURSE.
+      // Elle n'était proposée qu'au retour d'un passage en arrière-plan : le
+      // joueur l'apprenait après avoir déjà perdu des points, sur un écran où
+      // il court. On la pose une fois, à l'amorce, quand elle est utile — et
+      // jamais à froid : il y a une sortie qui commence derrière.
+      const bg = adapter.background;
+      if (bg !== null) {
+        bgGrantedRef.current = await bg.checkGranted();
+        if (!alive) return;
+        if (!bgGrantedRef.current && !(await backgroundOfferSeen())) {
+          if (!alive) return;
+          setBgOfferAtStart(true);
+        }
+      }
+      if (!alive) return;
       setKind('preflight');
     })();
     return () => {
@@ -458,6 +481,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     if (bg === null) return;
     bgAskedRef.current = true;
     void (async () => {
+      await markBackgroundOfferSeen();
       const granted = await bg.request();
       track(EVENTS.permissionLocation, {
         result: granted ? 'background_granted' : 'background_denied',
@@ -473,6 +497,31 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       }
     })();
   }, [adapter, startSensors]);
+
+  /**
+   * Demande la permission « Toujours » DEPUIS LE PRÉFLIGHT. Elle ne démarre
+   * AUCUN capteur : le tracker n'existe pas encore, et ouvrir la tâche
+   * d'arrière-plan avant le GO enregistrerait une sortie que personne n'a
+   * lancée. `confirmStart` relit la permission juste avant d'ouvrir le flux.
+   */
+  const offerBackgroundAtStart = useCallback(() => {
+    const bg = adapter.background;
+    if (bg === null) return;
+    bgAskedRef.current = true;
+    setBgOfferAtStart(false);
+    void (async () => {
+      await markBackgroundOfferSeen();
+      const granted = await bg.request();
+      track(EVENTS.permissionLocation, { result: granted ? 'background_granted' : 'background_denied' });
+      bgGrantedRef.current = granted;
+    })();
+  }, [adapter]);
+
+  const declineBackgroundAtStart = useCallback(() => {
+    bgAskedRef.current = true;
+    setBgOfferAtStart(false);
+    void markBackgroundOfferSeen();
+  }, []);
 
   const dismissBackground = useCallback(() => {
     bgAskedRef.current = true;
@@ -653,6 +702,43 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
   }, [stopSensors, uploadOrQueue]);
 
   /**
+   * ANCRE DE DÉPART (`begin_recording_2026`) — LE FAIT QUE LE SERVEUR OBSERVE.
+   *
+   * Elle partait en « fire and forget » : un départ hors couverture ne l'ancrait
+   * jamais, et la sortie retombait en `source_or_clock_unconfirmed` — une
+   * capture perdue pour une barre de réseau. On retente donc.
+   *
+   * MAIS LE RETRY EST BORNÉ PAR UN FAIT, PAS PAR UNE DURÉE. L'ancre porte
+   * `started_at = now()` côté serveur, et `pointsAfterAnchor2026` écarte du jeu
+   * tout point ANTÉRIEUR : une ancre posée cinq minutes après le départ
+   * tronquerait la boucle — pire que pas d'ancre du tout, puisque
+   * `adopt_recording_session_2026` (migration 0155) sait adopter une session a
+   * posteriori quand la trace est cohérente. On ne retente donc que TANT
+   * QU'AUCUN POINT N'A ÉTÉ MESURÉ : là, l'ancre ne coûte rien. Au-delà, le
+   * rattrapage appartient au serveur, qui lit la trace entière.
+   */
+  const anchorRecording = useCallback(async (tracker: RunTracker, activity: Activity) => {
+    if (!supabase || tracker.recordingOwnerId === null || sessionRef.current?.user.id !== tracker.recordingOwnerId) return;
+    // Attentes croissantes : une coupure réseau brève se répare en quelques
+    // secondes, et la trace n'a en général pas encore de point à ce stade.
+    for (const waitMs of [0, 1_000, 3_000, 5_000]) {
+      if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
+      if (trackerRef.current !== tracker || finishedRef.current) return;
+      if (tracker.recordingSessionId !== undefined) return;
+      // Un point est arrivé : une ancre posée maintenant l'exclurait du jeu.
+      const nothingMeasuredYet = tracker.rawFixes.length === 0;
+      if (!nothingMeasuredYet) return;
+      const { data, error } = await supabase.rpc('begin_recording_2026', { p_client_run_id: tracker.runId, p_activity: activity });
+      if (!error && typeof data?.id === 'string') {
+        if (trackerRef.current !== tracker) return;
+        tracker.recordingSessionId = data.id;
+        void flush();
+        return;
+      }
+    }
+  }, [flush]);
+
+  /**
    * E06 — DÉMARRE la course réelle depuis le préflight : construit le tracker
    * (startedAt = MAINTENANT, c'est-à-dire la FIN du compte à rebours), lance le
    * podomètre + les capteurs, passe à 'real'. SEUL point qui stampe l'horloge et
@@ -681,15 +767,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     trackerRef.current = tracker;
     // This anchor is optional for recording. Offline starts stay in the journal
     // with pending territory; the client never invents an attestation.
-    if (supabase && recordingOwnerId !== null && sessionRef.current?.user.id === recordingOwnerId) {
-      void supabase.rpc('begin_recording_2026', { p_client_run_id: tracker.runId, p_activity: activity })
-        .then(({ data, error }) => {
-          if (!error && typeof data?.id === 'string' && trackerRef.current === tracker) {
-            tracker.recordingSessionId = data.id;
-            void flush();
-          }
-        });
-    }
+    void anchorRecording(tracker, activity);
     // LE JOURNAL DE SYNCHRO S'OUVRE ICI, AU NOM DE CETTE SORTIE. C'est le point
     // exact où son identité (`runId` = `clientRunId` du payload) naît. Sans
     // propriétaire nommé, le journal recevait tout ce que l'appareil publiait —
@@ -745,6 +823,11 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         platform: adapter.platform,
         foregroundOnlyPlatform: adapter.background === null,
         openSettings: adapter.openSettings,
+        // G07 : la permission d'arrière-plan se propose ICI, une seule fois.
+        // `null` là où l'arrière-plan n'existe pas (navigateur) : on ne propose
+        // jamais une permission introuvable.
+        background: adapter.background === null ? null
+          : { offer: bgOfferAtStart, allow: offerBackgroundAtStart, decline: declineBackgroundAtStart },
         confirmStart,
         cancel,
       },

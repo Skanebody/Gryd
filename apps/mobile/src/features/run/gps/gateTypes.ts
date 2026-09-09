@@ -121,6 +121,20 @@ export interface PreflightApi {
   /** Ouvrir les réglages système — `null` dans un navigateur (il n'y en a pas). */
   openSettings: (() => void) | null;
   /**
+   * L'ENREGISTREMENT ÉCRAN VERROUILLÉ, PROPOSÉ AVANT LA SORTIE (G07).
+   *
+   * `null` là où l'arrière-plan n'existe pas (navigateur) : on ne propose
+   * jamais une permission introuvable. `offer` n'est vrai que si la plateforme
+   * sait le faire, que la permission n'est PAS déjà accordée, et qu'on ne l'a
+   * jamais demandée sur cet appareil — un refus est une réponse, et cette
+   * question ne se repose pas à chaque départ.
+   *
+   * `allow` demande la permission système SANS ouvrir aucun capteur : le
+   * tracker n'existe pas encore, et démarrer la tâche d'arrière-plan avant le
+   * GO enregistrerait une sortie que personne n'a lancée.
+   */
+  background: { offer: boolean; allow: () => void; decline: () => void } | null;
+  /**
    * Démarre la course RÉELLE (tracker + capteurs). Appelé À LA FIN du compte à
    * rebours uniquement. Idempotent (jamais deux trackers).
    *

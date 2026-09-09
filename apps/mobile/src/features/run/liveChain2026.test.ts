@@ -311,3 +311,44 @@ Deno.test('course : trois causes GPS, trois phrases, et les Réglages là où il
   assert(!/Signal GPS faible[^']*'\s*\)?\s*:\s*\(fr/.test(live) || live.includes('précision exacte'),
     'la précision réduite ne se dit plus « signal faible »');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 4 — L'ANCRE DE DÉPART ET L'ARRIÈRE-PLAN
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `begin_recording_2026` partait en « fire and forget ». Un départ
+ * hors couverture n'ancrait donc jamais la sortie, et le serveur la classait
+ * `source_or_clock_unconfirmed` — une capture perdue pour une barre de réseau.
+ *
+ * Le retry est BORNÉ par un fait, pas par une durée arbitraire : l'ancre porte
+ * `started_at = now()` et `pointsAfterAnchor2026` écarte du jeu tout point
+ * antérieur. Poser une ancre APRÈS les premiers points tronquerait la boucle —
+ * pire que pas d'ancre du tout, puisque `adopt_recording_session_2026`
+ * (migration 0155) sait désormais adopter une session a posteriori.
+ */
+Deno.test('départ : l’ancre est retentée tant qu’elle ne coûte rien, jamais après', () => {
+  const core = code('./gps/useRealRunCore.ts');
+  const anchor = core.slice(core.indexOf('const anchorRecording'), core.indexOf('const cancel = useCallback'));
+  assert(anchor.includes("supabase.rpc('begin_recording_2026'"), 'l’ancre reste posée par le même appel');
+  assert(anchor.includes('const nothingMeasuredYet = tracker.rawFixes.length === 0;'),
+    'on ne retente que tant qu’aucun point n’a été mesuré : une ancre tardive tronquerait la boucle');
+  assert(anchor.includes('if (trackerRef.current !== tracker || finishedRef.current) return;'),
+    'aucune ancre ne se pose sur la sortie suivante ni sur une sortie terminée');
+});
+
+/**
+ * ÉTAPE 0 : la permission « Toujours » n'était proposée qu'AU RETOUR d'un
+ * passage en arrière-plan — c'est-à-dire après avoir déjà perdu des points.
+ * Le cahier (G07) veut la question au moment où elle est utile : à l'amorce,
+ * une seule fois, jamais à froid.
+ */
+Deno.test('départ : l’enregistrement écran verrouillé se propose AVANT la sortie, une fois', () => {
+  const core = code('./gps/useRealRunCore.ts');
+  assert(core.includes('backgroundOfferSeen'), 'la proposition est mémorisée : on ne harcèle pas');
+  assert(core.includes('background: adapter.background === null ? null'), 'le préflight reçoit l’offre');
+  const preflight = code('./gps/RunPreflight.tsx');
+  assert(preflight.includes('preflight.background'), 'le préflight la peint');
+  const offer = code('./gps/backgroundOffer.ts');
+  assert(offer.includes('AsyncStorage'), 'la mémoire est locale, sans compte ni réseau');
+});
