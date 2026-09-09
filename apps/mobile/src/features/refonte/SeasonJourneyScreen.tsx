@@ -7,7 +7,8 @@ import { careerProgress2026, colors, EVENTS, fonts, LEVEL_REWARDS_2026, PROGRESS
 import { screen, track } from '../../lib/analytics';
 import { useLocale } from '../../i18n/store';
 import { useSession } from '../../lib/session';
-import { seasonObjectPreview2026, studioRewardLabel2026 } from '../share/studioObjects2026';
+import { seasonObjectPreview2026 } from '../share/studioObjects2026';
+import { rewardLabel2026 } from './SeasonRewardLabels2026';
 import { useProfileProgress } from './ProfileProgress';
 import { SeasonCollections2026 } from './SeasonCollections2026';
 import { ProfileButton, ProfilePage, ProfileSection, ProfileSegments, s, useRefonteCopy } from './ProfilePrimitives';
@@ -16,11 +17,7 @@ import { ProgressAchievementMoment2026 } from './ProgressAchievementMoment2026';
 
 export { rewardVariant2026 } from './SeasonRewardArtwork2026';
 
-const REWARD_EN: Record<string, string> = {
-  first_trace: 'First trace', line_frame: 'Line frame', chalk: 'Chalk palette', atlas: 'Atlas collection', contour_animation: 'Contour animation', ridge_merit: 'Ridgeline', cartographer: 'Cartographer', horizon: 'Horizon set',
-  season_poster: 'First season poster', participation_badge: 'Participation badge', trace_pattern: 'Trace pattern', profile_frame: 'Season frame', sticker: 'Sticker', title: 'Season title', photo_composition: 'Photo or type composition', personal_emblem: 'Personal emblem', short_animation: 'Short animation', recap: 'Activity recap', final_poster: 'Final poster', season_memory: 'Complete season memory',
-};
-export function rewardLabel2026(id: string, label: string, locale: string) { return studioRewardLabel2026(id,locale === 'en' ? REWARD_EN[id] ?? label : label,locale); }
+export { rewardLabel2026 } from './SeasonRewardLabels2026';
 
 export function SeasonJourneyScreen() {
   const copy = useRefonteCopy(); const locale = useLocale();

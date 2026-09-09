@@ -21,9 +21,12 @@ export interface ProfileProgress2026 {
   season: null | { id: string; title: string; startsAt: string; endsAt: string; activeDays: number; stage: number; xp: number; archived: boolean };
   collections: ProgressCollection2026[];
   ownedRewards: OwnedSeasonReward2026[];
+  /** §7.2 — objets de niveau octroyés par 0144. Un catalogue peint n'en est pas un. */
+  levelRewards: OwnedLevelReward2026[];
 }
 export interface ProgressCollection2026 { id: string; title: string; startsAt: string; endsAt: string; state: 'current' | 'archived' | 'upcoming'; started: boolean; selectable: boolean; xp: number; stage: number }
 export interface OwnedSeasonReward2026 { id: string; collectionId: string; rewardId: string; tier: number; label: string; variant: 'standard' | 'premium'; earnedAt: string; equipped: boolean }
+export interface OwnedLevelReward2026 { id: string; rewardId: string; level: number; label: string; equippable: boolean; earnedAt: string; equipped: boolean }
 
 export type ProfileProgressStatus = 'loading' | 'signed-out' | 'unavailable' | 'failed' | 'ready';
 
@@ -41,12 +44,17 @@ export function parseProfileProgress(value: unknown): ProfileProgress2026 | null
     season = { id: item.id, title: item.title, startsAt: item.startsAt, endsAt: item.endsAt, activeDays: item.activeDays, stage: item.stage, xp: item.xp, archived: item.archived };
   }
   if (typeof row.pending !== 'boolean' || typeof row.timeZone !== 'string' || !Array.isArray(row.collections) || !Array.isArray(row.ownedRewards)) return null;
+  // Un serveur antérieur à 0144 n'envoie pas ce champ : absent = aucun objet de
+  // niveau CONNU, jamais un catalogue coché de repli.
+  if (row.levelRewards !== undefined && !Array.isArray(row.levelRewards)) return null;
   const collections = row.collections.filter((v): v is ProgressCollection2026 => !!v && typeof v === 'object' && typeof v.id === 'string' && typeof v.title === 'string' && typeof v.startsAt === 'string' && typeof v.endsAt === 'string' && ['current', 'archived', 'upcoming'].includes(v.state) && typeof v.selectable === 'boolean' && typeof v.started === 'boolean' && valid(v.xp) && valid(v.stage));
   const ownedRewards = row.ownedRewards.filter((v): v is OwnedSeasonReward2026 => !!v && typeof v === 'object' && typeof v.id === 'string' && typeof v.collectionId === 'string' && typeof v.rewardId === 'string' && typeof v.label === 'string' && typeof v.earnedAt === 'string' && ['standard', 'premium'].includes(v.variant) && valid(v.tier) && typeof v.equipped === 'boolean');
-  if (collections.length !== row.collections.length || ownedRewards.length !== row.ownedRewards.length) return null;
+  const rawLevelRewards = Array.isArray(row.levelRewards) ? row.levelRewards : [];
+  const levelRewards = rawLevelRewards.filter((v): v is OwnedLevelReward2026 => !!v && typeof v === 'object' && typeof v.id === 'string' && typeof v.rewardId === 'string' && typeof v.label === 'string' && typeof v.earnedAt === 'string' && valid(v.level) && typeof v.equippable === 'boolean' && typeof v.equipped === 'boolean');
+  if (collections.length !== row.collections.length || ownedRewards.length !== row.ownedRewards.length || levelRewards.length !== rawLevelRewards.length) return null;
   const selection = row.pendingSelection as Record<string, unknown> | null;
   const zone = row.pendingTimeZone as Record<string, unknown> | null;
-  return { totalXp: row.totalXp, activeDays: row.activeDays, season, pending: row.pending, timeZone: row.timeZone, collections, ownedRewards,
+  return { totalXp: row.totalXp, activeDays: row.activeDays, season, pending: row.pending, timeZone: row.timeZone, collections, ownedRewards, levelRewards,
     selectedCollectionId: typeof row.selectedCollectionId === 'string' ? row.selectedCollectionId : null,
     pendingSelection: selection && typeof selection.collectionId === 'string' && typeof selection.effectiveDay === 'string' ? { collectionId: selection.collectionId, effectiveDay: selection.effectiveDay } : null,
     pendingTimeZone: zone && typeof zone.timeZone === 'string' && typeof zone.effectiveAt === 'string' ? { timeZone: zone.timeZone, effectiveAt: zone.effectiveAt } : null,

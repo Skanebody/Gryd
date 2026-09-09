@@ -11,14 +11,14 @@ import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 import { screen } from '../../lib/analytics';
 import { CommercialCollectionsPanel2026 } from './CommercialCollectionsPanel2026';
-import { resolveStudioObject2026, seasonObjectPreview2026, type StudioObjectRequest2026 } from '../share/studioObjects2026';
+import { resolveStudioObject2026, seasonObjectPreview2026, type StudioObject2026, type StudioObjectRequest2026 } from '../share/studioObjects2026';
 import { requestStudioObject2026 } from '../share/studioObjectSelection2026';
 import { GrydIcon } from '../../ui/gryd';
 import { rewardLabel2026 } from './SeasonJourneyScreen';
 import { useProfileProgress } from './ProfileProgress';
 import { SeasonCollections2026 } from './SeasonCollections2026';
 import { SeasonalIdentity2026 } from './SeasonalIdentity2026';
-import { SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
+import { LevelRewardArtwork2026, SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
 import { canRenderSeasonIdentity2026 } from './seasonIdentityModel2026';
 import { ProfileButton, ProfileLink, ProfilePage, ProfileSegments, s, useRefonteCopy } from './ProfilePrimitives';
 const COSMETIC_SECTIONS = new Set(['frames', 'skins_trace', 'templates', 'emblems', 'banners', 'skins_territory']);
@@ -41,17 +41,36 @@ function CollectionContents() {
   const [busy, setBusy] = useState(false); const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => { screen('arsenal'); }, []);
   const rewards = progress.data?.ownedRewards ?? [];
+  // §7.2 — les objets de niveau viennent du serveur (0144) au même titre que
+  // les objets de saison. Un catalogue coché n'entre jamais dans cette liste.
+  const levelRewards = progress.data?.levelRewards ?? [];
+  const levelEdition = (level: number) => copy(`Niveau ${level}`, `Level ${level}`);
+  const studioLevelRewards = levelRewards.map(reward => ({ rewardId: reward.rewardId, label: reward.label, level: reward.level, edition: levelEdition(reward.level) }));
   const selected = rewards.find(reward => reward.id === selectedId) ?? null;
+  const selectedLevel = levelRewards.find(reward => reward.id === selectedId) ?? null;
   const collection = selected ? progress.data?.collections.find(item => item.id === selected.collectionId) : null;
-  const selectedRequest:StudioObjectRequest2026|null=selected?{kind:'season',collectionId:selected.collectionId,rewardId:selected.rewardId,variant:selected.variant}:null;
-  const selectedObject=resolveStudioObject2026(selectedRequest,rewards,[],progress.data?.collections??[]);
+  const selectedRequest:StudioObjectRequest2026|null=selected?{kind:'season',collectionId:selected.collectionId,rewardId:selected.rewardId,variant:selected.variant}:selectedLevel?{kind:'level',rewardId:selectedLevel.rewardId}:null;
+  const selectedObject=resolveStudioObject2026(selectedRequest,rewards,[],progress.data?.collections??[],studioLevelRewards);
   const legacy = [...inventory.ownedKeys].map(itemByKey).filter((item): item is ArsenalCatalogItem => !!item && !item.consumable && COSMETIC_SECTIONS.has(item.section));
-  const equipped = rewards.filter(reward => reward.equipped);
+  const equipped = [...rewards, ...levelRewards].filter(reward => reward.equipped);
+  const tiles: { id: string; serial: string; name: string; edition: string; equipped: boolean; level: boolean; rewardId: string; object: StudioObject2026 | null }[] = [
+    ...rewards.map(reward => ({ id: reward.id, serial: String(reward.tier).padStart(2, '0'), name: rewardLabel2026(reward.rewardId, reward.label, locale),
+      edition: reward.variant === 'premium' ? copy('Édition GRYD+', 'GRYD+ edition') : copy('Édition standard', 'Standard edition'),
+      equipped: reward.equipped, level: false, rewardId: reward.rewardId,
+      object: resolveStudioObject2026({ kind: 'season', collectionId: reward.collectionId, rewardId: reward.rewardId, variant: reward.variant }, rewards, [], progress.data?.collections ?? []) })),
+    ...levelRewards.map(reward => ({ id: reward.id, serial: String(reward.level).padStart(2, '0'), name: rewardLabel2026(reward.rewardId, reward.label, locale),
+      edition: levelEdition(reward.level), equipped: reward.equipped, level: true, rewardId: reward.rewardId,
+      object: resolveStudioObject2026({ kind: 'level', rewardId: reward.rewardId }, rewards, [], progress.data?.collections ?? [], studioLevelRewards) })),
+  ];
   async function equipSelected() {
-    if (!selected || !supabase || busy || !canRenderSeasonIdentity2026(selected.rewardId)) return;
+    const equippableSeason = selected && canRenderSeasonIdentity2026(selected.rewardId);
+    const equippableLevel = selectedLevel?.equippable === true;
+    if (!supabase || busy || !equippableSeason && !equippableLevel) return;
     setBusy(true); setNotice(null);
     try {
-      const result = selected.equipped ? await supabase.rpc('unequip_season_reward_2026', { p_reward_id: selected.rewardId }) : await supabase.rpc('equip_season_reward_2026', { p_collection_id: selected.collectionId, p_reward_id: selected.rewardId, p_variant: selected.variant });
+      const result = selectedLevel
+        ? selectedLevel.equipped ? await supabase.rpc('unequip_level_reward_2026', { p_reward_id: selectedLevel.rewardId }) : await supabase.rpc('equip_level_reward_2026', { p_reward_id: selectedLevel.rewardId })
+        : selected!.equipped ? await supabase.rpc('unequip_season_reward_2026', { p_reward_id: selected!.rewardId }) : await supabase.rpc('equip_season_reward_2026', { p_collection_id: selected!.collectionId, p_reward_id: selected!.rewardId, p_variant: selected!.variant });
       if (result.error) throw result.error;
       progress.reload(); setSelectedId(null);
     } catch { setNotice(copy('Le choix n’a pas pu être enregistré. Réessaie.', 'Your choice could not be saved. Try again.')); }
@@ -67,12 +86,12 @@ function CollectionContents() {
         <View style={local.guest}><Text style={local.meta}>{copy('Ces objets sont des aperçus de la collection.', 'These are collection previews.')}</Text>{configured ? <ProfileButton tone="light" label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /> : null}</View>
         <ProfileLink tone="light" title={copy('Découvrir les étapes', 'Explore the milestones')} icon="niveau" onPress={() => router.push('/season')} />
       </> : progress.status !== 'ready' ? <View style={local.empty}><Text style={local.meta}>{copy('Tes collections sont indisponibles pour le moment.', 'Your collections are currently unavailable.')}</Text><View style={local.compactAction}><ProfileButton tone="light" label={copy('Réessayer', 'Retry')} secondary onPress={progress.reload} /></View></View> : <>
-        <View style={local.inventoryHeader}><View style={local.total}><Text style={local.count}>{rewards.length}</Text><Text style={local.meta}>{copy(rewards.length === 1 ? 'objet de saison' : 'objets de saison', rewards.length === 1 ? 'season object' : 'season objects')}</Text></View>{equipped.length > 0 ? <Text style={local.meta}>{copy(`${equipped.length} sur le profil`, `${equipped.length} on profile`)}</Text> : null}</View>
-        {equipped.length > 0 && progress.data ? <View style={local.identity}><SeasonalIdentity2026 rewards={rewards} collections={progress.data.collections} size={42} /><View style={local.identityText}><Text style={[local.rowTitle, { color: c.darkInk }]}>{copy('Ton identité équipée', 'Your equipped identity')}</Text><Text style={[local.meta, { color: c.darkMuted }]}>{copy('Conservée sans abonnement.', 'Kept without a subscription.')}</Text></View></View> : null}
-        {rewards.length === 0 ? <><CataloguePreview locale={locale} /><Text style={local.previewNote}>{copy('Aperçus · tes premiers objets apparaîtront ici.', 'Previews · your first objects will appear here.')}</Text><ProfileLink tone="light" title={copy('Voir ma progression', 'View progression')} icon="niveau" onPress={() => router.push('/season')} /></> : <View style={local.grid} onLayout={event => setGalleryWidth(event.nativeEvent.layout.width)}>{galleryWidth > 0 && twoColumns(rewards).map((pair, index) => <View key={index} style={local.gridRow}>{pair.map(reward => <Pressable key={reward.id} accessibilityRole="button" accessibilityLabel={`${rewardLabel2026(reward.rewardId, reward.label, locale)} · ${reward.variant === 'premium' ? 'GRYD+' : copy('Standard', 'Standard')} · ${copy('Possédé', 'Owned')}`} onPress={() => { setSelectedId(reward.id); setNotice(null); }} style={[local.tile, local.gridItem]}>
-          <View style={local.tileTop}><Text style={local.meta}>{String(reward.tier).padStart(2, '0')}</Text>{reward.equipped ? <GrydIcon name="check" size={18} color={c.ink} /> : <GrydIcon name="arrowUpRight" size={18} color={c.muted} />}</View>
-          <View style={local.art}>{(()=>{const object=resolveStudioObject2026({kind:'season',collectionId:reward.collectionId,rewardId:reward.rewardId,variant:reward.variant},rewards,[],progress.data?.collections??[]);return object?<SeasonRewardArtwork2026 object={object} rewardId={reward.rewardId} tier={reward.tier} size={objectWidth} state="earned" locale={locale==='en'?'en':'fr'}/>:null;})()}</View>
-          <Text style={local.name}>{rewardLabel2026(reward.rewardId, reward.label, locale)}</Text><Text style={local.meta}>{reward.variant === 'premium' ? copy('Édition GRYD+', 'GRYD+ edition') : copy('Édition standard', 'Standard edition')}</Text>
+        <View style={local.inventoryHeader}><View style={local.total}><Text style={local.count}>{tiles.length}</Text><Text style={local.meta}>{copy(tiles.length === 1 ? 'objet obtenu' : 'objets obtenus', tiles.length === 1 ? 'object earned' : 'objects earned')}</Text></View>{equipped.length > 0 ? <Text style={local.meta}>{copy(equipped.length === 1 ? '1 sur le profil' : `${equipped.length} sur le profil`, equipped.length === 1 ? '1 on profile' : `${equipped.length} on profile`)}</Text> : null}</View>
+        {equipped.length > 0 && progress.data ? <View style={local.identity}><SeasonalIdentity2026 rewards={rewards} levelRewards={levelRewards} collections={progress.data.collections} size={42} /><View style={local.identityText}><Text style={[local.rowTitle, { color: c.darkInk }]}>{copy('Ton identité équipée', 'Your equipped identity')}</Text><Text style={[local.meta, { color: c.darkMuted }]}>{copy('Conservée sans abonnement.', 'Kept without a subscription.')}</Text></View></View> : null}
+        {tiles.length === 0 ? <><CataloguePreview locale={locale} /><Text style={local.previewNote}>{copy('Aperçus · tes premiers objets apparaîtront ici.', 'Previews · your first objects will appear here.')}</Text><ProfileLink tone="light" title={copy('Voir ma progression', 'View progression')} icon="niveau" onPress={() => router.push('/season')} /></> : <View style={local.grid} onLayout={event => setGalleryWidth(event.nativeEvent.layout.width)}>{galleryWidth > 0 && twoColumns(tiles).map((pair, index) => <View key={index} style={local.gridRow}>{pair.map(tile => <Pressable key={tile.id} accessibilityRole="button" accessibilityLabel={`${tile.name} · ${tile.edition} · ${copy('Possédé', 'Owned')}`} onPress={() => { setSelectedId(tile.id); setNotice(null); }} style={[local.tile, local.gridItem]}>
+          <View style={local.tileTop}><Text style={local.meta}>{tile.serial}</Text>{tile.equipped ? <GrydIcon name="check" size={18} color={c.ink} /> : <GrydIcon name="arrowUpRight" size={18} color={c.muted} />}</View>
+          <View style={local.art}>{tile.object ? tile.level ? <LevelRewardArtwork2026 object={tile.object} rewardId={tile.rewardId} size={objectWidth} state="earned" locale={locale==='en'?'en':'fr'}/> : <SeasonRewardArtwork2026 object={tile.object} rewardId={tile.rewardId} tier={Number(tile.serial)} size={objectWidth} state="earned" locale={locale==='en'?'en':'fr'}/> : null}</View>
+          <Text style={local.name}>{tile.name}</Text><Text style={local.meta}>{tile.edition}</Text>
         </Pressable>)}{pair.length === 1 ? <View style={local.gridItem} /> : null}</View>)}</View>}
       </>}
       {segment === 'owned' ? <View style={local.utilities}>
@@ -84,10 +103,19 @@ function CollectionContents() {
         </> : null}
       </View> : null}
     </ProfilePage>
-    <Modal visible={selected !== null || legacyItem !== null} transparent animationType="slide" onRequestClose={close}>
+    <Modal visible={selected !== null || selectedLevel !== null || legacyItem !== null} transparent animationType="slide" onRequestClose={close}>
       <View style={local.backdrop}><View style={local.sheet}><ScrollView contentContainerStyle={s.gap}>
         <Pressable accessibilityRole="button" accessibilityLabel={copy('Fermer', 'Close')} disabled={busy} onPress={close} style={local.close}><GrydIcon name="close" size={20} color={c.ink} /></Pressable>
-        {selected ? <>
+        {selectedLevel ? <>
+          <View style={local.detailArt}>{selectedObject?<LevelRewardArtwork2026 object={selectedObject} rewardId={selectedLevel.rewardId} size={Math.min(220, Math.max(1, width - 104))} state="earned" locale={locale==='en'?'en':'fr'}/>:null}</View>
+          <Text style={local.detailTitle}>{rewardLabel2026(selectedLevel.rewardId, selectedLevel.label, locale)}</Text>
+          <Text style={local.meta}>{levelEdition(selectedLevel.level)}</Text>
+          <View style={local.facts}><Text style={local.meta}>{copy(`Obtenu au niveau ${selectedLevel.level}`, `Earned at level ${selectedLevel.level}`)}</Text><Text style={local.meta}>{copy('Objet permanent · inclus, sans achat', 'Permanent object · included, no purchase')}</Text><Text style={local.meta}>{copy('Obtenu le ', 'Earned on ')}{new Date(selectedLevel.earnedAt).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}</Text></View>
+          {selectedLevel.equippable
+            ? <ProfileButton tone="light" label={selectedLevel.equipped ? copy('Retirer du profil', 'Remove from profile') : copy('Équiper sur mon profil', 'Equip on profile')} busy={busy} onPress={() => void equipSelected()} />
+            : <Text style={local.meta}>{copy('Cet objet reste acquis. Sa composition de partage arrivera dans le Studio.', 'This object stays yours. Its sharing template will arrive in the Studio.')}</Text>}
+          {notice ? <Text accessibilityRole="alert" style={local.body}>{notice}</Text> : null}
+        </> : selected ? <>
           <View style={local.detailArt}>{selectedObject?<SeasonRewardArtwork2026 object={selectedObject} rewardId={selected.rewardId} tier={selected.tier} size={Math.min(220, Math.max(1, width - 104))} state="earned" locale={locale==='en'?'en':'fr'}/>:null}</View>
           {!canRenderSeasonIdentity2026(selected.rewardId) ? <Text style={local.meta}>{copy('Aperçu du modèle. La création utilisera les données de la sortie choisie.','Template preview. Your creation will use the selected activity’s data.')}</Text> : null}
           <Text style={local.detailTitle}>{rewardLabel2026(selected.rewardId, selected.label, locale)}</Text>

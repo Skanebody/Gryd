@@ -3,8 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { fonts, refonteColors as c } from '@klaim/shared';
 import { GrydIcon, RewardEmblem } from '../../ui/gryd';
 import { useLocale } from '../../i18n/store';
-import type { OwnedSeasonReward2026, ProgressCollection2026 } from './ProfileProgress';
-import { equippedSeasonIdentity2026 } from './seasonIdentityModel2026';
+import type { OwnedLevelReward2026, OwnedSeasonReward2026, ProgressCollection2026 } from './ProfileProgress';
+import { equippedLevelIdentity2026, equippedSeasonIdentity2026 } from './seasonIdentityModel2026';
+import { rewardLabel2026 } from './SeasonRewardLabels2026';
 
 type IdentityTone2026 = 'dark' | 'light';
 
@@ -50,28 +51,38 @@ export function SeasonEmblemArtwork2026({ size, premium, tier, tone = 'light', s
 }
 
 /** A title is shown as typography because that is exactly how it appears once equipped. */
-export function SeasonTitleArtwork2026({ label, premium, tone = 'light', size = 110 }: {
+export function SeasonTitleArtwork2026({ label, premium, tone = 'light', size = 110, eyebrow }: {
   label: string; premium: boolean; tone?: IdentityTone2026; size?: number;
+  /** Origine de l'objet ; `undefined` = saison, la seule origine d'avant 0144. */
+  eyebrow?: string;
 }) {
   return <View style={[styles.titleArtwork, { width: size, minHeight: Math.min(size, 84), backgroundColor: tone === 'dark' ? c.carbon : c.surface }]} accessible accessibilityRole="text" accessibilityLabel={label}>
-    <Text style={[styles.titleEyebrow, { color: tone === 'dark' ? c.darkMuted : c.muted }]}>GRYD · {premium ? 'PLUS' : 'SEASON'}</Text>
+    <Text style={[styles.titleEyebrow, { color: tone === 'dark' ? c.darkMuted : c.muted }]}>{eyebrow ?? `GRYD · ${premium ? 'PLUS' : 'SEASON'}`}</Text>
     <Text style={[styles.title, { color: tone === 'dark' && premium ? c.accent : tone === 'dark' ? c.darkInk : c.ink }]}>{label}</Text>
   </View>;
 }
 
-/** Paints only server-confirmed owned/equipped identity objects, including after GRYD+ expires. */
-export function SeasonalIdentity2026({ rewards, collections, children, size = 56 }: {
-  rewards: readonly OwnedSeasonReward2026[]; collections: readonly ProgressCollection2026[]; children?: ReactNode; size?: number;
+/** Paints only server-confirmed owned/equipped identity objects, including after
+ * GRYD+ expires. Season objects (§7.3) and level objects (§7.2) share the same
+ * two profile slots; 0144 guarantees a single occupant, so this render never
+ * has to arbitrate between two frames or two titles. */
+export function SeasonalIdentity2026({ rewards, collections, levelRewards = [], children, size = 56 }: {
+  rewards: readonly OwnedSeasonReward2026[]; collections: readonly ProgressCollection2026[];
+  levelRewards?: readonly OwnedLevelReward2026[]; children?: ReactNode; size?: number;
 }) {
   const locale = useLocale(); const { frame, title, emblem } = equippedSeasonIdentity2026(rewards);
-  if (!frame && !title && !emblem) return <>{children ?? null}</>;
+  const level = equippedLevelIdentity2026(levelRewards);
+  if (!frame && !title && !emblem && !level.frame && !level.title) return <>{children ?? null}</>;
   const titleCollection = title ? collections.find(collection => collection.id === title.collectionId)?.title : null;
+  const frameLabel = frame ? `${locale === 'en' ? 'Season frame' : 'Cadre de saison'} · ${collections.find(collection => collection.id === frame.collectionId)?.title ?? frame.label}`
+    : level.frame ? `${locale === 'en' ? 'Level frame' : 'Cadre de niveau'} · ${rewardLabel2026(level.frame.rewardId, level.frame.label, locale)}` : undefined;
   return <View style={styles.identity}>
     <View style={styles.avatarAssembly}>
-      <SeasonFrameArtwork2026 size={size} premium={frame?.variant === 'premium'} tone="dark" active={!!frame} accessibilityLabel={frame ? `${locale === 'en' ? 'Season frame' : 'Cadre de saison'} · ${collections.find(collection => collection.id === frame.collectionId)?.title ?? frame.label}` : undefined}>{children}</SeasonFrameArtwork2026>
+      <SeasonFrameArtwork2026 size={size} premium={frame?.variant === 'premium'} tone="dark" active={!!frame || !!level.frame} accessibilityLabel={frameLabel}>{children}</SeasonFrameArtwork2026>
       {emblem ? <View style={styles.emblem}><SeasonEmblemArtwork2026 size={30} premium={emblem.variant === 'premium'} tier={emblem.tier} tone="dark" state="earned" accessibilityLabel={`${emblem.label} · ${collections.find(collection => collection.id === emblem.collectionId)?.title ?? ''}`} /></View> : null}
     </View>
-    {title ? <Text style={[styles.title, title.variant === 'premium' && styles.premiumTitle]}>{titleCollection ?? (locale === 'en' ? 'Season title' : title.label)}</Text> : null}
+    {title ? <Text style={[styles.title, title.variant === 'premium' && styles.premiumTitle]}>{titleCollection ?? (locale === 'en' ? 'Season title' : title.label)}</Text>
+      : level.title ? <Text style={styles.title}>{rewardLabel2026(level.title.rewardId, level.title.label, locale)}</Text> : null}
   </View>;
 }
 const styles = StyleSheet.create({

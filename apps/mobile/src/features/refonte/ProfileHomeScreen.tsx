@@ -18,6 +18,7 @@ import { brandImagery } from '../../ui/gryd/brandImagery';
 import { PosterTrace } from '../share/PosterTrace2026';
 import { SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
 import { resolveStudioObject2026 } from '../share/studioObjects2026';
+import { rewardLabel2026 } from './SeasonRewardLabels2026';
 import { retryPendingUpload } from '../../lib/pendingUpload';
 import { ProfileButton, ProfileLink, ProfilePage, s, useRefonteCopy } from './ProfilePrimitives';
 
@@ -70,21 +71,26 @@ function ProfileHomeContents() {
   }
 
   const rewards = progress.data?.ownedRewards ?? [];
+  // §7.2 — les objets de niveau comptent dans la collection au même titre que
+  // ceux de saison ; l'emplacement d'identité, lui, reste unique (0144).
+  const levelRewards = progress.data?.levelRewards ?? [];
+  const ownedCount = rewards.length + levelRewards.length;
   const ownedPreview = rewards[0] ?? null;
   const previewObject = ownedPreview ? resolveStudioObject2026({ kind: 'season', collectionId: ownedPreview.collectionId, rewardId: ownedPreview.rewardId, variant: ownedPreview.variant }, rewards, [], progress.data?.collections ?? []) : null;
   const equippedTitle = rewards.find(reward => reward.rewardId === 'title' && reward.equipped);
+  const equippedLevelTitle = levelRewards.find(reward => reward.rewardId === 'cartographer' && reward.equipped);
   const titleCollection = equippedTitle ? progress.data?.collections.find(item => item.id === equippedTitle.collectionId)?.title : null;
   const activityLabel = activity === 'bike' ? copy('Sortie vélo', 'Ride') : copy('Course à pied', 'Run');
 
   return <ProfilePage tone="light" title={copy('Profil', 'Profile')} right={<CircularAction2026 icon="settings" label={copy('Réglages', 'Settings')} onPress={() => router.push('/parametres')} tooltipPlacement="bottom" />}>
     <View style={local.identity}>
-      <View style={local.identityArt}><CommercialIdentity2026 size={48}><SeasonalIdentity2026 rewards={rewards.filter(reward => reward.rewardId !== 'title' && !(commercialFrame && reward.rewardId === 'profile_frame') && !(commercialEmblem && reward.rewardId === 'personal_emblem'))} collections={progress.data?.collections ?? []} size={48}>
+      <View style={local.identityArt}><CommercialIdentity2026 size={48}><SeasonalIdentity2026 rewards={rewards.filter(reward => reward.rewardId !== 'title' && !(commercialFrame && reward.rewardId === 'profile_frame') && !(commercialEmblem && reward.rewardId === 'personal_emblem'))} levelRewards={levelRewards.filter(reward => reward.rewardId !== 'cartographer' && !(commercialFrame && (reward.rewardId === 'line_frame' || reward.rewardId === 'ridge_merit')))} collections={progress.data?.collections ?? []} size={48}>
         <View style={local.avatar}>{profileLoading || sessionLoading ? <ActivityIndicator color={c.darkInk} /> : profile.avatarUri && session ? <Image source={{ uri: profile.avatarUri }} style={local.avatarImage} /> : session ? <Text style={local.initials}>{effectiveInitials(profile)}</Text> : <GrydMark variant="symbol" size={20} color={c.darkInk} />}</View>
       </SeasonalIdentity2026></CommercialIdentity2026></View>
       <View style={local.identityCopy}>
         <Text style={local.name}>{sessionLoading || profileLoading ? '…' : session ? profile.displayName : copy('Invité', 'Guest')}</Text>
         <Text style={local.meta}>{session ? profile.city || copy('Course et vélo', 'Run and ride') : copy('Sur cet appareil', 'On this device')}</Text>
-        {equippedTitle ? <Text style={local.identityTitle}>{titleCollection ?? equippedTitle.label}</Text> : null}
+        {equippedTitle ? <Text style={local.identityTitle}>{titleCollection ?? equippedTitle.label}</Text> : equippedLevelTitle ? <Text style={local.identityTitle}>{rewardLabel2026(equippedLevelTitle.rewardId, equippedLevelTitle.label, locale)}</Text> : null}
       </View>
       {session ? <CircularAction2026 icon="chevronRight" label={copy('Modifier le profil', 'Edit profile')} onPress={() => router.push('/profil-edit')} /> : configured ? <Pressable accessibilityRole="button" onPress={() => router.push('/sign-in')} style={local.signIn}><Text style={local.actionText}>{copy('Connexion', 'Sign in')}</Text><GrydIcon name="arrowUpRight" size={16} color={c.ink} /></Pressable> : null}
     </View>
@@ -133,7 +139,7 @@ function ProfileHomeContents() {
 
     <Pressable accessibilityRole="button" onPress={() => router.push('/arsenal')} style={local.collection}>
       <View style={local.rewardArt}>{ownedPreview && previewObject ? <SeasonRewardArtwork2026 object={previewObject} rewardId={ownedPreview.rewardId} tier={ownedPreview.tier} size={42} state="earned" locale={locale === 'en' ? 'en' : 'fr'} /> : <GrydIcon name="collection" size={30} color={c.darkInk} />}</View>
-      <View style={s.flex}><Text style={local.sectionTitle}>{copy('Collection', 'Collection')}</Text><Text style={local.meta}>{ownedPreview ? copy(`${rewards.length} objets obtenus`, `${rewards.length} objects earned`) : copy('Objets de saison · aperçu', 'Season objects · preview')}</Text></View><GrydIcon name="arrowUpRight" size={18} color={c.muted} />
+      <View style={s.flex}><Text style={local.sectionTitle}>{copy('Collection', 'Collection')}</Text><Text style={local.meta}>{ownedCount > 0 ? copy(ownedCount === 1 ? '1 objet obtenu' : `${ownedCount} objets obtenus`, ownedCount === 1 ? '1 object earned' : `${ownedCount} objects earned`) : copy('Objets de saison · aperçu', 'Season objects · preview')}</Text></View><GrydIcon name="arrowUpRight" size={18} color={c.muted} />
     </Pressable>
     {session && adoptable.count > 0 ? <View style={local.adoption}>
       <Text style={local.sectionTitle}>{copy('Sorties de cet appareil', 'Activities on this device')}</Text>

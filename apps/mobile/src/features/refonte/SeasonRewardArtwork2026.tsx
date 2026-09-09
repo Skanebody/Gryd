@@ -5,6 +5,26 @@ import { StudioObjectArtwork2026 } from '../share/StudioObjectArtwork2026';
 import type { StudioObject2026 } from '../share/studioObjects2026';
 import { SeasonEmblemArtwork2026, SeasonFrameArtwork2026, SeasonTitleArtwork2026 } from './SeasonalIdentity2026';
 
+/** §7.2 — rendu d'un objet de NIVEAU possédé. Les deux cadres partagent la
+ * géométrie de cadre du profil (c'est ce qu'ils sont) ; leur nom les distingue,
+ * et l'étiquette d'accessibilité le dit. Le titre se rend en typographie, comme
+ * il apparaîtra une fois équipé. */
+export function LevelRewardArtwork2026({ object, rewardId, size, state, locale }: {
+  object: StudioObject2026; rewardId: string; size: number;
+  state: 'preview' | 'locked' | 'earned'; locale: 'fr' | 'en';
+}) {
+  const opacity = state === 'locked' ? .5 : 1;
+  if (rewardId === 'line_frame' || rewardId === 'ridge_merit') {
+    return <View style={{ opacity }}><SeasonFrameArtwork2026 size={size} premium={false} tone="light" accessibilityLabel={object.name} /></View>;
+  }
+  if (rewardId === 'cartographer') {
+    return <View style={{ opacity }}><SeasonTitleArtwork2026 label={object.name} premium={false} tone="light" size={size} eyebrow={`GRYD · ${locale === 'en' ? 'LEVEL' : 'NIVEAU'}`} /></View>;
+  }
+  return <View style={{ width: size, height: size, overflow: 'hidden', borderRadius: 3, opacity }}>
+    <StudioObjectArtwork2026 theme="light" object={object} facts={null} width={size} locale={locale} />
+  </View>;
+}
+
 export function rewardVariant2026(id: string): RewardVariant {
   const variants: Record<string, RewardVariant> = {
     first_trace: 'origin', line_frame: 'orbit', chalk: 'stride', atlas: 'horizon', contour_animation: 'contour', ridge_merit: 'summit', cartographer: 'prism', horizon: 'horizon',

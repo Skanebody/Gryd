@@ -1,4 +1,4 @@
-import { COMMERCIAL_OBJECTS_2026, SEASON_OBJECT_LAYOUTS_2026, commercialObjectPreview2026, readCommercialCollections2026, resolveStudioObject2026, type CommercialCollection2026, type StudioObjectRequest2026 } from './studioObjects2026.ts';
+import { COMMERCIAL_OBJECTS_2026, LEVEL_OBJECT_LAYOUTS_2026, SEASON_OBJECT_LAYOUTS_2026, commercialObjectPreview2026, levelObjectPreview2026, readCommercialCollections2026, resolveStudioObject2026, studioObjectKey2026, type CommercialCollection2026, type StudioObjectRequest2026 } from './studioObjects2026.ts';
 import { requestStudioObject2026, requestedStudioObject2026, clearStudioObject2026 } from './studioObjectSelection2026.ts';
 import { setResultOwner2026 } from '../run/resultOwner2026.ts';
 declare const Deno:{test(name:string,fn:()=>void):void};
@@ -36,4 +36,23 @@ Deno.test('Studio object routing: survives choosing an activity, invalidates swi
 Deno.test('commercial ownership payload: no malformed or duplicated ownership is accepted',()=>{
   assert(readCommercialCollections2026({collections:[]})?.length===0,'Empty available catalogue');
   for(const value of [null,{collections:[{id:'relief',owned:true}]},{collections:[{id:'invented',productIds:[],owned:true,configured:true,acquiredAt:null,equipped:false}]}])assert(readCommercialCollections2026(value)===null,'Reject malformed receipt');
+});
+Deno.test('level objects: the eight §7.2 rewards render only when the server granted them',()=>{
+  const catalogue=[['first_trace',2],['line_frame',3],['chalk',5],['atlas',10],['contour_animation',15],['ridge_merit',20],['cartographer',30],['horizon',50]] as const;
+  assert(Object.keys(LEVEL_OBJECT_LAYOUTS_2026).length===catalogue.length,'Eight level templates');
+  assert(Object.keys(LEVEL_OBJECT_LAYOUTS_2026).filter(id=>LEVEL_OBJECT_LAYOUTS_2026[id]==='frame').join()==='line_frame,ridge_merit','The two cadres are the only frames');
+  for(const [rewardId,level] of catalogue){
+    const request:StudioObjectRequest2026={kind:'level',rewardId};
+    assert(studioObjectKey2026(request)===`level:${rewardId}`,'Level key never collides with a season key');
+    // Un catalogue peint ne possède rien : sans octroi serveur, aucun rendu.
+    assert(!resolveStudioObject2026(request,[],[],[],[]),'Painted catalogue is not ownership');
+    assert(!!levelObjectPreview2026({id:rewardId,label:'x',level},'Niveau'),'Catalogue preview exists');
+    const owned={rewardId,label:'Objet',level,edition:`Niveau ${level}`};
+    const object=resolveStudioObject2026(request,[],[],[],[owned]);
+    assert(object?.layout===LEVEL_OBJECT_LAYOUTS_2026[rewardId],'Owned level object renders its own layout');
+    assert(object?.premium===false,'A level object is never a subscription edition');
+    assert(object?.design===level,'The serial is the level itself');
+  }
+  assert(!resolveStudioObject2026({kind:'level',rewardId:'invented'},[],[],[],[{rewardId:'invented',label:'x',level:9,edition:'x'}]),'No invented level object');
+  assert(!resolveStudioObject2026({kind:'level',rewardId:'chalk'},[],[],[],[{rewardId:'atlas',label:'x',level:10,edition:'x'}]),'No approximate level ownership');
 });
