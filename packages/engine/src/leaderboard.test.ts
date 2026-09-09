@@ -13,7 +13,9 @@ import {
   compareLeaderboardEntries,
   groupLeaderboardByActivity,
   rankLeaderboard,
+  rankWeeklyTerrainBoard,
   type LeaderboardEntry,
+  type WeeklyTerrainMeasure,
 } from './leaderboard.ts';
 import type { Activity } from '@klaim/shared/game-rules';
 
@@ -349,5 +351,124 @@ Deno.test('anti pay-to-win — aucun champ d\'entrée ne peut porter un avantage
       'successfulDefenses',
     ],
     'la surface d\'entrée du classement a changé — vérifier qu\'aucun statut payant n\'y est entré',
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADR-013 §2.1 — L'ADAPTATEUR HEBDOMADAIRE « Ta commune, cette semaine »
+// ═══════════════════════════════════════════════════════════════════════════
+
+function mesure(
+  subjectId: string,
+  newTerrainM2: number,
+  heldM2 = 0,
+  previousSnapshotAtMs: number | null = null,
+): WeeklyTerrainMeasure {
+  return { subjectId, newTerrainM2, heldM2, previousSnapshotAtMs };
+}
+
+Deno.test('hebdo — c\'est le terrain PRIS cette semaine qui classe, jamais le terrain tenu', () => {
+  // Le joueur « installé » tient 100 fois plus de terrain et n'a rien pris ;
+  // l'arrivante a pris 1 m². C'est elle qui est première. C'est TOUT le sujet
+  // du choix d'un flux plutôt que d'un stock — si ce test tombe, le classement
+  // est redevenu « celui qui a commencé le premier reste devant ».
+  const classement = rankWeeklyTerrainBoard('run', [
+    mesure('installe', 0, 1_000_000),
+    mesure('arrivante', 1, 0),
+  ]);
+  assert(classement.ok, 'le classement doit aboutir');
+  if (!classement.ok) return;
+  assertEgal(
+    classement.rows.map((r) => [r.subjectId, r.rank]),
+    [['arrivante', 1], ['installe', 2]],
+    'le terrain tenu a repris la main sur le terrain pris',
+  );
+});
+
+Deno.test('hebdo — le terrain tenu n\'est même pas un DÉPARTAGE entre ex æquo', () => {
+  // Deux personnes ont pris exactement la même surface. Celle qui tient déjà
+  // 10 km² ne passe PAS devant : l'état ne devient jamais un rang, pas même
+  // par la petite porte du départage.
+  const classement = rankWeeklyTerrainBoard('run', [
+    mesure('petite', 500, 0, 1_000),
+    mesure('grosse', 500, 10_000_000, 1_000),
+  ]);
+  assert(classement.ok, 'le classement doit aboutir');
+  if (!classement.ok) return;
+  assertEgal(
+    classement.rows.map((r) => [r.subjectId, r.rank, r.tiedCount]),
+    [['petite', 1, 2], ['grosse', 1, 2]],
+    'le terrain tenu a départagé deux ex æquo',
+  );
+});
+
+Deno.test('hebdo — à surface égale, l\'ancienneté dans ce classement départage', () => {
+  const classement = rankWeeklyTerrainBoard('run', [
+    mesure('nouvelle', 500, 0, null),
+    mesure('ancienne', 500, 0, 1_000),
+  ]);
+  assert(classement.ok, 'le classement doit aboutir');
+  if (!classement.ok) return;
+  assertEgal(
+    classement.rows.map((r) => [r.subjectId, r.rank]),
+    [['ancienne', 1], ['nouvelle', 2]],
+    'le 4e departage de §10.2 n\'a pas été appliqué',
+  );
+});
+
+Deno.test('hebdo — une mesure de vélo dans un classement de course fait REFUSER le lot', () => {
+  // L'adaptateur ne peut pas mélanger : il n'a même pas de champ discipline par
+  // ligne. La garantie est donc portée par l'APPELANT — et ce test verrouille
+  // qu'il n'existe aucun chemin par lequel deux disciplines se retrouveraient
+  // dans le même appel : elles sont deux appels, par construction.
+  const course = rankWeeklyTerrainBoard('run', [mesure('a', 10)]);
+  const velo = rankWeeklyTerrainBoard('bike', [mesure('a', 10)]);
+  assert(course.ok && velo.ok, 'chaque discipline se classe seule');
+  if (!course.ok || !velo.ok) return;
+  assertEgal([course.activity, velo.activity], ['run', 'bike'], 'la discipline du classement a fui');
+  // Et le moteur sous-jacent, lui, refuse toujours une liste mixte montée à la main.
+  const mixte = rankLeaderboard('run', [
+    entry('a', { activity: 'run' }),
+    entry('b', { activity: 'bike' }),
+  ]);
+  assertEgal(
+    [mixte.ok, mixte.ok ? null : mixte.reason],
+    [false, 'foreign_activity'],
+    'une liste mixte a été classée',
+  );
+});
+
+Deno.test('hebdo — aucun sujet classé n\'est un ÉTAT, pas une panne', () => {
+  const vide = rankWeeklyTerrainBoard('run', []);
+  assertEgal([vide.ok, vide.ok ? vide.rows.length : -1], [true, 0], 'une liste vide doit être un succès à zéro ligne');
+});
+
+Deno.test('hebdo — le seuil de population n\'est PAS dans le moteur', () => {
+  // Quatre personnes se classent normalement : c'est la LECTURE qui refuse de
+  // servir un classement sous le seuil, pas le calcul. Un moteur qui refuserait
+  // de classer quatre personnes empêcherait de savoir qu'elles sont quatre.
+  const classement = rankWeeklyTerrainBoard('run', [
+    mesure('a', 4), mesure('b', 3), mesure('c', 2), mesure('d', 1),
+  ]);
+  assertEgal([classement.ok, classement.ok ? classement.rows.length : -1], [true, 4], 'le moteur a appliqué un seuil');
+});
+
+Deno.test('hebdo — un état de terrain tenu non finie ou négatif est refusé', () => {
+  for (const [held, raison] of [[Number.NaN, 'measure_not_finite'], [-1, 'measure_negative']] as const) {
+    const refus = rankWeeklyTerrainBoard('run', [mesure('a', 10, held)]);
+    assertEgal(
+      [refus.ok, refus.ok ? null : refus.reason],
+      [false, raison],
+      'un état de terrain faux a traversé',
+    );
+  }
+});
+
+Deno.test('hebdo — anti pay-to-win : la surface d\'entrée reste quatre mesures de terrain', () => {
+  const clefs = Object.keys(mesure('x', 0)).sort();
+  assertEgal(
+    clefs,
+    ['heldM2', 'newTerrainM2', 'previousSnapshotAtMs', 'subjectId'],
+    'l\'entrée du classement hebdomadaire a changé — vérifier qu\'aucun statut payant n\'y est entré',
   );
 });

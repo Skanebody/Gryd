@@ -315,3 +315,121 @@ export function groupLeaderboardByActivity(
   for (const entry of entries) grouped[entry.activity].push(entry);
   return grouped;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADR-013 §2.1 — « TA COMMUNE, CETTE SEMAINE » : L'ADAPTATEUR, ET RIEN DE PLUS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * UNE MESURE HEBDOMADAIRE, telle que la base la produit
+ * (`board_source_metrics_2026`, migration 0161).
+ *
+ * ═══ LE SEUL POINT DÉLICAT DE CE FICHIER, DIT FRANCHEMENT ══════════════════
+ * Le classement de commune ordonne un FLUX (le terrain pris cette semaine) et
+ * non le stock tenu. Le moteur, lui, trie sur `controlledAreaM2` — son critère
+ * n° 1, qui signifie « LA surface qui classe » et non « la surface qu'on
+ * possède » (§10.2 : c'est la mesure principale du classement considéré).
+ * L'adaptateur y met donc `newTerrainM2`, et c'est un CHOIX, pas un abus :
+ *
+ *  · trier d'abord sur le terrain tenu ferait exactement le classement que le
+ *    cahier a retiré — « celui qui a commencé le premier reste devant » ;
+ *  · `heldM2` n'entre NULLE PART dans le tri, pas même en départage. Il voyage
+ *    à côté de la ligne, pour être affiché comme un ÉTAT (ADR-013 §2.1 :
+ *    « affiché comme état, pas comme rang »). En faire un départage le
+ *    rendrait décisif entre deux ex æquo, c'est-à-dire un rang ;
+ *  · `successfulDefenses` et `conqueredAreaM2` restent à ZÉRO : ce classement
+ *    n'a qu'UN critère mesuré. Y recopier `newTerrainM2` ferait croire à un
+ *    lecteur futur que deux mesures indépendantes concordent.
+ *
+ * Le seul départage restant est donc l'ancienneté dans ce classement
+ * (`previousSnapshotAtMs`), et les ex æquo partagent leur rang — ce qui est le
+ * comportement attendu : deux personnes qui ont pris exactement la même surface
+ * sont premières toutes les deux.
+ */
+export type WeeklyTerrainMeasure = {
+  readonly subjectId: string;
+  /** m² de terrain NOUVEAU publié dans la fenêtre. La mesure qui classe. */
+  readonly newTerrainM2: number;
+  /** m² tenus à l'instant de la mesure. Porté, jamais trié. */
+  readonly heldM2: number;
+  /** `taken_at` du dernier snapshot où ce sujet figurait ; `null` = jamais classé ici. */
+  readonly previousSnapshotAtMs: number | null;
+};
+
+/** Une mesure hebdomadaire CLASSÉE : le rang, plus l'état porté à côté. */
+export type RankedWeeklyTerrain = {
+  readonly subjectId: string;
+  readonly rank: number;
+  readonly tiedCount: number;
+  readonly newTerrainM2: number;
+  readonly heldM2: number;
+  readonly previousSnapshotAtMs: number | null;
+};
+
+export type WeeklyTerrainRanking =
+  | { readonly ok: true; readonly activity: Activity; readonly rows: readonly RankedWeeklyTerrain[] }
+  | {
+      readonly ok: false;
+      readonly reason: LeaderboardRejectionReason;
+      readonly subjectId: string | null;
+    };
+
+/**
+ * CLASSE les mesures hebdomadaires d'UNE discipline, en réutilisant le moteur
+ * ci-dessus plutôt qu'en réécrivant un tri.
+ *
+ * Ce que cette fonction N'AJOUTE PAS : aucune règle, aucun seuil, aucune
+ * horloge. Le seuil de population (`LEADERBOARD_RULES_2026.minRankedSubjects`)
+ * ne vit PAS ici : il décide de ce qu'on MONTRE, pas de qui est premier, et un
+ * moteur qui refuserait de classer quatre personnes empêcherait de savoir
+ * qu'elles sont quatre. C'est la lecture (`read_leaderboard_2026`) qui refuse
+ * de servir un classement sous le seuil.
+ *
+ * La discipline reste le PREMIER paramètre : une mesure d'un autre monde fait
+ * refuser le lot entier (`foreign_activity`), et c'est le seul endroit du
+ * chemin où cette garantie est structurelle plutôt que conventionnelle.
+ */
+export function rankWeeklyTerrainBoard(
+  activity: Activity,
+  measures: readonly WeeklyTerrainMeasure[],
+): WeeklyTerrainRanking {
+  const held = new Map<string, number>();
+  const entries: LeaderboardEntry[] = [];
+  for (const m of measures) {
+    held.set(m.subjectId, m.heldM2);
+    entries.push({
+      subjectType: 'user',
+      subjectId: m.subjectId,
+      activity,
+      controlledAreaM2: m.newTerrainM2,
+      successfulDefenses: 0,
+      conqueredAreaM2: 0,
+      previousSnapshotAtMs: m.previousSnapshotAtMs,
+    });
+  }
+
+  const ranked = rankLeaderboard(activity, entries);
+  if (!ranked.ok) return { ok: false, reason: ranked.reason, subjectId: ranked.subjectId };
+
+  // `heldM2` est validé ICI et pas dans le moteur : le moteur ne le connaît pas,
+  // par construction. Une surface tenue non finie ou négative est refusée au
+  // même titre qu'une mesure de tri — un état faux n'est pas moins faux parce
+  // qu'il n'a pas servi à classer.
+  for (const m of measures) {
+    if (!Number.isFinite(m.heldM2)) return { ok: false, reason: 'measure_not_finite', subjectId: m.subjectId };
+    if (m.heldM2 < 0) return { ok: false, reason: 'measure_negative', subjectId: m.subjectId };
+  }
+
+  return {
+    ok: true,
+    activity: ranked.activity,
+    rows: ranked.rows.map((row) => ({
+      subjectId: row.subjectId,
+      rank: row.rank,
+      tiedCount: row.tiedCount,
+      newTerrainM2: row.controlledAreaM2,
+      heldM2: held.get(row.subjectId) ?? 0,
+      previousSnapshotAtMs: row.previousSnapshotAtMs,
+    })),
+  };
+}
