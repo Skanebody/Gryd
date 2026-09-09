@@ -4,7 +4,7 @@ import {
 } from './calendar2026';
 import {
   careerProgress2026, computeProgressLedger2026, diffProgressLedger2026,
-  levelForXp2026, seasonCollectionProgress2026, xpForLevel2026,
+  levelForXp2026, runXpReason2026, seasonCollectionProgress2026, xpForLevel2026,
 } from './progression2026';
 import type { ProgressActivity2026, ProgressLedgerInput2026 } from './progression2026';
 import { computeChallenge2026, validateChallenge2026 } from './challenges2026';
@@ -353,4 +353,34 @@ Deno.test('2026: resuming an archive never reassigns the switching day or multip
     ['2026-09-07', 'autumn', 100], ['2026-09-08', 'archive', 100], ['2026-09-09', 'autumn', 100],
   ]);
   equal(ledger.collections, { archive: 100, autumn: 200 });
+});
+
+Deno.test('2026: zéro XP porte toujours un motif — jamais un silence', () => {
+  const reason = (ledger: ReturnType<typeof computeProgressLedger2026>, id: string, awarded = 0) =>
+    runXpReason2026(ledger, id, awarded);
+  // Une sortie créditée le dit ; une sortie inconnue du registre aussi.
+  const credited = progression([activity('monday', '2026-09-07T09:00:00Z')]);
+  equal(reason(credited, 'monday', 100), 'credited');
+  equal(reason(credited, 'never-seen'), 'not_recorded');
+  // La même journée, une deuxième sortie ne recrée pas une journée.
+  const twice = progression([
+    activity('morning', '2026-09-07T09:00:00Z'), activity('evening', '2026-09-07T19:00:00Z'),
+  ]);
+  equal(reason(twice, 'evening'), 'day_already_credited');
+  // Sous le minimum de mouvement admissible, et au-delà du budget hebdomadaire.
+  equal(reason(progression([activity('short', '2026-09-07T09:00:00Z', 5)]), 'short'), 'movement_below_minimum');
+  const week = progression(['07', '08', '09', '10'].map(day => activity(`d${day}`, `2026-09-${day}T09:00:00Z`)));
+  equal(week.totalXp, 300);
+  equal(reason(week, 'd10'), 'weekly_budget_reached');
+  // Les motifs d'exclusion de la source sont rendus tels quels, sans euphémisme.
+  const excluded: [string, Partial<ProgressActivity2026>, string][] = [
+    ['review', { eligibility: 'review' }, 'review'],
+    ['withdrawn', { eligibility: 'withdrawn' }, 'withdrawn'],
+    ['manual', { source: 'manual' }, 'manual'],
+    ['old', { receivedAt: '2026-09-30T09:00:00Z' }, 'import_older_than_seven_days'],
+  ];
+  for (const [id, overrides, expected] of excluded) {
+    equal(reason(progression([activity(id, '2026-09-07T09:00:00Z', 10, overrides)]), id), expected);
+  }
+  equal(reason(progression([activity('ancient', '2020-01-01T09:00:00Z')], { accountCreatedAt: '2026-01-01T00:00:00Z' }), 'ancient'), 'before_account_creation');
 });

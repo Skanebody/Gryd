@@ -8,6 +8,9 @@ import type { IngestRunRequest, IngestRunResponse, RunPoint } from '../_shared/t
 import { analyzeTrace2026 } from '../_shared/engine/capture2026.ts';
 import { scoreRun, type AntiCheatDecision } from '../_shared/engine/anticheat.ts';
 import { recomputeProgression2026 } from '../_shared/recomputeProgress2026.ts';
+// LOT C, ligne du motif d'XP uniquement (constat 3) : un zéro sans motif est un
+// silence. Le calcul reste PUR et partagé ; ce fichier ne fait que le rendre.
+import { runXpReason2026 } from '../_shared/progression2026.ts';
 import { maskedPolylineFor } from './tracePersist.ts';
 import { publicationMasks2026 } from './captureMasks2026.ts';
 
@@ -16,7 +19,7 @@ type Response2026 = IngestRunResponse & {
   territory2026: { ruleset: string; status: string; reason?: string; loopAreaM2: number;
     newTerrainM2: number | null; alreadyOwnedM2: number | null; neutralTakenM2: number | null;
     takenFromOthersM2: number | null; publishAfter?: string };
-  progression2026: { status: 'confirmed' | 'pending'; totalXp?: number };
+  progression2026: { status: 'confirmed' | 'pending'; totalXp?: number; xpReason?: string };
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -133,7 +136,7 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
       check(recorded.error,'sport evidence');
       const committed = await recomputeProgression2026(db, userId, run.id);
       result.xpAwarded = committed.runXpAwarded ?? Math.max(0, committed.xpDelta);
-      result.progression2026 = { status:'confirmed',totalXp:committed.ledger.totalXp };
+      result.progression2026 = { status:'confirmed',totalXp:committed.ledger.totalXp,xpReason:runXpReason2026(committed.ledger,run.id,result.xpAwarded) };
     } catch (e) { console.error('[ingest2026] progress pending',e); }
     try {
       const privacy=await db.rpc('privacy_masks_2026',{p_user_id:userId});

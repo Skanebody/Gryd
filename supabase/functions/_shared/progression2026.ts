@@ -256,6 +256,36 @@ export function computeProgressLedger2026(input: ProgressLedgerInput2026) {
   };
 }
 
+/** Cahier G12 : « le résultat d'activité explique une fois les XP communs ».
+ * Un zéro sans motif est un silence, et un silence est un mensonge par défaut.
+ * Les codes reprennent EXACTEMENT le vocabulaire du registre : ceux du jour
+ * (`movement_below_minimum`, `weekly_budget_reached`) et ceux de l'exclusion de
+ * source (`review`, `manual`, `withdrawn`, `before_account_creation`,
+ * `invalid_chronology`, `import_older_than_seven_days`). Deux codes s'y
+ * ajoutent, qu'aucune des deux listes ne portait :
+ *  · `day_already_credited` — la journée était déjà créditée par une autre
+ *    sortie ; l'activité compte, la journée ne se dédouble pas ;
+ *  · `not_recorded` — cette activité n'est dans aucune journée du registre.
+ * `xpAwarded` est ce que porte CETTE sortie : le motif ne se déduit jamais du
+ * seul état du jour, sinon un rejeu afficherait « déjà crédité » pour la sortie
+ * qui a précisément crédité la journée.
+ */
+export type RunXpReason2026 = ProgressDay2026['reason'] | 'day_already_credited' | 'not_recorded' |
+  'review' | 'manual' | 'withdrawn' | 'before_account_creation' | 'invalid_chronology' | 'import_older_than_seven_days';
+
+export function runXpReason2026(
+  ledger: Pick<ReturnType<typeof computeProgressLedger2026>, 'days' | 'ignored'>,
+  activityId: string, xpAwarded: number,
+): RunXpReason2026 {
+  if (Number.isFinite(xpAwarded) && xpAwarded > 0) return 'credited';
+  const ignored = ledger.ignored.find((entry) => entry.activityId === activityId);
+  if (ignored) return ignored.reason as RunXpReason2026;
+  const days = ledger.days.filter((day) => day.activityIds.includes(activityId));
+  if (days.length === 0) return 'not_recorded';
+  if (days.some((day) => day.xp > 0)) return 'day_already_credited';
+  return days.some((day) => day.reason === 'weekly_budget_reached') ? 'weekly_budget_reached' : 'movement_below_minimum';
+}
+
 /** Durable stores record these changes, including revocations, in a transaction.
  * Existing activity rows survive a correction. A zero delta is an idempotent replay.
  */
