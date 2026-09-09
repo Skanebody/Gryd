@@ -160,7 +160,12 @@ export default function MapHome() {
   if (!activityReady) return <View style={s.root} />;
   return <View style={s.root}>
     <View style={s.map}>
-      <RealMap key={`${basemap}-${basemapRevision}-${activity}`} ref={map} camera={camera} basemap={basemap} geojsonLayers={layers}
+      {/* La `key` ne porte QUE ce qui exige une reconstruction du style : le fond
+          et sa révision. La discipline, elle, ne change que les COUCHES
+          (`territoryPaintLayers2026`) — la mettre ici détruisait et remontait la
+          MapView à chaque bascule Course/Vélo, avec son style, sa caméra et sa
+          seconde de noir. */}
+      <RealMap key={`${basemap}-${basemapRevision}`} ref={map} camera={camera} basemap={basemap} geojsonLayers={layers}
         onStyleLoaded={() => map.current?.flyTo(cameraTarget.current)}
         onCameraGesture={() => { cameraIntent.current = 'explore'; locationGate.cancel(); setLocating(false); }}
         onCameraSettled={next => { savedCameras[activity] = next; cameraTarget.current = next; setSettled(next); }}
@@ -188,7 +193,21 @@ export default function MapHome() {
     </View>
     <View pointerEvents="box-none" style={[s.overlayAnchor, { bottom, maxHeight: overlayHeight }]}>
       <ScrollView style={s.overlayScroll} contentContainerStyle={s.overlayStack} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {ownership.failed && !ownership.signedOut ? <Pressable accessibilityRole="button" style={s.notice} onPress={ownership.reload}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains indisponibles · Réessayer', 'Terrains unavailable · Retry')}</Text></Pressable> : null}
+        {/* ─── LES QUATRE ÉTATS DU TERRITOIRE, UN SEUL À LA FOIS ───────────
+            Pas connecté, en cours de lecture, échec et vide RÉEL rendaient la
+            même carte muette : impossible de distinguer « GRYD ne sait pas » de
+            « il n'y a rien ici ». Le vide a sa phrase (cahier G03). L'état de
+            lecture ne se montre que quand il n'y a encore rien à voir — sinon
+            il clignoterait à chaque déplacement de carte. */}
+        {ownership.signedOut
+          ? <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Connecte-toi pour voir les terrains de ton compte.', 'Sign in to see your account’s terrain.')}</Text></View>
+          : ownership.failed
+            ? <Pressable accessibilityRole="button" style={s.notice} onPress={ownership.reload}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains indisponibles · Réessayer', 'Terrains unavailable · Retry')}</Text></Pressable>
+            : ownership.loading && ownership.features.length === 0
+              ? <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Lecture des terrains…', 'Loading terrain…')}</Text></View>
+              : ownership.features.length === 0
+                ? <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Le quartier est à découvrir.', 'This neighbourhood is yours to discover.')}</Text></View>
+                : null}
         {choice.failed && !recording ? <Pressable accessibilityRole="button" onPress={() => setSheet('layers')} style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Préférences indisponibles · Réessayer', 'Preferences unavailable · Retry')}</Text></Pressable> : null}
         {(locationState === 'denied' || locationState === 'unavailable') && <Pressable accessibilityRole="button" onPress={() => {
           if (locationState === 'denied' && !locationCanAsk && Platform.OS !== 'web') void Linking.openSettings();
@@ -205,6 +224,11 @@ export default function MapHome() {
             <Text style={s.context}>{text('Surface actuelle · Propriété individuelle', 'Current area · Individual ownership')}{selected.properties.owner.crew ? ` · ${text('Membre de', 'Member of')} ${selected.properties.owner.crew.name}` : ''}</Text>
             {!selected.properties.owner.identityAvailable && <Text style={s.context}>{text('Identité non disponible.', 'Identity unavailable.')}</Text>}
             <Text style={s.context}>{text('Capture initiale', 'Initial capture')} : {area(selected.properties.capturedAreaM2)} km². {text('La sortie reste au journal quand le terrain change.', 'The outing stays in the journal when terrain changes.')}</Text>
+            {/* G04 : « surface et dernière mise à jour ». La date est validée par
+                le contrat depuis toujours (`controlledSince`) et n'était peinte
+                nulle part — une possession sans date ne dit pas si elle tient
+                depuis ce matin ou depuis six semaines. */}
+            <Text style={s.context}>{text('Terrain pris le ', 'Held since ')}{new Date(selected.properties.controlledSince).toLocaleDateString(fr ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
           </View>
         </MotionReveal2026></View> : null}
       </ScrollView>
@@ -212,7 +236,12 @@ export default function MapHome() {
     <GrydNavBar mapAction={{
       label: recording ? text('Reprendre', 'Resume') : activity === 'run' ? text('Courir', 'Run') : text('Rouler', 'Ride'),
       onPress: recording ? () => router.push('/course-live') : start,
-      disabled: !recording && (!choice.ready || choice.saving),
+      // Le départ ne s'éteint JAMAIS pour un stockage local en panne : une
+      // préférence de confidentialité illisible (`choice.failed`) mettait
+      // `ready` à false et éteignait « Courir » définitivement. Le préflight,
+      // lui, sait dire l'indisponibilité et la réessayer — c'est là que la
+      // question se pose, pas ici.
+      disabled: false,
       busy: !recording && ((!choice.ready && !choice.failed) || choice.saving),
     }} />
     <Modal visible={sheet !== null} transparent animationType={motion ? "slide" : "none"} onRequestClose={() => setSheet(null)}>

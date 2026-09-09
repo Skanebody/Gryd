@@ -215,3 +215,63 @@ Deno.test('carte : les contrôles de caméra n’existent que là où la caméra
     assert(screen.includes('realMapAvailable()'), `${path} doit lire la capacité réelle`);
   }
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 7 — LA CARTE AU REPOS (G03)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : pas connecté, en cours de lecture et « aucun terrain ici » rendaient
+ * exactement la même carte vide — le joueur ne pouvait pas distinguer « GRYD ne
+ * sait pas » de « il n'y a rien ». Le cahier donne la phrase du vide réel :
+ * « Le quartier est à découvrir. » (G03)
+ */
+Deno.test('carte : les quatre états du territoire sont distincts, et le vide a sa phrase', () => {
+  const map = code('../refonte/MapHome.tsx');
+  assert(map.includes('Le quartier est à découvrir'), 'la phrase G03 du vide réel');
+  assert(map.includes('ownership.signedOut') && map.includes('ownership.loading') && map.includes('ownership.failed'),
+    'les trois autres états existent séparément');
+  const overlay = map.slice(map.indexOf('s.overlayStack'), map.indexOf('<GrydNavBar'));
+  for (const state of ['signedOut', 'loading', 'failed']) {
+    assert(overlay.includes(state), `l’état ${state} doit se voir SUR la carte, pas seulement dans une feuille`);
+  }
+});
+
+/**
+ * ÉTAPE 0 : `disabled: !recording && (!choice.ready || choice.saving)` — une
+ * préférence AsyncStorage illisible (`failed` ⇒ `ready === false`) éteignait le
+ * bouton « Courir » DÉFINITIVEMENT. Un stockage en panne n'est pas une raison
+ * d'interdire une sortie ; le préflight, lui, sait le dire et le réessayer.
+ */
+Deno.test('carte : « Courir » ne s’éteint jamais pour une préférence illisible', () => {
+  const map = code('../refonte/MapHome.tsx');
+  const action = map.slice(map.indexOf('mapAction={{'), map.indexOf('<Modal'));
+  assert(action.includes('disabled: false'),
+    'une préférence illisible n’éteint plus le départ — `disabled` ne lit plus le stockage');
+  assert(!/disabled: [^f]/.test(action), 'aucune autre condition ne peut éteindre le départ');
+});
+
+/**
+ * ÉTAPE 0 : `key={`${basemap}-${basemapRevision}-${activity}`}` détruisait et
+ * reconstruisait la MapView à CHAQUE bascule Course/Vélo — alors que seules les
+ * couches changent. Et `useOwnership` posait `features: []` avant son débounce :
+ * le territoire clignotait à chaque déplacement de carte.
+ */
+Deno.test('carte : la vue survit à la bascule de sport, le territoire ne clignote plus', () => {
+  const map = code('../refonte/MapHome.tsx');
+  assert(!/key=\{`\$\{basemap\}-\$\{basemapRevision\}-\$\{activity\}`\}/.test(map),
+    'la bascule de sport ne détruit plus la carte : elle change les couches');
+  const ownership = code('../refonte/useOwnership.ts');
+  assert(ownership.includes('keepFeatures'), 'l’ancien territoire tient jusqu’au nouveau');
+  assert(ownership.includes('sameLens'), 'sauf quand la lentille change : deux mondes ne se mélangent pas');
+});
+
+/**
+ * ÉTAPE 0 : le panneau d'une zone montrait sa surface mais ni sa date. Le
+ * contrat la valide pourtant depuis toujours (`controlledSince`), et G04
+ * demande « surface et dernière mise à jour ».
+ */
+Deno.test('carte : une zone sélectionnée porte sa date de prise', () => {
+  const map = code('../refonte/MapHome.tsx');
+  assert(map.includes('controlledSince'), 'la date validée par le contrat doit être peinte');
+});

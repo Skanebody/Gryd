@@ -21,7 +21,23 @@ export function useOwnership(activity: Activity, extent: MapExtent) {
       setValue({ ownerId: null, activity, features: [], crew: null, failed: false, loading: false });
       return;
     }
-    setValue({ ownerId: null, activity, features: [], crew: null, failed: false, loading: true });
+    // ─── LE TERRITOIRE NE CLIGNOTE PLUS (10/09/2026) ────────────────────────
+    // Cet effet posait `features: []` AVANT son débounce de 180 ms : à chaque
+    // pan, à chaque pincement, la carte se vidait puis se repeuplait. Le
+    // territoire — la seule chose que le joueur vient voir — clignotait sur
+    // toute manipulation. On garde donc l'ancien rendu tant que le nouveau
+    // n'est pas là : c'est un fait daté qui reste vrai une seconde de plus,
+    // pas une invention.
+    //
+    // SAUF si la LENTILLE change (discipline ou compte) : les terrains de
+    // l'autre sport n'ont rien à faire à l'écran, même une seconde
+    // (§9.3, « Course → Vélo : sans afficher transitoirement celles de
+    // l'autre sport »).
+    setValue(previous => {
+      const sameLens = previous.activity === activity && previous.ownerId === session.user.id;
+      const keepFeatures = sameLens ? previous.features : [];
+      return { ownerId: sameLens ? session.user.id : null, activity, features: keepFeatures, crew: sameLens ? previous.crew : null, failed: false, loading: true };
+    });
     const timer = setTimeout(() => {
       void Promise.resolve(supabase!.rpc('get_ownership_2026', { p_activity: activity, p_west: extent.west, p_south: extent.south, p_east: extent.east, p_north: extent.north }))
         .then(({ data, error }) => {
