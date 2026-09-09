@@ -95,7 +95,7 @@ function CollectionContents() {
         </Pressable>)}{pair.length === 1 ? <View style={local.gridItem} /> : null}</View>)}</View>}
       </>}
       {segment === 'owned' ? <View style={local.utilities}>
-        <ProfileLink tone="light" title={copy('Créer depuis une sortie', 'Create from an activity')} subtitle={copy('Studio · affiches et Replay', 'Studio · posters and Replay')} icon="partage" onPress={() => router.push('/(tabs)/profil')} />
+        <ProfileLink tone="light" title={copy('Créer depuis une sortie', 'Create from an activity')} subtitle={copy('Studio · affiches et Replay', 'Studio · posters and Replay')} icon="partage" onPress={() => router.push('/partage')} />
         {session ? <>
           {badges.loading ? <View style={local.loading}><ActivityIndicator size="small" color={c.ink} /><Text style={local.meta}>{copy('Lecture des badges…', 'Loading badges…')}</Text></View> : badges.failed ? <Text style={local.previewNote}>{copy('Les badges sont indisponibles.', 'Badges are unavailable.')}</Text> : <ProfileLink tone="light" title={copy('Badges', 'Badges')} subtitle={copy(`${badges.unlockedIds.size} obtenus`, `${badges.unlockedIds.size} earned`)} icon="badge" onPress={() => router.push('/badges')} />}
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: showLegacy }} aria-expanded={showLegacy} onPress={() => setShowLegacy(value => !value)} style={local.disclosure}><Text style={local.rowTitle}>{copy('Objets antérieurs', 'Earlier objects')}</Text><GrydIcon name={showLegacy ? 'minus' : 'plus'} size={18} color={c.muted} /></Pressable>
