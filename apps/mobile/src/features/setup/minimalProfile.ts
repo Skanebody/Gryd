@@ -1,30 +1,36 @@
 /**
- * GRYD — LA LECTURE du profil minimal (E08), et rien d'autre.
+ * GRYD — LA LECTURE de la ligne `user_profiles` du compte courant, et rien
+ * d'autre.
  *
  * Les écrans sociaux consomment cette lecture de façon contextuelle ; elle ne
- * bloque plus l'accès à la carte.
- * Ce module ne fait que ce que ce module-là ne peut pas faire : parler au
+ * bloque plus l'accès à la carte, et AUCUNE garde de route ne s'y appuie
+ * aujourd'hui (`app/(tabs)/_layout.tsx` ne l'appelle pas — vérifié le
+ * 10/09/2026 ; `setupChain.test.ts` fige même cette absence).
+ * Ce module ne fait que ce que `firstRun.ts` ne peut pas faire : parler au
  * serveur, et partager le verdict entre les composants qui en dépendent.
  *
  * ─── UN SEUL ÉTAT, PARTAGÉ (et pas un `useState` par écran) ─────────────────
- * Deux surfaces lisent ce verdict : la garde de `app/(tabs)/_layout.tsx` (qui
- * route) et, après E08, l'écran lui-même (qui le POSE sans re-interroger le
- * serveur). Un état local par composant aurait produit une requête par montage
- * et, pire, deux verdicts divergents pendant quelques centaines de
- * millisecondes — le temps qu'il faut pour rediriger un joueur au mauvais
- * endroit. Le store est donc un module, les composants s'y abonnent.
+ * Un état local par composant produirait une requête par montage et, pire, deux
+ * verdicts divergents pendant quelques centaines de millisecondes. Le store est
+ * donc un module, les composants s'y abonnent.
  *
  * ─── CE QU'IL NE FAIT PAS ───────────────────────────────────────────────────
- * · Il n'ÉCRIT rien. `app/setup/profile.tsx` reste seul à écrire dans
- *   `user_profiles` ; il se contente d'appeler `markMinimalProfileDone()` une
- *   fois l'écriture SERVEUR acquittée. C'est un fait constaté, pas une
- *   supposition optimiste : sans acquittement, la fonction n'est pas appelée.
+ * · Il n'ÉCRIT rien. Les écrivains de `user_profiles` sont le trigger
+ *   d'inscription (`0154_provision_user_profile_on_signup.sql`, côté serveur),
+ *   `save_my_social_profile_2026` (0124, appelée par `/profil-edit`) et
+ *   `app/setup/profile.tsx`. Ce dernier appelle `markMinimalProfileDone()` une
+ *   fois l'écriture SERVEUR acquittée — un fait constaté, pas une supposition.
  * · Il ne PERSISTE rien sur le disque. Un cache local du verdict serait
  *   exactement le drapeau devinable que ce chantier refuse : le seul juge est la
  *   table (voir l'entête de `firstRun.ts`).
- * · Il ne lit que `user_id` — jamais le @handle, jamais le nom. La garde de
- *   route n'a besoin que de l'EXISTENCE de la ligne, et une requête ne doit
- *   ramener que ce dont elle a besoin.
+ * · Il ne lit que `user_id` — jamais le @handle, jamais le nom : la question
+ *   posée ici est l'EXISTENCE de la ligne, et une requête ne doit ramener que ce
+ *   dont elle a besoin.
+ *
+ * ⚠️ DEPUIS 0154, `'absent'` NE VEUT PLUS DIRE « COMPTE NEUF ». Un compte créé
+ * après cette migration a SA ligne dès l'inscription. `'absent'` désigne donc
+ * désormais un compte antérieur non rattrapé, ou une ligne supprimée — pas un
+ * joueur qui n'aurait pas encore rempli son profil.
  */
 import { useEffect, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';

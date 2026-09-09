@@ -6,19 +6,27 @@
  * moment où leur bénéfice devient concret ; aucun de ces écrans n'est une garde.
  *
  * ─── LE DRAPEAU NE SE DEVINE PAS : IL SE LIT ────────────────────────────────
- * « Profil minimal fait » = il existe une ligne `public.user_profiles` pour ce
- * compte. C'est un fait SERVEUR, pas une case cochée sur le téléphone :
+ * Cette sonde dit s'il existe une ligne `public.user_profiles` pour ce compte.
+ * C'est un fait SERVEUR, pas une case cochée sur le téléphone :
  *   · `0011_social.sql:45` — `handle text NOT NULL unique` : une ligne existe ⇒
  *     un @handle existe. Il n'y a pas de ligne « à moitié faite » ;
  *   · `0011_social.sql:201` — `user_profiles_select_visible` autorise toujours
- *     `user_id = auth.uid()` : un joueur peut TOUJOURS lire sa propre ligne ;
- *   · `0028_provision_user_on_signup.sql` provisionne `public.users`, JAMAIS
- *     `user_profiles` — l'existence de la ligne est donc bien le signal d'un
- *     passage par E08, et de rien d'autre.
+ *     `user_id = auth.uid()` : un joueur peut TOUJOURS lire sa propre ligne.
  * Un drapeau local (AsyncStorage) aurait renvoyé dans le parcours tout joueur
  * qui change de téléphone, et aurait laissé passer tout joueur qui vide son
  * stockage. C'est exactement l'erreur que `features/onboarding/store.ts` décrit
  * dans son entête (« ce stockage n'est pas une autorité »).
+ *
+ * ⚠️ CE QUE CETTE SONDE NE SIGNIFIE PLUS (10/09/2026, migration 0154). Elle a
+ * longtemps voulu dire « ce joueur est passé par E08 » : `0028` provisionnait
+ * `public.users` et JAMAIS `user_profiles`, si bien que l'absence de ligne
+ * valait « profil jamais rempli ». Cette lecture est morte avec 0154, qui
+ * provisionne la ligne À L'INSCRIPTION (avec un @handle dérivé, `runner_…`) —
+ * sans quoi `get_ownership_2026` (0126:42) ne rendait le terrain d'un compte
+ * neuf à personne, pas même à lui. `'present'` signifie donc désormais « une
+ * identité minimale existe », JAMAIS « le joueur a choisi son identité ». Toute
+ * surface qui voudrait savoir si le joueur a personnalisé son profil doit
+ * regarder le CONTENU (`display_name`, un handle non dérivé), pas l'existence.
  *
  * ─── QUATRE ÉTATS, JAMAIS CONFONDUS ─────────────────────────────────────────
  * `MinimalProfileProbe` a CINQ valeurs pour n'en confondre aucune. La valeur qui

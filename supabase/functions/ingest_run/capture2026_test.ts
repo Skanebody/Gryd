@@ -1,6 +1,7 @@
 import { publicationMasks2026 } from './captureMasks2026.ts';
 import { assert, assertEquals, assertAlmostEquals, assertThrows } from 'jsr:@std/assert@^1';
-import { analyzeTrace2026 } from '../_shared/engine/capture2026.ts';
+import { analyzeTrace2026, captureRejection2026 } from '../_shared/engine/capture2026.ts';
+import { GPS_ACCURACY_MAX_M, POINT_MAX_GAP_S, TERRITORY_RULES_2026 } from '../_shared/game-rules.ts';
 import { pointsAfterAnchor2026, requiresReview2026, sourceClockVerified2026 } from './refonte2026.ts';
 import { scoreRun } from '../_shared/engine/anticheat.ts';
 import { computeProgressLedger2026 } from '../_shared/progression2026.ts';
@@ -51,16 +52,28 @@ Deno.test('2026: a crossing between GPS samples produces actual faces, not the o
 Deno.test('2026: GPS interruption and explicit resume never become a capture edge',()=>{
   const points=trace(square);
   const middle=Math.floor(points.length/2);
-  const interrupted=points.map((p,i)=>({...p,t:p.t+(i>=middle?120_000:0)}));
+  // Un vrai silence de mesure, au-delà de POINT_MAX_GAP_S — l'unique seuil du
+  // dépôt depuis le lot R2S. Une veille iOS de 90 s, elle, ne coupe plus rien.
+  const interrupted=points.map((p,i)=>({...p,t:p.t+(i>=middle?POINT_MAX_GAP_S*1000+1000:0)}));
   assertEquals(analyzeTrace2026(interrupted,'run').faces.length,0);
+  const napped=points.map((p,i)=>({...p,t:p.t+(i>=middle?90_000:0)}));
+  assertEquals(analyzeTrace2026(napped,'run').faces.length,1);
   const paused=points.map((p,i)=>({...p,...(i===middle?{breakBefore:true as const}:{})}));
   assertEquals(analyzeTrace2026(paused,'run').faces.length,0);
 });
-Deno.test('2026: missing or poor capture accuracy fails closed; sporting motion survives',()=>{
-  const bad=trace(square,{acc:30});
-  assertEquals(analyzeTrace2026(bad,'run').faces.length,0);
-  assert(analyzeTrace2026(bad,'run').movingIntervals.length>0);
-  assertEquals(analyzeTrace2026(trace(square).map(({acc:_,...p})=>p),'run').faces.length,0);
+Deno.test('2026: urban accuracy captures, unknown accuracy fails closed, sport survives',()=>{
+  // Ville : 30 m de précision, boucle bien réelle. Avant le lot R2S, le serveur
+  // la refusait alors que l'écran l'avait dessinée. §5.5 n'exige la précision
+  // qu'AUX EXTRÉMITÉS d'une fermeture déclarée, pas à chaque point.
+  const urban=trace(square,{acc:TERRITORY_RULES_2026.endpointMaxAccuracyM+15});
+  assertEquals(analyzeTrace2026(urban,'run').faces.length,1);
+  assertEquals(analyzeTrace2026(urban,'run').qualityBreaks,0);
+  const beyondClient=trace(square,{acc:GPS_ACCURACY_MAX_M+1});
+  assertEquals(analyzeTrace2026(beyondClient,'run').faces.length,0);
+  assert(analyzeTrace2026(beyondClient,'run').movingIntervals.length>0);
+  const unknown=trace(square).map(({acc:_,...p})=>p);
+  assertEquals(analyzeTrace2026(unknown,'run').faces.length,0);
+  assertEquals(captureRejection2026(analyzeTrace2026(unknown,'run'),'run')?.code,'gps_quality_unconfirmed');
 });
 Deno.test('2026: Run/Bike use independent loop thresholds',()=>{
   assertEquals(analyzeTrace2026(trace(square),'run').faces.length,1);

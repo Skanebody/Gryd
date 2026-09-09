@@ -13,12 +13,26 @@ export const RULESET_VERSION_2026 = '2026.1' as const;
 export const TERRITORY_RULES_2026 = {
   run: { closureMaxGapM: 25, minLoopDistanceM: 800, minAreaM2: 5_000 },
   bike: { closureMaxGapM: 40, minLoopDistanceM: 2_000, minAreaM2: 20_000 },
+  /**
+   * §5.5 « Incertitude horizontale attendue AUX EXTRÉMITÉS ». Exigée seulement
+   * là où une fermeture est DÉCLARÉE (retour près d'un point antérieur), jamais
+   * à chaque point : le plafond d'un sommet de frontière est GPS_ACCURACY_MAX_M,
+   * celui que le client applique déjà. Voir packages/engine/src/capture2026.ts.
+   */
   endpointMaxAccuracyM: 15,
   captureReceiptMaxAgeHours: 24,
   publicationDelayMinutes: 30,
-  // Paramètre opérationnel bêta : une rupture temporelle coupe la frontière.
-  // Ce seuil ne remplace jamais les pauses et ruptures explicites du recorder.
-  maxContinuousGapSeconds: 30,
+  /**
+   * Dérive admise entre l'horloge de l'appareil et celle du serveur (s).
+   * Sans elle, deux secondes d'écart NTP suspendaient toute la capture en
+   * silence. Elle borne aussi la triche : au-delà, la fermeture est refusée
+   * avec son motif, jamais avalée. Paramètre opérationnel bêta.
+   */
+  clockToleranceSeconds: 5 * 60,
+  // Le trou temporel qui coupe une frontière n'a QU'UNE valeur dans le dépôt :
+  // `POINT_MAX_GAP_S` (via `activityRules(activity).pointMaxGapS`). Un second
+  // seuil ici a fait qu'un tunnel de 90 s détruisait une boucle côté capture
+  // alors que la validation sportive l'acceptait — deux vérités, un joueur volé.
 } as const;
 
 export const PROGRESSION_RULES_2026 = {
@@ -2997,8 +3011,14 @@ export function displayableFortificationLevel(
  * Précision horizontale maximale d'un fix GPS accepté par cleanTrace (m).
  * Au-delà : point rejeté (outlier accuracy). Plus tolérant que le filtre de
  * claim §3.2 (POINT_MAX_ACCURACY_M = 25) : le moteur GPS garde des points
- * « affichables » 25-35 m pour la continuité visuelle ; le serveur reste seul
- * juge des points qui claiment.
+ * « affichables » 25-35 m pour la continuité visuelle.
+ *
+ * C'est AUSSI le plafond d'un sommet de frontière dans la capture 2026
+ * (`packages/engine/src/capture2026.ts`, invariant I2) : client et serveur
+ * gardent exactement les mêmes points. Le serveur reste seul juge de la
+ * capture, mais par les seuils de boucle et la précision AUX EXTRÉMITÉS
+ * (TERRITORY_RULES_2026.endpointMaxAccuracyM), pas en jetant en silence une
+ * boucle que l'écran venait de dessiner.
  */
 export const GPS_ACCURACY_MAX_M = 35;
 /** Précision (m) considérée « excellente » : jauge GPS pleine, composante accuracy du trust = 1. */
