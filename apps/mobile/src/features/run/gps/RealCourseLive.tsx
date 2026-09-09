@@ -41,7 +41,15 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
     finishingRef.current = true; setFinishing(true); setFailed(false);
     try {
       const result = await run.finish();
-      router.replace({ pathname: '/course-result', params: courseResultParams({ mode: run.effectiveMode, activity: run.activity, ...result }) });
+      // ─── G11 « SAUVEGARDE ET ANALYSE » EST SUR LE CHEMIN (10/09/2026) ──────
+      // `/course/analyse` (E27) peint les trois issues que cet écran-ci ne sait
+      // pas dire — analyse en attente, panne de réseau, envoi différé — et
+      // n'avait AUCUN appelant : la fin de sortie sautait au résultat, et un
+      // envoi resté en file ne se voyait nulle part. Le relais est celui du
+      // module testé (`courseResultParams`), transmis TEL QUEL par E27 au
+      // résultat : la discipline s'est déjà perdue une fois dans un objet
+      // littéral recopié à la main.
+      router.replace({ pathname: '/course/analyse', params: courseResultParams({ mode: run.effectiveMode, activity: run.activity, ...result }) });
     } catch { setFailed(true); setFinishing(false); finishingRef.current = false; }
   };
   return <View style={s.root}>
@@ -64,7 +72,19 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         <View style={s.metric}><Text style={s.number}>{rate.value}</Text><Text style={s.metricLabel}>{run.activity === 'run' ? (fr ? 'Allure · /km' : 'Pace · /km') : (fr ? 'Vitesse · km/h' : 'Speed · km/h')}</Text></View>
       </View>
       <ScrollView style={s.messages} contentContainerStyle={s.messagesContent} showsVerticalScrollIndicator={false}>
-        {(snapshot.signal !== 'ok' || run.permissionRevoked || run.approxLocation) && <View style={s.notice}><GrydIcon name="location" size={17} color={c.darkMuted} /><Text style={s.noticeText}>{run.permissionRevoked ? (fr ? 'Localisation désactivée. Tes points sont conservés.' : 'Location disabled. Your points are saved.') : (fr ? 'Signal GPS faible. La trace reprendra au retour du signal.' : 'Weak GPS signal. Your route resumes when the signal returns.')}</Text></View>}
+        {/* ─── TROIS CAUSES, TROIS PHRASES (10/09/2026) ────────────────────
+            Un seul bandeau les servait toutes, et il disait « signal faible »
+            à quelqu'un dont la PRÉCISION EXACTE est coupée dans les réglages :
+            une phrase fausse, qui fait attendre un retour de signal qui
+            n'arrivera jamais et qui cache le seul geste qui débloque. L'ordre
+            est celui de ce qu'on peut faire : ce qui se règle d'abord. */}
+        {run.permissionRevoked
+          ? <View style={s.notice}><GrydIcon name="location" size={17} color={c.darkMuted} /><View style={{ flex: 1 }}><Text style={s.noticeText}>{fr ? 'Localisation désactivée pendant la sortie. Les points déjà mesurés sont conservés ; plus rien ne s’ajoute.' : 'Location was switched off during the outing. The points already measured are kept; nothing more is added.'}</Text>{run.openSettings && <Pressable accessibilityRole="button" style={s.noticeAction} onPress={run.openSettings}><Text style={s.secondaryText}>{fr ? 'Ouvrir les Réglages' : 'Open Settings'}</Text><GrydIcon name="arrowUpRight" size={16} color={c.darkInk} /></Pressable>}</View></View>
+          : run.approxLocation
+            ? <View style={s.notice}><GrydIcon name="location" size={17} color={c.darkMuted} /><View style={{ flex: 1 }}><Text style={s.noticeText}>{fr ? 'Position approximative : la précision exacte est coupée pour GRYD. La trace restera grossière tant qu’elle l’est.' : 'Approximate location: precise accuracy is off for GRYD. Your route stays coarse until you turn it on.'}</Text>{run.openSettings && <Pressable accessibilityRole="button" style={s.noticeAction} onPress={run.openSettings}><Text style={s.secondaryText}>{fr ? 'Activer la position exacte' : 'Turn on precise location'}</Text><GrydIcon name="arrowUpRight" size={16} color={c.darkInk} /></Pressable>}</View></View>
+            : snapshot.signal !== 'ok'
+              ? <View style={s.notice}><GrydIcon name="location" size={17} color={c.darkMuted} /><Text style={s.noticeText}>{snapshot.signal === 'lost' ? (fr ? 'Signal GPS perdu. La trace reprendra au retour du signal ; ce qui manque restera un trou, jamais une ligne inventée.' : 'GPS signal lost. Your route resumes when it returns; the gap stays a gap, never an invented line.') : (fr ? 'Signal GPS faible. La trace continue, avec moins de précision.' : 'Weak GPS signal. Recording continues with less accuracy.')}</Text></View>
+              : null}
         {run.foregroundOnlyPlatform && <Text style={s.fine}>{fr ? 'Garde cet écran ouvert : le navigateur ne suit pas en arrière-plan.' : 'Keep this screen open: the browser cannot track in the background.'}</Text>}
         {run.bgPrompt !== 'hidden' && <Pressable accessibilityRole="button" style={s.noticeAction} onPress={run.allowBackground}><Text style={s.noticeText}>{fr ? 'Autoriser l’enregistrement écran verrouillé' : 'Allow recording with the screen locked'}</Text><GrydIcon name="arrowUpRight" size={17} color={c.darkInk} /></Pressable>}
         {run.restore && <View style={s.restore}><Text style={s.restoreTitle}>{fr ? 'Sortie retrouvée' : 'Recovered outing'}</Text><Text style={s.fine}>{(run.restore.distanceM / 1000).toFixed(2)} km · {run.restore.activity === 'bike' ? (fr ? 'Vélo' : 'Cycling') : (fr ? 'Course' : 'Running')}</Text>{run.restore.resume ? <Pressable accessibilityRole="button" style={s.restoreAction} onPress={run.restore.resume}><Text style={s.secondaryText}>{fr ? 'Reprendre la sortie retrouvée' : 'Resume recovered outing'}</Text><GrydIcon name="play" size={16} color={c.darkInk} /></Pressable> : null}{run.restore.resumeBlocked === 'other_activity' ? <Text style={s.fine}>{fr ? 'Elle n’est pas dans la même discipline que la sortie en cours : elle ne peut pas y être fusionnée. Garde-la au journal, elle part dans son monde.' : 'It belongs to another sport than the outing in progress and cannot be merged into it. Keep it in the journal: it goes to its own world.'}</Text> : run.restore.resumeBlocked === 'too_old' ? <Text style={s.fine}>{fr ? 'Elle date de plus de 24 h : la reprendre ferait repartir son chrono sur des heures qui n’ont pas été courues. Ses mesures restent intactes.' : 'It is more than 24 h old: resuming it would restart its clock over hours nobody ran. Its measurements stay intact.'}</Text> : null}<Pressable accessibilityRole="button" style={s.restoreAction} onPress={run.restore.discard}><Text style={s.secondaryText}>{fr ? 'Garder cette sortie au journal' : 'Keep this outing in the journal'}</Text><GrydIcon name="arrowUpRight" size={16} color={c.darkInk} /></Pressable></View>}

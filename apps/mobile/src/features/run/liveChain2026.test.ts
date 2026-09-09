@@ -275,3 +275,39 @@ Deno.test('carte : une zone sélectionnée porte sa date de prise', () => {
   const map = code('../refonte/MapHome.tsx');
   assert(map.includes('controlledSince'), 'la date validée par le contrat doit être peinte');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 3 — LA FIN DE SORTIE ET LES TROIS CAUSES GPS
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `/course/analyse` (E27) — l'écran G11 « Sauvegarde et analyse »,
+ * complet, testé, qui peint les trois issues (analyse en attente, échec réseau,
+ * envoi différé) — n'avait AUCUN appelant. `RealCourseLive` sautait directement
+ * au résultat, et son propre docblock affirmait pourtant que « RealCourseLive
+ * pose ici les paramètres et attend que E27 les remette à /course-result ».
+ * Les trois issues n'étaient donc peintes nulle part.
+ */
+Deno.test('fin de sortie : la sauvegarde passe par l’écran qui sait dire ses trois issues', () => {
+  const live = code('./gps/RealCourseLive.tsx');
+  assert(live.includes("pathname: '/course/analyse'"), 'la fin de sortie ouvre G11');
+  assert(live.includes('courseResultParams('), 'le relais reste celui du module testé');
+  const analyse = code('../../../app/course/analyse.tsx');
+  assert(analyse.includes("pathname: '/course-result'"), 'et G11 remet la main au résultat');
+});
+
+/**
+ * ÉTAPE 0 : un seul bandeau servait trois causes différentes. `approxLocation`
+ * (la précision exacte est COUPÉE dans les réglages) s'affichait « Signal GPS
+ * faible. La trace reprendra au retour du signal. » — une phrase fausse, qui
+ * fait attendre un retour qui n'arrivera jamais, et qui cache l'unique geste
+ * qui débloque : ouvrir les Réglages.
+ */
+Deno.test('course : trois causes GPS, trois phrases, et les Réglages là où ils règlent', () => {
+  const live = code('./gps/RealCourseLive.tsx');
+  assert(live.includes('run.permissionRevoked') && live.includes('run.approxLocation') && live.includes("snapshot.signal !== 'ok'"),
+    'les trois causes restent distinguées');
+  assert(live.includes('run.openSettings'), 'les deux causes réglables ouvrent les Réglages système');
+  assert(!/Signal GPS faible[^']*'\s*\)?\s*:\s*\(fr/.test(live) || live.includes('précision exacte'),
+    'la précision réduite ne se dit plus « signal faible »');
+});
