@@ -6,10 +6,33 @@
 > PARTIEL ou OPÉRATIONNEL — avec le lien vers la preuve (test, capture, log).
 
 > **09/09/2026 — la ligne produit a changé (ADR-012)** : le cahier de septembre passe au rang 0, le MASTER
-> devient archive ; le tableau ci-dessous décrit encore le périmètre MASTER et n'a pas été réécrit, et
-> l'intégration cahier Codex ↔ ligne du 02/09 est **EN COURS, NON RECETTÉE** — la recette de Codex dit
-> elle-même « aucun déploiement distant, achat réel ou test GPS sur appareil n'a été réalisé » et ses
-> harnais PGlite « n'exécutent pas PostGIS ». Aucune ligne de ce tableau ne bouge sur cette base.
+> devient archive ; le tableau ci-dessous décrit encore le périmètre MASTER et n'a pas été réécrit.
+>
+> **10/09/2026 — intégration FAITE, recette NON FAITE.** Branche `refonte-2026-09` : fusion de
+> `codex/refonte-2026-09` (`b48fde5`, migrations renumérotées 0118-0128) dans la ligne du 02/09 (`ca28b3a`),
+> commit de fusion `4483150` puis trois commits de suite. Gate vert sur l'arbre fusionné : typecheck 4/4, sync
+> sans dérive, 120 migrations sans collision, 2 641 tests mobile, 1 597 fonctions, 47 fichiers SQL — première
+> exécution de la lignée 0001→0128 sous PGlite (superutilisateur : la RLS réelle se re-vérifie en prod).
+> Ce que la fusion a tranché (politique ADR-012 : l'intention produit suit le cahier) : entrée `(tabs)/_layout`
+> version Codex (`/` = carte, invité → `/onboarding`), écrans legacy ré-exportés vers `features/refonte`, écran
+> e-mail OTP Codex (gate 16+ conservé, repli sans pile restauré), moteur `validation.ts` = coupure déclarée
+> PUIS silence temporel, `flags.season` retiré (surface Saison legacy retirée, routes ré-aiguillées vers
+> `/season`), `expo-blur` retiré, sources natives du module film rapatriées (exclues par gitignore, jamais
+> compilées ici).
+> **Rien de ce qui suit n'est recetté** : (1) l'app fusionnée n'a encore jamais tourné, ni en preview ni sur
+> appareil ; (2) le flux de course du cahier (`/map/prepare` → `/course-live` → `/course/analyse`) ne porte PAS
+> les correctifs du 02/09 faits dans `(mvp)/course` (maintien 1,2 s, chrono honnête après kill, envoi non
+> bloquant, voix) — le groupe `(mvp)` est conservé en quarantaine, réconciliation à faire ; (3) trois
+> interactions backend constatées, non corrigées : `territory_reigns` restera vide sous le trigger de 0118
+> (`my_territory_history()` rendrait un vide qui a l'air vrai ; aucun écran atteignable ne le peint aujourd'hui),
+> `crew_overview()` figé sur `hex_claims` (lu par les écrans crew legacy `CrewHero` / `stats.ts` — à vérifier
+> sous l'entrée Codex), résidu dé-identifié dans `capture_events_2026` après purge de compte (`on delete set
+> null`, à documenter côté RGPD) ; (4) dette L18 : 585 `copy('fr','en')` inline dans `features/refonte/` ;
+> (5) `_shared/` porte quatre fichiers `*2026` écrits à la main sans source de sync (`commercial2026`,
+> `premium2026`, `premium2026_io`, `recomputeProgress2026`) ; (6) GRYD+ (cahier §16.1) contredit ADR-011 :
+> les écrans existent, le SDK reste muet sans clé de production (`capability.ts`) — tension ouverte, App
+> Privacy à déclarer le jour d'une clé. Audit de routes sous l'entrée du cahier : adapté le 10/09 (ré-exportations résolues, arbre d'imports suivi) : 56/80 routes atteignables depuis `/`, `/onboarding`, `/course` (reprise après crash), `/c/[code]`, `/callback` ; 16 orphelines, toutes documentées ; **les obligations App Store tiennent** : `/sign-in`, `/email`, `/confidentialite` (suppression de compte + export RGPD), `/code-conduite`, `/support` atteignables depuis `/` ; exit 0. Constats de l'audit, NON corrigés : (a) la quarantaine `(mvp)` n'est pas étanche : `app/_layout.tsx` rouvre `/course` (écran MVP) à la reprise après crash alors que la carte du cahier enregistre sur `/course-live`, deux écrans de course selon le chemin, et cette reprise finit sur `/carte` (carte MVP) ; (b) conflit de routes réel : `/profil` est servi par `(mvp)/profil.tsx` ET `(tabs)/profil.tsx` ; (c) huit écrans ont perdu leur unique porte dans la fusion, dont `/appel` (recours anti-triche : plus aucun joueur ne peut l'ouvrir) et `/course/analyse` (E27, court-circuité vers `/course-result`) ; (d) le tunnel `/setup/*` (E08 à E10) n'est plus dans aucun parcours.
+> Migrations 0118-0128 et fonctions : appliquées en prod le 10/09/2026 (`supabase db push`, 120 appliquées, dernière 0128, aucune en attente), RLS réelle re-vérifiée (`verify:rls` vert), fonctions `ingest_run`, `progression_2026`, `sync_gryd_plus_access_2026` et `rc_webhook` (sans JWT, `config.toml`) redéployées — première exécution réelle de ces migrations sous PostGIS, réussie ; leur COMPORTEMENT (points 3 ci-dessus) reste à recetter. Aucune ligne du tableau ne bouge sur cette base.
 
 | Fonctionnalité (périmètre IN, §7) | État | Preuve |
 |---|---|---|
