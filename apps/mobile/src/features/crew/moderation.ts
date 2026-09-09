@@ -141,6 +141,28 @@ interface ModerationState {
   blocked: string[];
 }
 
+/**
+ * ═══ LES BLOCAGES 2026, ET POURQUOI ILS ONT LEUR PROPRE LISTE ═══════════════
+ * `social_block_2026` (0124) écrit dans `social_blocks_2026`, une table qui
+ * porte l'ID DU COMPTE bloqué — pas un pseudo. C'est ce que le serveur oppose
+ * réellement : le fil, la conversation, le profil, la carte. Or `useBlockedPseudos`
+ * ne lisait QUE `user_blocks` (legacy, indexé par pseudo) : bloquer depuis le fil
+ * ou depuis le profil d'un membre ne masquait donc personne dans le roster de
+ * crew (`CrewHomeScreen`), et l'app promettait l'inverse.
+ *
+ * Cette liste est un MIROIR DE LECTURE : jamais persistée en AsyncStorage (une
+ * copie périmée d'un état serveur est pire qu'une absence), recalculée à chaque
+ * hydratation. Les pseudos locaux, eux, restent persistés — ils survivent hors
+ * session.
+ */
+export interface BlockedPerson2026 {
+  readonly id: string;
+  /** Nom lisible capturé au moment du blocage, ou null si le serveur l'ignore. */
+  readonly name: string | null;
+}
+
+let blocked2026: readonly BlockedPerson2026[] = [];
+
 let state: ModerationState = { reports: [], blocked: [] };
 let loaded = false;
 let loadPromise: Promise<void> | null = null;
@@ -148,11 +170,25 @@ const listeners = new Set<() => void>();
 
 /** Snapshot stable : recomposé UNIQUEMENT quand `state` change (getSnapshot pur). */
 let snapshot: ModerationState = state;
+/** Même règle pour les blocages 2026 : une référence stable par émission. */
+let snapshotPeople: readonly BlockedPerson2026[] = [];
 
 const STORAGE_KEY = 'gryd.crew.moderation';
 
 function emit() {
-  snapshot = { reports: [...state.reports], blocked: [...state.blocked] };
+  // L'union est calculée ICI, pas persistée : `state.blocked` reste la seule
+  // liste locale, `blocked2026` reste une lecture serveur. Un nom déjà présent
+  // localement n'est pas dupliqué (comparaison sans casse ni espaces).
+  const seen = new Set(state.blocked.map((p) => p.trim().toLowerCase()));
+  const merged = [...state.blocked];
+  for (const person of blocked2026) {
+    const label = person.name?.trim();
+    if (!label || seen.has(label.toLowerCase())) continue;
+    seen.add(label.toLowerCase());
+    merged.push(label);
+  }
+  snapshot = { reports: [...state.reports], blocked: merged };
+  snapshotPeople = [...blocked2026];
   for (const l of listeners) l();
 }
 
@@ -228,6 +264,19 @@ async function hydrateRemote(): Promise<void> {
         .eq('reporter_id', uid),
     ]);
     if (blocksRes.error || reportsRes.error) return; // table absente / RLS → garder local
+    // LA LISTE QUI COMPTE VRAIMENT (0124) : c'est elle que le serveur oppose au
+    // fil, à la conversation, au profil et à la carte. Best-effort comme le
+    // reste : une RPC absente laisse simplement le miroir 2026 vide.
+    try {
+      const people = await supabase.rpc('social_block_list_2026');
+      blocked2026 = people.error || !Array.isArray(people.data)
+        ? blocked2026
+        : (people.data as { id?: unknown; name?: unknown }[])
+            .filter((r): r is { id: string; name?: unknown } => typeof r?.id === 'string')
+            .map((r) => ({ id: r.id, name: typeof r.name === 'string' ? r.name : null }));
+    } catch {
+      // miroir inchangé : ne jamais « débloquer » quelqu'un sur un échec réseau.
+    }
     const remoteBlocked = (blocksRes.data ?? [])
       .map((r) => (r as { blocked_pseudo?: unknown }).blocked_pseudo)
       .filter((p): p is string => typeof p === 'string');
@@ -344,10 +393,21 @@ export function blockMember(pseudo: string): void {
   });
 }
 
-/** Débloque un membre (ses messages réapparaissent). */
+/**
+ * Débloque un membre (ses messages réapparaissent).
+ *
+ * DEUX MONDES À LEVER, pas un : le pseudo legacy (`user_blocks`) ET le blocage
+ * 2026 (`social_blocks_2026`, indexé par compte). Sans le second, « Débloquer »
+ * retirait la ligne de l'écran, puis la relecture suivante la ramenait — parce
+ * que le serveur, lui, bloquait toujours.
+ */
 export function unblockMember(pseudo: string): void {
-  if (!state.blocked.includes(pseudo)) return;
+  const target = blocked2026.find(
+    (p) => (p.name ?? '').trim().toLowerCase() === pseudo.trim().toLowerCase(),
+  );
+  if (!state.blocked.includes(pseudo) && !target) return;
   state = { ...state, blocked: state.blocked.filter((p) => p !== pseudo) };
+  if (target) blocked2026 = blocked2026.filter((p) => p.id !== target.id);
   persist();
   emit();
   void currentUserId().then((uid) => {
@@ -358,6 +418,11 @@ export function unblockMember(pseudo: string): void {
         .eq('blocker_id', uid)
         .eq('blocked_pseudo', pseudo)
         .then(() => {}, () => {});
+      if (target) {
+        void supabase
+          .rpc('social_block_2026', { p_user_id: target.id, p_blocked: false })
+          .then(() => {}, () => {});
+      }
     }
   });
 }
@@ -386,6 +451,7 @@ export function isReportedMessage(messageId: string): boolean {
 /** RAZ (utilitaire démo / tests). */
 export function resetModeration(): void {
   state = { reports: [], blocked: [] };
+  blocked2026 = [];
   persist();
   emit();
 }
@@ -400,9 +466,20 @@ function getSnapshot(): ModerationState {
   return snapshot;
 }
 
+function getPeopleSnapshot(): readonly BlockedPerson2026[] {
+  return snapshotPeople;
+}
+
 /** État exposé au hook : liste des bloqués + signalements + drapeau de charge. */
 export interface Moderation {
+  /** Noms bloqués, LEGACY et 2026 réunis (voir `emit`). */
   blocked: readonly string[];
+  /**
+   * Blocages 2026 avec leur ID de compte. C'est la seule forme fiable : deux
+   * surfaces peuvent afficher des noms différents pour la même personne
+   * (`users.pseudo` d'un côté, `user_profiles.display_name` de l'autre).
+   */
+  blockedPeople: readonly BlockedPerson2026[];
   reports: readonly ContentReport[];
   loaded: boolean;
 }
@@ -416,5 +493,6 @@ export interface Moderation {
  */
 export function useModeration(): Moderation {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  return { blocked: snap.blocked, reports: snap.reports, loaded };
+  const people = useSyncExternalStore(subscribe, getPeopleSnapshot, getPeopleSnapshot);
+  return { blocked: snap.blocked, blockedPeople: people, reports: snap.reports, loaded };
 }

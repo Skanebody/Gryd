@@ -1,5 +1,37 @@
-export type SocialPerson2026 = { id: string; handle: string; name: string; bio?: string | null; avatarPath?: string | null; isMe?: boolean };
-export type SocialPost2026 = { id: string; body: string; mediaPath: string | null; createdAt: string; mine: boolean; author: SocialPerson2026; activity: 'run' | 'bike'; distanceM: number; durationS: number; reacted: boolean; reactionCount: number; commentCount: number };
+/**
+ * MA relation à quelqu'un, telle que `social_member_2026` la rend (0153).
+ * `null` sur mon propre profil et hors session. Ce sont MES arêtes : rien ici
+ * ne dit combien d'abonnés a la personne ni qui la suit.
+ */
+export type SocialRelation2026 = { following: boolean; friend: boolean; requestSent: boolean; requestReceived: boolean; blocked: boolean };
+export type SocialPerson2026 = { id: string; handle: string; name: string; bio?: string | null; avatarPath?: string | null; isMe?: boolean; relation?: SocialRelation2026 | null };
+/** §13.4 — réactions limitées et humaines. Liste FERMÉE, miroir du CHECK SQL (0153). */
+export type SocialReactionKind2026 = 'cheer' | 'thanks' | 'next_time';
+export const SOCIAL_REACTION_KINDS_2026: readonly SocialReactionKind2026[] = ['cheer', 'thanks', 'next_time'];
+export type SocialPost2026 = { id: string; body: string; mediaPath: string | null; createdAt: string; mine: boolean; author: SocialPerson2026; activity: 'run' | 'bike'; distanceM: number; durationS: number; reacted: boolean; reactionCount: number; myReaction?: SocialReactionKind2026 | null; reactions?: { cheer: number; thanks: number; nextTime: number }; commentCount: number };
+
+/**
+ * Compteur d'UNE réaction. `undefined` côté serveur (base en retard d'une
+ * migration) ⇒ 0 : on n'affiche pas un nombre qu'on n'a pas reçu, et le
+ * compteur n'est de toute façon peint que s'il est strictement positif.
+ */
+export function reactionCount2026(post: SocialPost2026, kind: SocialReactionKind2026): number {
+ const counts = post.reactions; if (!counts) return 0;
+ const n = kind === 'cheer' ? counts.cheer : kind === 'thanks' ? counts.thanks : counts.nextTime;
+ return typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+}
+
+/**
+ * MA réaction, ou `null`. Un serveur d'avant 0153 ne renvoie que `reacted` :
+ * on la lit alors comme un encouragement, ce qu'elle était — jamais comme
+ * « aucune », qui rallumerait un bouton déjà posé.
+ */
+export function myReaction2026(post: SocialPost2026): SocialReactionKind2026 | null {
+ const mine = post.myReaction;
+ if (mine === 'cheer' || mine === 'thanks' || mine === 'next_time') return mine;
+ if (mine === null || mine === undefined) return post.reacted && post.reactions === undefined ? 'cheer' : null;
+ return null;
+}
 export type SocialComment2026 = { id: string; body: string; createdAt: string; mine: boolean; author: SocialPerson2026 };
 export function ownerScopedValue2026<T>(owner: string | null, read: { owner: string; value: T } | null): T | null { return owner && read?.owner === owner ? read.value : null; }
 export const socialError2026 = (reason: string, en = false): string => {
@@ -11,6 +43,15 @@ export const socialError2026 = (reason: string, en = false): string => {
   consent_required:['Confirme le partage avec les membres du crew.','Confirm sharing with crew members.'], run_unavailable:['Cette sortie confirmée n’est pas accessible à ton compte.','This confirmed activity is not accessible to your account.'],
   post_unavailable:['Cette publication n’est plus accessible.','This post is no longer accessible.'], post_removed:['Cette publication a été retirée.','This post has been removed.'],
   moderated:['Ce texte ne peut pas être publié. Modifie-le.','This text cannot be published. Edit it.'], forbidden:['Cette action n’est pas autorisée.','This action is not allowed.'],
+  // Signalement d'une PERSONNE (0137) et modération de crew (0138). Sans ces
+  // clés, un refus nommé par le serveur retombait sur « L'action n'a pas
+  // abouti » — la phrase qui n'apprend rien à celui qui signale un abus.
+  profile_unavailable:['Ce profil n’est plus accessible : impossible de le signaler.','This profile is no longer reachable, so it cannot be reported.'],
+  invalid_target:['Choisis une seule cible à signaler.','Pick a single thing to report.'],
+  invalid_reason:['Choisis un motif de signalement.','Pick a reason for your report.'],
+  invalid_moderation:['Cette action de modération n’est pas reconnue.','This moderation action is not recognised.'],
+  no_content_to_remove:['Ce signalement vise une personne : il n’y a pas de contenu à retirer.','This report is about a person: there is no content to remove.'],
+  content_unavailable:['Ce contenu n’est plus accessible.','This content is no longer accessible.'],
  };
  const found=Object.keys(messages).find(key=>reason.includes(key)); return found ? messages[found]![en?1:0] : en ? 'The action did not complete. Try again.' : 'L’action n’a pas abouti. Réessaie.';
 };

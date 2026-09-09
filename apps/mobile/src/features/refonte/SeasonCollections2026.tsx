@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { RewardEmblem, REWARD_VARIANTS } from '../../ui/gryd';
 import type { ProfileProgress2026 } from './ProfileProgress';
 import { ProfileButton, ProfileSection, s, useRefonteCopy } from './ProfilePrimitives';
+import { formatCivilDay2026, readableTimeZone2026 } from './SeasonPresentation2026';
 
 export function SeasonCollections2026({ progress, reload, locale, tone = 'dark' }: { progress: ProfileProgress2026; reload: () => void; locale: string; tone?: 'dark' | 'light' }) {
   const copy = useRefonteCopy();
@@ -35,16 +36,16 @@ export function SeasonCollections2026({ progress, reload, locale, tone = 'dark' 
         <RewardEmblem variant={REWARD_VARIANTS[collectionIndex % REWARD_VARIANTS.length]!} size={58} level={collection.stage} state="preview" tone={selected ? 'accent' : 'neutral'} />
         <View style={s.flex}><Text style={[s.linkTitle, { color: ink }]}>{collection.title}</Text>
           <Text style={[s.meta, { color: muted }]}>{collection.state === 'archived' ? copy('Archive', 'Archive') : collection.state === 'current' ? copy('En cours', 'Current') : copy('À venir', 'Upcoming')} · {new Date(collection.startsAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' })} — {new Date(collection.endsAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}</Text>
-          <Text style={[s.meta, { color: muted }]}>{selected ? copy('Collection suivie', 'Selected collection') : pending ? copy(`À partir du ${progress.pendingSelection!.effectiveDay}`, `From ${progress.pendingSelection!.effectiveDay}`) : collection.selectable ? copy('Toucher pour suivre cette collection', 'Tap to follow this collection') : copy('Cette collection n’a pas été commencée.', 'This collection has not been started.')}</Text>
+          <Text style={[s.meta, { color: muted }]}>{selected ? copy('Collection suivie', 'Selected collection') : pending ? copy(`À partir du ${formatCivilDay2026(progress.pendingSelection!.effectiveDay, locale)}`, `From ${formatCivilDay2026(progress.pendingSelection!.effectiveDay, locale)}`) : collection.selectable ? copy('Toucher pour suivre cette collection', 'Tap to follow this collection') : copy('Cette collection n’a pas été commencée.', 'This collection has not been started.')}</Text>
         </View>
         <Text style={[s.linkTitle, { color: ink }]}>{collection.stage}/{rules.seasonTierCount}</Text>
       </Pressable>;
     }) : <Text style={[s.body, { color: ink }]}>{copy('Le calendrier de la prochaine collection sera annoncé ici. Ton parcours permanent continue.', 'The next collection calendar will appear here. Your permanent journey continues.')}</Text>}
     <Text style={[s.meta, { color: muted, marginTop: 14 }]}>{copy('Un changement s’applique le lendemain. Une archive commencée peut être reprise, et tous les objets gagnés restent acquis.', 'Changes apply the following day. You can resume a started archive and keep every earned object.')}</Text>
     <ProfileSection tone={tone} title={copy('Mon rythme', 'My rhythm')} />
-    <Text style={[s.body, { color: ink }]}>{progress.timeZone.replace(/_/g, ' ')}</Text>
-    {progress.pendingTimeZone ? <Text style={[s.meta, { color: muted }]}>{copy('Prochain fuseau', 'Next time zone')} : {progress.pendingTimeZone.timeZone} · {new Date(progress.pendingTimeZone.effectiveAt).toLocaleDateString(locale)}</Text> : null}
-    {deviceZone && deviceZone !== progress.timeZone && deviceZone !== progress.pendingTimeZone?.timeZone ? <View style={{ marginTop: 12 }}><ProfileButton tone={tone} secondary busy={busy} label={copy(`Utiliser ${deviceZone.replace(/_/g, ' ')}`, `Use ${deviceZone.replace(/_/g, ' ')}`)} onPress={() => void mutate('set_progress_timezone_2026', { p_time_zone: deviceZone })} /></View> : null}
+    <Text style={[s.body, { color: ink }]}>{readableTimeZone2026(progress.timeZone)}</Text>
+    {progress.pendingTimeZone ? <Text style={[s.meta, { color: muted }]}>{copy('Prochain fuseau', 'Next time zone')} : {readableTimeZone2026(progress.pendingTimeZone.timeZone)} · {new Date(progress.pendingTimeZone.effectiveAt).toLocaleDateString(locale)}</Text> : null}
+    {deviceZone && deviceZone !== progress.timeZone && deviceZone !== progress.pendingTimeZone?.timeZone ? <View style={{ marginTop: 12 }}><ProfileButton tone={tone} secondary busy={busy} label={copy(`Utiliser ${readableTimeZone2026(deviceZone)}`, `Use ${readableTimeZone2026(deviceZone)}`)} onPress={() => void mutate('set_progress_timezone_2026', { p_time_zone: deviceZone })} /></View> : null}
     <Text style={[s.meta, { color: muted, marginTop: 8 }]}>{copy('Le fuseau fixe tes journées actives. Un changement prend effet la semaine suivante.', 'Your time zone defines active days. Changes take effect the following week.')}</Text>
     {notice ? <Text accessibilityRole="alert" style={[s.meta, { color: muted, marginTop: 12 }]}>{notice}</Text> : null}
   </View>;

@@ -110,10 +110,28 @@ function refusalEntry(reason: MemberActionRefusal) {
  * Pseudos bloqués sous leur forme de COMPARAISON, mémoïsée. C'est le pont entre
  * le store de modération (React) et le prédicat pur `isPseudoBlocked` que les
  * surfaces consomment ligne par ligne.
+ *
+ * ═══ LE DÉFAUT CORRIGÉ (10/09/2026) ═════════════════════════════════════════
+ * Ce hook ne lisait que `user_blocks` — la table LEGACY, indexée par pseudo.
+ * Or le fil (`crew-feed.tsx`) et le profil d'un membre (`member.tsx`) écrivent
+ * dans `social_blocks_2026` (RPC `social_block_2026`, migration 0124), indexée
+ * par COMPTE. Résultat : on bloquait quelqu'un depuis le fil, le serveur le
+ * masquait bien du fil et du profil… et il restait visible dans le roster de
+ * crew, qui filtrait avec cette liste-là. `useModeration` unit désormais les
+ * deux mondes.
+ *
+ * L'ID DU COMPTE ENTRE AUSSI DANS L'INDEX. Deux surfaces peuvent afficher deux
+ * noms pour la même personne (`users.pseudo` côté roster,
+ * `user_profiles.display_name` côté profil 2026) : comparer par nom seul rate
+ * ce cas. Un UUID n'est jamais un pseudo, l'ajouter n'élargit donc rien — il
+ * permet aux surfaces qui tiennent un `userId` de filtrer sans ambiguïté.
  */
 export function useBlockedPseudos(): ReadonlySet<string> {
-  const { blocked } = useModeration();
-  return useMemo(() => blockedPseudoSet(blocked), [blocked]);
+  const { blocked, blockedPeople } = useModeration();
+  return useMemo(
+    () => blockedPseudoSet([...blocked, ...blockedPeople.map((p) => p.id)]),
+    [blocked, blockedPeople],
+  );
 }
 
 /**

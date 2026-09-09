@@ -9,6 +9,7 @@ import { useLocale } from '../../i18n/store';
 import { useSession } from '../../lib/session';
 import { seasonObjectPreview2026 } from '../share/studioObjects2026';
 import { rewardLabel2026 } from './SeasonRewardLabels2026';
+import { seasonTimelineWindow2026 } from './SeasonPresentation2026';
 import { useProfileProgress } from './ProfileProgress';
 import { SeasonCollections2026 } from './SeasonCollections2026';
 import { ProfileButton, ProfilePage, ProfileSection, ProfileSegments, s, useRefonteCopy } from './ProfilePrimitives';
@@ -30,12 +31,12 @@ export function SeasonJourneyScreen() {
   const career = progress.data ? careerProgress2026(progress.data.totalXp) : null;
   const seasonProgress = progress.data?.season ?? null;
   const current = segment === 'career' ? career?.level : seasonProgress?.stage;
-  const entries = segment === 'career'
+  const entries: { id: string; label: string; threshold: number }[] = segment === 'career'
     ? LEVEL_REWARDS_2026.map(item => ({ id: item.id, label: item.label, threshold: item.level }))
     : SEASON_REWARDS_2026.map(item => ({ id: item.id, label: item.label, threshold: item.tier }));
-  const nextIndex = entries.findIndex(item => item.threshold > (current ?? 0));
-  const next = nextIndex >= 0 ? entries[nextIndex] : null;
-  const timeline = showAll ? entries : next ? entries.slice(nextIndex + 1, nextIndex + 4) : entries.slice(-3);
+  // La fenêtre « À suivre » commence par le PROCHAIN jalon (G23) : le découpage
+  // vit dans un module pur, testé, parce qu'il se trompait ici en silence.
+  const { next, timeline } = seasonTimelineWindow2026(entries, current, showAll);
   const hasMeasure = current !== undefined;
   useEffect(() => { screen('season'); }, []);
   useEffect(() => {
@@ -79,7 +80,7 @@ export function SeasonJourneyScreen() {
 }
 
 function SeasonContours() {
-  return <View pointerEvents="none" style={local.contours}><Svg width={145} height={145} viewBox="0 0 145 145" accessible={false}>{Array.from({length: 7}, (_, i) => <Path key={i} d={`M ${22+i*10} -12 C ${-45+i*10} 72, ${170+i*5} 44, ${75+i*8} 160`} fill="none" stroke={colors.blanc14} strokeWidth={1} />)}</Svg></View>;
+  return <View pointerEvents="none" style={local.contours}><Svg width={145} height={145} viewBox="0 0 145 145" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{Array.from({length: 7}, (_, i) => <Path key={i} d={`M ${22+i*10} -12 C ${-45+i*10} 72, ${170+i*5} 44, ${75+i*8} 160`} fill="none" stroke={colors.blanc14} strokeWidth={1} />)}</Svg></View>;
 }
 const local = StyleSheet.create({
   overview: { backgroundColor: c.carbon, borderRadius: 24, padding: 16, marginTop: 12, marginBottom: 12, minHeight: 148, justifyContent: 'center', gap: 10, overflow: 'hidden' },
