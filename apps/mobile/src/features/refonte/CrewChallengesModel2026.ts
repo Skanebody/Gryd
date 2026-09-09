@@ -65,13 +65,17 @@ export function parseCrewChallenges2026(raw: unknown): CrewChallenge2026[] | nul
   }
   return result;
 }
+/** Un résultat arrêté ne se rejoue pas depuis un écran (0148). `settled` = résultat publié
+ *  ou fenêtre de synchronisation expirée : le serveur y refuse le retrait global du consentement
+ *  (`challenge_closed`), et le seul retrait qui subsiste porte sur UNE sortie nommée. */
 export function challengeActions2026(match: CrewChallenge2026, now: number) {
   const team = match.teams.find(item => item.id === match.myTeamId);
   const closed = match.status === 'final' || match.status === 'cancelled'; const before = now < Date.parse(match.startsAt);
+  const settled = closed || now >= Date.parse(match.endsAt) + rules.finalSyncWindowHours * 3_600_000;
   return {
     accept: !closed && before && ['invited', 'assembling'].includes(match.status) && match.canManage && team?.side === 1 && !team.accepted,
     join: !closed && !match.joined && (match.rostered || before && match.status !== 'scheduled' && team?.accepted === true && !team.locked && team.players < rules.playersPerTeam),
-    withdraw: match.joined,
+    withdraw: match.joined && !settled,
     lock: !closed && before && match.status === 'assembling' && match.canManage && team?.accepted === true && !team.locked && team.players === rules.playersPerTeam,
     cancel: !closed && before && match.canManage,
     chooseSector: !closed && match.joined && now < Date.parse(match.endsAt),

@@ -86,11 +86,20 @@ Deno.test('challenges: retained roster may re-consent during the match; final an
   }
 });
 
-Deno.test('challenges: consent withdrawal remains available after the final result or cancellation', () => {
-  for (const status of ['assembling', 'active', 'final', 'cancelled'] as const) {
+// 0148 : le retrait global vaut tant que le résultat n'est pas arrêté. Après la
+// publication finale ou la fenêtre de synchronisation, le serveur lève
+// `challenge_closed` — l'écran ne doit donc plus proposer le geste.
+Deno.test('challenges: consent withdrawal stops once the result is settled, and never before the player joined', () => {
+  for (const status of ['assembling', 'active'] as const) {
     assertEquals(challengeActions2026(match({ status, joined: true, rostered: true }), during).withdraw, true);
     assertEquals(challengeActions2026(match({ status, joined: false, rostered: true }), during).withdraw, false);
   }
+  for (const status of ['final', 'cancelled'] as const) {
+    assertEquals(challengeActions2026(match({ status, joined: true, rostered: true }), during).withdraw, false);
+  }
+  const lastSecond = Date.parse('2026-09-21T21:59:59Z');
+  assertEquals(challengeActions2026(match({ status: 'active', joined: true, rostered: true }), lastSecond).withdraw, true);
+  assertEquals(challengeActions2026(match({ status: 'active', joined: true, rostered: true }), lastSecond + 1000).withdraw, false);
   assertEquals(challengeActions2026(match({ status: 'active', joined: true }), during).chooseSector, true);
   assertEquals(challengeActions2026(match({ status: 'active', joined: true }), Date.parse('2026-09-21T00:00:00Z')).chooseSector, false);
 });
