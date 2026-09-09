@@ -254,8 +254,10 @@ Deno.test('le préflight DÉCLARE la discipline qu’il a lui-même affichée', 
   const code = await readCode('./RunPreflight.tsx');
   const calls = [...code.matchAll(/confirm\.current\(\s*([^,()]+)\s*,\s*([^,()]+)\s*\)/g)];
   assertEquals(calls.length, 1, 'un seul point du préflight peut confirmer le départ');
-  assertEquals(calls[0]?.[1]?.trim(), 'requestedActivity',
-    'le départ doit passer la discipline COURANTE de l’écran — ni une constante de module, ni un appel à vide');
+  assertEquals(calls[0]?.[1]?.trim(), 'activity',
+    'le départ doit passer la discipline COURANTE de l’écran — celle que la pastille ' +
+      'affiche et qu’un tap vient peut-être de corriger, jamais la déclaration d’URL ' +
+      'telle quelle, ni une constante de module, ni un appel à vide');
   assertEquals(calls[0]?.[2]?.trim(), 'consent',
     'le consentement est relu au départ, pas repris depuis un ancien rendu');
   const consentRead = code.indexOf('const consent = choice.currentConsent();');
@@ -271,7 +273,8 @@ Deno.test('le préflight DÉCLARE la discipline qu’il a lui-même affichée', 
 
 Deno.test('2026 : le préflight montre le sport déclaré et laisse annuler le départ', async () => {
   const code = await readCode('./RunPreflight.tsx');
-  assert(code.includes("requestedActivity === 'run'"), 'le libellé lit le sport demandé');
+  assert(code.includes("activity === 'run'"), 'le libellé lit le sport qui sera enregistré');
+  assert(code.includes('setActivity(requestedActivity)'), 'la déclaration du chemin de départ l’initialise');
   for (const label of ['Course', 'Run', 'Vélo', 'Ride']) assert(code.includes(label), label);
   assert(code.includes('onPress={cancel}'), 'le décompte doit rester annulable');
   assert(/const cancel = \(\) => \{ setCount\(null\); preflight.cancel\(\); router.back\(\);/.test(code),
@@ -283,7 +286,15 @@ Deno.test('une sortie ne change JAMAIS de discipline une fois partie', async () 
   const tracker = await readCode('./tracker.ts');
   assert(preflight.includes('if (!started.current)'), 'le décompte ne démarre qu’un tracker');
   assert(tracker.includes('readonly activity: Activity'), 'le tracker garde le sport de sa création');
-  assert(!preflight.includes('setActivity('), 'le préflight ne réécrit pas le sport pendant le départ');
+  // Le préflight PEUT corriger le sport — c'est la deuxième marche d'E14, et
+  // c'est ce qui empêche une lentille de carte de décider en silence. Ce qu'il
+  // ne peut pas, c'est le corriger APRÈS le GO : la correction sort d'abord sur
+  // `started`, et le tracker, lui, ne rebascule jamais.
+  const correction = preflight.slice(preflight.indexOf('const correctActivity'), preflight.indexOf('const cancel ='));
+  assert(correction.includes('if (started.current) return;'),
+    'la correction de sport s’interdit dès qu’un tracker existe');
+  assert(correction.indexOf('if (started.current) return;') < correction.indexOf('setActivity('),
+    'la garde précède toute réécriture');
 });
 
 Deno.test('l’écran LIVE dit en permanence quelle discipline est enregistrée', async () => {
