@@ -1,12 +1,18 @@
 /**
- * GRYD — E39 · DÉCOUVERTE DES CREWS : la PERTINENCE, pure et testée.
+ * GRYD — DÉCOUVERTE DES CREWS : la PERTINENCE, pure et testée.
  *
  * ═══ POURQUOI CE FICHIER EXISTE, ET PAS UN `order by` EN SQL ════════════════
- * §E39 fixe un ordre de pertinence explicite :
+ * §E39 fixait un ordre de pertinence explicite :
  *     ville > amis ou contacts > activité récente > capacité disponible >
  *     compatibilité Run/Bike.
+ * Le cahier de septembre §13.1 en déplace une pièce, et c'est la pièce
+ * centrale : « La découverte doit montrer son accueil, ses horaires et ses
+ * SORTIES, AVANT son classement. » Une sortie à venir passe donc devant toute
+ * mesure d'activité passée — on rejoint un groupe pour courir avec lui la
+ * semaine prochaine, pas pour son historique.
+ *
  * Le pondérer côté serveur aurait enterré des constantes de jeu dans le schéma
- * (interdit, CLAUDE.md). La RPC `crew_discovery` (0083) ne renvoie donc que des
+ * (interdit, CLAUDE.md). La RPC `crew_discovery` (0152) ne renvoie donc que des
  * FAITS ; la décision d'ordre vit ici, sans I/O, sans horloge implicite, et se
  * teste ligne à ligne.
  *
@@ -40,12 +46,20 @@ import { CREW_MAX_MEMBERS, type CrewRecruitmentStatus } from '@klaim/shared';
 
 // ─── Ce que la RPC `crew_discovery` (0083) rend, tel quel ────────────────────
 
-/** Discipline dominante d'un crew, DÉRIVÉE de son emprise réelle. */
+/** Disciplines réellement pratiquées par un crew, DÉRIVÉES du terrain tenu. */
 export type CrewActivityProfile = 'run' | 'bike' | 'mixed' | 'unknown';
 
 /**
  * Un crew tel que la découverte le connaît. Aucune identité de membre : la RPC
  * n'en renvoie pas (§12 — on ne voit pas les autres avant d'entrer).
+ *
+ * ⚠ PLUS AUCUN COMPTE DE ZONES NI DE RANG (migration 0152). `hexesHeld` venait
+ * de `hex_claims`, table qu'aucune activité 2026 ne peut plus écrire (0118) :
+ * elle affichait « Aucune zone tenue » pour tous les crews, à vie. Et on ne l'a
+ * pas remplacée par une surface de crew : 0126 pose que le titre territorial
+ * est INDIVIDUEL — additionner les possessions des membres fabriquerait un
+ * second titre qui n'existe pas. Ce qui reste est vrai : QUI est actif, DANS
+ * QUELLE discipline, et QUAND.
  */
 export interface DiscoveryCrew {
   id: string;
@@ -56,12 +70,17 @@ export interface DiscoveryCrew {
   cityId: string;
   recruitmentStatus: CrewRecruitmentStatus;
   memberCount: number;
-  /** Emprise VIVANTE (hexagones DISTINCTS tenus par les membres actifs). */
-  hexesHeld: number;
-  hexesRun: number;
-  hexesBike: number;
-  /** Dernière capture du crew en ms epoch, ou null s'il n'a jamais rien pris. */
+  /** Membres actifs qui tiennent RÉELLEMENT du terrain publié (jamais une aire). */
+  membersHolding: number;
+  /** Le crew tient-il du terrain en course ? (booléen : run et bike ne s'additionnent pas.) */
+  holdsRun: boolean;
+  holdsBike: boolean;
+  /** Dernière prise de contrôle d'un membre, en ms epoch. `null` = aucune. */
   lastCaptureAtMs: number | null;
+  /** §13.1 — sorties À VENIR annoncées par le crew (jamais leur lieu). */
+  upcomingOutings: number;
+  /** Instant de la PROCHAINE sortie en ms epoch, ou `null` s'il n'y en a pas. */
+  nextOutingAtMs: number | null;
   /** Mes amis DÉJÀ dans ce crew (un entier, jamais des noms). */
   friendsInside: number;
   /** Ma candidature est-elle en cours sur ce crew ? */
@@ -132,10 +151,14 @@ export function parseDiscoveryCrew(raw: unknown): DiscoveryCrew | null {
     cityId,
     recruitmentStatus: asRecruitment(o.recruitmentStatus),
     memberCount: Math.max(0, asInt(o.memberCount)),
-    hexesHeld: Math.max(0, asInt(o.hexesHeld)),
-    hexesRun: Math.max(0, asInt(o.hexesRun)),
-    hexesBike: Math.max(0, asInt(o.hexesBike)),
+    membersHolding: Math.max(0, asInt(o.membersHolding)),
+    // `=== true` et non « truthy » : une clé absente (serveur en retard d'une
+    // migration) doit valoir « je ne sais pas qu'il court », jamais « il court ».
+    holdsRun: o.holdsRun === true,
+    holdsBike: o.holdsBike === true,
     lastCaptureAtMs: asMs(o.lastCaptureAt),
+    upcomingOutings: Math.max(0, asInt(o.upcomingOutings)),
+    nextOutingAtMs: asMs(o.nextOutingAt),
     friendsInside: Math.max(0, asInt(o.friendsInside)),
     myRequestPending: o.myRequestPending === true,
   };
@@ -250,15 +273,15 @@ export function seatsLeft(crew: DiscoveryCrew): number {
 }
 
 /**
- * Discipline dominante, DÉRIVÉE de l'emprise réelle — jamais déclarée par le
- * crew. Un crew sans aucune emprise est 'unknown' : il n'a rien montré, et lui
- * prêter une discipline serait inventer son identité (E14 : Run et Bike ne se
- * mélangent pas, donc on ne les moyenne pas non plus).
+ * Disciplines pratiquées, DÉRIVÉES du terrain réellement tenu — jamais
+ * déclarées par le crew. Un crew qui ne tient rien est 'unknown' : il n'a rien
+ * montré, et lui prêter une discipline serait inventer son identité (Run et
+ * Bike ne se mélangent jamais, donc on ne les moyenne pas non plus).
  */
 export function crewActivityProfile(crew: DiscoveryCrew): CrewActivityProfile {
-  if (crew.hexesRun === 0 && crew.hexesBike === 0) return 'unknown';
-  if (crew.hexesBike === 0) return 'run';
-  if (crew.hexesRun === 0) return 'bike';
+  if (!crew.holdsRun && !crew.holdsBike) return 'unknown';
+  if (!crew.holdsBike) return 'run';
+  if (!crew.holdsRun) return 'bike';
   return 'mixed';
 }
 
@@ -293,7 +316,7 @@ export function isJoinable(crew: DiscoveryCrew, opts: { viewerInCrew: boolean })
   return a === 'join' || a === 'request';
 }
 
-// ─── LE CLASSEMENT DE PERTINENCE (§E39) ──────────────────────────────────────
+// ─── LE CLASSEMENT DE PERTINENCE (§13.1 + §E39) ──────────────────────────────
 
 export interface RelevanceContext {
   /** Ville du JOUEUR (pas celle de la recherche) — critère 1. */
@@ -301,7 +324,7 @@ export interface RelevanceContext {
   /** Le joueur est-il déjà dans un crew ? (décide de la partition joignable.) */
   viewerInCrew: boolean;
   /**
-   * Discipline du joueur — critère 5. `null` quand elle n'est pas connue :
+   * Discipline du joueur — dernier critère. `null` quand elle n'est pas connue :
    * le critère devient alors NEUTRE pour tout le monde, il ne départage plus.
    * On ne devine pas une discipline pour pouvoir trier.
    */
@@ -310,8 +333,8 @@ export interface RelevanceContext {
 
 /**
  * Compatibilité Run/Bike, en trois valeurs ordonnées : 2 = le crew joue MA
- * discipline, 1 = indéterminé (crew mixte, crew sans emprise, ou discipline du
- * joueur inconnue), 0 = le crew joue EXCLUSIVEMENT l'autre discipline.
+ * discipline, 1 = indéterminé (crew mixte, crew qui ne tient rien, ou
+ * discipline du joueur inconnue), 0 = le crew joue EXCLUSIVEMENT l'autre.
  * L'indéterminé se range ENTRE les deux : ne pas savoir n'est pas un défaut.
  */
 export function activityFit(crew: DiscoveryCrew, viewerActivity: 'run' | 'bike' | null): 0 | 1 | 2 {
@@ -322,8 +345,9 @@ export function activityFit(crew: DiscoveryCrew, viewerActivity: 'run' | 'bike' 
 }
 
 /**
- * Comparateur §E39. Lit comme la spec, dans l'ordre de la spec.
- * Retour < 0 : `a` passe avant `b`.
+ * Comparateur de pertinence. Lit comme le cahier, dans l'ordre du cahier :
+ * joignable > ville > amis > SORTIES À VENIR (§13.1) > activité récente >
+ * capacité > compatibilité. Retour < 0 : `a` passe avant `b`.
  */
 export function compareCrewRelevance(
   a: DiscoveryCrew,
@@ -343,9 +367,22 @@ export function compareCrewRelevance(
   // 2. AMIS (les « contacts » de §E39 ne sont collectés nulle part — docblock).
   if (a.friendsInside !== b.friendsInside) return b.friendsInside - a.friendsInside;
 
-  // 3. ACTIVITÉ RÉCENTE — la dernière capture, la plus fraîche d'abord. Un crew
-  //    qui n'a JAMAIS capturé n'est pas « ancien » : il est sans activité, donc
-  //    il passe après tous ceux qui en ont une, quelle qu'elle soit.
+  // 3. LES SORTIES À VENIR — §13.1, « avant son classement ». Un crew qui a
+  //    posé un rendez-vous passe devant un crew qui n'en a aucun ; entre deux
+  //    rendez-vous, le PLUS PROCHE d'abord (on rejoint pour courir bientôt, pas
+  //    pour un jour). Aucun `Date.now()` ici : l'ordre ne dépend que des
+  //    instants annoncés, donc deux lectures rendent le même ordre.
+  const oa = a.nextOutingAtMs;
+  const ob = b.nextOutingAtMs;
+  if (oa !== ob) {
+    if (oa === null) return 1;
+    if (ob === null) return -1;
+    return oa - ob;
+  }
+
+  // 4. ACTIVITÉ RÉCENTE — la dernière prise de contrôle, la plus fraîche
+  //    d'abord. Un crew qui n'a JAMAIS capturé n'est pas « ancien » : il est
+  //    sans activité, donc il passe après tous ceux qui en ont une.
   const la = a.lastCaptureAtMs;
   const lb = b.lastCaptureAtMs;
   if (la !== lb) {
@@ -354,14 +391,14 @@ export function compareCrewRelevance(
     return lb - la;
   }
 
-  // 4. CAPACITÉ DISPONIBLE — plus de places restantes d'abord. (Les crews sans
+  // 5. CAPACITÉ DISPONIBLE — plus de places restantes d'abord. (Les crews sans
   //    aucune place sont déjà sortis par la partition ci-dessus dès lors qu'ils
   //    sont pleins ; ce critère départage ceux qui ont de la marge.)
   const sa = seatsLeft(a);
   const sb = seatsLeft(b);
   if (sa !== sb) return sb - sa;
 
-  // 5. COMPATIBILITÉ RUN/BIKE.
+  // 6. COMPATIBILITÉ RUN/BIKE.
   const fa = activityFit(a, ctx.viewerActivity);
   const fb = activityFit(b, ctx.viewerActivity);
   if (fa !== fb) return fb - fa;
@@ -372,7 +409,7 @@ export function compareCrewRelevance(
   return byName !== 0 ? byName : a.id.localeCompare(b.id);
 }
 
-/** Applique §E39 sans muter l'entrée (la source reste la réponse serveur). */
+/** Applique l'ordre §13.1 sans muter l'entrée (la source reste le serveur). */
 export function rankCrews(
   crews: readonly DiscoveryCrew[],
   ctx: RelevanceContext,

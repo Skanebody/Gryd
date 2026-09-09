@@ -300,16 +300,33 @@ export interface CrewAnnouncement {
  * rival. `actorPseudo` est désormais forcé à `null` pour ce type (voir
  * `parseCrewConquest`), et la migration 0099 le coupe aussi côté serveur.
  */
-export type CrewConquestKind = 'boundary_completed' | 'contested';
+/**
+ * ⚠️ 'capture_2026' EST LE SEUL QUE LE SERVEUR ÉMET DEPUIS 0152. Les deux
+ * autres viennent de `crew_feed_events`, table qu'aucune activité de règlement
+ * 2026 ne peut plus alimenter (0118) : la section « conquête » était vide À VIE
+ * sur `/crew-activite`. Ils restent lisibles ici, et ce n'est pas de la
+ * nostalgie — un client à jour peut parler à une base en retard d'une
+ * migration, et faire disparaître l'historique d'un crew serait pire que de
+ * l'afficher.
+ */
+export type CrewConquestKind = 'capture_2026' | 'boundary_completed' | 'contested';
 
 export interface CrewConquest {
   id: string;
   kind: CrewConquestKind;
   /**
    * Nom RÉEL de la frontière fermée (`payload.name`, ingest_run:2145). `null`
-   * pour 'contested', qui n'en porte pas — et jamais un nom de repli inventé.
+   * pour 'contested' et 'capture_2026', qui n'en portent pas — et jamais un nom
+   * de repli inventé. Une capture 2026 n'a PAS de lieu, volontairement : dire
+   * où quelqu'un a couru est une divulgation, pas une nouvelle.
    */
   name: string | null;
+  /**
+   * Discipline de la capture 2026 (`capture_events_2026.activity`), `null` pour
+   * les faits hérités qui n'en portaient pas. Run et Bike ne se mélangent
+   * jamais : c'est une information, pas une décoration.
+   */
+  activity: 'run' | 'bike' | null;
   /** `null` si l'acteur n'a plus de profil public. */
   actorPseudo: string | null;
   /**
@@ -435,11 +452,17 @@ export function parseCrewConquest(raw: unknown): CrewConquest | null {
   const kind = o.kind;
   const createdAtMs = asMs(o.createdAt);
   if (!id || createdAtMs === null) return null;
-  if (kind !== 'boundary_completed' && kind !== 'contested') return null;
+  if (kind !== 'capture_2026' && kind !== 'boundary_completed' && kind !== 'contested') {
+    return null;
+  }
+  const activity = o.activity;
   return {
     id,
     kind,
     name: asText(o.name),
+    // Une discipline inconnue de ce build ne devient PAS 'run' par défaut :
+    // elle devient « je ne sais pas », et la ligne n'en dit rien.
+    activity: activity === 'run' || activity === 'bike' ? activity : null,
     actorPseudo: kind === 'contested' ? null : asText(o.actorPseudo),
     createdAtMs,
   };

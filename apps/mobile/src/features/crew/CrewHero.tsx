@@ -17,17 +17,18 @@
  *   `create_crew` ne la renseigne pas, aucune RPC ne l'édite, et `useRealCrew`
  *   ne la lit même pas. Elle vaut `null` pour 100 % des crews réels. L'afficher
  *   voudrait dire la FABRIQUER depuis le nom : omise.
- * · SURFACE km² : `crew_overview` (0044) n'émet volontairement aucune aire, et
- *   `real.ts:58-67` interdit d'en dériver une côté client depuis `hexesHeld`.
- *   Le segment est absent de la ligne meta — la vraie mesure (« N zones
- *   tenues ») vit dans la section TERRITOIRE.
+ * · SURFACE km² : aucune aire de crew n'existe. `crew_overview` (0152) n'en
+ *   émet pas, et `real.ts` interdit d'en dériver une côté client — le titre
+ *   territorial est INDIVIDUEL (migration 0126).
+ * · #RANG : RETIRÉ le 10/09/2026. Il se calculait sur `hex_claims`, table
+ *   gelée pour toute activité 2026 par 0118 : le rang était un classement de
+ *   zéros. Et il ne revient pas sous une autre mesure — un crew ne possède pas
+ *   de terrain, il n'y a donc rien à classer. Ce que la section TERRITOIRE dit
+ *   à la place est vrai : combien de membres en tiennent.
  *
  * ─── LA LIGNE META NE MONTRE QUE CE QUI A ÉTÉ LU ────────────────────────────
  * Chaque segment n'existe que s'il est connu, et le séparateur « · » est posé
- * ENTRE les segments présents : jamais de « — · — ». Le rang, en particulier,
- * n'apparaît pas tant que `crew_overview` n'a pas répondu (`null` = pas lu,
- * pas « zéro ») ni quand le crew est seul dans sa ville (« 1 sur 1 » n'est pas
- * un classement).
+ * ENTRE les segments présents : jamais de « — · — ».
  *
  * La VILLE vient de l'index de villes (référentiel EMBARQUÉ + villes ouvertes
  * lues du serveur). Un identifiant introuvable ⇒ aucun segment ville, jamais un
@@ -50,10 +51,6 @@ export interface CrewHeroProps {
   cityId: string;
   memberCount: number;
   maxMembers: number;
-  /** Rang dans la ville, `null` tant que `crew_overview` n'a rien dit. */
-  cityRank: number | null;
-  /** Nombre de crews de la ville (contexte du rang), `null` si non calculable. */
-  crewsInCity: number | null;
   /**
    * Encoche / barre d'état. La bande MONTE jusqu'en haut de l'écran (c'est ce
    * qui en fait un hero et non une card) : le dégagement du système est donc
@@ -68,8 +65,6 @@ export function CrewHero({
   cityId,
   memberCount,
   maxMembers,
-  cityRank,
-  crewsInCity,
   topInset,
 }: CrewHeroProps) {
   const t = useT();
@@ -87,9 +82,6 @@ export function CrewHero({
   // pas de trou, il n'existe pas.
   const meta: string[] = [];
   if (cityName) meta.push(cityName);
-  if (cityRank !== null && crewsInCity !== null && crewsInCity > 1) {
-    meta.push(t(C.heroRank, { rank: cityRank, total: crewsInCity }));
-  }
   meta.push(t(C.rlMembersOf, { count: memberCount, max: maxMembers }));
 
   return (

@@ -56,18 +56,22 @@ export interface RosterRow {
   blocked: boolean;
 }
 
-/** Détail serveur d'une ligne (crew_overview, 0044). */
+/**
+ * Détail serveur d'une ligne (crew_overview, 0152).
+ *
+ * ⚠ PLUS DE POURCENTAGE DE CONTRIBUTION. Il divisait mes hexagones par ceux du
+ * crew : les deux venaient de `hex_claims`, gelée pour toute activité 2026 par
+ * 0118, et le titre territorial est INDIVIDUEL (0126) — il n'y a pas de tout
+ * dont on serait une part. Reste un FAIT : ce membre tient du terrain, ou non.
+ */
 export interface RosterDetail {
   role: string;
-  contributionPct: number;
-  hexesHeld: number;
+  holdsTerritory: boolean;
 }
 
 export interface CrewRosterGroupsProps {
   rows: readonly RosterRow[];
   detailByUser: ReadonlyMap<string, RosterDetail>;
-  /** Le crew tient-il au moins une zone ? Sinon aucune part n'est affichée. */
-  showContributions: boolean;
   /** MON rôle serveur, ou `''` s'il n'a pas (encore) été lu. */
   myRole: string;
   /** Session + client réels : condition sous laquelle `reportContent` écrit. */
@@ -87,7 +91,6 @@ const GROUP_TITLE: Readonly<Record<CrewRoleGroup, Entry>> = {
 export function CrewRosterGroups({
   rows,
   detailByUser,
-  showContributions,
   myRole,
   canReport,
   blockedPseudos,
@@ -167,15 +170,10 @@ export function CrewRosterGroups({
                     </View>
                     {roleEntry ? <Text style={styles.memberRole}>{t(roleEntry)}</Text> : null}
                   </View>
-                  {/* MEMBRE INACTIF JAMAIS HUMILIÉ (planche) : un « 0 % » collé
-                      en face d'un pseudo est un classement de la paresse. Tant
-                      qu'un membre ne tient aucune zone, sa ligne ne porte
-                      simplement pas de chiffre. */}
-                  {showContributions && detail && detail.hexesHeld > 0 ? (
-                    <Text style={styles.memberPct}>
-                      {t(C.rlContributionPct, { pct: detail.contributionPct })}
-                    </Text>
-                  ) : null}
+                  {/* MEMBRE INACTIF JAMAIS HUMILIÉ (planche) : aucune ligne ne
+                      porte de chiffre. Depuis 0152 il n'y a même plus de part à
+                      afficher — le territoire est individuel (0126), donc un
+                      « % du crew » n'aurait aucun tout à diviser. */}
                   {canModerate || hasRoleAction ? (
                     <PlayerActionsButton
                       name={m.displayName}

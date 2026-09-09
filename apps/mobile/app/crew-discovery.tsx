@@ -1,5 +1,5 @@
 /**
- * GRYD — E39 · DÉCOUVERTE DES CREWS (route `/crew-discovery`).
+ * GRYD — DÉCOUVERTE DES CREWS (route `/crew-discovery`).
  *
  * ══ CE QUE CET ÉCRAN REMPLACE ═════════════════════════════════════════════
  * Un `<Redirect href="/crew"/>`. La version d'avant listait des crews INVENTÉS
@@ -30,9 +30,16 @@
  * (§A4).
  *
  * ══ LE CLASSEMENT N'EST PAS ICI ═══════════════════════════════════════════
- * La pertinence §E39 (ville > amis > activité > capacité > compatibilité) est
- * PURE et testée : `features/crew/discovery.ts` + `discovery.test.ts`. Cet
- * écran appelle `rankCrews`, il ne trie rien lui-même.
+ * La pertinence (ville > amis > SORTIES À VENIR §13.1 > activité > capacité >
+ * compatibilité) est PURE et testée : `features/crew/discovery.ts` +
+ * `discovery.test.ts`. Cet écran appelle `rankCrews`, il ne trie rien lui-même.
+ *
+ * ══ CE QUE 0152 A RETIRÉ, ET POURQUOI CE N'EST PAS UNE PERTE ══════════════
+ * Le compte de zones et le rang de crew ne sont plus lus : leur source
+ * (`hex_claims`) est gelée pour toute activité 2026 depuis 0118, et le titre
+ * territorial est INDIVIDUEL depuis 0126 — un crew n'en possède aucun. Les
+ * afficher revenait à peindre « Aucune zone tenue » sur tous les crews du
+ * monde. À la place : l'accueil, les sorties, les gens.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -47,7 +54,7 @@ import {
   sizes,
   spacing,
 } from '@klaim/shared';
-import { C } from '../src/i18n/catalog/crew';
+import { C, CREW_PROFILE_E } from '../src/i18n/catalog/crew';
 import { C as CityC } from '../src/i18n/catalog/city';
 import { useT } from '../src/i18n/store';
 import { EVENTS, track } from '../src/lib/analytics';
@@ -59,6 +66,7 @@ import { Segmented } from '../src/ui/game/Segmented';
 import { CityField, type CityEntry } from '../src/features/city/CityPicker';
 import {
   applyFilter,
+  crewActivityProfile,
   isJoinable,
   rankCrews,
   refusalView,
@@ -300,9 +308,16 @@ export default function CrewDiscoveryRoute() {
 }
 
 /**
- * Une ligne de crew : identité, puis des FAITS. Rien d'autre — pas de badge de
- * ligue, pas de score d'activité, pas de « recommandé pour vous ». Ce que la
- * base ne sait pas, la ligne ne le dit pas.
+ * Une ligne de crew : identité, puis des FAITS, dans l'ordre de §13.1 —
+ * « son accueil, ses horaires et ses sorties, AVANT son classement ». Rien
+ * d'autre : pas de badge de ligue, pas de score d'activité, pas de « recommandé
+ * pour vous ». Ce que la base ne sait pas, la ligne ne le dit pas.
+ *
+ * ⚠ PLUS AUCUN COMPTE DE ZONES (migration 0152). La ligne affichait
+ * « Aucune zone tenue » pour TOUS les crews, à vie : la source (`hex_claims`)
+ * est gelée depuis 0118. Ce qui la remplace n'est pas une autre mesure de la
+ * même chose — c'est ce qui reste VRAI : combien de membres tiennent du
+ * terrain, dans quelle discipline, et quand ils l'ont pris.
  */
 function CrewRow({
   crew,
@@ -317,8 +332,19 @@ function CrewRow({
   const seats = seatsLeft(crew);
   const joinable = isJoinable(crew, { viewerInCrew });
 
-  // « Actif » = la dernière capture RÉELLE. Aucune capture = on le dit ; on ne
-  // remplace pas l'absence par « nouveau » ou « en formation », qui sont des
+  // HORAIRES ET SORTIES (§13.1) : la DATE, jamais le lieu — un point de
+  // rendez-vous est une information de membre (garde de vie privée, 0085), et
+  // la RPC ne le renvoie même pas.
+  const outing =
+    crew.nextOutingAtMs === null
+      ? t(C.dNoOutings)
+      : (() => {
+          const days = Math.floor((crew.nextOutingAtMs - Date.now()) / DAY_MS);
+          return days <= 0 ? t(C.dOutingToday) : t(C.dOutingIn, { d: days });
+        })();
+
+  // « Actif » = la dernière prise de contrôle RÉELLE. Aucune = on le dit ; on
+  // ne remplace pas l'absence par « nouveau » ou « en formation », qui sont des
   // interprétations flatteuses de la même donnée manquante.
   const activity =
     crew.lastCaptureAtMs === null
@@ -343,19 +369,32 @@ function CrewRow({
           {crew.tag ? <Text style={styles.rowTag}>{crew.tag}</Text> : null}
         </View>
 
-        {/* Ligne de faits n°1 : ce que le crew EST. */}
+        {/* Ligne n°1 — L'ACCUEIL : combien ils sont, et s'il reste de la place. */}
         <Text style={styles.rowFacts}>
           {t(C.dMembers, { n: crew.memberCount })}
           {' · '}
-          {crew.hexesHeld > 0 ? t(C.dZonesHeld, { n: crew.hexesHeld }) : t(C.dNoZones)}
+          {joinable ? t(C.dSeatsLeft, { n: seats }) : t(C.dNoSeats)}
+          {crew.friendsInside > 0 ? ` · ${t(C.dFriendsInside, { n: crew.friendsInside })}` : ''}
         </Text>
 
-        {/* Ligne de faits n°2 : ce qui me concerne, MOI. */}
+        {/* Ligne n°2 — LES SORTIES, avant tout le reste (§13.1). */}
         <Text style={styles.rowFacts}>
-          {activity}
-          {crew.friendsInside > 0 ? ` · ${t(C.dFriendsInside, { n: crew.friendsInside })}` : ''}
+          {outing}
+          {crew.upcomingOutings > 1
+            ? ` · ${t(C.dOutingsUpcoming, { n: crew.upcomingOutings })}`
+            : ''}
+        </Text>
+
+        {/* Ligne n°3 — CE QU'ILS FONT : des personnes et une discipline
+            mesurée, jamais une emprise de crew (le titre est individuel). */}
+        <Text style={styles.rowFacts}>
+          {crew.membersHolding > 0
+            ? t(C.dMembersHolding, { n: crew.membersHolding })
+            : t(C.dNoneHolding)}
           {' · '}
-          {joinable ? t(C.dSeatsLeft, { n: seats }) : t(C.dNoSeats)}
+          {t(CREW_PROFILE_E[crewActivityProfile(crew)])}
+          {' · '}
+          {activity}
         </Text>
 
         {/* Candidature en cours : un ÉTAT, pas un bouton (aucune action ne part

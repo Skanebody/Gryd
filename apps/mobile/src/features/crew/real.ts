@@ -58,48 +58,47 @@ export interface RealCrewMember {
 }
 
 /**
- * Territoire du crew, calculé FRAIS par `crew_overview()` (migration 0044).
+ * Ce qu'un crew tient RÉELLEMENT, lu par `crew_overview()` (migration 0152).
  *
- * ⚠ AUCUNE AIRE : la RPC n'émet volontairement PAS de clé `areaM2` (aucune aire
- * réelle n'existe en base — cf. choix n°1 de 0044). Ne jamais en fabriquer une
- * côté client à partir de `hexesHeld` : ce serait un chiffre inventé à l'écran.
+ * ⚠ CE BLOC A CHANGÉ DE NATURE LE 10/09/2026 — le relire, pas le recopier.
  *
- * ⚠ CETTE RPC RESTE LA SOURCE DU HQ CREW — et la consigne a changé de RAISON le
- * 27/07/2026, il faut donc la relire au lieu de la recopier.
+ * AVANT : `hexesHeld` + `cityRank`, agrégés depuis `hex_claims`. Cette table
+ * est GELÉE pour toute activité de règlement 2026 (trigger de 0118) : le HQ
+ * affichait « 0 zone » et un rang calculé sur ce zéro, à vie.
  *
- * AVANT (constat 0044) : « ne jamais lire `crew_leaderboard` », parce que cette
- * vue matérialisée n'était rafraîchie par AUCUN job du dépôt — figée à zéro,
- * elle aurait affiché « 0 zone » à vie. Ce motif est MORT : la migration 0086 la
- * rafraîchit pour de vrai (`refresh_crew_leaderboard()`, appelée par
- * `recompute_sectors`) et horodate chaque passage.
- *
- * MAINTENANT : on continue de lire `crew_overview()` ici, pour une raison
- * différente et plus solide — la matview est un INSTANTANÉ (jusqu'à 15 min de
- * retard) tandis que le HQ crew montre MON crew, tout de suite après MA course.
- * Un joueur qui vient de capturer doit voir sa zone, pas l'état d'avant. La
- * matview sert le CLASSEMENT (`crew_board()`, E54), où un instantané daté est le
- * bon objet ; elle n'est d'ailleurs plus lisible par les clients (0086).
+ * MAINTENANT : des faits que la base 2026 sait produire — combien de membres
+ * tiennent du terrain PUBLIÉ, dans quelles disciplines, et quand. Aucune
+ * surface de crew, aucun rang : 0126 pose que le titre territorial est
+ * INDIVIDUEL, donc une emprise de crew serait un second titre inventé.
  */
 export interface CrewTerritory {
-  /** Hexes tenus par les membres ACTIFS, non expirés. 0 = le crew ne tient rien. */
-  hexesHeld: number;
-  /** Dernière capture du crew, ou null s'il n'a jamais rien pris. */
+  /** Règlement qui a produit ces faits (`'2026.1'`). Jamais deviné. */
+  ruleset: string;
+  /** Membres ACTIFS qui tiennent du terrain publié et partagé. 0 = personne. */
+  membersHolding: number;
+  /** Le crew tient-il du terrain à pied ? (booléens : jamais additionnés.) */
+  holdsRun: boolean;
+  holdsBike: boolean;
+  /** Dernière prise de contrôle d'un membre, ou null si aucune. */
   lastCaptureAt: string | null;
-  /** Rang dans la ville du crew (ex aequo partagés), null si non calculable. */
-  cityRank: number | null;
-  /** Nombre de crews dans la ville (contexte du rang), null si non calculable. */
-  crewsInCity: number | null;
 }
 
-/** Part d'un membre dans le territoire du crew (maillon 4 de la boucle §0). */
+/**
+ * Un membre au roster du QG : son rôle (qui décide des actions de modération)
+ * et un fait d'activité.
+ *
+ * ⚠ PLUS DE `contributionPct` (0152). Une « part du territoire du crew »
+ * suppose un territoire de crew ; il n'y en a pas. Le pourcentage valait 0 pour
+ * tout le monde depuis 0118, et le rétablir en sommant des possessions
+ * individuelles fabriquerait la propriété collective que 0126 refuse.
+ */
 export interface CrewContribution {
   userId: string;
   pseudo: string;
   /** Rôle serveur (`CrewRole` attendu ; typé large : la DB reste souveraine). */
   role: string;
-  hexesHeld: number;
-  /** Part ENTIÈRE (plancher) — 0 partout quand le crew ne tient rien. */
-  contributionPct: number;
+  /** Ce membre tient-il du terrain publié ? Un fait, jamais une part. */
+  holdsTerritory: boolean;
 }
 
 /**
@@ -293,9 +292,9 @@ export function parseCrewOverview(raw: unknown): CrewOverview | null {
   const terr = root.territory;
   if (!terr || typeof terr !== 'object') return null;
   const t = terr as Record<string, unknown>;
-  const hexesHeld = asFiniteInt(t.hexesHeld);
+  const membersHolding = asFiniteInt(t.membersHolding);
   // Sans compte fiable il n'y a pas de territoire à montrer : on se tait.
-  if (hexesHeld === null || hexesHeld < 0) return null;
+  if (membersHolding === null || membersHolding < 0) return null;
 
   const contributions: CrewContribution[] = [];
   if (Array.isArray(root.members)) {
@@ -303,27 +302,27 @@ export function parseCrewOverview(raw: unknown): CrewOverview | null {
       if (!entry || typeof entry !== 'object') continue;
       const m = entry as Record<string, unknown>;
       const userId = asText(m.userId);
-      const held = asFiniteInt(m.hexesHeld);
-      const pct = asFiniteInt(m.contributionPct);
-      if (!userId || held === null || pct === null) continue;
+      // Le RÔLE seul est indispensable : il décide de ce qu'on peut faire à un
+      // membre. Un fait d'activité manquant ne doit PAS faire tomber la ligne —
+      // sinon un serveur en retard d'une migration ferait disparaître toute la
+      // modération de l'écran, ce qui est bien pire qu'un booléen absent.
+      if (!userId) continue;
       contributions.push({
         userId,
         pseudo: asText(m.pseudo) ?? '—',
         role: asText(m.role) ?? '',
-        hexesHeld: Math.max(0, held),
-        // Bornage client : un pourcentage hors [0,100] serait un bug serveur,
-        // il ne doit jamais atteindre l'écran.
-        contributionPct: Math.min(100, Math.max(0, pct)),
+        holdsTerritory: m.holdsTerritory === true,
       });
     }
   }
 
   return {
     territory: {
-      hexesHeld,
+      ruleset: asText(t.ruleset) ?? '',
+      membersHolding,
+      holdsRun: t.holdsRun === true,
+      holdsBike: t.holdsBike === true,
       lastCaptureAt: asText(t.lastCaptureAt),
-      cityRank: asFiniteInt(t.cityRank),
-      crewsInCity: asFiniteInt(t.crewsInCity),
     },
     myRole: asText(root.role),
     contributions,

@@ -4077,6 +4077,73 @@ export const C = defineCatalog({
     pt: 'Nenhuma captura',
   },
 
+  // ── Ce qu'un crew EST vraiment sous le règlement 2026 (migration 0152) ───
+  /**
+   * Des PERSONNES, jamais une emprise. `hexesHeld` venait de `hex_claims`,
+   * gelée par 0118 : elle affichait « Aucune zone tenue » pour tout le monde,
+   * à vie. Et on ne l'a pas remplacée par une surface de crew — 0126 pose que
+   * le titre territorial est individuel.
+   */
+  dMembersHolding: {
+    fr: '{n} membres tiennent du terrain',
+    en: '{n} members hold ground',
+    es: '{n} miembros conservan terreno',
+    de: '{n} Mitglieder halten Gelände',
+    pt: '{n} membros mantêm terreno',
+  },
+  /** Personne ne tient rien : on le DIT, jamais un « 0 » nu. */
+  dNoneHolding: {
+    fr: 'Aucun membre ne tient de terrain',
+    en: 'No member holds ground',
+    es: 'Ningún miembro conserva terreno',
+    de: 'Kein Mitglied hält Gelände',
+    pt: 'Nenhum membro mantém terreno',
+  },
+  /** §13.1 — les sorties passent AVANT le reste. Jamais leur lieu (0085). */
+  dOutingsUpcoming: {
+    fr: '{n} sorties à venir',
+    en: '{n} upcoming outings',
+    es: '{n} próximas salidas',
+    // « Ausfahrt » nomme le VÉLO en allemand (disciplineVocabulary.ts:114) :
+    // un rendez-vous de crew n'a pas de discipline imposée, le mot non plus.
+    de: '{n} kommende Treffen',
+    pt: '{n} próximas saídas',
+  },
+  dOutingToday: {
+    fr: 'Prochaine sortie aujourd’hui',
+    en: 'Next outing today',
+    es: 'Próxima salida hoy',
+    de: 'Nächstes Treffen heute',
+    pt: 'Próxima saída hoje',
+  },
+  dOutingIn: {
+    fr: 'Prochaine sortie dans {d} j',
+    en: 'Next outing in {d} d',
+    es: 'Próxima salida en {d} d',
+    de: 'Nächstes Treffen in {d} T',
+    pt: 'Próxima saída em {d} d',
+  },
+  dNoOutings: {
+    fr: 'Aucune sortie annoncée',
+    en: 'No outing announced',
+    es: 'Ninguna salida anunciada',
+    de: 'Kein Treffen angekündigt',
+    pt: 'Nenhuma saída anunciada',
+  },
+  /**
+   * Remplace `dNoRank` sur la fiche publique. Un crew n'est plus classé — non
+   * parce qu'on n'a pas la donnée, mais parce que la chose classée n'existe
+   * pas : depuis 0118/0126 le terrain appartient à une personne, jamais à un
+   * groupe. On le dit, plutôt que de laisser un vide qui ressemble à une panne.
+   */
+  dTerritoryPersonal: {
+    fr: 'Le terrain appartient à chaque personne : un crew n’en possède pas.',
+    en: 'Ground belongs to each person: a crew owns none of it.',
+    es: 'El terreno pertenece a cada persona: un crew no posee ninguno.',
+    de: 'Gelände gehört jeder Person einzeln: einer Crew gehört keines.',
+    pt: 'O terreno pertence a cada pessoa: um crew não possui nenhum.',
+  },
+
   // ── Adhésion (E40) ───────────────────────────────────────────────────────
   dJoinCta: { fr: 'REJOINDRE', en: 'JOIN', es: 'UNIRME', de: 'BEITRETEN', pt: 'ENTRAR' },
   dRequestCta: {

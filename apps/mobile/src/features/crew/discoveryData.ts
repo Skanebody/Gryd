@@ -1,9 +1,9 @@
 /**
- * GRYD — E39/E40 · le CÂBLAGE de la découverte (React + Supabase).
+ * GRYD — le CÂBLAGE de la découverte (React + Supabase).
  *
  * Séparé de `discovery.ts` VOLONTAIREMENT : la pertinence est pure et testée en
  * Deno ; ce fichier-ci ne fait que lire, et il n'a aucune décision de jeu à
- * prendre. Toutes les lectures passent par les RPC SECURITY DEFINER de 0083 —
+ * prendre. Toutes les lectures passent par les RPC SECURITY DEFINER (0083, puis 0152) —
  * aucune requête de table directe, donc aucun risque d'exposer `crews.code`
  * (secret depuis 0036) ni d'énumérer des membres (§12).
  *
@@ -114,14 +114,17 @@ export function useCrewDiscovery(params: {
 
 // ─── Fiche publique (E40) ────────────────────────────────────────────────────
 
-/** La fiche publique ajoute le rang de ville aux faits de la découverte. */
+/**
+ * La fiche publique ajoute au strict nécessaire : le nom de la ville, la date
+ * de fondation, et mon appartenance.
+ *
+ * ⚠ PLUS DE `cityRank` / `crewsRanked` (migration 0152) : le rang se calculait
+ * sur `hex_claims`, table gelée pour toute activité 2026 par 0118, et le titre
+ * territorial est INDIVIDUEL depuis 0126 — il n'y a rien à classer.
+ */
 export interface PublicCrew extends DiscoveryCrew {
   cityName: string | null;
   createdAtMs: number | null;
-  /** Rang dans la ville, `null` quand le crew ne tient RIEN (jamais « dernier »). */
-  cityRank: number | null;
-  /** Nombre de crews réellement classés (contexte du rang), `null` si sans objet. */
-  crewsRanked: number | null;
   iAmMember: boolean;
 }
 
@@ -138,10 +141,6 @@ const asMs = (v: unknown): number | null => {
   if (typeof v !== 'string') return null;
   const ms = Date.parse(v);
   return Number.isFinite(ms) ? ms : null;
-};
-const asIntOrNull = (v: unknown): number | null => {
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
 export function useCrewPublicProfile(crewId: string | null): PublicProfileState {
@@ -199,8 +198,6 @@ export function useCrewPublicProfile(crewId: string | null): PublicProfileState 
           ...first,
           cityName: typeof c.cityName === 'string' ? c.cityName : null,
           createdAtMs: asMs(c.createdAt),
-          cityRank: asIntOrNull(c.cityRank),
-          crewsRanked: asIntOrNull(c.crewsRanked),
           iAmMember: c.iAmMember === true,
         });
         setRefusal(null);

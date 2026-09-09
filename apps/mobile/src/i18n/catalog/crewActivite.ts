@@ -425,6 +425,20 @@ export const C = defineCatalog({
     pt: 'Avisos, saídas e circuitos fechados vão aparecer aqui.',
   },
 
+  /**
+   * LE FAIT DE 2026, sans lieu et sans surface. `capture_events_2026` porte une
+   * géométrie ; la rendre dans un fil dirait OÙ quelqu'un a couru, ce que la
+   * constitution §7 interdit de faire circuler. Ce qui se dit ici tient en une
+   * phrase : quelqu'un du crew a fermé une boucle, et elle est publiée.
+   */
+  factCapture2026: {
+    fr: 'Boucle fermée et publiée',
+    en: 'Loop closed and published',
+    es: 'Bucle cerrado y publicado',
+    de: 'Runde geschlossen und veröffentlicht',
+    pt: 'Circuito fechado e publicado',
+  },
+
   // ── Sorties : ce qu'on peut faire, et ce qu'on ne peut PAS ───────────────
   outingSee: {
     fr: 'Voir les sorties',
@@ -458,6 +472,7 @@ export const CREW_ACTIVITY_SECTION_E: Readonly<Record<CrewActivitySection, Entry
 
 /** Un type de fait → sa phrase SANS nom de lieu (le variant nommé est à part). */
 export const CREW_FACT_E: Readonly<Record<CrewConquestKind, Entry>> = {
+  capture_2026: C.factCapture2026,
   boundary_completed: C.factBoundaryNoName,
   contested: C.factContested,
 };

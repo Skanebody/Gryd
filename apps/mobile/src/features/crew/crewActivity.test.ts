@@ -69,8 +69,9 @@ const ann = (id: string, atMs: number, pseudo: string | null = 'A'): CrewAnnounc
 
 const conq = (id: string, atMs: number): CrewConquest => ({
   id,
-  kind: 'boundary_completed',
-  name: 'Boucle',
+  kind: 'capture_2026',
+  name: null,
+  activity: 'run',
   actorPseudo: 'A',
   createdAtMs: atMs,
 });

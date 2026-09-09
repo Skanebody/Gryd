@@ -559,6 +559,14 @@ function Row({ item, blocked, busy, myUserId, canPost, onRemove, onModerate }: R
         <View style={styles.rowBody}>
           <Text style={styles.rowText}>{line}</Text>
           <View style={styles.metaRow}>
+            {/* La DISCIPLINE quand le serveur la donne (0152). Run et Bike ne
+                se mélangent jamais : la taire rendrait deux mondes identiques
+                dans le même fil. */}
+            {c.activity !== null ? (
+              <Text style={styles.meta}>
+                {t(c.activity === 'run' ? CrewC.oActivityRun : CrewC.oActivityBike)}
+              </Text>
+            ) : null}
             {c.actorPseudo !== null ? (
               <Text style={styles.meta}>
                 {t(C.factBy, { pseudo: displayedPseudo(blocked, c.actorPseudo, t(CrewC.blockedPlayerRow)) })}

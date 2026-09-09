@@ -36,10 +36,24 @@
  * n'a rien fait. Les seuls `0` produits ici viennent du serveur, où ils sont des
  * faits mesurés.
  *
- * ⚠ CE FICHIER NE CALCULE NI SURFACE, NI RANG, NI CONTRIBUTION pour E50 : ces
- * trois-là sont déjà rendus par `crew_overview()` (0044) et lus par
- * `useRealCrew({ withOverview: true })` — l'écran E50 lit LA MÊME SOURCE que le
- * HQ crew. Les recalculer ici produirait deux chiffres pour la même chose.
+ * ⚠ CE FICHIER NE CALCULE NI SURFACE, NI RANG, NI CONTRIBUTION — et depuis la
+ * migration 0152, PERSONNE ne les calcule plus. Ils venaient de `crew_overview`
+ * (0044/0108), qui agrégeait `hex_claims` : table gelée pour toute activité
+ * 2026 par 0118, donc trois chiffres figés à zéro. Ils ne sont pas revenus sous
+ * une autre mesure — 0126 pose que le titre territorial est INDIVIDUEL, donc un
+ * crew n'a ni surface ni rang à montrer. Le HQ dit désormais COMBIEN DE MEMBRES
+ * tiennent du terrain ; ce fichier-ci garde ses trois mesures à lui.
+ *
+ * ⚠ DETTE OUVERTE, écrite ici plutôt que laissée croire (10/09/2026) : les deux
+ * RPC que ce fichier lit sont, elles, TOUJOURS gelées.
+ *   · `crew_stats()` a été épinglée à `runs.ruleset_version = 'legacy'` par
+ *     0118 — volontairement, « until it reads consented 2026 sporting facts » :
+ *     la distance collective d'un crib 2026 y vaut donc 0 ;
+ *   · `crew_board()` lit la matview `crew_leaderboard`, alimentée par les
+ *     tables héritées.
+ * Les rebrancher demande un contrat d'audience pour les faits sportifs 2026
+ * (consentement par discipline), qui n'est pas tranché. Tant qu'il ne l'est
+ * pas, l'écran `/crew-stats` peut afficher des zéros VRAIS d'une source MORTE.
  */
 import { type Activity } from '@klaim/shared';
 

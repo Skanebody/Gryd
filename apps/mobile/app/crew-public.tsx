@@ -14,10 +14,10 @@
  * d'autres chantiers écrivent en parallèle. La route existante est déjà
  * enregistrée ; elle reçoit maintenant une identité, sans rien déplacer.
  *
- * ══ CE QUE LA FICHE MONTRE, ET CE QU'ELLE REFUSE DE MONTRER (§E40 / §12) ══
- * `crew_public_profile` (0083) ne renvoie que des AGRÉGATS : effectif, emprise
- * vivante, dernière capture, rang de ville calculé FRAIS, et deux faits qui me
- * concernent (mes amis déjà dedans, ma candidature en cours). AUCUN membre,
+ * ══ CE QUE LA FICHE MONTRE, ET CE QU'ELLE REFUSE DE MONTRER (§13.1 / §12) ══
+ * `crew_public_profile` (0152) ne renvoie que des AGRÉGATS : effectif, sorties
+ * à venir, membres qui tiennent du terrain, dernière prise de contrôle, et deux
+ * faits qui me concernent (mes amis déjà dedans, ma candidature). AUCUN membre,
  * AUCUN message, AUCUN tracé, AUCUN code — « aucun chat ni information privée
  * avant adhésion » est tenu par la FORME du retour, pas par la discipline de
  * l'écran. L'absence est DITE en bas de page, pour qu'on ne la prenne pas pour
@@ -40,13 +40,18 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, fontSizes, spacing } from '@klaim/shared';
-import { C } from '../src/i18n/catalog/crew';
+import { C, CREW_PROFILE_E } from '../src/i18n/catalog/crew';
 import { useT } from '../src/i18n/store';
 import type { Entry } from '../src/i18n/types';
 import { useSession } from '../src/lib/session';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
-import { joinAffordance, refusalView, seatsLeft } from '../src/features/crew/discovery';
+import {
+  crewActivityProfile,
+  joinAffordance,
+  refusalView,
+  seatsLeft,
+} from '../src/features/crew/discovery';
 import {
   requestCrewJoin,
   useCrewPublicProfile,
@@ -225,9 +230,26 @@ function CrewIdentity({ crew }: { crew: PublicCrew }) {
   );
 }
 
-/** Les FAITS, en lignes courtes. Aucun chiffre qui n'existe pas en base. */
+/**
+ * Les FAITS, en lignes courtes, dans l'ordre de §13.1 : l'accueil, puis les
+ * sorties, puis ce que le crew fait. Aucun chiffre qui n'existe pas en base.
+ *
+ * ⚠ NI ZONES NI RANG (migration 0152). Les deux se calculaient sur
+ * `hex_claims`, gelée pour toute activité 2026 par 0118 — la fiche affichait
+ * « Aucune zone tenue » et « Pas encore classé » pour tous les crews, à vie.
+ * Ils ne sont pas remplacés par une surface de crew : 0126 pose que le titre
+ * territorial est INDIVIDUEL. L'écran le DIT (`dTerritoryPersonal`) au lieu de
+ * laisser un trou qu'on prendrait pour un chargement raté.
+ */
 function CrewFacts({ crew }: { crew: PublicCrew }) {
   const t = useT();
+  const outing =
+    crew.nextOutingAtMs === null
+      ? t(C.dNoOutings)
+      : (() => {
+          const days = Math.floor((crew.nextOutingAtMs - Date.now()) / DAY_MS);
+          return days <= 0 ? t(C.dOutingToday) : t(C.dOutingIn, { d: days });
+        })();
   const activity =
     crew.lastCaptureAtMs === null
       ? t(C.dNeverActive)
@@ -238,30 +260,31 @@ function CrewFacts({ crew }: { crew: PublicCrew }) {
 
   return (
     <View style={styles.facts}>
+      {/* 1. L'ACCUEIL. */}
       <Text style={styles.fact}>{t(C.dMembers, { n: crew.memberCount })}</Text>
-      <Text style={styles.fact}>
-        {crew.hexesHeld > 0 ? t(C.dZonesHeld, { n: crew.hexesHeld }) : t(C.dNoZones)}
-      </Text>
-      <Text style={styles.fact}>{activity}</Text>
-
-      {/* RANG — jamais « dernier » sur du vide : un crew sans emprise n'est pas
-          classé, et l'écran le dit au lieu d'afficher un numéro flatteur ou
-          humiliant calculé sur rien. */}
-      {crew.cityRank !== null && crew.crewsRanked !== null && crew.cityName ? (
-        <Text style={styles.fact}>
-          {t(C.dCityRank, {
-            rank: crew.cityRank,
-            total: crew.crewsRanked,
-            city: crew.cityName,
-          })}
-        </Text>
-      ) : (
-        <Text style={styles.fact}>{t(C.dNoRank)}</Text>
-      )}
-
       {crew.friendsInside > 0 ? (
         <Text style={styles.fact}>{t(C.dFriendsInside, { n: crew.friendsInside })}</Text>
       ) : null}
+
+      {/* 2. LES SORTIES — la date, jamais le lieu (0085 : le point de
+          rendez-vous est une information de membre). */}
+      <Text style={styles.fact}>{outing}</Text>
+      {crew.upcomingOutings > 1 ? (
+        <Text style={styles.fact}>{t(C.dOutingsUpcoming, { n: crew.upcomingOutings })}</Text>
+      ) : null}
+
+      {/* 3. CE QUE LE CREW FAIT — des personnes, une discipline mesurée, une
+          date. Jamais une emprise collective. */}
+      <Text style={styles.fact}>
+        {crew.membersHolding > 0
+          ? t(C.dMembersHolding, { n: crew.membersHolding })
+          : t(C.dNoneHolding)}
+      </Text>
+      <Text style={styles.fact}>{t(CREW_PROFILE_E[crewActivityProfile(crew)])}</Text>
+      <Text style={styles.fact}>{activity}</Text>
+
+      {/* 4. L'ABSENCE DE CLASSEMENT, DITE. */}
+      <Text style={styles.fact}>{t(C.dTerritoryPersonal)}</Text>
     </View>
   );
 }

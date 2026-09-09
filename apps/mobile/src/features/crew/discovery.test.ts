@@ -43,10 +43,12 @@ const crew = (over: Partial<DiscoveryCrew> = {}): DiscoveryCrew => ({
   cityId: PARIS,
   recruitmentStatus: 'open',
   memberCount: 4,
-  hexesHeld: 0,
-  hexesRun: 0,
-  hexesBike: 0,
+  membersHolding: 0,
+  holdsRun: false,
+  holdsBike: false,
   lastCaptureAtMs: null,
+  upcomingOutings: 0,
+  nextOutingAtMs: null,
   friendsInside: 0,
   myRequestPending: false,
   ...over,
@@ -99,15 +101,31 @@ Deno.test('un statut de recrutement INCONNU se ferme, il ne s’ouvre pas', () =
 
 Deno.test('les compteurs négatifs ou absents retombent à 0, jamais à NaN', () => {
   const c = parseDiscoveryCrew({
-    id: 'x', name: 'X', cityId: PARIS, memberCount: -3, friendsInside: null, hexesHeld: 'oops',
+    id: 'x', name: 'X', cityId: PARIS, memberCount: -3, friendsInside: null,
+    membersHolding: 'oops', upcomingOutings: -2,
   });
   assertEquals(c?.memberCount, 0);
   assertEquals(c?.friendsInside, 0);
-  assertEquals(c?.hexesHeld, 0);
+  assertEquals(c?.membersHolding, 0);
+  assertEquals(c?.upcomingOutings, 0);
   assertEquals(c?.lastCaptureAtMs, null);
+  assertEquals(c?.nextOutingAtMs, null);
 });
 
-// ═══ 2. L'ORDRE DE §E39, CRITÈRE PAR CRITÈRE ════════════════════════════════
+Deno.test('une discipline ABSENTE du serveur n’est jamais lue comme « il court »', () => {
+  // Un backend en retard d'une migration ne renvoie pas `holdsRun` : le crew
+  // doit rester « discipline inconnue », jamais « surtout à pied ». Prêter une
+  // discipline à un crew qui n'a rien montré serait inventer son identité.
+  const c = parseDiscoveryCrew({ id: 'x', name: 'X', cityId: PARIS });
+  assertEquals(c?.holdsRun, false);
+  assertEquals(c?.holdsBike, false);
+  assertEquals(crewActivityProfile(c!), 'unknown');
+  // …et une valeur « truthy » qui n'est pas `true` non plus.
+  const bruit = parseDiscoveryCrew({ id: 'y', name: 'Y', cityId: PARIS, holdsRun: 'oui' });
+  assertEquals(bruit?.holdsRun, false);
+});
+
+// ═══ 2. L'ORDRE DU CAHIER (§13.1 + §E39), CRITÈRE PAR CRITÈRE ══════════════
 
 Deno.test('critère 1 — la ville du joueur passe avant tout le reste', () => {
   const ici = crew({ id: 'ici', cityId: PARIS });
@@ -115,6 +133,7 @@ Deno.test('critère 1 — la ville du joueur passe avant tout le reste', () => {
   // places) : si la ville ne primait pas, il passerait devant.
   const ailleurs = crew({
     id: 'ailleurs', cityId: 'lille', friendsInside: 9, lastCaptureAtMs: 9_999, memberCount: 1,
+    nextOutingAtMs: 1_000,
   });
   assertEquals(rankCrews([ailleurs, ici], CTX).map((c) => c.id), ['ici', 'ailleurs']);
 });
@@ -122,11 +141,28 @@ Deno.test('critère 1 — la ville du joueur passe avant tout le reste', () => {
 Deno.test('critère 2 — à ville égale, les amis déjà présents priment', () => {
   const avec = crew({ id: 'avec', friendsInside: 1 });
   // `sans` est meilleur sur activité ET places : seuls les amis doivent trancher.
-  const sans = crew({ id: 'sans', friendsInside: 0, lastCaptureAtMs: 9_999, memberCount: 1 });
+  const sans = crew({
+    id: 'sans', friendsInside: 0, lastCaptureAtMs: 9_999, memberCount: 1, nextOutingAtMs: 1_000,
+  });
   assertEquals(rankCrews([sans, avec], CTX).map((c) => c.id), ['avec', 'sans']);
 });
 
-Deno.test('critère 3 — à amis égaux, l’activité la plus récente passe devant', () => {
+Deno.test('critère 3 (§13.1) — une SORTIE À VENIR passe avant toute activité passée', () => {
+  // Le cahier §13.1 : « La découverte doit montrer son accueil, ses horaires et
+  // ses sorties, AVANT son classement. » `dormant` gagne sur tous les critères
+  // suivants (activité fraîche, places, disciplines) : seule la sortie tranche.
+  const rendezVous = crew({ id: 'rdv', nextOutingAtMs: 5_000, memberCount: 40 });
+  const dormant = crew({ id: 'dormant', lastCaptureAtMs: 9_999, memberCount: 2 });
+  assertEquals(rankCrews([dormant, rendezVous], CTX).map((c) => c.id), ['rdv', 'dormant']);
+});
+
+Deno.test('entre deux rendez-vous, le PLUS PROCHE passe devant', () => {
+  const bientot = crew({ id: 'bientot', nextOutingAtMs: 1_000, memberCount: 40 });
+  const plusTard = crew({ id: 'plusTard', nextOutingAtMs: 9_000, memberCount: 2 });
+  assertEquals(rankCrews([plusTard, bientot], CTX).map((c) => c.id), ['bientot', 'plusTard']);
+});
+
+Deno.test('critère 4 — à sorties égales, l’activité la plus récente passe devant', () => {
   const frais = crew({ id: 'frais', lastCaptureAtMs: 2_000, memberCount: 40 });
   const vieux = crew({ id: 'vieux', lastCaptureAtMs: 1_000, memberCount: 2 });
   assertEquals(rankCrews([vieux, frais], CTX).map((c) => c.id), ['frais', 'vieux']);
@@ -140,15 +176,19 @@ Deno.test('un crew qui n’a JAMAIS capturé passe après tous ceux qui l’ont 
   assertEquals(rankCrews([jamais, ancien], CTX).map((c) => c.id), ['ancien', 'jamais']);
 });
 
-Deno.test('critère 4 — à activité égale, la capacité disponible départage', () => {
+Deno.test('critère 5 — à activité égale, la capacité disponible départage', () => {
   const large = crew({ id: 'large', memberCount: 2, lastCaptureAtMs: 5 });
   const serre = crew({ id: 'serre', memberCount: CREW_MAX_MEMBERS - 1, lastCaptureAtMs: 5 });
   assertEquals(rankCrews([serre, large], CTX).map((c) => c.id), ['large', 'serre']);
 });
 
-Deno.test('critère 5 — à capacité égale, la discipline du joueur départage', () => {
-  const courseurs = crew({ id: 'run', hexesHeld: 4, hexesRun: 4, hexesBike: 0, lastCaptureAtMs: 5 });
-  const cyclistes = crew({ id: 'bike', hexesHeld: 4, hexesRun: 0, hexesBike: 4, lastCaptureAtMs: 5 });
+Deno.test('critère 6 — à capacité égale, la discipline du joueur départage', () => {
+  const courseurs = crew({
+    id: 'run', membersHolding: 4, holdsRun: true, holdsBike: false, lastCaptureAtMs: 5,
+  });
+  const cyclistes = crew({
+    id: 'bike', membersHolding: 4, holdsRun: false, holdsBike: true, lastCaptureAtMs: 5,
+  });
   const ctx = { ...CTX, viewerActivity: 'bike' as const };
   assertEquals(rankCrews([courseurs, cyclistes], ctx).map((c) => c.id), ['bike', 'run']);
   // Discipline du joueur INCONNUE → le critère ne départage plus personne, et
@@ -157,15 +197,15 @@ Deno.test('critère 5 — à capacité égale, la discipline du joueur départag
   assertEquals(rankCrews([cyclistes, courseurs], CTX).map((c) => c.id).length, 2);
 });
 
-Deno.test('un crew mixte ou sans emprise ne se voit pas prêter une discipline', () => {
-  assertEquals(crewActivityProfile(crew({ hexesRun: 0, hexesBike: 0 })), 'unknown');
-  assertEquals(crewActivityProfile(crew({ hexesRun: 3, hexesBike: 2 })), 'mixed');
-  assertEquals(crewActivityProfile(crew({ hexesRun: 3, hexesBike: 0 })), 'run');
-  assertEquals(crewActivityProfile(crew({ hexesRun: 0, hexesBike: 3 })), 'bike');
+Deno.test('un crew mixte ou qui ne tient rien ne se voit pas prêter une discipline', () => {
+  assertEquals(crewActivityProfile(crew({ holdsRun: false, holdsBike: false })), 'unknown');
+  assertEquals(crewActivityProfile(crew({ holdsRun: true, holdsBike: true })), 'mixed');
+  assertEquals(crewActivityProfile(crew({ holdsRun: true, holdsBike: false })), 'run');
+  assertEquals(crewActivityProfile(crew({ holdsRun: false, holdsBike: true })), 'bike');
   // L'indéterminé se range ENTRE « ma discipline » et « l'autre ».
-  assertEquals(activityFit(crew({ hexesRun: 3, hexesBike: 2 }), 'run'), 1);
-  assertEquals(activityFit(crew({ hexesRun: 3 }), 'run'), 2);
-  assertEquals(activityFit(crew({ hexesBike: 3 }), 'run'), 0);
+  assertEquals(activityFit(crew({ holdsRun: true, holdsBike: true }), 'run'), 1);
+  assertEquals(activityFit(crew({ holdsRun: true }), 'run'), 2);
+  assertEquals(activityFit(crew({ holdsBike: true }), 'run'), 0);
 });
 
 Deno.test('le départage final est DÉTERMINISTE : deux tris rendent le même ordre', () => {
@@ -194,6 +234,7 @@ Deno.test('un crew injoignable est rendu APRÈS, même s’il gagne tous les cri
   // est de rejoindre.
   const ferme = crew({
     id: 'ferme', recruitmentStatus: 'closed', friendsInside: 5, lastCaptureAtMs: 9_999,
+    nextOutingAtMs: 1_000,
   });
   const banal = crew({ id: 'banal' });
   assertEquals(rankCrews([ferme, banal], CTX).map((c) => c.id), ['banal', 'ferme']);

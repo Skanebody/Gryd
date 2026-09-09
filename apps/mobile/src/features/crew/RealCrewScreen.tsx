@@ -563,17 +563,13 @@ export function RealCrewScreen() {
     [busy, situation, sectorIds, myPingState, sendPing, reloadPings],
   );
 
-  // Rôle + contribution par membre (crew_overview, 0044). Le roster garde son
+  // Rôle + activité par membre (crew_overview, 0152). Le roster garde son
   // ORDRE D'ANCIENNETÉ (pas de reclassement quand la donnée arrive : l'écran ne
   // saute pas sous le doigt) ; l'overview ne fait qu'enrichir chaque ligne.
   const detailByUser = useMemo(() => {
-    const map = new Map<string, { role: string; contributionPct: number; hexesHeld: number }>();
+    const map = new Map<string, { role: string; holdsTerritory: boolean }>();
     for (const c of overview?.contributions ?? []) {
-      map.set(c.userId, {
-        role: c.role,
-        contributionPct: c.contributionPct,
-        hexesHeld: c.hexesHeld,
-      });
+      map.set(c.userId, { role: c.role, holdsTerritory: c.holdsTerritory });
     }
     return map;
   }, [overview]);
@@ -625,25 +621,16 @@ export function RealCrewScreen() {
     [members],
   );
 
-  // Le crew ne tient RIEN ⇒ aucune contribution affichée : « 0 % » sur toutes
-  // les lignes n'apprend rien et encombre (§A). Le bloc territoire dit déjà,
-  // en une phrase honnête, qu'il n'y a pas encore de territoire.
-  const showContributions = (overview?.territory.hexesHeld ?? 0) > 0;
-
   /**
-   * MA part du territoire du crew (planche : « Votre part »), ou `null`.
+   * « MA PART DU TERRITOIRE DU CREW » A ÉTÉ RETIRÉE (0152).
    *
-   * `null` couvre les trois cas où la valeur n'est pas connue — overview pas lu,
-   * crew sans territoire, ma ligne absente de l'agrégat — et il n'y a alors
-   * AUCUNE ligne à l'écran. Un « 0 % » nu affirmerait une paresse là où on n'a
-   * simplement pas la donnée (les quatre états distincts de CLAUDE.md).
+   * Elle valait `contributionPct`, calculé en divisant mes hexagones par ceux
+   * du crew. Les deux venaient de `hex_claims`, gelée pour toute activité 2026
+   * par 0118 : la part valait 0 % pour tout le monde. La rétablir en sommant
+   * les possessions individuelles fabriquerait un territoire de crew que 0126
+   * refuse explicitement — « le titre reste INDIVIDUEL ». Ce qui reste vrai,
+   * et que le roster porte : est-ce que ce membre tient du terrain, oui ou non.
    */
-  const myShare = useMemo(() => {
-    if (!showContributions) return null;
-    const me = members.find((m) => m.isMe);
-    if (!me) return null;
-    return detailByUser.get(me.userId)?.contributionPct ?? null;
-  }, [showContributions, members, detailByUser]);
 
   /**
    * CREW COMPLET — état RÉEL, dérivé du roster serveur et de CREW_MAX_MEMBERS.
@@ -661,7 +648,7 @@ export function RealCrewScreen() {
    * l'agrégat — un mensonge de quelques centaines de millisecondes, mais un
    * mensonge quand même.
    */
-  const noTerritory = overview !== null && overview.territory.hexesHeld === 0;
+  const noTerritory = overview !== null && overview.territory.membersHolding === 0;
 
   const crewViews: readonly SegmentedOption<CrewView>[] = useMemo(
     () => [
@@ -807,10 +794,6 @@ export function RealCrewScreen() {
             cityId={crew.cityId}
             memberCount={memberCount}
             maxMembers={maxMembers}
-            // `?? null` et non `?? 0` : tant que l'agrégat n'a pas répondu, le
-            // rang n'existe pas — il ne vaut pas « premier ».
-            cityRank={overview?.territory.cityRank ?? null}
-            crewsInCity={overview?.territory.crewsInCity ?? null}
             topInset={insets.top}
           />
 
@@ -902,16 +885,9 @@ export function RealCrewScreen() {
                               </Text>
                             </View>
                           </View>
-                          {/* « Votre part » de la planche, nommée pour ce
-                              qu'elle mesure VRAIMENT : ma part du TERRITOIRE
-                              (0044), jamais une part de la mission — qui n'est
-                              mesurée nulle part. Et en %, jamais en km² :
-                              aucune aire n'existe côté serveur. */}
-                          {myShare !== null ? (
-                            <Text style={styles.myShare}>
-                              {t(C.myTerritoryShare, { pct: myShare })}
-                            </Text>
-                          ) : null}
+                          {/* « Votre part » de la planche est RETIRÉE depuis
+                              0152 : elle mesurait une part d'un territoire de
+                              crew qui n'existe pas (cf. le bloc du haut). */}
                           {/* Action INLINE (§A). Le libellé nomme la
                               DESTINATION, et cette destination A CHANGÉ le
                               28/07/2026 : l'écran de mission dédié (E45,
@@ -1094,25 +1070,14 @@ export function RealCrewScreen() {
 
               {overview ? (
               <View style={styles.territory}>
-                {overview.territory.hexesHeld > 0 ? (
+                {overview.territory.membersHolding > 0 ? (
                   <>
                     <Text style={styles.territoryValue}>
-                      {overview.territory.hexesHeld === 1
-                        ? t(C.rlZonesHeldOne)
-                        : t(C.rlZonesHeldN, { n: overview.territory.hexesHeld })}
+                      {t(C.dMembersHolding, { n: overview.territory.membersHolding })}
                     </Text>
-                    {/* Rang tu si le crew est seul dans sa ville : « 1 sur 1 »
-                        n'est pas un classement, c'est du bruit. */}
-                    {overview.territory.cityRank !== null &&
-                    overview.territory.crewsInCity !== null &&
-                    overview.territory.crewsInCity > 1 ? (
-                      <Text style={styles.territoryHint}>
-                        {t(C.rlCityRank, {
-                          rank: overview.territory.cityRank,
-                          total: overview.territory.crewsInCity,
-                        })}
-                      </Text>
-                    ) : null}
+                    {/* Aucun rang : depuis 0152 il n'y a plus rien à classer —
+                        le titre territorial est individuel (0126). */}
+                    <Text style={styles.territoryHint}>{t(C.dTerritoryPersonal)}</Text>
                     {/* Bande des secteurs NOMMÉS, tirée des faits déjà chargés
                         pour la mission (aucune lecture de plus). */}
                     <CrewTerritoryStrip sectors={missionSectors} />
@@ -1227,7 +1192,6 @@ export function RealCrewScreen() {
             <CrewRosterGroups
               rows={rosterRows}
               detailByUser={detailByUser}
-              showContributions={showContributions}
               myRole={overview?.myRole ?? ''}
               canReport={ready}
               blockedPseudos={blockedPseudos}
