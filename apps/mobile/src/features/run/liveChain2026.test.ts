@@ -13,6 +13,7 @@
  * test qui passe parce qu'il ne demande rien.
  */
 import { assert } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import { captureExplanation2026, type CaptureReceipt2026 } from '../refonte/captureReceipt2026.ts';
 
 /** Source d'un fichier, commentaires retirés : ils CITENT les défauts. */
 function code(relPath: string): string {
@@ -419,3 +420,72 @@ Deno.test('portes : aucune invitation à se connecter sans backend pour l’hono
   const challenges = code('../../../app/challenges/index.tsx');
   assert(challenges.includes('configured'), 'les défis aussi');
 });
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// GARDES DE SOURCE HÉRITÉES DE `resultVariant.test.ts` (constat 12)
+//
+// Le module `resultVariant.ts` — la grammaire des écrans de résultat d'août —
+// n'avait plus aucun importeur et a été supprimé avec ses tests. Ces gardes-là,
+// elles, ne parlaient pas de lui : elles lisent le SOURCE de `RunResult.tsx`,
+// l'écran vivant. Les perdre en même temps que le module mort aurait relâché
+// quatre tripwires sur l'écran le plus vu du jeu.
+// ════════════════════════════════════════════════════════════════════════════
+
+const RESULT_SCREEN = code('../refonte/RunResult.tsx');
+
+Deno.test('course-result : plus aucune garde `capReached` locale sur la surface', () => {
+  assert(
+    !RESULT_SCREEN.includes('capReached'),
+    'la garde locale est de retour : elle protégeait le PNG partagé et PAS le bloc ' +
+      'affiché, et elle ne couvrait que le plafond d’aire — pas le plafond quotidien, ' +
+      'ni les zones privées/interdites, ni les cellules qu’un rival garde',
+  );
+});
+
+Deno.test('2026 : résultat et partage reçoivent le même gain net publié par le serveur', () => {
+  assert(
+    RESULT_SCREEN.includes("const gain = territory?.status === 'published' ? territory.newTerrainM2 : null"),
+    'le gain doit être la différence géométrique publiée, jamais la surface de boucle',
+  );
+  assert(
+    RESULT_SCREEN.includes('territory2026: result?.territory2026'),
+    'le partage doit recevoir le même verdict territorial versionné — la valeur ' +
+      'du serveur elle-même, pas une reconstruction locale (`territory` en est la ' +
+      'lecture au type ouvert, cf. captureReceipt2026)',
+  );
+  assert(
+    RESULT_SCREEN.includes('const territory = result?.territory2026'),
+    'le verdict territorial vient du serveur',
+  );
+});
+
+Deno.test('course-result : la conclusion verify ne repasse pas par le booléen fusionné', () => {
+  // `stats.verified` vaut `status === 'valid' || status === 'partial'`, donc
+  // exactement « la course est créditée ». Le laisser décider de la ligne de
+  // conclusion faisait dire « capture pleine » à une course amputée.
+  assert(
+    !/stats\.verified \? t\(C\.verifyOk\)/.test(RESULT_SCREEN),
+    'la conclusion verify est redevenue binaire : `partial` et `valid` y racontent ' +
+      'de nouveau la même chose, et `partial` y ment (« capture pleine »)',
+  );
+  assert(RESULT_SCREEN.includes('captureExplanation2026(territory, fr)'), 'le résultat doit utiliser les verdicts distincts du modèle');
+  const verdict = (status: CaptureReceipt2026['status']) => captureExplanation2026({ ruleset: '2026.1', status,
+    loopAreaM2: 0, newTerrainM2: null, alreadyOwnedM2: null, neutralTakenM2: null, takenFromOthersM2: null }, true);
+  const pending = verdict('pending'); const scheduled = verdict('scheduled');
+  assert(pending?.title === 'Terrain en attente' && scheduled?.title === 'Boucle validée · publication différée',
+    'en analyse et validé mais non publié doivent conserver des conclusions distinctes');
+  assert(verdict('private')?.title === 'Sortie privée' && verdict('no_loop')?.title === 'Aucune boucle admissible',
+    'absence de consentement et absence de boucle ne sont pas le même refus');
+  assert(verdict('published') === null, 'un résultat publié garde son gain historique, jamais une copie de refus');
+});
+
+Deno.test('2026 : une capture ordinaire ne fabrique pas de points de défi', () => {
+  // Le cahier sépare terrain, XP et défis : les points existent seulement
+  // dans un match consenti. Les anciens crew_points par capture sont retirés.
+  assert(
+    !RESULT_SCREEN.includes('crewPoints') && !RESULT_SCREEN.includes('crew_points'),
+    'le résultat ne doit pas prolonger l’ancien score crew par capture',
+  );
+});
+
