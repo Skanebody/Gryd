@@ -24,6 +24,19 @@
  * demander une permission pour un message qui ne partira pas, serait la même
  * faute une couche plus bas.
  *
+ * ─── CE MODULE N'A PAS ENCORE D'APPELANT — ET L'ÉCRAN LE DIT ───────────────
+ * Le seul endroit d'où il peut partir est le chemin du résultat
+ * (`src/features/run/**`, `src/mvp/run/**`, `app/course/analyse.tsx`), qui
+ * appartient à un autre lot. Tant que cet appel d'une ligne n'existe pas,
+ * AUCUNE notification de résultat ne part — et `reglages.notifLocalOnlyNote` le
+ * déclare en toutes lettres au joueur plutôt que de lui promettre un message
+ * qui n'arriverait jamais. L'appel attendu, quand le résultat est disponible :
+ *
+ *     await notifyResultReady({
+ *       runId, content: { title: t(C.…), body: t(C.…) },
+ *       settings, appActive: AppState.currentState === 'active',
+ *     });
+ *
  * PUR d'i18n : le titre et le corps arrivent en prop, résolus par l'appelant.
  */
 import { Platform } from 'react-native';

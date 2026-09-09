@@ -764,21 +764,9 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
               />
             ) : notifPhase === 'signedOut' ? (
               <>
-                {/* UN INVITÉ VOIT L'ÉTAT SANS COMPTE : les six catégories et
-                    leur valeur PAR DÉFAUT, en LECTURE. Aucun `onPress`, donc
-                    aucun contrôle qui échouerait — et aucune promesse qu'un
-                    choix serait retenu. */}
-                {NOTIF_ROWS.map((row) => (
-                  <ListRow
-                    key={row.category}
-                    label={t(row.title)}
-                    value={t(
-                      DEFAULT_NOTIFICATION_SETTINGS_2026[row.category]
-                        ? C.notifDefaultOn
-                        : C.notifDefaultOff,
-                    )}
-                  />
-                ))}
+                {/* L'ÉTAT D'ABORD, LE DÉTAIL ENSUITE. L'explication précède les
+                    lignes : sans elle, « Sport · Activé » se lirait comme un
+                    réglage enregistré alors qu'aucun compte ne le porte. */}
                 <EmptyState
                   title={t(C.notifSignedOutTitle)}
                   body={t(C.notifSignedOutBody)}
@@ -791,6 +779,24 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
                       }
                     : {})}
                 />
+                {/* UN INVITÉ VOIT L'ÉTAT SANS COMPTE : les six catégories, ce
+                    qu'elles envoient, et leur valeur PAR DÉFAUT — en LECTURE.
+                    Aucun `onPress`, donc aucun contrôle qui échouerait, et
+                    aucune promesse qu'un choix serait retenu. Le sous-libellé
+                    reste : une catégorie dont on ne dit pas ce qu'elle envoie
+                    n'apprend rien à celui qui hésite à créer un compte. */}
+                {NOTIF_ROWS.map((row) => (
+                  <ListRow
+                    key={row.category}
+                    label={t(row.title)}
+                    sublabel={t(row.subtitle)}
+                    value={t(
+                      DEFAULT_NOTIFICATION_SETTINGS_2026[row.category]
+                        ? C.notifDefaultOn
+                        : C.notifDefaultOff,
+                    )}
+                  />
+                ))}
               </>
             ) : (
               <>
@@ -830,6 +836,19 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
                   track(EVENTS.notifPrefChanged, { category: 'game_pause', enabled: v });
                   updateNotifSettings({ gamePause: v });
                 }}
+              />
+            ) : notifPhase === 'signedOut' ? (
+              // « Pause du jeu » fait partie de la matrice §14.1 : un invité doit
+              // la voir comme les six autres, en lecture. La cacher aurait laissé
+              // croire qu'elle n'existe pas.
+              <ListRow
+                label={t(C.notifGamePauseTitle)}
+                sublabel={t(C.notifGamePauseSubtitle)}
+                value={t(
+                  DEFAULT_NOTIFICATION_SETTINGS_2026.gamePause
+                    ? C.notifDefaultOn
+                    : C.notifDefaultOff,
+                )}
               />
             ) : null}
             {/* Les nombres viennent de `NOTIFICATION_RULES_2026` : la note ne

@@ -900,12 +900,16 @@ export const C = defineCatalog({
     de: 'Neuheiten und Angebote',
     pt: 'Novidades e ofertas',
   },
+  // « Désactivé par défaut » vivait ICI et se répétait dans la colonne de valeur
+  // de la vue invité — deux fois la même phrase sur une seule ligne. Le défaut
+  // est porté par l'interrupteur (ou par la valeur en lecture) ; le sous-libellé
+  // dit ce que le défaut ne dit pas : le plafond, et l'absence de pression.
   notifOffersSubtitle: {
-    fr: 'Désactivé par défaut. Deux par mois au maximum, jamais d’urgence inventée.',
-    en: 'Off by default. Two a month at most, never a made-up urgency.',
-    es: 'Desactivado por defecto. Dos al mes como máximo, nunca una urgencia inventada.',
-    de: 'Standardmäßig aus. Höchstens zwei pro Monat, nie eine erfundene Dringlichkeit.',
-    pt: 'Desativado por padrão. No máximo duas por mês, nunca uma urgência inventada.',
+    fr: 'Deux par mois au maximum, jamais d’urgence inventée.',
+    en: 'Two a month at most, never a made-up urgency.',
+    es: 'Dos al mes como máximo, nunca una urgencia inventada.',
+    de: 'Höchstens zwei pro Monat, nie eine erfundene Dringlichkeit.',
+    pt: 'No máximo duas por mês, nunca uma urgência inventada.',
   },
   secQuandTuLeRecois: {
     fr: 'QUAND',
@@ -938,18 +942,26 @@ export const C = defineCatalog({
     pt: 'Nada entre {start} h e {end} h. No máximo {week} mensagens não essenciais por semana, e {day} por dia. O que envolve sua conta ou um evento cancelado passa mesmo assim — sem venda junto.',
   },
   /**
-   * L'ÉTAT VRAI DE CE BUILD. Le push distant est impossible : l'entitlement iOS
-   * est retiré par `plugins/withoutPushEntitlement.js` et aucune clé APNs n'a
-   * été déposée. Ce qui part réellement aujourd'hui, ce sont des notifications
-   * LOCALES posées par ce téléphone. Le dire ici est la seule façon que la
-   * matrice ci-dessus ne promette pas plus que le code.
+   * L'ÉTAT VRAI DE CE BUILD, VÉRIFIÉ LIGNE À LIGNE — pas une prudence de
+   * rédaction. Deux faits, tous deux constatés dans le dépôt le 10/09/2026 :
+   *  · le push DISTANT est impossible — `plugins/withoutPushEntitlement.js`
+   *    retire `aps-environment` de chaque build iOS, aucun `google-services.json`
+   *    n'existe pour Android, et aucune clé APNs n'a été déposée ;
+   *  · les notifications LOCALES, elles, MARCHENT (`localReminder.ts`,
+   *    `resultReadyNotice.ts`) mais aucun écran ne les déclenche encore :
+   *    `RendezvousOptIn` n'est monté nulle part et `notifyResultReady` n'a pas
+   *    encore d'appelant sur le chemin du résultat.
+   * Écrire « GRYD peut t'envoyer le résultat de ta sortie » serait donc une
+   * promesse au-delà du code. On dit ce qui est, et on dit que le choix est
+   * quand même enregistré — parce que c'est vrai, et c'est ce qui rend le
+   * réglage utile aujourd'hui plutôt que décoratif.
    */
   notifLocalOnlyNote: {
-    fr: 'Aujourd’hui, GRYD ne peut t’envoyer que des messages posés par ce téléphone : le rappel que tu choisis et le résultat de ta sortie. Le reste attend une configuration d’envoi à distance que nous n’avons pas encore.',
-    en: 'Today GRYD can only send you messages set by this phone: the reminder you choose and your activity’s result. The rest waits on a remote delivery setup we don’t have yet.',
-    es: 'Hoy GRYD solo puede enviarte mensajes creados por este teléfono: el recordatorio que elijas y el resultado de tu actividad. El resto espera una configuración de envío a distancia que aún no tenemos.',
-    de: 'Heute kann GRYD dir nur Nachrichten senden, die dieses Handy selbst stellt: die Erinnerung, die du wählst, und das Ergebnis deiner Aktivität. Der Rest wartet auf einen Fernversand, den wir noch nicht haben.',
-    pt: 'Hoje o GRYD só pode te enviar mensagens criadas por este telefone: o lembrete que você escolher e o resultado da sua atividade. O resto espera uma configuração de envio a distância que ainda não temos.',
+    fr: 'Aujourd’hui, GRYD ne t’envoie encore aucune notification : l’envoi à distance demande une configuration que nous n’avons pas, et les rappels posés par ce téléphone ne sont branchés à aucun écran. Tes choix sont enregistrés avec ton compte et seront respectés dès le premier message.',
+    en: 'Today GRYD doesn’t send you any notification yet: remote delivery needs a setup we don’t have, and the reminders this phone can set aren’t wired to any screen. Your choices are saved with your account and will be respected from the very first message.',
+    es: 'Hoy GRYD todavía no te envía ninguna notificación: el envío a distancia necesita una configuración que no tenemos, y los recordatorios que este teléfono puede crear no están conectados a ninguna pantalla. Tus elecciones se guardan con tu cuenta y se respetarán desde el primer mensaje.',
+    de: 'Heute sendet dir GRYD noch gar keine Mitteilung: Der Fernversand braucht eine Einrichtung, die wir nicht haben, und die Erinnerungen, die dieses Handy stellen kann, hängen an keinem Bildschirm. Deine Auswahl wird bei deinem Konto gespeichert und ab der allerersten Nachricht beachtet.',
+    pt: 'Hoje o GRYD ainda não te envia nenhuma notificação: o envio a distância precisa de uma configuração que não temos, e os lembretes que este telefone pode criar não estão ligados a nenhuma tela. Suas opções ficam guardadas na sua conta e serão respeitadas desde a primeira mensagem.',
   },
   notifSaving: {
     fr: 'Enregistrement de ton choix…',
@@ -993,19 +1005,24 @@ export const C = defineCatalog({
     de: 'Deine Einstellungen werden gelesen…',
     pt: 'Lendo seus ajustes…',
   },
+  // COURT VOLONTAIREMENT (§A, « textes jamais coupés » à 390 pt) : « Activé par
+  // défaut » mangeait 40 % de la largeur et écrasait le sous-libellé sur trois
+  // lignes. Le mot « défaut » est déjà porté, une seule fois, par l'état vide
+  // juste au-dessus (« Voici ce que GRYD peut t'envoyer, et les valeurs par
+  // défaut ») — le répéter six fois ne rendait pas la ligne plus vraie.
   notifDefaultOn: {
-    fr: 'Activé par défaut',
-    en: 'On by default',
-    es: 'Activado por defecto',
-    de: 'Standardmäßig an',
-    pt: 'Ativado por padrão',
+    fr: 'Activé',
+    en: 'On',
+    es: 'Activado',
+    de: 'An',
+    pt: 'Ativado',
   },
   notifDefaultOff: {
-    fr: 'Désactivé par défaut',
-    en: 'Off by default',
-    es: 'Desactivado por defecto',
-    de: 'Standardmäßig aus',
-    pt: 'Desativado por padrão',
+    fr: 'Désactivé',
+    en: 'Off',
+    es: 'Desactivado',
+    de: 'Aus',
+    pt: 'Desativado',
   },
 
   // ── Sous-page Carte ──
