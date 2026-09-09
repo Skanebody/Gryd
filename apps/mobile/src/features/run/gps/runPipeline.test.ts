@@ -188,3 +188,37 @@ Deno.test('pause MANUELLE en cours : le chrono actif est gelé, jamais négatif'
   assert(snap.activeS <= 60, `activeS ${snap.activeS} devrait être ≤ 60 s`);
   assert(snap.activeS >= 0, 'activeS ne peut pas être négatif');
 });
+
+/**
+ * ─── ÉTAPE 0 : LE DÉFAUT EXISTAIT (recette R2C, constat 1 — 10/09/2026) ─────
+ * Le chrono valait `now - startedAt - pauses`. Une sortie tuée à 20 minutes et
+ * rouverte trois heures plus tard affichait donc 3 h 20 : l'app rendait au
+ * coureur des heures pendant lesquelles elle ne tournait même pas. Le champ qui
+ * mesure cette absence (`StoredRun.deadMs`) existait sur le disque depuis des
+ * mois, écrit par personne et lu par personne dans la chaîne vivante.
+ *
+ * Ce test échoue sur le code d'avant : sans soustraction, `activeS` vaut 12 000 s.
+ */
+Deno.test('reprise après kill : le temps où l’app ne tournait PAS ne compte pas', () => {
+  const fixes = straightLine(1_200, 10); // 20 minutes de course réelle
+  const killedAt = T0 + 1_199_000;
+  const reopenedAt = killedAt + 3 * 60 * 60 * 1_000; // rouverte 3 h plus tard
+  const state: RunPipelineState = { ...stateOf(fixes, 'run'), deadMs: reopenedAt - killedAt };
+  const snap = computeSnapshot(state, reopenedAt);
+  assert(
+    snap.activeS < 25 * 60,
+    `activeS ${Math.round(snap.activeS)} s : le temps mort est rendu au chrono`,
+  );
+  assert(snap.activeS > 15 * 60, 'les 20 minutes réellement courues doivent rester');
+});
+
+Deno.test('temps mort : une valeur absurde n’allonge jamais le chrono', () => {
+  const fixes = straightLine(60, 10);
+  const now = T0 + 60_000;
+  const sane = computeSnapshot(stateOf(fixes, 'run'), now).activeS;
+  for (const deadMs of [Number.NaN, -10_000, Number.POSITIVE_INFINITY]) {
+    const snap = computeSnapshot({ ...stateOf(fixes, 'run'), deadMs }, now);
+    assert(snap.activeS <= sane, `deadMs ${deadMs} ne doit pas rallonger le chrono`);
+    assert(snap.activeS >= 0, 'le chrono ne devient jamais négatif');
+  }
+});

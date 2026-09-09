@@ -59,6 +59,44 @@ import { sampleEvenly, splitAndSampleAtGaps } from './traceSample';
 const MS_PER_S = 1_000;
 
 /**
+ * Une durée relue du disque (ou d'une horloge système) est-elle MESURABLE ?
+ * `0` sinon — on ne retranche jamais ce qu'on ne sait pas mesurer, et une valeur
+ * négative ALLONGERAIT le chrono au lieu de le corriger.
+ */
+function measurableMs(ms: number | undefined): number {
+  return typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
+
+/**
+ * TEMPS MORT TOTAL d'une sortie qu'on REPREND, à l'instant `now`. PURE.
+ *
+ * Cumule ce qui avait DÉJÀ été mesuré (`deadMs` écrit sur le disque) et l'écart
+ * de CETTE reprise, compté depuis le dernier instant réellement connu — le
+ * dernier relevé GPS, ou le départ si la trace est vide (rien ne prouve alors
+ * qu'une seconde ait été courue, et on ne l'invente pas).
+ *
+ * Le cumul est toute la raison de persister le champ : sans lui, une DEUXIÈME
+ * interruption rendrait au chrono les heures de la première.
+ *
+ * Cette règle a une jumelle littérale dans `mvp/run/persist.ts`
+ * (`resumedDeadMs`), écrite pour l'écran d'août. Elle n'est pas importée : le
+ * groupe `(mvp)` est en quarantaine et partira ; la chaîne vivante ne peut pas
+ * dépendre d'un module condamné. Les deux disent la même chose, et celle-ci est
+ * celle que la chaîne vivante applique.
+ */
+export function resumedDeadTimeMs(
+  stored: { readonly deadMs?: number; readonly startedAt: number; readonly fixes: readonly { readonly ts: number }[] },
+  now: number,
+): number {
+  const already = measurableMs(stored.deadMs);
+  const last = stored.fixes[stored.fixes.length - 1];
+  const lastKnown = last === undefined ? stored.startedAt : last.ts;
+  const gap = now - lastKnown;
+  if (!Number.isFinite(gap) || gap <= 0) return already;
+  return already + gap;
+}
+
+/**
  * Plafond de points de la TRACE LIVE affichée (rendu SVG ~1×/s). Purement visuel
  * — pas une constante de jeu (le serveur ne voit jamais cette trace, il reçoit la
  * trace décimée de buildIngestPayload). Assez pour une forme fidèle, assez peu
@@ -156,6 +194,23 @@ export interface RunPipelineState {
   readonly startedAt: number;
   /** Cumul des pauses MANUELLES déjà terminées (ms). */
   readonly userPausedMs: number;
+  /**
+   * TEMPS MORT cumulé (ms) : celui pendant lequel l'app NE TOURNAIT PAS (kill
+   * OS, batterie, crash), mesuré à chaque reprise par `resumedDeadTimeMs`.
+   *
+   * ─── POURQUOI CE CHAMP A DÛ DESCENDRE JUSQU'ICI (10/09/2026) ──────────────
+   * `StoredRun.deadMs` existait sur le disque depuis des mois et n'avait AUCUN
+   * lecteur dans la chaîne vivante : le chrono valait `now - startedAt - pauses`.
+   * Une sortie tuée à 20 minutes et rouverte trois heures plus tard affichait
+   * donc 3 h 20 — l'app rendait au coureur des heures pendant lesquelles elle
+   * ne mesurait rien. C'est un mensonge sur la seule chose qu'un chronomètre
+   * promet.
+   *
+   * OPTIONNEL et DISTINCT de `userPausedMs` : celui-là est une DÉCISION du
+   * coureur (il a appuyé sur pause), celui-ci est une ABSENCE d'application.
+   * Les fondre ferait lire une pause volontaire là où il y a eu un crash.
+   */
+  readonly deadMs?: number;
   /** Instant de début de la pause manuelle EN COURS, `null` si aucune. */
   readonly userPausedSinceTs: number | null;
   /** La course est clôturée (le tracker n'accepte plus rien). */
@@ -207,7 +262,11 @@ export function computeSnapshot(state: RunPipelineState, nowTs: number): Tracker
     state.userPausedMs +
     (state.userPausedSinceTs !== null ? Math.max(0, nowTs - state.userPausedSinceTs) : 0);
   const autoPauseMs = pauses.reduce((s, p) => s + p.durationS * MS_PER_S, 0);
-  const activeS = Math.max(0, (nowTs - state.startedAt - userPauseMs - autoPauseMs) / MS_PER_S);
+  // Le temps où l'app ne tournait pas ne se court pas (voir `deadMs`).
+  const activeS = Math.max(
+    0,
+    (nowTs - state.startedAt - userPauseMs - autoPauseMs - measurableMs(state.deadMs)) / MS_PER_S,
+  );
 
   // Pause auto EN COURS : le dernier intervalle détecté court jusqu'au
   // dernier point gardé (le coureur est toujours à l'arrêt).

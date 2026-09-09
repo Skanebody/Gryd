@@ -66,6 +66,13 @@ export interface TrackerInit {
   initialFixes?: readonly RawFix[];
   /** Reprise après kill : pauses manuelles déjà écoulées (ms). */
   userPausedMs?: number;
+  /**
+   * Reprise après kill : TEMPS MORT déjà mesuré (ms) — celui pendant lequel
+   * l'app ne tournait pas. Il est retranché du chrono par `computeSnapshot` ;
+   * sans lui, une sortie rouverte trois heures après un kill afficherait ces
+   * trois heures comme si elles avaient été courues.
+   */
+  deadMs?: number;
   /** Reprise/fusion : pas déjà comptés par le tracker précédent. */
   initialSteps?: number;
 }
@@ -87,6 +94,8 @@ export class RunTracker {
   private breakBeforeNext = false;
   private userPauseStartedTs = 0;
   private userPausedMsTotal: number;
+  /** Temps mort cumulé (ms) — hérité d'une reprise, jamais fabriqué ici. */
+  private deadMsTotal: number;
   /** Pas hérités d'un tracker précédent (reprise/fusion). */
   private stepBase: number;
   /** Pas comptés par L'ABONNEMENT courant (cumulés depuis watchStepCount). */
@@ -105,6 +114,7 @@ export class RunTracker {
     this.startedAt = init.startedAt;
     this.fixes = [...(init.initialFixes ?? [])];
     this.userPausedMsTotal = init.userPausedMs ?? 0;
+    this.deadMsTotal = init.deadMs ?? 0;
     this.stepBase = init.initialSteps ?? 0;
   }
 
@@ -116,6 +126,11 @@ export class RunTracker {
   /** Cumul des pauses manuelles (ms) — persisté pour la reprise après kill. */
   get userPausedMs(): number {
     return this.userPausedMsTotal;
+  }
+
+  /** Temps mort cumulé (ms) — persisté pour survivre à un SECOND kill. */
+  get deadMs(): number {
+    return this.deadMsTotal;
   }
 
   /** Pas cumulés de la course (0 = podomètre indisponible/jamais démarré). */
@@ -200,6 +215,7 @@ export class RunTracker {
       mode: this.mode,
       startedAt: this.startedAt,
       userPausedMs: this.userPausedMsTotal,
+      deadMs: this.deadMsTotal,
       userPausedSinceTs: this.userPaused ? this.userPauseStartedTs : null,
       finished: this.finished,
     };

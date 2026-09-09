@@ -71,6 +71,17 @@ export interface RealRunApi {
     distanceM: number;
     activity: Activity;
     resume: (() => void) | null;
+    /**
+     * POURQUOI « Reprendre » n'existe pas, quand `resume` vaut `null`. Un
+     * bouton qui disparaît sans raison visible est un état vide muet : l'écran
+     * doit pouvoir DIRE laquelle des deux règles s'applique.
+     *  · `other_activity` — la sortie retrouvée n'est pas dans la même
+     *    discipline (fusionner deux mondes est interdit, E14) ;
+     *  · `too_old` — elle date d'au-delà de la fenêtre de reprise : la
+     *    rouvrir ferait repartir un chrono sur des heures qui n'ont pas été
+     *    courues. Elle reste ENTIÈREMENT récupérable par le journal.
+     */
+    resumeBlocked: 'other_activity' | 'too_old' | null;
     discard: () => void;
   } | null;
   /** Ouvrir les réglages système — `null` dans un navigateur (il n'y en a pas). */

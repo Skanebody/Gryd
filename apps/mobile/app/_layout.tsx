@@ -239,10 +239,17 @@ function BootGate({ fontsReady, children }: { fontsReady: boolean; children: Rea
     // 03/08/2026 en preview, sur `/` comme sur une URL directe.
     if (!ready || handedOff || !fontsReady) return;
     // « Activité active retrouvée : aller directement à la récupération. »
-    // BASCULE (03/08/2026) : la reprise mène à l'écran MVP, pas au legacy. Les
-    // deux lisent le MÊME buffer (`lib/runStore`), donc une course interrompue
-    // AVANT la bascule se reprend quand même — rien n'est perdu au passage.
-    if (next === 'recover_run') router.push('/course');
+    //
+    // ─── 10/09/2026 : LA REPRISE REVIENT DANS LA CHAÎNE VIVANTE ─────────────
+    // Elle menait à `/course`, l'écran du groupe `(mvp)` : une sortie tuée par
+    // l'OS rouvrait l'app d'août ENTIÈRE, dont la reprise réécrit le buffer en
+    // `activity:'run'`, `mode:'conquete'`, `deadMs:0` — autrement dit une sortie
+    // vélo revenait en course à pied, avec un chrono remis à plat. `/course-live`
+    // lit le MÊME buffer (`lib/runStore`) et porte sa carte de reprise :
+    // discipline conservée, propriétaire vérifié, temps mort retranché. Rien
+    // n'est perdu au passage — c'est exactement la cible que `bootSequence.ts`
+    // documentait déjà.
+    if (next === 'recover_run') router.push('/course-live');
     setHandedOff(true);
   }, [ready, next, handedOff, fontsReady]);
 

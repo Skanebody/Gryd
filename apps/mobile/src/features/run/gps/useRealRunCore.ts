@@ -60,9 +60,14 @@ import { currentResultOwner2026 } from '../resultOwner2026';
 import { HTTP_STATUS_NONE } from '../analysis/analysisMachine';
 import { beginSyncFactRun, publishSyncFact } from '../analysis/syncFactBus';
 import { recordRun } from '../runJournal';
+import { resumedDeadTimeMs } from './runPipeline';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import { saveLocalActivity2026, type LocalActivity2026 } from '../../refonte/localActivities';
 import { canResumeInterrupted } from './runActivity';
+// La MÊME fenêtre que la décision de démarrage (`app/_layout.tsx` la consomme
+// déjà par `decideCrashRecoveryNavigation`). Deux fenêtres différentes
+// donneraient un écran de reprise ouvert par le boot puis refusé par l'écran.
+import { CRASH_RECOVERY_MAX_AGE_MS } from '../../../mvp/run/crashRecovery';
 import type { RealRunGate } from './gateTypes';
 import type { RunLocationAdapter, RunUnavailableReason, RunWatchHandle } from './locationAdapter';
 
@@ -140,6 +145,8 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
   const [restoreFound, setRestoreFound] = useState<{
     distanceM: number;
     activity: Activity;
+    /** Dans la fenêtre de reprise (voir CRASH_RECOVERY_MAX_AGE_MS) ? */
+    fresh: boolean;
   } | null>(null);
   const [permissionRevoked, setPermissionRevoked] = useState(false);
 
@@ -164,6 +171,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       startedAt: t.startedAt,
       fixes: [...t.rawFixes],
       userPausedMs: t.userPausedMs,
+      // Le temps mort suit la sortie sur le disque : sans lui, un SECOND kill
+      // rendrait au chrono les heures perdues à la première interruption.
+      deadMs: t.deadMs,
     };
     if (pendingStoredRef.current !== null) await saveCurrentRun(run);
     else await saveActiveRun(run);
@@ -364,7 +374,16 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         // vélo retrouvée ne doit pas être re-mesurée à 25 km/h (elle afficherait
         // « 0,0 km retrouvés » et le joueur croirait sa sortie perdue).
         if (stored.recordingOwnerId !== undefined && stored.recordingOwnerId === currentResultOwner2026()) {
-          setRestoreFound({ distanceM: probe.snapshot(Date.now()).distanceM, activity });
+          // FRAÎCHEUR : au-delà de la fenêtre de reprise, « Reprendre » ferait
+          // repartir un chrono sur des jours d'absence. La sortie n'est pas
+          // perdue pour autant — la clôture vers le journal reste offerte,
+          // exactement ce que documente CRASH_RECOVERY_MAX_AGE_MS.
+          const lastKnown = stored.fixes.reduce((latest, f) => Math.max(latest, f.ts), stored.startedAt);
+          setRestoreFound({
+            distanceM: probe.snapshot(Date.now()).distanceM,
+            activity,
+            fresh: Date.now() - lastKnown <= CRASH_RECOVERY_MAX_AGE_MS,
+          });
         }
       }
 
@@ -483,6 +502,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     void (async () => {
       const bg = await drainBackground();
       current.stopPedometer();
+      // TEMPS MORT de CETTE reprise (règle pure, testée) : l'écart entre le
+      // dernier instant réellement mesuré et maintenant n'a pas été couru.
+      const deadMs = resumedDeadTimeMs(stored, Date.now());
       trackerRef.current = new RunTracker({
         runId: stored.runId, // idempotence : on reste LA même course côté serveur
         recordingOwnerId: stored.recordingOwnerId,
@@ -496,6 +518,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         startedAt: stored.startedAt,
         initialFixes: [...stored.fixes, ...bg, ...current.rawFixes],
         userPausedMs: stored.userPausedMs,
+        deadMs,
         initialSteps: current.stepCount, // cumul conservé à la fusion
       });
       // L'IDENTITÉ DE LA SORTIE VIENT DE CHANGER : la course reprise garde le
@@ -514,7 +537,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       if (await saveActiveRun({ runId: merged.runId, recordingOwnerId: merged.recordingOwnerId,
         recordingSessionId: merged.recordingSessionId, sharedMapParticipation: merged.sharedMapParticipation,
         mode: merged.mode, activity: merged.activity, startedAt: merged.startedAt,
-        fixes: [...merged.rawFixes], userPausedMs: merged.userPausedMs })) await clearCurrentRun();
+        fixes: [...merged.rawFixes], userPausedMs: merged.userPausedMs, deadMs: merged.deadMs })) await clearCurrentRun();
     })();
   }, [drainBackground, flush]);
 
@@ -575,7 +598,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     const localSaved = await saveLocalActivity2026(localActivity);
     const finalBuffer: StoredRun = { runId: t.runId, recordingOwnerId: t.recordingOwnerId,
       recordingSessionId: t.recordingSessionId, sharedMapParticipation: t.sharedMapParticipation,
-      mode: t.mode, activity: t.activity, startedAt: t.startedAt, fixes: [...t.rawFixes], userPausedMs: t.userPausedMs };
+      mode: t.mode, activity: t.activity, startedAt: t.startedAt, fixes: [...t.rawFixes], userPausedMs: t.userPausedMs, deadMs: t.deadMs };
     const bufferSaved = pendingStoredRef.current === null ? await saveActiveRun(finalBuffer) : await saveCurrentRun(finalBuffer);
     // Le VRAI tracé mesuré SURVIT jusqu'au Résultat (pic peak-end §25) : sans ça
     // il mourait ici. Armé avant la navigation ; purgé au départ de la course
@@ -749,12 +772,19 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
           ? {
               distanceM: restoreFound.distanceM,
               activity: restoreFound.activity,
-              // Disciplines différentes ⇒ pas de « Reprendre » : l'action
-              // n'existe pas plutôt que d'exister et d'échouer (aucun bouton
-              // mort). La clôture, elle, reste toujours possible.
-              resume: canResumeInterrupted(restoreFound.activity, t.activity) && pendingStoredRef.current?.recordingOwnerId === t.recordingOwnerId
+              // Disciplines différentes ou sortie hors fenêtre ⇒ pas de
+              // « Reprendre » : l'action n'existe pas plutôt que d'exister et
+              // d'échouer (aucun bouton mort). La clôture, elle, reste toujours
+              // possible — rien n'est perdu, et l'écran DIT laquelle des deux
+              // règles s'applique.
+              resume: canResumeInterrupted(restoreFound.activity, t.activity) && restoreFound.fresh && pendingStoredRef.current?.recordingOwnerId === t.recordingOwnerId
                 ? resumeStored
                 : null,
+              resumeBlocked: !canResumeInterrupted(restoreFound.activity, t.activity)
+                ? 'other_activity'
+                : !restoreFound.fresh
+                  ? 'too_old'
+                  : null,
               discard: discardStored,
             }
           : null,
