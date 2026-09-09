@@ -10,8 +10,12 @@ build/
 *.tsbuildinfo
 supabase/.temp/
 supabase/.branches/
-ios/
-android/
+# Dossiers de PREBUILD uniquement, ancrés : `ios/` et `android/` non ancrés
+# ignoraient aussi les sources natives des modules locaux
+# (apps/mobile/modules/*/ios, /android) — le module film de la refonte 2026
+# en a été exclu de la capture du 09/09/2026 sans qu'aucun statut ne le dise.
+/apps/mobile/ios/
+/apps/mobile/android/
 scratchpad-secrets.local
 
 # Artefacts du banc d'essai moteur (scripts/ + scratchpad), jamais versionnes.

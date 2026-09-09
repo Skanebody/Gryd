@@ -1,0 +1,7 @@
+{
+  "name": "gryd-run-film",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local silent H.264 activity-film encoder using platform media APIs",
+  "license": "UNLICENSED"
+}
