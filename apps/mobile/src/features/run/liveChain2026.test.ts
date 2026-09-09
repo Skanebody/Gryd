@@ -74,3 +74,64 @@ Deno.test('reprise : hors fenêtre, « Reprendre » n’existe pas — et l’é
   const live = code('./gps/RealCourseLive.tsx');
   assert(live.includes('resumeBlocked'), 'l’écran peint la raison du refus');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 2 — L'ÉCRAN DE RÉSULTAT
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `RunResult` gatait la publication et le moment de progression sur
+ * `result.status === 'valid'`. Le serveur écrit ce champ EN DUR pour toute
+ * sortie ingérée (`ingest_run/refonte2026.ts`, `status:'valid'`) : la garde ne
+ * gardait rien, et la carte de partage annonçait `credited` — une affiche de
+ * victoire — pour une boucle que le serveur venait de refuser.
+ */
+Deno.test('résultat : un gain ne s’annonce que sur une capture PUBLIÉE', () => {
+  const result = code('../refonte/RunResult.tsx');
+  assert(!/result\.status === 'valid'/.test(result),
+    '`status` vaut « valid » pour toute sortie ingérée : ce n’est pas une garde');
+  assert(result.includes("const capturePublished = territory?.status === 'published';"));
+  assert(result.includes('credited: capturePublished'), 'la carte de partage ne crédite que le publié');
+  assert(result.includes('surfaceValue: capturePublished'), 'aucune surface annoncée sans publication');
+  assert(result.includes('progression2026?.status === \'confirmed\''),
+    'la progression sportive se gate sur SON fait serveur (§5.5 règle 8), pas sur le terrain');
+});
+
+/**
+ * ÉTAPE 0 : sans backend, sans session, ou sur la sortie d'un autre compte,
+ * l'effet de lecture du terrain sortait avant de poser le moindre état :
+ * `captureRead` restait `'idle'` et l'écran affichait « Vérification du terrain
+ * actuel… » pour toujours. Un chargement qui n'a pas commencé n'est pas un
+ * chargement.
+ */
+Deno.test('résultat : « vérification » n’est jamais dite quand aucune lecture n’aura lieu', () => {
+  const result = code('../refonte/RunResult.tsx');
+  assert(result.includes("setCaptureRead('unavailable')"), 'l’absence de lecture est un état nommé');
+  const guard = result.indexOf("{ setCaptureRead('unavailable'); return; }");
+  assert(guard > 0 && guard < result.indexOf("setCaptureRead('loading')"),
+    'l’état indisponible se pose AVANT toute promesse de lecture');
+});
+
+/**
+ * ÉTAPE 0 : le retour au journal faisait `router.replace('/profil')` — un
+ * chemin qui dépend de la résolution de groupe, alors que le dépôt cible
+ * partout `/(tabs)/profil`. Et l'invité (`ownerId === null`) ne lisait nulle
+ * part que sa sortie ne prend aucun terrain.
+ */
+Deno.test('résultat : journal explicite, et l’invité sait ce qu’il ne capture pas', () => {
+  const result = code('../refonte/RunResult.tsx');
+  assert(!/router\.replace\('\/profil'\)/.test(result), 'la cible du journal est explicite');
+  assert(result.includes("router.replace('/(tabs)/profil')"));
+  assert(result.includes('const guestRecording = ownerId === null'));
+  assert(result.includes('{configured && <Pressable'), 'le CTA compte est gardé par `configured` (aucun bouton mort)');
+});
+
+/**
+ * ÉTAPE 0 : toute surface passait par `(n / 1e6)` à trois décimales ; un gain
+ * de quelques centaines de m² s'affichait « +0 km² ».
+ */
+Deno.test('résultat : aucune surface ne s’affiche « 0 » alors qu’elle existe', () => {
+  const result = code('../refonte/RunResult.tsx');
+  assert(!/\/ 1e6\)\.toLocaleString/.test(result), 'le formatage de surface passe par le module testé');
+  assert(result.includes('captureAreaLabel2026(n, fr)'));
+});

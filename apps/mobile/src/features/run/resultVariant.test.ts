@@ -413,8 +413,10 @@ Deno.test('2026 : résultat et partage reçoivent le même gain net publié par 
     'le gain doit être la différence géométrique publiée, jamais la surface de boucle',
   );
   assert(
-    RESULT_SCREEN.includes('territory2026: territory'),
-    'le partage doit recevoir le même verdict territorial versionné',
+    RESULT_SCREEN.includes('territory2026: result?.territory2026'),
+    'le partage doit recevoir le même verdict territorial versionné — la valeur ' +
+      'du serveur elle-même, pas une reconstruction locale (`territory` en est la ' +
+      'lecture au type ouvert, cf. captureReceipt2026)',
   );
   assert(
     RESULT_SCREEN.includes('const territory = result?.territory2026'),
