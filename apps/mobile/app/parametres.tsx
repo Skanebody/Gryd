@@ -6,11 +6,14 @@ import { signOut } from '../src/lib/auth';
 import { useSession } from '../src/lib/session';
 import { screen } from '../src/lib/analytics';
 import { ProfileButton, ProfileLink, ProfilePage, ProfileSection, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
+import { C as CParcours } from '../src/i18n/catalog/parcours';
+import { useT } from '../src/i18n/store';
 import { SETTINGS_GLYPHS } from '../src/ui/gryd/glyphs';
 import { TranslucentControl2026 } from '../src/ui/gryd/Surface2026';
 
 export default function SettingsScreen() {
   const copy = useRefonteCopy();
+  const t = useT();
   const { session } = useSession();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -29,6 +32,10 @@ export default function SettingsScreen() {
     <TranslucentControl2026 tone="light" style={local.group}>
     <ProfileLink tone="light" title={copy('Sources & appareils', 'Sources & devices')} grydIcon={SETTINGS_GLYPHS.sourcesDevices} onPress={() => router.push('/sources')} />
     <ProfileLink tone="light" title={copy('Mon journal', 'My journal')} grydIcon={SETTINGS_GLYPHS.journal} onPress={() => router.push('/(tabs)/profil')} />
+    {/* `/mes-parcours` n'était référencée que par le catalogue MORT de
+        features/settings/sections.ts : une page de transparence sur ce que GRYD
+        déduit des habitudes, atteignable par personne. Elle est peinte ici. */}
+    <ProfileLink tone="light" title={t(CParcours.title)} subtitle={t(CParcours.rowDetail)} grydIcon={SETTINGS_GLYPHS.journal} onPress={() => router.push('/mes-parcours')} />
     <ProfileLink tone="light" title={copy('Ma collection', 'My collection')} grydIcon={SETTINGS_GLYPHS.collection} onPress={() => router.push('/arsenal')} />
     <ProfileLink tone="light" title={copy('Mon crew', 'My crew')} grydIcon={SETTINGS_GLYPHS.crew} onPress={() => router.push('/(tabs)/crew')} />
     </TranslucentControl2026>

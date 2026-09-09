@@ -1,46 +1,29 @@
 /**
- * GRYD — CATALOGUE DE LA PAGE PARAMÈTRES (source unique de la liste ET des
- * titres de sous-pages).
+ * GRYD — MÉTADONNÉES DES SOUS-PAGES DE RÉGLAGES. Une seule chose, une seule fois.
  *
- * ─── ORDRE DE COMPOSITION ─────────────────────────────────────────────────────
- *   1. COMPTE     — qui je suis, et qui me voit ;
- *   2. JEU        — ce que GRYD fait pendant et autour d'une course ;
- *   3. AIDE & APP — comprendre, changer de langue, savoir ce qu'on utilise.
+ * ═══ CE QUI A ÉTÉ SUPPRIMÉ LE 10/09/2026, ET POURQUOI ═══════════════════════
+ * Ce fichier portait aussi `SETTINGS_GROUPS` : trois groupes, une vingtaine de
+ * lignes, leurs `href`, leurs icônes, leurs détails i18n, et deux conditions
+ * `flags.paidOffer` / `flags.arsenal` avec leur commentaire ADR-011.
+ * PERSONNE NE LE RENDAIT. `app/parametres.tsx` réécrit sa propre liste depuis
+ * le 09/09 ; seuls les TITRES DE SOUS-PAGES d'ici étaient encore lus, par
+ * `app/parametres/[section].tsx`.
  *
- * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
- * · Les libellés en FRANÇAIS EN DUR. `label` et `detail` étaient des `string`
- *   rendues telles quelles : neuf lignes sur quinze restaient françaises en
- *   anglais, allemand ou portugais — dans le même écran où la ligne « Langue »,
- *   elle, se traduisait. Ce sont maintenant des `Entry`, résolues à l'affichage.
- * · SEPT sur-titres ramenés à TROIS. « TON COMPTE » et « DONNÉES & COMPTE »
- *   parlaient du même sujet en étant séparés par « JEU » ; « LANGUE » répétait
- *   mot pour mot le libellé de l'unique ligne qu'il coiffait. §A : un écran se
- *   comprend en moins de 3 s, et sept titres pour quinze lignes, ce n'est pas
- *   une structure — c'est du bruit.
- * · « Carte · Couche par défaut, trace » annonçait un RÉGLAGE qui n'existe pas :
- *   la sous-page n'a aucun contrôle, elle explique que la carte choisit seule.
- * · « Sources connectées · GPS, Apple Health, Strava, WHOOP… » citait quatre
- *   sources dont TROIS ne sont pas dans le Hub (retirées faute d'entitlement
- *   Apple / de compte développeur — cf. `features/sources/catalog.ts`). Une
- *   liste d'exemples est une promesse comme une autre.
- * · « Compte · E-mail, connexion, sécurité » promettait deux réglages dont les
- *   lignes n'ouvraient qu'une `Alert` « arrive très bientôt » (retirées, cf.
- *   `app/parametres/[section].tsx`).
+ * Ce n'était pas seulement du code mort : c'était une DEUXIÈME VÉRITÉ. Les deux
+ * listes avaient déjà divergé (libellés, ordre, destinations), et surtout
+ * `sections.test.ts` prouvait « les portes de dernier recours existent » sur la
+ * liste QUE PERSONNE NE VOIT — un vert qui ne prouvait rien de ce que l'écran
+ * affiche. Le catalogue mort est donc parti ; la liste vit dans l'écran, et ce
+ * fichier ne garde que ce qui est réellement lu : le titre, le détail et
+ * l'icône de chaque sous-page.
  *
- * ─── ÉCARTS ASSUMÉS ───────────────────────────────────────────────────────────
- * · La ligne « Arsenal » reste derrière `flags.arsenal` : la route `/arsenal`
- *   est masquée hors MVP (D8) et une ligne vers une route absente serait un
- *   bouton mort. La ligne « Abonnement et achats » (E75, `/abonnement`), elle,
- *   n'est PAS gardée : voir le commentaire posé sur la ligne le 28/07/2026 —
- *   la garder derrière ce drapeau fermait l'écran de gestion aux abonnés.
- * · Aucun nombre, aucune constante de jeu ici : ce module ne fait que de la
- *   navigation et du texte.
+ * `/mes-parcours` n'était référencée que par ce catalogue mort : elle est
+ * désormais peinte dans `app/parametres.tsx`, donc atteignable pour de vrai.
+ *
+ * Aucun nombre, aucune constante de jeu ici : navigation et texte seulement.
  */
 import type { IconName } from '@klaim/shared';
-import { flags } from '../../lib/flags';
 import { C } from '../../i18n/catalog/reglages';
-import { C as CParcours } from '../../i18n/catalog/parcours';
-import { C as CAbo } from '../../i18n/catalog/abonnement';
 import type { Entry } from '../../i18n/types';
 
 /** Slug d'une sous-page interne rendue par app/parametres/[section].tsx. */
@@ -54,10 +37,7 @@ export type SettingsSectionId =
   | 'apropos'
   | 'avance';
 
-export interface SettingsRow {
-  /** Cible : soit une sous-page interne (`section`), soit une route existante (`href`). */
-  section?: SettingsSectionId;
-  href?: string;
+export interface SettingsSectionMeta {
   /** Libellé — `Entry` i18n, jamais une chaîne déjà résolue (règle 17). */
   label: Entry;
   /** Une ligne = un sous-titre court, jamais un paragraphe. */
@@ -65,122 +45,24 @@ export interface SettingsRow {
   icon: IconName;
 }
 
-export interface SettingsGroup {
-  /** Clé de rendu STABLE : le libellé est traduit, il ne peut pas servir de clé. */
-  id: string;
-  label: Entry;
-  rows: readonly SettingsRow[];
-}
-
 /**
- * Les trois groupes de la page Paramètres, dans l'ordre d'usage. Les lignes qui
- * pointent vers l'existant (`href`) réutilisent Sources / Confidentialité /
- * Support / Mes parcours / explicabilité / Langue. Les sous-pages internes
- * (`section`) sont Compte, Profil, Crew, Course, Notifications, Carte, À propos,
- * Avancé.
+ * Le titre de chaque sous-page. Le SLUG `course` reste (URL déjà installée) ;
+ * son LIBELLÉ ne dit pas « Course » : la sous-page règle le style de jeu, les
+ * haptiques et les unités de TOUTE sortie, vélo compris.
  */
-export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
-  {
-    id: 'compte',
-    label: C.grpCompte,
-    rows: [
-      { section: 'compte', label: C.rowCompte, detail: C.rowCompteDetail, icon: 'profil' },
-      { section: 'profil', label: C.rowProfil, detail: C.rowProfilDetail, icon: 'ami' },
-      { section: 'crew', label: C.rowCrew, detail: C.rowCrewDetail, icon: 'crew' },
-      {
-        href: '/confidentialite',
-        label: C.rowPrivacy,
-        detail: C.rowPrivacyDetail,
-        icon: 'verrou',
-      },
-    ],
-  },
-  {
-    id: 'jeu',
-    label: C.grpJeu,
-    rows: [
-      // Le SLUG reste `course` (URL déjà installée, cf. `SettingsSectionId`) ;
-      // le LIBELLÉ, lui, ne peut plus dire « Course » : cette sous-page règle
-      // le style de jeu, les haptiques et les unités de TOUTE sortie, vélo
-      // compris — et elle ne lit aucune discipline (aucun commutateur E14 ici).
-      { section: 'course', label: C.rowActivite, detail: C.rowActiviteDetail, icon: 'route' },
-      // Mes parcours : le seul endroit où l'on voit ce que GRYD a déduit des
-      // habitudes, et où l'on coupe l'apprentissage. Une page de transparence
-      // ne se cache pas derrière un autre réglage.
-      { href: '/mes-parcours', label: CParcours.title, detail: CParcours.rowDetail, icon: 'route' },
-      {
-        section: 'notifications',
-        label: C.rowNotifs,
-        detail: C.rowNotifsDetail,
-        icon: 'cloche',
-      },
-      { section: 'carte', label: C.rowCarte, detail: C.rowCarteDetail, icon: 'calques' },
-      { href: '/sources', label: C.rowSources, detail: C.rowSourcesDetail, icon: 'lien' },
-      // ── E75 « ABONNEMENT ET ACHATS » — LA PORTE QUI MANQUAIT (28/07/2026) ──
-      // NON gardée par `flags.arsenal`, DÉLIBÉRÉMENT. Avant cette ligne, la
-      // route `/abonnement` n'était atteignable que depuis `/premium`, qui
-      // n'était atteignable que depuis `/arsenal` (masqué hors MVP) ou depuis
-      // la branche `locked` de `/premium-analytics` — branche qui DISPARAÎT dès
-      // que le joueur est abonné (`read.ts` : statut 'locked' ⟺ is_club ≠ true).
-      // Autrement dit, dans le build par défaut, l'écran qui porte le statut, la
-      // prochaine échéance, la restauration et l'accès au Store était fermé à
-      // exactement les gens qu'il sert. `audit-routes.mjs` sortait en 0 parce
-      // qu'il fait de l'analyse de liens STATIQUE : il ne modélise ni `flags` ni
-      // les branches d'état — un vert qui ne prouvait pas la porte.
-      // CE N'EST PAS UN BOUTON MORT : E75 gère lui-même ses quatre états de
-      // lecture (chargement / pas connecté / pas de Store ici / échec) et ne
-      // peint « Gérer dans le Store » que s'il a une `managementURL`.
-      // ⚠️ FERMÉE PAR ADR-011 (03/08/2026) — GRYD est 100 % GRATUIT au
-      // lancement. La raison écrite ci-dessus reste juste : cette ligne
-      // réparait un cul-de-sac pour les ABONNÉS. Il n'y en a plus, et un écran
-      // de gestion d'abonnement atteignable sans abonnement possible est un
-      // bouton mort au sens strict — il « marche », et ne mène à rien qui
-      // existe. `flags.paidOffer` la rouvrira d'un interrupteur le jour où un
-      // catalogue existera ; ni cette ligne, ni E75, ni le catalogue ne sont
-      // supprimés.
-      ...(flags.paidOffer
-        ? [{ href: '/abonnement', label: CAbo.title, detail: CAbo.rowDetail, icon: 'couronne' } as const]
-        : []),
-      // D8 : Arsenal masqué hors MVP — la ligne disparaît avec la route.
-      ...(flags.arsenal
-        ? [
-            {
-              href: '/arsenal',
-              label: C.rowArsenal,
-              detail: C.rowArsenalDetail,
-              icon: 'boutique',
-            } as const,
-          ]
-        : []),
-    ],
-  },
-  {
-    id: 'aide',
-    label: C.grpAide,
-    rows: [
-      { href: '/support', label: C.rowAide, detail: C.rowAideDetail, icon: 'aide' },
-      {
-        href: '/calcul-zones',
-        label: C.explainZonesTitle,
-        detail: C.explainZonesDetail,
-        icon: 'info',
-      },
-      { href: '/faq', label: C.explainFaqTitle, detail: C.explainFaqDetail, icon: 'aide' },
-      // Langue : le réglage qui conditionne la lecture de tout le reste. Il
-      // n'a plus SON sur-titre (qui répétait son propre libellé).
-      { href: '/langue', label: C.langueTitle, detail: C.langueDetail, icon: 'info' },
-      { section: 'apropos', label: C.rowApropos, detail: C.rowAproposDetail, icon: 'crest' },
-      { section: 'avance', label: C.rowAvance, detail: C.rowAvanceDetail, icon: 'radar' },
-    ],
-  },
-] as const;
+export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SettingsSectionMeta>> = {
+  compte: { label: C.rowCompte, detail: C.rowCompteDetail, icon: 'profil' },
+  profil: { label: C.rowProfil, detail: C.rowProfilDetail, icon: 'ami' },
+  crew: { label: C.rowCrew, detail: C.rowCrewDetail, icon: 'crew' },
+  course: { label: C.rowActivite, detail: C.rowActiviteDetail, icon: 'route' },
+  notifications: { label: C.rowNotifs, detail: C.rowNotifsDetail, icon: 'cloche' },
+  carte: { label: C.rowCarte, detail: C.rowCarteDetail, icon: 'calques' },
+  apropos: { label: C.rowApropos, detail: C.rowAproposDetail, icon: 'crest' },
+  avance: { label: C.rowAvance, detail: C.rowAvanceDetail, icon: 'radar' },
+};
 
-/** Retrouve un groupe/ligne par son slug de sous-page (titre de la sous-page). */
-export function settingsRowBySection(id: SettingsSectionId): SettingsRow | undefined {
-  for (const group of SETTINGS_GROUPS) {
-    for (const row of group.rows) {
-      if (row.section === id) return row;
-    }
-  }
-  return undefined;
+/** Titre/détail/icône d'une sous-page. `undefined` reste possible pour un slug
+ * inconnu venu de l'URL : l'écran retombe alors sur son titre générique. */
+export function settingsRowBySection(id: SettingsSectionId): SettingsSectionMeta | undefined {
+  return Object.hasOwn(SETTINGS_SECTIONS, id) ? SETTINGS_SECTIONS[id] : undefined;
 }

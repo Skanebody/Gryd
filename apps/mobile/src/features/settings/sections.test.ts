@@ -1,88 +1,87 @@
 /**
- * GRYD — LA PAGE PARAMÈTRES EST LA PORTE DE DERNIER RECOURS.
+ * GRYD — LA PAGE PARAMÈTRES EST LA PORTE DE DERNIER RECOURS, ET ON LE PROUVE
+ * SUR LA LISTE QUE L'ÉCRAN AFFICHE.
  *
- * ═══ POURQUOI CE FICHIER EXISTE (28/07/2026) ════════════════════════════════
- * Un audit a montré que l'écran E75 « Abonnement et achats » (`/abonnement`),
- * bâti pour porter le statut, la prochaine échéance, la restauration, l'accès au
- * Store et l'historique, était INATTEIGNABLE pour exactement la population qu'il
- * sert. La chaîne était :
- *   `/abonnement`  ←  `/premium`  ←  `/arsenal`            (masqué : flags.arsenal)
- *                                 ←  `/premium-analytics`  (branche `locked` seule,
- *                                    qui disparaît dès que le joueur est abonné)
- * Dans le build par défaut (`EXPO_PUBLIC_FULL_SURFACE` absent), un joueur ABONNÉ
- * n'avait donc AUCUN chemin vers sa propre gestion d'abonnement.
+ * ═══ CE QUE CE FICHIER PROUVAIT AVANT, ET POURQUOI C'ÉTAIT FAUX ════════════
+ * Il lisait `SETTINGS_GROUPS` — « la liste des réglages telle qu'elle est
+ * construite » — et vérifiait que les routes de dernier recours y figuraient.
+ * Sauf que depuis le 09/09/2026 `app/parametres.tsx` RÉÉCRIT sa propre liste :
+ * plus rien ne rendait ce catalogue. Le vert portait donc sur une liste que
+ * personne ne voit, pendant que l'écran réel pouvait perdre une porte sans que
+ * rien ne rougisse. Un test qui ne peut pas échouer pour la bonne raison est
+ * pire qu'un test absent : il rassure.
  *
- * `scripts/audit-routes.mjs` sortait pourtant en 0 : il fait de l'analyse de
- * liens STATIQUE et ne modélise ni les drapeaux ni les branches d'état. Un vert
- * qui ne prouve pas la porte. Ce test-ci prouve la porte : il lit la liste des
- * réglages telle qu'elle est construite, drapeaux compris, et exige que les
- * routes de dernier recours y figurent SANS condition.
+ * Le catalogue mort est supprimé (`sections.ts` ne garde que les titres de
+ * sous-pages, seule chose réellement lue par `app/parametres/[section].tsx`) et
+ * les portes se vérifient désormais dans la SOURCE DE L'ÉCRAN.
  *
- * PUR : `sections.ts` n'importe que des types, `flags` et des catalogues i18n —
- * aucun React Native, il se charge tel quel sous Deno.
+ * ⚠️ TENSION LAISSÉE OUVERTE, PAS TRANCHÉE ICI : l'ancien test inversé exigeait
+ * que « Abonnement et achats » NE SOIT PAS peinte (ADR-011, « GRYD est 100 %
+ * gratuit au lancement »). L'écran la peint, et le cahier de septembre — rang 0
+ * depuis ADR-012 — décrit un abonnement RÉEL avec ses prix (§7.5) et ses états
+ * (G28). Trancher un ADR n'est pas le rôle d'un test : aucune assertion n'est
+ * posée sur cette ligne, et la tension est signalée au fondateur.
  */
 import { assert } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { LOCALES } from '../../i18n/types.ts';
-import { SETTINGS_GROUPS } from './sections.ts';
+import { SETTINGS_SECTIONS, settingsRowBySection, type SettingsSectionId } from './sections.ts';
 
-/** Toutes les lignes réellement construites, tous groupes confondus. */
-const ROWS = SETTINGS_GROUPS.flatMap((g) => g.rows);
+/** Les slugs que `app/parametres/[section].tsx` sait rendre. */
+const SECTION_IDS: readonly SettingsSectionId[] = [
+  'compte', 'profil', 'crew', 'course', 'notifications', 'carte', 'apropos', 'avance',
+];
 
 /**
- * Les routes qui n'ont AUCUNE autre porte fiable dans le build MVP. Chacune est
- * accompagnée de la raison pour laquelle elle est ici — une liste sans raisons
- * finirait par accumuler des entrées que personne n'ose retirer.
+ * Les routes qui n'ont AUCUNE autre porte fiable dans le build MVP, avec la
+ * raison — une liste sans raisons finit par accumuler ce que personne n'ose
+ * retirer.
  */
 const PORTES_DE_DERNIER_RECOURS: ReadonlyMap<string, string> = new Map([
-  // ⚠️ `/abonnement` A ÉTÉ RETIRÉ DE CETTE LISTE le 03/08/2026 — ADR-011.
-  // La raison d'origine reste juste POUR UN PRODUIT QUI VEND : E75 était le
-  // dernier recours d'un ABONNÉ. GRYD étant 100 % gratuit au lancement, il n'y
-  // a plus d'abonné à secourir, et une porte vers un écran de gestion
-  // d'abonnement sans abonnement possible est un bouton mort au sens strict.
-  // L'assertion n'est pas supprimée : elle est RETOURNÉE plus bas.
+  ['/parametres/compte', 'connexion, export et suppression du compte (RGPD)'],
+  ['/parametres/notifications', 'consentements de notification, §14.1'],
+  ['/confidentialite', 'audiences, carte partagée, zones protégées (G27)'],
+  ['/langue', 'le réglage qui conditionne la lecture de tout le reste'],
+  ['/credits-donnees', 'attribution cartographique, obligation de licence'],
+  ['/legal/licences', 'licences des dépendances, obligation de licence'],
+  ['/mes-parcours', 'transparence sur ce que GRYD déduit des habitudes (A-46)'],
 ]);
 
-Deno.test('paramètres : les portes de dernier recours existent, drapeaux compris', () => {
-  const hrefs = new Set(ROWS.map((r) => r.href).filter((h): h is string => typeof h === 'string'));
+Deno.test('paramètres : chaque porte de dernier recours est peinte par l’ÉCRAN', async () => {
+  const source = await Deno.readTextFile(new URL('../../../app/parametres.tsx', import.meta.url));
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   for (const [route, raison] of PORTES_DE_DERNIER_RECOURS) {
-    assert(hrefs.has(route), `${route} n’a plus de porte dans les Paramètres — ${raison}`);
+    assert(code.includes(`'${route}'`), `${route} n’a plus de porte dans l’écran Paramètres — ${raison}`);
   }
-});
-
-Deno.test('ADR-011 : la porte d’ABONNEMENT est fermée tant que rien n’est à vendre', () => {
-  // Le pendant exact de la liste ci-dessus. Sans cette assertion, la ligne
-  // pourrait être rouverte sans offre — et personne ne le verrait avant qu'un
-  // joueur ne tape « Gérer dans le Store » pour un catalogue vide.
-  const ligne = ROWS.find((r) => r.href === '/abonnement');
-  assert(
-    ligne === undefined,
-    'la ligne « Abonnement et achats » est peinte alors que `flags.paidOffer` ' +
-      'est faux : elle mène à la gestion d’un abonnement qui ne peut pas exister.',
-  );
 });
 
 Deno.test('paramètres : ces portes ne dépendent d’AUCUN drapeau', async () => {
-  // La garde vise le code, pas les commentaires : une ligne conditionnée par
-  // `flags.*` se reconnaît à un `...(flags.x ? [...] : [])`. On vérifie que la
-  // route de dernier recours n'apparaît dans AUCUN de ces spreads.
-  const src = await Deno.readTextFile(new URL('./sections.ts', import.meta.url));
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const source = await Deno.readTextFile(new URL('../../../app/parametres.tsx', import.meta.url));
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   for (const spread of code.matchAll(/\.\.\.\(flags\.[\w]+[\s\S]*?\)\s*:\s*\[\]\)/g)) {
     for (const route of PORTES_DE_DERNIER_RECOURS.keys()) {
-      assert(
-        !spread[0].includes(`'${route}'`),
-        `${route} est repassée derrière un drapeau — l’écran redevient fermé à ceux qu’il sert`,
-      );
+      assert(!spread[0].includes(`'${route}'`), `${route} est repassée derrière un drapeau — l’écran redevient fermé à ceux qu’il sert`);
     }
   }
 });
 
-Deno.test('paramètres : chaque ligne porte un libellé et un détail dans les 5 langues', () => {
-  for (const row of ROWS) {
-    const nom = row.href ?? row.section ?? '?';
+Deno.test('paramètres : le catalogue ne peut plus redevenir une deuxième liste', async () => {
+  const source = await Deno.readTextFile(new URL('./sections.ts', import.meta.url));
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  // Ni destination, ni drapeau : ce module décrit des sous-pages, il ne navigue pas.
+  assert(!code.includes('href'), 'sections.ts porte à nouveau des destinations : deux listes, deux vérités');
+  assert(!code.includes('flags.'), 'sections.ts porte à nouveau une condition de drapeau');
+});
+
+Deno.test('paramètres : chaque sous-page a un titre et un détail dans les 5 langues', () => {
+  assert(Object.keys(SETTINGS_SECTIONS).length === SECTION_IDS.length, 'un slug rendu sans métadonnée, ou l’inverse');
+  for (const id of SECTION_IDS) {
+    const meta = settingsRowBySection(id);
+    assert(meta !== undefined, `${id} : aucune métadonnée`);
     for (const locale of LOCALES) {
-      assert(row.label[locale]?.trim().length > 0, `${nom} : label ${locale} vide`);
-      assert(row.detail[locale]?.trim().length > 0, `${nom} : detail ${locale} vide`);
+      assert(meta!.label[locale]?.trim().length > 0, `${id} : label ${locale} vide`);
+      assert(meta!.detail[locale]?.trim().length > 0, `${id} : detail ${locale} vide`);
     }
   }
+  // Un slug inconnu venu de l'URL ne fabrique pas un titre.
+  assert(settingsRowBySection('inventé' as SettingsSectionId) === undefined);
 });
