@@ -170,3 +170,34 @@ Deno.test('E17 : le panneau ne nie plus le paiement — E74 encaisse vraiment', 
     );
   }
 });
+
+/**
+ * ─── §5.3 A ABOLI LE BOUCLIER (recette R2C, constat 12) ─────────────────────
+ * « Il n'y a ni bouclier, ni contestation de 18 heures, ni défense achetable,
+ * ni dette de connexion. Repasser une boucle est la seule façon de reprendre sa
+ * zone. » Le catalogue d'août garde pourtant l'objet et sa copie cinq langues
+ * (« Protège un secteur pendant {hours} h »).
+ *
+ * Le seul écran qui rend ce catalogue ne peint QUE des cosmétiques non
+ * consommables : le bouclier — consommable, section « objets » — n'y entre pas.
+ * Cette garde fige ce fait. Elle échouera à la minute où quelqu'un élargira le
+ * filtre, c'est-à-dire à la minute où GRYD promettrait de nouveau une défense
+ * que la refonte a supprimée.
+ *
+ * ⚠ L'entrée elle-même n'est PAS retirée ici : elle vit dans
+ * `features/arsenal/catalog.ts`, hors de ce lot, avec ses tests de boutique.
+ * La retirer à moitié — la copie sans l'objet — rendrait un écran muet plutôt
+ * qu'un écran juste.
+ */
+Deno.test('§5.3 : aucun écran ne peint l’objet bouclier', () => {
+  const screen = Deno.readTextFileSync(
+    new URL('../../features/refonte/CollectionScreen.tsx', import.meta.url),
+  ).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const sections = screen.slice(screen.indexOf('COSMETIC_SECTIONS = new Set('), screen.indexOf(')', screen.indexOf('COSMETIC_SECTIONS = new Set(')));
+  assert(!sections.includes("'objets'"), 'la section des objets fonctionnels n’est pas une collection');
+  assert(
+    screen.includes('!item.consumable') && screen.includes('COSMETIC_SECTIONS.has(item.section)'),
+    'le catalogue peint reste limité aux cosmétiques non consommables — le ' +
+      'bouclier, aboli par §5.3, ne doit revenir par aucun élargissement de filtre',
+  );
+});
