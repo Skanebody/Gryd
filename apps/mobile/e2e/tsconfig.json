@@ -1,0 +1,14 @@
+{
+  "_pourquoi": "Playwright charge le tsconfig LE PLUS PROCHE de chaque fichier. Celui d'apps/mobile etend `expo/tsconfig.base`, qui vit dans le node_modules HOISTE a la racine : le resolveur de Playwright ne sait pas le suivre et refuse de demarrer. Ce tsconfig local, autonome, coupe la chaine d'heritage juste au-dessus du harnais. `npm run typecheck` (tsc depuis apps/mobile) continue, lui, de typer ces fichiers avec la config stricte du projet — les deux lectures cohabitent.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["DOM", "ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}
