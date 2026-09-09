@@ -2,8 +2,9 @@
  * GRYD — digest_job/logic.ts (SPEC §4.3, GRYD_notifications_logic.md §3/§6).
  *
  * Fonctions PURES :
- *   - canPush : garde-fous push — quiet hours 21h-8h (heure LOCALE du joueur,
- *     défaut Europe/Paris) + cap PUSH_MAX_PER_DAY tous types confondus.
+ *   - canPush : garde-fous push — plage calme dans l'heure LOCALE du joueur
+ *     (défaut Europe/Paris) + cap PUSH_MAX_PER_DAY tous types confondus. Les
+ *     deux bornes DÉRIVENT de `NOTIFICATION_RULES_2026` depuis le 10/09/2026.
  *   - buildDigest : regroupe les petits événements en UN résumé
  *     (« Résumé GRYD — 3 zones défendues, 1 zone perdue… », doc notifs §6).
  *

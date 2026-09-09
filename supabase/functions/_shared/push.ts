@@ -10,7 +10,8 @@
  *   • uniquement de l'ACTIONNABLE — un decay se défend en repassant dessus ;
  *   • jamais une notification par hex ni par course : decay_job groupe déjà en
  *     UNE alerte par joueur, on n'en fabrique pas d'autre ;
- *   • quiet hours 21h-8h dans l'heure LOCALE RÉELLE de l'appareil ;
+ *   • plage calme dans l'heure LOCALE RÉELLE de l'appareil — ses bornes viennent
+ *     de `NOTIFICATION_RULES_2026` (§14.1), plus d'un chiffre écrit ici ;
  *   • cap PUSH_MAX_PER_DAY tous types confondus, compté PAR JOUEUR (deux
  *     téléphones = une seule notification, pas deux) ;
  *   • préférences d'abord : un canal désactivé coupe l'envoi, `off` coupe tout.
@@ -72,8 +73,11 @@ export function canPush(user: PushUser, now: Date, pushLog: readonly Date[]): Ca
   const tz = safeTimeZone(user.timeZone);
   const { hour, day } = localParts(now, tz);
 
-  // Quiet hours 21h-8h (§4.3) : [21h; minuit[ ∪ [minuit; 8h[ — 21:00 pile est
-  // déjà silencieux, 8:00 pile est de nouveau autorisé.
+  // Plage calme (§14.1, via `PUSH_QUIET_HOURS_*` qui en DÉRIVENT) :
+  // [start; minuit[ ∪ [minuit; end[ — `start` pile est déjà silencieux, `end`
+  // pile est de nouveau autorisé. Les trois moteurs de GRYD (celui-ci,
+  // `can_notify_2026` et le miroir client `notifications2026.ts`) partagent
+  // cette convention : sans elle ils refuseraient des minutes différentes.
   if (hour >= PUSH_QUIET_HOURS_START || hour < PUSH_QUIET_HOURS_END) {
     return { allowed: false, reason: 'quiet_hours' };
   }

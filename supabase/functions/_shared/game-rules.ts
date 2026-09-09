@@ -1128,9 +1128,13 @@ export const STEAL_PUSH_COOLDOWN_MINUTES = 180;
  *
  * Un vol non encore annoncé reste en file — c'est ce qui permet d'AGRÉGER
  * plusieurs courses adverses en un seul message, et de reporter proprement un
- * vol tombé pendant les quiet hours (21h-8h) au réveil du joueur. Il faut donc
- * que cette fenêtre dépasse largement la plus longue nuit silencieuse (11 h) et
- * le cooldown (3 h).
+ * vol tombé pendant la plage calme au réveil du joueur. Il faut donc que cette
+ * fenêtre dépasse largement la plus longue nuit silencieuse et le cooldown (3 h).
+ *
+ * ⚠️ CE MÉCANISME EST ÉTEINT depuis le 10/09/2026 : `steal_push_job` refuse de
+ * tourner (`_shared/legacy_territory_jobs.ts`) parce que §14.2 interdit l'alarme
+ * immédiate de reprise. Les bornes horaires ne sont plus recopiées ici — elles
+ * viennent de `NOTIFICATION_RULES_2026`, qui les a déplacées à 21 h → 9 h.
  *
  * Passé ce délai, le vol est PÉRIMÉ et purgé sans push : annoncer une perte
  * vieille d'un jour n'est plus de la rétention, c'est du bruit — et le terrain
