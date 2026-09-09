@@ -162,11 +162,27 @@ Deno.test('chaque verdict définitif est notifié AVANT la suite (persistance cr
 
 Deno.test('4xx hors 429 = jugé ; 429 et 5xx = réessayables', () => {
   assertEquals(isPermanentHttpStatus(400), true);
-  assertEquals(isPermanentHttpStatus(403), true);
   assertEquals(isPermanentHttpStatus(422), true);
   assertEquals(isPermanentHttpStatus(429), false); // rate limit : on retentera
   assertEquals(isPermanentHttpStatus(500), false);
   assertEquals(isPermanentHttpStatus(undefined), false); // réseau/relay → réessayable
+});
+
+/**
+ * ÉTAPE 0 — LE DÉFAUT EXISTAIT (recette R2C, constat 5). `isPermanentHttpStatus`
+ * rendait `true` pour 401 et 403 : une session expirée pendant que la file
+ * dormait faisait donc classer la sortie « jugée par le serveur », `drainPendingQueue`
+ * la retirait de la file, et le payload disparaissait de l'appareil — alors que
+ * PERSONNE n'avait jugé quoi que ce soit. Un jeton se renouvelle ; une sortie
+ * ne se rejoue pas.
+ */
+Deno.test('401/403 = session à renouveler, jamais un verdict : la sortie reste dans la file', async () => {
+  assertEquals(isPermanentHttpStatus(401), false);
+  assertEquals(isPermanentHttpStatus(403), false);
+  const queue = queueAll(payload('a'), payload('b'));
+  const report = await drainPendingQueue(queue, () => Promise.resolve<SendVerdict>('retry_later'));
+  assertEquals(ids(report.remaining), ['a', 'b']);
+  assertEquals(report.rejected, []);
 });
 
 Deno.test('removePending retire par clientRunId sans toucher l’ordre', () => {

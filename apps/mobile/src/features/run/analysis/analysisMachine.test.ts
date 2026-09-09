@@ -190,17 +190,30 @@ Deno.test('échec — 429 (rate limit) est une panne PASSAGÈRE, pas un jugement
   assert(canRetry(s.phase));
 });
 
-Deno.test('échec — course REFUSÉE (403) : le serveur a jugé, aucune reprise n’est proposée', () => {
-  const s = reduceAnalysis(at('uploading'), { kind: 'server_replied_error', httpStatus: 403 });
+Deno.test('échec — course REFUSÉE (422) : le serveur a jugé, aucune reprise n’est proposée', () => {
+  const s = reduceAnalysis(at('uploading'), { kind: 'server_replied_error', httpStatus: 422 });
   assertEquals(s.phase, 'rejected');
-  assertEquals(s.httpStatus, 403);
+  assertEquals(s.httpStatus, 422);
   assert(!canRetry(s.phase), 'l’idempotence rendrait le MÊME verdict : bouton mort interdit');
   const steps = stepStatuses(s.phase);
   assertEquals(steps.upload, 'done', 'le serveur a bien reçu — l’envoi n’a pas raté');
   assertEquals(steps.analyse, 'failed');
 });
 
-Deno.test('échec — 400 invalid_payload est un refus définitif, comme 403', () => {
+/**
+ * ÉTAPE 0 — LE DÉFAUT EXISTAIT (recette R2C, constat 5). 401 et 403 étaient
+ * peints « refusée » : l'écran annonçait un VERDICT là où seul le jeton avait
+ * expiré, et la file effaçait le payload dans la foulée. Un jeton se renouvelle.
+ */
+Deno.test('échec — 401/403 = session à renouveler : réessayable, jamais « refusée »', () => {
+  for (const httpStatus of [401, 403]) {
+    const s = reduceAnalysis(at('uploading'), { kind: 'server_replied_error', httpStatus });
+    assertEquals(s.phase, 'server_error', `${httpStatus} n’est pas un jugement`);
+    assert(canRetry(s.phase), 'la reprise doit rester possible après reconnexion');
+  }
+});
+
+Deno.test('échec — 400 invalid_payload est un refus définitif, comme 422', () => {
   const s = reduceAnalysis(at('uploading'), { kind: 'server_replied_error', httpStatus: 400 });
   assertEquals(s.phase, 'rejected');
 });
@@ -370,7 +383,7 @@ Deno.test('un fait qui en sait PLUS passe encore sur un diagnostic (aucun état 
   // faire passer « en file » à « terminé ».
   assertEquals(reduceAnalysis(at('deferred'), { kind: 'server_accepted' }).phase, 'complete');
   assertEquals(
-    reduceAnalysis(at('server_error'), { kind: 'server_replied_error', httpStatus: 403 }).phase,
+    reduceAnalysis(at('server_error'), { kind: 'server_replied_error', httpStatus: 422 }).phase,
     'rejected',
   );
   assertEquals(

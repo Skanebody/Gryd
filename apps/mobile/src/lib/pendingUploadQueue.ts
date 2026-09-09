@@ -278,9 +278,22 @@ export function removePending(
  * Un REJET DÉFINITIF du serveur n'est pas une panne réseau (P0 C2) : 4xx hors
  * 429 = le serveur A JUGÉ ; l'idempotence garantit qu'un renvoi rendrait le
  * MÊME verdict, retenter est inutile. 429 = fenêtre de rate limit, réessayable.
+ *
+ * ⚠ 401 / 403 NE SONT PAS DES VERDICTS (recette R2C, constat 5 — 10/09/2026).
+ * Ce sont les deux codes que la passerelle rend quand le JETON est en cause :
+ * expiré, révoqué, ou pas encore rafraîchi au moment du drain. Les compter comme
+ * « jugé » retirait l'entrée de la file — donc EFFAÇAIT de l'appareil le payload
+ * d'une sortie que personne n'avait lue, pour une raison qui se règle toute
+ * seule à la reconnexion. Une session se renouvelle ; une sortie ne se
+ * recourt pas. Elles restent donc en file (`retry_later`), qui s'arrête en tête
+ * et préserve l'ordre : au pire l'entrée attend, jamais elle ne disparaît.
  */
+const SESSION_HTTP_STATUSES: readonly number[] = [401, 403];
+
 export function isPermanentHttpStatus(status: number | undefined): boolean {
-  return typeof status === 'number' && status >= 400 && status < 500 && status !== 429;
+  if (typeof status !== 'number') return false;
+  if (SESSION_HTTP_STATUSES.includes(status)) return false;
+  return status >= 400 && status < 500 && status !== 429;
 }
 
 /**
