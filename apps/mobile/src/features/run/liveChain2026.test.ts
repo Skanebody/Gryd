@@ -160,3 +160,24 @@ Deno.test('départ : la discipline montrée au préflight est corrigeable d’un
   assert(!/confirm\.current\(requestedActivity/.test(preflight),
     'la discipline déclarée par l’URL ne peut plus court-circuiter la correction');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 9 — LE DÉTAIL D'UNE SORTIE
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `app/course/[id].tsx` ne lisait que `celebration.hexes`. Le serveur
+ * de septembre écrit ces compteurs à zéro pour TOUTE sortie 2026 : une sortie
+ * qui avait pris du terrain se lisait « Sans capture », avec un « 0 » nu en
+ * Points — un zéro que personne n'a décidé.
+ */
+Deno.test('détail : une sortie de septembre se lit dans son reçu, pas dans les cellules d’août', () => {
+  const detail = code('../../../app/course/[id].tsx');
+  assert(detail.includes('territoryFromCelebration2026(run.celebration)'), 'le reçu territorial est lu');
+  assert(detail.includes('const total = receipt2026 ? null : capturedTotal(breakdown)'),
+    'les compteurs de cellules ne racontent pas une sortie du monde des surfaces');
+  assert(detail.includes('if (receipt2026) return;'), 'aucune cellule peinte dans le monde des surfaces');
+  assert(detail.includes('awards.points !== null && !receipt2026'),
+    'Points est écrit à zéro en dur par le serveur 2026 : ce n’est pas un fait à afficher');
+  assert(detail.includes('captureAreaLabel2026(m2, locale'), 'les surfaces passent par le module testé');
+});

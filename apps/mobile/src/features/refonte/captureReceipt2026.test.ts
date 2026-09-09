@@ -16,6 +16,7 @@ import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.t
 import {
   captureAreaLabel2026,
   captureExplanation2026,
+  territoryFromCelebration2026,
   type CaptureReceipt2026,
 } from './captureReceipt2026.ts';
 
@@ -60,4 +61,27 @@ Deno.test('statut inconnu du client (contrat R2S) : dit, et jamais confondu avec
   assert(rejected !== null, 'un statut que le client ne connaît pas ne devient pas un gain');
   assert(rejected!.body.includes('anticheat_review'));
   assertEquals(captureExplanation2026(receipt({ status: 'published' }), true), null);
+});
+
+/**
+ * ÉTAPE 0 (recette R2C, constat 9) : `app/course/[id].tsx` lisait
+ * `celebration.hexes` — des compteurs de cellules H3 que le serveur de septembre
+ * écrit à zéro pour TOUTE sortie 2026 (`ingest_run/refonte2026.ts`). Le détail
+ * d'une sortie qui avait capturé du terrain affichait donc « Sans capture », et
+ * un « 0 » nu en Points. Le reçu territorial était pourtant dans le même
+ * payload, à côté, jamais lu.
+ */
+Deno.test('reçu 2026 : il se lit dans le payload de célébration persisté', () => {
+  const celebration = { hexes: { claimed: 0 }, territory2026: { ruleset: '2026.1', status: 'published', loopAreaM2: 240_000, newTerrainM2: 180_000 } };
+  const found = territoryFromCelebration2026(celebration);
+  assert(found !== null);
+  assertEquals(found!.status, 'published');
+  assertEquals(found!.newTerrainM2, 180_000);
+});
+
+Deno.test('reçu 2026 : une sortie d’un autre monde n’en fabrique pas un', () => {
+  assertEquals(territoryFromCelebration2026({ hexes: { claimed: 3 } }), null);
+  assertEquals(territoryFromCelebration2026(null), null);
+  assertEquals(territoryFromCelebration2026('{}'), null);
+  assertEquals(territoryFromCelebration2026({ territory2026: { status: 42 } }), null);
 });

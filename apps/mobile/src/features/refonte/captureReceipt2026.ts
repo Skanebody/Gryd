@@ -60,6 +60,26 @@ export function remainingCaptureArea2026(receipt: CaptureReceipt2026 | undefined
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 /**
+ * LE REÇU TERRITORIAL D'UNE SORTIE DÉJÀ INGÉRÉE, lu dans le payload de
+ * célébration que le serveur persiste (`runs.celebration`, écrit par
+ * `ingest_run/refonte2026.ts`). `null` quand la sortie n'appartient pas au monde
+ * de septembre — un détail d'août garde alors ses compteurs de cellules.
+ *
+ * Volontairement DÉFENSIF : ce payload vient de la base, il traverse les
+ * versions, et une forme inattendue ne doit jamais faire tomber un écran de
+ * lecture. Ce qui n'est pas lisible vaut « pas de reçu », jamais un reçu vide
+ * (qui se lirait « aucune capture »).
+ */
+export function territoryFromCelebration2026(celebration: unknown): CaptureReceipt2026 | null {
+  if (typeof celebration !== 'object' || celebration === null) return null;
+  const receipt = (celebration as { territory2026?: unknown }).territory2026;
+  if (typeof receipt !== 'object' || receipt === null) return null;
+  const status = (receipt as { status?: unknown }).status;
+  if (typeof status !== 'string' || status.length === 0) return null;
+  return receipt as CaptureReceipt2026;
+}
+
+/**
  * Les motifs que CE client sait mettre en français. La liste n'est pas une
  * règle de jeu : c'est l'inventaire de ce qu'on sait traduire, et tout ce qui
  * n'y figure pas est affiché tel quel plutôt que rangé sous la phrase générique

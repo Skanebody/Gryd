@@ -538,6 +538,28 @@ export const C = defineCatalog({
     pt: 'Zonas tomadas',
   },
   detailPoints: { fr: 'Points', en: 'Points', es: 'Puntos', de: 'Punkte', pt: 'Pontos' },
+  // ─── RUBRIQUES DU MONDE DE SEPTEMBRE (surfaces, plus des cellules) ────────
+  detailLoopArea: {
+    fr: 'Surface de la boucle',
+    en: 'Loop area',
+    es: 'Superficie del bucle',
+    de: 'Schleifenfläche',
+    pt: 'Área do circuito',
+  },
+  detailNewTerrain: {
+    fr: 'Nouveau terrain',
+    en: 'New terrain',
+    es: 'Terreno nuevo',
+    de: 'Neues Gebiet',
+    pt: 'Terreno novo',
+  },
+  detailAlreadyOwned: {
+    fr: 'Déjà possédé',
+    en: 'Already owned',
+    es: 'Ya poseído',
+    de: 'Bereits besessen',
+    pt: 'Já possuído',
+  },
   /** « XP » est un invariant de jeu : identique dans les 5 langues. */
   detailXp: { fr: 'XP', en: 'XP', es: 'XP', de: 'XP', pt: 'XP' },
   /**

@@ -104,6 +104,11 @@ import {
   type RunDetailInput,
 } from '../../src/features/history/runDetail';
 import { useRunDetail } from '../../src/features/history/detailRead';
+import {
+  captureAreaLabel2026,
+  captureExplanation2026,
+  territoryFromCelebration2026,
+} from '../../src/features/refonte/captureReceipt2026';
 import { useLocale, useT } from '../../src/i18n/store';
 import type { Entry, Locale } from '../../src/i18n/types';
 import { C, runDetailCopy } from '../../src/i18n/catalog/historique';
@@ -187,18 +192,41 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
   const t = useT();
   const D = runDetailCopy(run.activity);
 
+  /**
+   * ─── LE MONDE DE SEPTEMBRE SE LIT DANS SON PROPRE REÇU (10/09/2026) ───────
+   * Cet écran ne lisait que `celebration.hexes`, les compteurs de cellules H3
+   * du monde d'août. `ingest_run/refonte2026.ts` les écrit à ZÉRO pour toute
+   * sortie de septembre : le détail d'une sortie qui avait pris du terrain
+   * affichait donc « Sans capture », et un « 0 » nu en Points. Le reçu
+   * territorial était dans le même payload, à côté, jamais lu.
+   *
+   * Les deux mondes ne se mélangent pas : quand un reçu 2026 existe, les
+   * surfaces remplacent les cellules et la ligne « Points » disparaît — le
+   * serveur de septembre l'écrit à zéro en dur, et un zéro qui ne décide de
+   * rien n'est pas un fait à afficher (L14).
+   */
+  const receipt2026 = territoryFromCelebration2026(run.celebration);
+  const gain2026 = receipt2026?.status === 'published' ? receipt2026.newTerrainM2 : null;
+  const explanation2026 = captureExplanation2026(receipt2026 ?? undefined, locale === 'fr');
+  const area2026 = (m2: number | null | undefined) => captureAreaLabel2026(m2, locale === 'fr');
   const breakdown = impactBreakdown(run.celebration);
-  const total = capturedTotal(breakdown);
+  const total = receipt2026 ? null : capturedTotal(breakdown);
   // Le TYPE et l'impact DOMINANT sont dérivés exactement comme sur la ligne
   // d'historique (`runStory`, pur et testé) : le détail ne doit pas raconter une
   // autre histoire que la ligne d'où on l'a tapé.
-  const story = runStory({
-    captured: total,
-    retaken: breakdown.stolen,
-    defended: breakdown.defended,
-  });
+  // Dans le monde des surfaces, « combien de zones » n'a pas de sens : le
+  // bandeau raconte la capture par sa SURFACE, ou par le motif exact du reçu.
+  const story = receipt2026
+    ? ((gain2026 ?? 0) > 0 ? { type: 'capture' as const, zones: 0 } : { type: 'free' as const })
+    : runStory({
+        captured: total,
+        retaken: breakdown.stolen,
+        defended: breakdown.defended,
+      });
   const roleColor = roleToken(runColorRole(story.type));
-  const impact = impactText(story, t);
+  const impact = receipt2026
+    ? (area2026(gain2026) !== null ? `+${area2026(gain2026)}` : explanation2026?.title ?? null)
+    : impactText(story, t);
   const pill = verifyPill(run.status);
   const verdict = runVerdict(run.status, run.rejectReason);
   const awards = runAwards(run);
@@ -224,10 +252,20 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
   //    chapeau du bandeau) porte déjà le « rien pris » quand c'est le cas.
   const impactMetrics: SheetMetric[] = [];
   const push = (key: string, value: number | null, label: Entry) => {
+    if (receipt2026) return; // monde des surfaces : aucune cellule à compter
     if (value !== null && value > 0) {
       impactMetrics.push({ key, value: formatIntFor(value, locale), label: t(label) });
     }
   };
+  const pushArea = (key: string, m2: number | null | undefined, label: Entry) => {
+    const value = area2026(m2);
+    if (value !== null) impactMetrics.push({ key, value, label: t(label) });
+  };
+  if (receipt2026) {
+    pushArea('loop', receipt2026.loopAreaM2, C.detailLoopArea);
+    pushArea('new', gain2026, C.detailNewTerrain);
+    pushArea('owned', receipt2026.alreadyOwnedM2, C.detailAlreadyOwned);
+  }
   if (total !== null && total > 0) {
     impactMetrics.push({
       key: 'total',
@@ -244,7 +282,7 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
 
   // ── POINTS / XP : colonnes NOT NULL — un 0 y est une décision, pas un trou.
   const awardMetrics: SheetMetric[] = [];
-  if (awards.points !== null) {
+  if (awards.points !== null && !receipt2026) {
     awardMetrics.push({
       key: 'pts',
       value: formatIntFor(awards.points, locale),
@@ -300,12 +338,15 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
       {showImpact ? (
         <>
           <SectionLabel style={styles.sectionLabel}>{t(C.detailImpactLabel)}</SectionLabel>
-          {impactIsKnown(breakdown) ? (
+          {receipt2026 || impactIsKnown(breakdown) ? (
             <>
               {impactMetrics.length > 0 ? (
                 <SheetMetrics metrics={impactMetrics} testID="course-detail-impact" />
               ) : null}
-              {breakdown.blocked !== null && breakdown.blocked > 0 ? (
+              {explanation2026 !== null ? (
+                <Text style={styles.note}>{explanation2026.body}</Text>
+              ) : null}
+              {breakdown.blocked !== null && breakdown.blocked > 0 && !receipt2026 ? (
                 <Text style={styles.note}>{t(C.detailBlockedNote)}</Text>
               ) : null}
             </>
