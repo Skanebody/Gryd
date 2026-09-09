@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '../../lib/session';
+import { createAdoptionNoticeStore2026 } from './localActivitiesAdoptionNotice2026';
 
 export type { LocalActivity2026 } from './localActivityModel2026';
 import { type LocalActivity2026, ownSnapshot2026, planLocalAdoption2026, adoptedPayload2026 } from './localActivityModel2026';
@@ -53,6 +54,28 @@ export function useLocalActivities2026() {
 export function useAdoptableLocalActivities2026() {
   const state = useLocalArchive2026(null);
   return { count: new Set(state.activities.map(item => item.clientRunId)).size, loading: state.loading, failed: state.failed };
+}
+const adoptionNotice2026 = createAdoptionNoticeStore2026(AsyncStorage);
+/** Reçu d'acquittement du rappel de rattachement, par COMPTE. `null` = pas
+ * encore lu : on ne peint alors ni le rappel ni son absence. */
+export function useAdoptionNoticeAcknowledged2026() {
+  const { session, loading } = useSession();
+  const ownerId = session?.user.id ?? null;
+  const [read, setRead] = useState<{ ownerId: string | null; value: boolean | null }>({ ownerId: null, value: null });
+  useEffect(() => {
+    let alive = true;
+    setRead({ ownerId, value: null });
+    if (!ownerId || loading) return;
+    void adoptionNotice2026.read(ownerId).then(value => { if (alive) setRead({ ownerId, value }); });
+    return () => { alive = false; };
+  }, [ownerId, loading]);
+  const acknowledge = useCallback(async () => {
+    if (!ownerId) return false;
+    const done = await adoptionNotice2026.acknowledge(ownerId);
+    if (done) setRead({ ownerId, value: true });
+    return done;
+  }, [ownerId]);
+  return { acknowledged: read.ownerId === ownerId ? read.value : null, acknowledge };
 }
 async function sessionOwns2026(userId: string): Promise<boolean> {
   if (!supabase) return false;

@@ -16,7 +16,7 @@ import { profileMovementState2026 } from './ProfileMovementState2026';
 import { SeasonalIdentity2026 } from './SeasonalIdentity2026';
 import { CommercialIdentity2026 } from './CommercialIdentity2026';
 import { useCommercialCollections2026 } from '../premium/useCommercialCollections2026';
-import { adoptLocalActivities2026, useAdoptableLocalActivities2026, useLocalActivities2026 } from './localActivities';
+import { adoptLocalActivities2026, useAdoptableLocalActivities2026, useAdoptionNoticeAcknowledged2026, useLocalActivities2026 } from './localActivities';
 import { brandImagery } from '../../ui/gryd/brandImagery';
 import { PosterTrace } from '../share/PosterTrace2026';
 import { SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
@@ -40,6 +40,7 @@ function ProfileHomeContents() {
   const crew = useRealCrew();
   const progress = useProfileProgress();
   const adoptable = useAdoptableLocalActivities2026();
+  const adoptionReceipt = useAdoptionNoticeAcknowledged2026();
   const [adopting, setAdopting] = useState(false);
   const [adoptionNotice, setAdoptionNotice] = useState<string | null>(null);
   const career = progress.data ? careerProgress2026(progress.data.totalXp) : null;
@@ -66,7 +67,8 @@ function ProfileHomeContents() {
     try {
       const result = await adoptLocalActivities2026({ userId: session.user.id, consent: true });
       setAdoptionNotice(result.kind === 'adopted'
-        ? copy(`${result.adopted} sortie(s) rattachée(s). Elles restent privées.`, `${result.adopted} activities linked. They remain private.`)
+        ? copy(result.adopted === 1 ? '1 sortie rattachée. Elle reste privée.' : `${result.adopted} sorties rattachées. Elles restent privées.`,
+          result.adopted === 1 ? '1 activity linked. It remains private.' : `${result.adopted} activities linked. They remain private.`)
         : result.kind === 'nothing' ? copy('Toutes tes sorties sont déjà rattachées.', 'All your activities are already linked.')
           : copy('Le rattachement a échoué. Tes sorties restent sur cet appareil.', 'Linking failed. Your activities remain on this device.'));
       if (result.kind === 'adopted') { history.reload(); void retryPendingUpload(); progress.reload(); }
@@ -88,7 +90,22 @@ function ProfileHomeContents() {
   // présence d'une donnée : un échec ne se peint pas comme un profil vide.
   const movement = profileMovementState2026({ status: progress.status, activeDays: progress.data?.activeDays ?? null });
 
+  // Sans compte, ces sorties n'appartiennent qu'à ce téléphone. Le rappel est
+  // EN HAUT, sans scroll, et il s'acquitte — la ligne du bas reste pour ceux
+  // qui l'ont acquitté puis changent d'avis.
+  const offerAdoption = !!session && adoptable.count > 0 && adoptionReceipt.acknowledged === false;
+  const adoptableCopy = copy(
+    adoptable.count === 1 ? '1 sortie enregistrée sans compte peut être rattachée. Elle restera privée.' : `${adoptable.count} sorties enregistrées sans compte peuvent être rattachées. Elles resteront privées.`,
+    adoptable.count === 1 ? '1 activity recorded without an account can be linked. It will remain private.' : `${adoptable.count} activities recorded without an account can be linked. They will remain private.`);
   return <ProfilePage tone="light" title={copy('Profil', 'Profile')} right={<CircularAction2026 icon="settings" label={copy('Réglages', 'Settings')} onPress={() => router.push('/parametres')} tooltipPlacement="bottom" />}>
+    {offerAdoption ? <View style={local.adoption} accessibilityLiveRegion="polite">
+      <Text style={local.sectionTitle}>{copy('Tes sorties d’avant la connexion', 'Your activities from before sign-in')}</Text>
+      <Text style={local.meta}>{adoptableCopy}</Text>
+      <View style={local.adoptionActions}>
+        <ProfileButton tone="light" label={copy('Rattacher mes sorties', 'Link my activities')} busy={adopting} onPress={() => void adopt()} />
+        <Pressable accessibilityRole="button" disabled={adopting} onPress={() => void adoptionReceipt.acknowledge()} style={local.later}><Text style={local.actionText}>{copy('Plus tard', 'Later')}</Text></Pressable>
+      </View>
+    </View> : null}
     <View style={local.identity}>
       <View style={local.identityArt}><CommercialIdentity2026 size={48}><SeasonalIdentity2026 rewards={rewards.filter(reward => reward.rewardId !== 'title' && !(commercialFrame && reward.rewardId === 'profile_frame') && !(commercialEmblem && reward.rewardId === 'personal_emblem'))} levelRewards={levelRewards.filter(reward => reward.rewardId !== 'cartographer' && !(commercialFrame && (reward.rewardId === 'line_frame' || reward.rewardId === 'ridge_merit')))} collections={progress.data?.collections ?? []} size={48}>
         <View style={local.avatar}>{profileLoading || sessionLoading ? <ActivityIndicator color={c.darkInk} /> : profile.avatarUri && session ? <Image source={{ uri: profile.avatarUri }} style={local.avatarImage} /> : session ? <Text style={local.initials}>{effectiveInitials(profile)}</Text> : <GrydMark variant="symbol" size={20} color={c.darkInk} />}</View>
@@ -153,7 +170,7 @@ function ProfileHomeContents() {
     </Pressable>
     {session && adoptable.count > 0 ? <View style={local.adoption}>
       <Text style={local.sectionTitle}>{copy('Sorties de cet appareil', 'Activities on this device')}</Text>
-      <Text style={local.meta}>{copy(`${adoptable.count} sortie(s) sans compte peuvent être rattachées. Elles resteront privées.`, `${adoptable.count} guest activities can be linked. They will remain private.`)}</Text>
+      <Text style={local.meta}>{adoptableCopy}</Text>
       <View style={local.compact}><ProfileButton tone="light" label={copy('Rattacher mes sorties', 'Link my activities')} secondary busy={adopting} onPress={() => void adopt()} /></View>
     </View> : null}
     {adoptionNotice && session ? <Text accessibilityRole="alert" style={local.notice}>{adoptionNotice}</Text> : null}
@@ -185,5 +202,5 @@ const local = StyleSheet.create({
   overview: { backgroundColor: c.surface, borderRadius: 24, padding: 18, marginBottom: 12 }, periods: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 12 }, period: { minHeight: 44, justifyContent: 'center' }, stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, summaryMetric: { flex: 1, minWidth: 72, gap: 4 }, statValue: { fontFamily: fonts.displayMedium, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'], color: c.ink },
   loading: { padding: 20, gap: 12, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, empty: { padding: 20, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12, gap: 6 }, emptyTitle: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.ink }, startAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }, startCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
   runList: { backgroundColor: c.surface, borderRadius: 24, paddingHorizontal: 18, marginBottom: 12 }, runRow: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border }, runVisual: { width: 64, height: 58, alignItems: 'center', justifyContent: 'center' }, runMeasures: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 14 }, runDistance: { fontFamily: fonts.displayMedium, fontSize: 20, lineHeight: 26, fontVariant: ['tabular-nums'], color: c.ink }, pending: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted }, more: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  collection: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, marginBottom: 12, borderRadius: 24, backgroundColor: c.surface }, rewardArt: { padding: 8, borderRadius: 18, backgroundColor: c.carbon }, adoption: { gap: 10, padding: 20, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, notice: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.muted, marginVertical: 12 }, compact: { alignSelf: 'flex-start' },
+  collection: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, marginBottom: 12, borderRadius: 24, backgroundColor: c.surface }, rewardArt: { padding: 8, borderRadius: 18, backgroundColor: c.carbon }, adoption: { gap: 10, padding: 20, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, adoptionActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 }, later: { minHeight: 44, paddingHorizontal: 4, justifyContent: 'center' }, notice: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.muted, marginVertical: 12 }, compact: { alignSelf: 'flex-start' },
 });
