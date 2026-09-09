@@ -19,7 +19,7 @@ import { SHARE_COPY } from './copy.ts';
 import { LOCALES, type Entry } from '../../i18n/types.ts';
 
 const PANEL_SRC = Deno.readTextFileSync(new URL('./ShareDonePanel.tsx', import.meta.url));
-const SCREEN_SRC = Deno.readTextFileSync(new URL('../../../app/partage.tsx', import.meta.url));
+const SCREEN_SRC = Deno.readTextFileSync(new URL('./ShareStudio2026.tsx', import.meta.url));
 
 /** Les entrées introduites pour E37 (spec l.1463-1472). */
 const E37: Record<string, Entry> = {
@@ -118,30 +118,27 @@ Deno.test('« Partage terminé » est SERVI SOUS GARDE, jamais en dur', () => {
   );
 });
 
-Deno.test('le panneau ne s’ouvre QUE sur la décision du moteur pur', () => {
+Deno.test('2026 : le retour de partage utilise la revendication du moteur pur', () => {
   assert(
-    SCREEN_SRC.includes("if (outcome.surface === 'panel'"),
-    'l’écran n’ouvre plus le panneau sur `shareOutcome`',
+    SCREEN_SRC.includes('const claim = shareDeliveryClaim(result.via, platform);'),
+    'la confirmation ne lit plus le verdict réel de la plateforme',
   );
-  // Toute ouverture porte la revendication CALCULÉE ; les autres appels ferment.
-  for (const call of SCREEN_SRC.split('setDone(').slice(1)) {
-    assert(
-      call.startsWith('null)') || call.startsWith('{ claim: outcome.claim'),
-      `un setDone(…) n’est ni une fermeture ni une revendication du moteur : ${call.slice(0, 40)}`,
-    );
-  }
+  assert(SCREEN_SRC.includes("if (claim === 'confirmed') track(EVENTS.shareCompleted"),
+    'la mesure de publication doit rester conditionnée à une preuve de plateforme');
+  assert(SCREEN_SRC.includes("if (result.reason !== 'dismissed')"),
+    'une annulation ne doit pas être annoncée comme erreur ou succès');
 });
 
 Deno.test('AUCUN BOUTON MORT : le profil public n’est pas peint (aucune route)', () => {
   assert(
-    SCREEN_SRC.includes('const PUBLIC_PROFILE_ROUTE_EXISTS = false;'),
-    'la capacité « profil public » a été mise à vrai sans qu’une route existe',
+    !SCREEN_SRC.includes('open_profile') && !SCREEN_SRC.includes('buildShareLink('),
+    'aucun lien public ne doit être créé sans contrat d’audience et de révocation',
   );
 });
 
-Deno.test('« Lien copié » n’est affiché qu’après une copie RÉELLE', () => {
+Deno.test('2026 : le texte copié n’est annoncé qu’après confirmation du canal copie', () => {
   assert(
-    SCREEN_SRC.includes("if (r.ok && r.via === 'clipboard')"),
+    SCREEN_SRC.includes("claim === 'copied' ?"),
     'la confirmation de copie ne lit plus le canal réel',
   );
   assert(

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Header pill sticky (blur, rétrécit au scroll) : logo hexagone, nav ancres,
+ * Header pill sticky translucide (rétrécit au scroll) : logo hexagone, nav ancres,
  * toggle FR/EN, CTA waitlist. Charte : le CTA header est GHOST — le seul CTA
  * chartreuse visible à l'écran reste celui de la section courante (doctrine C.3).
  */

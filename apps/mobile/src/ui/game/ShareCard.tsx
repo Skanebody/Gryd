@@ -327,9 +327,7 @@ export function ShareCard({
 }
 
 const styles = StyleSheet.create({
-  // AMENDEMENT-22 : la story EST le container et FLOTTE — contour très discret
-  // (filet à peine visible) + ombre neutre douce (jamais colorée, charte §F). Elle
-  // se pose sur l'espace, elle ne s'enferme pas dans une grosse card.
+  // La story garde son fond et son filet ; aucune ombre de surface n'est exportée.
   card: {
     backgroundColor: gameColors.carbon, // fond carte sombre (§3)
     borderRadius: radii.card,
@@ -339,12 +337,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     overflow: 'hidden',
-    // Ombre portée neutre discrète — donne l'effet « posé/flottant ».
-    shadowColor: '#000',
-    shadowOpacity: 0.55,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 18 },
-    elevation: 12,
   },
   // AMENDEMENT-24 — carte plein cadre : le padding passe au calque `chrome`
   // (la carte, elle, touche les bords ; seul le contenu garde sa marge).

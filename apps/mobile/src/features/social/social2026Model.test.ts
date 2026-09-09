@@ -1,0 +1,10 @@
+import { ownerScopedValue2026, stripSocialImageMetadata2026 } from './social2026Model.ts';
+function assert(value:unknown,message='assertion failed'):asserts value {if(!value)throw new Error(message)}
+Deno.test('identity and feed read never reuse another owner or signed-out snapshot',()=>{assert(ownerScopedValue2026('B',{owner:'A',value:{secret:'A'}})===null);assert(ownerScopedValue2026(null,{owner:'A',value:1})===null);assert(ownerScopedValue2026('A',{owner:'A',value:2})===2)});
+Deno.test('JPEG GPS/XMP/IPTC metadata removed, pixels and scan retained, trailer discarded',()=>{
+ const source=Uint8Array.from([255,216,255,225,0,6,71,80,83,0,255,218,0,2,12,255,0,14,255,217,71,80,83]);
+ const clean=stripSocialImageMetadata2026(source);assert(clean.mime==='image/jpeg');assert(JSON.stringify([...clean.bytes])===JSON.stringify([255,216,255,218,0,2,12,255,0,14,255,217]));
+});
+Deno.test('JPEG metadata between progressive scans is removed too',()=>{const source=Uint8Array.from([255,216,255,218,0,2,8,255,225,0,4,1,2,255,218,0,2,9,255,217]);const clean=stripSocialImageMetadata2026(source);assert(![...clean.bytes].includes(225));assert([...clean.bytes].includes(8)&&[...clean.bytes].includes(9));});
+Deno.test('PNG embedded EXIF/text metadata removed without changing image chunks',()=>{const chunk=(name:string,data:number[])=>[0,0,0,data.length,...[...name].map(c=>c.charCodeAt(0)),...data,0,0,0,0];const header=[137,80,78,71,13,10,26,10];const pixels=chunk('IDAT',[7,8]);const source=Uint8Array.from([...header,...chunk('eXIf',[1,2]),...chunk('iTXt',[3,4]),...pixels,...chunk('IEND',[])]);const result=stripSocialImageMetadata2026(source);assert(result.mime==='image/png');assert(JSON.stringify([...result.bytes])===JSON.stringify([...header,...pixels,...chunk('IEND',[])]));});
+Deno.test('malformed or unsupported image cannot fall back to uploading the original',()=>{for(const data of [[1,2,3],[255,216,255,225,99,99],[137,80,78,71,13,10,26,10,255,255,255,255]]){let threw=false;try{stripSocialImageMetadata2026(Uint8Array.from(data))}catch{threw=true}assert(threw)}});

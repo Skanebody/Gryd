@@ -16,6 +16,8 @@ export * from './hexing.ts';
 // Géométrie POLYGONALE des territoires (spec §1.4) — H3 n'est plus qu'un index
 // spatial interne. Aucune dépendance : ni h3-js, ni game-rules.
 export * from './polygon.ts';
+// Active 2026.1 trace-face extraction; exclusive ownership is committed by PostGIS.
+export * from './capture2026.ts';
 export * from './boundary.ts';
 export * from './coverage.ts';
 export * from './zone.ts';

@@ -214,13 +214,16 @@ async function source(relPath: string): Promise<string> {
     .replace(/^\s*\/\/.*$/gm, '');
 }
 
-Deno.test('/performance rend la copie de SA lentille, corps compris', async () => {
-  const src = await source('../../../app/performance.tsx');
-  assert(src.includes('statsCopy(activity)'), '/performance ne dérive pas sa copie de la lentille');
+Deno.test('2026 : /performance filtre le sport et utilise des unités neutres dans les statistiques', async () => {
+  const route = await source('../../../app/performance.tsx');
+  assert(route.includes('ProfileStatsScreen'), 'la route doit monter les statistiques 2026');
+  const src = await source('../../features/refonte/ProfileStatsScreen.tsx');
+  assert(src.includes('useProfileJournal(activity)'), '/performance doit lire le sport choisi');
   assert(
-    src.includes('activity={activity}'),
-    'le corps (StatsBody) ou le palmarès ne reçoit pas la discipline lue',
+    src.includes("key: 'run', label: copy('Course', 'Run')") && src.includes("key: 'bike', label: copy('Vélo', 'Ride')"),
+    'le sélecteur nomme les deux sports en français et anglais',
   );
+  assert(src.includes("copy('sorties', 'outings')"), 'les compteurs parlent des deux sports sans appeler le vélo une course');
   // Chaque entrée bannie ÉTAIT rendue avant ce lot : le garde échoue mot pour
   // mot sur le code d'hier.
   const INTERDITS = [

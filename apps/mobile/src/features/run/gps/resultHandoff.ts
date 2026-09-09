@@ -35,6 +35,7 @@ import { START_ACTIVITY_PARAM } from './runActivity';
  * progression) ne franchit cette frontière : le Résultat lit le verdict SERVEUR.
  */
 export interface FinishedRunHandoff {
+  readonly localId?: string;
   /** Mode de course demandé au départ (`conquete` / `social_run` / `course_privee`). */
   readonly mode: string;
   /** DISCIPLINE RÉELLEMENT ENREGISTRÉE — celle que le préflight a montrée. */
@@ -60,6 +61,7 @@ export interface FinishedRunHandoff {
  */
 export function courseResultParams(run: FinishedRunHandoff): Record<string, string> {
   return {
+    ...(run.localId ? { localId: run.localId } : {}),
     mode: run.mode,
     [START_ACTIVITY_PARAM]: run.activity,
     // Arrondis à l'entier : ce sont des mètres et des secondes, pas des

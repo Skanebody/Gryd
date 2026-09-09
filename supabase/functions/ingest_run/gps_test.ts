@@ -151,6 +151,29 @@ Deno.test('gps : relock permanent → ré-ancrage après N rejets, sans faux kil
 
 // ═══ 3. Tunnel : trou de 60 s → lost, reprise sans faux kilomètres ═══════════
 
+Deno.test('gps 2026 : reprise explicite après 3 s, aucun faux mètre entre les tronçons', () => {
+  const before = [fix(0, 0, 0, 5), fix(0, 6, 2_000, 5)];
+  const resumed = { ...fix(120, 6, 5_000, 5), breakBefore: true as const };
+  const clean = cleanTrace([...before, resumed, fix(120, 12, 7_000, 5)]);
+  assertEquals(clean.points.length, 4, 'une nouvelle ancre valide ne dépend pas de la vitesse intertronçons');
+  assertEquals(Object.values(clean.rejected).reduce((a, b) => a + b, 0), 0);
+  assertEquals(clean.points[2]!.gapBefore, true);
+  assert(Math.abs(totalDistanceM(clean.points) - 12) < 0.1, 'les 120 m non enregistrés ne comptent pas');
+  const payload = rawFixesToRunPoints(decimateForPayload(smoothTrace(clean.points)));
+  assertEquals(payload.find(point => point.breakBefore)?.t, resumed.ts, 'la reprise reste marquée jusqu’au payload');
+});
+
+Deno.test('gps 2026 : une reprise imprécise transmet la rupture au premier fix valide', () => {
+  const before = [fix(0, 0, 0, 5), fix(0, 6, 2_000, 5)];
+  const badResume = { ...fix(120, 6, 5_000, GPS_ACCURACY_MAX_M + 1), breakBefore: true as const };
+  const clean = cleanTrace([...before, badResume, fix(120, 12, 7_000, 5), fix(120, 18, 9_000, 5)]);
+  assertEquals(clean.rejected.accuracy, 1);
+  assertEquals(clean.rejected.speed + clean.rejected.teleport, 0);
+  assertEquals(clean.points[2]!.ts, 7_000);
+  assertEquals(clean.points[2]!.gapBefore, true, 'rejeter le fix ne doit pas recoller la trace');
+  assert(Math.abs(totalDistanceM(clean.points) - 12) < 0.1, 'aucune distance à travers la pause ni le fix rejeté');
+});
+
 Deno.test('gps : tunnel 60 s → gap marqué, 1800 m comptés (pas 2000)', () => {
   const v = 3; // m/s
   const legA = north({ n: 151, speedMs: v }); // 900 m en 300 s

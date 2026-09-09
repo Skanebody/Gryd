@@ -41,6 +41,9 @@ import {
 export type { TrackerPhase, TrackerSnapshot } from './runPipeline';
 
 export interface TrackerInit {
+  recordingOwnerId?: string | null;
+  recordingSessionId?: string;
+  sharedMapParticipation?: boolean;
   runId: string;
   mode: RunMode;
   /**
@@ -68,6 +71,9 @@ export interface TrackerInit {
 }
 
 export class RunTracker {
+  readonly recordingOwnerId: string | null | undefined;
+  recordingSessionId?: string;
+  readonly sharedMapParticipation: boolean;
   readonly runId: string;
   readonly mode: RunMode;
   /** Discipline de CETTE sortie — figée au départ (jamais rebasculée en course). */
@@ -76,7 +82,9 @@ export class RunTracker {
 
   private fixes: RawFix[];
   private finished = false;
+  private finishedAt: number | null = null;
   private userPaused = false;
+  private breakBeforeNext = false;
   private userPauseStartedTs = 0;
   private userPausedMsTotal: number;
   /** Pas hérités d'un tracker précédent (reprise/fusion). */
@@ -86,6 +94,9 @@ export class RunTracker {
   private stepSub: { remove(): void } | null = null;
 
   constructor(init: TrackerInit) {
+    this.recordingOwnerId = init.recordingOwnerId;
+    this.recordingSessionId = init.recordingSessionId;
+    this.sharedMapParticipation = init.sharedMapParticipation === true;
     this.runId = init.runId;
     this.mode = init.mode;
     // Aucune résolution ici : la discipline est DÉCLARÉE par l'appelant (le
@@ -148,7 +159,8 @@ export class RunTracker {
     for (const f of incoming) {
       const last = this.fixes[this.fixes.length - 1];
       if (last !== undefined && f.ts <= last.ts) continue;
-      this.fixes.push(f);
+      this.fixes.push(this.breakBeforeNext ? { ...f, breakBefore: true } : f);
+      this.breakBeforeNext = false;
     }
   }
 
@@ -163,13 +175,16 @@ export class RunTracker {
   resumeUser(nowTs: number): void {
     if (!this.userPaused) return;
     this.userPaused = false;
+    this.breakBeforeNext = true;
     this.userPausedMsTotal += Math.max(0, nowTs - this.userPauseStartedTs);
   }
 
   /** Clôture — le tracker devient inerte (plus aucun fix accepté). */
   finish(nowTs: number): void {
+    if (this.finished) return;
     if (this.userPaused) this.resumeUser(nowTs);
     this.finished = true;
+    this.finishedAt = nowTs;
     this.stopPedometer();
   }
 
@@ -192,7 +207,7 @@ export class RunTracker {
 
   /** Photo instantanée pour l'UI (distance live, chrono, trace, signal…). */
   snapshot(nowTs: number): TrackerSnapshot {
-    return computeSnapshot(this.state(), nowTs);
+    return computeSnapshot(this.state(), this.finishedAt ?? nowTs);
   }
 
   /**
@@ -201,9 +216,9 @@ export class RunTracker {
    * par clientRunId (UUID local généré AVANT la course).
    */
   buildPayload(): IngestRunRequest {
-    return buildIngestPayload(this.state(), {
+    return { ...buildIngestPayload(this.state(), {
       clientRunId: this.runId,
       stepCount: this.stepCount,
-    });
+    }), recordingOwnerId: this.recordingOwnerId, recordingSessionId: this.recordingSessionId, sharedMapParticipation: this.sharedMapParticipation };
   }
 }

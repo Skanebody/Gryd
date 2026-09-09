@@ -1,18 +1,13 @@
 /**
- * GRYD — chargement des fontes NIGHT PRINT (refonte Vague 1).
- *
- * Inter Tight (titres, chiffres) · Inter (interface) · JetBrains Mono (labels).
- * @expo-google-fonts charge chaque GRAISSE sous un nom de famille distinct
- * (`Inter_500Medium`…) : en React Native une famille à graisse nommée IGNORE
- * `fontWeight` — c'est la FAMILLE qui porte la graisse. Les tokens `fonts.*`
- * (design-tokens) exposent donc une famille par graisse utile, et chaque style
- * choisit la bonne (jamais un `fontWeight` sur ces familles).
- *
- * On ne charge QUE les graisses réellement employées par l'échelle Night Print
- * (8 fichiers) — inutile d'embarquer 100→900.
+ * GRYD : Manrope (titres et chiffres), Inter (lecture), JetBrains Mono (repères).
+ * Familles distinctes par graisse ; fontes embarquées, aucun appel Google Fonts.
+ * Inter Tight reste disponible pour les composants historiques à famille explicite.
  */
 import { useFonts } from 'expo-font';
+import { Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import {
+  InterTight_400Regular,
+  InterTight_500Medium,
   InterTight_600SemiBold,
   InterTight_700Bold,
   InterTight_800ExtraBold,
@@ -32,6 +27,9 @@ import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
  */
 export function useAppFonts(): boolean {
   const [loaded, error] = useFonts({
+    Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
+    InterTight_400Regular,
+    InterTight_500Medium,
     InterTight_600SemiBold,
     InterTight_700Bold,
     InterTight_800ExtraBold,

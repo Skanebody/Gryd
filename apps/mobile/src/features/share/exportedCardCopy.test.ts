@@ -79,11 +79,13 @@ Deno.test('…parce qu’il aiguille par discipline, pas parce qu’il a perdu s
 });
 
 Deno.test('la carte PORTE une discipline (sans quoi l’aiguillage lit du vide)', () => {
-  const src = code(TEMPLATES_SRC);
+  // The data contract is pure so owner/export tests do not load native UI.
+  const src = code(Deno.readTextFileSync(new URL('./shareData.ts', import.meta.url)));
   assert(
     /interface ShareDemoData\s*\{[\s\S]*?\bactivity:\s*Activity;/.test(src),
     'ShareDemoData ne porte pas de discipline : la carte ne peut pas savoir ce qu’elle décrit',
   );
+  assert(TEMPLATES_SRC.includes("import type { ShareDemoData } from './shareData'"), 'le template doit consommer ce même contrat');
 });
 
 Deno.test('garde anti-décor : les clés surveillées existent encore au catalogue', () => {

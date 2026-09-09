@@ -8,6 +8,19 @@
  */
 import Svg, { Path } from 'react-native-svg';
 import { ICONS, ICON_VIEWBOX, type IconDef, type IconName } from '@klaim/shared';
+import { GrydIcon, type GrydIconName } from './gryd/GrydIcon';
+
+/** Existing feature names keep their API while the active interface adopts GRYD's glyphs. */
+const ORIGINAL_GLYPHS: Partial<Record<IconName, GrydIconName>> = {
+  carte: 'map', crew: 'crew', profil: 'profile', basket: 'run',
+  partage: 'share', historique: 'clock', reglages: 'settings', badge: 'collection',
+  verrou: 'lock', pin: 'pin', chevron: 'chevronRight', fermer: 'close', plus: 'plus',
+  cible: 'location', mission: 'flag', lien: 'link', info: 'info', ami: 'profile',
+  ajoutami: 'crew', feed: 'collection', aujourdhui: 'calendar', discret: 'eyeOff',
+  gps: 'location', route: 'route', calques: 'layers', boucle_ouverte: 'route',
+  boucle_fermee: 'loop', cloche: 'bell', bouclier: 'shield', foulees: 'run',
+  serie: 'chart', performance: 'chart', pass: 'collection', medaille: 'collection',
+};
 
 export interface IconProps {
   name: IconName;
@@ -20,6 +33,8 @@ export interface IconProps {
 }
 
 export function Icon({ name, size = 24, color, active = false }: IconProps) {
+  const original = ORIGINAL_GLYPHS[name];
+  if (original) return <GrydIcon name={original} size={size} color={color} active={active} />;
   const def: IconDef = ICONS[name];
   const fill = active && def.fillable === true ? color : 'none';
   return (

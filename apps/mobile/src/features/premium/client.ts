@@ -51,9 +51,12 @@ interface PurchasesModuleLike {
    * boutique (E72/E73) qui ne sont pas des packages d'abonnement. Absent des
    * SDK très anciens : l'appelant vérifie que c'est bien une fonction.
    */
-  getProducts?(productIds: readonly string[]): Promise<readonly StoreProductLike[]>;
+  getProducts?(productIds: readonly string[], type?: 'NON_SUBSCRIPTION'): Promise<readonly StoreProductLike[]>;
+  purchaseStoreProduct?(product: StoreProductLike): Promise<{ customerInfo: CustomerInfoLike }>;
   purchasePackage(pkg: PackageLike): Promise<{ customerInfo: CustomerInfoLike }>;
   restorePurchases(): Promise<CustomerInfoLike>;
+  addCustomerInfoUpdateListener?(listener: (info: CustomerInfoLike) => void): void;
+  removeCustomerInfoUpdateListener?(listener: (info: CustomerInfoLike) => void): void;
 }
 
 /** Erreur telle que la lève le SDK (le champ qui distingue une ANNULATION). */
@@ -106,24 +109,50 @@ export function purchasesCapability(): PurchaseCapability {
 }
 
 let configuredForUser: string | null = null;
+let sdkConfigured = false;
+
+// Serialize identity changes and complete Store operations, including an open purchase sheet.
+let purchaseQueue: Promise<unknown> = Promise.resolve();
+function serial<T>(work: () => Promise<T>): Promise<T> {
+  const next = purchaseQueue.then(work, work);
+  purchaseQueue = next.then(() => undefined, () => undefined);
+  return next;
+}
+export function configurePurchases(userId: string): Promise<boolean> {
+  return serial(() => configureForUser(userId));
+}
+async function forUser<T>(userId: string, work: () => Promise<T>): Promise<T> {
+  return serial(async () => {
+    if (!await configureForUser(userId)) throw new Error('purchases_unavailable');
+    return work();
+  });
+}
+export function observeCustomerInfo(userId: string, listener: (info: CustomerInfoLike) => void): () => void {
+  const sdk = purchasesModule();
+  const guarded = (info: CustomerInfoLike) => { if (configuredForUser === userId) listener(info); };
+  sdk?.addCustomerInfoUpdateListener?.(guarded);
+  return () => sdk?.removeCustomerInfoUpdateListener?.(guarded);
+}
 
 /**
  * Configure le SDK pour CE joueur (idempotent : reconfigure seulement si
  * l'identité change). Rend `false` sans rien casser quand la capacité est
  * fausse — l'appelant n'a pas à sonder la plateforme lui-même.
  */
-export async function configurePurchases(userId: string): Promise<boolean> {
+async function configureForUser(userId: string): Promise<boolean> {
   const cap = purchasesCapability();
   if (!cap.available) return false;
   const sdk = purchasesModule();
   if (!sdk) return false;
   if (configuredForUser === userId) return true;
   try {
-    if (configuredForUser === null) {
+    if (!sdkConfigured) {
       sdk.configure({ apiKey: cap.apiKey, appUserId: userId });
+      sdkConfigured = true;
     } else {
       // Changement de compte dans la même session : l'identité RevenueCat doit
       // suivre, sinon les achats du nouvel utilisateur partiraient sur l'ancien id.
+      configuredForUser = null;
       await sdk.logIn(userId);
     }
     configuredForUser = userId;
@@ -134,7 +163,8 @@ export async function configurePurchases(userId: string): Promise<boolean> {
 }
 
 /** L'offering courant, ou `null` si le SDK n'a rien pu lire (jamais un repli inventé). */
-export async function fetchCurrentOffering(): Promise<OfferingLike | null> {
+export async function fetchCurrentOffering(userId?: string): Promise<OfferingLike | null> {
+  if (userId) return forUser(userId, () => fetchCurrentOffering());
   const sdk = purchasesModule();
   if (!sdk) return null;
   const offerings = await sdk.getOfferings();
@@ -161,7 +191,24 @@ export async function fetchStoreProducts(
   return await sdk.getProducts(productIds);
 }
 
-export async function fetchCustomerInfo(): Promise<CustomerInfoLike | null> {
+/** Non-consumable collection products; identity is serialized with the complete Store operation. */
+export async function fetchCollectionProducts2026(productIds: readonly string[], userId: string): Promise<readonly StoreProductLike[] | null> {
+  return forUser(userId, async () => {
+    const sdk = purchasesModule();
+    return sdk?.getProducts ? sdk.getProducts(productIds, 'NON_SUBSCRIPTION') : null;
+  });
+}
+export async function purchaseCollectionProduct2026(product: StoreProductLike, userId: string): Promise<PurchaseOutcome> {
+  return forUser(userId, async () => {
+    const sdk = purchasesModule();
+    if (!sdk?.purchaseStoreProduct) return { kind: 'failed' } as const;
+    try { return { kind: 'purchased', customerInfo: (await sdk.purchaseStoreProduct(product)).customerInfo } as const; }
+    catch (e) { return (e as PurchasesErrorLike)?.userCancelled ? { kind: 'cancelled' } as const : { kind: 'failed' } as const; }
+  }).catch(() => ({ kind: 'failed' }));
+}
+
+export async function fetchCustomerInfo(userId?: string): Promise<CustomerInfoLike | null> {
+  if (userId) return forUser(userId, () => fetchCustomerInfo());
   const sdk = purchasesModule();
   if (!sdk) return null;
   return await sdk.getCustomerInfo();
@@ -178,7 +225,8 @@ export type PurchaseOutcome =
  * `isSilentFailure` dans `lib/auth.ts`) : fermer la feuille du Store est un
  * geste banal, l'écran ne doit imputer aucune panne au joueur.
  */
-export async function purchasePremiumPackage(pkg: PackageLike): Promise<PurchaseOutcome> {
+export async function purchasePremiumPackage(pkg: PackageLike, userId?: string): Promise<PurchaseOutcome> {
+  if (userId) return forUser(userId, () => purchasePremiumPackage(pkg)).catch(() => ({ kind: 'failed' }));
   const sdk = purchasesModule();
   if (!sdk) return { kind: 'failed' };
   try {
@@ -200,7 +248,8 @@ export type RestoreOutcome =
  * CustomerInfo obtenu, et c'est `readProStatus` qui dira s'il porte un droit —
  * l'écran distingue alors « restauré » de « aucun achat trouvé ».
  */
-export async function restorePremiumPurchases(): Promise<RestoreOutcome> {
+export async function restorePremiumPurchases(userId?: string): Promise<RestoreOutcome> {
+  if (userId) return forUser(userId, () => restorePremiumPurchases()).catch(() => ({ kind: 'failed' }));
   const sdk = purchasesModule();
   if (!sdk) return { kind: 'failed' };
   try {
@@ -214,4 +263,5 @@ export async function restorePremiumPurchases(): Promise<RestoreOutcome> {
 /** Réservé aux tests d'intégration manuels : oublie l'identité configurée. */
 export function resetPurchasesConfigurationForTests(): void {
   configuredForUser = null;
+  sdkConfigured = false;
 }

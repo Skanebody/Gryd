@@ -119,15 +119,10 @@ Deno.test('renouvellement coupé : ENCORE actif jusqu’à l’échéance, marqu
   if (status.kind === 'active') assertEquals(status.cancelled, true);
 });
 
-Deno.test('date illisible : ni échéance affichée, ni expiration inventée', () => {
+Deno.test('date illisible : un cache malformé ne crée jamais un droit à vie', () => {
   const status = readProStatus(info({ isActive: true, expirationDate: 'pas-une-date' }), ID, NOW);
-  assertEquals(status.kind, 'active');
-  if (status.kind === 'active') {
-    assertEquals(status.expiresAtMs, null);
-    // Pas de date ⇒ on ne peut pas prouver l'échéance : on ne prétend pas « à vie
-    // résilié ». `lifetime` reste vrai au sens « aucune échéance CONNUE ».
-    assertEquals(status.cancelled, false);
-  }
+  assertEquals(status.kind, 'expired');
+  if (status.kind === 'expired') assertEquals(status.expiredAtMs, null);
 });
 
 Deno.test('autre entitlement actif : ne donne PAS le droit Pro', () => {

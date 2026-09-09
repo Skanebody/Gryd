@@ -108,6 +108,9 @@ import { C } from '../../src/i18n/catalog/analyse';
 import { screen } from '../../src/lib/analytics';
 import { storedPushToken } from '../../src/features/notifications/push';
 import { getFinishedTrace } from '../../src/features/run/finishedTrace';
+import { getFinishedActivity2026, resolveResultActivity2026 } from '../../src/features/run/finishedActivity2026';
+import { useResultOwner2026 } from '../../src/features/run/useResultOwner2026';
+import { isResultOwnerCurrent2026 } from '../../src/features/run/resultOwner2026';
 import { fitTracesToBox } from '../../src/features/map/projectTrace';
 import { traceStyle } from '../../src/features/map/mapStyle';
 import {
@@ -126,7 +129,7 @@ import {
   stepStatuses,
   visibleSteps,
 } from '../../src/features/run/analysis/analysisMachine';
-import { subscribeSyncFacts } from '../../src/features/run/analysis/syncFactBus';
+import { subscribeSyncFacts, syncFactRunId } from '../../src/features/run/analysis/syncFactBus';
 import {
   type FinishHandoffHints,
   observeSync,
@@ -189,7 +192,24 @@ function StepDot({ status }: { status: StepStatus }) {
 // ═══ L'ÉCRAN ════════════════════════════════════════════════════════════════
 
 export default function AnalyseScreen() {
+  const { ownerId, epoch } = useResultOwner2026();
+  const params = useLocalSearchParams();
   const t = useT();
+  const runId = forwardableParams(params).localId ?? syncFactRunId();
+  const evidence = resolveResultActivity2026({ ownerId, localId: runId ?? undefined, activities: [], finished: getFinishedActivity2026(ownerId, runId ?? undefined) });
+  // A URL or the old sync journal alone cannot establish who recorded an outing.
+  if (!evidence || ownerId === undefined || evidence.activity.clientRunId !== syncFactRunId()) return (
+    <StackScreen title={t(C.title)} icon="gps" backHref="/(tabs)">
+      <SituationBlock phase="no_run" queueDepth={QUEUE_DEPTH_UNKNOWN} />
+      <Button label={t(C.leaveCta)} onPress={() => router.replace('/(tabs)')} analyticsId="analysis_leave" />
+    </StackScreen>
+  );
+  return <OwnedAnalyseScreen key={`${epoch}:${evidence.activity.clientRunId}`} ownerId={ownerId} ownerEpoch={epoch} runId={evidence.activity.clientRunId} />;
+}
+
+function OwnedAnalyseScreen({ ownerId, ownerEpoch, runId }: { ownerId: string | null; ownerEpoch: number; runId: string }) {
+  const t = useT();
+  const isCurrent = () => isResultOwnerCurrent2026(ownerId, ownerEpoch) && syncFactRunId() === runId;
 
   /**
    * LE RELAIS DE E26, TRANSMIS TEL QUEL. `RealCourseLive` pose ici les
@@ -223,7 +243,7 @@ export default function AnalyseScreen() {
   const alive = useRef(true);
 
   /** La trace MESURÉE. Lue une fois : elle ne change plus après la fin. */
-  const [trace] = useState(() => getFinishedTrace());
+  const [trace] = useState(() => getFinishedTrace(ownerId, runId));
 
   useEffect(() => {
     alive.current = true;
@@ -262,7 +282,7 @@ export default function AnalyseScreen() {
   useEffect(() => {
     const sub = hints.fromFinish
       ? subscribeSyncFacts((fact) => {
-          if (alive.current) setState((prev) => reduceAnalysis(prev, fact));
+          if (alive.current && isCurrent()) setState((prev) => reduceAnalysis(prev, fact));
         })
       : null;
     setState(
@@ -279,7 +299,7 @@ export default function AnalyseScreen() {
       //   maintenant la règle elle-même (`isDiagnosed`), pour TOUS les chemins :
       //   aucun ordre d'application ne peut plus dégrader un diagnostic observé.
       const facts = await observeSync(hints);
-      if (!alive.current) return;
+      if (!alive.current || !isCurrent()) return;
       setState((prev) => reduceAnalysisAll(prev, facts));
       setRead('read');
     })();
@@ -291,7 +311,7 @@ export default function AnalyseScreen() {
   //    réclamer un accès système).
   useEffect(() => {
     void storedPushToken().then((token) => {
-      if (alive.current) setCanNotify(token !== null);
+      if (alive.current && isCurrent()) setCanNotify(token !== null);
     });
   }, []);
 
@@ -303,13 +323,13 @@ export default function AnalyseScreen() {
   }, [settledPhase]);
 
   const onRetry = useCallback(() => {
-    if (retrying) return;
+    if (retrying || !isCurrent()) return;
     setRetrying(true);
     // La reprise fait un VRAI travail : elle draine la file. Les faits rendus
     // viennent du rapport de drain, jamais d'un compteur.
     void runRealRetry(hints)
       .then((facts) => {
-        if (!alive.current) return;
+        if (!alive.current || !isCurrent()) return;
         setState((prev) => reduceAnalysisAll(prev, facts));
       })
       .finally(() => {
@@ -363,7 +383,7 @@ export default function AnalyseScreen() {
           {phase === 'complete' ? (
             <Button
               label={t(C.seeResult)}
-              onPress={() => router.replace({ pathname: '/course-result', params: forward })}
+              onPress={() => { if (isCurrent()) router.replace({ pathname: '/course-result', params: { ...forward, localId: runId } }); }}
               analyticsId="analysis_see_result"
             />
           ) : canRetry(phase) ? (

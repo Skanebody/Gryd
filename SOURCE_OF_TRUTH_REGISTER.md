@@ -1,5 +1,33 @@
 # GRYD — SOURCE OF TRUTH REGISTER
 
+> **Autorité active mise à jour le 9 septembre 2026.** Le cahier fourni avec la demande « Refais la refonte complète de zéro » remplace les choix contradictoires de juillet. Le registre de juillet est conservé plus bas comme archive datée ; ses mentions « ACTIF », « rang 0 », « rang 1 » et « CONFORME » ne décrivent plus l'autorité actuelle.
+
+## Autorité active — septembre 2026
+
+### DÉCISION D-20 — Le cahier de septembre devient la référence produit et de réalisation
+
+La référence est [GRYD — Refonte intégrale 2026](docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md), version 1.0 du **8 septembre 2026**, fournie par l'utilisateur le 9 septembre. Sa copie dans le dépôt permet de travailler sans dépendre d'un fichier de téléchargement ; son identité avec la pièce jointe a été vérifiée par `cmp` le 9 septembre (code de sortie 0). [AGENTS.md](AGENTS.md) porte cette priorité au rang 0. L'ancienne conclusion D-06 qui déclarait `AGENTS.md` obsolète est donc remplacée.
+
+| Priorité | Référence | Portée actuelle |
+|---|---|---|
+| 0 | Demande utilisateur et [cahier de septembre](docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md) | Produit, règles, parcours G01–G29, design, médias, modèle économique et critères de recette. Remplace toute décision antérieure contradictoire. |
+| 1 | [AGENTS.md](AGENTS.md) | Instructions d'exécution du dépôt ; sa priorité 0 désigne le cahier ci-dessus. Les invariants de sécurité, d'autorité serveur et de données réelles restent applicables. |
+| 2 | [Règles partagées](packages/shared/src/game-rules.ts), [tokens](packages/shared/src/design-tokens.ts), migrations et code | Contrats d'implémentation à comparer au cahier. Une constante ou une fonction existante ne peut pas modifier une exigence produit. Les copies sous `supabase/functions/_shared/` sont générées. |
+| 3 | [Recette de septembre](docs/product/REFONTE_2026_RECETTE.md) | État observé du travail livré, validations exécutées et limites restantes. Ce document ne crée aucune nouvelle règle produit et ne certifie aucun déploiement. |
+| Archive | Spécifications, amendements, planches, audits et arbitrages antérieurs | Références historiques ou techniques utilisables seulement si elles ne contredisent pas septembre. Leurs anciens rangs ne donnent aucun droit de réintroduire une fonction retirée. |
+
+Les décisions remplacées comprennent les cinq onglets, le classement universel aux km², l'attribution territoriale par cellules, les contestations différées, les monnaies et pouvoirs, les gains de XP proportionnels au volume, les palettes contradictoires et les anciens catalogues commerciaux. Les nouvelles destinations sont **Carte · Crew · Profil** ; Course et Vélo partagent le compte et la progression personnelle mais gardent des possessions distinctes. La demande visuelle plus récente du 9 septembre remplace la palette du §10.2 par **noir, blanc, gris neutres et chartreuse**, conformément à [la direction visuelle](docs/product/GRYD_DIRECTION_VISUELLE_2026.md).
+
+Les précisions du 9 septembre sur les territoires voisins autorisent des nuances grises par propriétaire, avec limites visibles et affiliation crew réellement fournie par le serveur. Elles ne créent pas de copropriété crew. [Contrat carte](docs/product/GRYD_MAP_OWNERSHIP_2026_09.md) ; [recette onboarding et communauté](docs/product/GRYD_COMMUNAUTE_ONBOARDING_RECETTE_2026_09.md). Le benchmark de Strava, INTVL et Clash of Clans distingue les fonctions attestées des hypothèses d'efficacité ; les migrations 0115/0116 ne sont pas annoncées déployées.
+
+Le retrait d'une entrée de navigation ne supprime ni les achats ni les données historiques. Leur conversion ou leur résolution doit suivre le §19.2. L'existence du nouveau code ne prouve ni la migration des comptes ni l'exécution de SQL : les limites sont consignées dans la recette, et les portes du §20 restent à franchir.
+
+---
+
+## Archive du registre de juillet 2026 — non normative
+
+**Tout le contenu ci-dessous est conservé comme état historique au 26 juillet 2026.** Les inventaires, nombres de fichiers, décisions et statuts n'ont pas été réaudités comme une photographie de septembre. En cas de conflit, D-20 et la hiérarchie active ci-dessus s'appliquent.
+
 > **Reconstruit intégralement le 26/07/2026.** Remplace la version du 24/07/2026
 > (100 lignes), qui avait deux jours et six chantiers de retard : elle ignorait le
 > cahier **REFONTE DIRECTEMENT BRANCHÉE** (26/07), le document **PARTAGE SOCIAL

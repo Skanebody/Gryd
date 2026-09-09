@@ -80,7 +80,7 @@
   align-items: center;
   text-align: center;
   gap: 12px;
-  background: linear-gradient(180deg, var(--carbone), var(--noir));
+  background: var(--carbone);
   border: 1px solid var(--ligne);
   border-radius: var(--radius-card);
   padding: 20px 14px 16px;
@@ -138,7 +138,7 @@
 /*
  * Paliers de rareté sur la carte (AMENDEMENT-05 §1) :
  * common = flat · rare = liseré blanc · epic = --rival (rareté épique) ·
- * legend = --or + halo. Jamais hors surfaces badge.
+ * legend = contour --or. Les effets de matière restent dans le dessin du badge.
  */
 /* Planche : toutes les cartes partagent le même plateau — le tier se lit sur
    l'emblème (anneau/glow/halo) et la bordure des tiers hauts. */
@@ -152,12 +152,10 @@
 
 .rarity_epic {
   border-color: var(--rival-40);
-  box-shadow: 0 0 24px var(--rival-14);
 }
 
 .rarity_legend {
   border-color: var(--or);
-  box-shadow: 0 0 30px var(--or-14);
 }
 
 /* ─── Rangée des raretés Road → Legend ──────────────────────────────────── */

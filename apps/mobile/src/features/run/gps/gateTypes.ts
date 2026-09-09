@@ -85,7 +85,7 @@ export interface RealRunApi {
    * et la course attend en file — message discret « Course enregistrée —
    * envoi dès que possible » (anti-shame, jamais bloquant).
    */
-  finish: () => Promise<{ distanceM: number; durationS: number; uploadQueued: boolean }>;
+  finish: () => Promise<{ distanceM: number; durationS: number; uploadQueued: boolean; localId?: string }>;
 }
 
 /**
@@ -126,7 +126,7 @@ export interface PreflightApi {
    * que la valeur vient d'un ÉCRAN qui l'a montrée au joueur, jamais d'un
    * réglage lu en silence.
    */
-  confirmStart: (activity: Activity) => void;
+  confirmStart: (activity: Activity, sharedMapParticipation?: boolean) => void;
   /** Compte à rebours annulé : rien à défaire (tracker jamais construit). */
   cancel: () => void;
 }

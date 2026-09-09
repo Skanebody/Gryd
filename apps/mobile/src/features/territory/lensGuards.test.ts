@@ -38,17 +38,20 @@ function queryChain(src: string, table: string, label: string): string {
 
 const SANS_LENTILLE = /useRealTerritories\(\s*\)/;
 
-Deno.test('le Profil ne lit plus le territoire sans discipline', async () => {
-  const src = await code('../../../app/(tabs)/profil.tsx');
+Deno.test('2026 : le Profil sépare son journal par discipline', async () => {
+  const src = await code('../refonte/ProfileHomeScreen.tsx');
   assertEquals(
     SANS_LENTILLE.test(src),
     false,
     'un `useRealTerritories()` nu ferait redire « nouveau joueur » à un cycliste',
   );
   assert(
-    src.includes('useRealTerritoriesByActivity('),
-    'le Profil doit lire LES DEUX mondes (il n’a pas de commutateur E14)',
+    src.includes('useProfileJournal(activity)') && src.includes('selected: activity === value') && src.includes('setActivity(value)'),
+    'le Profil affiche le journal du sport choisi (§10), sans fusionner course et vélo',
   );
+  const journal = await code('../refonte/ProfileJournal.ts');
+  assert(journal.includes('useMyRunHistory(activity)'), 'la requête distante reçoit le même sport');
+  assert(journal.includes('run.activity === activity'), 'les sorties locales suivent le même filtre');
 });
 
 Deno.test('/territoire ne lit plus le territoire sans discipline', async () => {
@@ -126,30 +129,33 @@ Deno.test('lastActivity lit la discipline SANS filtrer sur elle', async () => {
   );
 });
 
-Deno.test('le Profil nomme la discipline de la dernière sortie, ou se tait', async () => {
-  const src = await code('../../../app/(tabs)/profil.tsx');
+Deno.test('2026 : le Profil nomme le sport du journal et de sa dernière sortie', async () => {
+  const src = await code('../refonte/ProfileHomeScreen.tsx');
   assert(
-    src.includes('SCOPE_LABEL[a.activity]'),
-    'la copie doit lever l’ambiguïté quand la discipline est lue',
+    src.includes("activity === 'bike'") && src.includes("copy('Course à pied', 'Run')") && src.includes("copy('Sortie vélo', 'Ride')"),
+    'le journal filtré doit nommer le sport effectivement choisi',
   );
   assert(
-    src.includes('a.activity === null'),
-    'et retomber sur une copie NEUTRE quand elle ne l’est pas — jamais un monde inventé',
+    src.includes('useProfileJournal(activity)') && src.includes('runs.slice(0,') && src.includes('openRun(run)'),
+    'la dernière sortie doit venir du journal du même sport',
   );
 });
 
 // ─── 4. L'écran de Résultat ne dément plus le préflight ─────────────────────
 
 Deno.test('course-result lit la discipline déclarée et sert SES libellés', async () => {
-  const src = await code('../../../app/course-result.tsx');
+  const route = await code('../../../app/course-result.tsx');
+  assert(route.includes('refonte/RunResult'), 'la route doit monter le résultat 2026');
+  const src = await code('../refonte/RunResult.tsx');
   assert(
-    src.includes('parseStartActivity(params.activity)'),
-    'la discipline doit venir du même paramètre que le DÉPART',
+    src.includes('resolveResultActivity2026('),
+    'le résultat doit établir la sortie réellement enregistrée et son propriétaire',
   );
   assert(
-    src.includes('resultCopy(activity)'),
-    'tout ce qui nomme l’effort passe par la porte d’entrée indexée par discipline',
+    src.includes('local?.activity ?? DEFAULT_ACTIVITY') && !src.includes('parseStartActivity(params.activity)'),
+    'le sport de la sortie vient de l’enregistrement ; un paramètre d’URL ne fabrique pas une sortie',
   );
+  assert(src.includes('liveRateDisplay(activity,'), 'l’unité de mesure doit suivre ce même sport');
   assertEquals(
     /t\(C\.(heroDone|heroPrivate|heroFlagged|barKicker|privateNote|flaggedWhy)\)/.test(src),
     false,

@@ -15,6 +15,7 @@ import { goBack } from '../lib/nav';
 import { C } from '../i18n/catalog/route';
 import { useT } from '../i18n/store';
 import { Icon } from './Icon';
+import { TranslucentBackdrop2026 } from './gryd/TranslucentBackdrop2026';
 
 interface StackScreenProps {
   title: string;
@@ -64,6 +65,7 @@ export function StackScreen({
           onPress={() => goBack(backHref)}
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
+          <TranslucentBackdrop2026 tone="dark" radius={20} />
           {/* Chevron pointé à gauche (le tracé pointe à droite → miroir). */}
           <View style={styles.mirror}>
             <Icon name="chevron" size={22} color={colors.blanc} />
@@ -79,7 +81,7 @@ export function StackScreen({
           </Text>
         </View>
         {/* Action droite (planche E21) — ou cale symétrique pour centrer le titre. */}
-        {headerRight ?? <View style={styles.back} />}
+        {headerRight ?? <View style={styles.backSpacer} />}
       </View>
       <ScrollView
         contentContainerStyle={[
@@ -105,9 +107,10 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     paddingHorizontal: spacing.cardPadding - 6,
   },
-  back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  back: { position: 'relative', overflow: 'hidden', width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.grisLigne, alignItems: 'center', justifyContent: 'center' },
+  backSpacer: { width: 40, height: 40 },
   backPressed: { opacity: 0.6 },
-  mirror: { transform: [{ scaleX: -1 }] },
+  mirror: { position: 'relative', zIndex: 1, transform: [{ scaleX: -1 }] },
   barTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   barTitle: { color: colors.blanc, fontSize: fontSizes.md, fontWeight: '600', letterSpacing: 0.2 },
   content: { paddingHorizontal: spacing.cardPadding, paddingTop: 6 },

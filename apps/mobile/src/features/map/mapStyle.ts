@@ -41,7 +41,7 @@ import { type ModeEmphasis, type TerritoryState } from './territory';
  *           dark-matter et de son schéma `carto.streets/v1`. Plus téléchargé,
  *           plus patché, plus remonté — cf. le bloc « LABELS EN LANGUE LOCALE »
  *           plus bas pour ce que ça remplace.
- *   color — CARTO Voyager : rues/parcs/eau colorés type Apple Plan / Google Maps
+ *   color — CARTO Positron : rues/parcs/eau colorés type Apple Plan / Google Maps
  *           (fond clair/beige — sur ce fond les traits de jeu chartreuse
  *           reçoivent un liseré sombre porteur, cf. `colorCasing` plus bas).
  *
@@ -60,11 +60,11 @@ import { type ModeEmphasis, type TerritoryState } from './territory';
  */
 export const MAP_BASEMAP_STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-  color: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+  color: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
 } as const;
 
 /**
- * Clé de fond de carte : 'dark' (défaut, dark-matter) | 'color' (Voyager) |
+ * Clé de fond de carte : 'dark' (défaut, dark-matter) | 'color' (Positron) |
  * 'satellite' (photos aériennes réelles Esri, AMENDEMENT-28). `satellite`
  * s'ajoute aux deux clés vectorielles de MAP_BASEMAP_STYLES.
  */
@@ -121,7 +121,7 @@ export const SATELLITE_BASEMAP = {
 // correctif en preview : 3 requêtes `style.json` (dark ×2 + voyager ×1) pour un
 // seul fond affiché — les deux styles étaient préchargés quel que soit le fond actif.
 //
-// Il ne reste ici QUE le fond CLAIR (Voyager), qui garde exactement l'ancien
+// Il ne reste ici QUE le fond CLAIR (Positron), qui garde exactement l'ancien
 // mécanisme — mais À LA DEMANDE : rien n'est téléchargé tant que l'utilisateur n'a
 // pas choisi ce fond. Un style ne se REMPLACE PAS à chaud (les couches de jeu
 // seraient perdues — cf. key={basemap} de MapScreen) : les consommateurs écoutent
@@ -178,7 +178,7 @@ export function prefetchLocalizedBasemaps(basemap?: BasemapKey): void {
  * l'appelant doit retomber sur l'URL brute.
  *   · `dark`      → le style GRYD EMBARQUÉ, disponible IMMÉDIATEMENT (jamais
  *                   `undefined` : aucune course, aucun premier rendu en anglais) ;
- *   · `color`     → la spec Voyager localisée si le téléchargement a abouti ;
+ *   · `color`     → la spec Positron localisée si le téléchargement a abouti ;
  *   · `satellite` → `undefined` (raster construit par `satelliteStyleSpec`).
  * Fonction PURE : elle ne déclenche aucun réseau (c'est `prefetchLocalizedBasemaps`
  * qui le fait, explicitement).

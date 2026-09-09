@@ -86,7 +86,8 @@ import { setActivityPref } from '../../src/features/map/mapPref';
  * le parcours setup n'en a pas, et en inventer une pour trois écrans serait
  * plus de code que de sens.
  */
-const NEXT_STEP = '/setup/permissions';
+/** La préférence est contextuelle : aucune autre étape n'est imposée après son choix. */
+const NEXT_STEP = '/';
 
 /**
  * Le NOM VISIBLE de chaque discipline, indexé par `Activity`. Le `Record`

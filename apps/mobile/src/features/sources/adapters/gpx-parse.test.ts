@@ -1,3 +1,4 @@
+import { analyzeTrace2026 } from '../../../../../../packages/engine/src/capture2026.ts';
 /**
  * Tests du parseur GPX PUR (gpx-parse.ts) — source « Import GPX » (alternative
  * gratuite à Strava, O7). Deno, aucun réseau, fixtures GPX au format RÉEL
@@ -24,7 +25,7 @@ Deno.test('parseGpx — trkpt standard : lat/lng/t, sans acc, dans l’ordre', (
   assertEquals(points.length, 2);
   const [p0, p1] = points;
   assertEquals(p0, { lat: 48.862, lng: 2.351, t: Date.parse('2026-07-01T07:00:00Z') });
-  // acc absent (le GPX ne porte pas d'accuracy) — traité « bon » côté serveur.
+  // Accuracy absente : aucune preuve de capture n’est déduite de l’import.
   assertEquals('acc' in p0!, false);
   // Ordre du parcours préservé.
   assertEquals(p1!.t > p0!.t, true);
@@ -74,4 +75,22 @@ Deno.test('parseGpx — entrées cassées : vide / non-string → résultat vide
   assertEquals(parseGpx('pas du xml').points.length, 0);
   // @ts-expect-error : robustesse runtime volontaire (jamais d'exception vers l'UI).
   assertEquals(parseGpx(null).points.length, 0);
+});
+
+Deno.test('parseGpx — deux segments GPX ne fabriquent pas une liaison pendant une courte pause', () => {
+  const pt=(lat:number,seconds:number)=>`<trkpt lat="${lat}" lon="2"><time>2026-09-09T08:00:${String(seconds).padStart(2,'0')}Z</time></trkpt>`;
+  const {points}=parseGpx(`<gpx><trk><trkseg>${pt(48,0)}${pt(48.0001,10)}</trkseg><trkseg>${pt(48.1,13)}${pt(48.1001,23)}</trkseg></trk></gpx>`);
+  assertEquals(points.length,4);assertEquals(points[2]!.breakBefore,true);assertEquals(points[3]!.breakBefore,undefined);
+  const record=analyzeTrace2026(points,'run');
+  assertEquals(record.distanceM>20 && record.distanceM<25,true,'le déplacement de 11 km dans la pause ne doit pas entrer dans la distance');
+  assertEquals(record.durationS,20);assertEquals(record.faces.length,0);
+});
+Deno.test('parseGpx — une reprise invalide reporte la rupture sur le premier point valide',()=>{
+  const point=(lat:string,time:string)=>`<trkpt lat="${lat}" lon="2"><time>${time}</time></trkpt>`;
+  const {points,skipped}=parseGpx(`<trk><trkseg>${point('48','2026-09-09T08:00:00Z')}</trkseg><trkseg>${point('91','2026-09-09T08:00:03Z')}${point('48.1','2026-09-09T08:00:06Z')}</trkseg></trk>`);
+  assertEquals(skipped,1);assertEquals(points[1]!.breakBefore,true);assertEquals(analyzeTrace2026(points,'run').distanceM,0);
+});
+Deno.test('parseGpx — des coordonnées vides ne deviennent pas une position zéro',()=>{
+  const {points,skipped}=parseGpx('<trkpt lat=" " lon="2"><time>2026-09-09T08:00:00Z</time></trkpt><trkpt lat="48" lon=""><time>2026-09-09T08:00:03Z</time></trkpt>');
+  assertEquals(points,[]);assertEquals(skipped,2);
 });

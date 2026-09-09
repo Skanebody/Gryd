@@ -30,7 +30,7 @@
  *     débloque, et on n'enregistre rien ;
  *   - pas de compte : traité en amont par le flux d'authentification.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,13 +39,13 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { Icon } from '../src/ui/Icon';
 import { runModeFromParam } from '../src/features/run/simulation';
-import { useRealRun } from '../src/features/run/gps/useRealRun';
+import { useRunSession } from '../src/features/refonte/RunSession';
 import type { RunUnavailableReason } from '../src/features/run/gps/locationAdapter';
 import { RealCourseLive } from '../src/features/run/gps/RealCourseLive';
 import { RunPreflight } from '../src/features/run/gps/RunPreflight';
 import { parseStartActivity, START_ACTIVITY_PARAM } from '../src/features/run/gps/runActivity';
 import { C, COURSE_LIVE_COPY } from '../src/i18n/catalog/courseLive';
-import { useT } from '../src/i18n/store';
+import { useT, useLocale } from '../src/i18n/store';
 
 /**
  * Point d'entrée de la route. Il ne porte QU'UNE chose : la possibilité de
@@ -79,7 +79,14 @@ function CourseLiveGate({ onRetry }: { onRetry: () => void }) {
    * vélo). Voir `features/run/gps/runActivity.ts`.
    */
   const requestedActivity = parseStartActivity(params[START_ACTIVITY_PARAM]);
-  const gate = useRealRun(mode);
+  const { gate: currentGate, ensure, cancelPreparation } = useRunSession();
+  const kindRef = useRef(currentGate?.kind);
+  kindRef.current = currentGate?.kind;
+  useEffect(() => {
+    ensure(mode);
+    return () => { if (kindRef.current !== 'real') cancelPreparation(); };
+  }, [mode, ensure, cancelPreparation]);
+  const gate = currentGate ?? { kind: 'starting' as const };
   // Lecture EN COURS : on cherche la position, on n'affirme RIEN.
   // (Avant : `<View style={styles.root} />` — un rectangle noir muet. Derrière
   //  la boîte de dialogue système ça passait ; dans un navigateur, où l'invite
@@ -147,6 +154,7 @@ function RunUnavailable({
   const insets = useSafeAreaInsets();
   const web = Platform.OS === 'web';
   const copy = COURSE_LIVE_COPY[activity];
+  const fr = useLocale() === 'fr';
 
   useEffect(() => {
     // Mesure du mur : combien de GO meurent faute de position, et POURQUOI
@@ -179,7 +187,7 @@ function RunUnavailable({
       ? null
       : // Le capteur n'a rien rendu : le texte dit « ressaie dehors » — le CTA
         // doit dire la même chose, sur appareil comme dans un navigateur.
-        reason === 'position-unavailable'
+        reason === 'position-unavailable' || reason === 'storage-unavailable'
         ? 'retry'
         : web
           ? 'retry'
@@ -203,8 +211,8 @@ function RunUnavailable({
       <View style={styles.blockedIcon}>
         <Icon name="gps" size={28} color={colors.gris} />
       </View>
-      <Text style={styles.blockedTitle}>{t(copy.noGpsTitle)}</Text>
-      <Text style={styles.blockedBody}>{t(body)}</Text>
+      <Text style={styles.blockedTitle}>{reason === 'storage-unavailable' ? (fr ? 'Ta sortie est conservée.' : 'Your outing is retained.') : t(copy.noGpsTitle)}</Text>
+      <Text style={styles.blockedBody}>{reason === 'storage-unavailable' ? (fr ? 'GRYD n’a pas pu finaliser sa sauvegarde. Libère un peu de stockage puis réessaie ; les enregistrements existants sont conservés.' : 'GRYD could not finish saving. Free some storage and retry; existing recordings are retained.') : t(body)}</Text>
 
       <View style={[styles.blockedActions, { paddingBottom: insets.bottom + spacing.lg }]}>
         {action === null ? null : (

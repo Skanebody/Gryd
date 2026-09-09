@@ -190,7 +190,7 @@ export function yearlyIsCheaper(offers: readonly PremiumOffer[]): boolean {
   if (!yearly || !monthly) return false;
   if (yearly.priceAmount === null || monthly.priceAmount === null) return false;
   // Devises différentes = comparaison impossible (aucun taux de change ici).
-  if (yearly.currencyCode !== monthly.currencyCode) return false;
+  if (!yearly.currencyCode || yearly.currencyCode !== monthly.currencyCode) return false;
   return yearly.priceAmount / 12 < monthly.priceAmount;
 }
 
@@ -218,4 +218,9 @@ export function yearlySavingsPercent(offers: readonly PremiumOffer[]): number | 
   if (!yearly?.priceAmount || !monthly?.priceAmount) return null;
   const pct = Math.floor((1 - yearly.priceAmount / (monthly.priceAmount * 12)) * 100);
   return pct > 0 ? pct : null;
+}
+
+/** September 2026: retain legacy lifetime rights, never offer a new lifetime sale. */
+export function readSubscriptionOffers2026(offering: OfferingLike | null | undefined): PremiumOffer[] {
+  return readOffers(offering).filter(offer => offer.period !== 'lifetime');
 }

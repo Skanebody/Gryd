@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   colors,
-  elevation,
+  fonts,
   gameColors,
   radii,
   sizes,
@@ -28,6 +28,7 @@ import {
   type IconName,
 } from '@klaim/shared';
 import { Icon } from './Icon';
+import { TranslucentBackdrop2026 } from './gryd/TranslucentBackdrop2026';
 import { usePressScale } from './game/anim';
 import { haptics } from '../lib/haptics';
 import { EVENTS, track } from '../lib/analytics';
@@ -88,6 +89,8 @@ export function Button({
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityState={{ disabled: blocked, busy: loading }}
+        aria-disabled={blocked}
+        aria-busy={loading}
         disabled={blocked}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -107,8 +110,9 @@ export function Button({
           blocked && styles.blocked,
         ]}
       >
+        {variant !== 'primary' ? <TranslucentBackdrop2026 tone="dark" radius={radii.pill} /> : null}
         {loading ? (
-          <ActivityIndicator size="small" color={fg} />
+          <ActivityIndicator size="small" color={fg} style={styles.foreground} />
         ) : icon ? (
           <View style={styles.leading}>
             <Icon name={icon} size={20} color={fg} />
@@ -116,11 +120,8 @@ export function Button({
         ) : null}
         {/* §A « textes jamais coupés » : le libellé rétrécit pour tenir (jamais
             l'ellipse « … »), comme le CTA héros. */}
-        {/* Casse : le CTA PRIMAIRE (chartreuse) est en CAPITALES sur les planches
-            (CONTINUER · DÉFENDRE · PARTAGER LA STORY). Les autres variantes gardent
-            leur casse (boutons d'auth « Continuer avec Apple », liens ghost). */}
         <Text
-          style={[typography.button, variant === 'primary' && styles.primaryLabel, { color: fg }]}
+          style={[typography.button, styles.label, { color: fg }]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.8}
@@ -148,16 +149,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.chartreuse,
   },
-  // Casse en CAPITALES du seul CTA primaire (planches). Léger interlettrage pour
-  // que les capitales respirent, comme les kickers.
-  primaryLabel: { textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { position: 'relative', zIndex: 1, fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, letterSpacing: 0, textTransform: 'none' },
+  foreground: { position: 'relative', zIndex: 1 },
   base: {
+    position: 'relative',
     alignSelf: 'stretch',
     minHeight: sizes.touchTarget,
-    // Rayon du bouton = « bouton primaire 18 » (cahier §5.6, `radii.btn`) : un
-    // rectangle arrondi, PAS un stadium `radii.pill` (999) — c'est la forme des
-    // CTA sur les planches. `pill` reste pour les pastilles/chips, pas les CTA.
-    borderRadius: radii.btn,
+    // Rounded control shared with the September 2026 interface.
+    borderRadius: radii.pill,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -165,8 +164,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   primary: { backgroundColor: gameColors.crew }, // = colors.chartreuse
-  ghost: { borderWidth: 1, borderColor: colors.grisLigne },
-  raised: { backgroundColor: elevation.raised },
+  ghost: { overflow: 'hidden', backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.grisLigne },
+  raised: { overflow: 'hidden', backgroundColor: 'transparent' },
   blocked: { opacity: 0.5 },
-  leading: { alignItems: 'center', justifyContent: 'center' },
+  leading: { position: 'relative', zIndex: 1, alignItems: 'center', justifyContent: 'center' },
 });

@@ -3,6 +3,11 @@
 Jeu de conquête de territoire par la course à pied. Nom public : **GRYD** (« Cours. Capture. Défends. » — le jeu de conquête de territoire pour run clubs). **Clearance INPI à faire avant usage public.** France entière capturable, Saison 0 focalisée Paris + Lille.
 
 ## Autorité documentaire (ordre strict)
+- **Dernière matière globale du 9 septembre** : uniquement des surfaces translucides uniformes ; aucun effet de verre liquide, flou d'arrière-plan ou reflet spéculaire sur les contrôles dans toute l'application. Cette demande remplace les effets de verre antérieurs sur tous les écrans. Audit : `docs/design/GRYD_TRANSLUCIDE_GLOBAL_2026_09.md`.
+- **Dernière disposition carte du 9 septembre** : départ Courir/Rouler intégré au menu bas à trois destinations, Course/Vélo empilés en haut à droite et outils regroupés en bas à droite. Analyse des sept captures et critères de recette : `docs/design/GRYD_MAP_POUCE_2026_09.md`.
+- **Précisions carte et communauté du 9 septembre** : les territoires adverses adjacents peuvent avoir des nuances grises par propriétaire ; limites et affiliations crew restent explicites, sans inventer de copropriété. Voir `docs/product/GRYD_MAP_OWNERSHIP_2026_09.md`. Onboarding, contributions volontaires et conversation : `docs/product/GRYD_COMMUNAUTE_ONBOARDING_RECETTE_2026_09.md` et benchmark associé. Ces demandes remplacent les interdictions antérieures de nuance par identité ; la palette noir/blanc/gris/chartreuse reste active.
+- **Direction visuelle du 9 septembre, demande la plus récente** : noir, blanc, gris neutres et chartreuse uniquement ; iconographie et récompenses originales GRYD. Cette consigne remplace les teintes beige/forêt du §10.2 du cahier de septembre. Références et traduction produit : `docs/product/GRYD_DIRECTION_VISUELLE_2026.md`.
+0. **Refonte septembre 2026 demandée le 9 septembre** : `docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md` remplace les décisions contradictoires ci-dessous. Trois destinations Carte · Crew · Profil ; Course/Vélo ; vraie boucle polygonale autoritaire ; aucune monnaie, protection achetable ou contestation différée ; XP permanents par journées actives ; tokens §10.2. Les documents antérieurs restent des archives et des références techniques seulement lorsqu'ils ne contredisent pas ce cahier. L'état réalisé et les validations restantes sont consignés dans `docs/product/REFONTE_2026_RECETTE.md`.
 1. `docs/product/GRYD_MASTER_SPEC.md` + les 17 autres `docs/product/GRYD_*.md` — source de vérité produit.
 2. `AMENDEMENT-02-GRYD.md` — réconciliation GRYD ↔ SPEC v0.1 : deltas actifs (France entière, secteurs, `partial`, 5 onglets, pionnier par densité…) et arbitrages A1-A4.
 3. `SPEC-MVP-territoire-running-v0.md` — règles de jeu gelées §3, architecture, périmètre (là où l'amendement ne dit rien).
@@ -27,7 +32,7 @@ scripts/         sync-game-rules.mjs (copie shared → functions/_shared, drift 
 - Pas de lib hors stack imposée sans justification en une ligne.
 - RLS activé sur toutes les tables ; écriture client interdite sur `runs`/`hex_claims` (service-role via Edge Functions).
 - Jamais de texte/icône chartreuse sur fond clair (contraste 1,2:1).
-- **Épuration (voir `GRYD_REGLES_NON_NEGOCIABLES.md`)** : 1 écran = 1 décision + 1 CTA chartreuse max ; jamais de card dans card ; aucun texte d'action coupé par « … » ; filtres cachés derrière Couches ; détails au tap (jamais imposés) ; comprendre l'écran en < 3 s. Carte = couleurs par RÔLE (chartreuse=moi, orange=rival, violet=contesté), jamais une couleur par crew ; jamais tous les runners — agrégation par zoom.
+- **Épuration (voir `GRYD_REGLES_NON_NEGOCIABLES.md`)** : 1 écran = 1 décision + 1 CTA chartreuse max ; jamais de card dans card ; aucun texte d'action coupé par « … » ; filtres cachés derrière Couches ; détails au tap (jamais imposés) ; comprendre l'écran en < 3 s. Carte actuelle : chartreuse pour moi, nuances grises séparées par propriétaire adverse, affiliation crew visible par contour ; les anciens orange/violet sont remplacés. Jamais tous les runners — agrégation par zoom.
 
 ## Commandes
 - Tests edge functions : `~/.deno/bin/deno test --allow-read supabase/functions/`

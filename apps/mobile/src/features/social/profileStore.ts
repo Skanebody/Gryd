@@ -1,21 +1,13 @@
 /**
- * GRYD — profil éditable PERSISTÉ (AMENDEMENT-07 §8, retour fondateur : « pas
- * trouvé les boutons pour modifier le profil »). La base est NEUTRE (aucune
- * identité pré-remplie) ; on superpose les CHAMPS ÉDITÉS par le joueur (nom
- * affiché, @handle, titre, ville, bio, avatar, 3 badges affichés).
- *
- * Persistance locale (AsyncStorage, même pattern que src/features/crew/chatStore.ts)
- * tant que `user_profiles` n'est pas branché (TODO O1 : PATCH rôle-gated). La
- * Player Card lit le profil FUSIONNÉ via `useMyProfile()` → toute édition se
- * reflète immédiatement au retour sur l'onglet Profil. Zéro nombre magique de
- * jeu : le niveau/tier/rang restent DÉRIVÉS côté écran (features/crew/rules).
- *
- * STORE EXTERNE PARTAGÉ (useSyncExternalStore, natif React — pas de dépendance
- * hors stack) : les overrides vivent au niveau MODULE, un seul état pour tous les
- * abonnés. Ainsi /profil-edit qui appelle `save()` notifie l'onglet /profil resté
- * monté sous la stack → l'édition se reflète SANS remount (retour fondateur).
+ * GRYD 2026 — authenticated identity read and saved through owner-scoped RPCs.
+ * Local v1 data stays on disk and is never silently adopted or uploaded.
+ * Private avatar URLs are short-lived; all asynchronous results are bound to
+ * the current account epoch. Guest data uses its own separate storage key.
  */
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { socialRpc2026, uploadSocialImage2026 } from './social2026Data';
+import { supabase } from '../../lib/supabase';
+import { resultOwnerEpoch2026, isResultOwnerCurrent2026, subscribeResultOwner2026 } from '../run/resultOwner2026';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
 import { colors, HANDLE_REGEX } from '@klaim/shared';
@@ -51,6 +43,8 @@ function sessionIdentity(session: Session | null): { displayName: string; handle
 
 /** Champs du profil que le joueur peut éditer (le reste est dérivé/serveur). */
 export interface EditableProfile {
+  avatarPath?: string | null;
+  visibility?: 'private' | 'friends' | 'crew' | 'public';
   /** Nom affiché (identité visible partout). */
   displayName: string;
   /** @handle unique — regex ^[a-z0-9_]{3,20}$ (AMENDEMENT-07, base 0011). */
@@ -156,7 +150,8 @@ export const BIO_MAX = 90;
  */
 export type ProfileOverrides = Partial<EditableProfile>;
 
-const STORAGE_KEY = 'gryd.social.profile.v1';
+// The unscoped v1 store is deliberately retained on disk, never adopted.
+const STORAGE_PREFIX = 'gryd.social.profile.v2026.';
 
 /** Profil FUSIONNÉ : base + champs dérivés + overrides du joueur. */
 export interface MergedProfile extends EditableProfile {
@@ -270,118 +265,60 @@ function hydrate(raw: string | null): ProfileOverrides {
   }
 }
 
-async function readOverrides(): Promise<ProfileOverrides> {
-  try {
-    return hydrate(await AsyncStorage.getItem(STORAGE_KEY));
-  } catch {
-    return {};
-  }
-}
-
-async function writeOverrides(o: ProfileOverrides): Promise<void> {
-  try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(o));
-  } catch {
-    // Best effort : un stockage indisponible (web privé) ne casse rien.
-  }
-}
-
+type ProfileRead = { owner: string; epoch:number; profile: ProfileOverrides; status: 'ready'|'failed' };
 export interface ProfileStore {
-  /** Profil fusionné (base + overrides) — prêt à afficher. */
   profile: MergedProfile;
-  /** Valeurs éditables courantes (pour préremplir un formulaire d'édition). */
   editable: EditableProfile;
-  /** True tant que la lecture initiale n'a pas résolu (défauts affichés). */
   loading: boolean;
-  /** Applique un patch d'édition + persiste + notifie tous les abonnés. */
+  failed: boolean;
   save: (patch: ProfileOverrides) => Promise<void>;
+  reload: () => void;
 }
-
-// ─── Store externe partagé (notifier + snapshot mémoïsé) ──────────────────────
-//
-// Overrides au niveau MODULE : un seul état pour /profil-edit et l'onglet /profil.
-// `save()` mute `overrides` puis emit() → tous les abonnés re-render (retour
-// fondateur : l'édition se reflète immédiatement, sans remount).
-
-let overrides: ProfileOverrides = {};
-let loaded = false;
-let loadPromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
-
-/** Snapshot stable : nouvelle ref UNIQUEMENT quand `overrides` change (getSnapshot pur). */
-let snapshot: ProfileOverrides = overrides;
-
-function emit(): void {
-  snapshot = { ...overrides };
-  for (const l of listeners) l();
+function notifyProfile(){ for(const callback of listeners)callback(); }
+// Compatibility entry point: callers must name the owner. There is no global
+// profile mutation capable of writing another account's displayed identity.
+export async function saveProfile(patch: ProfileOverrides, owner?: string): Promise<void> {
+  if(!owner)throw new Error('authentication_required');
+  const epoch=resultOwnerEpoch2026();if(!isResultOwnerCurrent2026(owner,epoch))throw new Error('session_changed');
+  let avatarPath=patch.avatarPath??null;
+  if(patch.avatarUri && !patch.avatarUri.startsWith('https://')) avatarPath=await uploadSocialImage2026(owner,patch.avatarUri,'avatar',epoch);
+  const result=await socialRpc2026<{ownerId:string;profile:ProfileOverrides|null}>(owner,'save_my_social_profile_2026',{p_profile:{...patch,avatarPath}},epoch);
+  if(result.ownerId!==owner)throw new Error('session_changed');
+  await AsyncStorage.setItem(STORAGE_PREFIX+owner,JSON.stringify(result.profile??{}));
+  if(!isResultOwnerCurrent2026(owner,epoch))throw new Error('session_changed');notifyProfile();
 }
-
-/** Lecture lazy et unique des overrides persistés (déclenchée au 1ᵉʳ montage). */
-function ensureLoaded(): Promise<void> {
-  if (!loadPromise) {
-    loadPromise = readOverrides()
-      .then((o) => {
-        overrides = o;
-        loaded = true;
-        emit();
-      })
-      .catch(() => {
-        loaded = true;
-      });
-  }
-  return loadPromise;
+export async function resetProfile():Promise<void>{
+  // Only the device guest profile can be reset without a named account.
+  await AsyncStorage.removeItem(STORAGE_PREFIX+'guest');notifyProfile();
 }
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  void ensureLoaded();
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function getSnapshot(): ProfileOverrides {
-  return snapshot;
-}
-
-/** Applique un patch d'édition, persiste et notifie tous les abonnés. */
-export async function saveProfile(patch: ProfileOverrides): Promise<void> {
-  overrides = { ...overrides, ...patch };
-  emit();
-  await writeOverrides(overrides);
-}
-
-/** RAZ des overrides persistés (utilitaire démo / tests). */
-export async function resetProfile(): Promise<void> {
-  overrides = {};
-  emit();
-  await writeOverrides(overrides);
-}
-
-/**
- * Hook d'accès au profil éditable persisté (store externe partagé). Charge en
- * asynchrone (défauts affichés immédiatement → jamais de flash), persiste chaque
- * sauvegarde. Tous les écrans partagent le MÊME état : un `save()` depuis
- * /profil-edit re-render l'onglet /profil monté (useSyncExternalStore natif).
- */
 export function useMyProfile(): ProfileStore {
-  const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const { session } = useSession();
-  const save = useCallback(saveProfile, []);
-  const merged = mergeProfile(current);
-  // La base d'identité est VIDE : on ne laisse jamais un nom ou un @handle blanc
-  // à l'écran. On dérive de la session quand elle existe (nom du compte / préfixe
-  // e-mail), sinon un neutre traduit (« Joueur »/@joueur) — jamais un persona.
-  const id = sessionIdentity(session);
-  const profile = {
-    ...merged,
-    ...(current.displayName ? {} : { displayName: id.displayName }),
-    ...(current.handle ? {} : { handle: id.handle }),
-  };
-  return {
-    profile,
-    editable: { ...defaultEditable(), ...current },
-    loading: !loaded,
-    save,
-  };
+  const {session,loading:restoring}=useSession();const owner=session?.user.id??'guest';const epoch=useSyncExternalStore(subscribeResultOwner2026,resultOwnerEpoch2026,resultOwnerEpoch2026);
+  const current=useRef(owner);current.current=owner;
+  const [read,setRead]=useState<ProfileRead|null>(null);const [tick,setTick]=useState(0);
+  const reload=useCallback(()=>setTick(n=>n+1),[]);
+  useEffect(()=>{listeners.add(reload);return()=>{listeners.delete(reload)}},[reload]);
+  useEffect(()=>{
+    if(restoring)return;let cancelled=false;
+    const load=async()=>{
+      let profile:ProfileOverrides={};
+      if(owner==='guest')profile=hydrate(await AsyncStorage.getItem(STORAGE_PREFIX+'guest'));
+      else {
+        const result=await socialRpc2026<{ownerId:string;profile:ProfileOverrides|null}>(owner,'my_social_profile_2026');
+        if(result.ownerId!==owner)throw new Error('session_changed');profile=result.profile??{};
+        // Private media is signed only for the authenticated reader, never a public URL.
+        if(profile.avatarPath && supabase){const image=await supabase.storage.from('social-2026').createSignedUrl(profile.avatarPath,120);profile={...profile,avatarUri:image.error?'':image.data.signedUrl};}
+      }
+      if(!cancelled&&current.current===owner&&isResultOwnerCurrent2026(owner==='guest'?null:owner,epoch))setRead({owner,epoch,profile,status:'ready'});
+    };
+    void load().catch(()=>{if(!cancelled&&current.current===owner&&isResultOwnerCurrent2026(owner==='guest'?null:owner,epoch))setRead({owner,epoch,profile:{},status:'failed'});});
+    const timer=setInterval(reload,90000);return()=>{cancelled=true;clearInterval(timer)};
+  },[owner,epoch,restoring,tick,reload]);
+  const own=!restoring&&read?.owner===owner&&read?.epoch===epoch?read:null;
+  const edited=own?.profile??{};const identity=sessionIdentity(session);
+  const save=useCallback(async(patch:ProfileOverrides)=>{
+    if(current.current!==owner||owner==='guest')throw new Error('authentication_required');
+    await saveProfile(patch,owner);
+  },[owner]);
+  return {profile:mergeProfile({...edited,displayName:edited.displayName||identity.displayName,handle:edited.handle||identity.handle}),editable:{...defaultEditable(),...edited},loading:!own,failed:own?.status==='failed',save,reload};
 }

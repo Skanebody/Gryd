@@ -3,3 +3,21 @@
 project_id = "klaim"
 
 [functions]
+
+# RevenueCat authenticates this endpoint with RC_WEBHOOK_SECRET, not a Supabase JWT.
+[functions.rc_webhook]
+verify_jwt = false
+
+[functions.sync_gryd_plus_access_2026]
+verify_jwt = true
+
+# OTP E-MAIL LOCAL, PRÊT MAIS VOLONTAIREMENT INACTIF.
+# Activer les deux lignes ci-dessous ET EXPO_PUBLIC_EMAIL_AUTH_MODE=code dans le
+# client au même déploiement. Sinon l'interface et l'e-mail décriraient deux
+# actions différentes. Le dashboard du projet hébergé reste inchangé.
+# [auth.email.template.magic_link]
+# subject = "{{ .Token }} — ton code GRYD"
+# content_path = "./supabase/templates/magic_link_otp.html"
+# [auth.email.template.confirmation]
+# subject = "{{ .Token }} — confirme ton compte GRYD"
+# content_path = "./supabase/templates/magic_link_otp.html"

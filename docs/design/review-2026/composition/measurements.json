@@ -1,0 +1,49 @@
+[
+  {
+    "cards": [
+      {
+        "label": "Première affiche · Aperçu",
+        "width": 133.94554138183594,
+        "x": 19.997257232666016,
+        "y": 245.9840850830078
+      },
+      {
+        "label": "Cadre de saison · Aperçu",
+        "width": 133.94554138183594,
+        "x": 165.9402313232422,
+        "y": 245.9840850830078
+      },
+      {
+        "label": "Emblème personnel · Aperçu",
+        "width": 147.94407653808594,
+        "x": 19.997257232666016,
+        "y": 493.9784240722656
+      }
+    ],
+    "height": 639,
+    "overflow": false,
+    "route": "/arsenal",
+    "width": 320
+  },
+  {
+    "height": 639,
+    "overflow": false,
+    "route": "/performance",
+    "selected": [
+      "Vélo",
+      "28 jours"
+    ],
+    "width": 320
+  },
+  {
+    "height": 844,
+    "overflow": false,
+    "route": "/crew",
+    "selected": [
+      "Vélo",
+      "Course",
+      "Crew"
+    ],
+    "width": 390
+  }
+]

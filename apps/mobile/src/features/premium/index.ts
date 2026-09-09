@@ -45,3 +45,4 @@ export {
   recentPurchases,
 } from './purchaseHistory';
 export type { PurchaseRecord } from './purchaseHistory';
+export { useGrydPlusAccess, refreshServerGrydPlusAccess } from './useGrydPlusAccess';

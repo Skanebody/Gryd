@@ -37,6 +37,7 @@ for (const f of ['badges.ts', 'game-rules.ts', 'types.ts', 'sectorName.ts', 'cit
 const transformSharedDataLine = (line) =>
   line
     .replace(/(['"])\.\/game-rules\1/g, '$1./game-rules.ts$1')
+    .replace(/(['"])\.\/calendar2026\1/g, '$1./calendar2026.ts$1')
     .replace(/(['"])\.\/types\1/g, '$1./types.ts$1');
 
 // Même traitement pour streak.ts (LOT 1 « LA SÉRIE VISIBLE ») : moteur PUR de la
@@ -46,7 +47,7 @@ const transformSharedDataLine = (line) =>
 // `cities.ts` (moteur PUR du référentiel : recherche + disque d'aire de jeu)
 // suit le même chemin — il importe des VALEURS de game-rules (rayon du disque,
 // plafond de recherche), donc ses imports doivent être .ts-ifiés.
-const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts', 'season.ts', 'cities.ts'];
+const SHARED_DATA_FILES = ['bonuses.ts', 'streak.ts', 'habits.ts', 'season.ts', 'cities.ts', 'calendar2026.ts', 'progression2026.ts', 'challenges2026.ts'];
 for (const f of SHARED_DATA_FILES) {
   const source = readFileSync(join(root, 'packages', 'shared', 'src', f), 'utf8');
   const out = source.split('\n').map(transformSharedDataLine).join('\n');

@@ -101,11 +101,13 @@ Deno.test('_layout.tsx déclare toujours classement ET warroom comme routes du g
   assert(src.includes('name="warroom"'), 'la route Missions ne doit pas disparaître du groupe tabs');
 });
 
-Deno.test('le Profil porte un chemin nommé vers Saison (/classement)', async () => {
-  const src = await code('../../../app/(tabs)/profil.tsx');
+Deno.test('2026 : le Profil porte un chemin nommé vers sa collection', async () => {
+  const route = await code('../../../app/(tabs)/profil.tsx');
+  assert(route.includes('ProfileHomeScreen'), 'la route doit monter le nouveau Profil');
+  const src = await code('../refonte/ProfileHomeScreen.tsx');
   assert(
-    src.includes("href: '/classement'"),
-    'Saison doit rester atteignable depuis le Profil (arbitrage A2)',
+    src.includes("router.push('/season')"),
+    'la collection doit rester atteignable depuis le Profil (§10 du cahier 2026)',
   );
 });
 

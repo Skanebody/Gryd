@@ -163,11 +163,11 @@ Deno.test('style — AUCUNE couleur hors tokens @klaim/shared', () => {
   }
 });
 
-Deno.test('style — le fond n’emprunte JAMAIS le vocabulaire de couleur du jeu', () => {
-  // RÈGLES §C : chartreuse = moi, orange = rival, violet = contesté. Un décor qui
-  // reprend ces teintes (même diluées) fait dire au fond quelque chose sur la
-  // possession — la faute exacte que ce lot vient corriger.
-  const forbidden = [colors.chartreuse, gameColors.rival, gameColors.contested];
+Deno.test('style — le fond neutre n’emprunte jamais la chartreuse de possession', () => {
+  // La direction de septembre est monochrome. Les rôles adverses utilisent
+  // désormais aussi des neutres ; seule la chartreuse doit rester absente du
+  // décor. Les tests suivants gardent les couches de jeu dans leur namespace.
+  const forbidden = [colors.chartreuse];
   const serialized = grydNightStyleJson();
   for (const hex of forbidden) {
     const rgb = hex.slice(1);

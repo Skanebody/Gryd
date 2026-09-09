@@ -32,7 +32,7 @@
  * `activity` porte la DISCIPLINE — c'est la clé dont l'oubli a coûté un
  * chantier entier. Elle est en tête pour qu'on la voie.
  */
-export const FINISH_PARAM_KEYS = ['activity', 'mode', 'dist', 'dur', 'queued'] as const;
+export const FINISH_PARAM_KEYS = ['activity', 'mode', 'dist', 'dur', 'queued', 'localId'] as const;
 export type FinishParamKey = (typeof FINISH_PARAM_KEYS)[number];
 
 /**

@@ -1,9 +1,102 @@
 /**
- * GRYD — Règles du jeu v0 (SPEC §3 + AMENDEMENT-02, gelées pour la Saison 0).
+ * GRYD — constantes partagées. Les règles actives de la refonte septembre 2026
+ * sont les exports suffixés `_2026` ci-dessous. Les anciennes constantes restent
+ * disponibles pour lire les activités historiques et migrer leurs consommateurs ;
+ * elles ne doivent pas être combinées avec le nouveau calcul de possession.
  * SOURCE DE VÉRITÉ UNIQUE des constantes de jeu. Aucun nombre magique ailleurs.
  * La copie supabase/functions/_shared/game-rules.ts est GÉNÉRÉE par
  * scripts/sync-game-rules.mjs — ne jamais l'éditer à la main.
  */
+
+// ─── Refonte intégrale septembre 2026, cahier §§5–7,14,16 ───────────────────
+export const RULESET_VERSION_2026 = '2026.1' as const;
+export const TERRITORY_RULES_2026 = {
+  run: { closureMaxGapM: 25, minLoopDistanceM: 800, minAreaM2: 5_000 },
+  bike: { closureMaxGapM: 40, minLoopDistanceM: 2_000, minAreaM2: 20_000 },
+  endpointMaxAccuracyM: 15,
+  captureReceiptMaxAgeHours: 24,
+  publicationDelayMinutes: 30,
+  // Paramètre opérationnel bêta : une rupture temporelle coupe la frontière.
+  // Ce seuil ne remplace jamais les pauses et ruptures explicites du recorder.
+  maxContinuousGapSeconds: 30,
+} as const;
+
+export const PROGRESSION_RULES_2026 = {
+  minimumMovementSecondsPerDay: 10 * 60,
+  xpPerActiveDay: 100,
+  maximumCreditedDaysPerWeek: 3,
+  importMaxAgeDays: 7,
+  levelLinearXp: 100,
+  levelQuadraticXp: 10,
+  seasonWeeks: 6,
+  seasonTierCount: 12,
+  seasonXpPerTier: 100,
+  premiumVariantTiers: [2, 4, 6, 8, 10, 12],
+} as const;
+
+export const CHALLENGE_RULES_2026 = {
+  playersPerTeam: 5,
+  teamCount: 2,
+  durationDays: 7,
+  sectorCount: 3,
+  maximumContributiveDaysPerPlayer: 2,
+  pointsPerDay: 3,
+  maximumPointsPerPlayer: 6,
+  maximumPointsPerTeam: 30,
+  minimumTraceInsideSectorM: { run: 400, bike: 1_000 },
+  finalSyncWindowHours: 24,
+  comparativePublicationLocalHour: 12,
+  sectorWinMatchPoints: 1,
+  sectorTieMatchPoints: 0.5,
+} as const;
+
+export const NOTIFICATION_RULES_2026 = {
+  maximumNonTransactionalPerWeek: 3,
+  maximumNonTransactionalPerDay: 1,
+  maximumOffersPerMonth: 2,
+  quietHoursStart: 21,
+  quietHoursEnd: 9,
+  promotionalConsentDefault: false,
+  immediateTerritoryLossPush: false,
+} as const;
+
+/** Hypothèses France TTC ; le prix affiché et facturé vient toujours du Store. */
+export const COMMERCIAL_PROPOSAL_2026 = {
+  subscriptionName: 'GRYD+',
+  monthlyEurCents: 599,
+  annualEurCents: 4_999,
+  permanentCollectionEurCents: { contour: 199, relief: 399, clubhouse: 799 },
+  virtualCurrency: false,
+  paidCaptureMultiplier: 1,
+  paidXpMultiplier: 1,
+  paidChallengeMultiplier: 1,
+} as const;
+
+export const LEVEL_REWARDS_2026 = [
+  { level: 2, id: 'first_trace', label: 'Première trace' },
+  { level: 3, id: 'line_frame', label: 'Cadre Ligne' },
+  { level: 5, id: 'chalk', label: 'Palette Craie' },
+  { level: 10, id: 'atlas', label: 'Collection Atlas' },
+  { level: 15, id: 'contour_animation', label: 'Animation Contour' },
+  { level: 20, id: 'ridge_merit', label: 'Ligne de crête' },
+  { level: 30, id: 'cartographer', label: 'Cartographe' },
+  { level: 50, id: 'horizon', label: 'Ensemble Horizon' },
+] as const;
+
+export const SEASON_REWARDS_2026 = [
+  { tier: 1, id: 'season_poster', label: 'Première affiche' },
+  { tier: 2, id: 'participation_badge', label: 'Badge de participation' },
+  { tier: 3, id: 'trace_pattern', label: 'Motif de trace' },
+  { tier: 4, id: 'profile_frame', label: 'Cadre de saison' },
+  { tier: 5, id: 'sticker', label: 'Sticker' },
+  { tier: 6, id: 'title', label: 'Titre de saison' },
+  { tier: 7, id: 'photo_composition', label: 'Composition photo ou typographique' },
+  { tier: 8, id: 'personal_emblem', label: 'Emblème personnel' },
+  { tier: 9, id: 'short_animation', label: 'Animation courte' },
+  { tier: 10, id: 'recap', label: 'Récap personnel ou collectif' },
+  { tier: 11, id: 'final_poster', label: 'Affiche de fin' },
+  { tier: 12, id: 'season_memory', label: 'Souvenir complet' },
+] as const;
 
 // ─── §3.1 Grille de territoire ───────────────────────────────────────────────
 export const H3_RESOLUTION = 10;

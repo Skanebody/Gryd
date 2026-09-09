@@ -223,26 +223,18 @@ Deno.test('le ROSTER de crew masque les membres bloqués, ligne par ligne', asyn
   assert(wiring.includes('rows={rosterRows}'), 'les groupes doivent lire les lignes MASQUÉES');
 });
 
-Deno.test('le CLASSEMENT masque le pseudo bloqué dans la LISTE **et** sur le PODIUM', async () => {
-  const podium = await windowOf(BOARD_SCREEN, 'function Podium(', 'function BoardRow(');
-  assert(
-    podium.includes('displayedPseudo(') && podium.includes('blockedPlayerRow'),
-    'le podium affiche des pseudos : il doit masquer les bloqués (B3)',
-  );
-  assert(!podium.includes('{row.name}'), 'le podium ne doit plus rendre le pseudo brut');
-  const row = await windowOf(BOARD_SCREEN, 'function BoardRow(', 'function BoardEmpty(');
-  assert(
-    row.includes('displayedPseudo(') && row.includes('blockedPlayerRow'),
-    'la ligne de classement doit masquer les bloqués (B3)',
-  );
-  assert(!row.includes('{row.name}'), 'la ligne ne doit plus rendre le pseudo brut');
+Deno.test('2026 : l’ancienne route classement ne publie plus de podium universel', async () => {
+  // Le cahier 2026 retire explicitement le classement universel aux km².
+  // Cette route de compatibilité ne rend donc plus aucune identité à masquer.
+  const src = await sourceOf(BOARD_SCREEN);
+  assert(src.includes('<Redirect href="/season"'), 'les anciens liens ouvrent la collection');
+  assert(!src.includes('useSeasonLeaderboard('), 'aucun classement universel ne doit être réactivé');
+  assert(!src.includes('Podium') && !src.includes('BoardRow'), 'aucune identité ne doit être rendue ici');
 });
 
-Deno.test('les DEUX surfaces portent l’affordance de signalement, sur la LIGNE (B4)', async () => {
+Deno.test('les lignes du roster conservent l’affordance de signalement (B4)', async () => {
   const windows: readonly (readonly [string, string, string])[] = [
     [ROSTER_ROWS, 'members.map(', 'const styles ='],
-    [BOARD_SCREEN, 'function BoardRow(', 'function BoardEmpty('],
-    [BOARD_SCREEN, 'function Podium(', 'function BoardRow('],
   ];
   for (const [path, start, end] of windows) {
     const w = await windowOf(path, start, end);
@@ -256,7 +248,7 @@ Deno.test('les DEUX surfaces portent l’affordance de signalement, sur la LIGNE
     );
   }
   // La feuille est montée UNE fois par écran (jamais une par ligne).
-  for (const path of [ROSTER, BOARD_SCREEN]) {
+  for (const path of [ROSTER]) {
     const src = await sourceOf(path);
     assertEquals(
       src.split('<PlayerModerationSheet').length - 1,

@@ -278,7 +278,6 @@
   padding: 12px 18px;
   font-size: 13px;
   color: var(--blanc);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
   animation: toastIn 220ms ease-out;
 }
 

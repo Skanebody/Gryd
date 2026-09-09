@@ -1,23 +1,9 @@
 /**
- * GRYD — carte du ROUTE PLANNER (AMENDEMENT-10 §2, AMENDEMENT-11 §3 ;
- * AMENDEMENT-16 §0 : VRAIES TUILES + ZÉRO HALO). La carte est un RealMap
- * (maplibre — même carte réelle que la Battle Map et la Course Live), la
- * basemap procédurale a disparu : les vraies rues portent le décor.
- * HIÉRARCHIE ABSOLUE (doc territoires §9/§10) — « la route écrase tout » :
- *   1. ROUTE ÉPAISSE chartreuse (liseré sombre, flèches de direction,
- *      départ/arrivée) — polyligne ROUTÉE rue par rue (demo.ts) en source
- *      GeoJSON réelle ;
- *   2. position actuelle (point « moi » — halo type Uber, seul halo conservé) ;
- *   3. vraies tuiles (rues/parcs/eau réels) ;
- *   4. zones capturables : RUBAN NET (~2 zones de large) le long du tracé
- *      (allTerritories.ribbonRing — remplissage faible + trait fin, AUCUNE
- *      lueur, AUCUN hexagone) ;
- *   5. territoires en TRANSPARENCE (territoryStateLayers × MODE_EMPHASIS.route
- *      — MÊME builder que la Battle Map, une seule source, traits nets §4ter).
- * Le changement de route RECADRE la caméra (fitBounds de la polyligne — le
- * tap A/B/C recentre). Statique par ailleurs : lecture 1 seconde, plein
- * soleil. Offline : fallback RealMap (fond noir + message), jamais d'écran
- * blanc. UI pure — aucune règle de jeu.
+ * GRYD — aperçu du parcours proposé sur les vraies tuiles RealMap.
+ * La polyligne, ses flèches et les repères départ/arrivée/origine proviennent
+ * du parcours et de l'origine fournis. Aucune couche territoriale : cet
+ * aperçu ne représente pas une capture. Chaque nouvelle proposition recadre
+ * la caméra sur sa polyligne. UI pure — aucune règle de jeu.
  */
 import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -30,18 +16,11 @@ import {
   type RealMapMarker,
   type RealMapRef,
 } from '../../ui/game';
+import { territoryStyle as terr, withAlpha } from '../map/mapStyle';
 import {
-  territoryStateLayers,
-  territoryStyle as terr,
-  withAlpha,
-} from '../map/mapStyle';
-import {
-  EGO_REPUBLIQUE,
   REAL_M_PER_DEG_LAT,
   type LatLngPoint,
 } from '../map/realAnchors';
-import { MODE_EMPHASIS } from '../map/territory';
-import { useRealTerritories } from '../map/hexClaims';
 import { C } from '../../i18n/catalog/route';
 import { useT } from '../../i18n/store';
 import type { PlannedLoop } from './types';
@@ -161,34 +140,6 @@ export interface RoutePlannerMapProps {
 export function RoutePlannerMap({ route, origin }: RoutePlannerMapProps) {
   const mapRef = useRef<RealMapRef>(null);
   const t = useT();
-  /** Opacités du mode ROUTE : l'itinéraire domine, le reste en transparence. */
-  const emph = MODE_EMPHASIS.route;
-  /**
-   * FIN DU MODE VITRINE (21/07/2026) — cet écran peignait le faux Paris conquis.
-   * `territoryStateLayers(emph)` était appelé SANS son 4ᵉ argument : le défaut
-   * `real = null` déclenchait la branche démo, donc la boucle République, Lille et
-   * le couloir rival de Lyon s'affichaient en transparence sous l'itinéraire de
-   * n'importe quel joueur, où qu'il soit. Les autres cartes avaient déjà leur
-   * verrou `?? []` ; celle-ci était passée à travers. On lit désormais les VRAIES
-   * captures, et `?? []` (pas de session / lecture en vol) peint une carte vide.
-   *
-   * ─── LA LENTILLE, POSÉE LE 26/07/2026 ────────────────────────────────────
-   * C'était la DERNIÈRE lecture de territoires sans discipline du dépôt : le
-   * hook retombait sur `DEFAULT_ACTIVITY` (course). Un cycliste qui ouvrait le
-   * planificateur voyait donc une carte VIDE sous son itinéraire alors qu'il
-   * tenait des zones — la clé primaire de `hex_claims` étant composite depuis
-   * 0070, ses captures vivent dans l'autre monde. Tout le reste du chemin
-   * déclarait déjà sa discipline (`startTargets.ts`, `liveRouting.ts`) ; il ne
-   * manquait que ce fil.
-   *
-   * La discipline est prise sur `route.activity`, pas sur une préférence : ce
-   * champ est la discipline dans laquelle la boucle affichée a RÉELLEMENT été
-   * routée (profil `foot` / `bike`). Peindre les territoires d'un autre monde
-   * que celui du tracé serait la même faute, déplacée d'un cran.
-   */
-  const { territories } = useRealTerritories(undefined, route.activity);
-  const paintedTerritories = territories ?? [];
-
   /** Cadrage d'ouverture figé au montage (RealMap), puis fitBounds au tap. */
   const openBoundsRef = useRef<RealMapBounds>(routeBounds(route.line));
   const mountedRef = useRef(false);
@@ -201,17 +152,10 @@ export function RoutePlannerMap({ route, origin }: RoutePlannerMapProps) {
     mapRef.current?.fitBounds(routeBounds(route.line));
   }, [route.id, route.line]);
 
-  // ── Couches : territoires transparents → ruban capturable → LA ROUTE ──────
+  // ── Parcours proposé : liseré sombre et trait chartreuse ────────────────
   const layers = useMemo<RealMapGeoJSONLayer[]>(() => {
     const routeData = lineCollection(route.line);
     return [
-      // 5. Territoires en transparence — MÊME builder §4ter que la Battle Map
-      //    (traits nets, contesté double trait, decay pointillé — zéro glow).
-      ...territoryStateLayers(emph, 'dark', null, paintedTerritories),
-      // 1. LA ROUTE : liseré sombre + trait épais chartreuse (route-first).
-      //    AMENDEMENT-16 §0 (retour fondateur) : « juste le tracé » — plus de
-      //    ruban de capture rempli sous la route ; la route dominante EST le
-      //    tracé, elle se suffit.
       {
         id: 'planner-route-casing',
         data: routeData,
@@ -225,7 +169,7 @@ export function RoutePlannerMap({ route, origin }: RoutePlannerMapProps) {
         lineWidth: ROUTE_WIDTH,
       },
     ];
-  }, [route.line, emph, paintedTerritories]);
+  }, [route.line]);
 
   // ── Markers : flèches de direction, départ/arrivée, « moi » ───────────────
   const markers = useMemo<RealMapMarker[]>(() => {

@@ -1,0 +1,6 @@
+{
+  "name": "gryd-run-film",
+  "platforms": ["ios", "android"],
+  "ios": { "modules": ["GrydRunFilmModule"] },
+  "android": { "modules": ["expo.modules.grydrunfilm.GrydRunFilmModule"] }
+}

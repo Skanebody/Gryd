@@ -11,19 +11,23 @@
  * Carte), il n'affiche AUCUNE carte : un état vide qui dit la vérité. Il n'y a
  * plus de « mode exemple » — voir l'en-tête de app/partage.tsx.
  */
-import { DEFAULT_ACTIVITY } from '@klaim/shared';
+import { DEFAULT_ACTIVITY, type IngestRunResponse, type RunMode } from '@klaim/shared';
+import type { LatLngPoint } from '../map/realAnchors';
 import type { RunIntention } from '../run/intention';
-import type { LiveRunMode } from '../run/simulation';
 import type { NarrativeVerdict } from './narrative';
-import type { ShareDemoData } from './templates';
+import type { ShareDemoData } from './shareData';
 
 export interface ShareRunData {
+  /** Authoritative net areas; loop area alone is never an advertised gain. */
+  territory2026?: IngestRunResponse['territory2026'];
+  /** Genuine recorder continuity. The composer never joins these segments. */
+  traceSegments?: readonly (readonly LatLngPoint[])[];
   /** Valeurs projetées dans les cards — celles de l'écran Résultat. */
   card: ShareDemoData;
   /** Intention client (teinte le TITRE de l'écran — jamais l'histoire ni l'attribution). */
   intention: RunIntention | null;
   /** Mode de la course (social_run = stats seules, aucune capture à montrer). */
-  mode: LiveRunMode;
+  mode: Extract<RunMode, 'conquete' | 'social_run' | 'course_privee'>;
   /**
    * VERDICT SERVEUR de la course, tel que le Résultat l'a lu. C'est LUI qui
    * décide le récit (features/share/narrative.ts), pas l'intention du joueur.
@@ -39,16 +43,23 @@ export interface ShareRunData {
   verdict: NarrativeVerdict;
 }
 
-let current: ShareRunData | null = null;
-
-/** Arme les données de partage (appelé par le Résultat avant router.push). */
-export function setShareRun(data: ShareRunData | null): void {
-  current = data;
+import { createOwnedRunMemory2026, isResultOwnerCurrent2026, type RunOwnerScope2026 } from '../run/resultOwner2026';
+const memory = createOwnedRunMemory2026<ShareRunData>(true);
+let revision = 0;
+const listeners = new Set<() => void>();
+function changed() { revision++; listeners.forEach(listener => listener()); }
+export function shareRunRevision2026() { return revision; }
+export function subscribeShareRun2026(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
+/** Arming requires the verified result's frozen owner and actual recording identity. */
+export function setShareRun(data: ShareRunData | null, scope: RunOwnerScope2026): boolean {
+  if (!data) { memory.clear(); changed(); return true; }
+  if (!isResultOwnerCurrent2026(scope.ownerId) || !scope.clientRunId) return false;
+  memory.set(data, scope); changed(); return true;
 }
-
-/** Données de la course affichée, ou null (aucune course → exemple). */
-export function getShareRun(): ShareRunData | null {
-  return current;
+export function getShareRun(ownerId?: string | null): ShareRunData | null { return memory.get(ownerId); }
+/** Revalidate after every asynchronous preparation and immediately before external handoff. */
+export function isShareRunCurrent2026(run: ShareRunData, ownerId: string | null | undefined): boolean {
+  return isResultOwnerCurrent2026(ownerId) && memory.get(ownerId) === run;
 }
 
 /**

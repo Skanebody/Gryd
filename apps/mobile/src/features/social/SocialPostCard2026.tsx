@@ -1,0 +1,25 @@
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { fonts, refonteColors as c } from '@klaim/shared';
+import { GrydIcon } from '../../ui/gryd';
+import { useLocale } from '../../i18n/store';
+import { s, useRefonteCopy } from '../refonte/ProfilePrimitives';
+import { useSocialMedia2026 } from './social2026Data';
+import type { SocialPost2026, SocialPerson2026 } from './social2026Model';
+export function SocialAvatar2026({ person, size = 38 }: { person: SocialPerson2026; size?: number }) {
+ const url = useSocialMedia2026(person.avatarPath);
+ return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.darkSurfaceMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{url ? <Image source={{ uri: url }} style={{ width: size, height: size }} /> : <Text style={s.linkTitle}>{person.name?.slice(0, 1) ?? '·'}</Text>}</View>;
+}
+export function SocialPostCard2026({ post, onOpen, onReact, busy = false, tone = 'dark' }: { post: SocialPost2026; onOpen: () => void; onReact?: () => void; busy?: boolean; tone?: 'light' | 'dark' }) {
+ const copy = useRefonteCopy(); const locale = useLocale(); const media = useSocialMedia2026(post.mediaPath);
+ const ink = tone === 'light' ? c.ink : c.darkInk, muted = tone === 'light' ? c.muted : c.darkMuted;
+ const disabled = busy || !onReact;
+ return <View style={[styles.post, { borderColor: tone === 'light' ? c.border : c.darkSurfaceMuted }]}>
+  <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/member', params: { userId: post.author.id } })} style={styles.identity}><SocialAvatar2026 person={post.author} /><View style={s.flex}><Text style={[styles.name, { color: ink }]}>{post.author.name}</Text><Text style={[styles.meta, { color: muted }]}>{new Date(post.createdAt).toLocaleDateString(locale)} · {post.activity === 'run' ? copy('Course', 'Run') : copy('Vélo', 'Ride')}</Text></View><GrydIcon name="chevronRight" size={16} color={muted} /></Pressable>
+  {post.body ? <Text style={[styles.body, { color: ink }]}>{post.body}</Text> : null}
+  {media ? <Pressable accessibilityRole="button" accessibilityLabel={copy('Ouvrir la publication', 'Open post')} onPress={onOpen}><Image source={{ uri: media }} style={styles.media} resizeMode="cover" /></Pressable> : post.mediaPath ? <View style={[styles.photoLoading, { backgroundColor: tone === 'light' ? c.canvas : c.darkSurface }]}><Text style={[styles.meta, { color: muted }]}>{copy('Photo privée indisponible', 'Private photo unavailable')}</Text></View> : null}
+  <Pressable accessibilityRole="button" onPress={onOpen} style={styles.metrics}><GrydIcon name={post.activity} size={20} color={ink} /><Text style={[styles.distance, { color: ink }]}>{(post.distanceM / 1000).toLocaleString(locale, { maximumFractionDigits: 2 })} <Text style={[styles.meta, { color: muted }]}>km</Text></Text><Text style={[styles.meta, { color: ink }]}>{Math.round(post.durationS / 60)} min</Text></Pressable>
+  <View style={styles.footer}><Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={post.reacted ? copy('Retirer mon encouragement', 'Remove my cheer') : copy('Encourager cette sortie', 'Encourage this activity')} accessibilityState={{ selected: post.reacted, disabled, busy }} aria-pressed={post.reacted} aria-disabled={disabled} aria-busy={busy} onPress={onReact} style={styles.action}><View style={[styles.reactionCircle, { backgroundColor: post.reacted ? c.accent : tone === 'light' ? c.canvas : c.darkSurfaceMuted }]}><GrydIcon name={post.reacted ? 'check' : 'heart'} size={18} color={post.reacted ? c.ink : ink} /></View><Text style={[styles.meta, { color: muted }]}>{post.reactionCount} {copy('encouragements', 'cheers')}</Text></Pressable><Pressable accessibilityRole="button" onPress={onOpen} style={styles.action}><GrydIcon name="message" size={18} color={muted} /><Text style={[styles.meta, { color: muted }]}>{post.commentCount} {copy('commentaires', 'comments')}</Text></Pressable></View>
+ </View>;
+}
+const styles = StyleSheet.create({ post: { paddingVertical: 20, borderBottomWidth: StyleSheet.hairlineWidth }, identity: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, marginBottom: 12 }, name: { fontFamily: fonts.textMedium, fontSize: 14 }, meta: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19 }, body: { fontFamily: fonts.text, fontSize: 14, lineHeight: 21, marginBottom: 15 }, media: { width: '100%', height: 240, borderRadius: 20 }, photoLoading: { minHeight: 80, padding: 12, justifyContent: 'center' }, metrics: { minHeight: 62, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14 }, distance: { fontFamily: fonts.displayMedium, fontSize: 25 }, footer: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16 }, action: { flexDirection: 'row', gap: 7, alignItems: 'center', minHeight: 44 }, reactionCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' } });

@@ -7,6 +7,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { shouldAutoDetectAuth2026 } from '../features/account/authCallback2026';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -25,27 +26,10 @@ function makeSupabase(): SupabaseClient | null {
         storage: AsyncStorage,
         autoRefreshToken: true,
         persistSession: true,
-        /**
-         * NATIF : false — React Native n'a pas d'URL de callback, il n'y a rien
-         * à détecter (et le retour d'auth passe par un deep link, pas par un
-         * fragment).
-         *
-         * WEB : true (corrigé le 21/07/2026). Ça n'a AUCUN effet sur le chemin
-         * principal du navigateur, qui est l'OTP par CODE (`verifyOtp`, le code
-         * se tape dans l'onglet déjà ouvert — rien ne transite par l'URL). Deux
-         * raisons de l'activer quand même :
-         *  1. l'e-mail Supabase contient AUSSI un lien ; si le fondateur clique
-         *     le lien au lieu de recopier le code, il revient avec la session
-         *     dans le fragment `#access_token=…`. À false, ce retour était
-         *     silencieusement ignoré : il retombait sur /sign-in alors qu'il
-         *     venait de s'authentifier — exactement le genre de cul-de-sac muet
-         *     qu'on chasse (⚠️ suppose que l'URL de redirection est allowlistée
-         *     côté Supabase ; ce n'est pas le cas de localhost aujourd'hui) ;
-         *  2. c'est le préalable technique à un vrai `signInWithOAuth` web le
-         *     jour où O2 (identifiants Apple/Google) sera fermé — sans lui,
-         *     brancher OAuth donnerait une redirection qui n'aboutit jamais.
-         */
-        detectSessionInUrl: Platform.OS === 'web',
+        // /callback has one explicit exchange on every platform. Letting the
+        // SDK auto-consume that URL before the screen exchanges it would reuse
+        // a one-time PKCE code. Keep automatic detection for older web URLs.
+        detectSessionInUrl: shouldAutoDetectAuth2026(Platform.OS, typeof window === 'undefined' ? null : window.location.pathname),
       },
     });
   } catch (e) {

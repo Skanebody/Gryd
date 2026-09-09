@@ -1,0 +1,278 @@
+import Svg, { Line } from 'react-native-svg';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { AppState, Linking, Platform, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fonts, refonteColors as c, type Activity } from '@klaim/shared';
+import { RealMap, type RealMapCamera, type RealMapGeoJSONLayer, type RealMapRef } from '../../ui/game/RealMap';
+import { GrydIcon, type GrydIconName } from '../../ui/gryd/GrydIcon';
+import { GrydSwitch as Switch } from '../../ui/gryd/GrydSwitch';
+import { MapTranslucent2026 } from '../../ui/gryd/MapTranslucent2026';
+import { MotionReveal2026, useControlMotion2026 } from '../../ui/gryd/Motion2026';
+import { GrydNavBar } from '../nav/GrydNavBar';
+import { GrydMark } from '../../ui/gryd/GrydMark';
+import { useLocale } from '../../i18n/store';
+import { useSession } from '../../lib/session';
+import { EVENTS, track } from '../../lib/analytics';
+import { getMapActivity, useMapActivity, useBasemapStyle } from '../map/mapPref';
+import { MapActivitySwitch2026 } from '../map/MapActivitySwitch2026';
+import { usePlaceFocus } from '../map/placeFocus';
+import { basemapSpecRevision, prefetchLocalizedBasemaps, subscribeBasemapSpecs } from '../map/mapStyle';
+import { cityCenter, cityLabel } from '../social/cities';
+import { useOnboardingState } from '../onboarding/store';
+import { useMyProfile } from '../social/profileStore';
+import { NAV_MAP_BAR_HEIGHT, NAV_MAP_BOTTOM_GAP } from '../nav/metrics';
+import { useRunSession } from './RunSession';
+import { useOwnership, type MapExtent } from './useOwnership';
+import { checkForegroundPermission, getCurrentPositionOnce, requestForegroundPermission } from './location';
+import { useRecordingChoice2026 } from './useRecordingChoice2026';
+import { territoryOwnerLabel2026, territoryRoleLabel2026, type TerritoryRole2026 } from './territoryModel2026';
+
+import { territoryPaintLayers2026 } from './territoryPaint2026';
+import { createMapLocationGate2026, readMapLocation2026, type MapLocationResult2026 } from './mapLocation2026';
+
+// France overview is labelled as exploration; it never impersonates a GPS position.
+const FRANCE: RealMapCamera = { lat: 46.6, lng: 2.5, zoom: 3.9 };
+const savedCameras: Partial<Record<Activity, RealMapCamera>> = {};
+function boundsFor(camera: RealMapCamera, width: number, height: number): MapExtent {
+  const span = 360 / 2 ** camera.zoom;
+  const dx = span * Math.max(1, width / 512);
+  const dy = span * Math.max(1, height / 512) * Math.cos(camera.lat * Math.PI / 180);
+  return { west: Math.max(-180, camera.lng - dx), east: Math.min(180, camera.lng + dx), south: Math.max(-85, camera.lat - dy), north: Math.min(85, camera.lat + dy) };
+}
+
+export default function MapHome() {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const fr = useLocale() === 'fr';
+  const motion = useControlMotion2026();
+  const { session } = useSession();
+  const { gate } = useRunSession();
+  const choice = useRecordingChoice2026();
+  const [roleFilters, setRoleFilters] = useState<Record<TerritoryRole2026, boolean>>({ mine: true, crew: true, others: true });
+  const { activity, setActivity } = useMapActivity();
+  const [activityReady, setActivityReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void getMapActivity().finally(() => { if (alive) setActivityReady(true); });
+    return () => { alive = false; };
+  }, []);
+  const { basemap, setBasemap } = useBasemapStyle();
+  const basemapRevision = useSyncExternalStore(subscribeBasemapSpecs, basemapSpecRevision, basemapSpecRevision);
+  useEffect(() => prefetchLocalizedBasemaps(basemap), [basemap]);
+  const { profile } = useMyProfile();
+  const { state: onboarding } = useOnboardingState();
+  const place = usePlaceFocus();
+  const handledPlace = useRef(0);
+  const map = useRef<RealMapRef>(null);
+  const [camera, setCamera] = useState<RealMapCamera>(savedCameras[activity] ?? FRANCE);
+  const cameraTarget = useRef(camera);
+  const [settled, setSettled] = useState(camera);
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationState, setLocationState] = useState<MapLocationResult2026['kind']>('unrequested');
+  const [locationCanAsk, setLocationCanAsk] = useState(true);
+  const locationGate = useRef(createMapLocationGate2026()).current;
+  const cameraIntent = useRef<'fallback'|'gps'|'explore'>('fallback');
+  const [approximate, setApproximate] = useState(false);
+  const [sheet, setSheet] = useState<'layers' | 'list' | null>(null);
+  const [attenuate, setAttenuate] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const cityId = onboarding.cityId ?? profile.cityId;
+  const city = cityCenter(cityId);
+  const cityName = place.label ?? onboarding.cityName ?? cityLabel(cityId);
+  const extent = useMemo(() => boundsFor(settled, width, height), [settled, width, height]);
+  const ownership = useOwnership(activity, extent);
+  const visibleFeatures = ownership.features.filter(f => roleFilters[f.properties.role]);
+  const selected = visibleFeatures.find(f => f.properties.id === selectedId);
+  const firstFocus = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (firstFocus.current) firstFocus.current = false;
+    else ownership.reload();
+  }, [ownership.reload]));
+
+  const moveTo = useCallback((next: RealMapCamera) => {
+    savedCameras[activity] = next; cameraTarget.current = next;
+    setCamera(next); setSettled(next);
+    map.current?.flyTo(next);
+  }, [activity]);
+  useEffect(() => {
+    if (!activityReady) return;
+    const target = cameraIntent.current !== 'fallback' ? cameraTarget.current : savedCameras[activity] ?? (city ? { ...city, zoom: 13.5 } : FRANCE);
+    cameraTarget.current = target;
+    setSelectedId(null); setCamera(target); setSettled(target);
+    map.current?.flyTo(target);
+  }, [activity, cityId, activityReady]);
+  useEffect(() => {
+    if (activityReady && place.ticket > handledPlace.current) {
+      handledPlace.current = place.ticket;
+      locationGate.cancel(); setLocating(false); cameraIntent.current = 'explore';
+      moveTo({ ...place.point, zoom: place.zoom });
+    }
+  }, [place.ticket, moveTo, activityReady]);
+
+  const locate = useCallback(async (ask: boolean) => {
+    const ticket = locationGate.begin();
+    setLocating(true);
+    const result = await readMapLocation2026({ checkForegroundPermission, requestForegroundPermission, getCurrentPositionOnce }, ask);
+    if (!locationGate.isCurrent(ticket)) return;
+    setLocating(false); setLocationState(result.kind);
+    if (result.kind === 'position') {
+      setPosition({ lat: result.point.lat, lng: result.point.lng }); setApproximate(result.zoom < 15);
+      if (ask || cameraIntent.current !== 'explore') {
+        cameraIntent.current = 'gps';
+        moveTo({ lat: result.point.lat, lng: result.point.lng, zoom: result.zoom });
+      }
+    } else {
+      setPosition(null);
+      if (result.kind === 'denied') setLocationCanAsk(result.canAskAgain);
+    }
+  }, [moveTo, locationGate]);
+  useEffect(() => {
+    if (activityReady) void locate(false);
+    return () => locationGate.cancel();
+  }, [activityReady, locate, session?.user.id, locationGate]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active' && activityReady) void locate(false); });
+    return () => subscription.remove();
+  }, [activityReady, locate]);
+
+  const layers = useMemo<ReadonlyArray<RealMapGeoJSONLayer>>(() => territoryPaintLayers2026({
+    features: ownership.features, filters: roleFilters, attenuate, dark: basemap !== 'color', selectedId,
+  }), [ownership.features, roleFilters, attenuate, selectedId, basemap]);
+
+  const text = (a: string, b: string) => fr ? a : b;
+  const start = () => {
+    track(EVENTS.runStartTap, { source: 'map', activity });
+    router.push(`/course-live?mode=conquete&activity=${activity}`);
+  };
+  const bottom = insets.bottom + NAV_MAP_BOTTOM_GAP + NAV_MAP_BAR_HEIGHT + 12;
+  const recording = gate?.kind === 'real';
+  const overlayHeight = Math.max(100, Math.min(200, height - insets.top - bottom - 132));
+  const area = (n: number) => (n / 1e6).toLocaleString(fr ? 'fr-FR' : 'en-GB', { maximumFractionDigits: 3 });
+  if (!activityReady) return <View style={s.root} />;
+  return <View style={s.root}>
+    <View style={s.map}>
+      <RealMap key={`${basemap}-${basemapRevision}-${activity}`} ref={map} camera={camera} basemap={basemap} geojsonLayers={layers}
+        onStyleLoaded={() => map.current?.flyTo(cameraTarget.current)}
+        onCameraGesture={() => { cameraIntent.current = 'explore'; locationGate.cancel(); setLocating(false); }}
+        onCameraSettled={next => { savedCameras[activity] = next; cameraTarget.current = next; setSettled(next); }}
+        onPress={event => { setSelectedId(event.zoneId ?? null); if (event.zoneId) track(EVENTS.mapZoneTap, { role: 'terrain' }); }}
+        markers={position ? [{ id: 'me', ...position, children: <View accessibilityLabel={approximate ? text('Position approximative', 'Approximate location') : text('Ma position', 'My location')} style={[s.positionHalo, approximate && s.approximatePosition]}><View style={s.positionDot} /></View> }] : []} />
+    </View>
+    <View pointerEvents="box-none" style={[s.header, { top: insets.top + 12 }]}>
+      <View style={s.topRow}>
+        <View style={s.brand}><MapTranslucent2026 tone="dark" radius={22} /><View style={s.overlayContent}><GrydMark variant="symbol" size={20} color={c.accent} /></View></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={text('Choisir une ville', 'Choose a city')} onPress={() => router.push('/map/search')} style={({ pressed }) => [s.place, pressed && s.pressed]}>
+          <MapTranslucent2026 tone="dark" radius={22} />
+          <View style={s.overlayContent}><GrydIcon name="search" size={16} color={c.darkInk} /></View>
+          <Text style={s.placeName}>{cameraIntent.current === 'gps' && position ? text('Autour de moi', 'Around me') : cityName ?? 'France'}</Text>
+        </Pressable>
+      </View>
+    </View>
+    <View style={[s.sports, { top: insets.top + 8 }]}>
+      <MapActivitySwitch2026 activity={activity} onChange={setActivity}
+        labels={{ group: text('Sport sur la carte', 'Map activity'), run: text('Course', 'Run'), bike: text('Vélo', 'Ride') }} />
+    </View>
+    <View pointerEvents="box-none" style={[s.tools, { bottom }]}>
+      <MapControl icon="layers" label={text('Couches', 'Layers')} onPress={() => setSheet('layers')} />
+      <MapControl icon="route" label={text('Préparer un parcours', 'Plan a route')} onPress={() => router.push(`/route-planner?activity=${activity}`)} />
+      <MapControl icon="location" disabled={locating} label={locating ? text('Localisation en cours', 'Locating') : text('Me recentrer', 'Find my location')} onPress={() => void locate(true)} />
+    </View>
+    <View pointerEvents="box-none" style={[s.overlayAnchor, { bottom, maxHeight: overlayHeight }]}>
+      <ScrollView style={s.overlayScroll} contentContainerStyle={s.overlayStack} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {ownership.failed && !ownership.signedOut ? <Pressable accessibilityRole="button" style={s.notice} onPress={ownership.reload}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains indisponibles · Réessayer', 'Terrains unavailable · Retry')}</Text></Pressable> : null}
+        {choice.failed && !recording ? <Pressable accessibilityRole="button" onPress={() => setSheet('layers')} style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Préférences indisponibles · Réessayer', 'Preferences unavailable · Retry')}</Text></Pressable> : null}
+        {(locationState === 'denied' || locationState === 'unavailable') && <Pressable accessibilityRole="button" onPress={() => {
+          if (locationState === 'denied' && !locationCanAsk && Platform.OS !== 'web') void Linking.openSettings();
+          else if (locationState === 'denied' && !locationCanAsk) router.push('/map/search');
+          else void locate(true);
+        }} style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{locationState === 'denied'
+          ? locationCanAsk ? text('Localisation refusée · Autoriser', 'Location denied · Allow') : Platform.OS === 'web' ? text('Localisation refusée · Choisir une ville', 'Location denied · Choose a city') : text('Localisation refusée · Réglages', 'Location denied · Settings')
+          : text('Position indisponible · Réessayer', 'Location unavailable · Retry')}</Text></Pressable>}
+        {selected ? <View style={s.selectedSurface}><MapTranslucent2026 tone="dark" radius={20} /><MotionReveal2026 identity={selectedId ?? ''} style={s.overlayContent}>
+          <View style={s.selectedPanel}>
+            <View style={s.panelHeading}><Text style={s.eyebrow}>{territoryOwnerLabel2026(selected, fr)}</Text>
+              <Pressable onPress={() => setSelectedId(null)} accessibilityRole="button" accessibilityLabel={text('Fermer la zone', 'Close zone')} style={s.close}><GrydIcon name="close" size={18} color={c.darkInk} /></Pressable></View>
+            <Text style={s.areaValue}>{area(selected.properties.areaM2)} <Text style={s.unit}>km²</Text></Text>
+            <Text style={s.context}>{text('Surface actuelle · Propriété individuelle', 'Current area · Individual ownership')}{selected.properties.owner.crew ? ` · ${text('Membre de', 'Member of')} ${selected.properties.owner.crew.name}` : ''}</Text>
+            {!selected.properties.owner.identityAvailable && <Text style={s.context}>{text('Identité non disponible.', 'Identity unavailable.')}</Text>}
+            <Text style={s.context}>{text('Capture initiale', 'Initial capture')} : {area(selected.properties.capturedAreaM2)} km². {text('La sortie reste au journal quand le terrain change.', 'The outing stays in the journal when terrain changes.')}</Text>
+          </View>
+        </MotionReveal2026></View> : null}
+      </ScrollView>
+    </View>
+    <GrydNavBar mapAction={{
+      label: recording ? text('Reprendre', 'Resume') : activity === 'run' ? text('Courir', 'Run') : text('Rouler', 'Ride'),
+      onPress: recording ? () => router.push('/course-live') : start,
+      disabled: !recording && (!choice.ready || choice.saving),
+      busy: !recording && ((!choice.ready && !choice.failed) || choice.saving),
+    }} />
+    <Modal visible={sheet !== null} transparent animationType={motion ? "slide" : "none"} onRequestClose={() => setSheet(null)}>
+      <View style={s.modalRoot}><Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={text('Fermer les couches', 'Close layers')} onPress={() => setSheet(null)} />
+        <View style={[s.sheet, { paddingBottom: insets.bottom + 24, maxHeight: height * 0.85 }]}>
+          <View style={s.grabber} />
+          <View style={s.titleRow}><Text style={s.sheetTitle}>{sheet === 'layers' ? text('Couches', 'Layers') : text('Terrains', 'Terrains')}</Text><Pressable style={s.close} onPress={() => setSheet(null)} accessibilityRole="button" accessibilityLabel={text('Fermer', 'Close')}><GrydIcon name="close" size={19} /></Pressable></View>
+          <ScrollView>
+            {sheet === 'layers' ? <>
+              {ownership.signedOut ? <Pressable accessibilityRole="button" onPress={() => { setSheet(null); router.push('/sign-in'); }} style={s.optionRow}><View style={{flex:1,gap:4}}><Text style={s.optionText}>{text('Retrouver mes terrains', 'Find my territories')}</Text><Text style={s.sheetStatus}>{text('Ta première sortie peut se faire sans compte.', 'You can record your first activity without an account.')}</Text></View><GrydIcon name="chevronRight" size={18} /></Pressable> : ownership.loading ? <Text style={s.sheetNote}>{text('Chargement des terrains…', 'Loading territories…')}</Text> : !ownership.failed && ownership.features.length === 0 ? <Text style={s.sheetNote}>{text('Aucun terrain partagé dans cette vue.', 'No shared terrain in this view.')}</Text> : null}
+              <View style={s.basemaps}>{(['color', 'dark', 'satellite'] as const).map((key, i) => <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: basemap === key }} aria-checked={basemap === key} onPress={() => setBasemap(key)} style={[s.basemap, basemap === key && s.basemapSelected]}>
+                <View style={[s.swatch, { backgroundColor: key === 'dark' ? c.carbon : key === 'satellite' ? c.rival : c.surfaceMuted }]}><GrydIcon name="map" size={32} color={key === 'color' ? c.ink : c.darkInk} /></View>
+                <Text style={s.optionText}>{[text('Clair', 'Light'), text('Noir', 'Dark'), 'Satellite'][i]}</Text>
+              </Pressable>)}</View>
+              <Text style={s.sheetNote}>{text('Une nuance par propriétaire. Trait plein : solo ou affiliation masquée. Pointillés : membre d’un crew. Chaque terrain reste individuel.', 'A shade per owner. Solid line: solo or hidden affiliation. Dashes: crew member. Every territory remains individually owned.')}</Text><Text style={s.sheetNote}>{text('Afficher les terrains', 'Show terrain')}</Text>
+              {(['mine','crew','others'] as const).map(role => <View key={role} style={s.optionRow}><View style={s.filterLabel}><RoleLine role={role} light /><Text style={s.optionText}>{territoryRoleLabel2026(role, fr)}</Text></View><Switch value={roleFilters[role]} onValueChange={value => setRoleFilters(current => ({ ...current, [role]: value }))} accessibilityLabel={territoryRoleLabel2026(role, fr)} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} /></View>)}
+              {session && <Text style={s.sheetNote}>{ownership.signedOut ? text('Connecte-toi pour retrouver ton crew.', 'Sign in to find your crew.') : ownership.loading ? text('Lecture du crew…', 'Loading crew…') : ownership.failed ? text('Crew indisponible avec les terrains.', 'Crew unavailable with terrain.') : ownership.crew ? `${text('Crew actuel', 'Current crew')} : ${ownership.crew.name}. ${text('Chaque terrain appartient à son joueur.', 'Each terrain belongs to its player.')}` : text('Aucun crew actif trouvé pour ton compte.', 'No active crew found for your account.')}</Text>}
+              {session && <>
+              <View style={s.optionRow}><Text style={s.optionText}>{text('Terrain partagé au départ', 'Share terrain when starting')}</Text><Switch value={choice.shared} disabled={!session || !choice.ready || choice.saving} onValueChange={value => void choice.save(value)} accessibilityLabel={text('Participer à la carte partagée', 'Participate in shared terrain')} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} /></View>
+              <Text style={s.sheetNote}>{text('Ta trace reste privée. Une zone publiée peut révéler une partie du parcours et être reprise. Les zones personnelles protégées restent privées.', 'Your route stays private. Published terrain can reveal part of the route and be reclaimed. Personal protected places stay private.')}</Text>
+              </>}
+              {choice.failed ? <Pressable accessibilityRole="button" style={s.optionRow} onPress={() => void choice.reload()}><Text style={s.optionText}>{text('Charger le choix de confidentialité · Réessayer', 'Load privacy choice · Retry')}</Text></Pressable> : choice.saveFailed ? <Text accessibilityRole="alert" style={s.sheetNote}>{text('Choix non enregistré. Réessaie.', 'Choice not saved. Try again.')}</Text> : null}
+              <View style={s.optionRow}><Text style={s.optionText}>{text('Atténuer les autres terrains', 'Soften other terrains')}</Text><Switch accessibilityLabel={text('Atténuer les autres terrains', 'Soften other terrains')} value={attenuate} onValueChange={setAttenuate} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} ios_backgroundColor={c.border} /></View>
+              <Pressable style={s.optionRow} onPress={() => setSheet('list')} accessibilityRole="button"><Text style={s.optionText}>{text('Terrains visibles', 'Visible terrains')}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
+              <Pressable style={s.optionRow} onPress={() => { setSheet(null); router.push('/calcul-zones'); }} accessibilityRole="button"><Text style={s.optionText}>{text('Comprendre les boucles', 'How loops work')}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
+            </> : ownership.loading ? <Text style={s.sheetNote}>{text('Chargement des terrains…', 'Loading terrains…')}</Text> : ownership.failed ? <Pressable style={s.optionRow} onPress={ownership.reload}><Text style={s.optionText}>{text('Réessayer', 'Try again')}</Text></Pressable> : ownership.features.length === 0 ? <Text style={s.sheetNote}>{ownership.signedOut ? text('Connecte-toi pour voir les terrains partagés.', 'Sign in to see shared terrains.') : text('Aucun terrain partagé dans cette zone.', 'No shared terrain in this area.')}</Text> : visibleFeatures.map(f => <Pressable key={f.properties.id} style={s.optionRow} onPress={() => { setSelectedId(f.properties.id); setSheet(null); }} accessibilityRole="button"><Text style={s.optionText}>{territoryOwnerLabel2026(f, fr)}</Text><Text style={s.optionText}>{area(f.properties.areaM2)} km²</Text></Pressable>)}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  </View>;
+}
+function RoleLine({ role, light = false }: { role: TerritoryRole2026; light?: boolean }) {
+  const color = role === 'mine' ? (light ? c.ink : c.accent) : role === 'crew' ? (light ? c.ink : c.darkInk) : c.rival;
+  return <Svg width={20} height={12} viewBox="0 0 20 12"><Line x1={1} x2={19} y1={6} y2={6} stroke={color} strokeWidth={role === 'mine' ? 3 : role === 'crew' ? 2 : 1} strokeDasharray={role === 'crew' ? '4 3' : undefined} strokeLinecap="round" /></Svg>;
+}
+function MapControl({ icon, label, onPress, disabled = false, selected }: { icon: GrydIconName; label: string; onPress(): void; disabled?: boolean; selected?: boolean }) {
+  const [focused, setFocused] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
+  return <View style={s.controlSlot}>
+    <Pressable accessibilityRole={selected === undefined ? 'button' : 'tab'} accessibilityLabel={label}
+      accessibilityState={{ disabled, selected }} aria-disabled={disabled} aria-selected={selected} disabled={disabled}
+      onFocus={() => { setFocused(true); setHintVisible(true); }} onBlur={() => { setFocused(false); setHintVisible(false); }} onHoverIn={() => setHintVisible(true)} onHoverOut={() => setHintVisible(false)}
+      onPress={() => { setHintVisible(false); onPress(); }} style={({ pressed }) => [s.mapControl, focused && { borderColor: selected ? c.ink : c.surface }, disabled && s.controlDisabled, pressed && s.pressed]}>
+      <MapTranslucent2026 tone={selected ? 'light' : 'dark'} radius={22} />
+      <View style={s.overlayContent}><GrydIcon name={icon} size={21} active={selected} color={selected ? c.ink : c.darkInk} /></View>
+    </Pressable>
+    {Platform.OS === 'web' && hintVisible ? <View pointerEvents="none" style={s.tooltip}><MapTranslucent2026 tone="dark" radius={12} /><Text style={s.tooltipText}>{label}</Text></View> : null}
+  </View>;
+}
+const s = StyleSheet.create({
+  overlayContent: { zIndex: 1 },
+  root: { flex: 1, backgroundColor: c.carbon, overflow: 'hidden' }, map: { ...StyleSheet.absoluteFillObject },
+  header: { position: 'absolute', left: 16, right: 76, alignItems: 'flex-start' },
+  topRow: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  brand: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  place: { flex: 1, minHeight: 44, borderRadius: 22, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  placeName: { zIndex: 1, fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 18, color: c.darkInk, flex: 1, flexShrink: 1 },
+  sports: { position: 'absolute', right: 16, zIndex: 4 }, tools: { position: 'absolute', right: 16, gap: 8, zIndex: 4 },
+  controlSlot: { position: 'relative', zIndex: 2 }, mapControl: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' }, controlDisabled: { opacity: .6 },
+  tooltip: { position: 'absolute', right: 52, top: 0, minHeight: 44, width: 156, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }, tooltipText: { zIndex: 1, fontFamily: fonts.textMedium, color: c.darkInk, fontSize: 12, lineHeight: 17 },
+  positionHalo: { width: 36, height: 36, backgroundColor: c.shadow, borderRadius: 20, justifyContent: 'center', alignItems: 'center' }, positionDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: c.accent, borderWidth: 3, borderColor: c.ink }, approximatePosition: { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: c.muted },
+  overlayAnchor: { position: 'absolute', left: 16, right: 76, alignItems: 'flex-start' }, overlayScroll: { maxWidth: 360, width: '100%', flexGrow: 0 }, overlayStack: { gap: 8 },
+  notice: { minHeight: 44, padding: 12, borderRadius: 16 }, noticeText: { zIndex: 1, color: c.darkInk, fontFamily: fonts.text, fontSize: 12, lineHeight: 17 },
+  selectedSurface: { borderRadius: 20, paddingHorizontal: 12, paddingBottom: 14, paddingTop: 4 }, selectedPanel: { gap: 7 }, panelHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  eyebrow: { flex: 1, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.darkInk }, areaValue: { fontFamily: fonts.displayRegular, fontSize: 28, letterSpacing: -.8, color: c.darkInk }, unit: { fontSize: 13, color: c.darkInk }, context: { color: c.darkInk, fontFamily: fonts.text, fontSize: 11, lineHeight: 16 }, pressed: { opacity: .7 },
+  filterLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sheetStatus: { fontFamily: fonts.text, color: c.muted, fontSize: 12, lineHeight: 18 },
+  modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.scrim }, sheet: { padding: 24, backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28 }, grabber: { width: 32, height: 3, borderRadius: 2, backgroundColor: c.border, alignSelf: 'center', marginBottom: 20 }, titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, sheetTitle: { fontFamily: fonts.displayMedium, fontSize: 20, color: c.ink }, close: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, sheetNote: { fontFamily: fonts.text, color: c.muted, fontSize: 14, lineHeight: 21, paddingVertical: 16 }, basemaps: { flexDirection: 'row', gap: 10, marginVertical: 16 }, basemap: { flex: 1, gap: 10, borderWidth: 1, borderColor: c.border, borderRadius: 16, padding: 5, paddingBottom: 12, alignItems: 'center' }, basemapSelected: { borderColor: c.ink }, swatch: { height: 52, width: '100%', borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, optionRow: { minHeight: 56, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }, optionText: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 14, flexShrink: 1 },
+});

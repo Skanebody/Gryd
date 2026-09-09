@@ -2,7 +2,8 @@
  * GRYD — adaptateur « Import GPX » (AMENDEMENT-15 §3), RÉEL depuis le
  * PÉRIMÈTRE 5 (21/07/2026). L'alternative GRATUITE aux intégrations qui exigent
  * des clés ou un programme partenaire : n'importe quelle montre / app de course
- * exporte un fichier .gpx, et ce fichier EST la trace → trust ÉLEVÉ (catalog.ts).
+ * peut exporter un fichier .gpx. Cette provenance reste déclarative : elle
+ * n’établit pas une preuve de capture ou de journée active en 2026.
  *
  * Chaîne complète, sans aucune donnée fabriquée :
  *   expo-document-picker (choix du fichier par l'utilisateur)
@@ -26,13 +27,14 @@
  * de expo-document-picker doit dégrader proprement, jamais crasher. Aucune
  * exception ne remonte à l'UI (garantie AMENDEMENT-15 §3).
  */
-import type { IngestRunRequest, IngestRunResponse, RunPoint } from '@klaim/shared';
+import type { Activity, IngestRunRequest, IngestRunResponse, RunPoint } from '@klaim/shared';
 import * as Crypto from 'expo-crypto';
 import { C } from '../../../i18n/catalog/auth';
 import type { Entry } from '../../../i18n/types';
 import { supabase } from '../../../lib/supabase';
 import { parseGpx } from './gpx-parse';
 import type { SourceAdapter, SourceAdapterSnapshot } from './types';
+import { currentResultOwner2026, resultOwnerEpoch2026, isResultOwnerCurrent2026 } from '../../run/resultOwner2026';
 
 /** Extensions/MIME acceptés par le sélecteur — un .gpx est du XML. */
 const GPX_MIME = ['application/gpx+xml', 'application/xml', 'text/xml', 'application/octet-stream'];
@@ -107,11 +109,11 @@ function loadNativeModules(): { picker: DocumentPickerModule; fs: FileSystemModu
  * n'informerait personne et déposerait, dans le journal d'une sortie, l'envoi
  * d'un fichier qui n'en est pas une.
  */
-async function sendToServer(points: RunPoint[]): Promise<SourceAdapterSnapshot> {
+async function sendToServer(points: RunPoint[], activity: Activity, ownerId: string, epoch: number): Promise<SourceAdapterSnapshot> {
   if (supabase === null) return ready(C.gpxNeedsAccount);
 
   const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData.session) return ready(C.gpxNeedsAccount);
+  if (sessionData.session?.user.id !== ownerId || !isResultOwnerCurrent2026(ownerId, epoch)) return ready(C.gpxNeedsAccount);
 
   const first = points[0];
   if (first === undefined) return ready(C.gpxNoPoints);
@@ -122,12 +124,16 @@ async function sendToServer(points: RunPoint[]): Promise<SourceAdapterSnapshot> 
     // plutôt que de créer une seconde course.
     clientRunId: Crypto.randomUUID(),
     source: 'gpx',
+    activity,
+    recordingOwnerId: ownerId,
+    sharedMapParticipation: false,
     startedAt: new Date(first.t).toISOString(),
     points,
-    runMode: 'conquete',
+    runMode: 'course_privee',
   };
 
   const { data, error } = await supabase.functions.invoke('ingest_run', { body: payload });
+  if (!isResultOwnerCurrent2026(ownerId, epoch)) return ready(C.gpxNeedsAccount);
   if (error) return ready(C.gpxSendFailed);
 
   // `status` est élargi à string : ingest_run répond aussi 'duplicate' sur la
@@ -139,12 +145,15 @@ async function sendToServer(points: RunPoint[]): Promise<SourceAdapterSnapshot> 
   if (result === null) return ready(C.gpxSendFailed);
   if (result.status === 'duplicate') return done(C.gpxDuplicate);
   if (result.status === 'rejected') return done(C.gpxRejected);
+  if (result.status !== 'valid' && result.status !== 'partial' && result.status !== 'flagged') return ready(C.gpxSendFailed);
   return done(C.gpxSent, { n: points.length });
 }
 
 // ─── Action d'import ─────────────────────────────────────────────────────────
 
-async function runImport(): Promise<SourceAdapterSnapshot> {
+async function runImport(activity: Activity): Promise<SourceAdapterSnapshot> {
+  const ownerId = currentResultOwner2026(), epoch = resultOwnerEpoch2026();
+  if (!ownerId) return ready(C.gpxNeedsAccount);
   const native = loadNativeModules();
   if (native === null) return ready(C.gpxPickerUnavailable);
 
@@ -156,6 +165,7 @@ async function runImport(): Promise<SourceAdapterSnapshot> {
   // Annulation = choix de l'utilisateur, jamais un échec : retour au repos sans
   // message d'erreur (anti-shame, GO-first).
   if (picked.canceled) return READY;
+  if (!isResultOwnerCurrent2026(ownerId, epoch)) return ready(C.gpxNeedsAccount);
 
   const file = picked.assets[0];
   if (file === undefined) return READY;
@@ -164,17 +174,17 @@ async function runImport(): Promise<SourceAdapterSnapshot> {
   const { points } = parseGpx(xml);
   if (points.length < MIN_POINTS) return ready(C.gpxNoPoints);
 
-  return sendToServer(points);
+  return sendToServer(points, activity, ownerId, epoch);
 }
 
 export const gpxAdapter: SourceAdapter = {
   id: 'gpx',
-  trustLevel: 'high', // le fichier .gpx est la source directe (catalog §6)
+  trustLevel: 'high', // classification historique du catalogue, jamais envoyée comme preuve au serveur
   status: () => Promise.resolve(READY),
-  connect: () =>
+  connect: (options) =>
     // Filet ultime : fichier illisible, URI expirée, réseau coupé net… → état
     // honnête et action re-tentable, jamais d'exception vers l'UI.
-    runImport().catch((e: unknown) => {
+    runImport(options?.activity ?? 'run').catch((e: unknown) => {
       console.warn('[GRYD] import GPX échoué', e);
       return ready(C.gpxUnreadable);
     }),

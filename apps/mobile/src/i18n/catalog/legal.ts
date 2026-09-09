@@ -1,3 +1,4 @@
+import { MANROPE_FONT_LICENSE } from '../../features/legal/fontLicense';
 /**
  * GRYD — i18n : mentions légales et identité de l'éditeur, EMBARQUÉES DANS L'APP.
  *
@@ -441,7 +442,7 @@ export const C = defineCatalog({
    * par un joueur, c'est son pseudo, le nom de son crew et ces signaux.
    */
   cguContenuBody1: fr5(
-    'Tu restes propriétaire du contenu que tu publies — ton pseudo, le nom de ton crew, les signaux que tu envoies à ton crew — et tu nous accordes une licence non exclusive et gratuite de l’afficher aux autres joueurs pour faire fonctionner le jeu. GRYD ne comporte pas de messagerie libre : les signaux de crew sont choisis dans un vocabulaire fermé. Tu t’engages à ne rien publier d’illégal, haineux, harcelant, sexuellement explicite ou trompeur.',
+    'Tu restes propriétaire du contenu que tu publies — profil, photos choisies, textes de sortie, commentaires et annonces de crew — et tu nous accordes une licence non exclusive et gratuite pour l’afficher aux personnes autorisées, selon la visibilité choisie, afin de faire fonctionner ces échanges. Les publications de sortie et leurs commentaires sont facultatifs. Tu peux les retirer depuis le fil. Tu t’engages à ne rien publier d’illégal, haineux, harcelant, sexuellement explicite ou trompeur.',
   ),
   cguContenuBody2: fr5(
     'Nous appliquons une tolérance zéro pour les contenus abusifs. Depuis Réglages, puis Confidentialité, tu peux signaler un joueur ou un contenu inapproprié et bloquer un joueur pour ne plus interagir avec lui.',
@@ -531,7 +532,7 @@ export const C = defineCatalog({
    * DÉCLARÉE), sans prétendre que chaque capteur sert dans chaque discipline.
    */
   privacyDonneesBody2: fr5(
-    '· Compte : ton adresse e-mail et un identifiant (via Sign in with Apple ou un autre fournisseur), ton pseudo et, si tu le choisis, ton crew.\n· Localisation pendant une sortie : ta position GPS, enregistrée uniquement quand tu as lancé une sortie (course à pied ou vélo), pour tracer ton parcours et déterminer le territoire capturé ou défendu. Le suivi s’arrête dès la fin de la sortie.\n· Mouvement & podomètre : cadence, pas et cohérence de mouvement, lus pendant la sortie par « GRYD Verify » pour vérifier que l’effort enregistré est réel et correspond à la discipline que tu as déclarée.\n· Sorties importées, à ton initiative : si tu importes un fichier d’activité (GPX) ou connectes un service de suivi tiers, le tracé et les mesures de l’activité importée sont envoyés à nos serveurs pour être validés comme une sortie GRYD.\n· Contenu que tu crées : ton pseudo, le nom de ton crew si tu en crées un, les signaux que tu envoies à ton crew (vocabulaire fermé, il n’y a pas de messagerie libre) et les signalements que tu nous adresses.\n· Données techniques & de jeu : modèle d’appareil, version de l’app, journaux d’erreur, statistiques de jeu (zones tenues, points, badges).',
+    '· Compte : ton adresse e-mail et un identifiant (via Sign in with Apple ou un autre fournisseur), ton pseudo et, si tu le choisis, ton crew.\n· Localisation pendant une sortie : ta position GPS, enregistrée uniquement quand tu as lancé une sortie (course à pied ou vélo), pour tracer ton parcours et déterminer le territoire capturé ou défendu. Le suivi s’arrête dès la fin de la sortie.\n· Mouvement & podomètre : cadence, pas et cohérence de mouvement, lus pendant la sortie par « GRYD Verify » pour vérifier que l’effort enregistré est réel et correspond à la discipline que tu as déclarée.\n· Sorties importées, à ton initiative : si tu importes un fichier d’activité (GPX) ou connectes un service de suivi tiers, le tracé et les mesures de l’activité importée sont envoyés à nos serveurs pour être validés comme une sortie GRYD.\n· Profil et contenu social : ton nom affiché, ton pseudo, ta bio et la photo de profil que tu choisis de partager, selon la visibilité réglée. Les publications volontaires dans ton crew contiennent le résumé d’une sortie réelle, ton texte et éventuellement une photo ; ce parcours ne publie pas la trace GPS. Les métadonnées des photos sont retirées avant leur envoi. Les membres autorisés peuvent consulter ces publications, les commenter et les encourager. Les annonces, rendez-vous, réponses de présence, blocages et signalements sont aussi conservés pour faire fonctionner ces échanges. Tu peux retirer tes publications et commentaires ; le retrait du fil ne supprime pas la sortie de ton journal.\n· Données techniques & de jeu : modèle d’appareil, version de l’app, journaux d’erreur, statistiques de jeu (zones tenues, points, badges).',
   ),
   privacyDonneesBody3: fr5(
     'Nous ne collectons ni tes contacts, ni tes photos, ni tes données de navigation publicitaire, et GRYD ne lit aucune donnée d’Apple Santé ni de Google Health Connect : cette connexion n’existe pas dans l’application. GRYD ne diffuse aucune publicité.',
@@ -874,13 +875,13 @@ export const C = defineCatalog({
    */
   licencesOflHeading: fr5('SIL OPEN FONT LICENSE 1.1'),
   licencesOflBody1: fr5(
-    'Les trois familles de caractères embarquées dans GRYD sont distribuées sous SIL Open Font License, Version 1.1, qui autorise leur usage — y compris commercial — à condition de conserver leurs mentions de droits d’auteur et de licence. Les voici :',
+    'Les familles de caractères embarquées dans GRYD sont distribuées sous SIL Open Font License, Version 1.1, qui autorise leur usage — y compris commercial — à condition de conserver leurs mentions de droits d’auteur et de licence. Les voici :',
   ),
   licencesOflBody2: fr5(
-    '· Inter — Copyright 2020 The Inter Project Authors (github.com/rsms/inter).\n· Inter Tight — Copyright 2022 The Inter Project Authors (github.com/rsms/inter-tight).\n· JetBrains Mono — Copyright 2020 The JetBrains Mono Project Authors (github.com/JetBrains/JetBrainsMono).',
+    '· Manrope — Copyright 2018 The Manrope Project Authors (github.com/sharanda/manrope).\n· Inter — Copyright 2020 The Inter Project Authors (github.com/rsms/inter).\n· Inter Tight — Copyright 2022 The Inter Project Authors (github.com/rsms/inter-tight).\n· JetBrains Mono — Copyright 2020 The JetBrains Mono Project Authors (github.com/JetBrains/JetBrainsMono).',
   ),
   licencesOflBody3: fr5(
-    'Elles sont installées via les paquets @expo-google-fonts (code sous licence MIT, fontes sous SIL OFL 1.1). Le texte intégral de la licence est publié sur scripts.sil.org/OFL.',
+    'Fontes installées via @expo-google-fonts (code MIT, fontes SIL OFL 1.1). Texte de la licence accompagnant Manrope :\n\n' + MANROPE_FONT_LICENSE,
   ),
   /**
    * Un paquet dont le `package.json` publié ne déclare AUCUNE licence. Le dire

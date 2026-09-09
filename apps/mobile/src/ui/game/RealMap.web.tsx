@@ -241,6 +241,9 @@ export interface RealMapProps {
   onPress?: (event: RealMapPressEvent) => void;
   /** Zoom courant, notifié à chaque mouvement de caméra (seuils UI §4bis). */
   onZoomChange?: (zoom: number) => void;
+  onCameraSettled?: (camera: RealMapCamera) => void;
+  /** Explicit user gesture only; programmatic camera animations do not fire it. */
+  onCameraGesture?: () => void;
   /**
    * WEB UNIQUEMENT : reçoit l'instance maplibre-gl dès sa création — permet de
    * scoper échelle/outils à CETTE carte (plusieurs cartes montées en même
@@ -848,6 +851,8 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     markers,
     onPress,
     onZoomChange,
+    onCameraSettled,
+    onCameraGesture,
     onMapReady,
     attributionCompact = true,
     basemap,
@@ -892,6 +897,10 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   onPressRef.current = onPress;
   const onZoomChangeRef = useRef<RealMapProps['onZoomChange']>(onZoomChange);
   onZoomChangeRef.current = onZoomChange;
+  const onCameraSettledRef = useRef(onCameraSettled);
+  onCameraSettledRef.current = onCameraSettled;
+  const onCameraGestureRef = useRef(onCameraGesture);
+  onCameraGestureRef.current = onCameraGesture;
   const onMapReadyRef = useRef<RealMapProps['onMapReady']>(onMapReady);
   onMapReadyRef.current = onMapReady;
   /** Fond au montage (le remount par `key` du parent porte la bascule). */
@@ -1068,6 +1077,11 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
     // interne par frame : les markers natifs suivent la caméra tout seuls (§5).
     map.on('move', () => {
       onZoomChangeRef.current?.(map.getZoom());
+    });
+    map.on('movestart', event => { if (event.originalEvent) onCameraGestureRef.current?.(); });
+    map.on('moveend', () => {
+      const center = map.getCenter();
+      onCameraSettledRef.current?.({ lng: center.lng, lat: center.lat, zoom: map.getZoom() });
     });
     map.on('click', (e: MapMouseEvent) => {
       // §3 : id de la zone tapée (null sur le vide) — NE casse pas les markers

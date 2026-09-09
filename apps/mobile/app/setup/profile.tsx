@@ -185,7 +185,8 @@ import {
  * aucune flèche de retour n'y est peinte — l'affichage se dérive de la capacité
  * RÉELLE, jamais de l'apparence.
  */
-const NEXT_STEP = '/setup/activity';
+/** Le profil est contextuel : son enregistrement rend immédiatement la main à la carte. */
+const NEXT_STEP = '/';
 
 /**
  * Ce que l'écran sait de la ville PROPOSÉE — quatre états distincts, comme

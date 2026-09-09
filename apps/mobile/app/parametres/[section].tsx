@@ -87,7 +87,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import {
   colors,
   EVENTS,
@@ -273,6 +273,11 @@ function UnknownSection() {
 export default function SettingsSectionScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
   const raw = Array.isArray(params.section) ? params.section[0] : params.section;
+  if (raw === 'avance') return <Redirect href="/calcul-zones" />;
+  if (raw === 'crew') return <Redirect href="/(tabs)/crew" />;
+  if (raw === 'carte') return <Redirect href="/(tabs)" />;
+  if (raw === 'apropos') return <Redirect href="/a-propos" />;
+  if (raw === 'profil') return <Redirect href="/profil-edit" />;
   if (!isSection(raw)) return <UnknownSection />;
   return <KnownSection id={raw} />;
 }
@@ -660,16 +665,6 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
 
       {id === 'course' ? (
         <>
-          <Section label={t(C.secStyleJeu)}>
-            <Text style={styles.note}>{t(PLAY_STYLE_LABELS[prefs.playStyle].subtitle)}</Text>
-            <ListRow
-              icon="cible"
-              label={t(C.setStyle)}
-              sublabel={t(C.setStyleDetail)}
-              chevron
-              onPress={() => router.push('/settings-motivation')}
-            />
-          </Section>
           {/* « PENDANT LA SORTIE », plus « PENDANT LA COURSE » : cette section
               gouverne les haptiques et les unités de n'importe quelle sortie,
               vélo compris, et l'écran ne lit aucune discipline. */}

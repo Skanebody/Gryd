@@ -67,6 +67,7 @@ export function filterPoints(
   const sorted = [...points].sort((a, b) => a.t - b.t);
   const segments: Segment[] = [];
   let current: Segment = [];
+  let pendingExplicitBreak = false;
 
   const closeCurrent = () => {
     if (current.length >= 2) segments.push(current);
@@ -74,14 +75,22 @@ export function filterPoints(
   };
 
   for (const p of sorted) {
+    if (p.breakBefore === true) pendingExplicitBreak = true;
     if (p.acc !== undefined && p.acc > rules.pointMaxAccuracyM) continue;
     const last = current[current.length - 1];
     if (last === undefined) {
-      current.push(p);
+      current.push(pendingExplicitBreak ? { ...p, breakBefore: true } : p);
+      pendingExplicitBreak = false;
       continue;
     }
     const dtS = (p.t - last.t) / MS_PER_S;
     if (dtS <= 0) continue; // dupliqué / désordonné
+    if (pendingExplicitBreak) {
+      closeCurrent();
+      current.push({ ...p, breakBefore: true });
+      pendingExplicitBreak = false;
+      continue;
+    }
     const dM = haversineM(last, p);
     if (dM > rules.pointMaxJumpM) {
       // Saut GPS : on coupe le segment, le point démarre le suivant.

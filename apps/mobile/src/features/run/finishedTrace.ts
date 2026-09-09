@@ -30,22 +30,16 @@
  */
 type LatLng = { readonly lat: number; readonly lng: number };
 
-let lastTrace: readonly LatLng[] = [];
+import { createOwnedRunMemory2026, type RunOwnerScope2026 } from './resultOwner2026';
+const memory = createOwnedRunMemory2026<{ trace: readonly LatLng[]; segments: readonly (readonly LatLng[])[] }>();
 
-/** Arme le tracé mesuré de la dernière course (appelé par useRealRun à finish). */
-export function setFinishedTrace(trace: readonly LatLng[]): void {
-  lastTrace = trace;
+export function setFinishedTrace(trace: readonly LatLng[], segments: readonly (readonly LatLng[])[] | undefined, scope: RunOwnerScope2026): void {
+  memory.set({ trace, segments: segments ?? (trace.length > 1 ? [trace] : []) }, scope);
 }
-
-/**
- * Purge le tracé précédent. À appeler AU DÉPART d'une course, jamais à
- * l'arrivée : entre les deux, l'écran de résultat doit encore pouvoir le lire.
- */
-export function clearFinishedTrace(): void {
-  lastTrace = [];
+export function clearFinishedTrace(): void { memory.clear(); }
+export function getFinishedTrace(ownerId?: string | null, clientRunId?: string): readonly LatLng[] {
+  return memory.get(ownerId, clientRunId)?.trace ?? [];
 }
-
-/** Tracé mesuré de la dernière course, ou `[]` (reprise sans points / non lancé). */
-export function getFinishedTrace(): readonly LatLng[] {
-  return lastTrace;
+export function getFinishedSegments(ownerId?: string | null, clientRunId?: string): readonly (readonly LatLng[])[] {
+  return memory.get(ownerId, clientRunId)?.segments ?? [];
 }

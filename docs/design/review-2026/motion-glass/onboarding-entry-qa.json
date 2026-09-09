@@ -1,0 +1,28 @@
+[
+  {
+    "width": 390,
+    "height": 844,
+    "firstVisitCompletedWithoutLocation": true,
+    "replayClose": true,
+    "persistedPreferenceKeys": [
+      "gryd.mapactivity",
+      "gryd.onboarding.v1"
+    ],
+    "unchangedPreferences": true,
+    "gpsCalls": 0,
+    "errors": []
+  },
+  {
+    "width": 320,
+    "height": 640,
+    "firstVisitCompletedWithoutLocation": true,
+    "replayClose": true,
+    "persistedPreferenceKeys": [
+      "gryd.mapactivity",
+      "gryd.onboarding.v1"
+    ],
+    "unchangedPreferences": true,
+    "gpsCalls": 0,
+    "errors": []
+  }
+]

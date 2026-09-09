@@ -28,6 +28,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, StyleSheet, View } from 'react-native';
 import { router, Stack, usePathname } from 'expo-router';
 import { useAppFonts } from '../src/lib/fonts';
+import { RunSessionProvider } from '../src/features/refonte/RunSession';
+import { ProgressMomentBaseline2026 } from '../src/features/refonte/ProgressMomentBaseline2026';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@klaim/shared';
@@ -98,6 +100,12 @@ import '../src/features/run/gps/registerBackgroundTask';
  * la vue standard `$screen`. Le NOM est rédigé (normalizeScreenPath) — aucun id
  * dynamique ne fuit. Silencieux si PostHog n'est pas configuré (O3).
  */
+function RouteStatusBar() {
+  const pathname = usePathname();
+  const lightSurface = ['/course-result', '/profil', '/crew', '/season', '/premium', '/performance', '/premium-analytics', '/arsenal', '/parametres'].includes(pathname);
+  return <StatusBar style={lightSurface ? 'dark' : 'light'} />;
+}
+
 function NavAnalytics(): null {
   const pathname = usePathname();
   useEffect(() => {
@@ -355,8 +363,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
+        <ProgressMomentBaseline2026 />
+        <RunSessionProvider>
         <NavAnalytics />
-        <StatusBar style="light" />
+        <RouteStatusBar />
         {/* La frontière d'erreur n'est PAS ici : elle enveloppe ce layout entier
             (export `ErrorBoundary` en tête de fichier), donc plus haut que ce
             JSX. Voir le commentaire de l'export. */}
@@ -405,6 +415,7 @@ export default function RootLayout() {
             <Stack.Screen name="map/search" />
           </Stack>
         </BootGate>
+              </RunSessionProvider>
       </SessionProvider>
     </SafeAreaProvider>
   );

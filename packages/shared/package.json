@@ -16,6 +16,9 @@
     "./bonuses": "./src/bonuses.ts",
     "./streak": "./src/streak.ts",
     "./season": "./src/season.ts",
+    "./calendar2026": "./src/calendar2026.ts",
+    "./progression2026": "./src/progression2026.ts",
+    "./challenges2026": "./src/challenges2026.ts",
     "./cities": "./src/cities.ts",
     "./cities-eu": "./src/cities-eu.ts"
   },

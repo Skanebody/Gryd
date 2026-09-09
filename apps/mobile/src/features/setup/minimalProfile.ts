@@ -1,7 +1,8 @@
 /**
  * GRYD — LA LECTURE du profil minimal (E08), et rien d'autre.
  *
- * La DÉCISION est ailleurs et elle est pure (`firstRun.ts`, testée sous Deno).
+ * Les écrans sociaux consomment cette lecture de façon contextuelle ; elle ne
+ * bloque plus l'accès à la carte.
  * Ce module ne fait que ce que ce module-là ne peut pas faire : parler au
  * serveur, et partager le verdict entre les composants qui en dépendent.
  *
@@ -147,7 +148,7 @@ function startRead(userId: string | null): void {
  * CE QUE LE STORE SAIT DÈS LE PREMIER RENDU, avant tout effet.
  *
  * ⚠️ Ce n'est pas un détail de perf, c'est LE point qui évite un mensonge. Si ce
- * premier rendu répondait `'idle'`, `decideFirstRun` rendrait `'app'` : la carte
+ * premier rendu répondait `'idle'` : la carte
  * se peindrait pendant une frame, puis la lecture démarrerait (effet), puis la
  * garde renverrait vers E08. Le joueur aurait vu le produit une fraction de
  * seconde avant d'être renvoyé dans l'inscription — le pendant exact du « flash
@@ -174,7 +175,7 @@ function snapshotFor(userId: string | null): MinimalProfileProbe {
 /**
  * Abonnement du store à l'état du profil minimal du compte `userId`.
  *
- * Retourne la sonde telle quelle : c'est `decideFirstRun` (pur) qui en tire une
+ * Retourne la sonde telle quelle : chaque surface contextuelle en tire son état
  * destination — ce hook ne décide de rien.
  *
  * REPRISE AU RETOUR AU PREMIER PLAN : une lecture qui a échoué (`'unknown'`)
