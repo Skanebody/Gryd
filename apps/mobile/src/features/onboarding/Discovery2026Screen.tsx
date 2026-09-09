@@ -102,7 +102,7 @@ export default function Discovery2026Screen() {
   </View>;
 }
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: c.carbon }, photo: { position: 'absolute', top: 0, left: 0, width: '100%', height: '72%' },
+  root: { flex: 1, backgroundColor: c.carbon }, photo: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   content: { paddingHorizontal: 22, flexGrow: 1 }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 }, brand: { height: 44, justifyContent: 'center' }, headerControl: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' }, overlayContent: { zIndex: 1 },
   photoSpace: { flex: 1 }, copy: { gap: 10 }, title: { color: c.darkInk, fontFamily: fonts.displayMedium, fontSize: 24, lineHeight: 29, letterSpacing: -0.5 }, body: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 13, lineHeight: 20 },
   art: { marginTop: 14, marginBottom: 18, justifyContent: 'center', borderRadius: 24, overflow: 'hidden', flex: 1 }, crewPhoto: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' }, crewCaption: { backgroundColor: c.carbon, position: 'absolute', bottom: 12, left: 12, right: 12, padding: 12, borderRadius: 14, flexDirection: 'row', gap: 9, alignItems: 'center' }, crewCaptionText: { color: c.darkInk, fontFamily: fonts.textMedium, fontSize: 12, flexShrink: 1 },

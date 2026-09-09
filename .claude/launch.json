@@ -37,6 +37,19 @@
         "/private/tmp/claude-501/-Users-benjaminbel-KLAIM-RUN/4a188b45-a53f-408d-ae23-f5c288580f23/scratchpad/ghpages-preview"
       ],
       "port": 8090
+    },
+    {
+      "name": "mobile-web-8082",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "8082"
+      ],
+      "port": 8082,
+      "cwd": "apps/mobile"
     }
   ]
 }
