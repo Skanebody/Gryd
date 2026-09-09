@@ -1,8 +1,29 @@
-/** September 2026: exploring the map precedes account creation. */
+/**
+ * September 2026: exploring the map precedes account creation.
+ *
+ * ─── DEUX CORRECTIFS DU 10/09/2026 ──────────────────────────────────────────
+ *
+ * 1. PLUS D'ÉCRAN NOIR MUET. Cette garde rendait `<View style={styles.root} />`
+ *    — un rectangle noir sans logo ni indicateur — dans DEUX attentes : la
+ *    restauration de session, et la lecture du drapeau d'onboarding, qui a son
+ *    propre plafond de patience de 3 secondes (`onboarding/store.ts`,
+ *    `STORAGE_TIMEOUT_MS`). Trois secondes de noir au lancement, sur un stockage
+ *    lent, ressemblent à un plantage. E00 EXISTE (`features/boot/SplashE00`) et
+ *    couvre déjà l'attente de session depuis le layout racine ; il n'y avait
+ *    aucune raison que celle-ci reste nue. Les fontes sont chargées à ce
+ *    stade — `app/_layout.tsx` ne rend ses enfants qu'ensuite —, d'où
+ *    `logoReady`.
+ *
+ * 2. LES BANDEAUX DE SESSION SONT ENFIN RENDUS. `deletionCancelled` (0046) et
+ *    `sessionExpired` étaient calculés par `lib/session.tsx` et lus par
+ *    PERSONNE. Voir `features/account/SessionNotices2026.tsx`.
+ */
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { colors } from '@klaim/shared';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
+import { SessionNotices2026 } from '../../src/features/account/SessionNotices2026';
+import { SplashE00 } from '../../src/features/boot/SplashE00';
 import { useOnboardingState } from '../../src/features/onboarding/store';
 import { completedOnboardingThisSession2026 } from '../../src/features/onboarding/sessionCompletion2026';
 import { C } from '../../src/i18n/catalog/nav';
@@ -15,13 +36,15 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const t = useT();
 
-  // Restauration de session en cours : fond noir muet (splash implicite).
-  if (loading) return <View style={styles.root} />;
+  // Restauration de session en cours : E00, pas un rectangle noir.
+  if (loading) return <SplashE00 logoReady />;
 
   // Existing accounts go straight to the app; guests see the welcome once.
   if (configured && !session) {
     // An explicit exploration choice also works when local storage is unavailable.
-    if (onboardingStatus === 'reading' && !completedOnboardingThisSession2026()) return <View style={styles.root} />;
+    if (onboardingStatus === 'reading' && !completedOnboardingThisSession2026()) {
+      return <SplashE00 logoReady />;
+    }
     const seen = onboardingStatus === 'ready' && onboarding.onboardingDone;
     if (!seen && !completedOnboardingThisSession2026()) return <Redirect href="/onboarding" />;
   }
@@ -52,6 +75,9 @@ export default function TabsLayout() {
       </Tabs>
       {/* La Carte monte sa barre avec l'action Courir/Rouler/Reprendre intégrée. */}
       {pathname === '/' ? null : <GrydNavBar />}
+      {/* Rendus par-dessus : un fait de session n'attend pas la prochaine
+          navigation pour être dit, et il ne pousse aucun contenu. */}
+      <SessionNotices2026 />
     </View>
   );
 }

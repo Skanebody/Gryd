@@ -135,3 +135,24 @@ Deno.test('un retour VALIDE en cours d’échange n’est pas un échec', () => 
   const parsed = parse('gryd://callback?code=abc123');
   assertEquals(authCallbackVerdict2026({ parsed, waited: true, exchanged: false, linkVerdict: null }), null);
 });
+
+Deno.test('l’écran de retour ne conclut plus sur un premier `url` nul', async () => {
+  // ÉTAPE 0 : `app/(auth)/callback.tsx` ouvrait son effet par
+  //     if (!url) { setFailed(true); return () => { … }; }
+  // — donc il déclarait l'échec au tout premier rendu d'un lancement à froid,
+  // avant que le système ait remis l'URL.
+  const src = (await Deno.readTextFile(new URL('../../../app/(auth)/callback.tsx', import.meta.url)))
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('{/*') && !l.trim().startsWith('*'))
+    .join('\n');
+  assertEquals(/if\s*\(\s*!url\s*\)\s*\{?\s*set[A-Za-z]*\(\s*true/.test(src), false,
+    'aucune conclusion d’échec sur l’absence d’URL : c’est le délai qui tranche');
+  assertEquals(src.includes('AUTH_CALLBACK_URL_WAIT_MS'), true, 'le délai d’attente doit être armé');
+  assertEquals(src.includes('authCallbackVerdict2026'), true, 'le verdict vient du module PUR');
+  assertEquals(src.includes('linkVerdictFromParams'), true,
+    '`linkVerdictFromParams` distingue expiré/incomplet — elle n’avait aucun appelant');
+  // Quatre faits, quatre phrases : plus un seul message pour tout.
+  for (const copy of ['callbackNetwork', 'callbackNoReturn', 'expiredTitle', 'errorLinkInvalid']) {
+    assertEquals(src.includes(copy), true, `la copie ${copy} doit être rendue`);
+  }
+});

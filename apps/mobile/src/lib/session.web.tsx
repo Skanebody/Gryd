@@ -35,6 +35,7 @@ import { isSupabaseConfigured, supabase } from './supabase';
 import { initialTokenProbe } from '../features/boot/bootSequence';
 import { setResultOwner2026 } from '../features/run/resultOwner2026';
 import { cancelAccountDeletion } from '../features/account/deletion';
+import { consumeIntentionalSignOut2026 } from '../features/account/signOutIntent2026';
 
 export interface SessionState {
   /** Session Supabase courante (null : déconnecté ou mode dev). */
@@ -50,6 +51,13 @@ export interface SessionState {
    */
   deletionCancelled: boolean;
   acknowledgeDeletionCancelled: () => void;
+  /**
+   * True quand la session s'est terminée SANS que personne ne l'ait demandé —
+   * en pratique : le jeton n'a pas pu être rafraîchi. Parité stricte avec
+   * `session.tsx` (voir `features/account/signOutIntent2026.ts`).
+   */
+  sessionExpired: boolean;
+  acknowledgeSessionExpired: () => void;
 }
 
 const SessionContext = createContext<SessionState>({
@@ -58,6 +66,8 @@ const SessionContext = createContext<SessionState>({
   configured: isSupabaseConfigured,
   deletionCancelled: false,
   acknowledgeDeletionCancelled: () => {},
+  sessionExpired: false,
+  acknowledgeSessionExpired: () => {},
 });
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -77,16 +87,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     initialTokenProbe(isSupabaseConfigured) === 'reading',
   );
   const [deletionCancelled, setDeletionCancelled] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setResultOwner2026(null); return; }
     let revision = 0;
     let alive = true;
+    /** Y avait-il une session AVANT cet événement ? (parité session.tsx) */
+    let hadSession = false;
     setResultOwner2026(undefined);
     supabase.auth
       .getSession()
       .then(({ data }) => {
         if (!alive || revision !== 0) return;
+        hadSession = data.session !== null;
         setResultOwner2026(data.session?.user.id ?? null); setSession(data.session);
       }).catch(() => { if (alive && revision === 0) setResultOwner2026(undefined); })
       .finally(() => { if (alive) setLoading(false); });
@@ -103,11 +117,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // donc revenir passe forcément par un vrai SIGNED_IN.
       setDeletionCancelled(false);
       if (event === 'SIGNED_IN' && next) {
+        setSessionExpired(false);
         const authRevision = revision;
         void cancelAccountDeletion().then(({ restored }) => {
           if (alive && revision === authRevision && restored) setDeletionCancelled(true);
         }).catch(() => {});
       }
+      if (event === 'SIGNED_OUT') {
+        // Une déconnexion DEMANDÉE ne se commente pas ; une session qui s'éteint
+        // toute seule, si. Aucun `startAutoRefresh` ici : sur web l'onglet garde
+        // ses minuteries, le SDK s'en occupe seul (voir session.tsx).
+        const asked = consumeIntentionalSignOut2026();
+        setSessionExpired(hadSession && !asked);
+      }
+      hadSession = next !== null;
     });
     return () => { alive = false; listener.subscription.unsubscribe(); setResultOwner2026(undefined); };
   }, []);
@@ -120,6 +143,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         configured: isSupabaseConfigured,
         deletionCancelled,
         acknowledgeDeletionCancelled: () => setDeletionCancelled(false),
+        sessionExpired,
+        acknowledgeSessionExpired: () => setSessionExpired(false),
       }}
     >
       {children}

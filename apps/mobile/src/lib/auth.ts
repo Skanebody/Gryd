@@ -59,6 +59,10 @@ import {
   type AuthFailureReason2026,
   type AuthResult2026,
 } from '../features/account/authFailure2026';
+import {
+  forgetIntentionalSignOut2026,
+  markIntentionalSignOut2026,
+} from '../features/account/signOutIntent2026';
 
 // Ferme proprement la popup d'auth au retour dans l'app (deep link scheme "gryd", cf. app.json).
 WebBrowser.maybeCompleteAuthSession();
@@ -332,8 +336,17 @@ export async function verifyEmailOtp(email: string, code: string): Promise<AuthR
 
 export async function signOut(): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
+  // ⚠️ AVANT L'APPEL, PAS APRÈS. `supabase-js` émet `SIGNED_OUT` pendant cet
+  // `await` : marquer l'intention ensuite arriverait trop tard, et `session.tsx`
+  // classerait une déconnexion DEMANDÉE comme une session expirée.
+  markIntentionalSignOut2026();
   const { error } = await supabase.auth.signOut();
-  if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  if (error) {
+    // Rien ne s'est déconnecté : l'intention doit s'effacer, sinon elle
+    // avalerait le message de la PROCHAINE déconnexion, celle-là subie.
+    forgetIntentionalSignOut2026();
+    return { ok: false, reason: 'auth_error', message: error.message };
+  }
   resetAnalytics();
   return { ok: true };
 }

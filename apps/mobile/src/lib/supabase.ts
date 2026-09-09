@@ -24,6 +24,17 @@ function makeSupabase(): SupabaseClient | null {
     return createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         storage: AsyncStorage,
+        /**
+         * ⚠️ `true` NE SUFFIT PAS EN REACT NATIVE, et ce n'est pas un détail.
+         * La minuterie du SDK continue de tourner en arrière-plan, là où l'OS
+         * suspend le JavaScript : au réveil, elle a raté ses échéances et le
+         * premier appel part avec un jeton périmé — d'où un `SIGNED_OUT` qui
+         * n'a été demandé par personne. Le pilotage réel vit dans
+         * `lib/session.tsx` : `startAutoRefresh`/`stopAutoRefresh` branchés sur
+         * `AppState` (voie documentée par Supabase pour React Native). Ce
+         * drapeau reste `true` parce que le SDK en a besoin pour armer la
+         * minuterie ; c'est `AppState` qui décide quand elle vit.
+         */
         autoRefreshToken: true,
         persistSession: true,
         // /callback has one explicit exchange on every platform. Letting the

@@ -295,6 +295,27 @@ export const C = defineCatalog({
     pt: 'Nenhum retorno de acesso chegou até aqui. Abra o link pelo seu e-mail, neste aparelho.',
   },
 
+  /**
+   * L'ÉCHANGE N'A PAS ABOUTI, ET LE LIEN N'Y EST POUR RIEN. Le transport a
+   * lâché pendant l'appel au serveur : le code à usage unique n'a pas été
+   * consommé, donc le lien reste bon. Conseiller « demande un nouveau lien »
+   * (ce que faisait la phrase unique) faisait brûler le quota d'envoi pour rien.
+   */
+  callbackNetwork: {
+    fr: 'La connexion au serveur n’a pas abouti. Ton lien reste valable : réessaie quand tu as du réseau.',
+    en: 'The server couldn’t be reached. Your link is still valid: try again when you’re online.',
+    es: 'No se pudo contactar con el servidor. Tu enlace sigue siendo válido: reinténtalo con conexión.',
+    de: 'Der Server war nicht erreichbar. Dein Link gilt weiterhin: versuch es mit Netz erneut.',
+    pt: 'Não foi possível falar com o servidor. Seu link continua válido: tente de novo com internet.',
+  },
+  callbackRetryCta: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+
   // ─── Bandeaux de session (rendus par app/(tabs)/_layout.tsx) ──────────────
   /**
    * « Toute reconnexion annule la suppression » (0046). Le fait était CALCULÉ
