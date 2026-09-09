@@ -48,7 +48,7 @@ Les objets gardent leur sémantique : une affiche montre le vrai template Studio
 
 - Typecheck de tous les workspaces réussi.
 - Suite mobile Deno : **2 353 tests réussis, aucun échec**, après les correctifs du catalogue et du rendu partagé des objets.
-- SQL local PGlite : **11 contrôles** pour l'identité territoriale (0115), **10 contrôles** pour conversation/contributions (0116). La dernière revue indépendante a reproduit puis vérifié la correction d'une exposition de nom/handle privé dans le chat : la jointure respecte désormais le helper de visibilité et la politique RLS réels de 0113, avec pseudo public en repli. Matrice privé/soi/public/amis/crew/départ couverte. PGlite ne remplace pas une exécution PostGIS des prédicats spatiaux.
+- SQL local PGlite : **11 contrôles** pour l'identité territoriale (0126), **10 contrôles** pour conversation/contributions (0127). La dernière revue indépendante a reproduit puis vérifié la correction d'une exposition de nom/handle privé dans le chat : la jointure respecte désormais le helper de visibilité et la politique RLS réels de 0124, avec pseudo public en repli. Matrice privé/soi/public/amis/crew/départ couverte. PGlite ne remplace pas une exécution PostGIS des prédicats spatiaux.
 - Audit des migrations : 113 fichiers/versions, aucune collision. `git diff --check` réussi.
 - Export Expo Web et iOS réussi. Il s'agit d'un bundle, pas d'une certification appareil.
 - Chromium isolé, français, 320 × 640 et 390 × 844 : découverte complète, relecture, choix Vélo puis carte, changement de discipline, Couches, Profil, Crew ; aucun `pageerror` sur ces parcours. Stockage indisponible et capteur muet également vérifiés.
@@ -57,6 +57,6 @@ Les objets gardent leur sémantique : une affiche montre le vrai template Studio
 
 Captures de l'application : [`docs/design/review-2026/community`](../design/review-2026/community/). Elles montrent le mode invité, sans faux territoire, score ou conversation. Les scripts de capture étaient des outils temporaires de recette, distincts des tests du dépôt.
 
-**Serveur :** les migrations `0115_refonte_2026_territory_owner_identity.sql` et `0116_refonte_2026_crew_conversation.sql` sont écrites et testées localement, non déployées. L'identité enrichie, la conversation et les contributions volontaires nécessitent leur application au backend. L'interface prévoit leur indisponibilité. La mise en production, les gestes/GPS/clavier sur appareil réel, la concurrence multi-connexions, le traitement humain des signalements et la conversion communautaire mesurée restent à valider.
+**Serveur :** les migrations `0126_refonte_2026_territory_owner_identity.sql` et `0127_refonte_2026_crew_conversation.sql` sont écrites et testées localement, non déployées. L'identité enrichie, la conversation et les contributions volontaires nécessitent leur application au backend. L'interface prévoit leur indisponibilité. La mise en production, les gestes/GPS/clavier sur appareil réel, la concurrence multi-connexions, le traitement humain des signalements et la conversion communautaire mesurée restent à valider.
 
 L'étude ne permet pas d'affirmer une attractivité supérieure à INTVL. Les améliorations livrées créent des chemins plus directs ; leur effet doit être vérifié avec des utilisateurs et des cohortes, notamment première réponse, première sortie et retour J7/J28.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Actual 0111 on PostgreSQL/WASM. Spatial arena review/intersection is exercised
+// Actual 0122 on PostgreSQL/WASM. Spatial arena review/intersection is exercised
 // separately by the PostGIS harness; local fixtures never claim GPS proof.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,7 +46,7 @@ try {
     create table runs(id uuid primary key,user_id uuid references users(id) on delete cascade,activity text,started_at timestamptz,ended_at_2026 timestamptz,created_at timestamptz,ruleset_version text default '2026.1');
     create table capture_events_2026(id uuid primary key,run_id uuid references runs(id) on delete set null,status text,reason text,face_key text);
     create table no_capture_zones(geojson jsonb);`);
-  await db.exec(readFileSync(new URL('../migrations/0111_refonte_2026_crew_challenges.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('../migrations/0122_refonte_2026_crew_challenges.sql', import.meta.url), 'utf8'));
   for (let i = 0; i < users.length; i++) await db.query('insert into users(id,pseudo) values($1,$2)', [users[i], `fixture_${i}`]);
   for (let i = 0; i < 2; i++) await db.query('insert into crews values($1,$2)', [crews[i], `Test crew ${i}`]);
   for (let i = 0; i < 10; i++) await db.query('insert into crew_members(crew_id,user_id,role,left_at) values($1,$2,$3,null)', [crews[Math.floor(i / 5)], users[i], i % 5 === 0 ? 'founder' : 'runner']);
@@ -260,5 +260,5 @@ try {
     assert.deepEqual(result.scores.map(s => s.matchPoints), [1,2]);
     assert.equal(result.winnerTeamId, crews[1]);
   });
-  console.log(`PASS ${passed} challenge lifecycle/scoring PostgreSQL tests. Real 0111; spatial proof and cron extension NOT exercised.`);
+  console.log(`PASS ${passed} challenge lifecycle/scoring PostgreSQL tests. Real 0122; spatial proof and cron extension NOT exercised.`);
 } finally { await db.close(); }

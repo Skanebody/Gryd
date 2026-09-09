@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Executes actual 0108–0110 SQL and the shared ledger on local PostgreSQL/WASM.
+// Executes actual 0119–0121 SQL and the shared ledger on local PostgreSQL/WASM.
 // Only pre-existing users/runs/auth are small fixtures. No PostGIS, remote DB,
 // Store network or Supabase HTTP gateway is exercised by this test.
 import assert from 'node:assert/strict';
@@ -62,7 +62,7 @@ try {
     create table public.users(id uuid primary key,created_at timestamptz not null default now(),deletion_requested_at timestamptz);
     create table public.runs(id uuid primary key,user_id uuid not null references users(id) on delete cascade,
       ruleset_version text not null default '2026.1',xp_awarded integer not null default 0);`);
-  for (const name of ['0108_refonte_2026_progress_ledger.sql', '0109_refonte_2026_premium_entitlements.sql', '0110_refonte_2026_season_collections.sql']) {
+  for (const name of ['0119_refonte_2026_progress_ledger.sql', '0120_refonte_2026_premium_entitlements.sql', '0121_refonte_2026_season_collections.sql']) {
     await db.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), 'utf8'));
   }
   await db.query("insert into users(id,created_at) values($1,'2025-01-01'),($2,'2025-01-01'),($3,'2025-01-01')", [owner, other, fresh]);
@@ -231,5 +231,5 @@ try {
     await db.query('delete from users where id=$1', [owner]);
     assert.equal(await scalar('select count(*)::integer from season_reward_ownership_2026 where user_id=$1', [owner]), 0);
   });
-  console.log(`PASS ${passed} PostgreSQL progression/collection tests. Actual 0108–0110; fixture users/runs/auth; no PostGIS or Store network.`);
+  console.log(`PASS ${passed} PostgreSQL progression/collection tests. Actual 0119–0121; fixture users/runs/auth; no PostGIS or Store network.`);
 } finally { await db.close(); }

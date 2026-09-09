@@ -1,5 +1,5 @@
 -- September §§6.6,7,16.3: one dated collection, permanent earned objects.
--- Requires 0108 (sporting ledger) and 0109 (server-verified GRYD+ rights).
+-- Requires 0119 (sporting ledger) and 0120 (server-verified GRYD+ rights).
 -- No season/date is invented here. Operations publish an actual calendar with
 -- configure_season_collection_2026; there is no reset of sporting or map data.
 

@@ -14,7 +14,7 @@ try{
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
     grant usage on schema auth to anon,authenticated,service_role;
     create table public.users(id uuid primary key);`);
-  await db.exec(readFileSync(new URL('../migrations/0114_refonte_2026_permanent_collections.sql',import.meta.url),'utf8'));
+  await db.exec(readFileSync(new URL('../migrations/0125_refonte_2026_permanent_collections.sql',import.meta.url),'utf8'));
   await db.query('insert into users values($1),($2)',[owner,other]);
   await test('unconfigured catalogue has three products, no fake price or purchasable SKU',async()=>{const rows=(await asUser(owner,()=>scalar('select get_commercial_collections_2026()'))).collections;assert.equal(rows.length,3);assert(rows.every(r=>!r.owned&&!r.configured&&r.productIds.length===0));});
   await db.exec("update commercial_collections_2026 set entitlement_id='test_relief',product_ids=array['test.relief'],enabled=true where id='relief'");

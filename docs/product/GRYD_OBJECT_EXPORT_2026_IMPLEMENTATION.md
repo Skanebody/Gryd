@@ -29,11 +29,11 @@ Les aperçus de catalogue montrent le vrai modèle sans données sportives. Les 
 
 Le catalogue présente le contenu et la permanence, sans stock fictif ni montant provenant du cahier. Le prix affiché est `StoreProduct.priceString`. Le SDK lit les produits avec la catégorie `NON_SUBSCRIPTION`, achète le `StoreProduct` choisi et restaure via RevenueCat. Un retour SDK ne suffit pas à afficher « possédé » : l’Edge function relit le subscriber auprès de RevenueCat et applique le droit côté serveur. Les transferts et remboursements passent aussi par le webhook existant.
 
-Migration **0114** : catalogue sans identifiant Store présumé, droits permanents, reçus idempotents et équipements. Les quatre tables ont RLS activée et n’acceptent aucune écriture cliente. Les snapshots sont ordonnés par date d’observation ; un conflit au même instant préfère la révocation. Attribution et reçu commercial sont transactionnels ; une erreur ne laisse pas un reçu de succès. Une révocation enlève également l’équipement correspondant. La résiliation GRYD+ n’est pas une révocation d’achat permanent.
+Migration **0125** : catalogue sans identifiant Store présumé, droits permanents, reçus idempotents et équipements. Les quatre tables ont RLS activée et n’acceptent aucune écriture cliente. Les snapshots sont ordonnés par date d’observation ; un conflit au même instant préfère la révocation. Attribution et reçu commercial sont transactionnels ; une erreur ne laisse pas un reçu de succès. Une révocation enlève également l’équipement correspondant. La résiliation GRYD+ n’est pas une révocation d’achat permanent.
 
 ## Configuration avant vente
 
-1. Appliquer **0114** avant de redéployer `rc_webhook` et `sync_gryd_plus_access_2026` : ces fonctions lisent désormais aussi le catalogue commercial.
+1. Appliquer **0125** avant de redéployer `rc_webhook` et `sync_gryd_plus_access_2026` : ces fonctions lisent désormais aussi le catalogue commercial.
 2. Créer les produits **non consommables** dans App Store Connect et Google Play, puis les relier à trois entitlements RevenueCat distincts, également distincts de `gryd_pro`. La configuration Store définit seule les montants et devises.
 3. Pour chaque ligne de `commercial_collections_2026`, renseigner via un accès administrateur `entitlement_id` et `product_ids` (identifiants réellement configurés sur iOS/Android), puis `enabled=true`. Un identifiant produit ne peut appartenir à deux collections.
 4. Conserver les secrets serveur et clés publiques RevenueCat documentés dans `GRYD_PLUS_2026_IMPLEMENTATION.md`. `RC_ALLOW_SANDBOX=true` est réservé au backend de test.

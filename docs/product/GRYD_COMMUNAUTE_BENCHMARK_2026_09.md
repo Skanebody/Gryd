@@ -45,7 +45,7 @@ Dans les Jeux de clan, les défis accomplis rapportent des points au collectif, 
 | Fonction | État constaté avant ce lot | Ajout ou correction locale |
 |---|---|---|
 | Invitation | Code serveur, QR et partage présents ; arrivée par lien déjà routée | Accès nommé depuis le crew, lien sélectionnable et collage direct du lien officiel dans Rejoindre ; les URL étrangères sont refusées et le résultat réel du partage est conservé |
-| Discussion de groupe | Annonces de direction et commentaires attachés aux sorties ; pas de conversation autonome | Route `/crew-conversation`, lecture paginée/envoi, retrait, signalement ; migration `0116_refonte_2026_crew_conversation.sql` |
+| Discussion de groupe | Annonces de direction et commentaires attachés aux sorties ; pas de conversation autonome | Route `/crew-conversation`, lecture paginée/envoi, retrait, signalement ; migration `0127_refonte_2026_crew_conversation.sql` |
 | Encouragements | RPC idempotente présente ; dans CrewHome, le bouton ouvrait seulement le détail | Envoi réel de la réaction choisie, relecture après confirmation et erreur visible |
 | Rôles | Matrice et RPC d’administration `0093`, feuille d’actions membres | Affichage du rôle serveur sur chaque membre ; aucun rôle dérivé de mesures inventées |
 | Contributions volontaires | Pas de rôle de disponibilité distinct de la hiérarchie | Accueil, organisation de sorties et repérage de parcours ; auto-attribution serveur révocable, sans modification du rôle administratif |

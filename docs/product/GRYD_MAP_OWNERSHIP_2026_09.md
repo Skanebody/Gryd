@@ -24,7 +24,7 @@ Une recherche de ville, un geste de carte, une nouvelle demande ou la destructio
 
 Safari peut ne pas exposer l'état de permission : il faut alors toucher Recentrer. Une autorisation ancienne mémorisée n'est pas traitée ici comme une autorisation courante.
 
-## Contrat serveur 0115
+## Contrat serveur 0126
 
 `get_ownership_2026` garde ses paramètres et retourne `ownership.2026.3`. Chaque feature ajoute :
 
@@ -47,7 +47,7 @@ Le client reste compatible avec `ownership.2026.2` : les nuances se fondent alor
 
 - Typecheck mobile : réussi.
 - Deno ciblé : 54 tests réussis, dont 14 tests nouveaux de parsing, identité, voisinage/peinture, permission, précision, refus, position périmée, délai et invalidation des réponses tardives. Inclut les régressions de confidentialité, propriétaire et peinture/fond existantes.
-- PGlite : 11 vérifications réussies ; migration 0115 appliquée réellement, fonctions d'identité/visibilité exécutées, droits SQL et refus avant opérations spatiales vérifiés. Les prédicats spatiaux sont aussi contrôlés dans le corps SQL, **mais leur exécution PostGIS n'a pas eu lieu**.
+- PGlite : 11 vérifications réussies ; migration 0126 appliquée réellement, fonctions d'identité/visibilité exécutées, droits SQL et refus avant opérations spatiales vérifiés. Les prédicats spatiaux sont aussi contrôlés dans le corps SQL, **mais leur exécution PostGIS n'a pas eu lieu**.
 - Les réactions réelles iOS/Android, la précision native, le retour Réglages et les gestes MapLibre restent à tester sur téléphone. La recette navigateur appartient au processus QA principal ; cet agent n'a pas piloté son navigateur.
 - Le serveur ne possède actuellement ni copropriété crew ni attribution historique de contribution crew : l'interface n'en invente aucune.
 - Les lectures restent limitées par l'emprise existante ; ce lot ne démontre pas une agrégation de 200 000 polygones ni leur rendu simultané. Le nombre de couches et le voisinage client sont bornés, mais une garantie de charge nationale exige une validation dédiée.

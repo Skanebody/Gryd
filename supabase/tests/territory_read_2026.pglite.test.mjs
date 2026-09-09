@@ -20,8 +20,8 @@ try{
     create table crew_members(crew_id uuid,user_id uuid,left_at timestamptz);
     create table runs(id uuid primary key,user_id uuid,activity text,game_status_2026 text,game_reason_2026 text);
   `);
-  await test('migration 0112 applies unchanged to PostgreSQL; no seed data is created',async()=>{
-    await db.exec(readFileSync(new URL('../migrations/0112_refonte_2026_territory_read_model.sql',import.meta.url),'utf8'));
+  await test('migration 0123 applies unchanged to PostgreSQL; no seed data is created',async()=>{
+    await db.exec(readFileSync(new URL('../migrations/0123_refonte_2026_territory_read_model.sql',import.meta.url),'utf8'));
     assert.equal(await one('select count(*)::int from crew_members'),0);
   });
   await db.query('insert into crews values($1,$2)',[ids[0],'Local fixture']);

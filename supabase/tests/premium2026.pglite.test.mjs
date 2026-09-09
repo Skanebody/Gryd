@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Executes all of migration 0109. No PostGIS needed; Store integration itself needs native sandbox QA. */
+/** Executes all of migration 0120. No PostGIS needed; Store integration itself needs native sandbox QA. */
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
@@ -15,7 +15,7 @@ try {
     grant usage on schema auth to authenticated;
     create table public.users(id uuid primary key);
     insert into public.users values ('${A}'),('${B}');`);
-  await db.exec(readFileSync(new URL('../migrations/0109_refonte_2026_premium_entitlements.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('../migrations/0120_refonte_2026_premium_entitlements.sql', import.meta.url), 'utf8'));
   await test('real migration applies active entitlement and success receipt together', async () => {
     assert.equal((await apply('purchase', 10, 100, true)).active, true);
     assert.equal((await db.query('select count(*)::int as n from public.premium_receipts_2026')).rows[0].n, 1);
@@ -68,5 +68,5 @@ try {
     assert.equal((await apply('after-delete', 70, 700, true)).reason, 'unknown_user');
     assert.equal((await db.query('select count(*)::int as n from public.premium_receipts_2026 where user_id=$1', [A])).rows[0].n, 0);
   });
-  console.log(`${passed} premium SQL tests passed; migration 0109 executed on PGlite.`);
+  console.log(`${passed} premium SQL tests passed; migration 0120 executed on PGlite.`);
 } finally { await db.close(); }

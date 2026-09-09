@@ -1,5 +1,5 @@
-// Runs the actual 0116 SQL and RLS. Base membership/social moderation dependencies
-// are minimal fixtures; profile visibility uses the actual 0113 helper and policy.
+// Runs the actual 0127 SQL and RLS. Base membership/social moderation dependencies
+// are minimal fixtures; profile visibility uses the actual 0124 helper and policy.
 // Remote deployment and concurrent connections are not exercised.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -19,7 +19,7 @@ try {
  create table fixture_blocks(owner_id uuid,target_id uuid);
  create function social_blocked_2026(uuid,uuid) returns boolean language sql stable as $$select exists(select 1 from fixture_blocks where (owner_id=$1 and target_id=$2) or (owner_id=$2 and target_id=$1))$$;
  create function crew_description_refusal(text) returns text language sql as $$select case when $1='fixture_banned' then 'moderated' else null end$$;`);
- const socialSql=readFileSync(new URL('../migrations/0113_refonte_2026_social.sql',import.meta.url),'utf8');
+ const socialSql=readFileSync(new URL('../migrations/0124_refonte_2026_social.sql',import.meta.url),'utf8');
  const visibilityStart=socialSql.indexOf('create function public.social_profile_visible_2026(');
  const visibilityEnd=socialSql.indexOf('$$;',visibilityStart)+3;
  assert.ok(visibilityStart>=0&&visibilityEnd>visibilityStart,'actual profile visibility helper is present');
@@ -28,7 +28,7 @@ try {
  assert.ok(visibilityPolicy,'actual direct-read profile policy is present');
  await db.exec('alter table user_profiles enable row level security;grant select on user_profiles to authenticated;');
  await db.exec(visibilityPolicy);
- await db.exec(readFileSync(new URL('../migrations/0116_refonte_2026_crew_conversation.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../migrations/0127_refonte_2026_crew_conversation.sql',import.meta.url),'utf8'));
  for(let n=1;n<=5;n++){await db.query('insert into users values($1,$2)',[id(n),`Runner ${n}`]);await db.query('insert into user_profiles(user_id,display_name,handle) values($1,$2,$3)',[id(n),`Runner ${n}`,`runner${n}`])}
  await db.query('insert into crews values($1,$2),($3,$4)',[id(11),'Paris',id(12),'Lille']);
  for(const [n,crew,role] of [[1,11,'founder'],[2,11,'runner'],[3,11,'co_captain'],[4,12,'founder']])await db.query('insert into crew_members(crew_id,user_id,role,left_at) values($1,$2,$3,null)',[id(crew),id(n),role]);

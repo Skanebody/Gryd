@@ -1,4 +1,4 @@
-# Carte et lecture territoriale — migration 0112
+# Carte et lecture territoriale — migration 0123
 
 Validation locale du 9 septembre 2026. Aucun déploiement, aucun changement de données distantes, aucun territoire ou joueur de démonstration inséré dans l’application.
 
@@ -24,13 +24,13 @@ Validation locale du 9 septembre 2026. Aucun déploiement, aucun changement de d
 - `apps/mobile/src/features/sources/adapters/gpx-parse.test.ts` : 9 — formats/rejets GPX, rupture de segments, reprise invalide et coordonnées vides. Le déplacement entre segments de moins de 30 secondes ne gonfle plus la distance.
 - `apps/mobile/src/features/refonte/crewOutingsModel2026.test.ts` : 5 — date locale, capacité, point public, discipline et contrat des rendez-vous.
 
-**10 vérifications PostgreSQL/PGlite, 0 échec** avec `node supabase/tests/territory_read_2026.pglite.test.mjs`. La migration 0112 complète est chargée sans modification. Les tests exécutent réellement le rôle calculé, le départ du crew, les privilèges et les refus avant travail spatial (authentification, propriétaire, viewport null/invalide/non fini). Ils ne simulent pas PostGIS.
+**10 vérifications PostgreSQL/PGlite, 0 échec** avec `node supabase/tests/territory_read_2026.pglite.test.mjs`. La migration 0123 complète est chargée sans modification. Les tests exécutent réellement le rôle calculé, le départ du crew, les privilèges et les refus avant travail spatial (authentification, propriétaire, viewport null/invalide/non fini). Ils ne simulent pas PostGIS.
 
 `npm run typecheck --workspace @klaim/mobile` : réussi. `deno check supabase/functions/ingest_run/index.ts` : réussi. `node scripts/sync-game-rules.mjs` : exécuté ; les copies du moteur sont générées depuis leur source.
 
 ## Limites vérifiées, pas dissimulées
 
-- **PostGIS non exécuté** : aucun PostgreSQL/PostGIS local disponible et aucune base distante utilisée. `node supabase/tests/refonte2026.postgis.test.mjs` retourne explicitement « NON EXÉCUTÉ » sans `GRYD_TEST_DATABASE_URL` vers une base locale vide. Le harnais utilise une transaction annulée ; il inclut 0112, la reprise partielle, les surfaces avant/restantes, la recapture par soi-même, les rôles, blocages, séparation des disciplines et masques personnels. Ces assertions spatiales restent à exécuter avant déploiement.
+- **PostGIS non exécuté** : aucun PostgreSQL/PostGIS local disponible et aucune base distante utilisée. `node supabase/tests/refonte2026.postgis.test.mjs` retourne explicitement « NON EXÉCUTÉ » sans `GRYD_TEST_DATABASE_URL` vers une base locale vide. Le harnais utilise une transaction annulée ; il inclut 0123, la reprise partielle, les surfaces avant/restantes, la recapture par soi-même, les rôles, blocages, séparation des disciplines et masques personnels. Ces assertions spatiales restent à exécuter avant déploiement.
 - Le calcul de lecture actuel n’ajoute ni pagination ni simplification à grande échelle. Cette passe ne démontre pas la capacité à afficher 200 000 joueurs/possessions. Le rejeu territorial pilote garde sa limite antérieure de calcul global par discipline.
 - La base existante impose un seul crew actif par compte. La lecture respecte cette source réelle ; elle ne réalise pas une migration vers deux adhésions indépendantes Run/Bike.
 - La géométrie est testée par les fonctions pures, et le contrat/les refus SQL par PGlite. Ces tests ne remplacent pas la recette cartographique native authentifiée, la publication réelle après délai et les permissions GPS sur appareil.
@@ -38,6 +38,6 @@ Validation locale du 9 septembre 2026. Aucun déploiement, aucun changement de d
 
 ## Revue voisine bornée
 
-La revue Sources/Rendez-vous a corrigé deux défauts indépendants : conservation des ruptures GPX et garde propriétaire **avant** les RPC RSVP/édition. `CrewOutings2026Screen` fige désormais le jeton Authorization du compte initiateur, puis vérifie encore l’époque de session à la réponse. Les contrôles CAS, capacité, événement commencé/annulé et permissions de 0113 restent la responsabilité du serveur ; aucune modification de 0113 n’a été faite par ce lot.
+La revue Sources/Rendez-vous a corrigé deux défauts indépendants : conservation des ruptures GPX et garde propriétaire **avant** les RPC RSVP/édition. `CrewOutings2026Screen` fige désormais le jeton Authorization du compte initiateur, puis vérifie encore l’époque de session à la réponse. Les contrôles CAS, capacité, événement commencé/annulé et permissions de 0124 restent la responsabilité du serveur ; aucune modification de 0124 n’a été faite par ce lot.
 
 Dernière régression prévol : `apps/mobile/src/features/run/gps/runActivity.test.ts`, **19 tests réussis**. Le garde-fou vérifie toujours que l’unique appel de départ transmet `requestedActivity`, la discipline affichée. Il vérifie aussi que le second argument vient du consentement durable relu à cet instant, et qu’un propriétaire/consentement devenu indisponible interrompt le décompte avant l’appel. Le remplacement de l’ancien nom local `shared` ne diminue donc pas la couverture.

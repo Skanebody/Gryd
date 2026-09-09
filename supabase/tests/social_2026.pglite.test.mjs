@@ -1,4 +1,4 @@
-// Actual 0113 + 0117 PostgreSQL functions and RLS. Storage gateway/upload, concurrent
+// Actual 0124 + 0128 PostgreSQL functions and RLS. Storage gateway/upload, concurrent
 // connections and deployment are not exercised by this local single DB test.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -29,14 +29,14 @@ try {
  const oldSocial=readFileSync(new URL('../migrations/0011_social.sql',import.meta.url),'utf8');
  await db.exec('alter table user_profiles enable row level security; grant select on user_profiles to authenticated;');
  await db.exec(oldSocial.slice(oldSocial.indexOf('create policy user_profiles_select_visible'),oldSocial.indexOf('-- ── friendships : owner-only')));
- // Use the real non-spatial 0111 helper, with its private grants, so 0113's
+ // Use the real non-spatial 0122 helper, with its private grants, so 0124's
  // map/challenge block integration executes instead of being skipped.
- const challenges=readFileSync(new URL('../migrations/0111_refonte_2026_crew_challenges.sql',import.meta.url),'utf8');
+ const challenges=readFileSync(new URL('../migrations/0122_refonte_2026_crew_challenges.sql',import.meta.url),'utf8');
  await db.exec('create table challenge_identity_blocks_2026(blocker_id uuid,blocked_user_id uuid);');
  await db.exec(challenges.slice(challenges.indexOf('create function public.challenge_pair_blocked_2026'),challenges.indexOf('create function public.challenge_has_block_2026')));
  await db.exec('revoke all on function challenge_pair_blocked_2026(uuid,uuid) from public,anon,authenticated; grant execute on function challenge_pair_blocked_2026(uuid,uuid) to service_role;');
- await db.exec(readFileSync(new URL('../migrations/0113_refonte_2026_social.sql',import.meta.url),'utf8'));
- await db.exec(readFileSync(new URL('../migrations/0117_crew_outing_host_profile_visibility.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../migrations/0124_refonte_2026_social.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../migrations/0128_crew_outing_host_profile_visibility.sql',import.meta.url),'utf8'));
  for(let i=1;i<=5;i++) await db.query('insert into users(id) values($1)',[id(i)]);
  await db.query('insert into crews(id) values($1),($2)',[id(11),id(12)]);
  for(const [i,role] of [[1,'founder'],[2,'runner'],[3,'runner']]) await db.query('insert into crew_members values($1,$2,$3,null)',[id(11),id(i),role]);

@@ -221,10 +221,10 @@ end $$;
 const dir=mkdtempSync(join(tmpdir(),'gryd-postgis-2026-'));
 try {
   const sql=join(dir,'verify.sql');
-  writeFileSync(sql,bootstrap+readFileSync(new URL('../migrations/0107_refonte_2026_polygon_authority.sql',import.meta.url),'utf8')+
-    readFileSync(new URL('../migrations/0108_refonte_2026_progress_ledger.sql',import.meta.url),'utf8')+
-    readFileSync(new URL('../migrations/0111_refonte_2026_crew_challenges.sql',import.meta.url),'utf8')+
-    readFileSync(new URL('../migrations/0112_refonte_2026_territory_read_model.sql',import.meta.url),'utf8')+
+  writeFileSync(sql,bootstrap+readFileSync(new URL('../migrations/0118_refonte_2026_polygon_authority.sql',import.meta.url),'utf8')+
+    readFileSync(new URL('../migrations/0119_refonte_2026_progress_ledger.sql',import.meta.url),'utf8')+
+    readFileSync(new URL('../migrations/0122_refonte_2026_crew_challenges.sql',import.meta.url),'utf8')+
+    readFileSync(new URL('../migrations/0123_refonte_2026_territory_read_model.sql',import.meta.url),'utf8')+
     assertions.replace('\nrollback;',challengeAssertions+'\nrollback;'));
   const result=spawnSync('psql',[target,'-X','-v','ON_ERROR_STOP=1','-f',sql],{stdio:'inherit'});
   if(result.error) { console.error(`NON EXÉCUTÉ : ${result.error.message}`); process.exitCode=2; }

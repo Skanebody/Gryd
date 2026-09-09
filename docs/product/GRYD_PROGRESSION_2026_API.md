@@ -2,7 +2,7 @@
 
 ## Chemin livré
 
-Les migrations `0108`, `0109` et `0110` relient les preuves de mouvement, les choix datés de collection, les changements de fuseau et les objets acquis. `ingest_run` recalcule le compte entier à partir de ses preuves normalisées. L’Edge Function `progression_2026` permet de reprendre ce calcul indépendamment d’une nouvelle sortie, notamment après une interruption ou une suppression de source.
+Les migrations `0119`, `0120` et `0121` relient les preuves de mouvement, les choix datés de collection, les changements de fuseau et les objets acquis. `ingest_run` recalcule le compte entier à partir de ses preuves normalisées. L’Edge Function `progression_2026` permet de reprendre ce calcul indépendamment d’une nouvelle sortie, notamment après une interruption ou une suppression de source.
 
 Les mêmes journées font progresser la carrière et une seule collection. Un changement de collection prend effet le lendemain dans le fuseau de progression. Le fuseau demandé prend effet au prochain lundi à minuit dans le fuseau encore actif ; ses périodes passées restent conservées. Les sélections ne réaffectent pas les journées antérieures. Avant l’ouverture réelle d’une collection, les journées conservent leurs XP de carrière sans créditer cette collection.
 
@@ -60,7 +60,7 @@ Après une mutation, rappeler `progression_2026` puis afficher sa réponse. Les 
 
 Les douze modèles gratuits sont référencés par les identifiants `SEASON_REWARDS_2026`. À chaque commit, les paliers réellement atteints créent des possessions uniques `(user, collection, reward, variant)`. Les six variantes supplémentaires concernent exactement les paliers 2, 4, 6, 8, 10 et 12.
 
-`grant_earned_season_variants2026(p_user_id)` est réservé au service. Il appelle `has_gryd_plus_access_2026` fourni par `0109`, refuse les comptes supprimés et les ledgers en attente, puis attribue les variantes déjà méritées pour la collection actuellement suivie ou la saison actuelle déjà commencée. Le webhook et la synchronisation RevenueCat peuvent le rappeler après un rattrapage ou un replay. Aucune ancienne archive non suivie n’est remplie automatiquement. L’expiration des outils GRYD+ ne supprime pas les objets acquis et ne bloque pas leur équipement.
+`grant_earned_season_variants2026(p_user_id)` est réservé au service. Il appelle `has_gryd_plus_access_2026` fourni par `0120`, refuse les comptes supprimés et les ledgers en attente, puis attribue les variantes déjà méritées pour la collection actuellement suivie ou la saison actuelle déjà commencée. Le webhook et la synchronisation RevenueCat peuvent le rappeler après un rattrapage ou un replay. Aucune ancienne archive non suivie n’est remplie automatiquement. L’expiration des outils GRYD+ ne supprime pas les objets acquis et ne bloque pas leur équipement.
 
 Les tables sont sous RLS, sans accès direct des rôles `anon` ou `authenticated`. Les RPC de lecture/mutation utilisent uniquement `auth.uid()`. La lecture arbitraire d’un autre compte, les commits et les droits premium restent réservés au service. Le commit compare la version lue à la version courante ; un conflit relance un snapshot complet, au maximum trois fois. Le reçu XP de sortie et la correction du compte sont écrits dans la même transaction.
 
@@ -68,7 +68,7 @@ La suppression d’une preuve invalide la version du compte. Un rafraîchissemen
 
 ## Validation et limites
 
-`node scripts/sync-game-rules.mjs` synchronise le moteur partagé. Le test PostgreSQL `supabase/tests/season_collections_2026.pglite.test.mjs` exécute les migrations réelles `0108`–`0110` et le moteur partagé, avec uniquement `users`, `runs` et `auth.uid()` comme fixtures du schéma antérieur. Les tests utilisent `SET ROLE authenticated` pour vérifier les refus réels de privilèges, pas seulement la présence de politiques. Ils vérifient également le drift entre constantes SQL et TypeScript.
+`node scripts/sync-game-rules.mjs` synchronise le moteur partagé. Le test PostgreSQL `supabase/tests/season_collections_2026.pglite.test.mjs` exécute les migrations réelles `0119`–`0121` et le moteur partagé, avec uniquement `users`, `runs` et `auth.uid()` comme fixtures du schéma antérieur. Les tests utilisent `SET ROLE authenticated` pour vérifier les refus réels de privilèges, pas seulement la présence de politiques. Ils vérifient également le drift entre constantes SQL et TypeScript.
 
 Le test couvre calendrier/DST, absence de fausse saison, isolation, immutabilité, idempotence, conflit concurrent, douze paliers en six semaines, six variantes, expiration, équipement, archive, fuseau, suppression et reprise. Les tests Deno du moteur et de la reprise couvrent le découpage des journées, les plafonds, les imports normalisés, l’historique complet et les pannes de snapshot/commit.
 

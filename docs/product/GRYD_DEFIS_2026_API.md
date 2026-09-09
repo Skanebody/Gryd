@@ -2,7 +2,7 @@
 
 ## Parcours écrit
 
-La migration `0111_refonte_2026_crew_challenges.sql` ajoute les invitations entre deux crews, l’inscription personnelle avec consentement, le verrouillage des équipes de cinq, l’annulation avant départ, les préférences de secteur, les contributions persistées et les publications de résultat. Elle conserve le moteur partagé `challenges2026.ts` comme référence testée pour le calcul des scores. Aucun abonnement n’entre dans le calcul.
+La migration `0122_refonte_2026_crew_challenges.sql` ajoute les invitations entre deux crews, l’inscription personnelle avec consentement, le verrouillage des équipes de cinq, l’annulation avant départ, les préférences de secteur, les contributions persistées et les publications de résultat. Elle conserve le moteur partagé `challenges2026.ts` comme référence testée pour le calcul des scores. Aucun abonnement n’entre dans le calcul.
 
 Chaque défi utilise une discipline, un fuseau fixe, une semaine du lundi à minuit au lundi suivant et trois secteurs figés. Chaque personne réserve au maximum une équipe par sport et semaine ; des semaines de fuseaux différents ne peuvent pas créer deux réservations qui se chevauchent. Les changements de crew après le début ne réaffectent pas les contributions de l’équipe initiale.
 
@@ -82,7 +82,7 @@ Les tables sont sous RLS et interdites directement aux clients. Les fonctions in
 
 ## Validation et limites de livraison
 
-Le harnais `supabase/tests/crew_challenges_2026.pglite.test.mjs` exécute la migration réelle `0111` sur PostgreSQL/WASM, avec le schéma antérieur minimal en fixtures. Il utilise les rôles authentifiés pour tester les refus effectifs de privilèges et couvre le cycle, les effectifs, les blocages, les chevauchements de fuseaux, les plafonds, les imports tardifs, les préférences, les retraits, les résultats, midi/DST et la comparaison avec le moteur partagé.
+Le harnais `supabase/tests/crew_challenges_2026.pglite.test.mjs` exécute la migration réelle `0122` sur PostgreSQL/WASM, avec le schéma antérieur minimal en fixtures. Il utilise les rôles authentifiés pour tester les refus effectifs de privilèges et couvre le cycle, les effectifs, les blocages, les chevauchements de fuseaux, les plafonds, les imports tardifs, les préférences, les retraits, les résultats, midi/DST et la comparaison avec le moteur partagé.
 
 Le harnais PostGIS `supabase/tests/refonte2026.postgis.test.mjs` contient aussi les cas géographiques de défi : vraie portion de frontière, secteur entouré sans passage, rupture GPS, discipline, refus sans consentement/provenance, réception finale et absence de polygone public issu d’une participation privée. **Ces assertions spatiales n’ont pas été exécutées sur ce poste**, qui ne dispose pas d’une base PostgreSQL/PostGIS locale. Le harnais refuse toute cible hébergée et sort en code 2 sans base locale ; ce n’est jamais un test vert.
 

@@ -18,9 +18,9 @@ try {
     create table user_profiles(user_id uuid primary key,display_name text,handle text,profile_visibility text,discreet_mode boolean,map_sharing text);
     create table friendships(requester_id uuid,addressee_id uuid,status text);
   `);
-  await db.exec(readFileSync(new URL('../migrations/0112_refonte_2026_territory_read_model.sql',import.meta.url),'utf8'));
-  await test('0115 migration applies unchanged without creating user or ownership data',async()=>{
-    await db.exec(readFileSync(new URL('../migrations/0115_refonte_2026_territory_owner_identity.sql',import.meta.url),'utf8'));
+  await db.exec(readFileSync(new URL('../migrations/0123_refonte_2026_territory_read_model.sql',import.meta.url),'utf8'));
+  await test('0126 migration applies unchanged without creating user or ownership data',async()=>{
+    await db.exec(readFileSync(new URL('../migrations/0126_refonte_2026_territory_owner_identity.sql',import.meta.url),'utf8'));
     assert.equal(await one('select count(*)::int from user_profiles'),0);
   });
   await db.query("insert into user_profiles values($1,'Private Name','handle','private',false,'territory_only')",[ids[1]]);

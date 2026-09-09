@@ -1,6 +1,6 @@
 # Social GRYD — implémentation septembre 2026
 
-Migration `0113_refonte_2026_social.sql`. Ce document décrit le code livré, pas un déploiement ni une validation de production.
+Migration `0124_refonte_2026_social.sql`. Ce document décrit le code livré, pas un déploiement ni une validation de production.
 
 ## Identité
 
@@ -28,7 +28,7 @@ Le fil partage seulement le résumé sportif confirmé, le texte et éventuellem
 
 ## Vérifications et limites
 
-- 11 scénarios PostgreSQL/PGlite exécutent les véritables RPC 0113, y compris `SET ROLE authenticated`, audience, RLS des profils/posts/commentaires/médias, blocages hérités et nouveaux, idempotence, retrait, capacité, autorisations et révision. Le filtre de blocage carte/défis est exécuté sans géométrie ; aucune validation PostGIS n’est revendiquée. Les schémas préexistants utilisés dans ce harnais sont des fixtures.
-- Un second harnais applique 91 migrations existantes jusqu’à 0099 puis 0113. Le schéma Storage et la colonne scalaire `runs.ruleset_version` sont simulés ; ce test n’exécute pas le moteur PostGIS de 0107.
+- 11 scénarios PostgreSQL/PGlite exécutent les véritables RPC 0124, y compris `SET ROLE authenticated`, audience, RLS des profils/posts/commentaires/médias, blocages hérités et nouveaux, idempotence, retrait, capacité, autorisations et révision. Le filtre de blocage carte/défis est exécuté sans géométrie ; aucune validation PostGIS n’est revendiquée. Les schémas préexistants utilisés dans ce harnais sont des fixtures.
+- Un second harnais applique 91 migrations existantes jusqu’à 0099 puis 0124. Le schéma Storage et la colonne scalaire `runs.ruleset_version` sont simulés ; ce test n’exécute pas le moteur PostGIS de 0118.
 - Tests clients : séparation d’un snapshot par propriétaire et suppression JPEG/PNG des métadonnées, y compris métadonnées entre scans JPEG et données après l’image. La suite sociale existante et les décisions de sorties ont aussi été exécutées.
 - Non validés ici : déploiement, API HTTP Storage, upload/photothèque sur appareils iOS/Android, livraison de notification, concurrence de plusieurs connexions PostgreSQL, traitement humain des signalements et nouvelle campagne juridique. Les photos privées déjà délivrées par URL signée peuvent rester accessibles pendant leur courte durée de validité.

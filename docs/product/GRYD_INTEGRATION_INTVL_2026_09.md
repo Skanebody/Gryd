@@ -27,7 +27,7 @@ Le titre de propriété reste individuel. « Crew » regroupe les terrains déte
 - **Crew** : contour clair discontinu, distinct aussi par sa forme de trait.
 - **Autres** : gris, avec possibilité d’atténuation.
 
-Le territoire partagé et la trace GPS sont deux objets différents. La trace reste privée par défaut ; une zone publiée peut révéler une partie du parcours. Les zones personnelles protégées restent opposables au calcul serveur. Le détail géographique et les limites de validation figurent dans [la recette 0112](../qa/GRYD_TERRITORY_2026_0112_VALIDATION.md).
+Le territoire partagé et la trace GPS sont deux objets différents. La trace reste privée par défaut ; une zone publiée peut révéler une partie du parcours. Les zones personnelles protégées restent opposables au calcul serveur. Le détail géographique et les limites de validation figurent dans [la recette 0123](../qa/GRYD_TERRITORY_2026_0123_VALIDATION.md).
 
 ## Photographies réutilisées
 
@@ -48,7 +48,7 @@ Les contrôles navigateur couvrent navigation, cadrage de Paris, filtres de cart
 
 ## Frontières de cette livraison
 
-Les changements d’interface sont disponibles sur le serveur de développement. **Les nouvelles fonctions serveur exigent les migrations 0112–0114 et les fonctions associées ; aucune base distante n’a été modifiée.** L’ordre et la configuration de vente sont décrits dans [la note des objets](GRYD_OBJECT_EXPORT_2026_IMPLEMENTATION.md).
+Les changements d’interface sont disponibles sur le serveur de développement. **Les nouvelles fonctions serveur exigent les migrations 0123–0125 et les fonctions associées ; aucune base distante n’a été modifiée.** L’ordre et la configuration de vente sont décrits dans [la note des objets](GRYD_OBJECT_EXPORT_2026_IMPLEMENTATION.md).
 
 PostGIS, GPS sur appareil, achats Store et partage natif restent à recetter dans leurs environnements réels. Les tests SQL PGlite exécutent le SQL de droits et de contrôle, sans remplacer PostGIS. Les rappels push aux inscrits, le calendrier de production, les intégrations directes aux montres et les compositions récapitulatives multi-activités ne sont pas présentés comme livrés. Le jeu utilise l’appartenance de crew réellement disponible dans le schéma, un crew actif par compte.
 
