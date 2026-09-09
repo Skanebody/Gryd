@@ -7,6 +7,7 @@ import { isResultOwnerCurrent2026 } from '../run/resultOwner2026';
 import { useResultOwner2026 } from '../run/useResultOwner2026';
 import type { MomentReadScope2026 } from './progressMomentLedger2026';
 import { progressMomentLedger2026 } from './progressMomentStore2026';
+import type { ProfileProgressStatus } from './ProfileMovementState2026';
 
 export interface ProfileProgress2026 {
   /** Client read provenance; the parser never accepts this field from JSON. */
@@ -28,7 +29,7 @@ export interface ProgressCollection2026 { id: string; title: string; startsAt: s
 export interface OwnedSeasonReward2026 { id: string; collectionId: string; rewardId: string; tier: number; label: string; variant: 'standard' | 'premium'; earnedAt: string; equipped: boolean }
 export interface OwnedLevelReward2026 { id: string; rewardId: string; level: number; label: string; equippable: boolean; earnedAt: string; equipped: boolean }
 
-export type ProfileProgressStatus = 'loading' | 'signed-out' | 'unavailable' | 'failed' | 'ready';
+export type { ProfileProgressStatus } from './ProfileMovementState2026';
 
 /** Only the new idempotent ledger is progression. Legacy wallet XP is never reused. */
 export function parseProfileProgress(value: unknown): ProfileProgress2026 | null {
