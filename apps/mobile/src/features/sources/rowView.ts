@@ -34,11 +34,20 @@ export type SourceRowKind =
   /** Liaison durable à établir. */
   | 'connect'
   /** L'action existe, mais pas ici (aperçu web, clés absentes, dev build…). */
-  | 'blocked';
+  | 'blocked'
+  /**
+   * G26 — la source EXISTE dans le monde, elle n'est pas raccordable ici. Elle
+   * a donc sa ligne, avec son état réel, plutôt que d'être retirée de l'écran :
+   * une absence n'explique rien, et un logo sans état laisse croire à une
+   * connexion. Aucun adaptateur ne répond pour elle : sans ce verdict, son
+   * statut resterait `undefined` — donc « lecture » à l'infini.
+   */
+  | 'unavailable';
 
 export interface SourceRowInput {
-  /** `native` = toujours active ; `connectable` = porte un CTA. */
-  availability: 'native' | 'connectable';
+  /** `native` = toujours active ; `connectable` = porte un CTA ;
+   * `unavailable` = listée avec son état réel, sans action (G26). */
+  availability: 'native' | 'connectable' | 'unavailable';
   /** Nature du CTA d'une source connectable. */
   action?: 'connect' | 'import';
   /** Statut lu de l'adaptateur — `undefined` tant qu'il n'a pas répondu. */
@@ -52,6 +61,7 @@ export interface SourceRowInput {
 /**
  * L'ordre des tests EST la logique, du fait le plus établi au plus incertain :
  *
+ *   0. non raccordable ici → le catalogue le sait, aucun statut ne l'infirme ;
  *   1. native      → toujours actif, aucun compte requis (capture locale) ;
  *   2. pas lu      → on ne sait rien, on le dit ;
  *   3. pas de compte → l'action échouerait à coup sûr : on ne la peint pas ;
@@ -61,6 +71,9 @@ export interface SourceRowInput {
  *   7. sinon       → importer ou connecter.
  */
 export function sourceRowKind(input: SourceRowInput): SourceRowKind {
+  // Le CATALOGUE prime : une source déclarée non raccordable ne peut pas être
+  // requalifiée « connectée » par un statut d'adaptateur égaré.
+  if (input.availability === 'unavailable') return 'unavailable';
   if (input.availability === 'native') return 'active';
   if (input.status === undefined) return 'reading';
   if (!input.signedIn) return 'needsAccount';

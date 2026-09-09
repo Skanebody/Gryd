@@ -10,6 +10,7 @@ import { SOURCE_ADAPTERS } from '../src/features/sources/adapters/registry';
 import type { SourceAdapterSnapshot } from '../src/features/sources/adapters/types';
 import { VERIFY_SOURCES } from '../src/features/sources/catalog';
 import { sourceRowKind } from '../src/features/sources/rowView';
+import { C as CSources } from '../src/i18n/catalog/sources';
 import { ProfileButton, ProfilePage, ProfileSegments, ProfileSection, s } from '../src/features/refonte/ProfilePrimitives';
 import { GrydIcon } from '../src/ui/gryd';
 import { useMapActivity } from '../src/features/map/mapPref';
@@ -37,6 +38,8 @@ function SourcesContent() {
   const [refresh, setRefresh] = useState(0);
   const [details, setDetails] = useState(false);
   const signedIn = configured && session !== null;
+  const unavailableSources = VERIFY_SOURCES.filter(source =>
+    sourceRowKind({ availability: source.availability, action: source.action, status: undefined, busy: false, signedIn }) === 'unavailable');
   useEffect(() => { screen('sources'); }, []);
   useEffect(() => {
     let alive = true;
@@ -70,19 +73,30 @@ function SourcesContent() {
     </View>
     <ProfileSection title={copy('Importer une sortie', 'Import an activity')} />
     <ProfileSegments value={activity} onChange={setActivity} options={[{ key: 'run', label: copy('Course', 'Run') }, { key: 'bike', label: copy('Vélo', 'Ride') }]} />
-    {VERIFY_SOURCES.filter(source => source.availability !== 'native').map(source => {
+    {VERIFY_SOURCES.filter(source => source.availability === 'connectable').map(source => {
       const snapshot = loadedOwner === owner ? snapshots[source.key] : undefined;
       const kind = snapshot?.status === 'app_only' ? 'app_only' : sourceRowKind({ availability: source.availability, action: source.action, status: snapshot?.status, busy: busyKey === source.key, signedIn });
       const message = snapshot?.detailEntry ? t(snapshot.detailEntry, snapshot.detailVars ?? {}) : snapshot?.detail;
       const actionable = kind === 'import' || kind === 'connect' || kind === 'connected';
       return <View key={source.key} style={local.import}>
-        <View style={local.source}><View style={local.icon}><GrydIcon name="route" size={24} color={c.darkInk} /></View><View style={s.flex}><Text style={local.title}>{source.name}</Text><Text style={s.meta}>{copy('Fichier .gpx · ajouté à ton journal privé', '.gpx file · added to your private journal')}</Text></View></View>
+        <View style={local.source}><View style={local.icon}><GrydIcon name="route" size={24} color={c.darkInk} /></View><View style={s.flex}><Text style={local.title}>{source.name}</Text><Text style={s.meta}>{t(source.summary)}</Text></View></View>
         {message ? <Text style={s.meta}>{message}</Text> : null}
         {snapshot?.lastSync ? <Text style={s.meta}>{copy('Dernier import : ', 'Last import: ')}{new Date(snapshot.lastSync).toLocaleString(locale)}</Text> : null}
         {kind === 'reading' && !failed ? <ActivityIndicator color={c.darkInk} /> : kind === 'needsAccount' ? <View style={local.action}><ProfileButton label={copy('Me connecter pour importer', 'Sign in to import')} onPress={() => router.push('/sign-in')} /></View> : actionable || kind === 'busy' ? <View style={local.action}><ProfileButton label={kind === 'connected' ? copy('Déconnecter', 'Disconnect') : source.action === 'import' ? copy('Choisir un fichier', 'Choose a file') : copy('Connecter', 'Connect')} busy={kind === 'busy'} disabled={busyKey !== null} onPress={() => void act(source.key, kind === 'connected')} /></View> : snapshot?.status === 'app_only' && message ? null : <Text style={s.meta}>{snapshot?.status === 'app_only' ? t(C.chipAppOnly) : copy('Indisponible pour le moment.', 'Currently unavailable.')}</Text>}
       </View>;
     })}
     {failed ? <View style={local.action}><Text accessibilityRole="alert" style={s.body}>{copy('Impossible de lire les sources.', 'Unable to load sources.')}</Text><ProfileButton label={copy('Réessayer', 'Try again')} secondary onPress={() => setRefresh(n => n + 1)} /></View> : null}
+    {/* G26 : listées avec leur ÉTAT RÉEL. Aucun adaptateur ne répond pour elles,
+        donc `sourceRowKind` rend 'unavailable' — jamais « connecté », jamais un
+        « Lecture… » éternel, et aucune action peinte qui échouerait à coup sûr. */}
+    {unavailableSources.length > 0 ? <>
+      <ProfileSection title={t(CSources.sectionOther)} />
+      {unavailableSources.map(source => <View key={source.key} style={local.import}>
+        <View style={local.source}><View style={local.icon}><GrydIcon name="link" size={24} color={c.darkMuted} /></View><View style={s.flex}><Text style={[local.title, { color: c.darkMuted }]}>{source.name}</Text><Text style={s.meta}>{t(source.summary)}</Text></View></View>
+        <Text style={s.meta}>{source.state ? t(source.state) : copy('Indisponible pour le moment.', 'Currently unavailable.')}</Text>
+      </View>)}
+      <Text style={local.note}>{t(CSources.otherSourcesNote)}</Text>
+    </> : null}
     <Text style={local.note}>{copy('Un fichier importé enrichit ton journal. Il ne donne pas automatiquement de terrain ni d’XP.', 'An imported file enriches your journal. It does not automatically award territory or XP.')}</Text>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: details }} onPress={() => setDetails(value => !value)} style={local.explain}><Text style={s.linkTitle}>{copy('À propos des connexions', 'About connections')}</Text><GrydIcon name={details ? 'minus' : 'plus'} size={18} color={c.darkMuted} /></Pressable>
     {details ? <Text style={s.body}>{copy('Les connexions automatiques aux montres ne sont pas disponibles dans cette version. Tu peux exporter une sortie au format GPX depuis ton appareil ou son application, puis choisir ce fichier ici.', 'Automatic watch connections are not available in this version. Export an activity as a GPX file from your device or its app, then choose that file here.')}</Text> : null}

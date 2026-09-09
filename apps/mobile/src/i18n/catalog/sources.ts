@@ -89,6 +89,80 @@ export const C = defineCatalog({
    * peut échouer. Prétendre gérer un échec impossible serait aussi faux
    * qu'ignorer un échec réel.
    */
+  // ── G26 : chaque source dit CE QU'ELLE APPORTE et SON ÉTAT RÉEL ──────────
+  sectionOther: {
+    fr: 'Autres sources', en: 'Other sources', es: 'Otras fuentes',
+    de: 'Weitere Quellen', pt: 'Outras fontes',
+  },
+  summaryGpx: {
+    fr: 'Fichier .gpx · ajouté à ton journal privé',
+    en: '.gpx file · added to your private journal',
+    es: 'Archivo .gpx · añadido a tu diario privado',
+    de: '.gpx-Datei · in deinem privaten Journal',
+    pt: 'Arquivo .gpx · adicionado ao seu diário privado',
+  },
+  summaryLive: {
+    fr: 'Course et vélo · GPS du téléphone',
+    en: 'Run and ride · phone GPS',
+    es: 'Correr y bici · GPS del teléfono',
+    de: 'Laufen und Rad · Handy-GPS',
+    pt: 'Corrida e bike · GPS do telefone',
+  },
+  summaryHealth: {
+    fr: 'Apple Santé et Health Connect · séances déjà enregistrées par le téléphone',
+    en: 'Apple Health and Health Connect · workouts already recorded by the phone',
+    es: 'Apple Salud y Health Connect · sesiones ya registradas por el teléfono',
+    de: 'Apple Health und Health Connect · bereits vom Handy aufgezeichnete Einheiten',
+    pt: 'Apple Saúde e Health Connect · sessões já registradas pelo telefone',
+  },
+  summaryStrava: {
+    fr: 'Sorties Strava · la trace seulement, jamais tes contacts',
+    en: 'Strava activities · the trace only, never your contacts',
+    es: 'Actividades de Strava · solo el trazado, nunca tus contactos',
+    de: 'Strava-Aktivitäten · nur die Spur, nie deine Kontakte',
+    pt: 'Atividades do Strava · apenas o traçado, nunca seus contatos',
+  },
+  summaryGarmin: {
+    fr: 'Sorties Garmin · la trace enregistrée par la montre',
+    en: 'Garmin activities · the trace recorded by the watch',
+    es: 'Actividades de Garmin · el trazado registrado por el reloj',
+    de: 'Garmin-Aktivitäten · die von der Uhr aufgezeichnete Spur',
+    pt: 'Atividades da Garmin · o traçado gravado pelo relógio',
+  },
+  /**
+   * « Aucune donnée disponible » plutôt qu'un diagnostic faux (G26) : une
+   * autorisation Santé refusée et une absence de données sont indiscernables
+   * de l'extérieur. Ici GRYD ne lit RIEN, et c'est ce fait-là qui est écrit.
+   */
+  stateHealth: {
+    fr: 'Indisponible ici · aucune donnée disponible. GRYD ne lit aucune donnée de santé dans cette version, et n’affiche donc aucun diagnostic sur tes autorisations.',
+    en: 'Unavailable here · no data available. GRYD reads no health data in this version, so it shows no diagnosis about your permissions.',
+    es: 'No disponible aquí · sin datos disponibles. GRYD no lee ningún dato de salud en esta versión, así que no muestra ningún diagnóstico sobre tus permisos.',
+    de: 'Hier nicht verfügbar · keine Daten verfügbar. GRYD liest in dieser Version keine Gesundheitsdaten und zeigt deshalb keine Diagnose zu deinen Freigaben.',
+    pt: 'Indisponível aqui · nenhum dado disponível. O GRYD não lê dados de saúde nesta versão e não mostra diagnóstico sobre suas permissões.',
+  },
+  stateStrava: {
+    fr: 'Indisponible · la connexion Strava n’est pas ouverte dans cette version. Exporte un fichier .gpx depuis Strava et ajoute-le ci-dessus.',
+    en: 'Unavailable · the Strava connection is not open in this version. Export a .gpx file from Strava and add it above.',
+    es: 'No disponible · la conexión con Strava no está abierta en esta versión. Exporta un archivo .gpx desde Strava y añádelo arriba.',
+    de: 'Nicht verfügbar · die Strava-Verbindung ist in dieser Version nicht offen. Exportiere eine .gpx-Datei aus Strava und füge sie oben hinzu.',
+    pt: 'Indisponível · a conexão com o Strava não está aberta nesta versão. Exporte um arquivo .gpx do Strava e adicione acima.',
+  },
+  stateGarmin: {
+    fr: 'Indisponible · aucune connexion Garmin dans cette version. Exporte un fichier .gpx depuis Garmin Connect et ajoute-le ci-dessus.',
+    en: 'Unavailable · no Garmin connection in this version. Export a .gpx file from Garmin Connect and add it above.',
+    es: 'No disponible · sin conexión con Garmin en esta versión. Exporta un archivo .gpx desde Garmin Connect y añádelo arriba.',
+    de: 'Nicht verfügbar · keine Garmin-Verbindung in dieser Version. Exportiere eine .gpx-Datei aus Garmin Connect und füge sie oben hinzu.',
+    pt: 'Indisponível · sem conexão com a Garmin nesta versão. Exporte um arquivo .gpx do Garmin Connect e adicione acima.',
+  },
+  /** Ce que l'écran garantit sur ces lignes : elles n'échangent rien. */
+  otherSourcesNote: {
+    fr: 'Ces sources sont listées avec leur état réel, jamais comme « connectées ». Aucune donnée n’est échangée avec elles tant qu’elles restent indisponibles.',
+    en: 'These sources are listed with their real state, never as “connected”. No data is exchanged with them while they remain unavailable.',
+    es: 'Estas fuentes se listan con su estado real, nunca como «conectadas». No se intercambia ningún dato con ellas mientras sigan no disponibles.',
+    de: 'Diese Quellen stehen mit ihrem echten Zustand da, nie als „verbunden“. Solange sie nicht verfügbar sind, werden keine Daten mit ihnen ausgetauscht.',
+    pt: 'Essas fontes aparecem com seu estado real, nunca como “conectadas”. Nenhum dado é trocado com elas enquanto continuarem indisponíveis.',
+  },
   noReadFailureNote: {
     fr: 'Aucun de ces états ne vient du réseau : la capture GRYD est locale et l’import lit un fichier sur ce téléphone. Cet écran n’a donc pas d’état « lecture impossible ».',
     en: 'None of these states comes from the network: GRYD capture is local and the import reads a file on this phone. So this screen has no “could not read” state.',

@@ -78,3 +78,16 @@ Deno.test('la ligne de contexte n’affiche jamais un séparateur orphelin', () 
   assertEquals(sourceContextLine([undefined, null, '   ']), '');
   assertEquals(sourceContextLine(['Trust moyen']), 'Trust moyen');
 });
+
+Deno.test('G26 : une source non connectable ici DIT son état, elle ne tourne pas en « lecture »', () => {
+  // Santé, Strava et Garmin n'ont aucun adaptateur : sans ce verdict, leur
+  // statut resterait `undefined` pour toujours, donc un « Lecture… » éternel —
+  // exactement le spinner infini que la doctrine interdit.
+  const unavailable = { availability: 'unavailable' as const, signedIn: true, busy: false, status: undefined };
+  assertEquals(sourceRowKind(unavailable), 'unavailable');
+  assertEquals(sourceRowKind({ ...unavailable, signedIn: false }), 'unavailable');
+  assertEquals(sourceRowKind({ ...unavailable, busy: true }), 'unavailable');
+  // Et surtout : jamais « connecté ». Le catalogue déclare l'indisponibilité,
+  // un statut d'adaptateur égaré ne peut pas la contredire.
+  assertEquals(sourceRowKind({ ...unavailable, status: 'connected' }), 'unavailable');
+});
