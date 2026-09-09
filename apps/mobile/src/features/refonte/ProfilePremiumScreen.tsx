@@ -16,9 +16,24 @@ export function ProfilePremiumScreen() {
   const [syncing, setSyncing] = useState(false); const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showEditions, setShowEditions] = useState(false);
-  const active = access.active || pro?.kind === 'active';
+  // G28 : « "Premium activé" n'apparaît qu'après confirmation des droits. »
+  // Le cache du SDK ne suffit plus ; il produit l'état intermédiaire `pending`.
+  const active = access.active;
+  const awaitingConfirmation = !active && (access.status === 'pending' || lastResult?.kind === 'purchase_pending');
   useEffect(() => { screen('premium'); track(EVENTS.paywallView, { trigger: 'profile_gryd_plus' }); }, []);
-  const resultMessage = lastResult?.kind === 'purchased' ? copy('GRYD+ est actif.', 'GRYD+ is active.') : lastResult?.kind === 'purchase_pending' ? copy('Achat en attente de confirmation du Store. Tu peux restaurer tes achats après confirmation.', 'Purchase awaiting Store confirmation. Restore your purchases once confirmed.') : lastResult?.kind === 'restored' ? copy('Tes droits sont restaurés.', 'Your access is restored.') : lastResult?.kind === 'nothing_to_restore' ? copy('Aucun abonnement actif trouvé sur ce compte.', 'No active subscription found for this account.') : lastResult?.kind === 'failed' ? copy('L’action n’a pas abouti. Réessaie ou contacte le support.', 'This action did not complete. Try again or contact support.') : null;
+  // Sept états nommés (G28), et jamais un message de panne pour un refus, une
+  // annulation ou un droit déjà détenu — trois faits qu'un « réessaie » insulte.
+  const resultMessage = lastResult?.kind === 'purchased' ? copy('GRYD+ est actif.', 'GRYD+ is active.')
+    : lastResult?.kind === 'purchase_pending' ? copy('Achat enregistré, en attente de confirmation. Tes outils s’ouvriront dès que le droit est confirmé.', 'Purchase registered, awaiting confirmation. Your tools open as soon as access is confirmed.')
+    : lastResult?.kind === 'cancelled' ? copy('Achat annulé. Rien n’a été facturé.', 'Purchase cancelled. Nothing was charged.')
+    : lastResult?.kind === 'declined' ? copy('Le Store a refusé l’achat. Vérifie ton moyen de paiement dans les réglages du Store.', 'The Store declined the purchase. Check your payment method in the Store settings.')
+    : lastResult?.kind === 'already_owned' ? copy('Ce compte détient déjà GRYD+. Restaure tes achats plutôt que d’acheter à nouveau.', 'This account already owns GRYD+. Restore your purchases instead of buying again.')
+    : lastResult?.kind === 'restored' ? copy('Tes droits sont restaurés.', 'Your access is restored.')
+    : lastResult?.kind === 'nothing_to_restore' ? copy('Aucun abonnement actif trouvé sur ce compte.', 'No active subscription found for this account.')
+    : lastResult?.kind === 'failed' ? lastResult.failure === 'network' ? copy('La connexion au Store a échoué. Réessaie une fois en ligne.', 'The Store connection failed. Try again once online.')
+      : lastResult.failure === 'store_problem' ? copy('Le Store est indisponible pour le moment. Réessaie plus tard.', 'The Store is unavailable right now. Try again later.')
+      : copy('L’action n’a pas abouti. Réessaie ou contacte le support.', 'This action did not complete. Try again or contact support.')
+    : null;
   const buy = async () => {
     const sku = premium.selectedOffer?.productId; if (!sku || busy) return;
     track(EVENTS.purchaseInitiated, { sku });
@@ -26,10 +41,12 @@ export function ProfilePremiumScreen() {
     if (result?.kind === 'purchased') { track(EVENTS.purchaseCompleted, { sku }); access.reload(); }
   };
   const restore = async () => { const result = await premium.restore(); if (result) { track(EVENTS.purchasesRestored, { result: result.kind }); access.reload(); } };
-  const expiry = pro?.kind === 'active' ? pro.expiresAtMs : access.expiresAtMs;
+  // Une échéance CONFIRMÉE d'abord ; celle du Store ne sert que d'information
+  // quand le serveur a déjà ouvert le droit.
+  const expiry = access.expiresAtMs ?? (active && pro?.kind === 'active' ? pro.expiresAtMs : null);
   return <ProfilePage tone="light" title="GRYD+" back>
     <View style={local.intro}>
-      <View style={local.statusLine}><View style={[local.statusDot, active && local.statusActive]} /><Text style={local.heroMeta}>{active ? copy('Abonnement actif', 'Subscription active') : copy('GRYD · ÉDITION PLUS', 'GRYD · PLUS EDITION')}</Text></View>
+      <View style={local.statusLine}><View style={[local.statusDot, active && local.statusActive]} /><Text style={local.heroMeta}>{active ? copy('Abonnement actif', 'Subscription active') : awaitingConfirmation ? copy('Achat enregistré · confirmation en cours', 'Purchase registered · confirming') : access.status === 'unavailable' ? copy('Droits non vérifiés', 'Access not verified') : copy('GRYD · ÉDITION PLUS', 'GRYD · PLUS EDITION')}</Text></View>
       <Text style={local.title}>{copy('Une autre dimension\npour tes sorties.', 'Another dimension\nfor your activities.')}</Text>
       <Text style={local.heroMeta}>{copy('Analyse. Compose. Garde une trace.', 'Analyse. Compose. Keep a memory.')}</Text>
       <View style={local.heroObject} pointerEvents="none"><RewardEmblem variant="contour" size={100} tone="neutral" state="preview" accessibilityLabel={copy('Édition en aperçu', 'Edition preview')} /></View>
@@ -49,7 +66,7 @@ export function ProfilePremiumScreen() {
     </Pressable>
     {showEditions ? <PremiumObjectsPreview2026 tone="light" locale={locale==='en'?'en':'fr'}/> : null}
     {active ? <View style={local.account}>
-      {expiry ? <Text style={local.meta}>{pro?.kind === 'active' && pro.cancelled ? copy('Disponible jusqu’au ', 'Available until ') : copy('Échéance le ', 'Period ends on ')}{new Date(expiry).toLocaleDateString(locale)}</Text> : null}
+      {expiry ? <Text style={local.meta}>{access.cancelled || pro?.kind === 'active' && pro.cancelled ? copy('Résilié · disponible jusqu’au ', 'Cancelled · available until ') : copy('Échéance le ', 'Period ends on ')}{new Date(expiry).toLocaleDateString(locale)}</Text> : null}
       <View style={local.compactAction}><ProfileButton tone="light" label={copy('Gérer mon abonnement', 'Manage subscription')} onPress={() => router.push('/abonnement')} /></View>
     </View> : <View style={local.account}>
       <Text style={local.sectionTitle}>{copy('Abonnement', 'Subscription')}</Text>
@@ -62,7 +79,7 @@ export function ProfilePremiumScreen() {
     </View>}
     {resultMessage || syncMessage ? <Text accessibilityRole="alert" style={local.notice}>{resultMessage ?? syncMessage}</Text> : null}
     {status === 'ready' || status === 'empty' || status === 'error' ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy !== null, busy: busy === 'restore' }} disabled={busy !== null} onPress={() => void restore()} style={local.utility}>{busy === 'restore' ? <ActivityIndicator size="small" color={c.ink} /> : <GrydIcon name="clock" size={18} color={c.muted} />}<Text style={local.utilityText}>{copy('Restaurer mes achats', 'Restore purchases')}</Text></Pressable> : null}
-    {status === 'unavailable' ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: syncing, busy: syncing }} disabled={syncing} onPress={() => { setSyncing(true); void refreshServerGrydPlusAccess().then(ok => { access.reload(); setSyncMessage(ok ? copy('Tes droits ont été actualisés.', 'Your access has been refreshed.') : copy('Tes droits n’ont pas pu être vérifiés. Réessaie dans l’app ou contacte le support.', 'Your access could not be verified. Retry in the app or contact support.')); }).catch(() => setSyncMessage(copy('Vérification indisponible.', 'Verification unavailable.'))).finally(() => setSyncing(false)); }} style={local.utility}>{syncing ? <ActivityIndicator size="small" color={c.ink} /> : <GrydIcon name="clock" size={18} color={c.muted} />}<Text style={local.utilityText}>{copy('Actualiser mes droits', 'Refresh access')}</Text></Pressable> : null}
+    {status === 'unavailable' || access.status === 'unavailable' || awaitingConfirmation ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: syncing, busy: syncing }} disabled={syncing} onPress={() => { setSyncing(true); void refreshServerGrydPlusAccess().then(ok => { access.reload(); setSyncMessage(ok ? copy('Tes droits ont été actualisés.', 'Your access has been refreshed.') : copy('Tes droits n’ont pas pu être vérifiés. Réessaie dans l’app ou contacte le support.', 'Your access could not be verified. Retry in the app or contact support.')); }).catch(() => setSyncMessage(copy('Vérification indisponible.', 'Verification unavailable.'))).finally(() => setSyncing(false)); }} style={local.utility}>{syncing ? <ActivityIndicator size="small" color={c.ink} /> : <GrydIcon name="clock" size={18} color={c.muted} />}<Text style={local.utilityText}>{copy('Actualiser mes droits', 'Refresh access')}</Text></Pressable> : null}
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: showDetails }} aria-expanded={showDetails} onPress={() => setShowDetails(value => !value)} style={local.disclosure}><Text style={local.utilityText}>{copy('Ce qui reste à toi', 'What stays yours')}</Text><GrydIcon name={showDetails ? 'minus' : 'plus'} size={18} color={c.muted} /></Pressable>
     {showDetails ? <View style={local.details}><Text style={local.meta}>{copy('Les variantes obtenues restent acquises après résiliation. Les paliers déjà atteints dans la collection suivie sont pris en compte à l’activation.', 'Earned variants remain yours after cancellation. Milestones already reached in your followed collection count when you subscribe.')}</Text><Text style={local.meta}>{copy('Tes activités et tes exports restent accessibles. Le suivi sportif, le jeu, les défis et les crews restent gratuits. GRYD+ ne change ni les captures ni l’XP. Les achats uniques ne sont pas inclus.', 'Your activities and exports remain accessible. Sport tracking, the game, challenges and crews stay free. GRYD+ changes neither capture nor XP. One-time purchases are not included.')}</Text><Pressable accessibilityRole="button" onPress={() => router.push('/abonnement')} style={local.utility}><Text style={local.utilityText}>{copy('Mes achats', 'My purchases')}</Text><GrydIcon name="arrowUpRight" size={18} color={c.muted} /></Pressable></View> : null}
     <View style={local.legal}><Pressable accessibilityRole="link" onPress={() => router.push('/legal/cgv')} style={local.legalLink}><Text style={local.meta}>{copy('Conditions d’achat', 'Purchase terms')}</Text></Pressable><Pressable accessibilityRole="link" onPress={() => router.push('/legal/confidentialite')} style={local.legalLink}><Text style={local.meta}>{copy('Confidentialité', 'Privacy')}</Text></Pressable></View>

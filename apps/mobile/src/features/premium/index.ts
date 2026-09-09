@@ -46,3 +46,9 @@ export {
 } from './purchaseHistory';
 export type { PurchaseRecord } from './purchaseHistory';
 export { useGrydPlusAccess, refreshServerGrydPlusAccess } from './useGrydPlusAccess';
+// ── G28 : les sept états nommés d'un achat et d'un droit ────────────────────
+export { readPurchaseFailure2026 } from './purchaseFailure2026';
+export type { PurchaseFailure2026, StoreErrorLike2026 } from './purchaseFailure2026';
+export { grydPlusAccessState2026, readServerGrydPlusAccess2026 } from './access2026';
+export type { GrydPlusAccessStatus2026, ServerGrydPlusAccess2026 } from './access2026';
+export type { CommercialActionResult2026 } from './useCommercialCollections2026';

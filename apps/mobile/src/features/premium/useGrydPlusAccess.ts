@@ -4,7 +4,7 @@ import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 import { fetchCustomerInfo, observeCustomerInfo, PRO_ENTITLEMENT_ID, purchasesCapability } from './client';
 import { readProStatus, type CustomerInfoLike } from './entitlement';
-import { readServerGrydPlusAccess2026, type ServerGrydPlusAccess2026 } from './access2026';
+import { grydPlusAccessState2026, readServerGrydPlusAccess2026, type ServerGrydPlusAccess2026 } from './access2026';
 
 const refreshed = new Set<() => void>();
 /** Authenticated Edge function verifies RevenueCat itself; no client-supplied entitlement. */
@@ -46,7 +46,16 @@ export function useGrydPlusAccess() {
   const own = receipt?.owner === owner ? receipt : null;
   const pro = own?.store ? readProStatus(own.store, PRO_ENTITLEMENT_ID, clock) : null;
   const server = own?.server ? readServerGrydPlusAccess2026(own.server, clock) : null;
-  const active = pro ? pro.kind === 'active' : server?.active === true;
-  const status = loading ? 'loading' : !owner ? 'signedOut' : !own?.loaded ? 'loading' : active ? 'active' : pro || server ? 'inactive' : 'unavailable';
-  return { status, active: !!owner && active, expiresAtMs: pro?.kind === 'active' ? pro.expiresAtMs : server?.expiresAt ? Date.parse(server.expiresAt) : null, source: pro ? 'store' as const : server ? 'server' as const : null, reload } as const;
+  const storeActive = pro?.kind === 'active';
+  // Le SERVEUR décide, le Store informe (G28). Le détail de l'arbitrage vit
+  // dans `access2026.ts`, pur et testé.
+  const { status, active } = grydPlusAccessState2026({ sessionLoading: loading, ownerId: owner, loaded: own?.loaded === true, server, storeActive });
+  return { status, active,
+    /** Le Store a enregistré l'achat ; ce n'est pas encore un droit ouvert. */
+    storeSaysActive: !!owner && storeActive,
+    /** Échéance CONFIRMÉE. Une échéance non confirmée n'est pas une échéance. */
+    expiresAtMs: server?.expiresAt ? Date.parse(server.expiresAt) : null,
+    /** Résiliation vue par le Store : disponible jusqu'à la fin de la période. */
+    cancelled: pro?.kind === 'active' && pro.cancelled === true,
+    source: server ? 'server' as const : pro ? 'store' as const : null, reload } as const;
 }

@@ -54,6 +54,7 @@ import {
   type PremiumOffer,
 } from './offerings';
 import type { PurchaseBlockedReason } from './capability';
+import type { PurchaseFailure2026 } from './purchaseFailure2026';
 
 export type PremiumStatus = 'loading' | 'signedOut' | 'unavailable' | 'error' | 'empty' | 'ready';
 
@@ -79,7 +80,22 @@ export type PremiumActionResult =
   | { readonly kind: 'restored' }
   /** Restauration honnête : lue, et il n'y avait aucun achat à rendre. */
   | { readonly kind: 'nothing_to_restore' }
-  | { readonly kind: 'failed' };
+  /**
+   * ── AJOUTÉS LE 10/09/2026 : G28 NOMME SEPT ÉTATS, ON EN RENDAIT TROIS ─────
+   * `cancelled`, `declined` et `already_owned` tombaient tous dans `failed`,
+   * et l'écran écrivait « L'action n'a pas abouti. Réessaie ou contacte le
+   * support. » pour les trois. Or :
+   *  · une ANNULATION n'est pas une panne — rien à réessayer ;
+   *  · un REFUS du Store ne se répare pas en réessayant, et surtout pas par le
+   *    support de GRYD : le moyen de paiement se règle dans le Store ;
+   *  · « DÉJÀ DÉTENU » est un droit existant : inviter à réessayer revient à
+   *    proposer de payer deux fois — c'est « Restaurer » qu'il faut proposer.
+   * `failed` conserve les échecs réellement anonymes, avec leur cause lue.
+   */
+  | { readonly kind: 'cancelled' }
+  | { readonly kind: 'declined' }
+  | { readonly kind: 'already_owned' }
+  | { readonly kind: 'failed'; readonly failure?: PurchaseFailure2026 };
 
 export interface UsePremiumResult {
   readonly status: PremiumStatus;
@@ -180,14 +196,25 @@ export function usePremium(): UsePremiumResult {
     actionLock.current = false;
     if (!alive.current || owner.current !== actionOwner) return null;
     setBusy(null);
-    if (outcome.kind === 'cancelled') return null;
+    // Fermer la feuille du Store reste sans event §8 (`purchaseSelected` rend
+    // `null`), mais l'écran doit pouvoir l'ACQUITTER : G28 liste « annulé ».
+    if (outcome.kind === 'cancelled') { setLastResult({ kind: 'cancelled' }); return null; }
     let result: PremiumActionResult;
     if (outcome.kind === 'purchased') {
       setInfo(outcome.customerInfo); setLoadedOwner(actionOwner);
       const granted = readProStatus(outcome.customerInfo, PRO_ENTITLEMENT_ID, Date.now());
       result = granted.kind === 'active' ? { kind: 'purchased' } : { kind: 'purchase_pending' };
       void refreshServerGrydPlusAccess().catch(() => false);
-    } else result = { kind: 'failed' };
+    } else if (outcome.failure === 'pending') {
+      // Achat DIFFÉRÉ remonté en erreur par le SDK : c'est la même attente que
+      // `purchase_pending`, pas une panne.
+      result = { kind: 'purchase_pending' };
+    } else if (outcome.failure === 'already_owned') {
+      result = { kind: 'already_owned' };
+      void refreshServerGrydPlusAccess().catch(() => false);
+    } else if (outcome.failure === 'declined') {
+      result = { kind: 'declined' };
+    } else result = { kind: 'failed', failure: outcome.failure };
     setLastResult(result); return result;
   }, [userId, loadedOwner, selectedOffer, selectedPackage]);
   const restore = useCallback(async (): Promise<PremiumActionResult | null> => {
@@ -198,7 +225,7 @@ export function usePremium(): UsePremiumResult {
     actionLock.current = false;
     if (!alive.current || owner.current !== actionOwner) return null;
     setBusy(null);
-    let result: PremiumActionResult = { kind: 'failed' };
+    let result: PremiumActionResult = { kind: 'failed', failure: outcome.kind === 'failed' ? outcome.failure : undefined };
     if (outcome.kind === 'restored') {
       setInfo(outcome.customerInfo); setLoadedOwner(actionOwner);
       const restored = readProStatus(outcome.customerInfo, PRO_ENTITLEMENT_ID, Date.now());

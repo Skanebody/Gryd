@@ -18,7 +18,23 @@ export function CommercialCollectionsPanel2026({ locale, tone = 'dark' }: {local
   const [selected,setSelected]=useState<CommercialCollectionId2026|null>(null),[notice,setNotice]=useState<string|null>(null),[equipping,setEquipping]=useState(false);
   const row=store.rows.find(r=>r.id===selected),product=selected?store.productFor(selected):null;
   const describe=(id:CommercialCollectionId2026)=>id==='contour'?copy('2 affiches originales.','2 original posters.'):id==='relief'?copy('4 compositions et le cadre Relief.','4 compositions and the Relief frame.'):copy('6 compositions et un emblème personnel.','6 compositions and a personal emblem.');
-  async function purchase(id:CommercialCollectionId2026|'restore') {const result=await store.action(id);setNotice(result==='confirmed'?copy('Tes objets sont confirmés dans ton compte.','Your objects are confirmed in your account.'):result==='pending'?copy('Aucun nouveau droit confirmé pour le moment. Actualise après confirmation du Store.','No new access confirmed yet. Refresh after Store confirmation.'):result==='cancelled'?null:copy('L’achat n’a pas pu être vérifié. Aucun objet ajouté.','The purchase could not be verified. No object added.'));}
+  // G28 : chaque issue porte son nom. « L'achat n'a pas pu être vérifié »
+  // couvrait aussi bien une plateforme sans achat qu'un refus du Store — deux
+  // situations dont la suite à donner n'a rien de commun.
+  async function purchase(id:CommercialCollectionId2026|'restore') {
+    const result=await store.action(id);
+    setNotice(
+      result==='confirmed'?copy('Tes objets sont confirmés dans ton compte.','Your objects are confirmed in your account.')
+      :result==='pending'?copy('Achat enregistré, en attente de confirmation. Actualise après la confirmation du Store.','Purchase registered, awaiting confirmation. Refresh once the Store confirms.')
+      :result==='cancelled'?null
+      :result==='already_owned'?copy('Cette collection est déjà à toi. Aucune nouvelle facturation.','You already own this collection. No new charge.')
+      :result==='declined'?copy('Le Store a refusé l’achat. Vérifie ton moyen de paiement dans ses réglages.','The Store declined the purchase. Check your payment method in its settings.')
+      :result==='store_problem'?copy('Le Store est indisponible pour le moment. Réessaie plus tard.','The Store is unavailable right now. Try again later.')
+      :result==='network'?copy('La connexion au Store a échoué. Réessaie une fois en ligne.','The Store connection failed. Try again once online.')
+      :result==='no_price'?copy('Aucun prix confirmé pour cette collection. Rien n’est proposé sans prix du Store.','No confirmed price for this collection. Nothing is offered without a Store price.')
+      :result==='unavailable'?copy('L’achat n’est pas possible sur cet appareil. Tes objets restent liés à ton compte.','Purchasing is not possible on this device. Your objects stay linked to your account.')
+      :copy('L’achat n’a pas pu être vérifié. Aucun objet ajouté.','The purchase could not be verified. No object added.'));
+  }
   async function equip() {
     const owner=session?.user.id,epoch=resultOwnerEpoch2026(); if(!selected||!row?.owned||!owner||!supabase||equipping) return;
     setEquipping(true);setNotice(null);

@@ -38,6 +38,7 @@ import {
   type PurchaseCapability,
 } from './capability';
 import { DEFAULT_PRO_ENTITLEMENT_ID, type CustomerInfoLike } from './entitlement';
+import { readPurchaseFailure2026, type PurchaseFailure2026 } from './purchaseFailure2026';
 import type { OfferingLike, PackageLike, StoreProductLike } from './offerings';
 
 /** Sous-ensemble STRUCTUREL du SDK réellement appelé (aucun type importé de lui). */
@@ -59,7 +60,8 @@ interface PurchasesModuleLike {
   removeCustomerInfoUpdateListener?(listener: (info: CustomerInfoLike) => void): void;
 }
 
-/** Erreur telle que la lève le SDK (le champ qui distingue une ANNULATION). */
+/** Erreur telle que la lève le SDK. Sa LECTURE (annulation, attente, refus,
+ * déjà détenu…) vit dans `purchaseFailure2026.ts`, pur et testé. */
 interface PurchasesErrorLike {
   readonly userCancelled?: boolean;
   readonly message?: string;
@@ -201,10 +203,13 @@ export async function fetchCollectionProducts2026(productIds: readonly string[],
 export async function purchaseCollectionProduct2026(product: StoreProductLike, userId: string): Promise<PurchaseOutcome> {
   return forUser(userId, async () => {
     const sdk = purchasesModule();
-    if (!sdk?.purchaseStoreProduct) return { kind: 'failed' } as const;
+    if (!sdk?.purchaseStoreProduct) return { kind: 'failed', failure: 'unknown' } as const;
     try { return { kind: 'purchased', customerInfo: (await sdk.purchaseStoreProduct(product)).customerInfo } as const; }
-    catch (e) { return (e as PurchasesErrorLike)?.userCancelled ? { kind: 'cancelled' } as const : { kind: 'failed' } as const; }
-  }).catch(() => ({ kind: 'failed' }));
+    catch (e) {
+      const failure = readPurchaseFailure2026(e);
+      return failure === 'cancelled' ? { kind: 'cancelled' } as const : { kind: 'failed', failure } as const;
+    }
+  }).catch(() => ({ kind: 'failed', failure: 'unknown' }));
 }
 
 export async function fetchCustomerInfo(userId?: string): Promise<CustomerInfoLike | null> {
@@ -218,7 +223,8 @@ export type PurchaseOutcome =
   | { readonly kind: 'purchased'; readonly customerInfo: CustomerInfoLike }
   /** L'utilisateur a fermé la feuille du Store : ce n'est PAS une erreur. */
   | { readonly kind: 'cancelled' }
-  | { readonly kind: 'failed'; readonly message?: string };
+  /** `failure` NOMME l'échec (G28) : refus, déjà détenu, attente, panne, réseau. */
+  | { readonly kind: 'failed'; readonly failure: PurchaseFailure2026; readonly message?: string };
 
 /**
  * Achat d'un package. UNE ANNULATION N'EST PAS UN ÉCHEC (même doctrine que
@@ -226,22 +232,23 @@ export type PurchaseOutcome =
  * geste banal, l'écran ne doit imputer aucune panne au joueur.
  */
 export async function purchasePremiumPackage(pkg: PackageLike, userId?: string): Promise<PurchaseOutcome> {
-  if (userId) return forUser(userId, () => purchasePremiumPackage(pkg)).catch(() => ({ kind: 'failed' }));
+  if (userId) return forUser(userId, () => purchasePremiumPackage(pkg)).catch(() => ({ kind: 'failed', failure: 'unknown' }));
   const sdk = purchasesModule();
-  if (!sdk) return { kind: 'failed' };
+  if (!sdk) return { kind: 'failed', failure: 'unknown' };
   try {
     const { customerInfo } = await sdk.purchasePackage(pkg);
     return { kind: 'purchased', customerInfo };
   } catch (error) {
     const e = error as PurchasesErrorLike;
-    if (e?.userCancelled === true) return { kind: 'cancelled' };
-    return { kind: 'failed', message: typeof e?.message === 'string' ? e.message : undefined };
+    const failure = readPurchaseFailure2026(error);
+    if (failure === 'cancelled') return { kind: 'cancelled' };
+    return { kind: 'failed', failure, message: typeof e?.message === 'string' ? e.message : undefined };
   }
 }
 
 export type RestoreOutcome =
   | { readonly kind: 'restored'; readonly customerInfo: CustomerInfoLike }
-  | { readonly kind: 'failed'; readonly message?: string };
+  | { readonly kind: 'failed'; readonly failure: PurchaseFailure2026; readonly message?: string };
 
 /**
  * Restauration. « Rien à restaurer » n'est PAS un échec : la fonction rend le
@@ -249,14 +256,14 @@ export type RestoreOutcome =
  * l'écran distingue alors « restauré » de « aucun achat trouvé ».
  */
 export async function restorePremiumPurchases(userId?: string): Promise<RestoreOutcome> {
-  if (userId) return forUser(userId, () => restorePremiumPurchases()).catch(() => ({ kind: 'failed' }));
+  if (userId) return forUser(userId, () => restorePremiumPurchases()).catch(() => ({ kind: 'failed', failure: 'unknown' }));
   const sdk = purchasesModule();
-  if (!sdk) return { kind: 'failed' };
+  if (!sdk) return { kind: 'failed', failure: 'unknown' };
   try {
     return { kind: 'restored', customerInfo: await sdk.restorePurchases() };
   } catch (error) {
     const e = error as PurchasesErrorLike;
-    return { kind: 'failed', message: typeof e?.message === 'string' ? e.message : undefined };
+    return { kind: 'failed', failure: readPurchaseFailure2026(error), message: typeof e?.message === 'string' ? e.message : undefined };
   }
 }
 

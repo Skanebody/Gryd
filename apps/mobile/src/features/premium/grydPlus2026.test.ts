@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@^1';
-import { readServerGrydPlusAccess2026 } from './access2026.ts';
+import { grydPlusAccessState2026, readServerGrydPlusAccess2026 } from './access2026.ts';
 import { activitiesInPeriod2026, comparisonPeriods2026, summarizeComparison2026 } from './comparison2026.ts';
 import { readSubscriptionOffers2026, yearlySavingsPercent } from './offerings.ts';
 Deno.test('GRYD+ 2026: no new lifetime offer; a real monthly price remains available', () => {
@@ -29,4 +29,25 @@ Deno.test('private comparison: periods do not overlap and boundary belongs to ex
   const runs = [{ id: 'boundary', startedAtMs: periods.current.start, km: 1, durationS: 300 }];
   assertEquals(activitiesInPeriod2026(runs, periods.current).length, 1);
   assertEquals(activitiesInPeriod2026(runs, periods.previous).length, 0);
+});
+
+Deno.test('G28 : « Abonnement actif » n’apparaît qu’après confirmation du serveur', () => {
+  const receipt = { active: true, expiresAt: '2030-01-01T00:00:00Z', lifetime: false, productId: 'monthly', verifiedAt: null };
+  const state = (over: Partial<Parameters<typeof grydPlusAccessState2026>[0]> = {}) =>
+    grydPlusAccessState2026({ sessionLoading: false, ownerId: 'runner', loaded: true, server: null, storeActive: false, ...over });
+  // Le défaut : le cache du SDK PRIMAIT sur le reçu serveur, donc un achat vu
+  // par le Store affirmait un droit que le serveur n'avait jamais confirmé.
+  assertEquals(state({ storeActive: true }), { status: 'unavailable', active: false });
+  assertEquals(state({ storeActive: true, server: { ...receipt, active: false } }), { status: 'pending', active: false });
+  assertEquals(state({ storeActive: true, server: receipt }), { status: 'active', active: true });
+  assertEquals(state({ storeActive: false, server: receipt }), { status: 'active', active: true });
+});
+Deno.test('G28 : lecture en cours, absence de compte et échec de lecture restent trois faits', () => {
+  const state = (over: Partial<Parameters<typeof grydPlusAccessState2026>[0]> = {}) =>
+    grydPlusAccessState2026({ sessionLoading: false, ownerId: 'runner', loaded: true, server: null, storeActive: false, ...over });
+  assertEquals(state({ sessionLoading: true }).status, 'loading');
+  assertEquals(state({ ownerId: null }).status, 'signedOut');
+  assertEquals(state({ loaded: false }).status, 'loading');
+  assertEquals(state().status, 'unavailable');
+  assertEquals(state({ server: { active: false, expiresAt: null, lifetime: false, productId: null, verifiedAt: null } }).status, 'inactive');
 });
