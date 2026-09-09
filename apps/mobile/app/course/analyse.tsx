@@ -380,6 +380,14 @@ function OwnedAnalyseScreen({ ownerId, ownerEpoch, runId }: { ownerId: string | 
           <SituationBlock phase={phase} queueDepth={state.queueDepth} />
 
           {/* ── L'UNIQUE CTA CHARTREUSE (§A r.4) + une sortie discrète. ───── */}
+          {/* ⚠ LE RÉCAPITULATIF N'EST JAMAIS UN CUL-DE-SAC (10/09/2026). Cet
+              écran est redevenu le passage obligé de la fin de sortie ; seul
+              `complete` y menait au résultat, et toutes les autres issues — en
+              file, refusée, pas même stockée — n'offraient que « Quitter ». Le
+              joueur qui vient de courir perdait alors l'accès à sa distance, à
+              sa durée et à sa trace, qui sont sur l'appareil et n'ont jamais eu
+              besoin du serveur. Dès qu'une sortie vient de finir, le résultat
+              reste atteignable, quelle qu'ait été l'issue de sa synchro. */}
           {phase === 'complete' ? (
             <Button
               label={t(C.seeResult)}
@@ -395,11 +403,17 @@ function OwnedAnalyseScreen({ ownerId, ownerEpoch, runId }: { ownerId: string | 
                 analyticsId="analysis_retry"
               />
               <Button
-                label={t(C.leaveCta)}
+                label={t(hints.fromFinish ? C.seeResult : C.leaveCta)}
                 variant="ghost"
-                onPress={() => router.replace('/(tabs)')}
+                onPress={() => { if (hints.fromFinish) { if (isCurrent()) router.replace({ pathname: '/course-result', params: { ...forward, localId: runId } }); } else router.replace('/(tabs)'); }}
               />
             </>
+          ) : hints.fromFinish ? (
+            <Button
+              label={t(C.seeResult)}
+              onPress={() => { if (isCurrent()) router.replace({ pathname: '/course-result', params: { ...forward, localId: runId } }); }}
+              analyticsId="analysis_see_result"
+            />
           ) : (
             <Button
               label={t(C.leaveCta)}

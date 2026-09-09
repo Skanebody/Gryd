@@ -295,6 +295,10 @@ Deno.test('fin de sortie : la sauvegarde passe par l’écran qui sait dire ses 
   assert(live.includes('courseResultParams('), 'le relais reste celui du module testé');
   const analyse = code('../../../app/course/analyse.tsx');
   assert(analyse.includes("pathname: '/course-result'"), 'et G11 remet la main au résultat');
+  // Et jamais un cul-de-sac : une sortie qui vient de finir garde l'accès à ses
+  // mesures — elles sont sur l'appareil et n'ont jamais eu besoin du serveur.
+  assert(analyse.includes('hints.fromFinish ? C.seeResult : C.leaveCta') && analyse.includes(') : hints.fromFinish ? ('),
+    'toutes les issues de synchro laissent revenir au récapitulatif');
 });
 
 /**
