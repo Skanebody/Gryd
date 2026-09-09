@@ -15,7 +15,7 @@
  * `crew_challenge_measure_2026.postgis.test.mjs` — NON EXÉCUTÉ sur ce poste.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 
 const db = new PGlite();
@@ -79,5 +79,23 @@ try {
     assert.deepEqual([rules.run_metres, rules.bike_metres], [400, 1000]);
     assert.match(await source('assign_challenge_loop_2026'), /minimum:=case when run\.activity='run' then r\.run_metres else r\.bike_metres end/);
   });
-  console.log(`PASS ${passed} — 0150 : STRUCTURE seule (0122 puis 0150). Aucune géométrie prouvée ici ; voir le harnais PostGIS, non exécuté.`);
+  // ─── La lignée entière, pas seulement 0150 ────────────────────────────────
+  // 0155 (lot capture) a DROP la signature à 9 arguments et recopié l'ancienne
+  // mesure par ST_Boundary : appliquée après 0150, elle l'effaçait en silence.
+  // 0169 rebranche la mesure. Ce test relit les FICHIERS pour qu'aucun lot ne
+  // puisse re-inliner la mesure du bord sans faire rougir le gate.
+  await test('lignée : la DERNIÈRE définition de stage_game_activity_2026 délègue la mesure', async () => {
+    const directory = new URL('../migrations/', import.meta.url);
+    // Les commentaires EXPLIQUENT la mesure du bord ; seul le code compte.
+    const code = (name) => readFileSync(new URL(name, directory), 'utf8').replace(/^\s*--.*$/gm, '');
+    const files = readdirSync(directory).filter(name => name.endsWith('.sql')).sort();
+    const defining = files.filter(name => /function public\.stage_game_activity_2026\(/.test(code(name)));
+    assert.ok(defining.length >= 2, 'la lignée doit contenir la définition d’origine et au moins une reprise');
+    const last = code(defining.at(-1));
+    assert.match(last, /lengths:=public\.challenge_sector_metres_2026\(/, `${defining.at(-1)} remesure sans passer par challenge_sector_metres_2026`);
+    assert.equal(/ST_Boundary/.test(last), false, `${defining.at(-1)} mesure de nouveau sur le bord de la face`);
+    const measuring = files.filter(name => /function public\.challenge_sector_metres_2026\(/.test(code(name)));
+    assert.equal(/ST_Boundary/.test(code(measuring.at(-1))), false);
+  });
+  console.log(`PASS ${passed} — 0150 + 0169 : STRUCTURE et lignée. Aucune géométrie prouvée ici ; voir le harnais PostGIS, non exécuté.`);
 } finally { await db.close(); }
