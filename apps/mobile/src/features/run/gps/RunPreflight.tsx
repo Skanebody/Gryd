@@ -14,6 +14,18 @@ import { useRecordingChoice2026 } from '../../refonte/useRecordingChoice2026';
 
 export function RunPreflight({ preflight, requestedActivity }: { preflight: PreflightApi; requestedActivity: Activity }) {
   const fr = useLocale() === 'fr';
+  /**
+   * LA DISCIPLINE QUI SERA ENREGISTRÉE — celle-ci, et aucune autre.
+   *
+   * Le chemin de départ la DÉCLARE (paramètre d'URL, cf. `runActivity.ts`) ;
+   * cet écran l'AFFICHE et laisse la CORRIGER d'un tap avant que quoi que ce
+   * soit ne soit enregistré. C'est la deuxième marche de la règle E14, promise
+   * depuis le 26/07 et jamais construite : la pastille était une `View`, et le
+   * décompte part tout seul quand un choix de confidentialité existe déjà —
+   * une lentille de carte oubliée sur Vélo envoyait donc une vraie course à
+   * pied dans le monde vélo en trois secondes, sans recours.
+   */
+  const [activity, setActivity] = useState<Activity>(requestedActivity);
   const insets = useSafeAreaInsets();
   const { session } = useSession();
   const choice = useRecordingChoice2026();
@@ -41,6 +53,21 @@ export function RunPreflight({ preflight, requestedActivity }: { preflight: Pref
     setCount(null);
     track(EVENTS.runPreflightViewed, { readiness: preflight.status, platform: preflight.platform, requested: requestedActivity });
   }, [ownerKey]);
+  // Une nouvelle déclaration du chemin de départ (retour sur l'écran avec un
+  // autre `?activity=`) reprend la main : elle vient d'un geste, pas d'un cache.
+  useEffect(() => { setActivity(requestedActivity); }, [requestedActivity]);
+  /**
+   * Corriger la discipline avant le départ. Pendant le décompte, le tap le
+   * RELANCE à trois secondes : le joueur vient de changer ce qui sera
+   * enregistré, il doit avoir le temps de le lire. Après le GO, plus rien ne
+   * change de monde en chemin (§8.1 : changer de sport pendant l'enregistrement
+   * est interdit) — la garde `started` le rend impossible.
+   */
+  const correctActivity = () => {
+    if (started.current) return;
+    setActivity(current => (current === 'run' ? 'bike' : 'run'));
+    setCount(value => (value === null ? null : 3));
+  };
   useEffect(() => {
     if (!choice.ready || initialChoiceOwner.current === ownerKey) return;
     initialChoiceOwner.current = ownerKey;
@@ -52,15 +79,16 @@ export function RunPreflight({ preflight, requestedActivity }: { preflight: Pref
     if (count === 0) {
       const consent = choice.currentConsent();
       if (consent === null) { setCount(null); return; }
-      if (!started.current) { started.current = true; confirm.current(requestedActivity, consent); }
+      if (!started.current) { started.current = true; confirm.current(activity, consent); }
       return;
     }
     const timer = setTimeout(() => setCount(n => n === null ? null : n - 1), 1000);
     return () => clearTimeout(timer);
-  }, [count, shared, requestedActivity, choice.ready, choice.saving, ownerKey]);
+  }, [count, shared, activity, choice.ready, choice.saving, ownerKey]);
   const cancel = () => { setCount(null); preflight.cancel(); router.back(); };
   const begin = async () => { if (await choice.save(shared)) setCount(3); };
-  const sport = requestedActivity === 'run' ? (fr ? 'Course' : 'Run') : (fr ? 'Vélo' : 'Ride');
+  const sport = activity === 'run' ? (fr ? 'Course' : 'Run') : (fr ? 'Vélo' : 'Ride');
+  const otherSport = activity === 'run' ? (fr ? 'Vélo' : 'Ride') : (fr ? 'Course' : 'Run');
   const audience = shared ? (fr ? 'Terrain partagé' : 'Shared terrain') : (fr ? 'Sortie privée' : 'Private activity');
   return <View style={s.root}>
     <View style={s.scene}>
@@ -68,7 +96,13 @@ export function RunPreflight({ preflight, requestedActivity }: { preflight: Pref
         onStyleLoaded={() => mapRef.current?.flyTo(camera)}
         markers={position ? [{ id: 'departure-position', ...position, children: <View style={s.position}><View style={s.positionCore} /></View> }] : []} />
       <View style={[s.header, { top: insets.top + 8 }]} pointerEvents="box-none">
-        <View style={s.discipline}><GrydIcon name={requestedActivity === 'run' ? 'run' : 'bike'} size={20} color={c.surface} /><Text style={s.sport}>{sport}</Text></View>
+        <Pressable accessibilityRole="button"
+          accessibilityLabel={fr ? `Sport enregistré : ${sport}. Toucher pour enregistrer en ${otherSport}.` : `Recording as ${sport}. Tap to record as ${otherSport} instead.`}
+          onPress={correctActivity} style={({ pressed }) => [s.discipline, pressed && s.pressed]}>
+          <GrydIcon name={activity === 'run' ? 'run' : 'bike'} size={20} color={c.surface} />
+          <Text style={s.sport}>{sport}</Text>
+          <Text style={s.sportSwap}>{fr ? `→ ${otherSport}` : `→ ${otherSport}`}</Text>
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={fr ? 'Annuler le départ' : 'Cancel start'} onPress={cancel} style={s.close}><GrydIcon name="close" size={21} color={c.surface} /></Pressable>
       </View>
       {count !== null && <View pointerEvents="none" style={s.countdown}>
@@ -99,7 +133,7 @@ export function RunPreflight({ preflight, requestedActivity }: { preflight: Pref
   </View>;
 }
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: c.carbon }, scene: { flex: 1, minHeight: 160, overflow: 'hidden' },
+  root: { flex: 1, backgroundColor: c.carbon }, scene: { flex: 1, minHeight: 160, overflow: 'hidden' }, pressed: { opacity: 0.7 }, sportSwap: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted },
   header: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, discipline: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: c.floating, borderRadius: 14, paddingHorizontal: 14, minHeight: 44 }, sport: { fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, color: c.surface }, close: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.floating, alignItems: 'center', justifyContent: 'center' },
   position: { width: 30, height: 30, borderRadius: 15, backgroundColor: c.scrim, alignItems: 'center', justifyContent: 'center' }, positionCore: { width: 12, height: 12, borderRadius: 6, backgroundColor: c.surface, borderWidth: 3, borderColor: c.carbon }, mapCaption: { position: 'absolute', bottom: 32, left: 16, right: 16, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7 }, caption: { fontFamily: fonts.text, fontSize: 12, color: c.darkMuted, backgroundColor: c.carbon, paddingHorizontal: 6, paddingVertical: 4 },
   dock: { flexGrow: 0, maxHeight: '58%', backgroundColor: c.carbon }, content: { paddingHorizontal: 20, paddingTop: 18 }, dockHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, title: { fontFamily: fonts.displayMedium, fontSize: 20, lineHeight: 25, letterSpacing: -0.4, color: c.surface }, gps: { flexDirection: 'row', alignItems: 'center', gap: 6 }, dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: c.accent }, dotMuted: { backgroundColor: c.darkMuted }, gpsLabel: { fontFamily: fonts.text, color: c.darkMuted, fontSize: 12 },

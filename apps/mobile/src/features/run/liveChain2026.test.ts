@@ -135,3 +135,28 @@ Deno.test('résultat : aucune surface ne s’affiche « 0 » alors qu’elle exi
   assert(!/\/ 1e6\)\.toLocaleString/.test(result), 'le formatage de surface passe par le module testé');
   assert(result.includes('captureAreaLabel2026(n, fr)'));
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 6 — LA DISCIPLINE DE LA SORTIE
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `runActivity.ts` promettait depuis le 26/07 que « le PRÉFLIGHT
+ * l'AFFICHE en toutes lettres pendant le décompte et laisse la CORRIGER d'un
+ * tap ». La pastille était une `<View>` : rien n'était corrigeable. Or le
+ * décompte part TOUT SEUL dès qu'un choix de confidentialité est enregistré —
+ * une lentille de carte restée sur Vélo envoyait donc une vraie course à pied
+ * dans le monde vélo en trois secondes, sans que personne puisse la démentir.
+ */
+Deno.test('départ : la discipline montrée au préflight est corrigeable d’un tap', () => {
+  const preflight = code('./gps/RunPreflight.tsx');
+  const at = preflight.indexOf('s.discipline,');
+  assert(at > 0, 'la pastille de discipline doit exister');
+  const badge = preflight.slice(at - 400, at + 200);
+  assert(badge.includes('Pressable') && badge.includes('onPress={correctActivity}'),
+    'la pastille de discipline doit être touchable');
+  assert(preflight.includes('const [activity, setActivity]'), 'le préflight porte la discipline qu’il va confirmer');
+  assert(preflight.includes('confirm.current(activity,'), 'c’est CETTE discipline qui part au tracker');
+  assert(!/confirm\.current\(requestedActivity/.test(preflight),
+    'la discipline déclarée par l’URL ne peut plus court-circuiter la correction');
+});
