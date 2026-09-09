@@ -111,6 +111,37 @@ do $$ begin
  if exists((select event_id,extensions.ST_AsEWKB(geometry) from public.ownership_2026 except select * from before_late)
    union all (select * from before_late except select event_id,extensions.ST_AsEWKB(geometry) from public.ownership_2026)) then raise exception 'Upload order changed possession'; end if;
 end $$;
+-- The incremental publication path must equal the canonical replay, exactly.
+-- If these two ever diverge, possession would depend on WHEN the cron ran.
+create temp table incremental_state as select event_id,extensions.ST_AsEWKB(geometry) geometry from public.ownership_2026;
+select public.rebuild_ownership_2026('run');
+do $$ begin
+ if exists((select event_id,extensions.ST_AsEWKB(geometry) from public.ownership_2026 except select * from incremental_state)
+   union all (select * from incremental_state except select event_id,extensions.ST_AsEWKB(geometry) from public.ownership_2026)) then
+   raise exception 'Incremental publication diverged from canonical replay'; end if;
+end $$;
+-- A pending capture is never eternal, and its reason survives its expiry.
+insert into public.runs(id,user_id,client_run_id,activity,source,started_at,status,ruleset_version,shared_map_consent_2026)
+values('10000000-0000-4000-8000-000000000009','00000000-0000-4000-8000-000000000001',gen_random_uuid(),'run','gps',now()-interval '3 hours','valid','2026.1',true);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000009',pg_temp.face('0',2.08,now()-interval '2 hours'),'[]',now()+interval '30 minutes',0,24,false,false,${TERRITORY_RULES_2026.clockToleranceSeconds},'no_recording_session');
+do $$ begin
+ if (select status from public.capture_events_2026 where run_id='10000000-0000-4000-8000-000000000009')<>'pending' then raise exception 'Unverified source must stay recoverable'; end if;
+ if (select game_status_2026 from public.runs where id='10000000-0000-4000-8000-000000000009')<>'pending' then raise exception 'Run status must mirror its faces'; end if;
+end $$;
+-- Resending the SAME outing after the session exists promotes the SAME geometry.
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000009',pg_temp.face('0',2.08,now()-interval '2 hours'),'[]',now()+interval '30 minutes',0,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
+do $$ begin
+ if (select count(*) from public.capture_events_2026 where run_id='10000000-0000-4000-8000-000000000009')<>1 then raise exception 'Re-evaluation duplicated a capture'; end if;
+ if (select status from public.capture_events_2026 where run_id='10000000-0000-4000-8000-000000000009')<>'scheduled' then raise exception 'Pending capture never left its purgatory'; end if;
+end $$;
+update public.capture_events_2026 set status='pending',reason='no_recording_session',closed_at=now()-interval '30 hours'
+  where run_id='10000000-0000-4000-8000-000000000009';
+select public.publish_capture_events_2026();
+do $$ begin
+ if (select status from public.capture_events_2026 where run_id='10000000-0000-4000-8000-000000000009')<>'rejected' then raise exception 'Expired pending capture stayed pending'; end if;
+ if (select reason from public.capture_events_2026 where run_id='10000000-0000-4000-8000-000000000009')<>'no_recording_session' then raise exception 'Expiry rewrote the cause of the refusal'; end if;
+ if (select game_status_2026 from public.runs where id='10000000-0000-4000-8000-000000000009')<>'rejected' then raise exception 'Run kept an eternal pending'; end if;
+end $$;
 -- Withdrawal preserves A's remainder and does not revive the overlapped portion.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
 select public.withdraw_capture_2026('10000000-0000-4000-8000-000000000002');
@@ -227,6 +258,7 @@ try {
     readFileSync(new URL('../migrations/0122_refonte_2026_crew_challenges.sql',import.meta.url),'utf8')+
     readFileSync(new URL('../migrations/0123_refonte_2026_territory_read_model.sql',import.meta.url),'utf8')+
     readFileSync(new URL('../migrations/0155_capture_admission_2026.sql',import.meta.url),'utf8')+
+    readFileSync(new URL('../migrations/0156_capture_pending_resolution_2026.sql',import.meta.url),'utf8')+
     assertions.replace('\nrollback;',challengeAssertions+'\nrollback;'));
   const result=spawnSync('psql',[target,'-X','-v','ON_ERROR_STOP=1','-f',sql],{stdio:'inherit'});
   if(result.error) { console.error(`NON EXÉCUTÉ : ${result.error.message}`); process.exitCode=2; }
