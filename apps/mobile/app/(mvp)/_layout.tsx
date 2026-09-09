@@ -64,7 +64,14 @@ const TRANSITIONS = {
   position: 'fade',
   connexion: 'fade',
   carte: 'fade',
-  profil: 'slide_from_right',
+  // ⚠️ RENOMMÉ LE 10/09/2026 — `profil.tsx` → `profil-mvp.tsx`. Les DEUX
+  // groupes servaient `/profil` (`app/(tabs)/profil.tsx` et celui-ci) : une
+  // collision de routes expo-router réelle, où le fichier gagnant dépendait de
+  // l'ordre de résolution. Le groupe `(mvp)` étant la quarantaine (ADR-001,
+  // remplacée par ADR-012), c'est LUI qui cède son chemin. Le nom du fichier
+  // porte un tiret : la clé doit donc être CITÉE ici, et `couture.test.ts`
+  // accepte désormais cette forme (sans quoi l'écran serait déclaré manquant).
+  'profil-mvp': 'slide_from_right',
   prete: 'fade_from_bottom',
   course: 'fade',
   resultat: 'fade',

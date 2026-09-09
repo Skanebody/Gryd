@@ -3,7 +3,7 @@
  *
  * ─── LE DÉFAUT QUE CE MODULE CORRIGE ─────────────────────────────────────────
  * `/carte` est la RACINE de toute la pile MVP : `carte → push('/prete') →
- * replace('/course') → replace('/resultat')`, `carte → push('/profil')`,
+ * replace('/course') → replace('/resultat')`, `carte → push('/profil-mvp')`,
  * `carte → push('/connexion')`. Cinq écrans y REVENAIENT par
  * `router.replace('/carte')` — un `replace` qui, depuis une pile où la carte
  * est DÉJÀ en dessous, EMPILE une seconde carte au lieu d'y remonter :

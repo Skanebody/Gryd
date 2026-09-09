@@ -66,7 +66,8 @@ function codeSeul(source: string): string {
  * ① `Alert` n'existe PAS sur react-native-web — `Alert.alert` y est un no-op
  * silencieux, et `app.json` déclare la cible web.
  *
- * ÉTAPE 0 : `app/(mvp)/profil.tsx` importait `Alert` et confirmait par lui la
+ * ÉTAPE 0 : `app/(mvp)/profil.tsx` (renommé `profil-mvp.tsx` le 10/09/2026)
+ * importait `Alert` et confirmait par lui la
  * suppression de compte. Sur web, taper « Supprimer mon compte » n'affichait
  * donc RIEN — sur la seule action qu'Apple 5.1.1(v) exige et que le RGPD impose.
  */
@@ -186,7 +187,12 @@ Deno.test('couture — chaque écran (mvp) déclare sa transition dans le layout
   const debut = layout.indexOf('const TRANSITIONS');
   assert(debut >= 0, 'couture : `TRANSITIONS` introuvable dans (mvp)/_layout.tsx');
   const table = layout.slice(debut, layout.indexOf('}', debut));
-  const declarees = [...table.matchAll(/^\s{2}([a-z][a-zA-Z0-9]*):/gm)].map((m) => m[1]!).sort();
+  // ⚠️ LA CLÉ PEUT ÊTRE CITÉE. `profil-mvp.tsx` (renommé le 10/09/2026 pour
+  // lever la collision `/profil` avec `app/(tabs)/profil.tsx`) porte un tiret :
+  // en JS sa clé d'objet DOIT être entre quotes. L'ancienne regex ne lisait que
+  // les identifiants nus — elle aurait donc déclaré l'écran « sans transition »
+  // alors qu'il en a une, et le renommage aurait été refusé par un faux rouge.
+  const declarees = [...table.matchAll(/^\s{2}'?([a-z][a-zA-Z0-9-]*)'?:/gm)].map((m) => m[1]!).sort();
 
   const manquantes = fichiers.filter((f) => !declarees.includes(f));
   assert(
@@ -210,4 +216,35 @@ Deno.test('couture — aucun écran (mvp) ne réduit la session à un booléen',
         `Trois états — 'restoring' | 'signedOut' | 'signedIn'.`,
     );
   }
+});
+
+/**
+ * ⑤ DEUX FICHIERS NE SERVENT JAMAIS LE MÊME CHEMIN.
+ *
+ * `(mvp)` et `(tabs)` sont deux GROUPES : leurs parenthèses ne produisent aucun
+ * segment d'URL. Deux fichiers de même nom, un dans chaque groupe, servent donc
+ * la MÊME route — et lequel gagne dépend de l'ordre de résolution d'expo-router,
+ * pas d'une décision de produit. Le typecheck ne voit rien, l'app démarre, et
+ * l'écran atteint n'est pas forcément celui qu'on croit.
+ *
+ * ÉTAPE 0 — LE DÉFAUT EXISTAIT : jusqu'au 10/09/2026, `app/(mvp)/profil.tsx` et
+ * `app/(tabs)/profil.tsx` servaient tous deux `/profil`. Ce test échouait donc
+ * sur `profil` avant le renommage en `profil-mvp.tsx` (`node
+ * scripts/audit-routes.mjs` l'imprimait déjà, sans jamais sortir en erreur).
+ */
+Deno.test('couture — aucun écran (mvp) ne collisionne avec un écran (tabs)', () => {
+  const noms = (groupe: string) =>
+    [...Deno.readDirSync(new URL(`../../app/${groupe}/`, import.meta.url))]
+      .filter((e) => e.isFile && e.name.endsWith('.tsx') && e.name !== '_layout.tsx')
+      .map((e) => e.name.replace(/\.tsx$/, ''));
+  const mvp = noms('(mvp)');
+  const tabs = noms('(tabs)');
+  assert(mvp.length >= 5 && tabs.length >= 3, 'couture : un groupe lu vide, le chemin est faux');
+  const collisions = mvp.filter((nom) => tabs.includes(nom));
+  assert(
+    collisions.length === 0,
+    `route(s) servie(s) par DEUX fichiers : ${collisions.join(', ')}. ` +
+      `(mvp) et (tabs) sont des groupes SANS segment d'URL : c'est le même chemin. ` +
+      `La quarantaine cède son nom (suffixe -mvp), jamais l'écran du cahier.`,
+  );
 });

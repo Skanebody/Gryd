@@ -88,22 +88,23 @@ const SCAN_DIRS = [APP_DIR, SRC_DIR];
  * QUARANTAINE DÉCLARÉE — le groupe `(mvp)`, ligne MASTER (ADR-001).
  *
  * Ces sept écrans (`/position`, `/connexion`, `/carte`, `/prete`, `/course`,
- * `/resultat`, `/profil`) sont la reconstruction d'UI décidée par l'ADR-001 en
- * août 2026. L'ADR-012 (09/09/2026) donne le rang 0 au cahier de septembre :
+ * `/resultat`, `/profil-mvp`) sont la reconstruction d'UI décidée par l'ADR-001
+ * en août 2026. L'ADR-012 (09/09/2026) donne le rang 0 au cahier de septembre :
  * cette ligne est REMPLACÉE — mais rien n'est supprimé, et la réconciliation
  * reste à faire. Ils sont donc conservés, et tenus à l'écart du graphe.
  *
- * ⚠️ LA COLLISION `/profil`, ET CE QUE LE SCRIPT EN FAIT. `/profil` est servi
- * par DEUX fichiers : `app/(mvp)/profil.tsx` et `app/(tabs)/profil.tsx`. C'est
- * un conflit de routes expo-router réel, que ce script n'a pas à trancher : il
- * LISTE les deux fichiers (rien n'est effacé, ni du disque ni du rapport), mais
- * il ne SÈME l'arbre de composition qu'avec le fichier HORS quarantaine. La
- * raison est celle du garde-fou : `(mvp)/profil.tsx:276` écrit
- * `router.push('/connexion')`, donc laisser le jumeau MVP prêter ses liens à la
- * route que la barre basse de septembre atteint rouvrirait toute la ligne MVP
- * depuis un écran du cahier — l'audit se remettrait à s'auto-satisfaire.
- * Une route servie UNIQUEMENT depuis la quarantaine garde, elle, ses propres
- * arêtes : on mesure encore ce qui se passe à l'intérieur du bloc.
+ * ⚠️ LA COLLISION `/profil` EST LEVÉE (10/09/2026). Elle était réelle : DEUX
+ * fichiers servaient `/profil` — `app/(mvp)/profil.tsx` et
+ * `app/(tabs)/profil.tsx` — et le gagnant dépendait de l'ordre de résolution
+ * d'expo-router, pas d'une décision. Le groupe `(mvp)` étant la quarantaine,
+ * c'est LUI qui a cédé le chemin : son fichier s'appelle désormais
+ * `profil-mvp.tsx` et sert `/profil-mvp`. Ce script n'a donc plus à arbitrer
+ * une double desserte ; le garde-fou de semis (une route servie AUSSI hors
+ * quarantaine ne sème son arbre qu'avec le fichier du cahier) reste en place
+ * parce qu'il protège contre la RÉAPPARITION du cas, et l'avertissement
+ * « servie(s) AUSSI hors quarantaine » reste imprimé s'il se reproduit.
+ * Une route servie UNIQUEMENT depuis la quarantaine garde ses propres arêtes :
+ * on mesure encore ce qui se passe à l'intérieur du bloc.
  */
 const QUARANTINE_DIRS = ['apps/mobile/app/(mvp)/'];
 

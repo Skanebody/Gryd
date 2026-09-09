@@ -594,7 +594,7 @@ export default function Carte() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t(C.ctaProfil)}
-        onPress={() => router.push('/profil')}
+        onPress={() => router.push('/profil-mvp')}
         hitSlop={spacing.xs}
         style={({ pressed }) => [
           styles.rond,
