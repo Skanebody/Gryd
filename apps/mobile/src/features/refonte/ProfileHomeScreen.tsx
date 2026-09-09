@@ -9,6 +9,8 @@ import { useSession } from '../../lib/session';
 import { screen } from '../../lib/analytics';
 import { GrydIcon, GrydMark, CircularAction2026 } from '../../ui/gryd';
 import { useLocale } from '../../i18n/store';
+import { resolve } from '../../i18n/types';
+import { C as defisSemaine } from '../../i18n/catalog/defisSemaine';
 import { useProfileProgress } from './ProfileProgress';
 import { profileMovementState2026 } from './ProfileMovementState2026';
 import { SeasonalIdentity2026 } from './SeasonalIdentity2026';
@@ -157,6 +159,7 @@ function ProfileHomeContents() {
     {adoptionNotice && session ? <Text accessibilityRole="alert" style={local.notice}>{adoptionNotice}</Text> : null}
     <ProfileLink tone="light" title={copy('Amis', 'Friends')} subtitle={copy('Membres et demandes', 'Members and requests')} icon="ami" onPress={() => router.push('/amis')} />
     <ProfileLink tone="light" title={copy('Progression', 'Progress')} subtitle={copy('Niveaux et saison', 'Levels and season')} icon="niveau" onPress={() => router.push('/season')} />
+    <ProfileLink tone="light" title={resolve(defisSemaine.entreeProfil, locale)} subtitle={resolve(defisSemaine.entreeProfilDetail, locale)} icon="badge" onPress={() => router.push('/defis-semaine')} />
     <ProfileLink tone="light" title={copy('Sources et appareils', 'Sources and devices')} icon="lien" onPress={() => router.push('/sources')} />
     <ProfileLink tone="light" title="GRYD+" subtitle={copy('Studio, analyses et éditions', 'Studio, insights and editions')} icon="pass" onPress={() => router.push('/premium')} />
   </ProfilePage>;
