@@ -352,3 +352,24 @@ Deno.test('départ : l’enregistrement écran verrouillé se propose AVANT la s
   const offer = code('./gps/backgroundOffer.ts');
   assert(offer.includes('AsyncStorage'), 'la mémoire est locale, sans compte ni réseau');
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Constat 10 — LA VOIX (G09) ET L'HAPTIQUE (L6)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ÉTAPE 0 : `mvp/run/voice.ts` n'était appelé que par l'écran du groupe
+ * `(mvp)`. La chaîne vivante n'avait AUCUNE annonce et AUCUNE vibration de
+ * fermeture : le seul canal qui atteint quelqu'un qui court, écran éteint,
+ * n'existait pas pour elle.
+ */
+Deno.test('course : la fermeture se dit et se sent, sur la transition et une seule fois', () => {
+  const core = code('./gps/useRealRunCore.ts');
+  assert(core.includes('gaugeVoice(gaugePhaseRef.current, phase, gaugeSaidRef.current)'),
+    'la décision reste celle des règles pures — sur la TRANSITION, avec mémoire');
+  assert(core.includes('gaugeHaptic(gaugePhaseRef.current, phase)'), 'L6 : l’haptique suit la même transition');
+  assert(core.includes('say(VOICE_LINE_2026[cue])') && core.includes('startVoice(false)'),
+    'le départ s’annonce, la reprise non');
+  assert(core.includes('stopSpeaking()'), 'plus un mot au démontage de la sortie');
+  assert(!/say\(\s*['"`]/.test(core), 'aucune phrase en dur : la voix parle le catalogue (L18)');
+});

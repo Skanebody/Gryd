@@ -65,6 +65,11 @@ import { RunTracker, type TrackerSnapshot } from './tracker';
 import { saveLocalActivity2026, type LocalActivity2026 } from '../../refonte/localActivities';
 import { canResumeInterrupted } from './runActivity';
 import { backgroundOfferSeen, markBackgroundOfferSeen } from './backgroundOffer';
+import { gaugePhaseFromClosure2026, VOICE_LINE_2026 } from './liveVoice';
+import { loopClosurePhase } from './engine/loopClosure';
+import { gaugeHaptic, gaugeVoice, signalHaptic, startVoice, type GaugePhase, type GaugeVoiceCue } from '../../../mvp/run/feedback';
+import { say, stopSpeaking } from '../../../mvp/run/voice';
+import { haptics } from '../../../lib/haptics';
 // La MÊME fenêtre que la décision de démarrage (`app/_layout.tsx` la consomme
 // déjà par `decideCrashRecoveryNavigation`). Deux fenêtres différentes
 // donneraient un écran de reprise ouvert par le boot puis refusé par l'écran.
@@ -128,6 +133,17 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
   // annulation pendant le « GO » ne doit ni ouvrir un watch orphelin ni écrire
   // une course fantôme (E06).
   const mountedRef = useRef(true);
+  /**
+   * ─── CE QUE LA SORTIE A DÉJÀ DIT ET FAIT SENTIR (G09, L6) ────────────────
+   * La jauge est recalculée à chaque relevé : brancher la voix ou l'haptique
+   * sur son ÉTAT ferait parler et vibrer en continu. On garde donc la phase
+   * PRÉCÉDENTE (les règles de `feedback.ts` décident sur la TRANSITION) et la
+   * phrase DÉJÀ DITE (chaque phrase au plus une fois : sans cette mémoire, le
+   * bruit GPS du dernier virage ferait bégayer « presque fermée / fermée »).
+   */
+  const gaugePhaseRef = useRef<GaugePhase>('silent');
+  const gaugeSaidRef = useRef<GaugeVoiceCue | null>(null);
+  const signalRef = useRef<'searching' | 'weak' | 'good'>('searching');
 
   const [kind, setKind] = useState<'starting' | 'preflight' | 'unavailable' | 'real'>('starting');
   const [reason, setReason] = useState<RunUnavailableReason>('position-unavailable');
@@ -422,6 +438,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     return () => {
       alive = false;
       mountedRef.current = false; // confirmStart en vol s'arrêtera après son await
+      // Une phrase encore en vol parlerait par-dessus l'écran de résultat, en
+      // décrivant une sortie déjà finie.
+      stopSpeaking();
       stopSensors();
       trackerRef.current?.stopPedometer();
       // Pas de clearActiveRun ici : quitter l'écran sans terminer laisse le
@@ -438,7 +457,27 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       const t = trackerRef.current;
       if (t === null || finishedRef.current) return;
       tick++;
-      setSnapshot(t.snapshot(Date.now()));
+      const snap = t.snapshot(Date.now());
+      setSnapshot(snap);
+      // La FERMETURE : le moment que le joueur attend, et le seul qu'il ne peut
+      // pas voir (il court). L'autorité de fermeture est celle de la chaîne
+      // vivante ; les règles « quand parler / quand vibrer » restent celles,
+      // pures et testées, de `feedback.ts` — on ne les réécrit pas ici.
+      const phase = gaugePhaseFromClosure2026(loopClosurePhase({
+        conquest: t.mode === 'conquete', activity: t.activity,
+        distanceM: snap.distanceM, gapM: snap.loopGapM,
+      }));
+      const cue = gaugeVoice(gaugePhaseRef.current, phase, gaugeSaidRef.current);
+      const pulse = gaugeHaptic(gaugePhaseRef.current, phase);
+      gaugePhaseRef.current = phase;
+      if (pulse !== null) haptics[pulse]();
+      if (cue !== null) { gaugeSaidRef.current = cue; say(VOICE_LINE_2026[cue]); }
+      // La PERTE de signal : une alerte de fiabilité, jamais une réprimande —
+      // seule la perte parle, et seulement depuis un signal qu'on avait.
+      const level = snap.signal === 'ok' ? 'good' : snap.signal === 'weak' ? 'weak' : 'searching';
+      const signalPulse = signalHaptic(signalRef.current, level);
+      signalRef.current = level;
+      if (signalPulse !== null) haptics[signalPulse]();
       if (tick % FLUSH_EVERY_TICKS === 0) {
         void flush().then(() => track(EVENTS.runAutosave, { points: t.rawFixes.length }));
       }
@@ -798,6 +837,12 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // `activity` accompagne le départ : sans elle le funnel §8 mélangerait les
     // deux mondes (un pic de départs vélo se lirait comme un pic de courses).
     track(EVENTS.runStart, { source: 'gps', mode, platform: adapter.platform, activity });
+    // « C'est parti. » — le départ, et lui seul. Une REPRISE ne s'annonce pas
+    // (`startVoice(true)` rend null) : la course avait déjà commencé, parfois
+    // des kilomètres plus tôt, et le dire démentirait l'écran à voix haute.
+    const opening = startVoice(false);
+    if (opening !== null) say(VOICE_LINE_2026[opening]);
+    haptics.light();
     setSnapshot(tracker.snapshot(Date.now()));
     setKind('real');
     void flush();
