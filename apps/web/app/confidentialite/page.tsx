@@ -545,6 +545,25 @@ export default function ConfidentialitePage() {
               <b>Tracés de tes sorties (course à pied comme vélo)&nbsp;:</b> conservés avec
               ton compte&nbsp;; supprimés lors de la suppression du compte.
             </li>
+            {/* AJOUT DU 10/09/2026 — CE QUI SURVIT, ET QUI N'ÉTAIT PAS DÉCLARÉ.
+                `capture_events_2026.owner_id` et `run_id` sont en `on delete set
+                null` (migration 0118) : la géométrie d'une capture reste en base
+                après la suppression du compte, détachée de toute identité. Elle
+                explique l'historique des territoires de joueurs ENCORE inscrits ;
+                l'effacer réécrirait leur passé. Une politique qui promettait
+                « effacées ou anonymisées » sans le dire décrivait une suppression
+                qui n'a pas lieu telle quelle. Même texte que la version in-app
+                (`apps/mobile/src/i18n/catalog/legal.ts`, privacyConservationBody). */}
+            <li className={styles.item}>
+              <b>Ce qui survit, détaché de toi&nbsp;:</b> la <b>forme des territoires</b>{' '}
+              que tu as capturés reste enregistrée après la suppression de ton compte,{' '}
+              <b>sans ton identifiant, sans ton nom et sans le tracé de ta sortie</b>. Elle
+              sert uniquement à expliquer l&rsquo;historique des territoires des joueurs
+              encore inscrits (qui a pris quoi, et quand)&nbsp;; plus rien ne permet de la
+              rattacher à toi. La même règle vaut pour ta participation à un défi de crew
+              déjà publié. Les photos et images que tu as publiées, elles, sont{' '}
+              <b>effacées avec le compte</b>.
+            </li>
             <li className={styles.item}>
               <b>Journaux techniques&nbsp;:</b> conservés au maximum <b>12 mois</b>, puis
               effacés.

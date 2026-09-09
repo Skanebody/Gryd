@@ -23,6 +23,21 @@
  * Sécurité : identité dérivée du JWT (jamais un id passé par le client) ; POST
  * seul ; service-role UNIQUEMENT côté serveur. Idempotent : re-demander ne
  * repousse jamais l'échéance (la 1re demande fait foi).
+ *
+ * ─── CE QUE LA PURGE EMPORTE VRAIMENT (revu le 10/09/2026) ──────────────────
+ * Cette fonction n'efface RIEN elle-même : elle pose l'échéance, et c'est
+ * `purge_due_accounts()` qui exécute. Ce qui a été vérifié table par table :
+ *  · les tables `*_2026` de 0118-0127 référencent `public.users(id)` en
+ *    `on delete cascade` — la suppression d'`auth.users` les emporte toutes ;
+ *  · SAUF `capture_events_2026` et `challenge_roster_2026`, en
+ *    `on delete set null` : la géométrie des captures et la ligne de
+ *    participation à un défi publié survivent SANS identité (lignée
+ *    territoriale et résultats déjà annoncés). C'est un choix de jeu, et il est
+ *    désormais DÉCLARÉ dans la politique de confidentialité (in-app et web) ;
+ *  · les objets du bucket `social-2026` (avatars, photos de publication) ne
+ *    référencent rien du tout et SURVIVAIENT à la purge. Corrigé par la
+ *    migration 0136, qui les supprime dans la même transaction que le compte.
+ * L'export (art. 15/20) suit la même liste : `export_account/personalTables.ts`.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 

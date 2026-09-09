@@ -684,8 +684,20 @@ export const C = defineCatalog({
     'Tes données de compte et de jeu sont hébergées et traitées dans l’Union européenne. Les exceptions sont celles-ci, et il n’y en a pas d’autres : les noms de lieux demandés à OpenStreetMap / Nominatim, les calculs d’itinéraires demandés à OSRM / FOSSGIS e.V., et les fonds de carte servis par CARTO, Esri, OpenMapTiles et Amazon Web Services (voir « Partage & sous-traitants »). Ces services peuvent être servis par une infrastructure située hors de l’Union. Aucune de ces requêtes ne contient d’identifiant de compte : les fonds de carte ne reçoivent que la zone affichée et une adresse IP, la position transmise depuis le panneau de sécurité est arrondie à environ 11 km, celle transmise au calcul d’itinéraire à environ 110 m. Aucun autre transfert hors UE n’a lieu dans le fonctionnement normal du jeu. Si un sous-traitant venait à en impliquer un, il serait encadré par les garanties prévues par le RGPD (clauses contractuelles types de la Commission européenne) et signalé dans la présente politique.',
   ),
   privacyConservationHeading: fr5('DURÉES DE CONSERVATION'),
+  /**
+   * AJOUT DU 10/09/2026 — CE QUI SURVIT À LA SUPPRESSION, ET QUI N'ÉTAIT PAS
+   * DÉCLARÉ. `capture_events_2026.owner_id` et `run_id` sont en
+   * `on delete set null` (migration 0118) : la GÉOMÉTRIE d'une capture reste en
+   * base après la suppression du compte, détachée de toute identité. C'est la
+   * lignée territoriale — chaque capture explique qui a pris quoi à qui, et
+   * l'effacer réécrirait l'historique des territoires de joueurs encore
+   * inscrits. Une politique qui écrivait « tes données sont effacées ou
+   * anonymisées » sans le dire décrivait une suppression qui n'a pas lieu
+   * telle quelle. On le DIT, plutôt que de changer une cascade de jeu par un
+   * texte juridique.
+   */
   privacyConservationBody: fr5(
-    '· Compte & données de jeu : tant que ton compte est actif.\n· Après suppression du compte : tes données personnelles sont effacées ou anonymisées sous 30 jours, sauf obligation légale de conservation (facturation, litige).\n· Tracés de tes sorties (course à pied comme vélo) : conservés avec ton compte, supprimés à la suppression du compte.\n· Journaux techniques : conservés au maximum 12 mois, puis effacés.',
+    '· Compte & données de jeu : tant que ton compte est actif.\n· Après suppression du compte : tes données personnelles sont effacées ou anonymisées sous 30 jours, sauf obligation légale de conservation (facturation, litige). Les photos et images que tu as publiées sont effacées avec le compte.\n· Tracés de tes sorties (course à pied comme vélo) : conservés avec ton compte, supprimés à la suppression du compte.\n· CE QUI SURVIT, DÉTACHÉ DE TOI : la forme des territoires que tu as capturés reste enregistrée après la suppression de ton compte, SANS ton identifiant, ton nom ni le tracé de ta sortie. Elle sert uniquement à expliquer l’historique des territoires des joueurs encore inscrits (qui a pris quoi, et quand) ; plus rien ne permet de la rattacher à toi. La même règle vaut pour ta participation à un défi de crew déjà publié.\n· Journaux techniques : conservés au maximum 12 mois, puis effacés.',
   ),
   privacyDroitsHeading: fr5('TES DROITS'),
   privacyDroitsBody1: fr5('Conformément au RGPD, tu disposes des droits suivants sur tes données :'),

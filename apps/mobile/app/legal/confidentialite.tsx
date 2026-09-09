@@ -37,6 +37,15 @@
  *   siège, plus l'export/suppression in-app qui, eux, fonctionnent.
  * A ÉTÉ AJOUTÉ ce qui existait sans être déclaré : l'IMPORT DE COURSES (fichier
  * GPX, service de suivi connecté) envoie un tracé à nos serveurs.
+ * A ÉTÉ AJOUTÉ LE 10/09/2026, § DURÉES DE CONSERVATION : ce qui SURVIT à la
+ * suppression du compte. `capture_events_2026.owner_id` et `run_id` sont en
+ * `on delete set null` (migration 0118) — la géométrie d'une capture reste en
+ * base, détachée de toute identité, parce qu'elle explique l'historique des
+ * territoires de joueurs ENCORE inscrits. Promettre « effacées ou anonymisées »
+ * sans le dire, c'était décrire une suppression qui n'a pas lieu telle quelle.
+ * Le même paragraphe déclare que les photos publiées, elles, partent bien avec
+ * le compte (migration 0136). Texte identique sur le web
+ * (`apps/web/app/confidentialite/page.tsx`, § 08).
  * A ÉTÉ RETIRÉ DU DOCBLOC : l'affirmation « la ligne Politique de confidentialité
  * des Réglages route par erreur vers l'écran de réglages ». C'est corrigé
  * (`parametres/[section].tsx:600` route bien ici) — laisser la phrase enverrait

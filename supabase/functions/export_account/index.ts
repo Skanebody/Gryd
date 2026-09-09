@@ -5,8 +5,14 @@
  * L'utilisateur connecté récupère une COPIE de ses données personnelles. On
  * dérive l'identité du JWT (jamais un id client), puis on lit en service-role
  * ses lignes dans chaque table porteuse de données perso, filtrées par sa colonne
- * utilisateur (user_id, sauf hex_claims = owner_user_id). Retour = un JSON lisible
+ * utilisateur (`./personalTables.ts`). Retour = un JSON lisible
  * `gryd.account-export.v1`. LECTURE SEULE : n'efface ni ne modifie rien.
+ *
+ * ⚠️ CORRIGÉ LE 10/09/2026 : la liste s'était arrêtée au monde legacy. Aucune
+ * table `*_2026` n'y figurait — ni les captures et leur GÉOMÉTRIE, ni les
+ * territoires tenus, ni l'XP, ni les achats, ni les publications, commentaires,
+ * signalements, blocages et messages de crew. L'export répondait donc FAUX à une
+ * demande d'accès. La liste est désormais confrontée aux migrations par un test.
  *
  * Robuste : chaque table est interrogée en BEST-EFFORT — une table absente ou une
  * colonne inattendue est consignée dans `partialErrors` et n'échoue pas l'export
@@ -14,6 +20,9 @@
  * partage native.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
+// La liste des tables vit à côté, pour qu'un test puisse la CONFRONTER aux
+// migrations (personalTables_test.ts) sans démarrer la fonction.
+import { PERSONAL_TABLES } from './personalTables.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -26,33 +35,6 @@ const json = (body: unknown, status = 200): Response =>
     status,
     headers: { 'content-type': 'application/json' },
   });
-
-/** Tables porteuses de données perso + colonne utilisateur (single = 0-1 ligne). */
-const PERSONAL_TABLES: readonly {
-  key: string;
-  table: string;
-  column: string;
-  single?: boolean;
-}[] = [
-  { key: 'profile', table: 'users', column: 'id', single: true },
-  { key: 'stats', table: 'user_stats', column: 'user_id', single: true },
-  { key: 'runs', table: 'runs', column: 'user_id' },
-  { key: 'hexClaims', table: 'hex_claims', column: 'owner_user_id' },
-  { key: 'seasonScores', table: 'season_scores', column: 'user_id' },
-  { key: 'badges', table: 'user_badges', column: 'user_id' },
-  { key: 'inventory', table: 'user_inventory', column: 'user_id' },
-  { key: 'purchases', table: 'purchases', column: 'user_id' },
-  { key: 'crewMemberships', table: 'crew_members', column: 'user_id' },
-  { key: 'privacyZones', table: 'privacy_zones', column: 'user_id' },
-  { key: 'missionProgress', table: 'mission_progress', column: 'user_id' },
-  { key: 'notifications', table: 'notifications', column: 'user_id' },
-  { key: 'importedActivities', table: 'imported_activities', column: 'user_id' },
-  // Droit d'accès : l'utilisateur doit aussi récupérer ses actions de MODÉRATION
-  // (signalements émis, pseudos bloqués) — ce sont ses données personnelles au
-  // même titre que ses courses. Cf. 0029_moderation.sql.
-  { key: 'contentReports', table: 'content_reports', column: 'reporter_id' },
-  { key: 'blockedPseudos', table: 'user_blocks', column: 'blocker_id' },
-];
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
