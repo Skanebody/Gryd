@@ -21,7 +21,10 @@ Deno.test('the entrance has no lesson counter or automatic next step; all three 
 Deno.test('explore never requires an account, sport or location; replay exits preserve the entire stored state', () => {
   for (const action of ['explore', 'close', 'done'] as const) {
     assertEquals(discoveryExit2026(false, action), { target: '/', patch: { onboardingDone: true, reachedStep: 'map' } });
-    assertEquals(discoveryExit2026(true, action), { target: action === 'explore' ? '/' : '/parametres', patch: null });
+    // ÉTAPE 0 — cette ligne figeait le défaut : elle attendait `/` quand
+    // `action === 'explore'`, donc un rejeu ouvert depuis /parametres se
+    // terminait sur la carte. Le cahier §9.3 demande de revenir d'où l'on vient.
+    assertEquals(discoveryExit2026(true, action), { target: '/parametres', patch: null });
   }
 });
 Deno.test('unavailable durable storage does not trap a completed session in onboarding', () => {

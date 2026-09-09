@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, refonteColors as c } from '@klaim/shared';
 import { GrydMark, GrydIcon } from '../../ui/gryd';
 import { TranslucentBackdrop2026 } from '../../ui/gryd/TranslucentBackdrop2026';
-import { useLocale } from '../../i18n/store';
+import { useLocale, useT } from '../../i18n/store';
+import { SIGN_IN_DOOR } from './content';
+import { useSession } from '../../lib/session';
 import { useOnboardingState } from './store';
 import { rememberOnboardingCompletion2026 } from './sessionCompletion2026';
 import { readMapLocation2026 } from '../refonte/mapLocation2026';
@@ -23,6 +25,11 @@ export default function Discovery2026Screen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const fr = useLocale() !== 'en';
+  const t = useT();
+  // G01 — la porte « J'ai déjà un compte » n'est peinte que si un compte peut
+  // EXISTER. Sans backend (O1), /sign-in redirige aussitôt vers la carte : ce
+  // serait un bouton mort au sens de la constitution §2.
+  const { configured } = useSession();
   const text = (a: string, b: string) => fr ? a : b;
   const replay = useLocalSearchParams<{ replay?: string }>().replay === '1';
   const { state, status, persistenceFailed, update } = useOnboardingState();
@@ -79,7 +86,9 @@ export default function Discovery2026Screen() {
   const focus = (id: string) => ({ onFocus: () => setFocused(id), onBlur: () => setFocused(null) });
   const title = welcome ? text('La ville est ton terrain.', 'The city is your playground.') : step === 'loop' ? text('Trace. Ferme. Capture.', 'Trace. Close. Capture.') : step === 'crew' ? text('À plusieurs, le jeu change.', 'Together, the game changes.') : text('Commence où tu veux.', 'Start wherever you like.');
   const body = welcome ? text('À pied ou à vélo, chaque boucle laisse ta marque.', 'On foot or by bike, every loop leaves your mark.') : step === 'loop' ? text('Ferme une boucle pendant ta sortie. Après validation, le terrain à l’intérieur devient le tien. Les autres peuvent le reprendre.', 'Close a loop during your outing. Once validated, the ground inside becomes yours. Others can take it back.') : step === 'crew' ? text('En solo ou en crew, organise tes sorties, échange et compose ton équipe pour les défis 5 contre 5.', 'Go solo or meet your crew. Plan outings, chat and build your team for 5-versus-5 challenges.') : text('Déplace la carte librement. Ta position est facultative pour explorer ; le GPS servira à enregistrer une sortie.', 'Move around the map freely. Location is optional for exploring; GPS will record an activity when you start one.');
-  const primaryLabel = welcome || !progress.next && !replay ? text('Explorer la carte', 'Explore the map') : progress.next ? text('Continuer', 'Continue') : text('Terminer', 'Done');
+  // En REJEU, l'accueil ne promet plus « Explorer la carte » : la sortie ramène
+  // dans les Paramètres d'où la découverte a été rouverte (journey2026, §9.3).
+  const primaryLabel = welcome && !replay ? text('Explorer la carte', 'Explore the map') : progress.next ? text('Continuer', 'Continue') : replay || welcome ? text('Terminer', 'Done') : text('Explorer la carte', 'Explore the map');
   const chapter = (value: typeof DISCOVERY_OPTIONAL_STEPS[number]) => value === 'loop' ? text('La boucle', 'The loop') : value === 'crew' ? text('Le crew', 'The crew') : text('La carte', 'The map');
   return <View style={s.root}>
     {welcome ? <><Image source={brandImagery.movement.source} accessibilityLabel={fr ? brandImagery.movement.fr : brandImagery.movement.en} resizeMode="cover" style={s.photo} /><Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}><Defs><LinearGradient id="discoveryShade" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={c.carbon} stopOpacity={0.3} /><Stop offset="0.35" stopColor={c.carbon} stopOpacity={0} /><Stop offset="0.6" stopColor={c.carbon} stopOpacity={0.45} /><Stop offset="1" stopColor={c.carbon} stopOpacity={0.88} /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#discoveryShade)" /></Svg></> : null}
@@ -96,8 +105,9 @@ export default function Discovery2026Screen() {
       {step === 'location' ? <View style={s.note}><GrydIcon name="lock" size={18} color={c.darkMuted} /><Text style={s.noteText}>{text('Centrer la carte ne publie pas ta position.', 'Centring the map does not publish your location.')}</Text></View> : null}
       {status === 'unavailable' || persistenceFailed ? <Text accessibilityLiveRegion="polite" aria-live="polite" style={s.error}>{text('La carte reste accessible. Cette découverte peut revenir au prochain lancement.', 'The map remains available. This introduction may return next time you open the app.')}</Text> : null}
       {locationStatus ? <Text accessibilityRole="alert" style={s.error}>{locationStatus === 'denied' ? text('Position non autorisée. Tu peux explorer la carte.', 'Location is not allowed. You can explore the map.') : text('Position introuvable. Réessaie ou explore la carte.', 'Location is unavailable. Try again or explore the map.')}</Text> : null}
-      <Pressable {...focus('primary')} accessibilityRole="button" onPress={() => welcome ? finish('explore') : progress.next ? go(progress.next) : finish(replay ? 'done' : 'explore')} style={({ pressed }) => [s.primary, pressed && s.pressed, focused === 'primary' && s.focus]}><Text style={s.primaryText}>{primaryLabel}</Text><GrydIcon name="chevronRight" size={19} color={c.ink} /></Pressable>
+      <Pressable {...focus('primary')} accessibilityRole="button" onPress={() => welcome ? finish(replay ? 'done' : 'explore') : progress.next ? go(progress.next) : finish(replay ? 'done' : 'explore')} style={({ pressed }) => [s.primary, pressed && s.pressed, focused === 'primary' && s.focus]}><Text style={s.primaryText}>{primaryLabel}</Text><GrydIcon name="chevronRight" size={19} color={c.ink} /></Pressable>
       {welcome ? <Pressable {...focus('learn')} accessibilityRole="button" onPress={() => go('loop')} style={[s.secondary, focused === 'learn' && s.focus]}><Text style={s.secondaryText}>{text('Comment jouer', 'How to play')}</Text></Pressable> : step === 'location' && !replay && LOCATION_CAPABLE ? <Pressable {...focus('locate')} accessibilityRole="button" accessibilityState={{ disabled: busy, busy }} aria-disabled={busy} aria-busy={busy} disabled={busy} onPress={() => void locate()} style={[s.secondary, focused === 'locate' && s.focus]}>{busy ? <ActivityIndicator color={c.darkInk} size="small" /> : null}<Text style={s.secondaryText}>{busy ? text('Recherche de la position…', 'Finding your location…') : text('Me localiser · facultatif', 'Use my location · optional')}</Text></Pressable> : progress.next && !replay ? <Pressable {...focus('explore')} accessibilityRole="button" onPress={() => finish('explore')} style={[s.secondary, focused === 'explore' && s.focus]}><Text style={s.secondaryText}>{text('Explorer la carte', 'Explore the map')}</Text></Pressable> : null}
+      {welcome && configured && !replay ? <Pressable {...focus('signin')} accessibilityRole="link" onPress={() => router.push('/sign-in')} style={[s.secondary, focused === 'signin' && s.focus]}><Text style={s.signInText}>{t(SIGN_IN_DOOR)}</Text></Pressable> : null}
     </ScrollView>
   </View>;
 }
@@ -109,5 +119,5 @@ const s = StyleSheet.create({
   chapters: { flexDirection: 'row', gap: 6, marginTop: 12 }, chapter: { flex: 1, minHeight: 44, borderRadius: 22, borderWidth: 2, borderColor: 'transparent', paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' }, chapterOn: { backgroundColor: c.surface }, chapterText: { fontFamily: fonts.textMedium, fontSize: 12, color: c.darkInk }, chapterTextOn: { color: c.ink },
   spacer: { height: 16 }, note: { flexDirection: 'row', gap: 9, alignItems: 'center', marginBottom: 18 }, noteText: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted, flex: 1 }, error: { fontFamily: fonts.text, color: c.darkInk, fontSize: 12, lineHeight: 18, marginBottom: 14 },
   primary: { minHeight: 48, borderRadius: 24, borderWidth: 2, borderColor: 'transparent', backgroundColor: c.accent, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, primaryText: { fontFamily: fonts.textSemi, fontSize: 13, lineHeight: 19, color: c.ink, flexShrink: 1 },
-  secondary: { minHeight: 44, borderWidth: 2, borderColor: 'transparent', borderRadius: 22, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, paddingHorizontal: 8 }, secondaryText: { fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 18, color: c.darkInk, flexShrink: 1 }, focus: { borderColor: c.darkInk, ...(Platform.OS === 'web' ? { outlineStyle: 'solid', outlineWidth: 2, outlineColor: c.darkInk, outlineOffset: 2 } : {}) } as ViewStyle, pressed: { opacity: .8 },
+  secondary: { minHeight: 44, borderWidth: 2, borderColor: 'transparent', borderRadius: 22, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, paddingHorizontal: 8 }, secondaryText: { fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 18, color: c.darkInk, flexShrink: 1 }, signInText: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted, flexShrink: 1, textDecorationLine: 'underline' }, focus: { borderColor: c.darkInk, ...(Platform.OS === 'web' ? { outlineStyle: 'solid', outlineWidth: 2, outlineColor: c.darkInk, outlineOffset: 2 } : {}) } as ViewStyle, pressed: { opacity: .8 },
 });
