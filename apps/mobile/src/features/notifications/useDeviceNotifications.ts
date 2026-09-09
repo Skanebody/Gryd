@@ -1,24 +1,34 @@
 /**
- * GRYD — état réel des notifications sur CET appareil (PÉRIMÈTRE 3).
+ * GRYD — ÉTAT RÉEL DU PUSH DISTANT SUR CET APPAREIL.
  *
- * Le hook ne raconte que ce qu'il a constaté : au montage il lit le token déjà
- * enregistré (aucun réseau, aucune demande de permission), et ne bascule sur un
- * autre statut qu'après une tentative EXPLICITE du joueur. Une permission
- * système demandée sans que le joueur ait rien demandé est une permission
- * perdue — et un écran qui promet des notifications qu'il n'enverra pas est un
- * mensonge.
+ * Le hook ne raconte que ce qu'il a constaté. Depuis le 10/09/2026 il commence
+ * par le seul fait qui compte sur ce build : `remotePushCapability` — dérivée
+ * de la configuration Expo, pas d'un échec. Sur iOS l'entitlement
+ * `aps-environment` est retiré par `plugins/withoutPushEntitlement.js` et sur
+ * Android aucun `google-services.json` n'existe : le verdict `unavailable`
+ * tombe AVANT toute I/O et AVANT toute boîte système.
+ *
+ * Conséquence directe pour l'écran : `pushActionable('unavailable')` est déjà
+ * `false`, donc aucune ligne pressable n'est peinte pour une action qui ne peut
+ * pas aboutir. L'état, lui, reste affiché — une ligne muette informe ; une
+ * ligne pressable qui échoue à coup sûr ment.
+ *
+ * Les PRÉFÉRENCES, elles, ne passent plus par ici : elles vivent sur le serveur
+ * (`notificationSettingsStore2026.ts`, migration 0140) et sont lues par le
+ * moteur `can_notify_2026`. Ce hook ne parle plus que de l'APPAREIL.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { useLocale } from '../../i18n/store';
-import type { NotifChannel } from '../motivation/store';
 import {
+  buildRemotePushCapability,
   type PushStatus,
   registerPushDevice,
   storedPushToken,
-  syncPushPreferences,
   unregisterPushDevice,
 } from './push';
+import { remotePushPossible } from './remotePushCapability';
+import { notifChannels2026, type NotificationSettings2026 } from './notifications2026';
 
 export interface DeviceNotifications {
   status: PushStatus;
@@ -31,19 +41,27 @@ export interface DeviceNotifications {
 }
 
 /**
- * Statut + actions pour la sous-page Réglages > Notifications.
- * @param channels canaux actifs — repropagés au serveur à chaque changement.
+ * Statut + actions pour la sous-page Réglages › Notifications.
+ * @param settings les réglages §14.1 — seuls consultés pour dériver l'ancienne
+ *   colonne de canaux, et seulement le jour où un build retrouvera la capacité.
  */
-export function useDeviceNotifications(channels: readonly NotifChannel[]): DeviceNotifications {
+export function useDeviceNotifications(settings: NotificationSettings2026): DeviceNotifications {
   const locale = useLocale();
-  const [status, setStatus] = useState<PushStatus>(
-    Platform.OS === 'web' ? 'unsupported' : 'idle',
+  const [status, setStatus] = useState<PushStatus>(() =>
+    Platform.OS === 'web'
+      ? 'unsupported'
+      : remotePushPossible(buildRemotePushCapability())
+        ? 'idle'
+        : 'unavailable',
   );
   const [busy, setBusy] = useState(false);
 
-  // Constat initial : cet appareil a-t-il déjà un token enregistré ?
+  // Constat initial : cet appareil a-t-il déjà un token enregistré ? On ne le
+  // demande que si ce build peut en avoir un — sinon un token laissé par une
+  // version antérieure ferait dire « enregistré » à un appareil devenu muet.
   useEffect(() => {
     if (Platform.OS === 'web') return;
+    if (!remotePushPossible(buildRemotePushCapability())) return;
     let alive = true;
     void storedPushToken().then((token) => {
       if (alive && token) setStatus('registered');
@@ -53,31 +71,23 @@ export function useDeviceNotifications(channels: readonly NotifChannel[]): Devic
     };
   }, []);
 
-  // Propagation des préférences : le serveur ne peut respecter que ce qu'il
-  // sait. No-op tant qu'aucun appareil n'est enregistré (jamais de permission
-  // réclamée en douce à l'occasion d'un changement de réglage).
-  const signature = `${locale}|${[...channels].sort().join(',')}`;
-  const lastSynced = useRef<string | null>(null);
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    if (lastSynced.current === signature) return;
-    lastSynced.current = signature;
-    void syncPushPreferences({ channels, locale }).then(() => {
-      // Couper tous les canaux dé-enregistre l'appareil : le dire.
-      if (channels.includes('off') || channels.length === 0) setStatus('idle');
-    });
-  }, [signature, channels, locale]);
+  // ── PLUS AUCUNE SYNCHRO AUTOMATIQUE DE PRÉFÉRENCES ────────────────────────
+  // `syncPushPreferences` était rejoué à chaque changement de réglage. Il ne
+  // servait qu'à propager `notif_channels`, la colonne des canaux `solo` et
+  // `competition` — les deux alarmes abolies par §5.3 et §14.2, dont les jobs
+  // refusent désormais de tourner. La propager encore aurait écrit sur le
+  // serveur un choix qui ne gouverne plus rien.
 
   const enable = useCallback(() => {
     if (busy) return;
     setBusy(true);
-    void registerPushDevice({ channels, locale })
+    void registerPushDevice({ channels: notifChannels2026(settings), locale })
       .then((res) => {
         if (res.detail) console.warn('[GRYD] push:', res.status, res.detail);
         setStatus(res.status);
       })
       .finally(() => setBusy(false));
-  }, [busy, channels, locale]);
+  }, [busy, settings, locale]);
 
   const disable = useCallback(() => {
     if (busy) return;

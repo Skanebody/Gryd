@@ -1,5 +1,5 @@
 /**
- * GRYD — E10 : ACCÈS AUX DEUX PERMISSIONS (variante WEB).
+ * GRYD — E10 : ACCÈS AUX PERMISSIONS (variante WEB).
  *
  * Même surface que `permissionSensors.ts`, et une seule réponse : NON. C'est
  * la différence utile, exactement comme `LOCATION_CAPABLE` dans
@@ -12,19 +12,17 @@
  *   alors `granted: true` par défaut, un provider web « honnête en apparence »
  *   afficherait « Autorisé » sur un navigateur incapable de compter un seul pas.
  *   Le seul état vrai est : cette capacité n'existe pas ici.
- * · NOTIFICATIONS. Le bénéfice promis par la carte est une notification
- *   TACTIQUE reçue sur le téléphone, hors de l'app. L'aperçu web n'a ni token
- *   Expo Push ni cette chaîne : peindre « Autoriser les notifications » y serait
- *   un bouton mort au sens strict — il aboutirait, sans que rien n'arrive jamais.
  * · RÉGLAGES SYSTÈME. Aucune API navigateur ne mène aux réglages de permission
  *   du navigateur ; `Linking.openSettings` n'existe pas sur react-native-web.
  *
- * L'écran n'a donc AUCUN bouton à peindre sur ces deux cartes : il dit
+ * L'écran n'a donc AUCUN bouton à peindre sur cette carte : il dit
  * « indisponible » et son CTA principal reste `CONTINUER`. L'absence d'un bouton
  * n'est pas un mensonge ; un bouton qui échoue toujours en est un (§A4).
  */
 import type { PermissionSensor } from './permissionCards';
 
 export const MOTION_SENSOR: PermissionSensor | null = null;
-export const NOTIFICATIONS_SENSOR: PermissionSensor | null = null;
+// `NOTIFICATIONS_SENSOR` a disparu des DEUX variantes le 10/09/2026 : E10 ne
+// demande plus la permission de notification à froid (voir le bloc du bas de
+// `permissionSensors.ts`). La surface des deux fichiers reste identique.
 export const OPEN_APP_SETTINGS: (() => Promise<void>) | null = null;

@@ -1,12 +1,28 @@
 /**
- * Tests digest_job/logic.ts — SPEC §4.3 (quiet hours 21h-8h, cap 2 push/jour),
- * GRYD_notifications_logic.md §3/§6. Purs, aucun réseau.
+ * Tests digest_job/logic.ts. Purs, aucun réseau.
+ *
+ * ─── LES BORNES ONT CHANGÉ LE 10/09/2026 ────────────────────────────────────
+ * Ces tests figeaient « quiet hours 21 h-8 h, cap 2 push/jour » — les valeurs de
+ * l'ancienne §4.3. Le cahier §14.1 dit 21 h-9 h et UNE sollicitation non
+ * transactionnelle par jour, et `PUSH_QUIET_HOURS_END` / `PUSH_MAX_PER_DAY`
+ * DÉRIVENT désormais de `NOTIFICATION_RULES_2026`. Les bornes ne sont donc plus
+ * recopiées ici : elles sont LUES, et les cas limites sont calculés à partir
+ * d'elles. Un test qui recopie la valeur qu'il vérifie ne vérifie rien.
+ *
+ * ⚠ `digest_job` lui-même est DÉSACTIVÉ depuis 0118 (`digestJobDisabled`) : ces
+ * tests protègent `canPush`, qui est du code PARTAGÉ (`_shared/push.ts`), pas la
+ * remise en service du job.
  *
  * Les bornes horaires sont testées en heure de PARIS (quiet hours = heure
  * locale du joueur) : le 3 juillet, Paris = UTC+2 → 20:59 Paris = 18:59 UTC.
  */
 import { assert, assertEquals, assertThrows } from 'jsr:@std/assert@^1';
-import { DEFAULT_ACTIVITY, PUSH_MAX_PER_DAY } from '../_shared/game-rules.ts';
+import {
+  DEFAULT_ACTIVITY,
+  NOTIFICATION_RULES_2026,
+  PUSH_MAX_PER_DAY,
+  PUSH_QUIET_HOURS_END,
+} from '../_shared/game-rules.ts';
 import {
   buildChallengeNudge,
   buildDigest,
@@ -43,10 +59,19 @@ Deno.test('21h01 Paris → bloqué (quiet hours)', () => {
   );
 });
 
-Deno.test('3h00 Paris (nuit) → bloqué ; 7h59 → bloqué ; 8h00 pile → autorisé', () => {
+Deno.test('nuit bloquée ; la minute AVANT la fin de plage calme bloquée ; la fin pile autorisée', () => {
+  // Les deux bornes sont DÉRIVÉES de la constante : si le cahier repousse la
+  // fin de plage calme, ce test suit — il ne fige pas une heure périmée.
+  const hh = (h: number) => String(h).padStart(2, '0');
+  assertEquals(PUSH_QUIET_HOURS_END, NOTIFICATION_RULES_2026.quietHoursEnd);
   assertEquals(canPush(USER, paris('2026-07-03T03:00:00'), []).reason, 'quiet_hours');
-  assertEquals(canPush(USER, paris('2026-07-03T07:59:59'), []).reason, 'quiet_hours');
-  assertEquals(canPush(USER, paris('2026-07-03T08:00:00'), []), { allowed: true });
+  assertEquals(
+    canPush(USER, paris(`2026-07-03T${hh(PUSH_QUIET_HOURS_END - 1)}:59:59`), []).reason,
+    'quiet_hours',
+  );
+  assertEquals(canPush(USER, paris(`2026-07-03T${hh(PUSH_QUIET_HOURS_END)}:00:00`), []), {
+    allowed: true,
+  });
 });
 
 Deno.test('les quiet hours suivent le fuseau du joueur, pas l’UTC', () => {
@@ -58,16 +83,19 @@ Deno.test('les quiet hours suivent le fuseau du joueur, pas l’UTC', () => {
 
 // ─── canPush : cap PUSH_MAX_PER_DAY ──────────────────────────────────────────
 
-Deno.test('cap 2/jour atteint → bloqué (tous types confondus)', () => {
-  assertEquals(PUSH_MAX_PER_DAY, 2); // garde-fou : cap gelé §4.3
+Deno.test('cap quotidien atteint → bloqué (tous types confondus)', () => {
+  // Le cap vient du cahier §14.1 (« au maximum 1 par jour »), plus d'un chiffre
+  // écrit ici : `PUSH_MAX_PER_DAY` le DÉRIVE de `NOTIFICATION_RULES_2026`.
+  assertEquals(PUSH_MAX_PER_DAY, NOTIFICATION_RULES_2026.maximumNonTransactionalPerDay);
   const now = paris('2026-07-03T14:00:00');
-  const log = [paris('2026-07-03T09:00:00'), paris('2026-07-03T12:00:00')];
+  const log = Array.from({ length: PUSH_MAX_PER_DAY }, () => paris('2026-07-03T09:00:00'));
   assertEquals(canPush(USER, now, log), { allowed: false, reason: 'daily_cap' });
 });
 
-Deno.test('1 push aujourd’hui sur un cap de 2 → encore autorisé', () => {
+Deno.test('un push de moins que le cap → encore autorisé', () => {
   const now = paris('2026-07-03T14:00:00');
-  assertEquals(canPush(USER, now, [paris('2026-07-03T09:00:00')]), { allowed: true });
+  const log = Array.from({ length: PUSH_MAX_PER_DAY - 1 }, () => paris('2026-07-03T09:00:00'));
+  assertEquals(canPush(USER, now, log), { allowed: true });
 });
 
 Deno.test('les push d’HIER ne comptent pas dans le cap du jour (jour LOCAL)', () => {

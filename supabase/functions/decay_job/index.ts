@@ -16,6 +16,7 @@ import {
   DEFAULT_ACTIVITY,
 } from '../_shared/game-rules.ts';
 import { secretsMatch } from '../_shared/secret.ts';
+import { decayJobDisabled } from '../_shared/legacy_territory_jobs.ts';
 import { sendExpoPush } from '../_shared/expo-push.ts';
 import {
   type DecayTarget,
@@ -225,6 +226,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!secret || !secretsMatch(req.headers.get('x-cron-secret') ?? '', secret)) {
     return json({ error: 'unauthorized' }, 401);
   }
+
+  // ── DÉSACTIVÉ DEPUIS 0118 ─────────────────────────────────────────────────
+  // Avant toute lecture de `hex_claims`, avant tout envoi : ce job neutralisait
+  // du territoire et poussait « ton territoire s'efface bientôt ». §5.3 a
+  // supprimé l'effacement ; 0118 a gelé la table qu'il lit. Il répond, il ne
+  // fait rien, et il DIT pourquoi — un 200 muet aurait laissé croire à un
+  // passage normal dans les logs du scheduler.
+  const halted = decayJobDisabled();
+  if (halted) return json(halted, 200);
 
   try {
     const now = new Date();

@@ -4,7 +4,7 @@
  * sans scroll. Les sous-pages MVP branchées : Compte, Profil, Crew, Course,
  * Notifications, Carte, À propos, Avancé. Course pilote le store motivation
  * (filtrage d'affichage, JAMAIS le gameplay §1) ; Notifications pilote son
- * propre magasin (E71, `features/notifications/notifPrefs.ts`), distinct.  Les
+ * propre magasin (serveur, `notificationSettingsStore2026.ts`), distinct.  Les
  * réglages purement techniques (tolérance boucle…) vivent sous « Avancé » et
  * restent en lecture (moteur serveur, jamais un curseur client). Style dark GRYD,
  * texte court, honnête sur ce qui est « bientôt ».
@@ -69,17 +69,21 @@
  *       toutes les autres sessions sans toucher celle-ci (`lib/auth.ts`).
  *   L'état de la ligne est dérivé par `features/account/otherDevices.ts` (pur,
  *   testé) : `unknown` / `noBackend` / `signedOut` ne peignent aucun `onPress`.
- * · Sous-page Notifications (E71, `docs/product/GRYD_SPEC_PRODUIT_UI_UX_COMPLET.md`
- *   §13) : la spec liste CINQ catégories (défense/crew/rivalité/progression/
- *   produit). L'audit de ce chantier n'a trouvé que DEUX push RÉELS derrière
- *   elles — décay (défense, canal `solo`) et vol de territoire (rivalité,
- *   canal `competition`), cf. `features/notifications/notifPrefs.ts`. Les
- *   trois autres n'ont AUCUN job serveur : elles restent NOMMÉES (absence
- *   assumée) plutôt que peintes en interrupteur qui ne gouvernerait rien.
- *   Les catégories restent choisissables hors session (elles sont locales)
- *   mais l'écran DIT que rien ne partira — l'enregistrement de l'appareil
- *   exige une session (`features/notifications/push.ts` renvoie
- *   `not_configured` sans session).
+ * · Sous-page Notifications — RÉÉCRITE LE 10/09/2026 sur le cahier §14. Elle
+ *   portait les cinq catégories d'E71, dont les deux seules réellement câblées
+ *   décrivaient des mécaniques ABOLIES : « ton territoire qui va s'effacer »
+ *   (decay) et « zones prises par un rival » (alarme immédiate de reprise).
+ *   §5.3 supprime l'effacement, le bouclier et la contestation ; §14.2 interdit
+ *   l'alarme de reprise en toutes lettres. La sous-page sert désormais la
+ *   matrice de §14.1 — sport, crew, événements suivis, résultats, résumé
+ *   hebdomadaire, nouveautés/offres (opt-in, désactivée par défaut) — plus
+ *   « Pause du jeu ».
+ *   Les préférences vivent SUR LE SERVEUR (migration 0140) et sont lues par le
+ *   moteur d'envoi `can_notify_2026` (0141) : c'est ce qui les rend opposables.
+ *   Quatre états jamais confondus (lecture · pas connecté · échec · lu), et un
+ *   invité voit la matrice en LECTURE avec ses valeurs par défaut.
+ *   Enfin la sous-page DIT ce que ce build peut réellement envoyer : des
+ *   notifications LOCALES seulement — le push distant attend une clé APNs.
  * · Sous-page Carte : aucun réglage. Raison technique : le choix de couche est
  *   dérivé du contexte par la carte elle-même (`features/map`), il n'existe
  *   aucune préférence persistée à écrire.
@@ -94,11 +98,9 @@ import {
   FINISHER_MIN_SEGMENT_M,
   FINISHER_MIN_SHARE,
   fontSizes,
+  NOTIFICATION_RULES_2026,
   PARTIAL_BOUNDARY_TTL_H,
   PARTIAL_JOIN_TOLERANCE_M,
-  PUSH_MAX_PER_DAY,
-  PUSH_QUIET_HOURS_END,
-  PUSH_QUIET_HOURS_START,
   radii,
   spacing,
   typography,
@@ -112,8 +114,11 @@ import { PLAY_STYLE_LABELS } from '../../src/features/motivation/labels';
 import { useMotivationPrefs } from '../../src/features/motivation/store';
 import { SwitchRow } from '../../src/features/motivation/ui';
 import { useDeviceNotifications } from '../../src/features/notifications/useDeviceNotifications';
-import { notifPrefsToChannels } from '../../src/features/notifications/notifPrefs';
-import { useNotificationPrefs } from '../../src/features/notifications/notifPrefsStore';
+import {
+  DEFAULT_NOTIFICATION_SETTINGS_2026,
+  type NotificationCategory2026,
+} from '../../src/features/notifications/notifications2026';
+import { useNotificationSettings2026 } from '../../src/features/notifications/notificationSettingsStore2026';
 import type { PushStatus } from '../../src/features/notifications/push';
 import { pushActionable } from '../../src/features/notifications/pushActionable';
 import { SectionLabel } from '../../src/ui/SectionLabel';
@@ -165,6 +170,26 @@ const PUSH_STATUS_TEXT: Readonly<Record<PushStatus, (typeof C)['pushIdle']>> = {
   not_configured: C.pushNotConfigured,
   error: C.pushError,
 };
+
+/**
+ * LES SIX CATÉGORIES DE §14.1, DANS L'ORDRE DU CAHIER — une table, pas six
+ * blocs recopiés. L'ordre est celui du texte (« sport, crew, événements suivis,
+ * résultats, résumé hebdomadaire, nouveautés/offres ») et le type `satisfies`
+ * garantit qu'aucune catégorie inventée ne s'y glisse : la clé doit exister
+ * dans l'union dérivée de `NOTIFICATION_RULES_2026.categories`.
+ */
+const NOTIF_ROWS = [
+  { category: 'sport', title: C.notifSportTitle, subtitle: C.notifSportSubtitle },
+  { category: 'crew', title: C.notifCrewTitle, subtitle: C.notifCrewSubtitle },
+  { category: 'events', title: C.notifEventsTitle, subtitle: C.notifEventsSubtitle },
+  { category: 'results', title: C.notifResultsTitle, subtitle: C.notifResultsSubtitle },
+  { category: 'weekly', title: C.notifWeeklyTitle, subtitle: C.notifWeeklySubtitle },
+  { category: 'offers', title: C.notifOffersTitle, subtitle: C.notifOffersSubtitle },
+] as const satisfies readonly {
+  category: NotificationCategory2026;
+  title: (typeof C)['notifSportTitle'];
+  subtitle: (typeof C)['notifSportTitle'];
+}[];
 
 function isSection(x: string | undefined): x is SettingsSectionId {
   return x !== undefined && (SECTION_IDS as readonly string[]).includes(x);
@@ -379,19 +404,28 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
       .catch(() => setRevokeResult('error'))
       .finally(() => setRevokeBusy(false));
   };
-  // Réglages de notifications E71 (5 catégories) — cf. `notifPrefs.ts` pour ce
-  // qui est réellement câblé derrière chacune.
-  const { prefs: notifPrefs, update: updateNotifPrefs } = useNotificationPrefs();
-  // État RÉEL du push sur ce téléphone + propagation des canaux au serveur
-  // (un job serveur ne peut respecter que les préférences qu'il connaît).
-  // Seules défense/rivalité produisent un canal RÉEL (`notifPrefsToChannels`) :
-  // crew/progression/produit n'ont encore aucun push serveur à propager.
+  /**
+   * Réglages §14.1, lus et écrits SUR LE SERVEUR (migration 0140). Le magasin
+   * local E71 a disparu avec les deux catégories abolies : une préférence que
+   * le décideur ne voit pas ne gouverne rien.
+   */
+  const {
+    phase: notifPhase,
+    settings: notifSettings,
+    saving: notifSaving,
+    saveFailed: notifSaveFailed,
+    update: updateNotifSettings,
+    reload: reloadNotifSettings,
+  } = useNotificationSettings2026();
+  // État RÉEL du push DISTANT sur ce téléphone. Sur ce build il vaut
+  // `unavailable` avant toute I/O (`remotePushCapability`) : l'entitlement iOS
+  // est retiré et aucun `google-services.json` n'existe pour Android.
   const {
     status: pushStatus,
     busy: pushBusy,
     enable: pushEnable,
     disable: pushDisable,
-  } = useDeviceNotifications(notifPrefsToChannels(notifPrefs));
+  } = useDeviceNotifications(notifSettings);
 
   useEffect(() => {
     screen('parametres_section', { section: id });
@@ -688,86 +722,132 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
       ) : null}
 
       {id === 'notifications' ? (
-        <Section label={t(C.secCeQueTuRecois)}>
-          {/* E71 : cinq catégories dans la spec (défense/crew/rivalité/
-              progression/produit). DEUX seulement gouvernent un envoi RÉEL
-              aujourd'hui — `notifPrefs.ts` documente l'audit qui l'établit.
-              AUCUN BOUTON MORT : les trois autres restent NOMMÉES plus bas
-              (`notifOtherCategoriesNote`), jamais peintes en interrupteur. */}
-          {/* ── L'EVENT §18, ENFIN ÉMIS (27/07/2026) ─────────────────────────
-              `notif_pref_changed` était DÉFINI dans `events.ts` et émis par
-              PERSONNE : le seul instant de l'écran qui décide quelque chose
-              n'était pas mesuré. Il l'est maintenant, et UNIQUEMENT pour les
-              deux catégories qui gouvernent un envoi RÉEL — c'est la consigne
-              écrite dans `events.ts` en toutes lettres (« n'émettre que pour une
-              catégorie réellement gouvernée »), et elle tient toute seule ici :
-              l'écran ne peint pas d'interrupteur pour les trois autres.
-              Les props sont des clés FERMÉES (`category` ∈ les 5 de §13,
-              `enabled` booléen) — aucun libellé i18n, aucune PII. */}
-          <SwitchRow
-            icon="bouclier"
-            title={t(C.notifDefenseTitle)}
-            subtitle={t(C.notifDefenseSubtitle)}
-            value={notifPrefs.defense}
-            onValueChange={(v) => {
-              track(EVENTS.notifPrefChanged, { category: 'defense', enabled: v });
-              void updateNotifPrefs({ defense: v });
-            }}
-          />
-          <SwitchRow
-            icon="raid"
-            title={t(C.notifRivaliteTitle)}
-            subtitle={t(C.notifRivaliteSubtitle)}
-            value={notifPrefs.rivalite}
-            onValueChange={(v) => {
-              track(EVENTS.notifPrefChanged, { category: 'rivalite', enabled: v });
-              void updateNotifPrefs({ rivalite: v });
-            }}
-          />
-          <Text style={styles.note}>{t(C.notifsNote)}</Text>
-          <Absence>{t(C.notifOtherCategoriesNote)}</Absence>
-          {/* Choisir SES catégories ne sert à rien si l'appareil n'est
-              enregistré nulle part : cette ligne dit l'état RÉEL du téléphone,
-              et son détail change avec le diagnostic (jamais un « Activer »
-              muet).
+        <>
+          {/* ── §14.1 : LA MATRICE DU CAHIER, ET RIEN QUE CE QUI EXISTE ──────
+              CE QUI A ÉTÉ RETIRÉ LE 10/09/2026. Deux interrupteurs vivaient
+              ici : « Défense · ton territoire qui va s'effacer bientôt » et
+              « Rivalité · zones prises par un rival ». Ils décrivaient un jeu
+              ABOLI — §5.3 supprime effacement, bouclier et contestation, §14.2
+              interdit explicitement l'alarme immédiate de reprise. Un réglage
+              qui décrit une mécanique disparue est pire qu'un bouton mort : il
+              enseigne au joueur des règles fausses, et le journal du jeu, lui,
+              raconte déjà la vraie histoire.
 
-              ── L'ÉTAT « PAS CONNECTÉ » MANQUAIT ─────────────────────────────
-              La condition ne testait que `pushStatus`. Hors session,
-              `registerPushDevice` renvoie `not_configured` (push.ts : « aucune
-              session ») : le joueur cochait ses catégories, tapait
-              « Activer », accordait une permission système — et n'apprenait
-              qu'APRÈS que rien ne serait envoyé. Le coût était payé avant le
-              message. On le dit AVANT, et on ne peint pas le contrôle qui
-              échouera. */}
-          {notifPrefsToChannels(notifPrefs).includes('off') ? null : identityUnknown ? (
-            <Text style={styles.note}>{t(C.crewLoading)}</Text>
-          ) : !signedIn ? (
-            <EmptyState
-              title={t(C.notifSignedOutTitle)}
-              body={t(C.notifSignedOutBody)}
-              {...(configured
-                ? {
-                    cta: {
-                      label: t(C.identitySignInLabel),
-                      onPress: () => router.push('/sign-in'),
-                    },
-                  }
-                : {})}
-            />
-          ) : (
-            /* AUCUN BOUTON MORT (28/07/2026). Cette ligne était pressable ET
-               chevronnée dans TOUS les statuts non-`registered`, et sa branche
-               par défaut appelait `pushEnable()` — y compris sur `unsupported`
-               (push.ts:95, verdict de plateforme rendu avant toute I/O),
-               `module_missing` (push.ts:98, verdict de build) et `unavailable`
-               (aucun token : credentials APNs/FCM absents). Le joueur pouvait
-               réappuyer sans fin sur ce que le sous-libellé de la MÊME ligne
-               venait de déclarer impossible.
-               `pushActionable` (fonction pure, testée) tranche, exactement comme
-               `otherDevicesActionable` le fait 260 lignes plus haut sur la ligne
-               voisine — les deux règles étaient opposées, elles sont désormais
-               les mêmes. L'état RESTE affiché : une ligne muette informe, une
-               ligne pressable qui échoue à coup sûr ment. */
+              LES PRÉFÉRENCES VIVENT SUR LE SERVEUR (0140). C'est ce qui rend le
+              réglage OPPOSABLE : `can_notify_2026` (0141) les lit avant chaque
+              envoi. L'ancien magasin AsyncStorage ne quittait jamais le
+              téléphone — aucun décideur ne pouvait le respecter.
+
+              QUATRE ÉTATS, JAMAIS CONFONDUS : lecture en cours · pas connecté ·
+              lecture ratée · lu. Le troisième et le quatrième se ressemblent et
+              ne veulent pas dire la même chose : montrer des valeurs par défaut
+              après un échec de lecture, ce serait afficher un choix que le
+              joueur n'a pas fait. */}
+          <Section label={t(C.secCeQueTuRecois)}>
+            {/* L'ÉTAT VRAI DU BUILD, EN TÊTE : ce que GRYD peut réellement
+                envoyer aujourd'hui, c'est-à-dire des notifications LOCALES.
+                Le dire ici, avant la matrice, est ce qui empêche la liste de
+                promettre plus que le code (L14, L19). */}
+            <Text style={styles.note}>{t(C.notifLocalOnlyNote)}</Text>
+
+            {notifPhase === 'loading' ? (
+              <Text style={styles.note}>{t(C.notifReading)}</Text>
+            ) : notifPhase === 'failed' ? (
+              <EmptyState
+                title={t(C.notifReadFailedTitle)}
+                body={t(C.notifReadFailedBody)}
+                cta={{
+                  label: t(C.notifReadFailedCta),
+                  onPress: reloadNotifSettings,
+                  variant: 'ghost',
+                }}
+              />
+            ) : notifPhase === 'signedOut' ? (
+              <>
+                {/* UN INVITÉ VOIT L'ÉTAT SANS COMPTE : les six catégories et
+                    leur valeur PAR DÉFAUT, en LECTURE. Aucun `onPress`, donc
+                    aucun contrôle qui échouerait — et aucune promesse qu'un
+                    choix serait retenu. */}
+                {NOTIF_ROWS.map((row) => (
+                  <ListRow
+                    key={row.category}
+                    label={t(row.title)}
+                    value={t(
+                      DEFAULT_NOTIFICATION_SETTINGS_2026[row.category]
+                        ? C.notifDefaultOn
+                        : C.notifDefaultOff,
+                    )}
+                  />
+                ))}
+                <EmptyState
+                  title={t(C.notifSignedOutTitle)}
+                  body={t(C.notifSignedOutBody)}
+                  {...(configured
+                    ? {
+                        cta: {
+                          label: t(C.identitySignInLabel),
+                          onPress: () => router.push('/sign-in'),
+                        },
+                      }
+                    : {})}
+                />
+              </>
+            ) : (
+              <>
+                {NOTIF_ROWS.map((row) => (
+                  <SwitchRow
+                    key={row.category}
+                    title={t(row.title)}
+                    subtitle={t(row.subtitle)}
+                    value={notifSettings[row.category]}
+                    onValueChange={(v) => {
+                      // Clés FERMÉES, aucun libellé i18n, aucune PII — et
+                      // l'event ne part QUE pour une catégorie qui gouverne
+                      // réellement la décision d'envoi (`can_notify_2026`).
+                      track(EVENTS.notifPrefChanged, { category: row.category, enabled: v });
+                      updateNotifSettings({ [row.category]: v });
+                    }}
+                  />
+                ))}
+                {/* ÉCRITURE OPTIMISTE, MAIS DITE : l'interrupteur bascule tout
+                    de suite, et l'écran ne laisse pas croire que c'est
+                    enregistré tant que ça ne l'est pas. Un échec REMET la
+                    valeur d'avant (`notificationSettingsStore2026`). */}
+                {notifSaving ? <Text style={styles.note}>{t(C.notifSaving)}</Text> : null}
+                {notifSaveFailed ? <Text style={styles.note}>{t(C.notifSaveFailed)}</Text> : null}
+              </>
+            )}
+          </Section>
+
+          <Section label={t(C.secQuandTuLeRecois)}>
+            {notifPhase === 'ready' ? (
+              <SwitchRow
+                icon="cloche"
+                title={t(C.notifGamePauseTitle)}
+                subtitle={t(C.notifGamePauseSubtitle)}
+                value={notifSettings.gamePause}
+                onValueChange={(v) => {
+                  track(EVENTS.notifPrefChanged, { category: 'game_pause', enabled: v });
+                  updateNotifSettings({ gamePause: v });
+                }}
+              />
+            ) : null}
+            {/* Les nombres viennent de `NOTIFICATION_RULES_2026` : la note ne
+                peut pas se désynchroniser de la politique qu'elle décrit. */}
+            <Text style={styles.note}>
+              {t(C.notifBudgetNote, {
+                start: notifPhase === 'ready' ? notifSettings.quietStartHour : NOTIFICATION_RULES_2026.quietHoursStart,
+                end: notifPhase === 'ready' ? notifSettings.quietEndHour : NOTIFICATION_RULES_2026.quietHoursEnd,
+                week: NOTIFICATION_RULES_2026.maximumNonTransactionalPerWeek,
+                day: NOTIFICATION_RULES_2026.maximumNonTransactionalPerDay,
+              })}
+            </Text>
+            {/* L'ÉTAT DE L'APPAREIL POUR LE PUSH DISTANT. Il reste AFFICHÉ —
+                une ligne muette informe — mais il n'est pressable que si
+                `pushActionable` le permet. Sur ce build le statut vaut
+                `unavailable` (capacité de build, décidée sans une seule I/O),
+                donc aucun chevron : rien à réessayer, et surtout aucune boîte
+                de permission ouverte pour un service incapable d'envoyer. */}
             <ListRow
               icon="cloche"
               label={t(C.pushDeviceLabel)}
@@ -785,15 +865,8 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
                   : undefined
               }
             />
-          )}
-          <Text style={styles.note}>
-            {t(C.pushQuietNote, {
-              start: PUSH_QUIET_HOURS_START,
-              end: PUSH_QUIET_HOURS_END,
-              max: PUSH_MAX_PER_DAY,
-            })}
-          </Text>
-        </Section>
+          </Section>
+        </>
       ) : null}
 
       {id === 'carte' ? (

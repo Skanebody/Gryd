@@ -14,6 +14,20 @@
  * DÉPENDANCE NATIVE. `expo-notifications` est chargé paresseusement (même
  * patron que `sources/adapters/gpx.ts`) : sur un build antérieur à son ajout,
  * l'app ne plante pas, elle dit « indisponible sur cette version ».
+ *
+ * ─── LA SORTIE ANTICIPÉE (10/09/2026) ───────────────────────────────────────
+ * Ce module demandait la permission SYSTÈME (ligne 96 d'alors) avant d'aller
+ * chercher le jeton (ligne 121) — un jeton que CE build ne peut pas obtenir :
+ * `plugins/withoutPushEntitlement.js` retire `aps-environment` sur iOS et aucun
+ * `google-services.json` n'existe pour Android. Le joueur accordait donc une
+ * permission qu'Apple n'accorde qu'une fois, pour un service incapable de lui
+ * envoyer quoi que ce soit.
+ *
+ * Désormais `remotePushCapability` (pur, testé) tranche AVANT toute I/O, à
+ * partir de ce que le BUILD déclare — jamais d'un échec constaté après coup. La
+ * permission de notification garde sa valeur pour ce qui, lui, fonctionne
+ * vraiment aujourd'hui : les notifications LOCALES (`localReminder.ts`,
+ * `resultReadyNotice.ts`), qui la demandent au moment où elles servent.
  */
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +35,11 @@ import Constants from 'expo-constants';
 import { supabase } from '../../lib/supabase';
 import type { NotifChannel } from '../motivation/store';
 import type { Locale } from '../../i18n/types';
+import {
+  remotePushCapability,
+  remotePushPossible,
+  type RemotePushCapability,
+} from './remotePushCapability';
 
 /**
  * Diagnostic d'enregistrement — chaque valeur a un message d'écran distinct.
@@ -59,6 +78,19 @@ function projectId(): string | null {
   return extra?.eas?.projectId ?? null;
 }
 
+/**
+ * La capacité de push distant de CE build, lue dans la configuration Expo.
+ * Seule fonction impure du diagnostic — la règle, elle, est pure et testée
+ * (`remotePushCapability.ts`).
+ */
+export function buildRemotePushCapability(): RemotePushCapability {
+  const config = Constants.expoConfig;
+  return remotePushCapability(Platform.OS, {
+    plugins: config?.plugins,
+    googleServicesFile: config?.android?.googleServicesFile,
+  });
+}
+
 /** Fuseau RÉEL de l'appareil : les quiet hours serveur sont calculées dedans. */
 export function deviceTimeZone(): string {
   try {
@@ -80,6 +112,15 @@ export interface PushPreferences {
  */
 export async function registerPushDevice(prefs: PushPreferences): Promise<PushRegistration> {
   if (Platform.OS === 'web') return { status: 'unsupported' };
+
+  // ── CAPACITÉ DU BUILD, AVANT TOUT LE RESTE ────────────────────────────────
+  // Aucune I/O, aucune permission : un fait déclaré par app.json. Sur ce build
+  // le verdict est NÉGATIF sur les deux plateformes, et c'est exactement ce que
+  // l'écran doit dire — sans avoir ouvert une seule boîte système pour rien.
+  const capability = buildRemotePushCapability();
+  if (!remotePushPossible(capability)) {
+    return { status: 'unavailable', detail: `capacité build: ${capability}` };
+  }
 
   const Notifications = loadModule();
   if (!Notifications) return { status: 'module_missing' };

@@ -46,7 +46,11 @@ Deno.test('RÉGLAGES : la sous-page et sa section couvrent toute sortie', () => 
   assertNeutreDansLes5(C.rowActiviteDetail, 'rowActiviteDetail');
   assertNeutreDansLes5(C.secPendantSortie, 'secPendantSortie');
   assertNeutreDansLes5(C.rowAideDetail, 'rowAideDetail');
-  assertNeutreDansLes5(C.pushQuietNote, 'pushQuietNote');
+  // `pushQuietNote` a disparu le 10/09/2026 avec les deux interrupteurs abolis
+  // (decay, vol de zone). Son successeur §14.1 est `notifBudgetNote`, et il doit
+  // tenir la même exigence : il parle de « messages », jamais d'une discipline.
+  assertNeutreDansLes5(C.notifBudgetNote, 'notifBudgetNote');
+  assertNeutreDansLes5(C.notifLocalOnlyNote, 'notifLocalOnlyNote');
 });
 
 Deno.test('DONNÉES : export, confidentialité et suppression parlent de « sorties »', () => {

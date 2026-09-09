@@ -31,6 +31,7 @@ import {
   reconcileRendezvous,
   scheduleDailyRendezvous,
 } from './localReminder';
+import { useNotificationSettings2026 } from './notificationSettingsStore2026';
 
 type Mode = 'loading' | 'offer' | 'set' | 'denied' | 'hidden';
 
@@ -44,6 +45,14 @@ export function RendezvousOptIn({ activity }: { activity: Activity }) {
   const A = resultCopy(activity);
   const [mode, setMode] = useState<Mode>('loading');
   const [time, setTime] = useState(timeLabel(RENDEZVOUS_DEFAULT_HOUR, 0));
+  /**
+   * §14.1 : ce rappel appartient à « événements suivis ». Tant que la lecture
+   * court on ne propose RIEN (une proposition retirée une seconde plus tard est
+   * pire qu'une absence), et catégorie coupée ⇒ surface effacée : proposer un
+   * rappel que le joueur vient de refuser dans les Réglages serait un bouton
+   * qui se contredit lui-même.
+   */
+  const { phase, settings } = useNotificationSettings2026();
 
   useEffect(() => {
     let alive = true;
@@ -55,6 +64,14 @@ export function RendezvousOptIn({ activity }: { activity: Activity }) {
     }
     // RÉCONCILIÉ avec l'OS (natif) : jamais « posé » si la notif n'existe plus ou
     // si la permission a été coupée dans les Réglages système (l'app ne ment jamais).
+    if (phase === 'loading') {
+      setMode('loading');
+      return;
+    }
+    if (!settings.events) {
+      setMode('hidden');
+      return;
+    }
     void reconcileRendezvous().then((s) => {
       if (!alive) return;
       if (s.scheduled) {
@@ -67,22 +84,28 @@ export function RendezvousOptIn({ activity }: { activity: Activity }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [phase, settings.events]);
 
   const schedule = async () => {
-    const status = await scheduleDailyRendezvous(RENDEZVOUS_DEFAULT_HOUR, 0, {
-      title: t(C.rendezvousNotifTitle),
-      // Le CORPS de la notification, dans la discipline de la sortie qu'on
-      // vient de terminer. C'est le texte qui sortira de l'app tous les jours.
-      body: t(A.rendezvousNotifBody),
-    });
+    const status = await scheduleDailyRendezvous(
+      RENDEZVOUS_DEFAULT_HOUR,
+      0,
+      {
+        title: t(C.rendezvousNotifTitle),
+        // Le CORPS de la notification, dans la discipline de la sortie qu'on
+        // vient de terminer. C'est le texte qui sortira de l'app tous les jours.
+        body: t(A.rendezvousNotifBody),
+      },
+      settings,
+    );
     if (status === 'scheduled') {
       setTime(timeLabel(RENDEZVOUS_DEFAULT_HOUR, 0));
       setMode('set');
     } else if (status === 'permission_denied') {
       setMode('denied');
     } else {
-      // unsupported / module_missing / error → on efface la surface (honnête).
+      // unsupported / module_missing / error / category_off → on efface la
+      // surface (honnête) : aucune de ces issues ne se répare en réappuyant.
       setMode('hidden');
     }
   };

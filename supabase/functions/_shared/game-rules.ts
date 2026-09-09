@@ -64,6 +64,79 @@ export const CHALLENGE_RULES_2026 = {
   sectorTieMatchPoints: 0.5,
 } as const;
 
+/**
+ * ADR-013 §2.1 — « Ta commune, cette semaine ». LA source unique du classement
+ * solo. Rien de ce bloc ne doit être recopié dans une requête SQL : les
+ * migrations 0160–0164 lisent `public.leaderboard_rules_2026()`, qui est le
+ * MIROIR de cet objet et que `supabase/tests/leaderboard_2026.pglite.test.mjs`
+ * compare champ par champ à ce fichier (même patron que la matrice de 0140).
+ *
+ * ═══ POURQUOI UN FLUX, ET PAS UN STOCK ═════════════════════════════════════
+ * La métrique est le terrain NOUVEAU de la semaine, jamais le terrain tenu. Un
+ * stock classe « celui qui a commencé le premier » ; un flux repart à zéro
+ * chaque lundi, donc un arrivant peut être premier dès sa première boucle. Le
+ * terrain tenu reste servi À CÔTÉ, comme un ÉTAT (§2.1 : « affiché comme état,
+ * pas comme rang ») — il n'entre dans aucun tri, pas même en départage, sinon
+ * il redeviendrait un rang par la bande.
+ *
+ * ═══ `minRankedSubjects` — LE SEUIL SOUS LEQUEL IL N'Y A PAS DE CLASSEMENT ══
+ * Sous 5 sujets classés RÉELS dans la portée, l'écran ne montre AUCUN
+ * classement : il montre « Premier ici ». Un podium à trois est une donnée
+ * factice au sens de CLAUDE.md, même si les trois lignes sont vraies. Le seuil
+ * ne vit ni dans une requête, ni dans un paramètre d'appel : un classement
+ * qu'un client pourrait débloquer en passant `N = 1` ne serait pas décidé
+ * serveur.
+ *
+ * ═══ LES PORTÉES S'OUVRENT PAR PRÉSENCE ════════════════════════════════════
+ * `scopes` est la liste de ce qui peut être SERVI ; une portée n'apparaît à
+ * l'écran que lorsqu'elle atteint `minRankedSubjects`. `declaredNotServed` dit
+ * l'inverse et le dit franchement : la région n'a pas de référentiel
+ * département → région dans ce dépôt, l'Europe n'a aucun sujet réel (ADR-006,
+ * « zéro donnée EU factice »). Ces deux-là sont DÉCLARÉES ici pour qu'on sache
+ * qu'elles ne sont pas oubliées, et ne sont peintes NULLE PART : un onglet gris
+ * serait un bouton mort.
+ *
+ * ═══ LA SEMAINE ════════════════════════════════════════════════════════════
+ * Lundi 00:00 → dimanche 23:59:59 à Paris. En base, la fenêtre est HALF-OPEN
+ * [lundi, lundi suivant[ : c'est la même semaine, sans la milliseconde perdue
+ * d'un `<= 23:59:59.999`. Le fuseau est nommé (`Europe/Paris`) et non un
+ * décalage fixe — sinon le classement glisserait d'une heure deux fois par an.
+ *
+ * Le nombre de lignes servies n'est PAS ici : c'est `LEADERBOARD_ROWS_LIMIT`
+ * (50), déjà la source unique de tous les tableaux du dépôt. En reposer une
+ * seconde ici serait exactement le doublon qu'ADR-003 interdit.
+ */
+export const LEADERBOARD_RULES_2026 = {
+  /** Le sujet classé. Le crew se classe aux RÉSULTATS DE MATCHS (§2.1 ②), jamais aux m². */
+  subject: 'user',
+  /** Métrique principale : m² de terrain nouveau publié dans la fenêtre. */
+  metric: 'weekly_new_terrain_m2',
+  /** Métrique secondaire, servie comme état : m² tenus à l'instant de la mesure. */
+  stateMetric: 'held_terrain_m2',
+  minRankedSubjects: 5,
+  /** Portées réellement servies, de la plus fine à la plus large. */
+  scopes: ['commune', 'department', 'country'],
+  /** Nommées, non servies, jamais peintes : aucun référentiel, aucun sujet réel. */
+  declaredNotServed: ['region', 'europe'],
+  weekStartsOn: 'monday',
+  timeZone: 'Europe/Paris',
+  /** Cadence du preneur de snapshot (pg_cron, portées actives seulement). */
+  snapshotIntervalMinutes: 60,
+  /** Au-delà, la mesure est servie mais DITE périmée — jamais servie comme fraîche. */
+  snapshotMaxAgeMinutes: 180,
+} as const;
+
+/**
+ * §14.1 — LA source unique de la politique de notification. Tout le reste en
+ * dérive : `PUSH_QUIET_HOURS_*` / `PUSH_MAX_PER_DAY` plus bas, le moteur SQL
+ * `can_notify_2026` (migration 0141), les préférences serveur (0140) et le
+ * miroir client (`features/notifications/notifications2026.ts`).
+ *
+ * `categories` EST la matrice de réglages du cahier, dans l'ordre où l'écran
+ * les présente. Elle est recopiée à l'identique par la contrainte `check` de
+ * 0140 : ce n'est pas une duplication décorative, c'est le contrat serveur, et
+ * un test PGlite vérifie que les deux listes coïncident.
+ */
 export const NOTIFICATION_RULES_2026 = {
   maximumNonTransactionalPerWeek: 3,
   maximumNonTransactionalPerDay: 1,
@@ -72,6 +145,22 @@ export const NOTIFICATION_RULES_2026 = {
   quietHoursEnd: 9,
   promotionalConsentDefault: false,
   immediateTerritoryLossPush: false,
+  /**
+   * §5.3 : « il n'y a ni bouclier, ni contestation de 18 heures, ni défense
+   * achetable, ni dette de connexion ». Un territoire ne s'efface plus tout
+   * seul, donc aucune alarme d'effacement ne peut être vraie. C'est ce drapeau
+   * que `decay_job` lit pour refuser de tourner.
+   */
+  territoryDecayPush: false,
+  /**
+   * Les SIX catégories de §14.1, plus « Pause du jeu » qui n'est pas une
+   * catégorie mais un interrupteur au-dessus d'elles (il coupe les
+   * sollicitations de rétention en conservant ce qui touche au compte et aux
+   * événements déjà suivis).
+   */
+  categories: ['sport', 'crew', 'events', 'results', 'weekly', 'offers'],
+  /** Seule catégorie en opt-IN : promotion désactivée par défaut (§14.1). */
+  optInCategories: ['offers'],
 } as const;
 
 /** Hypothèses France TTC ; le prix affiché et facturé vient toujours du Store. */
@@ -110,6 +199,149 @@ export const SEASON_REWARDS_2026 = [
   { tier: 10, id: 'recap', label: 'Récap personnel ou collectif' },
   { tier: 11, id: 'final_poster', label: 'Affiche de fin' },
   { tier: 12, id: 'season_memory', label: 'Souvenir complet' },
+] as const;
+
+/**
+ * §7.4 + ADR-013 §2.2 ① — DÉFIS PERSONNELS DE LA SEMAINE.
+ *
+ * Le cahier a les défis de crew (§6.2) et la saison (§7.3) ; il n'a pas ce
+ * niveau intermédiaire. Ces constantes SONT le contrat : la table SQL
+ * `weekly_quest_rules_2026` (migration 0165) en est une copie gelée, et un test
+ * PGlite refuse tout écart. Aucun nombre de ce bloc ne se réécrit dans une
+ * requête.
+ *
+ * Ce que ces règles interdisent, explicitement :
+ *  · aucun XP (§7.1 : l'XP appartient aux journées actives, et à elles seules) ;
+ *  · aucun avantage de jeu (§16.2, `COMMERCIAL_PROPOSAL_2026` : multiplicateurs
+ *    à 1) — un objet change ce qu'on MONTRE, jamais ce qu'on GAGNE ;
+ *  · aucun compte à rebours, aucune alarme, aucune relance (§4.2, G24) :
+ *    l'expiration est SILENCIEUSE, et la lecture serveur ne renvoie même pas
+ *    d'échéance pour un défi en cours — un client ne peut donc pas en peindre.
+ */
+export const WEEKLY_QUEST_RULES_2026 = {
+  /** « Deux défis à la fois, pas une grille » (ADR-013 §2.2 ①), par discipline. */
+  simultaneousPerDiscipline: 2,
+  /** Fenêtre civile lundi 00:00 → dimanche 23:59:59 dans ce fuseau. */
+  weekTimeZone: 'Europe/Paris',
+  /**
+   * Tolérance de synchronisation tardive, calquée sur
+   * `CHALLENGE_RULES_2026.finalSyncWindowHours` : une boucle fermée dimanche à
+   * 23:50 se publie 30 min plus tard (délai §5.3). Sans cette fenêtre, une
+   * sortie honnête tomberait à côté de sa propre semaine. Elle n'est JAMAIS
+   * affichée : ce n'est pas un sursis à annoncer, c'est une justesse de calcul.
+   */
+  lateSyncHours: 24,
+  /** L'XP d'un défi. Zéro, et ce zéro est une décision, pas un oubli (§7.1). */
+  xpReward: 0,
+  /**
+   * Les seules natures d'objet qu'un défi peut donner — toutes tirées du
+   * catalogue §7.5. Un `kind` hors de cette liste est refusé par la contrainte
+   * `check` de 0165 : « récompense = un objet » est structurel, pas déclaratif.
+   */
+  rewardKinds: ['sticker', 'trace_pattern', 'photo_composition', 'personal_emblem', 'poster'],
+  /**
+   * Le « secteur » d'exploration : un carreau de 0,01° (~1,1 km en latitude),
+   * calculé sur la moyenne des sommets de la boucle — même technique et mêmes
+   * limites que `gryd_geo_bucket` (0105), à une maille plus fine. Ce n'est PAS
+   * un quartier administratif et l'interface ne le nomme jamais ainsi.
+   */
+  localityTileDegrees: 0.01,
+  /**
+   * §7.4 « dédupliquer les traces presque identiques ». Deux boucles comptent
+   * pour une seule quand elles partagent le même carreau fin (~220 m) ET la
+   * même classe de taille. Approximation assumée : elle ne sépare pas deux
+   * boucles imbriquées, elle refuse surtout de compter deux fois la même.
+   */
+  distinctLoopTileDegrees: 0.002,
+  distinctLoopAreaBucketM2: 10_000,
+  /** Régularité : DEUX journées, jamais trois — le plafond XP est déjà à 3 (§7.1). */
+  regularityActiveDays: 2,
+  /** Exploration : deux boucles distinctes, au sens de la déduplication ci-dessus. */
+  explorationDistinctLoops: 2,
+  /**
+   * Une sortie de groupe n'est « validée » que si des personnes RÉELLES y ont
+   * répondu « je viens » avant le départ (§7.4 : « avec validation et
+   * antispam »). Deux membres distincts du crew, dont au moins un autre que
+   * l'organisateur.
+   */
+  groupOutingMinimumParticipants: 2,
+  /**
+   * Pour l'attribution « Ensemble », l'activité enregistrée doit encadrer
+   * l'heure de départ annoncée à ± cette fenêtre. Le serveur ne croit jamais
+   * une déclaration : il compare deux faits qu'il détient.
+   */
+  groupOutingProximityHours: 6,
+} as const;
+
+/**
+ * La liste de départ (décision fondateur du 10/09/2026, ADR-013 §5 question 6).
+ * Chaque défi est SATISFAISABLE PAR UNE SEMAINE NORMALE : il demande
+ * « ailleurs », « avec quelqu'un », « autrement » — jamais « plus ».
+ *
+ * `crossDiscipline` : la condition ignore la discipline de l'assignation
+ * (les journées actives sont cumulées sans chevauchement entre sports, §7.1).
+ * Un défi `crossDiscipline` n'est proposé QU'UNE FOIS par semaine, quelle que
+ * soit la discipline consultée.
+ *
+ * `requires` : ce que le compte doit RÉELLEMENT porter pour que le défi soit
+ * proposé. « Double pratique » n'apparaît pas à un mono-sport — proposer un
+ * objectif hors de portée serait la pression que §4.2 refuse.
+ */
+export const WEEKLY_QUEST_CATALOGUE_2026 = [
+  {
+    id: 'exploration_new_locality', version: 1, family: 'exploration',
+    crossDiscipline: false, requires: 'none', condition: 'new_locality',
+    threshold: 1, rewardId: 'quest_sticker_ailleurs',
+  },
+  {
+    id: 'exploration_two_distinct_loops', version: 1, family: 'exploration',
+    crossDiscipline: false, requires: 'none', condition: 'distinct_loops',
+    threshold: WEEKLY_QUEST_RULES_2026.explorationDistinctLoops, rewardId: 'quest_pattern_deux_boucles',
+  },
+  {
+    id: 'ensemble_group_outing', version: 1, family: 'ensemble',
+    crossDiscipline: false, requires: 'crew', condition: 'validated_group_outing',
+    threshold: 1, rewardId: 'quest_emblem_ensemble',
+  },
+  {
+    id: 'double_practice_two_sports', version: 1, family: 'double_practice',
+    crossDiscipline: true, requires: 'both_disciplines', condition: 'run_day_and_bike_day',
+    threshold: 1, rewardId: 'quest_poster_double_pratique',
+  },
+  {
+    id: 'regularity_two_active_days', version: 1, family: 'regularity',
+    crossDiscipline: true, requires: 'none', condition: 'active_days',
+    threshold: WEEKLY_QUEST_RULES_2026.regularityActiveDays, rewardId: 'quest_pattern_regulier',
+  },
+  {
+    id: 'hosting_open_outing', version: 1, family: 'hosting',
+    crossDiscipline: false, requires: 'crew', condition: 'hosted_open_outing',
+    threshold: 1, rewardId: 'quest_composition_accueil',
+  },
+] as const;
+
+/**
+ * Les six objets gagnables par un défi. Ils sortent des familles du §7.5
+ * (stickers, motifs de trace, compositions, emblèmes, affiches) et n'entrent en
+ * concurrence avec AUCUN identifiant de `SEASON_REWARDS_2026` : une récompense
+ * de défi ne consomme jamais un palier de saison.
+ *
+ * ⚠️ AUCUN objet de défi n'est un CADRE ni un TITRE. Ces deux emplacements
+ * d'identité sont déjà partagés par la saison (0121) et les niveaux (0144) ;
+ * y ajouter une troisième famille rouvrirait les « sept rangs différents
+ * au-dessus du nom » que G22 interdit. Les objets de défi vivent dans le
+ * partage et la collection, pas au-dessus du pseudo.
+ *
+ * `slot` : un objet équipé occupe un emplacement, et un seul objet par
+ * emplacement est porté à la fois.
+ */
+export const WEEKLY_QUEST_REWARDS_2026 = [
+  { id: 'quest_sticker_ailleurs', kind: 'sticker', slot: 'sticker', label: 'Sticker Ailleurs' },
+  { id: 'quest_pattern_deux_boucles', kind: 'trace_pattern', slot: 'trace', label: 'Motif Deux boucles' },
+  { id: 'quest_emblem_ensemble', kind: 'personal_emblem', slot: 'emblem', label: 'Emblème Ensemble' },
+  { id: 'quest_poster_double_pratique', kind: 'poster', slot: 'poster', label: 'Affiche Double pratique' },
+  { id: 'quest_pattern_regulier', kind: 'trace_pattern', slot: 'trace', label: 'Motif Régulier' },
+  { id: 'quest_composition_accueil', kind: 'photo_composition', slot: 'composition', label: 'Composition Accueil' },
 ] as const;
 
 // ─── §3.1 Grille de territoire ───────────────────────────────────────────────
@@ -814,21 +1046,31 @@ export const REFERRAL_BOOST_MULTIPLIER = 2;
 export const REFERRAL_BOOST_DAYS = 7;
 export const REFERRAL_MAX_ACTIVE_PER_SEASON = 5;
 
-// ─── §4.3 Notifications ──────────────────────────────────────────────────────
-export const PUSH_QUIET_HOURS_START = 21; // 21h
-export const PUSH_QUIET_HOURS_END = 8; // 8h
-export const PUSH_MAX_PER_DAY = 2;
+// ─── Notifications : UNE seule source, `NOTIFICATION_RULES_2026` (§14.1) ─────
 /**
- * E71 (spec produit §13) : au-delà de ce nombre d'événements NON URGENTS le même
- * jour, les suivants sont REGROUPÉS plutôt que remis un par un. Une urgence
- * (territoire contesté, défense expirant, activité interrompue, sécurité du
- * compte — §13.1) ignore TOUJOURS ce seuil : le confort ne doit jamais éteindre
- * ni retarder une urgence, c'est la règle qui protège le joueur.
- * Politique de CADENCE de notification (comme PUSH_MAX_PER_DAY ci-dessus), pas
- * une règle de score — elle vit ici par cohérence avec le reste de cette
- * section, pas parce qu'elle influence un claim.
+ * Ces trois constantes ne PORTENT plus de valeur : elles la DÉRIVENT du cahier.
+ *
+ * ─── CE QUI ÉTAIT FAUX AVANT (10/09/2026) ───────────────────────────────────
+ * `NOTIFICATION_RULES_2026` (plus haut) existait depuis la refonte et n'était
+ * importé NULLE PART. Pendant ce temps, les valeurs RÉELLEMENT lues par le
+ * serveur (`_shared/push.ts#canPush`) le contredisaient :
+ *   · fin de plage calme 8 h ici contre 9 h au cahier — une heure pendant
+ *     laquelle un push partait alors que la politique l'interdit ;
+ *   · 2 sollicitations par jour ici contre 1 au cahier ;
+ *   · `NOTIF_NON_URGENT_DAILY_THRESHOLD = 3` par JOUR, alors que le cahier
+ *     accorde 3 par SEMAINE — sept fois trop large, et ce seuil ne gouvernait
+ *     qu'un regroupement CLIENT de catégories abolies (decay, vol de zone).
+ *     Il est SUPPRIMÉ, pas dérivé : le budget hebdomadaire du cahier est
+ *     décidé côté serveur (`can_notify_2026`, migration 0141), et un seuil
+ *     journalier client n'aurait fait que le contredire une deuxième fois.
+ *
+ * Elles restent exportées parce que `_shared/push.ts#canPush` les lit : les
+ * renommer aurait touché du code hors de ce lot sans rien rendre plus vrai.
+ * Toute nouvelle lecture doit importer `NOTIFICATION_RULES_2026` directement.
  */
-export const NOTIF_NON_URGENT_DAILY_THRESHOLD = 3;
+export const PUSH_QUIET_HOURS_START = NOTIFICATION_RULES_2026.quietHoursStart;
+export const PUSH_QUIET_HOURS_END = NOTIFICATION_RULES_2026.quietHoursEnd;
+export const PUSH_MAX_PER_DAY = NOTIFICATION_RULES_2026.maximumNonTransactionalPerDay;
 export const RUN_AUTOSAVE_INTERVAL_S = 15;
 /** Récompense variable : 1 drop gratuit toutes les 3-5 courses. */
 export const FREE_DROP_MIN_RUNS = 3;

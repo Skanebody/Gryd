@@ -513,18 +513,21 @@ export const C = defineCatalog({
   },
   // ── Notifications : l'appareil ne peut être enregistré que sous session ──
   notifSignedOutTitle: {
-    fr: 'Pas de compte, pas d’envoi',
-    en: 'No account, no delivery',
-    es: 'Sin cuenta, sin envíos',
-    de: 'Kein Konto, kein Versand',
-    pt: 'Sem conta, sem envio',
+    fr: 'Ces choix appartiennent à ton compte',
+    en: 'These choices belong to your account',
+    es: 'Estas opciones pertenecen a tu cuenta',
+    de: 'Diese Auswahl gehört zu deinem Konto',
+    // « escolhas » (nom pluriel) déclenche le détecteur de subjonctif 2ᵉ pers.
+    // du registre PT (registre.test.ts). Le nom « ajustes » dit la même chose
+    // sans faux positif — corriger le texte vaut mieux qu'inscrire une exception.
+    pt: 'Estes ajustes pertencem à sua conta',
   },
   notifSignedOutBody: {
-    fr: 'Tes canaux sont gardés sur ce téléphone, mais GRYD ne peut enregistrer l’appareil — donc rien ne partira — tant que tu n’as pas de compte.',
-    en: 'Your channels are kept on this phone, but GRYD can’t register the device — so nothing will be sent — until you have an account.',
-    es: 'Tus canales se guardan en este teléfono, pero GRYD no puede registrar el dispositivo — así que no se enviará nada — hasta que tengas una cuenta.',
-    de: 'Deine Kanäle bleiben auf diesem Handy, aber GRYD kann das Gerät nicht registrieren — es wird also nichts gesendet — solange du kein Konto hast.',
-    pt: 'Seus canais ficam neste telefone, mas o GRYD não consegue registrar o aparelho — então nada será enviado — enquanto você não tiver conta.',
+    fr: 'Voici ce que GRYD peut t’envoyer, et les valeurs par défaut. Tes réglages sont gardés avec ton compte, pas sur ce téléphone : ils te suivent d’un appareil à l’autre.',
+    en: 'Here is what GRYD can send you, and the default values. Your settings are kept with your account, not on this phone: they follow you from one device to another.',
+    es: 'Esto es lo que GRYD puede enviarte, y los valores por defecto. Tus ajustes se guardan con tu cuenta, no en este teléfono: te acompañan de un dispositivo a otro.',
+    de: 'Das kann GRYD dir senden, mit den Standardwerten. Deine Einstellungen liegen bei deinem Konto, nicht auf diesem Handy: Sie folgen dir von Gerät zu Gerät.',
+    pt: 'Isto é o que o GRYD pode te enviar, e os valores padrão. Seus ajustes ficam com a sua conta, não neste telefone: eles te acompanham de um aparelho a outro.',
   },
   secCompte: {
     fr: 'COMPTE',
@@ -629,11 +632,11 @@ export const C = defineCatalog({
     pt: 'Notificações do crew',
   },
   crewNotifsDetail: {
-    fr: 'Défenses, frontières à fermer',
-    en: 'Defenses, borders to close',
-    es: 'Defensas, fronteras por cerrar',
-    de: 'Abwehr, offene Grenzen',
-    pt: 'Defesas, fronteiras a fechar',
+    fr: 'Adhésions, mentions, annonces',
+    en: 'Memberships, mentions, announcements',
+    es: 'Altas, menciones, anuncios',
+    de: 'Beitritte, Erwähnungen, Ankündigungen',
+    pt: 'Entradas, menções, anúncios',
   },
   leaveCrew: {
     fr: 'Quitter le crew',
@@ -738,11 +741,11 @@ export const C = defineCatalog({
     pt: 'Notificações neste telefone',
   },
   pushIdle: {
-    fr: 'Pas encore activées — touche pour recevoir l’alerte quand une zone s’efface',
-    en: 'Not on yet — tap to get an alert when a zone is fading',
-    es: 'Aún no activadas — toca para recibir un aviso cuando una zona se borra',
-    de: 'Noch nicht aktiv — tippe, um bei verblassenden Zonen benachrichtigt zu werden',
-    pt: 'Ainda não ativadas — toque para receber aviso quando uma zona sumir',
+    fr: 'Pas encore activées sur ce téléphone',
+    en: 'Not on yet on this phone',
+    es: 'Aún no activadas en este teléfono',
+    de: 'Auf diesem Handy noch nicht aktiv',
+    pt: 'Ainda não ativadas neste telefone',
   },
   pushRegistered: {
     fr: 'Activées sur cet appareil — touche pour les couper',
@@ -787,11 +790,11 @@ export const C = defineCatalog({
    * est faux et enverrait le joueur mettre à jour pour rien.
    */
   pushNoCredentials: {
-    fr: 'Pas encore configurées de notre côté — rien à faire de ton côté',
-    en: 'Not set up on our side yet — nothing for you to do',
-    es: 'Aún no configuradas de nuestro lado — no tienes que hacer nada',
-    de: 'Bei uns noch nicht eingerichtet — du musst nichts tun',
-    pt: 'Ainda não configuradas do nosso lado — nada a fazer da sua parte',
+    fr: 'Cette version ne peut pas recevoir de message envoyé à distance — rien à faire de ton côté',
+    en: 'This version can’t receive messages sent remotely — nothing for you to do',
+    es: 'Esta versión no puede recibir mensajes enviados a distancia — no tienes que hacer nada',
+    de: 'Diese Version kann keine aus der Ferne gesendeten Nachrichten empfangen — du musst nichts tun',
+    pt: 'Esta versão não pode receber mensagens enviadas à distância — nada a fazer da sua parte',
   },
   pushNotConfigured: {
     fr: 'Connecte-toi pour recevoir les alertes de tes zones',
@@ -807,61 +810,202 @@ export const C = defineCatalog({
     de: 'Gerät konnte gerade nicht registriert werden — versuch es später',
     pt: 'Não deu para registrar este aparelho agora — tente mais tarde',
   },
-  // Les heures et le plafond sont INTERPOLÉS depuis game-rules (PUSH_QUIET_HOURS_*,
-  // PUSH_MAX_PER_DAY) : aucun nombre de règle ne vit dans une chaîne.
-  pushQuietNote: {
-    fr: 'Rien entre {start} h et {end} h, {max} notifications par jour au maximum, et jamais une par sortie.',
-    en: 'Nothing between {start}:00 and {end}:00, {max} notifications a day at most, and never one per activity.',
-    es: 'Nada entre las {start} h y las {end} h, {max} notificaciones al día como máximo, y nunca una por actividad.',
-    de: 'Nichts zwischen {start} und {end} Uhr, höchstens {max} Mitteilungen pro Tag, und nie eine pro Aktivität.',
-    pt: 'Nada entre {start} h e {end} h, no máximo {max} notificações por dia, e nunca uma por atividade.',
+  // ── §14.1 : LA MATRICE DE RÉGLAGES DU CAHIER ────────────────────────────
+  //
+  // CE QUI A ÉTÉ RETIRÉ LE 10/09/2026, ET POURQUOI. Deux interrupteurs vivaient
+  // ici — « Défense · ton territoire qui va s'effacer bientôt » et « Rivalité ·
+  // zones prises par un rival ». Le cahier a aboli les deux mécaniques : §5.3
+  // (« ni bouclier, ni contestation de 18 heures, ni défense achetable ») et
+  // §14.2 (« une reprise de terrain par un rival alimente le journal du jeu et
+  // le résumé choisi, PAS une alarme immédiate »). Un réglage qui décrit un jeu
+  // disparu est pire qu'un réglage mort : il enseigne de fausses règles.
+  //
+  // Les six catégories ci-dessous sont celles de §14.1, dans son ordre. Les
+  // nombres (plage calme, budget) ne sont JAMAIS écrits dans une chaîne : ils
+  // sont interpolés depuis `NOTIFICATION_RULES_2026`.
+  notifSportTitle: {
+    fr: 'Sport',
+    en: 'Sport',
+    es: 'Deporte',
+    de: 'Sport',
+    pt: 'Esporte',
   },
-  notifsNote: {
-    fr: 'Territoire qui s’efface, zones prises par un rival : seulement ce qui compte pour toi. Jamais de rappel culpabilisant.',
-    en: 'Fading territory, zones a rival took: only what matters to you. Never a guilt-trip reminder.',
-    es: 'Territorio que se desvanece, zonas que te quitó un rival: solo lo que te importa. Nunca recordatorios que te hagan sentir culpable.',
-    de: 'Verblassendes Territorium, von einem Rivalen übernommene Zonen: nur, was dir wichtig ist. Nie Erinnerungen mit schlechtem Gewissen.',
-    pt: 'Território que se apaga, zonas tomadas por um rival: só o que importa para você. Nunca lembretes que fazem você se sentir culpado.',
+  notifSportSubtitle: {
+    fr: 'Ce que tu as demandé autour de tes sorties. Jamais un ordre de sortir.',
+    en: 'What you asked for around your activities. Never an order to go out.',
+    es: 'Lo que pediste en torno a tus actividades. Nunca una orden de salir.',
+    de: 'Was du rund um deine Aktivitäten angefragt hast. Nie eine Aufforderung.',
+    pt: 'O que você pediu sobre suas atividades. Nunca uma ordem de sair.',
   },
-  // ── E71 : les CINQ catégories de la spec, et ce qui a un vrai push derrière
-  // (audit 25-27/07/2026). Défense et rivalité gouvernent un canal RÉEL
-  // (`notifPrefsToChannels`) ; les trois autres n'ont encore AUCUN push câblé
-  // — `notifOtherCategoriesNote` le nomme, plutôt que de peindre un
-  // interrupteur qui ne gouvernerait rien.
-  notifDefenseTitle: {
-    fr: 'Défense',
-    en: 'Defense',
-    es: 'Defensa',
-    de: 'Verteidigung',
-    pt: 'Defesa',
+  notifCrewTitle: {
+    fr: 'Crew',
+    en: 'Crew',
+    es: 'Crew',
+    de: 'Crew',
+    pt: 'Crew',
   },
-  notifDefenseSubtitle: {
-    fr: 'Ton territoire qui va s’effacer bientôt.',
-    en: 'Your territory that’s about to fade.',
-    es: 'Tu territorio a punto de desvanecerse.',
-    de: 'Dein Gebiet, das bald verblasst.',
-    pt: 'Seu território prestes a sumir.',
+  notifCrewSubtitle: {
+    fr: 'Adhésion acceptée, mention qui t’attend, annonce de ton crew.',
+    en: 'Membership accepted, a mention waiting for you, your crew’s announcements.',
+    es: 'Alta aceptada, una mención que te espera, anuncios de tu crew.',
+    de: 'Beitritt angenommen, eine Erwähnung wartet, Ankündigungen deiner Crew.',
+    pt: 'Entrada aceita, uma menção esperando, anúncios do seu crew.',
   },
-  notifRivaliteTitle: {
-    fr: 'Rivalité',
-    en: 'Rivalry',
-    es: 'Rivalidad',
-    de: 'Rivalität',
-    pt: 'Rivalidade',
+  notifEventsTitle: {
+    fr: 'Événements suivis',
+    en: 'Events you follow',
+    es: 'Eventos que sigues',
+    de: 'Verfolgte Termine',
+    pt: 'Eventos que você segue',
   },
-  notifRivaliteSubtitle: {
-    fr: 'Zones prises par un rival — groupées en une alerte.',
-    en: 'Zones a rival took — bundled into one alert.',
-    es: 'Zonas que te quitó un rival — agrupadas en un aviso.',
-    de: 'Von einem Rivalen übernommene Zonen — in einem Hinweis gebündelt.',
-    pt: 'Zonas tomadas por um rival — agrupadas em um aviso.',
+  notifEventsSubtitle: {
+    fr: 'Le rappel que tu as choisi, et les changements ou annulations de ce à quoi tu es inscrit.',
+    en: 'The reminder you chose, plus changes or cancellations for what you signed up to.',
+    es: 'El recordatorio que elegiste, y los cambios o cancelaciones de lo que te apuntaste.',
+    de: 'Die Erinnerung, die du gewählt hast, sowie Änderungen oder Absagen deiner Anmeldungen.',
+    pt: 'O lembrete que você escolheu, e mudanças ou cancelamentos do que você marcou.',
   },
-  notifOtherCategoriesNote: {
-    fr: 'Crew, progression et infos produit : aucune notification n’existe encore pour elles — rien à activer ici.',
-    en: 'Crew, progression and product news: no notification exists yet for them — nothing to turn on here.',
-    es: 'Crew, progresión y novedades del producto: aún no existe ninguna notificación para ellas — nada que activar aquí.',
-    de: 'Crew, Fortschritt und Produktneuigkeiten: Dafür gibt es noch keine Mitteilung — hier gibt es nichts zu aktivieren.',
-    pt: 'Crew, progressão e novidades do produto: ainda não existe notificação para elas — nada para ativar aqui.',
+  notifResultsTitle: {
+    fr: 'Résultats',
+    en: 'Results',
+    es: 'Resultados',
+    de: 'Ergebnisse',
+    pt: 'Resultados',
+  },
+  notifResultsSubtitle: {
+    fr: 'Quand l’analyse d’une sortie est prête, et le résultat d’un défi terminé.',
+    en: 'When an activity’s analysis is ready, and the result of a finished challenge.',
+    es: 'Cuando el análisis de una actividad está listo, y el resultado de un reto terminado.',
+    de: 'Wenn die Auswertung einer Aktivität fertig ist, und das Ergebnis eines beendeten Duells.',
+    pt: 'Quando a análise de uma atividade fica pronta, e o resultado de um desafio encerrado.',
+  },
+  notifWeeklyTitle: {
+    fr: 'Résumé hebdomadaire',
+    en: 'Weekly recap',
+    es: 'Resumen semanal',
+    de: 'Wochenrückblick',
+    pt: 'Resumo semanal',
+  },
+  notifWeeklySubtitle: {
+    fr: 'Ta semaine, une fois. Rien du tout s’il n’y a rien à raconter.',
+    en: 'Your week, once. Nothing at all if there is nothing to tell.',
+    es: 'Tu semana, una vez. Nada si no hay nada que contar.',
+    de: 'Deine Woche, einmal. Gar nichts, wenn es nichts zu erzählen gibt.',
+    pt: 'Sua semana, uma vez. Nada se não houver nada para contar.',
+  },
+  notifOffersTitle: {
+    fr: 'Nouveautés et offres',
+    en: 'News and offers',
+    es: 'Novedades y ofertas',
+    de: 'Neuheiten und Angebote',
+    pt: 'Novidades e ofertas',
+  },
+  notifOffersSubtitle: {
+    fr: 'Désactivé par défaut. Deux par mois au maximum, jamais d’urgence inventée.',
+    en: 'Off by default. Two a month at most, never a made-up urgency.',
+    es: 'Desactivado por defecto. Dos al mes como máximo, nunca una urgencia inventada.',
+    de: 'Standardmäßig aus. Höchstens zwei pro Monat, nie eine erfundene Dringlichkeit.',
+    pt: 'Desativado por padrão. No máximo duas por mês, nunca uma urgência inventada.',
+  },
+  secQuandTuLeRecois: {
+    fr: 'QUAND',
+    en: 'WHEN',
+    es: 'CUÁNDO',
+    de: 'WANN',
+    pt: 'QUANDO',
+  },
+  notifGamePauseTitle: {
+    fr: 'Pause du jeu',
+    en: 'Pause the game',
+    es: 'Pausa del juego',
+    de: 'Spielpause',
+    pt: 'Pausar o jogo',
+  },
+  notifGamePauseSubtitle: {
+    fr: 'Coupe les relances. Ton crew, tes événements suivis et tes résultats continuent d’arriver.',
+    en: 'Stops the nudges. Your crew, the events you follow and your results keep coming.',
+    es: 'Corta los recordatorios. Tu crew, los eventos que sigues y tus resultados siguen llegando.',
+    de: 'Schaltet die Anstöße ab. Deine Crew, verfolgte Termine und Ergebnisse kommen weiter.',
+    pt: 'Corta os lembretes. Seu crew, os eventos que você segue e seus resultados continuam.',
+  },
+  // Plage calme et budget INTERPOLÉS depuis `NOTIFICATION_RULES_2026` : aucun
+  // nombre de politique ne vit dans une chaîne.
+  notifBudgetNote: {
+    fr: 'Rien entre {start} h et {end} h. Au plus {week} messages non essentiels par semaine, et {day} par jour. Ce qui touche à ton compte ou à un événement annulé passe quand même — sans vente ajoutée.',
+    en: 'Nothing between {start}:00 and {end}:00. At most {week} non-essential messages a week, and {day} a day. Anything about your account or a cancelled event still goes through — with nothing to sell.',
+    es: 'Nada entre las {start} h y las {end} h. Como máximo {week} mensajes no esenciales por semana, y {day} al día. Lo que afecta a tu cuenta o a un evento cancelado pasa igual — sin venta añadida.',
+    de: 'Nichts zwischen {start} und {end} Uhr. Höchstens {week} nicht wesentliche Nachrichten pro Woche und {day} pro Tag. Was dein Konto oder einen abgesagten Termin betrifft, kommt trotzdem — ohne Verkauf.',
+    pt: 'Nada entre {start} h e {end} h. No máximo {week} mensagens não essenciais por semana, e {day} por dia. O que envolve sua conta ou um evento cancelado passa mesmo assim — sem venda junto.',
+  },
+  /**
+   * L'ÉTAT VRAI DE CE BUILD. Le push distant est impossible : l'entitlement iOS
+   * est retiré par `plugins/withoutPushEntitlement.js` et aucune clé APNs n'a
+   * été déposée. Ce qui part réellement aujourd'hui, ce sont des notifications
+   * LOCALES posées par ce téléphone. Le dire ici est la seule façon que la
+   * matrice ci-dessus ne promette pas plus que le code.
+   */
+  notifLocalOnlyNote: {
+    fr: 'Aujourd’hui, GRYD ne peut t’envoyer que des messages posés par ce téléphone : le rappel que tu choisis et le résultat de ta sortie. Le reste attend une configuration d’envoi à distance que nous n’avons pas encore.',
+    en: 'Today GRYD can only send you messages set by this phone: the reminder you choose and your activity’s result. The rest waits on a remote delivery setup we don’t have yet.',
+    es: 'Hoy GRYD solo puede enviarte mensajes creados por este teléfono: el recordatorio que elijas y el resultado de tu actividad. El resto espera una configuración de envío a distancia que aún no tenemos.',
+    de: 'Heute kann GRYD dir nur Nachrichten senden, die dieses Handy selbst stellt: die Erinnerung, die du wählst, und das Ergebnis deiner Aktivität. Der Rest wartet auf einen Fernversand, den wir noch nicht haben.',
+    pt: 'Hoje o GRYD só pode te enviar mensagens criadas por este telefone: o lembrete que você escolher e o resultado da sua atividade. O resto espera uma configuração de envio a distância que ainda não temos.',
+  },
+  notifSaving: {
+    fr: 'Enregistrement de ton choix…',
+    en: 'Saving your choice…',
+    es: 'Guardando tu elección…',
+    de: 'Deine Auswahl wird gespeichert…',
+    pt: 'Salvando sua escolha…',
+  },
+  notifSaveFailed: {
+    fr: 'Ton choix n’a pas pu être enregistré — il a été remis comme avant. Réessaie.',
+    en: 'Your choice couldn’t be saved — it was put back as it was. Try again.',
+    es: 'No se pudo guardar tu elección — se dejó como estaba. Inténtalo otra vez.',
+    de: 'Deine Auswahl konnte nicht gespeichert werden — sie steht wieder wie zuvor. Versuch es erneut.',
+    pt: 'Não deu para salvar sua escolha — ela voltou como estava. Tente de novo.',
+  },
+  notifReadFailedTitle: {
+    fr: 'Réglages illisibles',
+    en: 'Settings unreadable',
+    es: 'Ajustes ilegibles',
+    de: 'Einstellungen nicht lesbar',
+    pt: 'Ajustes ilegíveis',
+  },
+  notifReadFailedBody: {
+    fr: 'Nous n’avons pas pu lire tes réglages. Ils existent peut-être : afficher des valeurs par défaut te montrerait un choix que tu n’as pas fait.',
+    en: 'We couldn’t read your settings. They may well exist: showing defaults would show you a choice you never made.',
+    es: 'No pudimos leer tus ajustes. Puede que existan: mostrar valores por defecto sería enseñarte una elección que no hiciste.',
+    de: 'Wir konnten deine Einstellungen nicht lesen. Vielleicht gibt es sie: Standardwerte zu zeigen hieße, dir eine Auswahl zu zeigen, die du nie getroffen hast.',
+    pt: 'Não conseguimos ler seus ajustes. Eles podem existir: mostrar valores padrão seria te mostrar uma escolha que você não fez.',
+  },
+  notifReadFailedCta: {
+    fr: 'Réessayer',
+    en: 'Try again',
+    es: 'Reintentar',
+    de: 'Erneut versuchen',
+    pt: 'Tentar de novo',
+  },
+  notifReading: {
+    fr: 'Lecture de tes réglages…',
+    en: 'Reading your settings…',
+    es: 'Leyendo tus ajustes…',
+    de: 'Deine Einstellungen werden gelesen…',
+    pt: 'Lendo seus ajustes…',
+  },
+  notifDefaultOn: {
+    fr: 'Activé par défaut',
+    en: 'On by default',
+    es: 'Activado por defecto',
+    de: 'Standardmäßig an',
+    pt: 'Ativado por padrão',
+  },
+  notifDefaultOff: {
+    fr: 'Désactivé par défaut',
+    en: 'Off by default',
+    es: 'Desactivado por defecto',
+    de: 'Standardmäßig aus',
+    pt: 'Desativado por padrão',
   },
 
   // ── Sous-page Carte ──

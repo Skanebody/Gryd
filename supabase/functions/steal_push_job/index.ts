@@ -80,6 +80,7 @@ import {
   STEAL_QUEUE_RESERVATION_GRACE_MINUTES,
 } from '../_shared/game-rules.ts';
 import { secretsMatch } from '../_shared/secret.ts';
+import { stealPushJobDisabled } from '../_shared/legacy_territory_jobs.ts';
 import { sendExpoPush } from '../_shared/expo-push.ts';
 import {
   aggregateStealEvents,
@@ -285,6 +286,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!secret || !secretsMatch(req.headers.get('x-cron-secret') ?? '', secret)) {
     return json({ error: 'unauthorized' }, 401);
   }
+
+  // ── DÉSACTIVÉ DEPUIS 0118 ─────────────────────────────────────────────────
+  // §14.2 : « une reprise de terrain par un rival alimente le journal du jeu et
+  // le résumé choisi, PAS une alarme immédiate ». Ce job ne fait QUE cette
+  // alarme. La garde est posée avant la réservation atomique : rien n'est
+  // consommé dans `steal_push_queue`, donc rien n'est perdu si la file devait
+  // un jour être relue par autre chose.
+  const halted = stealPushJobDisabled();
+  if (halted) return json(halted, 200);
 
   try {
     const now = new Date();

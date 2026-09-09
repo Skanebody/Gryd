@@ -28,6 +28,7 @@ import {
 } from './logic.ts';
 import { activityScore, chestTierFor } from '../_shared/engine/crew.ts';
 import { secretsMatch } from '../_shared/secret.ts';
+import { digestJobDisabled } from '../_shared/legacy_territory_jobs.ts';
 import {
   ACTIVITIES,
   type Activity,
@@ -128,6 +129,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!secret || !secretsMatch(req.headers.get('x-cron-secret') ?? '', secret)) {
     return json({ error: 'unauthorized' }, 401);
   }
+
+  // ── DÉSACTIVÉ DEPUIS 0118 ─────────────────────────────────────────────────
+  // Le résumé de ce job est bâti sur des zones défendues et perdues, des boosts
+  // de crew, des frontières partielles et des bonus ciblés — tout ce que la
+  // refonte a retiré. §14.1 garde bien un « résumé hebdomadaire », mais il
+  // devra naître des faits 2026 et passer par `can_notify_2026` (0141).
+  // Le rebrancher tel quel raconterait au joueur la semaine d'un autre jeu.
+  // La garde est posée AVANT les clôtures de maintenance : elles écrivent, et
+  // ce qu'elles clôturent appartient au même jeu disparu.
+  const halted = digestJobDisabled();
+  if (halted) return json(halted, 200);
 
   try {
     const now = new Date();

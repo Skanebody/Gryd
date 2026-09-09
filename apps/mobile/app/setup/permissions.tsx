@@ -1,13 +1,32 @@
 /**
  * GRYD — E10 « PERMISSIONS UTILES » (`/setup/permissions`).
- * Spec produit UI/UX complète, l.810 : deux cartes, la localisation a déjà été
- * expliquée (E05), « chaque permission est demandée au moment de son bénéfice »,
- * « le bouton principal peut être CONTINUER même si une permission secondaire
- * est refusée ».
+ * Spec produit UI/UX complète, l.810 : la localisation a déjà été expliquée
+ * (E05), « chaque permission est demandée au moment de son bénéfice », « le
+ * bouton principal peut être CONTINUER même si une permission secondaire est
+ * refusée ».
+ *
+ * ═══ LA CARTE NOTIFICATIONS A ÉTÉ RETIRÉE (10/09/2026) ══════════════════════
+ * Elle demandait la permission système de notification ICI, au premier
+ * lancement — c'est-à-dire À FROID, avant qu'aucune notification n'ait de
+ * bénéfice à offrir. La ligne même de la spec citée ci-dessus l'interdit, et le
+ * cahier §14.1 la reprend derrière Apple (« Managing notifications »).
+ *
+ * Deux faits rendaient cette carte pire qu'inutile :
+ *  · elle enregistrait ensuite l'appareil pour un push DISTANT que ce build ne
+ *    peut pas recevoir — `plugins/withoutPushEntitlement.js` retire
+ *    `aps-environment` sur iOS, et aucun `google-services.json` n'existe pour
+ *    Android. La permission était dépensée pour un service muet ;
+ *  · iOS ne présente cette boîte qu'UNE fois. Refusée à froid, les rappels
+ *    LOCAUX — la seule chose que GRYD sache réellement envoyer aujourd'hui —
+ *    devenaient inatteignables sans passer par les Réglages du téléphone.
+ * La permission est désormais demandée là où elle sert : quand le joueur pose
+ * un rappel (`features/notifications/localReminder.ts`) ou accepte d'être
+ * prévenu de son résultat (`resultReadyNotice.ts`). L'état complet des
+ * notifications vit dans Réglages › Notifications, qui le DIT.
  *
  * ═══ CE QUE CET ÉCRAN DÉCIDE, ET CE QU'IL NE DÉCIDE PAS ══════════════════════
- * UNE décision : continuer. Les deux cartes sont des propositions latérales —
- * elles ne bloquent rien, ne conditionnent rien, et leur refus ne change pas le
+ * UNE décision : continuer. La carte restante est une proposition latérale —
+ * elle ne bloque rien, ne conditionne rien, et son refus ne change pas le
  * libellé du CTA. Il n'y a donc qu'UN seul bouton chartreuse (§A4), et pas de
  * « Plus tard » en doublon : ne rien autoriser et continuer, c'est le MÊME
  * bouton (voir la note dans le catalogue).
@@ -31,12 +50,10 @@
  *     mort — on montre à la place « Ouvrir les réglages », la seule action encore
  *     vivante. Et si l'ouverture des réglages échoue, l'écran le dit aussi.
  *
- * Les DÉCLARATIONS ont été vérifiées avant d'écrire cet écran (une permission
- * non déclarée échoue à coup sûr) : `NSMotionUsageDescription` via les options du
- * plugin `expo-sensors` dans app.json, `ACTIVITY_RECOGNITION` et
- * `POST_NOTIFICATIONS` via les manifestes des bibliothèques, entitlement
- * `aps-environment` via le plugin `expo-notifications`. Détail en tête de
- * `permissionSensors.ts`.
+ * LA DÉCLARATION a été vérifiée avant d'écrire cet écran (une permission non
+ * déclarée échoue à coup sûr) : `NSMotionUsageDescription` via les options du
+ * plugin `expo-sensors` dans app.json, `ACTIVITY_RECOGNITION` via le manifeste
+ * de la bibliothèque. Détail en tête de `permissionSensors.ts`.
  *
  * ═══ QUATRE ÉTATS JAMAIS CONFONDUS ═══════════════════════════════════════════
  * `checking` (lecture en cours) · `undetermined` (jamais demandée — ce n'est PAS
@@ -50,25 +67,6 @@
  * protection : ce serait faux (le claim est décidé serveur à partir de la trace
  * GPS) autant qu'une mécanique de pression. `footnote` le dit noir sur blanc, une
  * seule fois.
- *
- * ═══ « AUTORISÉ » N'EST PAS « TU RECEVRAS » (corrigé le 27/07/2026) ═════════
- * Cet écran n'enregistrait PAS l'appareil auprès du serveur de push, au nom de
- * « ne pas refaire le travail de Réglages ». Le résultat était une contradiction
- * DANS LE MÊME BINAIRE : E10 affichait « Autorisé » et annonçait trois messages
- * (`notificationsBody`), pendant que Réglages › Notifications affichait « Pas
- * encore disponibles sur cette version de l'app » pour exactement la même
- * situation — les credentials APNs/FCM ne sont pas déposés sur EAS (app.json
- * `_note_push_perimetre3`), donc `getExpoPushTokenAsync` échoue et AUCUN des
- * trois messages ne peut arriver. C'est l'écran d'onboarding, celui que 100 %
- * des nouveaux traversent, qui portait la version optimiste.
- *
- * E10 fait donc désormais l'enregistrement RÉEL, avec le MÊME hook, le MÊME
- * appel et les MÊMES canaux que Réglages (`useDeviceNotifications`,
- * `registerPushDevice`, `notifPrefsToChannels`), et affiche le verdict de cette
- * tentative sous la ligne d'état — `notificationsDeliveryLine`, pure et testée.
- * Il n'y a plus deux récits : il y a une mesure, lue à deux endroits. Et le
- * bouton sert enfin à quelque chose de vérifiable, au lieu de ne poser qu'une
- * autorisation dont personne ne se servait.
  *
  * ═══ ACCESSIBILITÉ / MOUVEMENT ══════════════════════════════════════════════
  * Aucune animation propre à cet écran (rien à désactiver sous Reduce Motion) ;
@@ -99,26 +97,15 @@ import { Card, IconPlate } from '../../src/ui/Card';
 import { Icon } from '../../src/ui/Icon';
 import {
   MOTION_LINE,
-  NOTIFICATIONS_LINE,
   analyticsResult,
   canAsk,
   cardAction,
   cardState,
   isGranted,
-  notificationsDeliveryLine,
   type PermissionCardState,
   type PermissionSensor,
-  type PushDeliveryProbe,
 } from '../../src/features/setup/permissionCards';
-import { notifPrefsToChannels } from '../../src/features/notifications/notifPrefs';
-import { useNotificationPrefs } from '../../src/features/notifications/notifPrefsStore';
-import { useDeviceNotifications } from '../../src/features/notifications/useDeviceNotifications';
-import type { PushStatus } from '../../src/features/notifications/push';
-import {
-  MOTION_SENSOR,
-  NOTIFICATIONS_SENSOR,
-  OPEN_APP_SETTINGS,
-} from '../../src/features/setup/permissionSensors';
+import { MOTION_SENSOR, OPEN_APP_SETTINGS } from '../../src/features/setup/permissionSensors';
 
 /**
  * SORTIE du parcours de premier usage : E10 est le DERNIER écran de `/setup/*`,
@@ -132,20 +119,6 @@ import {
  * pas.
  */
 const NEXT_STEP = '/';
-
-/**
- * ÉGALITÉ FORCÉE des deux unions de statut push. `permissionCards.ts` est un
- * module PUR : il ne peut pas `import type { PushStatus }` de
- * `features/notifications/push.ts` (qui tire react-native, AsyncStorage,
- * expo-constants et Supabase — Deno type-checke le fichier entier). Il en porte
- * donc un miroir littéral, `PushDeliveryProbe`. Les deux affectations croisées
- * ci-dessous sont la garde : `tsc` refuse la moindre divergence de membre, dans
- * un sens comme dans l'autre. C'est un contrôle de TYPE, pas du code exécuté.
- */
-type _PushProbeCoversStatus = PushStatus extends PushDeliveryProbe ? true : never;
-type _PushStatusCoversProbe = PushDeliveryProbe extends PushStatus ? true : never;
-const _PUSH_UNIONS_MATCH: [_PushProbeCoversStatus, _PushStatusCoversProbe] = [true, true];
-void _PUSH_UNIONS_MATCH;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LE HOOK D'UNE CARTE
@@ -266,12 +239,6 @@ interface PermissionCardViewProps {
   askLabel: Entry;
   /** Table EXHAUSTIVE état → ligne (module pur), jamais un `if` local. */
   lines: Readonly<Record<PermissionCardState, Entry | null>>;
-  /**
-   * SECONDE ligne, facultative : ce que la carte sait de la LIVRAISON, une fois
-   * la permission accordée. `null`/absente = on ne sait rien, donc on se tait.
-   * Décidée par `notificationsDeliveryLine` (pur, testé) — jamais ici.
-   */
-  deliveryLine?: Entry | null;
   card: PermissionCard;
   analyticsId: string;
 }
@@ -282,7 +249,6 @@ function PermissionCardView({
   body,
   askLabel,
   lines,
-  deliveryLine = null,
   card,
   analyticsId,
 }: PermissionCardViewProps) {
@@ -312,7 +278,6 @@ function PermissionCardView({
           c'est une précision — et dans le cas dominant d'aujourd'hui, c'est un
           aveu (« pas encore livrées par cette version »). Aucun numberOfLines :
           la phrase s'enroule, elle n'est jamais coupée (§A9). */}
-      {deliveryLine === null ? null : <Text style={styles.line}>{t(deliveryLine)}</Text>}
 
       {action === 'ask' ? (
         <Button
@@ -357,49 +322,6 @@ export default function SetupPermissionsScreen() {
   const [canGoBack] = useState(() => router.canGoBack());
 
   const motion = usePermissionCard(MOTION_SENSOR, EVENTS.permissionMotion);
-  const notifications = usePermissionCard(NOTIFICATIONS_SENSOR, EVENTS.permissionNotifications);
-
-  /**
-   * ═══ « AUTORISÉ » NE SUFFIT PAS : ON VA VOIR SI ÇA ARRIVE (27/07/2026) ═════
-   *
-   * Cet écran n'enregistrait PAS l'appareil auprès du serveur de push, et
-   * l'arbitrage était écrit en tête de fichier : « le second a déjà son écran et
-   * son diagnostic honnête dans Réglages ». Le prix de cet arbitrage était une
-   * contradiction INTERNE au même binaire : E10 affichait « Autorisé » et
-   * annonçait trois messages (`notificationsBody`), pendant que Réglages ›
-   * Notifications affichait « Pas encore disponibles sur cette version de
-   * l'app » pour EXACTEMENT la même situation — les credentials APNs/FCM ne sont
-   * pas déposés sur EAS (app.json `_note_push_perimetre3`). Deux récits d'un
-   * seul fait, et l'écran que 100 % des nouveaux traversent portait l'optimiste.
-   *
-   * On ne corrige pas ça en rabotant la copie (une phrase plus vague resterait
-   * une phrase non vérifiée) : on va CHERCHER le fait. `useDeviceNotifications`
-   * est le même hook que Réglages, `registerPushDevice` le même appel, les mêmes
-   * canaux (`notifPrefsToChannels`) et le même diagnostic à huit valeurs. Il n'y
-   * a donc plus deux récits, il y a une seule mesure lue à deux endroits.
-   *
-   * AUCUN DIALOGUE SYSTÈME EN DOUBLE : l'appel ne part qu'APRÈS un `granted`
-   * CONSTATÉ, et `registerPushDevice` commence par `getPermissionsAsync` — il ne
-   * redemande rien quand c'est déjà accordé. Sur web `NOTIFICATIONS_SENSOR` est
-   * `null` : l'état reste `unavailable`, donc rien ne part.
-   * UNE SEULE FOIS : `enable()` change d'identité à chaque rendu (il dépend de
-   * `busy`), un effet qui en dépendrait boucherait. Le drapeau `ref` est ce qui
-   * garantit un unique enregistrement par passage sur l'écran.
-   */
-  const { prefs: notifPrefs } = useNotificationPrefs();
-  const push = useDeviceNotifications(notifPrefsToChannels(notifPrefs));
-  const pushArmed = useRef(false);
-  const notificationsGranted = isGranted(notifications.state);
-  useEffect(() => {
-    if (!notificationsGranted || pushArmed.current) return;
-    pushArmed.current = true;
-    push.enable();
-    // `push` est volontairement HORS des dépendances : seul le passage à
-    // « accordé » doit déclencher l'enregistrement, et le drapeau ci-dessus le
-    // rend idempotent.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notificationsGranted]);
-
   useEffect(() => {
     track(EVENTS.setupPermissionsViewed);
   }, []);
@@ -414,12 +336,12 @@ export default function SetupPermissionsScreen() {
   const onContinue = useCallback(() => {
     if (left.current) return;
     left.current = true;
-    track(EVENTS.setupPermissionsCompleted, {
-      motion: isGranted(motion.state),
-      notifications: isGranted(notifications.state),
-    });
+    // La clé `notifications` a DISPARU de cet event, et c'est le correctif :
+    // cet écran ne demande plus cette permission, il n'a donc plus rien à en
+    // mesurer. Un `false` constant aurait été un faux zéro dans les tableaux.
+    track(EVENTS.setupPermissionsCompleted, { motion: isGranted(motion.state) });
     router.replace(NEXT_STEP);
-  }, [motion.state, notifications.state]);
+  }, [motion.state]);
 
   return (
     <View style={styles.root}>
@@ -459,23 +381,6 @@ export default function SetupPermissionsScreen() {
           lines={MOTION_LINE}
           card={motion}
           analyticsId="setup_e10_motion"
-        />
-
-        <PermissionCardView
-          icon="cloche"
-          title={C.notificationsTitle}
-          body={C.notificationsBody}
-          askLabel={C.notificationsCta}
-          lines={NOTIFICATIONS_LINE}
-          // Tant que l'enregistrement court (`busy`), on ne dit RIEN de la
-          // livraison : un aller-retour en vol n'affirme rien sur le joueur.
-          // `idle` (jamais tenté) rend `null` de la même façon, et c'est le
-          // module pur qui le décide.
-          deliveryLine={
-            push.busy ? null : notificationsDeliveryLine(notifications.state, push.status)
-          }
-          card={notifications}
-          analyticsId="setup_e10_notifications"
         />
 
         <Text style={styles.footnote}>{t(C.footnote)}</Text>

@@ -30,19 +30,20 @@
  *   déclarée par le manifeste de la bibliothèque
  *   (node_modules/expo-sensors/android/src/main/AndroidManifest.xml) et fusionnée
  *   au build — elle n'a donc pas à figurer dans `android.permissions`.
- * · Notifications — iOS : entitlement `aps-environment` posé par le plugin
- *   `expo-notifications` (app.json). Android 13+ : `POST_NOTIFICATIONS`, déclarée
- *   par le manifeste de la bibliothèque (même mécanique).
- * Sans ces déclarations, la demande échouerait à coup sûr et il ne faudrait
+ * Sans cette déclaration, la demande échouerait à coup sûr et il ne faudrait
  * peindre aucune carte — ce n'est pas le cas ici.
+ * · Notifications — plus rien à déclarer ici : ce module n'expose plus de
+ *   provider de notification (voir le bloc du bas). L'entitlement iOS
+ *   `aps-environment` est d'ailleurs RETIRÉ de chaque build par
+ *   `plugins/withoutPushEntitlement.js`.
  *
  * ─── CE QUE CE MODULE NE FAIT PAS, ET POURQUOI ──────────────────────────────
- * Il n'enregistre PAS l'appareil pour le push serveur (`features/notifications/
- * push.ts`). E10 obtient l'autorisation SYSTÈME ; l'état de la chaîne push (token
- * Expo, credentials APNs/FCM) a déjà son écran et son diagnostic honnête dans
- * Réglages › Notifications. Le dupliquer ici produirait deux récits pour une
- * seule situation — c'est l'arbitrage déjà pris pour la position en E05, qui
- * demande la permission sans refaire le travail de la carte.
+ * Il ne touche plus du tout aux notifications — ni permission, ni
+ * enregistrement d'appareil. L'état complet de la chaîne (capacité du build,
+ * permission, préférences §14.1) a un seul récit, dans Réglages ›
+ * Notifications. En avoir un deuxième ici avait produit exactement ce que ce
+ * dépôt appelle un mensonge : E10 disait « Autorisé » pendant que Réglages
+ * disait « pas encore disponibles », pour le même fait.
  */
 import { Linking } from 'react-native';
 import { Pedometer } from 'expo-sensors';
@@ -87,47 +88,23 @@ export const MOTION_SENSOR: PermissionSensor | null = {
   },
 };
 
-// ─── Notifications ───────────────────────────────────────────────────────────
+// ─── Notifications : PLUS DE PROVIDER ICI (10/09/2026) ──────────────────────
 //
-// Module chargé PARESSEUSEMENT (patron `features/notifications/push.ts` et
-// `localReminder.ts`) : sur un build antérieur à l'ajout d'expo-notifications,
-// l'app ne plante pas — la carte dit « indisponible » et ne peint aucun bouton.
-
-type NotificationsModule = typeof import('expo-notifications');
-
-function loadNotifications(): NotificationsModule | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('expo-notifications') as NotificationsModule;
-  } catch (e) {
-    console.warn('[GRYD] expo-notifications absent de ce build', e);
-    return null;
-  }
-}
-
-export const NOTIFICATIONS_SENSOR: PermissionSensor | null = {
-  async supported() {
-    return loadNotifications() !== null;
-  },
-  async check() {
-    const N = loadNotifications();
-    if (N === null) return null;
-    try {
-      return toProbe(await N.getPermissionsAsync());
-    } catch {
-      return null;
-    }
-  },
-  async request() {
-    const N = loadNotifications();
-    if (N === null) return null;
-    try {
-      return toProbe(await N.requestPermissionsAsync());
-    } catch {
-      return null;
-    }
-  },
-};
+// `NOTIFICATIONS_SENSOR` vivait ici et E10 s'en servait pour demander la
+// permission système AU PREMIER LANCEMENT. C'est exactement ce que l'en-tête de
+// ce fichier interdit — « chaque permission est demandée au moment de son
+// bénéfice » — et le cahier §14.1 le redit derrière Apple. Pire : la permission
+// partait pour un push DISTANT que ce build ne peut pas recevoir
+// (`plugins/withoutPushEntitlement.js` retire `aps-environment` ; aucun
+// `google-services.json` n'existe), et iOS ne présente cette boîte qu'UNE fois
+// — un refus à froid condamnait aussi les rappels LOCAUX, seule chose que GRYD
+// sache réellement envoyer aujourd'hui.
+//
+// La permission de notification est désormais demandée par le module qui a
+// quelque chose à programmer, à l'instant où il le programme :
+// `features/notifications/localReminder.ts` et `resultReadyNotice.ts`. Aucune
+// autre entrée ne doit exister : un provider ici serait la tentation permanente
+// de la redemander à froid.
 
 /**
  * Réglages système de l'app — la SEULE action encore vivante quand une

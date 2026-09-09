@@ -16,9 +16,20 @@
  * DÉPENDANCE NATIVE chargée paresseusement (patron push.ts) : sur un build sans le
  * module, l'app ne plante pas — statut `module_missing`. Web → `unsupported`.
  * PUR d'i18n : le titre/corps arrivent en prop, résolus par l'écran.
+ *
+ * ─── SOUS « ÉVÉNEMENTS SUIVIS » DEPUIS LE 10/09/2026 ────────────────────────
+ * Le cahier §14.2 range ce rappel dans « sortie suivie / rappel choisi », donc
+ * sous la préférence « événements suivis » de §14.1. Il partait jusqu'ici sans
+ * consulter aucune préférence : couper la catégorie dans les Réglages ne
+ * l'aurait pas arrêté, et l'écran de Réglages aurait donc menti.
+ *
+ * Il ne consomme PAS le budget de 3 par semaine — c'est un rappel que le joueur
+ * a posé lui-même, à l'heure qu'il a choisie : le cahier compte les
+ * SOLLICITATIONS, pas les rendez-vous demandés. La préférence, elle, s'applique.
  */
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { NotificationSettings2026 } from './notifications2026';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -26,6 +37,8 @@ type NotificationsModule = typeof import('expo-notifications');
 export type ReminderStatus =
   /** Le rappel local est posé — il partira vraiment à l'heure choisie. */
   | 'scheduled'
+  /** « Événements suivis » est coupée (§14.1) : rien ne doit être posé. */
+  | 'category_off'
   /** Le joueur a refusé la permission — un choix, pas une panne. */
   | 'permission_denied'
   /** Web / preview : pas de notification locale à poser ici. */
@@ -79,7 +92,12 @@ export async function scheduleDailyRendezvous(
   hour: number,
   minute: number,
   content: RendezvousContent,
+  settings: NotificationSettings2026,
 ): Promise<ReminderStatus> {
+  // La préférence AVANT la permission : demander un accès système pour un
+  // rappel que le joueur a déjà refusé dans les Réglages serait le même geste
+  // à l'envers que celui qu'on vient de corriger dans `push.ts`.
+  if (!settings.events) return 'category_off';
   if (Platform.OS === 'web') return 'unsupported';
   const N = loadModule();
   if (!N) return 'module_missing';
