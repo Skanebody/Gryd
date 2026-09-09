@@ -198,15 +198,31 @@ export interface HexClaimResult {
 
 /** Payload de célébration renvoyé au client (< 3 s après la fin de course). */
 export interface IngestRunResponse {
+  /**
+   * CONTRAT DE CAPTURE (cahier §5.4/§5.6). Le seul champ qui dit la vérité sur
+   * le terrain : `status` (le `status` de premier niveau ci-dessous parle de
+   * l'ACTIVITÉ SPORTIVE, qui reste valable même sans capture — §5.2).
+   *  · `published`  la carte partagée a changé ; les surfaces sont définitives ;
+   *  · `scheduled`  acquisition validée, publication différée (§5.6) ;
+   *  · `pending`    en attente RÉSOLUBLE (revue, ou renvoi de la sortie) ;
+   *  · `rejected`   refus DÉFINITIF, avec son motif — jamais un purgatoire ;
+   *  · `private`    la sortie ne participe pas à la carte partagée ;
+   *  · `no_loop`    aucune boucle admissible : la sortie sportive reste entière.
+   * `reason` est un identifiant STABLE ; `reasonDetail` porte les nombres qui
+   * l'expliquent au joueur (mètres manquants, précision observée, dérive).
+   * `provisional` : les surfaces sont un estimé AVANT publication, pas un acquis.
+   */
   territory2026?: {
     ruleset: string;
-    status: 'private' | 'pending' | 'scheduled' | 'published' | 'no_loop';
+    status: 'private' | 'pending' | 'scheduled' | 'published' | 'rejected' | 'no_loop';
     reason?: string;
+    reasonDetail?: Record<string, number>;
     loopAreaM2: number;
     newTerrainM2: number | null;
     alreadyOwnedM2: number | null;
     neutralTakenM2: number | null;
     takenFromOthersM2: number | null;
+    provisional?: boolean;
     publishAfter?: string | null;
   };
   runId: string;

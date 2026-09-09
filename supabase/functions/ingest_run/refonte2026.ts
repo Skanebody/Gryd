@@ -1,5 +1,32 @@
 /** Active ingestion since 2026.1. The legacy pipeline is deliberately bypassed.
  * Save the sport first; independent progress; stage atomic delayed polygon effects.
+ *
+ * ─── CONTRAT DE RÉPONSE (lu par apps/mobile RunResult.tsx) ──────────────────
+ * `status` (premier niveau) parle de L'ACTIVITÉ SPORTIVE et vaut `'valid'` dès
+ * qu'elle est enregistrée : le cahier §5.2 interdit de présenter une sortie
+ * sans boucle comme un échec. Il ne dit RIEN du terrain, et rien ne doit être
+ * déverrouillé sur lui.
+ *
+ * `territory2026` est le seul juge du terrain :
+ *   status  = published | scheduled | pending | rejected | private | no_loop
+ *   reason  = identifiant STABLE (moteur : no_admissible_loop, loop_too_small,
+ *             gps_quality_unconfirmed ; base : shared_map_not_authorized,
+ *             protected_place, verification_required, source_or_clock_unconfirmed,
+ *             no_recording_session, clock_drift_too_large, receipt_window_expired,
+ *             closure_crosses_known_barrier, consent_withdrawn, source_deleted,
+ *             result_pending). Registre complet : _shared/engine/capture2026.ts.
+ *   reasonDetail = les NOMBRES qui expliquent le refus (missingLengthM,
+ *             observedAccuracyM, driftS…). Un motif nu ne se raconte pas.
+ *   provisional  = true tant que la capture n'est pas publiée : les surfaces
+ *             sont un ESTIMÉ contre la possession actuelle, pas un acquis.
+ *   loopAreaM2 / newTerrainM2 / neutralTakenM2 / takenFromOthersM2 /
+ *   alreadyOwnedM2 suivent §5.4 : on ne somme jamais des polygones qui se
+ *   recouvrent comme s'ils étaient du terrain neuf.
+ *
+ * `progression2026.status` (confirmed | pending) est INDÉPENDANT du terrain
+ * (§5.5 règle 8 : un échec géographique ne bloque pas les XP sportifs).
+ * Un partage ou une progression ne se gate JAMAIS sur `status` de premier
+ * niveau : `published` pour annoncer un gain, `progression2026` pour les XP.
  */
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@^2';
 import { cellToLatLng } from 'npm:h3-js@^4.1';
@@ -17,9 +44,10 @@ import { publicationMasks2026 } from './captureMasks2026.ts';
 
 type Request2026 = IngestRunRequest & { recordingSessionId?: string; sharedMapParticipation?: boolean; recordingOwnerId?: string | null };
 type Response2026 = IngestRunResponse & {
-  territory2026: { ruleset: string; status: string; reason?: string; loopAreaM2: number;
+  territory2026: { ruleset: string; status: string; reason?: string;
+    reasonDetail?: Record<string, number>; loopAreaM2: number;
     newTerrainM2: number | null; alreadyOwnedM2: number | null; neutralTakenM2: number | null;
-    takenFromOthersM2: number | null; publishAfter?: string };
+    takenFromOthersM2: number | null; provisional?: boolean; publishAfter?: string };
   progression2026: { status: 'confirmed' | 'pending'; totalXp?: number; xpReason?: string };
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -202,18 +230,49 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
         p_clock_tolerance_s:TERRITORY_RULES_2026.clockToleranceSeconds,
         p_unverified_reason:clock.verified?null:clock.reason});
       check(staged.error,'capture staging');
+      // Défis de la semaine (migration 0166) : le carreau et la signature d'une
+      // boucle se calculent sur le GeoJSON produit par le moteur PUR, ici et
+      // maintenant, sans PostGIS — c'est ce qui garde la règle rejouable sous
+      // PGlite. Le rangement est idempotent et n'écrit QUE pour les faces que
+      // la mise en scène vient de retenir. Isolé : un échec de ce fait
+      // secondaire ne doit coûter ni le résultat de capture, ni la trace
+      // masquée qui le suivent.
+      try {
+        const localities=await db.rpc('note_weekly_quest_faces_2026',{p_run_id:run.id,p_faces:authoritativeAnalysis.faces});
+        check(localities.error,'weekly quest localities');
+      } catch(e) { console.error('[ingest2026] weekly quest localities pending',e); }
       const capture=await db.rpc('capture_result_2026',{p_run_id:run.id});
       check(capture.error,'capture result'); result.territory2026=capture.data;
+      // R2S-5/9 — « Choisir le motif exact » (§5.5). Le moteur rend un
+      // identifiant STABLE et les nombres qui l'expliquent au joueur ; l'écran
+      // n'a plus à deviner ce qui a manqué.
       if(result.territory2026.status==='no_loop') {
-        result.territory2026.reason=authoritativeAnalysis.qualityBreaks>0?'gps_quality_unconfirmed':authoritativeAnalysis.rejectedSmallLoops>0?'loop_too_small':'no_admissible_loop';
-        const reason=await db.from('runs').update({game_reason_2026:result.territory2026.reason}).eq('id',run.id);
-        check(reason.error,'capture reason');
+        const rejection=captureRejection2026(authoritativeAnalysis,run.activity as 'run'|'bike');
+        if(rejection) {
+          result.territory2026.reason=rejection.code;
+          result.territory2026.reasonDetail=rejection.detail;
+          const reason=await db.from('runs').update({game_reason_2026:rejection.code}).eq('id',run.id);
+          check(reason.error,'capture reason');
+        }
+      }
+      // La dérive mesurée voyage avec son motif : « ton téléphone avance de N s »
+      // vaut mieux qu'un « origine ou horaire à confirmer » incompréhensible.
+      if(!clock.verified && clock.driftS>0 && result.territory2026.reason===clock.reason) {
+        result.territory2026.reasonDetail={driftS:clock.driftS,
+          toleranceS:TERRITORY_RULES_2026.clockToleranceSeconds};
       }
       // Only publish a masked trace. Never join disjoint trace segments for media.
       const masked=analysis.segments.length===1 ? maskedPolylineFor(points,masks.media.map(m=>({center:{lat:m.lat,lng:m.lng},radiusM:m.radiusM}))) : null;
       const stored=await db.from('runs').update({polyline_masked:masked}).eq('id',run.id);
       check(stored.error,'masked trace');
-    } catch(e) { console.error('[ingest2026] geometry pending; activity saved',e); }
+    } catch(e) {
+      console.error('[ingest2026] geometry pending; activity saved',e);
+      // L'activité est sauvée, le terrain non traité. On le DIT plutôt que de
+      // laisser un `pending` muet ressembler à une attente de publication.
+      if(result.territory2026.status==='pending' && !result.territory2026.reason) {
+        result.territory2026.reason='result_pending';
+      }
+    }
     const celebration=await db.from('runs').update({celebration:result}).eq('id',run.id);
     check(celebration.error,'activity result');
     return json(result);

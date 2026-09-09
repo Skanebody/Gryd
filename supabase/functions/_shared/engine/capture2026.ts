@@ -95,6 +95,9 @@ export const CAPTURE_SERVER_REASONS_2026 = [
   'shared_map_not_authorized', 'protected_place', 'consent_withdrawn', 'source_deleted',
   'verification_required', 'source_or_clock_unconfirmed', 'clock_drift_too_large',
   'closure_crosses_known_barrier', 'no_recording_session', 'receipt_window_expired',
+  // Transitoire, et nommé pour ça : la géométrie n'a pas pu être traitée à
+  // cette tentative. L'activité est sauvée ; le terrain sera repris au renvoi.
+  'result_pending',
 ] as const;
 export type CaptureServerReason2026 = typeof CAPTURE_SERVER_REASONS_2026[number];
 export type CaptureReason2026 = CaptureRejectCode2026 | CaptureServerReason2026;

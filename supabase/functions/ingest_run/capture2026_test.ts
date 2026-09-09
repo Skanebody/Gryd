@@ -1,6 +1,7 @@
 import { publicationMasks2026 } from './captureMasks2026.ts';
 import { assert, assertEquals, assertAlmostEquals, assertThrows } from 'jsr:@std/assert@^1';
-import { analyzeTrace2026, captureRejection2026 } from '../_shared/engine/capture2026.ts';
+import { analyzeTrace2026, captureRejection2026, CAPTURE_REASON_TEXT_2026,
+  CAPTURE_SERVER_REASONS_2026 } from '../_shared/engine/capture2026.ts';
 import { GPS_ACCURACY_MAX_M, POINT_MAX_GAP_S, TERRITORY_RULES_2026 } from '../_shared/game-rules.ts';
 import { pointsAfterAnchor2026, requiresReview2026, sourceClockVerdict2026 } from './refonte2026.ts';
 import { scoreRun } from '../_shared/engine/anticheat.ts';
@@ -182,4 +183,40 @@ Deno.test('2026: a closed undersized face is distinguishable from an open route'
   const small=analyzeTrace2026(trace([[0,0],[100,0],[100,100],[0,100],[0,0]],{step:10}),'run');
   assertEquals(small.faces.length,0); assert(small.rejectedSmallLoops>0);
   assertEquals(analyzeTrace2026(trace([[0,0],[500,0]]),'run').rejectedSmallLoops,0);
+});
+
+// ─── R2S-5 : le statut de la réponse dit la vérité ─────────────────────────
+Deno.test('2026: the response contract names every terrain state, and gates nothing on the sporting status',async()=>{
+  const source=await Deno.readTextFile(new URL('./refonte2026.ts',import.meta.url));
+  const header=source.slice(0,source.indexOf('*/'));
+  for(const state of ['published','scheduled','pending','rejected','private','no_loop']) {
+    assert(header.includes(state),`le contrat d'en-tête doit nommer l'état ${state}`);
+  }
+  assert(header.includes('reasonDetail'),'le contrat annonce les nombres qui expliquent un refus');
+  assert(header.includes('provisional'),'le contrat annonce que les surfaces avant publication sont un estimé');
+  // Le `status` de premier niveau parle du SPORT : il ne doit jamais devenir
+  // l'état du terrain, sinon l'écran redéverrouille partage et progression.
+  assert(!/territory2026\.status\s*=\s*'valid'/.test(source),'');
+  assert(source.includes("result.territory2026=capture.data"),'le terrain vient de la base, pas d’un défaut client');
+  const types=await Deno.readTextFile(new URL('../_shared/types.ts',import.meta.url));
+  assert(/status: 'private' \| 'pending' \| 'scheduled' \| 'published' \| 'rejected' \| 'no_loop'/.test(types),
+    'le type partagé porte l’état terminal `rejected`');
+});
+Deno.test('2026: an unprocessed geometry is NAMED, never a silent wait',async()=>{
+  const source=await Deno.readTextFile(new URL('./refonte2026.ts',import.meta.url));
+  assert(source.includes("result.territory2026.reason='result_pending'"),'');
+  assert(CAPTURE_SERVER_REASONS_2026.includes('result_pending'),'le motif appartient au registre stable');
+});
+Deno.test('2026: every engine refusal carries a stable id AND the numbers behind it',()=>{
+  const cases:[RunPoint[],string,string][]=[
+    [trace([[0,0],[5000,0]]),'no_admissible_loop','closureGapM'],
+    [trace([[0,0],[100,0],[100,100],[0,100],[0,0]],{step:10}),'loop_too_small','missingLengthM'],
+    [trace(square).map(({acc:_,...p})=>p),'gps_quality_unconfirmed','captureMaxAccuracyM'],
+  ];
+  for(const [points,code,key] of cases) {
+    const rejection=captureRejection2026(analyzeTrace2026(points,'run'),'run');
+    assertEquals(rejection?.code,code);
+    assert(rejection!==null && Number.isFinite(rejection.detail[key]),`${code} doit porter ${key}`);
+    assert(CAPTURE_REASON_TEXT_2026[rejection.code].length>0,'chaque identifiant a sa formulation de cahier');
+  }
 });
