@@ -2,7 +2,7 @@ import { publicationMasks2026 } from './captureMasks2026.ts';
 import { assert, assertEquals, assertAlmostEquals, assertThrows } from 'jsr:@std/assert@^1';
 import { analyzeTrace2026, captureRejection2026 } from '../_shared/engine/capture2026.ts';
 import { GPS_ACCURACY_MAX_M, POINT_MAX_GAP_S, TERRITORY_RULES_2026 } from '../_shared/game-rules.ts';
-import { pointsAfterAnchor2026, requiresReview2026, sourceClockVerified2026 } from './refonte2026.ts';
+import { pointsAfterAnchor2026, requiresReview2026, sourceClockVerdict2026 } from './refonte2026.ts';
 import { scoreRun } from '../_shared/engine/anticheat.ts';
 import { computeProgressLedger2026 } from '../_shared/progression2026.ts';
 import { computeStats, filterPoints } from '../_shared/engine/validation.ts';
@@ -89,19 +89,44 @@ Deno.test('2026: native session binds physical clock, client identity and discip
   const points=trace(square);
   const input={source:'gps',activity:'run',clientRunId:'a',points,receivedAt:new Date(points.at(-1)!.t+1000).toISOString(),
     session:{activity:'run',client_run_id:'a',started_at:new Date(origin-1000).toISOString()}};
-  assert(sourceClockVerified2026(input));
-  assertEquals(sourceClockVerified2026({...input,source:'gpx'}),false);
-  assertEquals(sourceClockVerified2026({...input,session:null}),false);
-  assertEquals(sourceClockVerified2026({...input,activity:'bike'}),false);
-  assertEquals(sourceClockVerified2026({...input,points:points.map(p=>({...p,t:p.t-86400_000}))}),false);
+  assertEquals(sourceClockVerdict2026(input).verified,true);
+  assertEquals(sourceClockVerdict2026({...input,source:'gpx'}).verified,false);
+  assertEquals(sourceClockVerdict2026({...input,activity:'bike'}).verified,false);
+  // Sans session, le motif dit LAQUELLE des deux causes, pour que le serveur
+  // sache si l'attente est résoluble (R2S-4/8) — jamais un `false` muet.
+  const noSession=sourceClockVerdict2026({...input,session:null});
+  assertEquals(noSession.verified,false);
+  assertEquals(noSession.verified===false&&noSession.reason,'no_recording_session');
+  const expired=sourceClockVerdict2026({...input,session:null,unavailableReason:'receipt_window_expired'});
+  assertEquals(expired.verified===false&&expired.reason,'receipt_window_expired');
+});
+Deno.test('2026: a few seconds of NTP drift no longer suspend an entire territory',()=>{
+  const points=trace(square);
+  const drifted=(seconds:number)=>({source:'gps',activity:'run',clientRunId:'a',
+    points:points.map(p=>({...p,t:p.t+seconds*1000})),
+    receivedAt:new Date(points.at(-1)!.t+1000).toISOString(),
+    session:{activity:'run',client_run_id:'a',started_at:new Date(origin-1000).toISOString()}});
+  assertEquals(sourceClockVerdict2026(drifted(2)).verified,true);
+  assertEquals(sourceClockVerdict2026(drifted(-2)).verified,true);
+  const tolerance=TERRITORY_RULES_2026.clockToleranceSeconds;
+  assertEquals(sourceClockVerdict2026(drifted(tolerance)).verified,true);
+  const beyond=sourceClockVerdict2026(drifted(tolerance*3));
+  assertEquals(beyond.verified,false);
+  assertEquals(beyond.verified===false&&beyond.reason,'clock_drift_too_large');
+  assert(beyond.verified===false&&beyond.driftS>=tolerance);
 });
 Deno.test('2026: GPS startup before the server anchor preserves the authoritative suffix',()=>{
   const points=trace(square);
-  const anchor=new Date(points[2]!.t).toISOString();
+  const tolerance=TERRITORY_RULES_2026.clockToleranceSeconds;
+  // Une ancre postérieure de PLUS que la tolérance : là, les points d'avant
+  // sont bien du pré-enregistrement, pas de la dérive d'horloge.
+  const anchor=new Date(points[2]!.t+tolerance*1000).toISOString();
   const eligible=pointsAfterAnchor2026(points,anchor);
   assertEquals(eligible.length,points.length-2);
   assertEquals(eligible[0]!.breakBefore,true);
-  assertEquals(pointsAfterAnchor2026(points,new Date(points.at(-1)!.t+1).toISOString()),[]);
+  // Deux secondes de retard d'horloge ne font plus disparaître la sortie.
+  assertEquals(pointsAfterAnchor2026(points,new Date(points[0]!.t+2000).toISOString()).length,points.length);
+  assertEquals(pointsAfterAnchor2026(points,new Date(points.at(-1)!.t+tolerance*1000+1).toISOString()),[]);
 });
 Deno.test('2026: ten minutes of slow sport earn the day despite legacy pace exclusions',()=>{
   const points=trace([[0,0],[720,0]],{step:12}).map((p,i)=>({...p,

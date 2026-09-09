@@ -5,7 +5,8 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@^2';
 import { cellToLatLng } from 'npm:h3-js@^4.1';
 import { RULESET_VERSION_2026, TERRITORY_RULES_2026, INGEST_MAX_RUNS_PER_HOUR } from '../_shared/game-rules.ts';
 import type { IngestRunRequest, IngestRunResponse, RunPoint } from '../_shared/types.ts';
-import { analyzeTrace2026 } from '../_shared/engine/capture2026.ts';
+import { analyzeTrace2026, captureRejection2026, CAPTURE_SERVER_REASONS_2026,
+  type CaptureServerReason2026 } from '../_shared/engine/capture2026.ts';
 import { scoreRun, type AntiCheatDecision } from '../_shared/engine/anticheat.ts';
 import { recomputeProgression2026 } from '../_shared/recomputeProgress2026.ts';
 // LOT C, ligne du motif d'XP uniquement (constat 3) : un zéro sans motif est un
@@ -25,21 +26,55 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const check = (error: { message: string } | null, context: string) => { if (error) throw new Error(`${context}: ${error.message}`); };
 
-export function sourceClockVerified2026(input: {
+/**
+ * R2S-3 — DEUX HORLOGES NE SONT JAMAIS À LA MILLISECONDE L'UNE DE L'AUTRE.
+ * L'ancienne version exigeait `p.t >= startedAt && p.t <= receivedAt` au ratio
+ * près : deux secondes de dérive NTP — une banalité — suspendaient TOUT le
+ * territoire d'une sortie, en silence. La dérive admise vient maintenant de
+ * `TERRITORY_RULES_2026.clockToleranceSeconds`, et au-delà le verdict porte son
+ * motif ET la dérive mesurée, pour que le joueur puisse l'entendre.
+ */
+export type ClockVerdict2026 =
+  | { verified: true }
+  | { verified: false; reason: CaptureServerReason2026; driftS: number };
+
+export function sourceClockVerdict2026(input: {
   source: string; activity: string; clientRunId: string; points: readonly RunPoint[];
   receivedAt: string; session: { activity: string; client_run_id: string; started_at: string } | null;
-}): boolean {
-  if (input.source !== 'gps' || !input.session || input.session.activity !== input.activity ||
-      input.session.client_run_id !== input.clientRunId || !input.points.length) return false;
+  toleranceS?: number; unavailableReason?: string;
+}): ClockVerdict2026 {
+  const tolerance = Math.max(0, input.toleranceS ?? TERRITORY_RULES_2026.clockToleranceSeconds) * 1000;
+  const refuse = (reason: CaptureServerReason2026, driftS = 0): ClockVerdict2026 =>
+    ({ verified: false, reason, driftS });
+  if (!input.session) {
+    const named = CAPTURE_SERVER_REASONS_2026.find((r) => r === input.unavailableReason);
+    return refuse(named ?? 'no_recording_session');
+  }
+  if (input.source !== 'gps' || input.session.activity !== input.activity ||
+      input.session.client_run_id !== input.clientRunId || !input.points.length) {
+    return refuse('source_or_clock_unconfirmed');
+  }
+  for (let i = 1; i < input.points.length; i++) {
+    if (input.points[i]!.t <= input.points[i - 1]!.t) return refuse('source_or_clock_unconfirmed');
+  }
   const lower = Date.parse(input.session.started_at), upper = Date.parse(input.receivedAt);
-  return input.points.every((p, i) => p.t >= lower && p.t <= upper && (i === 0 || p.t > input.points[i - 1]!.t));
+  if (!Number.isFinite(lower) || !Number.isFinite(upper)) return refuse('source_or_clock_unconfirmed');
+  let drift = 0;
+  for (const p of input.points) drift = Math.max(drift, lower - p.t, p.t - upper);
+  if (drift > tolerance) return refuse('clock_drift_too_large', Math.round(drift / 1000));
+  return { verified: true };
 }
 
 /** Sensor startup can race the server anchor. Preserve the complete sporting
  * record, but only the observed-clock suffix can contribute to authoritative game.
+ * The same tolerance applies here : sans elle, une horloge en retard de deux
+ * secondes ne laissait AUCUN point après l'ancre, donc aucune capture.
  */
-export function pointsAfterAnchor2026(points: readonly RunPoint[], startedAt: string): RunPoint[] {
-  const anchor=Date.parse(startedAt);
+export function pointsAfterAnchor2026(
+  points: readonly RunPoint[], startedAt: string,
+  toleranceS: number = TERRITORY_RULES_2026.clockToleranceSeconds,
+): RunPoint[] {
+  const anchor=Date.parse(startedAt)-Math.max(0,toleranceS)*1000;
   if(!Number.isFinite(anchor)) return [];
   const index=points.findIndex(p=>p.t>=anchor);
   if(index<0) return [];
@@ -118,11 +153,26 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
       territory2026: { ruleset:RULESET_VERSION_2026,status:'pending',loopAreaM2:0,newTerrainM2:null,alreadyOwnedM2:null,neutralTakenM2:null,takenFromOthersM2:null },
       progression2026: { status:'pending' },
     };
-    const sessionResult = run.recording_session_id_2026
-      ? await db.from('recording_sessions_2026').select('activity,client_run_id,started_at').eq('id',run.recording_session_id_2026).eq('user_id',userId).maybeSingle()
+    // R2S-8 — UN DÉPART SANS SESSION RESTE RÉCUPÉRABLE. `begin_recording_2026`
+    // part en « fire and forget » côté client : réseau coupé au départ = aucune
+    // session, donc capture suspendue à vie. Le cahier §5.5 ADMET le hors-ligne
+    // sous 24 h : le serveur reconstitue la session à partir de l'évidence déjà
+    // persistée (jamais d'un champ de requête), et la marque comme adoptée.
+    const adoption = await db.rpc('adopt_recording_session_2026',{p_run_id:run.id,
+      p_clock_tolerance_s:TERRITORY_RULES_2026.clockToleranceSeconds,
+      p_receipt_max_hours:TERRITORY_RULES_2026.captureReceiptMaxAgeHours});
+    const adopted = (adoption.data ?? null) as { id?:string; reason?:string } | null;
+    const sessionId = adopted?.id ?? run.recording_session_id_2026 ?? null;
+    const sessionResult = sessionId
+      ? await db.from('recording_sessions_2026').select('activity,client_run_id,started_at').eq('id',sessionId).eq('user_id',userId).maybeSingle()
       : { data:null,error:null };
     const anchoredPoints=sessionResult.data ? pointsAfterAnchor2026(points,sessionResult.data.started_at) : [];
-    const sourceVerified = !sessionResult.error && sourceClockVerified2026({ source:run.source,activity:run.activity,clientRunId:run.client_run_id,points:anchoredPoints,receivedAt:run.created_at,session:sessionResult.data });
+    const clock = sessionResult.error
+      ? { verified:false as const, reason:'source_or_clock_unconfirmed' as const, driftS:0 }
+      : sourceClockVerdict2026({ source:run.source,activity:run.activity,clientRunId:run.client_run_id,
+          points:anchoredPoints,receivedAt:run.created_at,session:sessionResult.data,
+          ...(adopted?.reason ? { unavailableReason:adopted.reason } : {}) });
+    const sourceVerified = clock.verified;
     const authoritativeAnalysis=sourceVerified?analyzeTrace2026(anchoredPoints,run.activity):analysis;
     const antiCheat = scoreRun({ points:sourceVerified?anchoredPoints:points, activity:run.activity, source:run.source, now:Date.parse(run.created_at) });
     // Legacy segment eligibility excludes slow outings from territorial pace
@@ -148,7 +198,9 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
       const staged=await db.rpc('stage_game_activity_2026',{p_run_id:run.id,p_faces:authoritativeAnalysis.faces,
         p_segments:authoritativeAnalysis.segments.filter(segment=>segment.length>1).map(segment=>({type:'LineString',coordinates:segment.map(p=>[p.lng,p.lat])})),p_masks:masks.capture,
         p_publish_after:publishAfter,p_min_area_m2:TERRITORY_RULES_2026[run.activity as 'run'|'bike'].minAreaM2,
-        p_receipt_max_hours:TERRITORY_RULES_2026.captureReceiptMaxAgeHours,p_source_verified:sourceVerified,p_review_required:reviewRequired});
+        p_receipt_max_hours:TERRITORY_RULES_2026.captureReceiptMaxAgeHours,p_source_verified:sourceVerified,p_review_required:reviewRequired,
+        p_clock_tolerance_s:TERRITORY_RULES_2026.clockToleranceSeconds,
+        p_unverified_reason:clock.verified?null:clock.reason});
       check(staged.error,'capture staging');
       const capture=await db.rpc('capture_result_2026',{p_run_id:run.id});
       check(capture.error,'capture result'); result.territory2026=capture.data;

@@ -2,6 +2,7 @@
  * GRYD_TEST_DATABASE_URL must point at an EMPTY disposable loopback database.
  * All fixtures, migrations and assertions roll back together. No hosted target.
  */
+import { TERRITORY_RULES_2026 } from '../functions/_shared/game-rules.ts';
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,17 +53,17 @@ from generate_series(1,5) n;
 create function pg_temp.face(k text,x float8,closed timestamptz) returns jsonb language sql as $$
 select jsonb_build_array(jsonb_build_object('key',k,'closedAt',closed,'geometry',extensions.ST_AsGeoJSON(extensions.ST_MakeEnvelope(x,48,x+0.01,48.01,4326))::jsonb)) $$;
 -- A owns a square. B's delayed overlapping square causes no loss before publication.
-select public.stage_capture_2026('10000000-0000-4000-8000-000000000001',pg_temp.face('0',2,now()-interval '110 minutes'),'[]',now()-interval '1 minute',0,24,true,false);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000001',pg_temp.face('0',2,now()-interval '110 minutes'),'[]',now()-interval '1 minute',0,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
 select public.publish_capture_events_2026();
 create temp table initial as select owner_id,extensions.ST_Area(geometry::extensions.geography) area from public.ownership_2026;
-select public.stage_capture_2026('10000000-0000-4000-8000-000000000002',pg_temp.face('0',2.005,now()-interval '100 minutes'),'[]',now()+interval '30 minutes',0,24,true,false);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000002',pg_temp.face('0',2.005,now()-interval '100 minutes'),'[]',now()+interval '30 minutes',0,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
 do $$ begin
  if (select count(*) from public.ownership_2026)<>1 then raise exception 'Delayed loss leaked'; end if;
  if (public.capture_result_2026('10000000-0000-4000-8000-000000000002')->'newTerrainM2')<>'null'::jsonb then raise exception 'Pending acquisition fabricated'; end if;
 end $$;
 -- Private capture is inert; same shape in Bike never transfers Run ownership.
-select public.stage_capture_2026('10000000-0000-4000-8000-000000000003',pg_temp.face('0',2,now()-interval '90 minutes'),'[]',now()-interval '1 minute',0,24,true,false);
-select public.stage_capture_2026('10000000-0000-4000-8000-000000000004',pg_temp.face('0',2,now()-interval '90 minutes'),'[]',now()-interval '1 minute',0,24,true,false);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000003',pg_temp.face('0',2,now()-interval '90 minutes'),'[]',now()-interval '1 minute',0,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000004',pg_temp.face('0',2,now()-interval '90 minutes'),'[]',now()-interval '1 minute',0,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
 select public.publish_capture_events_2026();
 do $$ begin
  if (select count(*) from public.ownership_2026 where activity='run')<>1 then raise exception 'Private or Bike altered Run'; end if;
@@ -104,7 +105,7 @@ delete from public.friendships;
 update public.crew_members set left_at=now() where user_id='00000000-0000-4000-8000-000000000002';
 -- An older upload, arriving last, has no priority over the physically later B.
 create temp table before_late as select event_id,extensions.ST_AsEWKB(geometry) geometry from public.ownership_2026;
-select public.stage_capture_2026('10000000-0000-4000-8000-000000000005',pg_temp.face('0',2,now()-interval '115 minutes'),'[]',now()-interval '1 minute',0,24,true,false);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000005',pg_temp.face('0',2,now()-interval '115 minutes'),'[]',now()-interval '1 minute',0,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
 select public.publish_capture_events_2026();
 do $$ begin
  if exists((select event_id,extensions.ST_AsEWKB(geometry) from public.ownership_2026 except select * from before_late)
@@ -123,8 +124,8 @@ end $$;
 -- allow a normal closed face; one explicit sensitive zone blocks the WHOLE face.
 insert into public.runs(id,user_id,client_run_id,activity,source,started_at,status,ruleset_version,shared_map_consent_2026)
 select ('10000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'00000000-0000-4000-8000-000000000001',gen_random_uuid(),'run','gps',now()-interval '2 hours','valid','2026.1',true from generate_series(6,7) n;
-select public.stage_capture_2026('10000000-0000-4000-8000-000000000006',pg_temp.face('0',2.04,now()-interval '80 minutes'),'[]',now()+interval '30 minutes',5000,24,true,false);
-select public.stage_capture_2026('10000000-0000-4000-8000-000000000007',pg_temp.face('0',2.04,now()-interval '70 minutes'),'[{"lat":48,"lng":2.04,"radiusM":250}]',now()+interval '30 minutes',5000,24,true,false);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000006',pg_temp.face('0',2.04,now()-interval '80 minutes'),'[]',now()+interval '30 minutes',5000,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
+select public.stage_capture_2026('10000000-0000-4000-8000-000000000007',pg_temp.face('0',2.04,now()-interval '70 minutes'),'[{"lat":48,"lng":2.04,"radiusM":250}]',now()+interval '30 minutes',5000,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
 do $$ begin
  if (select status from public.capture_events_2026 where run_id='10000000-0000-4000-8000-000000000006')<>'scheduled' then raise exception 'Normal loop incorrectly blocked by media endpoints'; end if;
  if not exists(select 1 from public.capture_events_2026 where run_id='10000000-0000-4000-8000-000000000007' and status='private' and reason='protected_place' and extensions.ST_NumInteriorRings(extensions.ST_GeometryN(geometry,1))=0) then raise exception 'Sensitive face not wholly private'; end if;
@@ -137,7 +138,7 @@ values('10000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000
 select public.stage_capture_2026('10000000-0000-4000-8000-000000000008',
   (select jsonb_build_array(jsonb_build_object('key','self','closedAt',now()-interval '40 minutes','geometry',extensions.ST_AsGeoJSON(geometry)::jsonb))
    from public.ownership_2026 where owner_id='00000000-0000-4000-8000-000000000001' and activity='run'),
-  '[]',now()-interval '1 minute',0,24,true,false);
+  '[]',now()-interval '1 minute',0,24,true,false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
 select public.publish_capture_events_2026();
 do $$ declare r jsonb; begin
  r:=public.capture_result_2026('10000000-0000-4000-8000-000000000001');
@@ -206,7 +207,7 @@ do $$ declare r public.runs; segments jsonb; before_count integer; begin
       '[{"type":"LineString","coordinates":[[1.99,48],[1.999,48]]},{"type":"LineString","coordinates":[[2.011,48],[2.02,48]]}]'::jsonb
       else '[{"type":"LineString","coordinates":[[2,48],[2.01,48],[2.01,48.01],[2,48.01],[2,48]]}]'::jsonb end;
     perform public.stage_game_activity_2026(r.id,pg_temp.face('0',2,r.started_at+interval '15 minutes'),segments,'[]',now()+interval '30 minutes',0,24,
-      r.id<>'60000000-0000-4000-8000-000000000003',false);
+      r.id<>'60000000-0000-4000-8000-000000000003',false,${TERRITORY_RULES_2026.clockToleranceSeconds},null);
   end loop;
   if (select count(*) from public.challenge_contributions_2026)<>2 then raise exception 'Only verified local Run and admissible late Run should contribute'; end if;
   if exists(select 1 from public.challenge_contributions_2026 where sector_id<>'edge') then raise exception 'Enclosing a remote sector produced points'; end if;
@@ -225,6 +226,7 @@ try {
     readFileSync(new URL('../migrations/0119_refonte_2026_progress_ledger.sql',import.meta.url),'utf8')+
     readFileSync(new URL('../migrations/0122_refonte_2026_crew_challenges.sql',import.meta.url),'utf8')+
     readFileSync(new URL('../migrations/0123_refonte_2026_territory_read_model.sql',import.meta.url),'utf8')+
+    readFileSync(new URL('../migrations/0155_capture_admission_2026.sql',import.meta.url),'utf8')+
     assertions.replace('\nrollback;',challengeAssertions+'\nrollback;'));
   const result=spawnSync('psql',[target,'-X','-v','ON_ERROR_STOP=1','-f',sql],{stdio:'inherit'});
   if(result.error) { console.error(`NON EXÉCUTÉ : ${result.error.message}`); process.exitCode=2; }
