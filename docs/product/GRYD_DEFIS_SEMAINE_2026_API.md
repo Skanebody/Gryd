@@ -1,6 +1,7 @@
 # Défis personnels de la semaine — contrat, états, règles
 
-> Migrations `0165` → `0168` (le numéro `0169` reste libre). Constantes :
+> Migrations `0165` → `0168` (`0169`, laissé libre par ce lot, a été pris depuis par
+> `0169_challenge_measure_after_capture_admission_2026.sql`). Constantes :
 > `WEEKLY_QUEST_RULES_2026`, `WEEKLY_QUEST_CATALOGUE_2026`, `WEEKLY_QUEST_REWARDS_2026`
 > dans `packages/shared/src/game-rules.ts`. Preuve : `supabase/tests/weekly_quests_2026.pglite.test.mjs`
 > (19 assertions) et `apps/mobile/src/features/refonte/WeeklyQuests2026Model.test.ts` (8 tests).
