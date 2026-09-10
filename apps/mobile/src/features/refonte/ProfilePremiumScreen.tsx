@@ -103,23 +103,25 @@ export function ProfilePremiumScreen() {
         <Text style={local.price}>{offer.priceLabel ?? copy('Prix indisponible', 'Price unavailable')}</Text>
       </Pressable>)}</View>
         : store.reason === 'checking' ? <View style={local.loading}><ActivityIndicator size="small" color={c.ink} /><Text style={local.meta}>{copy('Lecture des offres de l’App Store…', 'Loading App Store plans…')}</Text></View>
-          : store.reason === 'signedOut' ? <><Text style={local.meta}>{pick2026(STORE_CLOSED_COPY_2026[store.reason], locale)}</Text>{premium.canSignIn ? <View style={local.compactAction}><ProfileButton tone="light" label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /></View> : null}</>
-            // ── BOUTIQUE FERMÉE : ON INFORME AU LIEU DE SE TAIRE ────────────
-            // Le 10/09/2026 cette branche n'imprimait qu'« Les offres du Store
-            // sont indisponibles » : pas un prix, pas un contenu, pas une
-            // raison. Le tarif PRÉVU du cahier §16.1 s'affiche donc ici, dit
-            // comme tel, et il disparaîtra le jour où l'App Store parlera.
-            : <View style={local.planned}>
-              {GRYD_PLUS_PLANNED_PRICES_2026.map(price => { const amount = formatEurCents2026(price.cents, locale); return amount === null ? null : <View key={price.period} style={local.plannedRow}>
-                <Text style={local.toolTitle}>{amount} <Text style={local.meta}>{pick2026(PERIOD_COPY_2026[price.period], locale)}</Text></Text>
-                {price.period === 'yearly' && plannedSavings !== null ? <Text style={local.meta}>{copy(`Soit ${plannedSavings} % de moins que douze mois payés un par un.`, `That is ${plannedSavings}% less than twelve months paid one by one.`)}</Text> : null}
-              </View>; })}
-              <Text style={local.meta}>{pick2026(PLANNED_PRICE_NOTICE_2026, locale)}</Text>
-              <Text style={local.meta}>{pick2026(NO_TRIAL_NOTICE_2026, locale)}</Text>
-              {storeSaysNotOnSale2026(store) ? <Text style={local.toolTitle}>{pick2026(STORE_CLOSED_TITLE_2026, locale)}</Text> : null}
-              <Text style={local.meta}>{pick2026(STORE_CLOSED_COPY_2026[store.reason], locale)}</Text>
-              {store.reason === 'readFailed' ? <View style={local.compactAction}><ProfileButton tone="light" label={copy('Réessayer', 'Retry')} secondary onPress={premium.reload} /></View> : null}
-            </View>}
+          // ── BOUTIQUE FERMÉE : ON INFORME AU LIEU DE SE TAIRE ──────────────
+          // Le 10/09/2026 cette branche n'imprimait qu'« Les offres du Store
+          // sont indisponibles » : pas un prix, pas un contenu, pas une raison.
+          // Le tarif PRÉVU du cahier §16.1 s'affiche donc ici, dit comme tel, et
+          // il disparaîtra le jour où l'App Store parlera. Il s'affiche AUSSI
+          // pour un joueur déconnecté : le prix d'une offre n'est pas une donnée
+          // personnelle, et le cacher rejouerait exactement la page muette.
+          : <View style={local.planned}>
+            {GRYD_PLUS_PLANNED_PRICES_2026.map(price => { const amount = formatEurCents2026(price.cents, locale); return amount === null ? null : <View key={price.period} style={local.plannedRow}>
+              <Text style={local.toolTitle}>{amount} <Text style={local.meta}>{pick2026(PERIOD_COPY_2026[price.period], locale)}</Text></Text>
+              {price.period === 'yearly' && plannedSavings !== null ? <Text style={local.meta}>{copy(`Soit ${plannedSavings} % de moins que douze mois payés un par un.`, `That is ${plannedSavings}% less than twelve months paid one by one.`)}</Text> : null}
+            </View>; })}
+            <Text style={local.meta}>{pick2026(PLANNED_PRICE_NOTICE_2026, locale)}</Text>
+            <Text style={local.meta}>{pick2026(NO_TRIAL_NOTICE_2026, locale)}</Text>
+            {storeSaysNotOnSale2026(store) ? <Text style={local.toolTitle}>{pick2026(STORE_CLOSED_TITLE_2026, locale)}</Text> : null}
+            <Text style={local.meta}>{pick2026(STORE_CLOSED_COPY_2026[store.reason], locale)}</Text>
+            {store.reason === 'signedOut' && premium.canSignIn ? <View style={local.compactAction}><ProfileButton tone="light" label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /></View> : null}
+            {store.reason === 'readFailed' ? <View style={local.compactAction}><ProfileButton tone="light" label={copy('Réessayer', 'Retry')} secondary onPress={premium.reload} /></View> : null}
+          </View>}
       {store.open ? <><View style={local.compactAction}><ProfileButton tone="light" label={copy('S’abonner', 'Subscribe')} busy={busy === 'purchase'} disabled={busy !== null || !premium.selectedOffer || !isPurchasable(premium.selectedOffer)} onPress={() => void buy()} /></View><Text style={local.meta}>{copy('Renouvellement automatique. Résiliation dans les réglages du Store ; accès jusqu’à la fin de la période payée.', 'Renews automatically. Cancel in Store settings; access lasts until the paid period ends.')}</Text>{premium.selectedOffer?.freeTrial ? <Text style={local.meta}>{copy('Un essai peut être proposé selon ton éligibilité. Conditions confirmées par le Store avant achat.', 'A trial may be offered if eligible. The Store confirms terms before purchase.')}</Text> : null}</> : null}
       {noPaidGameAdvantage2026() ? <Text style={local.meta}>{pick2026(NO_PAID_ADVANTAGE_COPY_2026, locale)}</Text> : null}
     </View>}
