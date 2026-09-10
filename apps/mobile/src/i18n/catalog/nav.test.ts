@@ -102,6 +102,35 @@ Deno.test('les jumeaux gardent le placeholder {zone} dans les 5 langues', () => 
 });
 
 /**
+ * ÉTAPE 0 : le libellé du bouton de départ était écrit en clair dans
+ * `MapHome.tsx` (`text('Courir', 'Run')`), donc en DEUX langues sur cinq, et
+ * seulement sur la Carte. Passé au catalogue, il doit tenir la promesse du
+ * catalogue : les cinq langues, et le bon monde dans chacune.
+ */
+Deno.test('le bouton de départ dit son monde, et les deux libellés ne se recopient pas', () => {
+  for (const locale of LOCALES) {
+    assertEquals(
+      porteeDuTexte(C.navActionCourir[locale]),
+      'course',
+      `navActionCourir.${locale} : « ${C.navActionCourir[locale]} »`,
+    );
+    assert(
+      C.navActionCourir[locale] !== C.navActionRouler[locale],
+      `navAction*.${locale} identiques : le mot ne dirait plus rien de la lentille`,
+    );
+    assert(
+      C.navActionReprendre[locale].length > 0,
+      `navActionReprendre.${locale} vide`,
+    );
+  }
+  // Le vocabulaire de discipline ne connaît pas encore « Rouler », « Pedalear »
+  // ni « Pedalar » : il voit le monde vélo dans l'anglais et l'allemand
+  // seulement. On vérifie donc ce qu'il SAIT voir, sans prétendre à plus.
+  assertEquals(porteeDuTexte(C.navActionRouler.en), 'velo');
+  assertEquals(porteeDuTexte(C.navActionRouler.de), 'velo');
+});
+
+/**
  * BALAYAGE EXHAUSTIF — la liste REVUE des entrées qui ont le droit de nommer un
  * monde dans ce catalogue. Toute autre entrée qui en nommerait un échoue ici.
  */
@@ -121,6 +150,16 @@ const NOMMENT_UN_MONDE_LEGITIMEMENT: readonly string[] = [
   // (AMENDEMENT-38, override fondateur) et l'icône vient de la discipline. Le
   // mot reste un invariant produit, identique dans les 5 langues.
   'actionRun',
+  // ── LE MOT DU BOUTON DE DÉPART, DANS LA BARRE BASSE (10/09/2026) ──────────
+  // `navActionCourir` / `navActionRouler` sont le libellé VISIBLE de l'action
+  // de la barre. Ils nomment un monde pour la même raison que les jumeaux
+  // `goActivity*A11y` juste au-dessus : la barre lit la lentille de la Carte
+  // (`useMapActivity`) et déclare ce qui va être enregistré. Les neutraliser
+  // (« Démarrer ») rendrait le CTA principal muet sur la seule chose qu'il
+  // décide. `navActionReprendre` reste neutre et n'est donc pas ici : on
+  // reprend une sortie dont la discipline est déjà fixée.
+  'navActionCourir',
+  'navActionRouler',
   // ── Clé SANS AUCUN CONSOMMATEUR (vérifié par grep) ────────────────────────
   // `slideToStartA11y` décrivait le composant « glisser pour courir »,
   // SUPPRIMÉ le 25/07/2026. Neutraliser un texte que personne ne lit serait du

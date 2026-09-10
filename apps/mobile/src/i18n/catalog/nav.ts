@@ -46,6 +46,46 @@ export const C = defineCatalog({
     pt: 'Perfil',
   },
 
+  /**
+   * ACTION DE DÉPART, DANS LA BARRE, SUR TOUTES LES PAGES (10/09/2026).
+   *
+   * Ces trois libellés vivaient en clair dans `MapHome.tsx`, sous la forme
+   * `text('Courir', 'Run')` : deux langues sur cinq, et seulement sur la Carte.
+   * La barre étant désormais la même partout, le mot part au catalogue, où le
+   * type impose ses cinq langues.
+   *
+   * Ils NOMMENT une discipline, et c'est exactement leur travail : la barre lit
+   * la lentille de la Carte (`useMapActivity`) et DIT ce qui va être
+   * enregistré. Même règle que les jumeaux `goActivity*A11y` ; ils sont donc
+   * inscrits dans la liste revue de `nav.test.ts`.
+   */
+  navActionCourir: {
+    fr: 'Courir',
+    en: 'Run',
+    es: 'Correr',
+    de: 'Laufen',
+    pt: 'Correr',
+  },
+  navActionRouler: {
+    fr: 'Rouler',
+    en: 'Ride',
+    es: 'Pedalear',
+    de: 'Radfahren',
+    pt: 'Pedalar',
+  },
+  /**
+   * Une sortie est en cours d'enregistrement : le bouton ne la relance pas, il
+   * y ramène. Neutre dans les cinq langues, et ce n'est pas un oubli : on
+   * reprend une sortie déjà commencée, sa discipline est déjà décidée.
+   */
+  navActionReprendre: {
+    fr: 'Reprendre',
+    en: 'Resume',
+    es: 'Reanudar',
+    de: 'Fortsetzen',
+    pt: 'Retomar',
+  },
+
   // ── Départ de course : libellé lecteur d'écran. Le composant « glisser
   //    pour courir » (SlideToStart) a été SUPPRIMÉ le 25/07/2026 — il n'était
   //    plus importé nulle part depuis que le départ est un simple tap sur GO.

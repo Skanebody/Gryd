@@ -18,7 +18,7 @@
  *    `sessionExpired` étaient calculés par `lib/session.tsx` et lus par
  *    PERSONNE. Voir `features/account/SessionNotices2026.tsx`.
  */
-import { Redirect, Tabs, usePathname } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { colors } from '@klaim/shared';
 import { GrydNavBar } from '../../src/features/nav/GrydNavBar';
@@ -33,7 +33,6 @@ import { useSession } from '../../src/lib/session';
 export default function TabsLayout() {
   const { session, loading, configured } = useSession();
   const { state: onboarding, status: onboardingStatus } = useOnboardingState();
-  const pathname = usePathname();
   const t = useT();
 
   // Restauration de session en cours : E00, pas un rectangle noir.
@@ -73,8 +72,13 @@ export default function TabsLayout() {
         />
         <Tabs.Screen name="profil" options={{ title: t(C.tabMoi), tabBarLabel: t(C.tabMoi) }} />
       </Tabs>
-      {/* La Carte monte sa barre avec l'action Courir/Rouler/Reprendre intégrée. */}
-      {pathname === '/' ? null : <GrydNavBar />}
+      {/* UNE barre, montée ICI, pour les cinq routes du groupe (10/09/2026).
+          Elle était conditionnelle : la Carte se voyait refuser la barre du
+          layout parce qu'elle montait la sienne, action « Courir » comprise.
+          Crew et Profil recevaient donc une barre DIFFÉRENTE, sans départ
+          possible. La barre calcule maintenant son action elle-même
+          (`features/nav/useRunAction2026`), et la Carte n'en monte plus. */}
+      <GrydNavBar />
       {/* Rendus par-dessus : un fait de session n'attend pas la prochaine
           navigation pour être dit, et il ne pousse aucun contenu. */}
       <SessionNotices2026 />

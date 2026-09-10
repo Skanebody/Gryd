@@ -232,9 +232,16 @@ Deno.test('carte : les quatre états du territoire sont distincts, et le vide a 
   assert(map.includes('Le quartier est à découvrir'), 'la phrase G03 du vide réel');
   assert(map.includes('ownership.signedOut') && map.includes('ownership.loading') && map.includes('ownership.failed'),
     'les trois autres états existent séparément');
-  const overlay = map.slice(map.indexOf('s.overlayStack'), map.indexOf('<GrydNavBar'));
+  // 10/09/2026 : la borne haute était `map.indexOf('<GrydNavBar')`, et la Carte
+  // ne monte plus de barre. Une borne absente rend -1, et `slice(a, -1)` avale
+  // toute la feuille « Couches » : le test serait passé pour la mauvaise
+  // raison, en trouvant les états là où justement il ne veut PAS d'eux seuls.
+  // On borne donc sur ce qui délimite vraiment la carte : le début du rendu, et
+  // l'ouverture de la feuille.
+  const surLaCarte = map.slice(map.indexOf('return <View style={s.root}>'), map.indexOf('<Modal'));
+  assert(surLaCarte.length > 0 && map.indexOf('<Modal') > 0, 'les bornes du rendu de carte existent');
   for (const state of ['signedOut', 'loading', 'failed']) {
-    assert(overlay.includes(state), `l’état ${state} doit se voir SUR la carte, pas seulement dans une feuille`);
+    assert(surLaCarte.includes(state), `l’état ${state} doit se voir SUR la carte, pas seulement dans une feuille`);
   }
 });
 
@@ -245,11 +252,20 @@ Deno.test('carte : les quatre états du territoire sont distincts, et le vide a 
  * d'interdire une sortie ; le préflight, lui, sait le dire et le réessayer.
  */
 Deno.test('carte : « Courir » ne s’éteint jamais pour une préférence illisible', () => {
-  const map = code('../refonte/MapHome.tsx');
-  const action = map.slice(map.indexOf('mapAction={{'), map.indexOf('<Modal'));
-  assert(action.includes('disabled: false'),
+  // 10/09/2026 : l'action a quitté `MapHome` (`mapAction={{ … }}`) pour le hook
+  // que la barre unique consomme sur les trois destinations. La garde suit le
+  // code : c'est le hook qui décide désormais, et c'est donc lui qu'on lit.
+  const action = code('../nav/useRunAction2026.ts');
+  // Ce que le hook REND, pas ce que son type déclare (`disabled: boolean`).
+  const rendu = action.slice(action.indexOf('  return {'));
+  assert(rendu.length > 0, 'le hook doit rendre un objet d’action');
+  assert(rendu.includes('disabled: false'),
     'une préférence illisible n’éteint plus le départ — `disabled` ne lit plus le stockage');
-  assert(!/disabled: [^f]/.test(action), 'aucune autre condition ne peut éteindre le départ');
+  assert(!/disabled: [^f]/.test(rendu), 'aucune autre condition ne peut éteindre le départ');
+  assert(action.includes('/course-live?mode=conquete&activity='),
+    'la chaîne de course est inchangée : même cible qu’avant le déménagement');
+  const bar = code('../nav/GrydNavBar.tsx');
+  assert(bar.includes('useRunAction2026'), 'et la barre unique la consomme');
 });
 
 /**

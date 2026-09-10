@@ -9,8 +9,8 @@ import { GrydIcon, type GrydIconName } from '../../ui/gryd/GrydIcon';
 import { GrydSwitch as Switch } from '../../ui/gryd/GrydSwitch';
 import { MapTranslucent2026 } from '../../ui/gryd/MapTranslucent2026';
 import { MotionReveal2026, useControlMotion2026 } from '../../ui/gryd/Motion2026';
-import { GrydNavBar } from '../nav/GrydNavBar';
 import { GrydMark } from '../../ui/gryd/GrydMark';
+import { MePinMarker2026 } from '../../ui/game/MePinMarker2026';
 import { t, useLocale } from '../../i18n/store';
 import { C as CClassement } from '../../i18n/catalog/classement';
 import { useSession } from '../../lib/session';
@@ -21,8 +21,8 @@ import { usePlaceFocus } from '../map/placeFocus';
 import { basemapSpecRevision, prefetchLocalizedBasemaps, subscribeBasemapSpecs } from '../map/mapStyle';
 import { cityCenter, cityLabel } from '../social/cities';
 import { useOnboardingState } from '../onboarding/store';
-import { useMyProfile } from '../social/profileStore';
-import { NAV_MAP_BAR_HEIGHT, NAV_MAP_BOTTOM_GAP } from '../nav/metrics';
+import { effectiveInitials, useMyProfile } from '../social/profileStore';
+import { GRYD_NAV_BAR_HEIGHT, GRYD_NAV_BOTTOM_GAP } from '../nav/metrics';
 import { useRunSession } from './RunSession';
 import { useOwnership, type MapExtent } from './useOwnership';
 import { checkForegroundPermission, getCurrentPositionOnce, requestForegroundPermission } from './location';
@@ -35,6 +35,21 @@ import { createMapLocationGate2026, readMapLocation2026, type MapLocationResult2
 // France overview is labelled as exploration; it never impersonates a GPS position.
 const FRANCE: RealMapCamera = { lat: 46.6, lng: 2.5, zoom: 3.9 };
 const savedCameras: Partial<Record<Activity, RealMapCamera>> = {};
+/**
+ * PORTE DE COMPTE : fermée pour la session d'app, jamais persistée (10/09/2026).
+ *
+ * Étape 0 du correctif : sans compte, l'app s'ouvrait sur la carte, disait
+ * « Connecte-toi pour voir les terrains de ton compte » dans un avis NON
+ * cliquable, et la seule porte réelle vers /sign-in dormait dans la feuille
+ * « Couches ». Autrement dit : on annonçait au joueur qu'il lui manque un
+ * compte sans lui donner par où le créer.
+ *
+ * La carte porte donc un bloc avec un vrai bouton. Il se ferme d'un geste, et
+ * cette fermeture vaut pour la session en cours seulement : au prochain
+ * lancement la porte est là de nouveau. Un module-level suffit, et il est plus
+ * honnête qu'un stockage : rien à écrire, rien à lire, rien à rater.
+ */
+let accountDoorDismissed2026 = false;
 function boundsFor(camera: RealMapCamera, width: number, height: number): MapExtent {
   const span = 360 / 2 ** camera.zoom;
   const dx = span * Math.max(1, width / 512);
@@ -84,6 +99,7 @@ export default function MapHome() {
   const cameraIntent = useRef<'fallback'|'gps'|'explore'>('fallback');
   const [approximate, setApproximate] = useState(false);
   const [sheet, setSheet] = useState<'layers' | 'list' | null>(null);
+  const [doorClosed, setDoorClosed] = useState(accountDoorDismissed2026);
   const [attenuate, setAttenuate] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const cityId = onboarding.cityId ?? profile.cityId;
@@ -150,12 +166,22 @@ export default function MapHome() {
   }), [ownership.features, roleFilters, attenuate, selectedId, basemap]);
 
   const text = (a: string, b: string) => fr ? a : b;
-  const start = () => {
-    track(EVENTS.runStartTap, { source: 'map', activity });
-    router.push(`/course-live?mode=conquete&activity=${activity}`);
-  };
-  const bottom = insets.bottom + NAV_MAP_BOTTOM_GAP + NAV_MAP_BAR_HEIGHT + 12;
+  const bottom = insets.bottom + GRYD_NAV_BOTTOM_GAP + GRYD_NAV_BAR_HEIGHT + 12;
   const recording = gate?.kind === 'real';
+  /**
+   * MON PIN. La photo vient de la SOURCE qui existe déjà (`profile.avatarUri`,
+   * signée à la lecture par `profileStore`) : aucun nouveau champ, aucun
+   * renommage. Sans session il n'y a ni photo ni pseudo à montrer, et
+   * `effectiveInitials` rendrait « ? » : l'invité porte donc le G, jamais un
+   * point d'interrogation qui ferait croire à un compte cassé.
+   */
+  const myInitials = session ? effectiveInitials(profile) : '';
+  const pinInitials = myInitials === '?' ? '' : myInitials;
+  const pinPhoto = session ? profile.avatarUri : '';
+  /** La porte de compte est ouverte tant que personne n'est connecté ET qu'elle
+   *  n'a pas été fermée pendant cette session d'app. */
+  const accountDoorOpen = ownership.signedOut && !doorClosed;
+  const closeAccountDoor = () => { accountDoorDismissed2026 = true; setDoorClosed(true); };
   const overlayHeight = Math.max(100, Math.min(200, height - insets.top - bottom - 132));
   const area = (n: number) => (n / 1e6).toLocaleString(fr ? 'fr-FR' : 'en-GB', { maximumFractionDigits: 3 });
   if (!activityReady) return <View style={s.root} />;
@@ -171,17 +197,51 @@ export default function MapHome() {
         onCameraGesture={() => { cameraIntent.current = 'explore'; locationGate.cancel(); setLocating(false); }}
         onCameraSettled={next => { savedCameras[activity] = next; cameraTarget.current = next; setSettled(next); }}
         onPress={event => { setSelectedId(event.zoneId ?? null); if (event.zoneId) track(EVENTS.mapZoneTap, { role: 'terrain' }); }}
-        markers={position ? [{ id: 'me', ...position, children: <View accessibilityLabel={approximate ? text('Position approximative', 'Approximate location') : text('Ma position', 'My location')} style={[s.positionHalo, approximate && s.approximatePosition]}><View style={s.positionDot} /></View> }] : []} />
+        markers={position ? [{ id: 'me', ...position, children: <MePinMarker2026
+          label={approximate ? text('Position approximative', 'Approximate location') : text('Ma position', 'My location')}
+          photoUri={pinPhoto} initials={pinInitials} approximate={approximate} /> }] : []} />
     </View>
     <View pointerEvents="box-none" style={[s.header, { top: insets.top + 12 }]}>
       <View style={s.topRow}>
-        <View style={s.brand}><MapTranslucent2026 tone="dark" radius={22} /><View style={s.overlayContent}><GrydMark variant="symbol" size={20} color={c.accent} /></View></View>
+        {/* LE G, CHARTREUSE, SUR RIEN (10/09/2026, demande fondateur). Il vivait
+            au centre d'un disque translucide de 44 pt qui le faisait lire comme
+            un bouton de carte de plus, à côté de Couches et Me recentrer. La
+            marque n'est pas un contrôle : elle ne se pose pas sur un socle. La
+            boîte de 44 pt reste, elle tient l'alignement avec la pastille de
+            ville et garderait la zone tactile le jour où le G deviendrait
+            pressable. */}
+        <View style={s.brand}><GrydMark variant="symbol" size={24} color={c.accent} /></View>
         <Pressable accessibilityRole="button" accessibilityLabel={text('Choisir une ville', 'Choose a city')} onPress={() => router.push('/map/search')} style={({ pressed }) => [s.place, pressed && s.pressed]}>
           <MapTranslucent2026 tone="dark" radius={22} />
           <View style={s.overlayContent}><GrydIcon name="search" size={16} color={c.darkInk} /></View>
           <Text style={s.placeName}>{cameraIntent.current === 'gps' && position ? text('Autour de moi', 'Around me') : cityName ?? 'France'}</Text>
         </Pressable>
       </View>
+      {/* LA PORTE DE COMPTE, SUR LA CARTE, SANS OUVRIR UNE FEUILLE.
+          Elle n'existe que si un backend peut l'honorer : sans lui, /sign-in
+          renverrait à la carte, et ce serait un bouton mort. On ne cache pas la
+          porte pour autant, on DIT pourquoi elle n'est pas franchissable. */}
+      {accountDoorOpen ? <View style={s.accountCard}>
+        <MapTranslucent2026 tone="dark" radius={20} />
+        <View style={[s.overlayContent, s.accountBody]}>
+          <View style={s.accountHead}>
+            <Text style={s.accountTitle}>{text('Garde tes terrains', 'Keep your terrain')}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={text('Masquer la proposition de compte', 'Dismiss account prompt')}
+              onPress={closeAccountDoor} style={({ pressed }) => [s.accountClose, pressed && s.pressed]}>
+              <GrydIcon name="close" size={16} color={c.darkInk} />
+            </Pressable>
+          </View>
+          <Text style={s.accountLine}>{text('Sans compte, tes sorties restent sur cet appareil et ne prennent aucun terrain.', 'Without an account your outings stay on this device and take no terrain.')}</Text>
+          {configured ? <>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/sign-in')} style={({ pressed }) => [s.accountCta, pressed && s.pressed]}>
+              <Text style={s.accountCtaText}>{text('Créer mon compte', 'Create my account')}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/sign-in')} style={({ pressed }) => [s.accountSecondary, pressed && s.pressed]}>
+              <Text style={s.accountSecondaryText}>{text('ou me connecter', 'or sign in')}</Text>
+            </Pressable>
+          </> : <Text style={s.accountState}>{text('Serveur non configuré sur ce build', 'Server not configured on this build')}</Text>}
+        </View>
+      </View> : null}
     </View>
     <View style={[s.sports, { top: insets.top + 8 }]}>
       <MapActivitySwitch2026 activity={activity} onChange={setActivity}
@@ -200,8 +260,16 @@ export default function MapHome() {
             « il n'y a rien ici ». Le vide a sa phrase (cahier G03). L'état de
             lecture ne se montre que quand il n'y a encore rien à voir — sinon
             il clignoterait à chaque déplacement de carte. */}
+        {/* PAS DEUX FOIS LA MÊME PHRASE. Tant que la porte de compte est ouverte
+            au-dessus, elle dit déjà tout, et mieux : cet avis ne se rend que
+            lorsqu'elle a été fermée. Il RESTE, parce que sans lui l'état « pas
+            connecté » se confondrait avec « le quartier est vide » : sans
+            session, `useOwnership` ne lit RIEN (aucun appel), il ne peut donc
+            pas conclure au vide. Et il est cliquable : la porte se retrouve. */}
         {ownership.signedOut
-          ? <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Connecte-toi pour voir les terrains de ton compte.', 'Sign in to see your account’s terrain.')}</Text></View>
+          ? accountDoorOpen ? null : configured
+            ? <Pressable accessibilityRole="button" onPress={() => router.push('/sign-in')} style={({ pressed }) => [s.notice, pressed && s.pressed]}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains masqués sans compte · Créer mon compte', 'Terrain hidden without an account · Create my account')}</Text></Pressable>
+            : <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains masqués sans compte · Serveur non configuré sur ce build', 'Terrain hidden without an account · Server not configured on this build')}</Text></View>
           : ownership.failed
             ? <Pressable accessibilityRole="button" style={s.notice} onPress={ownership.reload}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains indisponibles · Réessayer', 'Terrains unavailable · Retry')}</Text></Pressable>
             : ownership.loading && ownership.features.length === 0
@@ -234,17 +302,12 @@ export default function MapHome() {
         </MotionReveal2026></View> : null}
       </ScrollView>
     </View>
-    <GrydNavBar mapAction={{
-      label: recording ? text('Reprendre', 'Resume') : activity === 'run' ? text('Courir', 'Run') : text('Rouler', 'Ride'),
-      onPress: recording ? () => router.push('/course-live') : start,
-      // Le départ ne s'éteint JAMAIS pour un stockage local en panne : une
-      // préférence de confidentialité illisible (`choice.failed`) mettait
-      // `ready` à false et éteignait « Courir » définitivement. Le préflight,
-      // lui, sait dire l'indisponibilité et la réessayer — c'est là que la
-      // question se pose, pas ici.
-      disabled: false,
-      busy: !recording && ((!choice.ready && !choice.failed) || choice.saving),
-    }} />
+    {/* LA BARRE N'EST PLUS MONTÉE ICI (10/09/2026). La Carte rendait sa PROPRE
+        GrydNavBar avec l'action Courir dedans, ce qui donnait aux autres
+        onglets une barre différente et sans départ. Une seule barre existe
+        désormais, montée par `app/(tabs)/_layout.tsx`, et elle calcule son
+        action elle-même (`features/nav/useRunAction2026`) : libellé, cible,
+        attente et provenance analytique, à l'identique de ce qui vivait ici. */}
     <Modal visible={sheet !== null} transparent animationType={motion ? "slide" : "none"} onRequestClose={() => setSheet(null)}>
       <View style={s.modalRoot}><Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={text('Fermer les couches', 'Close layers')} onPress={() => setSheet(null)} />
         <View style={[s.sheet, { paddingBottom: insets.bottom + 24, maxHeight: height * 0.85 }]}>
@@ -311,13 +374,27 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: c.carbon, overflow: 'hidden' }, map: { ...StyleSheet.absoluteFillObject },
   header: { position: 'absolute', left: 16, right: 76, alignItems: 'flex-start' },
   topRow: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  brand: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  // Ni fond ni rayon : le G est chartreuse sur la carte, rien derrière.
+  brand: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   place: { flex: 1, minHeight: 44, borderRadius: 22, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 8, alignItems: 'center' },
   placeName: { zIndex: 1, fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 18, color: c.darkInk, flex: 1, flexShrink: 1 },
   sports: { position: 'absolute', right: 16, zIndex: 4 }, tools: { position: 'absolute', right: 16, gap: 8, zIndex: 4 },
   controlSlot: { position: 'relative', zIndex: 2 }, mapControl: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' }, controlDisabled: { opacity: .6 },
   tooltip: { position: 'absolute', right: 52, top: 0, minHeight: 44, width: 156, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }, tooltipText: { zIndex: 1, fontFamily: fonts.textMedium, color: c.darkInk, fontSize: 12, lineHeight: 17 },
-  positionHalo: { width: 36, height: 36, backgroundColor: c.shadow, borderRadius: 20, justifyContent: 'center', alignItems: 'center' }, positionDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: c.accent, borderWidth: 3, borderColor: c.ink }, approximatePosition: { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: c.muted },
+  // Le point chartreuse (positionHalo / positionDot / approximatePosition) a
+  // disparu avec lui : c'est `ui/game/MePinMarker2026` qui peint « moi », et il
+  // porte sa géométrie, pointe comprise.
+  accountCard: { marginTop: 8, width: '100%', maxWidth: 360, borderRadius: 20 },
+  accountBody: { padding: 12, gap: 6 },
+  accountHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  accountTitle: { flex: 1, fontFamily: fonts.displayMedium, fontSize: 15, lineHeight: 21, color: c.darkInk },
+  accountClose: { width: 44, height: 44, marginTop: -12, marginRight: -10, alignItems: 'center', justifyContent: 'center' },
+  accountLine: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.darkMuted },
+  accountCta: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
+  accountCtaText: { fontFamily: fonts.textSemi, fontSize: 14, lineHeight: 18, color: c.ink },
+  accountSecondary: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  accountSecondaryText: { fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 17, color: c.darkInk, textDecorationLine: 'underline' },
+  accountState: { fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 17, color: c.darkInk },
   overlayAnchor: { position: 'absolute', left: 16, right: 76, alignItems: 'flex-start' }, overlayScroll: { maxWidth: 360, width: '100%', flexGrow: 0 }, overlayStack: { gap: 8 },
   notice: { minHeight: 44, padding: 12, borderRadius: 16 }, noticeText: { zIndex: 1, color: c.darkInk, fontFamily: fonts.text, fontSize: 12, lineHeight: 17 },
   selectedSurface: { borderRadius: 20, paddingHorizontal: 12, paddingBottom: 14, paddingTop: 4 }, selectedPanel: { gap: 7 }, panelHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
