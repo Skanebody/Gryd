@@ -25,6 +25,14 @@
  * Chaque fichier tourne dans son PROPRE processus : ils créent tous une base en
  * mémoire et rejouent une lignée de migrations, les isoler est la seule façon
  * qu'un état ne fuie pas de l'un à l'autre.
+ *
+ * ─── LES PREUVES PostGIS (10/09/2026) ───────────────────────────────────────
+ * `supabase/tests/*.postgis.test.mjs` prouvent ce que PGlite ne peut pas : les
+ * aires, l'exclusivité de la possession, la simplification d'affichage. Ils ne
+ * tournent que si `GRYD_TEST_DATABASE_URL` désigne une base PostgreSQL+PostGIS
+ * LOCALE et jetable ; sinon ce runner le DIT au lieu de laisser un vert complet
+ * faire croire que la géométrie est couverte. La recette d'installation sans
+ * Docker est en tête de `refonte2026.postgis.test.mjs`.
  */
 import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -64,3 +72,29 @@ if (failed.length > 0) {
   process.exit(1);
 }
 console.log(`${files.length} fichiers SQL verts.`);
+
+// Les preuves géométriques sont facultatives, JAMAIS silencieuses.
+const geoFiles = readdirSync(TESTS).filter((f) => f.endsWith('.postgis.test.mjs')).sort();
+if (!process.env.GRYD_TEST_DATABASE_URL) {
+  console.log(`\n${geoFiles.length} fichier(s) PostGIS NON EXÉCUTÉ(S) : aucune aire, aucune`);
+  console.log('exclusivité de possession et aucune simplification ne sont prouvées ici.');
+  console.log('Recette (sans Docker) en tête de supabase/tests/refonte2026.postgis.test.mjs,');
+  console.log('puis GRYD_TEST_DATABASE_URL=postgresql://…/base_jetable npm run test:sql');
+} else {
+  console.log(`\nTests PostGIS — ${geoFiles.length} fichiers\n`);
+  const geoFailed = [];
+  for (const file of geoFiles) {
+    const res = spawnSync(process.execPath, [join(TESTS, file)], { stdio: 'pipe', encoding: 'utf8' });
+    if (res.status !== 0) {
+      geoFailed.push(file);
+      process.stdout.write(res.stdout ?? '');
+      process.stderr.write(res.stderr ?? '');
+    }
+    console.log(`  ${res.status === 0 ? 'ok  ' : 'ÉCHEC'} ${file}`);
+  }
+  if (geoFailed.length > 0) {
+    console.error(`\n${geoFailed.length} fichier(s) PostGIS en échec.`);
+    process.exit(1);
+  }
+  console.log(`\n${geoFiles.length} fichiers PostGIS verts.`);
+}
