@@ -14,6 +14,7 @@ import type {
   CrewOutingObjective,
   CrewRecruitmentStatus,
   CrewRole,
+  CrewRoleDuty,
   CrewTag,
 } from '@klaim/shared';
 import { defineCatalog, type Entry } from '../types';
@@ -3288,6 +3289,303 @@ export const C = defineCatalog({
     pt: 'Nenhum sinal mostra posição ao vivo. As tags vêm da atividade agregada do crew (§37.3).',
   },
 
+  // ══ CRÉATION D'UN CREW (route /crew-create, RPC create_crew — 0042→0097) ════
+  //
+  // Le geste EXISTAIT depuis 0042 ; il n'avait pas d'écran à lui. Il vivait dans
+  // deux « modes » de l'onglet Crew, derrière une ligne de texte posée sur une
+  // photo, sous un titre qui annonçait « Rejoindre un crew ». Un fondateur qui
+  // cherchait à créer le sien ne trouvait donc que des portes d'adhésion.
+  //
+  // Les clés ci-dessous nomment ce que le SERVEUR sait faire, et rien de plus :
+  // un nom, un emblème (`crews.color`, enfin relu), une ville OUVERTE, un accès
+  // pris dans CREW_RECRUITMENT_AT_CREATION. Ni bannière, ni abréviation, ni
+  // description : `create_crew` ne les écrit pas.
+  createTitle: {
+    fr: 'Créer mon crew',
+    en: 'Create my crew',
+    es: 'Crear mi crew',
+    de: 'Mein Crew gründen',
+    pt: 'Criar o meu crew',
+  },
+  createKicker: {
+    fr: 'IDENTITÉ, VILLE ET ACCÈS',
+    en: 'IDENTITY, CITY AND ACCESS',
+    es: 'IDENTIDAD, CIUDAD Y ACCESO',
+    de: 'IDENTITÄT, STADT UND ZUGANG',
+    pt: 'IDENTIDADE, CIDADE E ACESSO',
+  },
+  createIntro: {
+    fr: 'Tu en seras le capitaine. Tu pourras tout modifier ensuite, sauf l’emblème.',
+    en: 'You’ll be its captain. Everything stays editable afterwards, except the emblem.',
+    es: 'Serás su capitán. Todo se puede editar después, salvo el emblema.',
+    de: 'Du wirst Kapitän. Danach bleibt alles änderbar, außer dem Emblem.',
+    pt: 'Você será o capitão. Tudo continua editável depois, menos o emblema.',
+  },
+  createSignedOut: {
+    fr: 'Connecte-toi pour créer ton crew.',
+    en: 'Sign in to create your crew.',
+    es: 'Inicia sesión para crear tu crew.',
+    de: 'Melde dich an, um dein Crew zu gründen.',
+    pt: 'Entre para criar o seu crew.',
+  },
+  createSignIn: {
+    fr: 'Créer mon compte',
+    en: 'Create my account',
+    es: 'Crear mi cuenta',
+    de: 'Konto erstellen',
+    pt: 'Criar minha conta',
+  },
+  /** Lu, et le joueur EST déjà dans un crew : le serveur refuserait (already_in_crew). */
+  createAlreadyTitle: {
+    fr: 'Tu as déjà un crew',
+    en: 'You already have a crew',
+    es: 'Ya tienes un crew',
+    de: 'Du hast schon ein Crew',
+    pt: 'Você já tem um crew',
+  },
+  createAlreadyBody: {
+    fr: 'On ne peut appartenir qu’à un seul crew. Quitte {name} avant d’en fonder un autre.',
+    en: 'You can only belong to one crew. Leave {name} before starting another.',
+    es: 'Solo se puede pertenecer a un crew. Sal de {name} antes de fundar otro.',
+    de: 'Man kann nur zu einem Crew gehören. Verlasse {name}, bevor du ein neues gründest.',
+    pt: 'Só dá para pertencer a um crew. Saia de {name} antes de fundar outro.',
+  },
+  createOpenMyCrew: {
+    fr: 'Ouvrir mon crew',
+    en: 'Open my crew',
+    es: 'Abrir mi crew',
+    de: 'Mein Crew öffnen',
+    pt: 'Abrir o meu crew',
+  },
+  /** Lecture d'adhésion ÉCHOUÉE : on ne sait pas s'il a déjà un crew. */
+  createUnknownTitle: {
+    fr: 'Impossible de vérifier ton crew',
+    en: 'Couldn’t check your crew',
+    es: 'No se pudo comprobar tu crew',
+    de: 'Dein Crew konnte nicht geprüft werden',
+    pt: 'Não deu para verificar o seu crew',
+  },
+  createUnknownBody: {
+    fr: 'On ne sait pas si tu appartiens déjà à un crew, donc on ne t’en fait pas fonder un second.',
+    en: 'We don’t know whether you already belong to a crew, so we won’t let you start a second one.',
+    es: 'No sabemos si ya perteneces a un crew, así que no te dejamos fundar un segundo.',
+    de: 'Wir wissen nicht, ob du schon zu einem Crew gehörst, also gründest du hier kein zweites.',
+    pt: 'Não sabemos se você já pertence a um crew, então não deixamos fundar um segundo.',
+  },
+  createNameLabel: {
+    fr: 'Nom du crew',
+    en: 'Crew name',
+    es: 'Nombre del crew',
+    de: 'Crew-Name',
+    pt: 'Nome do crew',
+  },
+  createNamePlaceholder: {
+    fr: 'Le nom de ton groupe',
+    en: 'Your group’s name',
+    es: 'El nombre de tu grupo',
+    de: 'Der Name deiner Gruppe',
+    pt: 'O nome do seu grupo',
+  },
+  /** `{n}` = caractères restants sur NAME_MAX (borne DDL 0002, pas un choix d'écran). */
+  createNameLeft: {
+    fr: '{n} caractères restants sur {max}.',
+    en: '{n} characters left out of {max}.',
+    es: 'Quedan {n} caracteres de {max}.',
+    de: 'Noch {n} von {max} Zeichen.',
+    pt: 'Faltam {n} de {max} caracteres.',
+  },
+  createNameEmpty: {
+    fr: 'Donne un nom à ton crew pour continuer.',
+    en: 'Give your crew a name to continue.',
+    es: 'Dale un nombre a tu crew para continuar.',
+    de: 'Gib deinem Crew einen Namen, um fortzufahren.',
+    pt: 'Dê um nome ao seu crew para continuar.',
+  },
+  createEmblemLabel: {
+    fr: 'Emblème',
+    en: 'Emblem',
+    es: 'Emblema',
+    de: 'Emblem',
+    pt: 'Emblema',
+  },
+  /**
+   * Le blason porte les INITIALES du nom : le dire évite qu'on cherche un
+   * champ d'image qui n'existe pas (aucune colonne de bannière au schéma).
+   */
+  createEmblemHelp: {
+    fr: 'Douze motifs. Les initiales viennent du nom. Ce choix ne se change plus après.',
+    en: 'Twelve patterns. The initials come from the name. This choice is final.',
+    es: 'Doce motivos. Las iniciales vienen del nombre. Esta elección es definitiva.',
+    de: 'Zwölf Muster. Die Initialen stammen aus dem Namen. Diese Wahl ist endgültig.',
+    pt: 'Doze motivos. As iniciais vêm do nome. Esta escolha é definitiva.',
+  },
+  /** `{n}` = 1-based, pour que le lecteur d'écran annonce autre chose qu'un index. */
+  createEmblemA11y: {
+    fr: 'Emblème {n} sur {max}',
+    en: 'Emblem {n} of {max}',
+    es: 'Emblema {n} de {max}',
+    de: 'Emblem {n} von {max}',
+    pt: 'Emblema {n} de {max}',
+  },
+  createCityHelp: {
+    fr: 'Seules les villes déjà ouvertes accueillent un crew. Le serveur refuse les autres.',
+    en: 'Only cities that are already open can host a crew. The server refuses the others.',
+    es: 'Solo las ciudades ya abiertas alojan un crew. El servidor rechaza las demás.',
+    de: 'Nur bereits geöffnete Städte können ein Crew beherbergen. Andere lehnt der Server ab.',
+    pt: 'Só cidades já abertas hospedam um crew. O servidor recusa as outras.',
+  },
+  createCityEmpty: {
+    fr: 'Choisis la ville de ton crew pour continuer.',
+    en: 'Pick your crew’s city to continue.',
+    es: 'Elige la ciudad de tu crew para continuar.',
+    de: 'Wähle die Stadt deines Crews, um fortzufahren.',
+    pt: 'Escolha a cidade do seu crew para continuar.',
+  },
+  createAccessLabel: {
+    fr: 'Qui peut entrer',
+    en: 'Who can join',
+    es: 'Quién puede entrar',
+    de: 'Wer beitreten kann',
+    pt: 'Quem pode entrar',
+  },
+  /** Le nom n'est pas encore saisi : l'aperçu ne fabrique pas d'initiales. */
+  createPreviewUnnamed: {
+    fr: 'Ton nom apparaîtra ici.',
+    en: 'Your name will appear here.',
+    es: 'Tu nombre aparecerá aquí.',
+    de: 'Dein Name erscheint hier.',
+    pt: 'O seu nome aparece aqui.',
+  },
+  createSubmit: {
+    fr: 'Créer le crew',
+    en: 'Create crew',
+    es: 'Crear el crew',
+    de: 'Crew gründen',
+    pt: 'Criar o crew',
+  },
+  createDone: {
+    fr: '{name} est né. Tu en es le capitaine.',
+    en: '{name} is live. You’re its captain.',
+    es: '{name} ya existe. Eres su capitán.',
+    de: '{name} steht. Du bist der Kapitän.',
+    pt: '{name} nasceu. Você é o capitão.',
+  },
+  // ── Ce que le serveur a RÉPONDU à la création — jamais un « réessaie » vague ─
+  createErrName: {
+    fr: 'Ce nom ne peut pas être pris. Choisis-en un autre.',
+    en: 'That name can’t be used. Pick another one.',
+    es: 'Ese nombre no se puede usar. Elige otro.',
+    de: 'Dieser Name geht nicht. Wähle einen anderen.',
+    pt: 'Esse nome não pode ser usado. Escolha outro.',
+  },
+  createErrCity: {
+    fr: 'Cette ville n’est pas ouverte. Choisis-en une autre dans la liste.',
+    en: 'That city isn’t open. Pick another one from the list.',
+    es: 'Esa ciudad no está abierta. Elige otra de la lista.',
+    de: 'Diese Stadt ist nicht offen. Wähle eine andere aus der Liste.',
+    pt: 'Essa cidade não está aberta. Escolha outra da lista.',
+  },
+  createErrAlready: {
+    fr: 'Tu appartiens déjà à un crew. Quitte-le avant d’en fonder un autre.',
+    en: 'You already belong to a crew. Leave it before starting another.',
+    es: 'Ya perteneces a un crew. Sal de él antes de fundar otro.',
+    de: 'Du gehörst schon zu einem Crew. Verlasse es, bevor du ein neues gründest.',
+    pt: 'Você já pertence a um crew. Saia dele antes de fundar outro.',
+  },
+  /** `{n}` vient du serveur (`daysLeft`), jamais d'un calcul d'écran. */
+  createErrCooldown: {
+    fr: 'Changement de crew encore indisponible pendant {n} jour(s).',
+    en: 'Changing crews stays unavailable for {n} more day(s).',
+    es: 'Cambiar de crew sigue no disponible durante {n} día(s).',
+    de: 'Ein Crew-Wechsel bleibt noch {n} Tag(e) gesperrt.',
+    pt: 'Trocar de crew segue indisponível por {n} dia(s).',
+  },
+  createErrEmblem: {
+    fr: 'Cet emblème n’existe pas. Choisis-en un dans la grille.',
+    en: 'That emblem doesn’t exist. Pick one from the grid.',
+    es: 'Ese emblema no existe. Elige uno de la cuadrícula.',
+    de: 'Dieses Emblem gibt es nicht. Wähle eines aus dem Raster.',
+    pt: 'Esse emblema não existe. Escolha um da grade.',
+  },
+  createErrServer: {
+    fr: 'Ce serveur ne sait pas encore créer un crew avec ces options.',
+    en: 'This server can’t create a crew with these options yet.',
+    es: 'Este servidor aún no puede crear un crew con estas opciones.',
+    de: 'Dieser Server kann noch kein Crew mit diesen Optionen anlegen.',
+    pt: 'Este servidor ainda não cria um crew com estas opções.',
+  },
+  createErrGeneric: {
+    fr: 'La création n’a pas abouti. Vérifie ta connexion et réessaie.',
+    en: 'Creation didn’t complete. Check your connection and try again.',
+    es: 'La creación no se completó. Revisa tu conexión e inténtalo de nuevo.',
+    de: 'Die Gründung ist nicht durchgegangen. Prüfe deine Verbindung und versuch es erneut.',
+    pt: 'A criação não foi concluída. Verifique sua conexão e tente de novo.',
+  },
+
+  // ══ Cahier §13.3 — LES QUATRE RÔLES UTILES, tels que le cahier les nomme ════
+  //
+  // Ces libellés ne remplacent PAS les sept rangs (`CREW_ROLE_E`) : ils les
+  // expliquent. Un badge dit le rang (« Co-Capitaine ») ; sa ligne d'aide dit le
+  // devoir du cahier (« traite les signalements et les accès »).
+  dutyMember: {
+    fr: 'Membre',
+    en: 'Member',
+    es: 'Miembro',
+    de: 'Mitglied',
+    pt: 'Membro',
+  },
+  dutyOrganizer: {
+    fr: 'Organisateur',
+    en: 'Organizer',
+    es: 'Organizador',
+    de: 'Organisator',
+    pt: 'Organizador',
+  },
+  dutyModerator: {
+    fr: 'Modérateur',
+    en: 'Moderator',
+    es: 'Moderador',
+    de: 'Moderator',
+    pt: 'Moderador',
+  },
+  dutyCaptain: {
+    fr: 'Capitaine',
+    en: 'Captain',
+    es: 'Capitán',
+    de: 'Kapitän',
+    pt: 'Capitão',
+  },
+  dutyMemberHelp: {
+    fr: 'Participe, propose une sortie, publie dans les espaces permis.',
+    en: 'Takes part, suggests an outing, posts in the allowed spaces.',
+    es: 'Participa, propone una salida, publica en los espacios permitidos.',
+    de: 'Macht mit, schlägt einen Termin vor, postet in den erlaubten Räumen.',
+    pt: 'Participa, propõe uma saída, publica nos espaços permitidos.',
+  },
+  dutyOrganizerHelp: {
+    fr: 'Gère les rendez-vous du groupe.',
+    // « Runs » aurait nommé une discipline sur un écran qui n'en lit aucune
+    // (garde-fou `disciplineVocabulary`). « Looks after » dit la même chose.
+    en: 'Looks after the group’s meetups.',
+    es: 'Gestiona las citas del grupo.',
+    de: 'Kümmert sich um die Termine der Gruppe.',
+    pt: 'Cuida dos encontros do grupo.',
+  },
+  dutyModeratorHelp: {
+    fr: 'Traite les signalements et les accès.',
+    en: 'Handles reports and access.',
+    es: 'Gestiona los reportes y los accesos.',
+    de: 'Bearbeitet Meldungen und Zugänge.',
+    pt: 'Cuida das denúncias e dos acessos.',
+  },
+  dutyCaptainHelp: {
+    fr: 'Gère l’identité, les rôles et les équipes.',
+    en: 'Manages identity, roles and teams.',
+    es: 'Gestiona la identidad, los roles y los equipos.',
+    de: 'Verwaltet Identität, Rollen und Teams.',
+    pt: 'Cuida da identidade, dos papéis e das equipes.',
+  },
+
   // ══ ÉDITION DU CREW (route /crew-edit, RPC crew_edit — migration 0084) ══════
   //
   // Ce bloc REMPLACE la copie de l'écran d'édition de DÉMO (supprimé avec la
@@ -5731,12 +6029,54 @@ export const CREW_ROLE_E: Readonly<Record<CrewRole, Entry>> = {
   rookie: C.roleRookie,
 };
 
+/**
+ * Devoir du cahier §13.3 → Entry localisée, et sa phrase d'explication.
+ *
+ * `Record<CrewRoleDuty, …>` : ajouter un devoir au cahier sans lui donner de
+ * mots fera rougir le typecheck plutôt qu'afficher une clé technique.
+ */
+export const CREW_DUTY_E: Readonly<Record<CrewRoleDuty, Entry>> = {
+  member: C.dutyMember,
+  organizer: C.dutyOrganizer,
+  moderator: C.dutyModerator,
+  captain: C.dutyCaptain,
+};
+
+export const CREW_DUTY_HELP_E: Readonly<Record<CrewRoleDuty, Entry>> = {
+  member: C.dutyMemberHelp,
+  organizer: C.dutyOrganizerHelp,
+  moderator: C.dutyModeratorHelp,
+  captain: C.dutyCaptainHelp,
+};
+
 /** Statut de recrutement (§9) → Entry localisée. */
 export const RECRUITMENT_E: Readonly<Record<CrewRecruitmentStatus, Entry>> = {
   open: C.recruitOpen,
   on_request: C.recruitOnRequest,
   invite_only: C.recruitInviteOnly,
   closed: C.recruitClosed,
+};
+
+/**
+ * Accès (`crews.recruitment_status`) → libellé COURT, et sa phrase d'aide.
+ *
+ * Ces deux tables existaient déjà, en local, dans `RealCrewScreen.tsx` : la
+ * création avait donc son vocabulaire à un endroit que ni `/crew-create` ni
+ * `/crew-edit` ne pouvaient lire. Les remonter ici est la seule façon que les
+ * trois surfaces appellent la même chose du même nom.
+ */
+export const ACCESS_E: Readonly<Record<CrewRecruitmentStatus, Entry>> = {
+  open: C.rlAccessOpen,
+  on_request: C.rlAccessOnRequest,
+  invite_only: C.rlAccessInviteOnly,
+  closed: C.rlAccessClosed,
+};
+
+export const ACCESS_HELP_E: Readonly<Record<CrewRecruitmentStatus, Entry>> = {
+  open: C.rlAccessOpenHelp,
+  on_request: C.rlAccessOnRequestHelp,
+  invite_only: C.rlAccessInviteOnlyHelp,
+  closed: C.rlAccessClosedHelp,
 };
 
 /**

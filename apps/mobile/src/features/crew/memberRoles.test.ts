@@ -18,12 +18,15 @@ import {
   CO_CAPTAIN_KICKABLE_ROLES,
   CO_CAPTAIN_PROMOTE_MAX_ROLE,
   CREW_ROLES,
+  CREW_ROLE_DUTIES,
   CREW_ROLE_GROUPS,
   CREW_ROLE_GROUP_ORDER,
   type CrewRole,
 } from '../../../../../packages/shared/src/game-rules.ts';
 import {
   assignableRolesFor,
+  canOpenCrewEdit,
+  dutyOf,
   groupOf,
   groupRoster,
   isCrewRole,
@@ -278,4 +281,115 @@ Deno.test('0093 et game-rules ne dérivent pas : les listes de rôles du SQL son
     sql.includes(`public.crew_role_rank('${CO_CAPTAIN_PROMOTE_MAX_ROLE}')`),
     `le SQL ne plafonne pas le co_captain à ${CO_CAPTAIN_PROMOTE_MAX_ROLE}`,
   );
+});
+
+// ─── 6. LES QUATRE RÔLES UTILES DU CAHIER §13.3 ─────────────────────────────
+//
+// ÉTAPE 0 — LE DÉFAUT EXISTAIT. Le cahier de septembre (rang 0, ADR-012) décrit
+// QUATRE rôles utiles — membre, organisateur, modérateur, capitaine — là où la
+// base en stocke SEPT. La correspondance n'existait NULLE PART : ni dans
+// game-rules, ni ici, ni dans un écran. Conséquence directe, mesurable dans le
+// dépôt du 10/09/2026 : la liste des membres de l'onglet Crew affichait le rang
+// brut (« Stratège », « Éclaireur ») sans jamais dire ce qu'il PERMET, et rien
+// n'empêchait un futur écran d'appeler « modérateur » le `captain` GRYD — dont
+// les permissions sont celles d'un organisateur d'événements, pas d'un
+// modérateur. Ces tests rendent la dérive impossible en silence.
+
+Deno.test('cahier §13.3 : les 7 rôles GRYD portent un devoir, et un seul', () => {
+  for (const r of CREW_ROLES) {
+    const d = dutyOf(r);
+    assert(d !== null, `${r} n'a aucun devoir du cahier §13.3`);
+    assert(
+      (CREW_ROLE_DUTIES as readonly string[]).includes(d),
+      `${r} porte un devoir hors du cahier : ${d}`,
+    );
+  }
+  assertEquals(dutyOf('archiduc'), null, 'un rôle inconnu n’hérite pas d’un devoir');
+});
+
+Deno.test('cahier §13.3 : les QUATRE devoirs sont tous portés par au moins un rôle', () => {
+  // Un devoir sans rôle serait un mot du cahier que le produit ne rend jamais.
+  const portes = new Set(CREW_ROLES.map((r) => dutyOf(r)));
+  for (const d of CREW_ROLE_DUTIES) {
+    assert(portes.has(d), `le devoir « ${d} » du cahier n'est porté par aucun rôle`);
+  }
+  assertEquals(portes.size, CREW_ROLE_DUTIES.length, 'un devoir inconnu est apparu');
+});
+
+Deno.test('cahier §13.3 : chaque devoir est DÉDUIT des permissions, jamais décrété', () => {
+  // « Capitaine : gérer identité, rôles et équipes » — la seule colonne qui
+  // porte `changeNameEmblem`. Si la matrice l'ouvrait à un autre rôle sans que
+  // CREW_ROLE_DUTY suive, ce test le dirait.
+  for (const r of CREW_ROLES) {
+    if (roleHas(r, 'changeNameEmblem')) {
+      assertEquals(dutyOf(r), 'captain', `${r} peut changer l'identité mais n'est pas capitaine`);
+    }
+  }
+  // « Modérateur : traiter signalements et accès » — accepter les candidatures
+  // et exclure, sans toucher à l'identité.
+  for (const r of CREW_ROLES) {
+    if (roleHas(r, 'acceptApplications') && !roleHas(r, 'changeNameEmblem')) {
+      assertEquals(dutyOf(r), 'moderator', `${r} gère les accès mais n'est pas modérateur`);
+    }
+  }
+  // « Organisateur : gérer ses événements » — créer une sortie, sans gérer
+  // les accès ni l'identité.
+  for (const r of CREW_ROLES) {
+    if (roleHas(r, 'createOuting') && !roleHas(r, 'acceptApplications')) {
+      assertEquals(dutyOf(r), 'organizer', `${r} crée des rendez-vous mais n'est pas organisateur`);
+    }
+  }
+  // « Membre : participer, proposer » — aucun pouvoir SUR les autres.
+  for (const r of CREW_ROLES) {
+    if (!roleHas(r, 'createOuting') && !roleHas(r, 'kick') && !roleHas(r, 'changeNameEmblem')) {
+      assertEquals(dutyOf(r), 'member', `${r} ne décide pour personne mais n'est pas membre`);
+    }
+  }
+});
+
+// ─── 7. LA PORTE VERS `/crew-edit` SUIT LA MATRICE, PAS UN RÔLE ÉCRIT EN DUR ─
+//
+// ÉTAPE 0 — LE DÉFAUT EXISTAIT, ET IL ÉTAIT DOUBLE. `CrewHomeScreen.tsx`
+// peignait DEUX entrées vers `/crew-edit` (l'engrenage d'en-tête et la ligne
+// « Administrer le crew ») sans AUCUNE condition de rôle, alors que `crew_edit`
+// et `crew_edit_context` (0084) gatent leurs trois champs sur des permissions
+// qui valent `['founder']`. Six rôles sur sept arrivaient donc sur l'écran
+// « tu n'as pas le droit » — et `app/crew-edit.tsx` affirmait pourtant en
+// commentaire que son entrée « n'existe que pour qui a le droit ».
+
+Deno.test('canOpenCrewEdit : exactement les rôles que 0084 laisserait écrire', () => {
+  for (const r of CREW_ROLES) {
+    const attendu =
+      roleHas(r, 'changeNameEmblem') || roleHas(r, 'changeSettings') || roleHas(r, 'manageRecruitment');
+    assertEquals(canOpenCrewEdit(r), attendu, `porte /crew-edit incohérente pour ${r}`);
+  }
+  // Rôle non lu (agrégat `crew_overview` en échec) : on n'ouvre pas la porte.
+  assertEquals(canOpenCrewEdit(''), false, 'un rôle inconnu ouvre une porte qu’il ne peut pas passer');
+  assertEquals(canOpenCrewEdit('archiduc'), false);
+});
+
+Deno.test('canOpenCrewEdit ↔ 0084 : le SQL gate bien sur les mêmes rôles', async () => {
+  // GARDE-FOU DE DÉRIVE, même patron que le bloc 5 : on relit la migration.
+  const sql = await Deno.readTextFile(
+    new URL('../../../../../supabase/migrations/0084_crew_edit_rpc.sql', import.meta.url),
+  );
+  for (const champ of ['v_can_name', 'v_can_settings', 'v_can_recruitment'] as const) {
+    const m = sql.match(new RegExp(`${champ}\\s*:=\\s*v_role in \\(([^)]+)\\)`));
+    assert(m !== null, `${champ} introuvable dans 0084`);
+    const roles = m[1]!.split(',').map((s) => s.trim().replace(/'/g, ''));
+    for (const r of roles) {
+      assert(
+        canOpenCrewEdit(r),
+        `0084 laisse ${r} écrire ${champ}, mais l'écran lui cache la porte`,
+      );
+    }
+    // L'inverse : personne d'AUTRE ne doit voir la porte s'ouvrir pour ce champ.
+    for (const r of CREW_ROLES.filter((role) => !roles.includes(role))) {
+      assertEquals(
+        roleHas(r, champ === 'v_can_name' ? 'changeNameEmblem' : champ === 'v_can_settings' ? 'changeSettings' : 'manageRecruitment'),
+        false,
+        `game-rules donne à ${r} un droit que 0084 lui refuse (${champ})`,
+      );
+    }
+  }
 });

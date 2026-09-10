@@ -40,11 +40,13 @@ import {
   CO_CAPTAIN_PROMOTE_MAX_ROLE,
   CREW_PERMISSIONS,
   CREW_ROLES,
+  CREW_ROLE_DUTY,
   CREW_ROLE_GROUPS,
   CREW_ROLE_GROUP_ORDER,
   type CrewMemberAction,
   type CrewPermissionAction,
   type CrewRole,
+  type CrewRoleDuty,
   type CrewRoleGroup,
 } from '@klaim/shared';
 
@@ -84,6 +86,50 @@ export function groupOf(role: string): CrewRoleGroup | null {
     if ((CREW_ROLE_GROUPS[g] as readonly string[]).includes(role)) return g;
   }
   return null;
+}
+
+/**
+ * Le DEVOIR du cahier §13.3 porté par ce rôle, ou `null` si le rôle est inconnu.
+ *
+ * Le cahier de septembre décrit quatre rôles utiles — membre, organisateur,
+ * modérateur, capitaine — là où la base en stocke sept. `CREW_ROLE_DUTY`
+ * (game-rules) tient la correspondance ; cette fonction la LIT, et ne la
+ * recopie pas. Un rôle inconnu rend `null` : l'écran n'affiche alors AUCUN
+ * badge, plutôt qu'un devoir deviné (un `?? 'member'` ferait passer pour un
+ * membre ordinaire un rôle qu'on n'a pas su lire).
+ */
+export function dutyOf(role: string): CrewRoleDuty | null {
+  return isCrewRole(role) ? CREW_ROLE_DUTY[role] : null;
+}
+
+/**
+ * Ai-je le droit d'ouvrir `/crew-edit` ?
+ *
+ * ─── LE DÉFAUT QUE CETTE FONCTION CORRIGE ────────────────────────────────────
+ * L'onglet Crew peignait DEUX portes vers `/crew-edit` — l'engrenage d'en-tête
+ * et la ligne « Administrer le crew » — pour TOUT membre. Or `crew_edit` /
+ * `crew_edit_context` (migration 0084) gatent leurs trois champs sur
+ * `CREW_PERMISSIONS.changeNameEmblem` / `.changeSettings` / `.manageRecruitment`,
+ * qui valent `['founder']`. Six rôles sur sept arrivaient donc sur l'écran
+ * « tu n'as pas le droit » — deux boutons morts en pratique, et le docblock de
+ * `app/crew-edit.tsx` affirmait pourtant que « l'entrée vers cet écran n'existe
+ * que pour qui a le droit ».
+ *
+ * ─── POURQUOI UN OU LOGIQUE, ET PAS `role === 'founder'` ─────────────────────
+ * Écrire le rôle en dur ici le figerait : le jour où la matrice ouvre la
+ * description au `co_captain`, l'écran continuerait de lui cacher la porte sans
+ * que rien ne le signale. La question posée est « reste-t-il UN champ que je
+ * puisse modifier ? » — c'est exactement ce que l'écran d'édition appelle
+ * `canEditAnything` (app/crew-edit.tsx), à cette différence près qu'il le tient
+ * du SERVEUR (`crew_edit_context.can`) tandis qu'ici on l'anticipe. Le serveur
+ * rejuge ; cette fonction évite seulement un aller-retour vers une impasse.
+ */
+export function canOpenCrewEdit(role: string): boolean {
+  return (
+    roleHas(role, 'changeNameEmblem') ||
+    roleHas(role, 'changeSettings') ||
+    roleHas(role, 'manageRecruitment')
+  );
 }
 
 // ─── E46 : le roster rangé en trois groupes ──────────────────────────────────

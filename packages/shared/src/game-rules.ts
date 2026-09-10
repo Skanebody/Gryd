@@ -2153,6 +2153,58 @@ export const CREW_ROLE_GROUPS = {
 /** Ordre d'affichage des groupes (E46 : chef, officiers, membres). */
 export const CREW_ROLE_GROUP_ORDER: readonly CrewRoleGroup[] = ['lead', 'officers', 'members'];
 
+// ─── Cahier de septembre §13.3 « Rôles utiles » — ce que le rôle SERT à faire ─
+/**
+ * Le cahier de septembre (rang 0, ADR-012) §13.3 ne décrit pas sept rôles : il
+ * en décrit QUATRE, et il les décrit par leur UTILITÉ.
+ *
+ *   « **Membre :** participer, proposer une sortie, publier dans les espaces
+ *     permis. **Organisateur :** gérer ses événements. **Modérateur :** traiter
+ *     signalements et accès. **Capitaine :** gérer identité, rôles et équipes. »
+ *
+ * GRYD, lui, a SEPT rôles en base (`CREW_ROLES`, §8.1-§8.7, contraints par la
+ * migration 0013 et écrits par 0093). LES DEUX SONT VRAIS : le cahier nomme des
+ * DEVOIRS, la base stocke des RANGS. Ce qui manquait était la traduction entre
+ * les deux — et sans elle, chaque écran l'aurait réinventée : l'un aurait appelé
+ * « modérateur » le `captain`, l'autre le `co_captain`, et le cahier serait
+ * devenu invérifiable.
+ *
+ * ⚠ CE TABLEAU NE CRÉE AUCUN POUVOIR, IL EN LIT UN. Chaque rattachement est
+ * déduit de `CREW_PERMISSIONS`, jamais d'un goût :
+ *   · `captain` (cahier) ⟵ `founder` — SEUL rôle qui porte `changeNameEmblem`,
+ *     `manageRecruitment`, `changeSettings`, `transferFoundership` : « gérer
+ *     identité, rôles et équipes » est mot pour mot cette colonne-là ;
+ *   · `moderator` (cahier) ⟵ `co_captain` — `acceptApplications` + `kick` +
+ *     `promote`/`demote` : « traiter signalements et accès » ;
+ *   · `organizer` (cahier) ⟵ `captain` (GRYD) — `createOuting`, `assignDefense`,
+ *     `manageWeeklyMissions` : « gérer ses événements ». Le nom collisionne avec
+ *     le « Capitaine » du cahier, et c'est précisément pourquoi ce tableau
+ *     existe : sans lui, un écran aurait donné au `captain` GRYD les droits
+ *     d'identité que le cahier réserve à son Capitaine ;
+ *   · `member` (cahier) ⟵ `strategist` / `scout` / `runner` / `rookie` — ils
+ *     PROPOSENT (proposeTargets, createScoutReport…), ils ne décident pas pour
+ *     les autres : c'est la définition du membre au cahier.
+ *
+ * ANTI PAY-TO-WIN, comme `CREW_ROLE_GROUPS` : un devoir n'octroie ni mètre
+ * carré, ni point, ni protection, et aucun SKU n'en vend un. Le cahier le dit
+ * lui-même : « La modération et la sécurité ne sont jamais un avantage payant. »
+ */
+export type CrewRoleDuty = 'member' | 'organizer' | 'moderator' | 'captain';
+/** Ordre d'affichage : du plus large au plus engageant (cahier §13.3). */
+export const CREW_ROLE_DUTIES: readonly CrewRoleDuty[] = [
+  'member', 'organizer', 'moderator', 'captain',
+];
+/** Rôle GRYD (base) → devoir du cahier §13.3. Exhaustif : les 7 rôles y sont. */
+export const CREW_ROLE_DUTY: Readonly<Record<CrewRole, CrewRoleDuty>> = {
+  rookie: 'member',
+  runner: 'member',
+  scout: 'member',
+  strategist: 'member',
+  captain: 'organizer',
+  co_captain: 'moderator',
+  founder: 'captain',
+};
+
 // ─── E47 §« Actions sur un membre » — le catalogue FERMÉ de la feuille ───────
 /**
  * E47 (spéc l.1679-1696) : la feuille d'actions ouverte depuis une ligne de
