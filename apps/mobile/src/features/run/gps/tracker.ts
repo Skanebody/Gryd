@@ -108,6 +108,20 @@ export class RunTracker {
   /** Pas comptés par L'ABONNEMENT courant (cumulés depuis watchStepCount). */
   private stepsSinceWatch = 0;
   private stepSub: { remove(): void } | null = null;
+  /**
+   * Un abonnement podomètre a-t-il RÉELLEMENT tourné pendant cette sortie ?
+   *
+   * ─── POURQUOI CE DRAPEAU N'EST PAS `stepSub !== null` ──────────────────────
+   * `stepSub` est remis à `null` par `stopPedometer()` — c'est-à-dire À LA FIN
+   * DE LA COURSE, juste avant que le payload soit construit. Le lire là
+   * répondrait toujours « non », et le zéro d'un vrai podomètre repartirait dans
+   * le silence exactement comme avant. Ce drapeau, lui, est POSÉ UNE FOIS et ne
+   * redescend jamais : il décrit ce qui a eu lieu, pas ce qui est branché.
+   *
+   * Il survit aussi à une fusion après reprise (`initialSteps`) : une course
+   * rouverte dont le podomètre avait déjà compté ne redevient pas « non mesurée ».
+   */
+  private stepSensorRan = false;
 
   constructor(init: TrackerInit) {
     this.recordingOwnerId = init.recordingOwnerId;
@@ -124,6 +138,8 @@ export class RunTracker {
     this.deadMsTotal = init.deadMs ?? 0;
     this.autoPause = init.autoPause;
     this.stepBase = init.initialSteps ?? 0;
+    // Un cumul repris d'une session précédente PROUVE qu'un podomètre a tourné.
+    this.stepSensorRan = this.stepBase > 0;
   }
 
   /** Trace brute (persistance runStore, fusion à la reprise). */
@@ -141,16 +157,28 @@ export class RunTracker {
     return this.deadMsTotal;
   }
 
-  /** Pas cumulés de la course (0 = podomètre indisponible/jamais démarré). */
+  /** Pas cumulés de la course. `0` avec `stepSensorActive` vrai EST une mesure. */
   get stepCount(): number {
     return this.stepBase + this.stepsSinceWatch;
+  }
+
+  /** Un podomètre a-t-il tourné pendant cette sortie ? (cf. `stepSensorRan`) */
+  get stepSensorActive(): boolean {
+    return this.stepSensorRan;
   }
 
   /**
    * Podomètre (AMENDEMENT-15 §2 « steps si dispo via pedometer ») : démarré par
    * le hook AVEC la course, guardé isAvailableAsync — no-op web/simulateur/
-   * permission refusée. Indisponible → stepCount reste 0 et buildPayload OMET
-   * le champ (comportement serveur inchangé : motionTrust neutre §3.2).
+   * permission refusée.
+   *
+   * DEUX ISSUES, ET ELLES NE SE RESSEMBLENT PLUS (10/09/2026) :
+   *  · capteur indisponible → `stepSensorRan` reste FAUX, `buildPayload` OMET
+   *    le champ, et le serveur traite le signal comme indisponible (neutre) ;
+   *  · capteur disponible → `stepSensorRan` passe à VRAI, et le total part avec
+   *    la trace MÊME S'IL VAUT ZÉRO. Un podomètre qui n'a compté aucun pas sur
+   *    plusieurs kilomètres est la meilleure preuve qu'un téléphone sache
+   *    produire d'un déplacement non pédestre ; elle était jetée.
    */
   async startPedometer(): Promise<void> {
     if (this.finished || this.stepSub !== null) return;
@@ -160,6 +188,9 @@ export class RunTracker {
         // result.steps = cumul depuis CET abonnement (jamais additionné à lui-même).
         this.stepsSinceWatch = Math.max(0, result.steps);
       });
+      // POSÉ APRÈS l'abonnement réussi, et jamais retiré : à partir d'ici, un
+      // total de zéro pas est une MESURE, pas une absence de capteur.
+      this.stepSensorRan = true;
     } catch {
       // Capteur absent/refusé : signal simplement absent, jamais bloquant.
     }
@@ -244,6 +275,7 @@ export class RunTracker {
     return { ...buildIngestPayload(this.state(), {
       clientRunId: this.runId,
       stepCount: this.stepCount,
+      stepSensorRan: this.stepSensorRan,
     }), recordingOwnerId: this.recordingOwnerId, recordingSessionId: this.recordingSessionId, sharedMapParticipation: this.sharedMapParticipation };
   }
 }

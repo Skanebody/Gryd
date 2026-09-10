@@ -52,6 +52,7 @@ import {
   type PauseInterval,
   type RawFix,
 } from './engine/gps';
+import { mockedLocationForPayload, stepCountForPayload } from '../motionIntegrity';
 import { farthestGapM, loopGapM } from './engine/loopHint';
 import { recentSpeedMps } from './engine/liveView';
 import { sampleEvenly, splitAndSampleAtGaps } from './traceSample';
@@ -367,8 +368,23 @@ export function computeSnapshot(state: RunPipelineState, nowTs: number): Tracker
 export interface PayloadContext {
   /** UUID local généré AVANT la course : clé d'idempotence d'ingest_run. */
   clientRunId: string;
-  /** Pas cumulés (0 = podomètre indisponible → le champ est OMIS du payload). */
+  /** Pas cumulés observés. `0` est une MESURE dès que `stepSensorRan` est vrai. */
   stepCount: number;
+  /**
+   * Un abonnement podomètre a-t-il réellement tourné ?
+   *
+   * ─── POURQUOI CE CHAMP A DÛ EXISTER (10/09/2026) ──────────────────────────
+   * Le payload n'envoyait `stepCount` que s'il était STRICTEMENT positif : «
+   * aucun podomètre sur cet appareil » et « un podomètre a tourné 12 km sans
+   * compter un seul pas » arrivaient au serveur sous la MÊME forme, un champ
+   * absent. Le second est pourtant la signature d'un déplacement non pédestre —
+   * la seule observation qu'un téléphone sache faire contre un vélo déclaré «
+   * course », et elle était jetée avec le premier.
+   *
+   * OPTIONNEL, et rétro-compatible : absent ⇒ ancien comportement exact (on
+   * n'envoie que le positif). Les appelants qui savent répondre le disent.
+   */
+  stepSensorRan?: boolean;
 }
 
 /**
@@ -396,6 +412,16 @@ export function buildIngestPayload(
 ): IngestRunRequest {
   const clean = cleanTrace(state.fixes, state.activity);
   const smoothed = smoothTrace(clean.points);
+  // Rétro-compatibilité stricte pour `sensorRan` : un appelant qui ne sait pas
+  // dire si le podomètre a tourné retombe sur l'ancien critère (« un cumul
+  // positif prouve qu'il tournait »). Aucun comportement existant ne change.
+  const steps = stepCountForPayload({
+    sensorRan: ctx.stepSensorRan ?? ctx.stepCount > 0,
+    steps: ctx.stepCount,
+  });
+  // Le drapeau se lit sur la trace BRUTE : les relevés simulés doivent compter
+  // même si le nettoyage les écarte ensuite.
+  const mocked = mockedLocationForPayload(state.fixes);
   return {
     clientRunId: ctx.clientRunId,
     source: 'gps',
@@ -405,7 +431,11 @@ export function buildIngestPayload(
     activity: state.activity,
     runMode: state.mode,
     gpsTrust: gpsTrustScore(clean),
-    // Podomètre indisponible → champ ABSENT (motionTrust neutre côté serveur).
-    ...(ctx.stepCount > 0 ? { stepCount: ctx.stepCount } : {}),
+    // ── LES DEUX SIGNAUX DE CAPTEUR : UNE MESURE, OU RIEN ──────────────────
+    // Jamais un zéro par défaut (ce serait accuser un appareil qui n'a rien
+    // fait), jamais un silence sur une mesure réelle (ce serait cacher la
+    // preuve). La règle vit UNE fois, dans `motionIntegrity.ts`, PUR et testé.
+    ...(steps === undefined ? {} : { stepCount: steps }),
+    ...(mocked === undefined ? {} : { mockedLocation: mocked }),
   };
 }

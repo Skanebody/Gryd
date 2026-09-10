@@ -35,6 +35,14 @@ export const GPS_BACKGROUND_TASK = 'gryd-gps-background';
  * LocationObject → RawFix. Une accuracy absente (rare, vieux Android) est
  * remplacée par GPS_ACCURACY_MAX_M : le point reste affichable mais pèse
  * « faible » dans la jauge — jamais une fausse confiance.
+ *
+ * `mocked` (anti-triche 2026) : ANDROID rend ce drapeau quand la position vient
+ * d'un fournisseur SIMULÉ (une application de « faux GPS »). iOS ne l'expose
+ * pas, et le champ y reste donc `undefined` — ce qui est la réponse honnête :
+ * « la plateforme n'a rien dit », que le serveur distingue soigneusement de
+ * « l'appareil a répondu non » (cf. features/run/motionIntegrity.ts). Recopié
+ * tel quel, sans jamais être normalisé en `false` : ce serait affirmer qu'un
+ * contrôle a eu lieu là où il n'y en a pas.
  */
 export function toRawFix(loc: Location.LocationObject): RawFix {
   return {
@@ -43,6 +51,7 @@ export function toRawFix(loc: Location.LocationObject): RawFix {
     ts: loc.timestamp,
     accuracy: loc.coords.accuracy ?? GPS_ACCURACY_MAX_M,
     ...(loc.coords.speed !== null && loc.coords.speed >= 0 ? { speed: loc.coords.speed } : {}),
+    ...(typeof loc.mocked === 'boolean' ? { mocked: loc.mocked } : {}),
   };
 }
 

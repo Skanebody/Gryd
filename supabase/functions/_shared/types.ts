@@ -134,8 +134,33 @@ export interface IngestRunRequest {
   cityId?: CityId;
   startedAt: string; // ISO 8601
   points: RunPoint[];
-  /** Nombre de pas mesuré sur la période (podomètre/HealthKit) — signal GRYD Verify optionnel. */
+  /**
+   * Nombre de pas mesuré sur la période (podomètre/HealthKit) — signal GRYD
+   * Verify optionnel.
+   *
+   * ⚠️ `0` ET `undefined` NE DISENT PAS LA MÊME CHOSE (précision du 10/09/2026,
+   * lot anti-triche) : `undefined` = aucun podomètre n'a tourné (indisponible,
+   * refusé, plateforme muette) et le serveur n'en tire RIEN ; `0` = un
+   * podomètre A tourné et n'a compté aucun pas, ce qui, sur plusieurs
+   * kilomètres, est une information forte. Le client ne doit donc omettre ce
+   * champ que dans le premier cas.
+   */
   stepCount?: number;
+  /**
+   * L'appareil a-t-il déclaré une position SIMULÉE ? (`LocationObject.mocked`
+   * d'expo-location — ANDROID uniquement ; iOS ne fournit pas l'information et
+   * le champ y reste absent.)
+   *
+   * TROIS ÉTATS VOULUS : absent = la plateforme n'a rien dit ; `false` =
+   * l'appareil a répondu « non » ; `true` = position simulée. Le serveur les
+   * distingue (`AntiCheatInput.mockedLocation`) et ne traite JAMAIS une absence
+   * comme un blanc-seing ni comme un aveu.
+   *
+   * Ce champ vient du client : il n'est pas une preuve d'intégrité (un binaire
+   * modifié l'omettrait). Il attrape l'usage d'une application de simulation par
+   * quelqu'un qui n'a pas recompilé GRYD — c'est-à-dire le scénario réel.
+   */
+  mockedLocation?: boolean;
   /**
    * GPS Trust client 0-100 (AMENDEMENT-15 §1) : score du moteur gps.ts calculé
    * sur la trace BRUTE (accuracy moyenne, pertes de signal, ratio d'outliers —

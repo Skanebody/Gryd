@@ -40,6 +40,10 @@ import type { IngestRunRequest, IngestRunResponse, RunPoint } from '../_shared/t
 import { analyzeTrace2026, captureRejection2026, CAPTURE_SERVER_REASONS_2026,
   type CaptureServerReason2026 } from '../_shared/engine/capture2026.ts';
 import { scoreRun, type AntiCheatDecision } from '../_shared/engine/anticheat.ts';
+// §11.3 — la traduction « décision moteur → ligne de revue » existe déjà et est
+// testée (anticheat_wiring_test.ts) : on la RÉUTILISE plutôt que d'en écrire une
+// seconde, qui divergerait au premier changement de colonne.
+import { buildReviewRow, isDuplicateReview, type ReviewableDecision } from './anticheat_wiring.ts';
 import { recomputeProgression2026 } from '../_shared/recomputeProgress2026.ts';
 // LOT C, ligne du motif d'XP uniquement (constat 3) : un zéro sans motif est un
 // silence. Le calcul reste PUR et partagé ; ce fichier ne fait que le rendre.
@@ -166,6 +170,17 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
         points_awarded: 0, xp_awarded: 0, ruleset_version: RULESET_VERSION_2026,
         game_status_2026: 'pending', trace_points_2026: request.points, polyline_hash: fingerprint,
         recording_session_id_2026: request.recordingSessionId ?? null,
+        // ── LES DEUX SIGNAUX DE CAPTEUR SONT PERSISTÉS AVEC LA COURSE ────────
+        // Ils sont scellés ICI, à la première écriture, et jamais relus de la
+        // requête ensuite : un renvoi du même `clientRunId` ne doit pas pouvoir
+        // rendre une décision anti-triche différente de la première (le moteur
+        // est déterministe ; ses ENTRÉES doivent l'être aussi). `null` garde son
+        // sens exact dans les deux cas — « l'appareil n'a rien mesuré », jamais
+        // « zéro ».
+        step_count: typeof request.stepCount === 'number' && Number.isFinite(request.stepCount)
+          ? Math.max(0, Math.round(request.stepCount))
+          : null,
+        mocked_location_2026: typeof request.mockedLocation === 'boolean' ? request.mockedLocation : null,
         shared_map_consent_2026: request.sharedMapParticipation === true && request.runMode !== 'course_privee',
       }, { onConflict: 'user_id,client_run_id', ignoreDuplicates: true }).select('*').maybeSingle();
       check(saved.error, 'durable activity');
@@ -207,10 +222,54 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
           ...(adopted?.reason ? { unavailableReason:adopted.reason } : {}) });
     const sourceVerified = clock.verified;
     const authoritativeAnalysis=sourceVerified?analyzeTrace2026(anchoredPoints,run.activity):analysis;
-    const antiCheat = scoreRun({ points:sourceVerified?anchoredPoints:points, activity:run.activity, source:run.source, now:Date.parse(run.created_at) });
+    // ── §18.4 — LES SIGNAUX DE CAPTEUR ATTEIGNENT ENFIN LE MOTEUR ───────────
+    // Ils étaient collectés et transmis depuis des mois (`IngestRunRequest.
+    // stepCount`, alimenté par `Pedometer.watchStepCount` côté mobile), stockés
+    // en base par le pipeline historique... et JAMAIS passés à `scoreRun` par
+    // le pipeline de septembre, seul actif. Conséquence mesurable : le signal
+    // `step_coherence` — celui qui dit « ce déplacement n'est pas pédestre »,
+    // c'est-à-dire le SEUL qui démasque un vélo déclaré « course » — sortait
+    // systématiquement « indisponible » en production. La donnée existait, la
+    // règle existait, le fil entre les deux était coupé.
+    //
+    // Les entrées viennent de la LIGNE `runs`, pas de la requête : un renvoi ne
+    // peut pas changer la décision (cf. le scellement à l'upsert).
+    const antiCheat = scoreRun({ points:sourceVerified?anchoredPoints:points, activity:run.activity, source:run.source, now:Date.parse(run.created_at),
+      ...(typeof run.step_count === 'number' ? { stepCount: run.step_count } : {}),
+      ...(typeof run.mocked_location_2026 === 'boolean' ? { mockedLocation: run.mocked_location_2026 } : {}) });
     // Legacy segment eligibility excludes slow outings from territorial pace
     // bands. It is not a review signal in September's independent sporting XP.
     const reviewRequired = requiresReview2026(antiCheat.decision);
+    // ── §11.3/§11.4 — LA RAISON D'UN GEL EST ÉCRITE QUELQUE PART ────────────
+    // `reviewRequired` suffisait à REFUSER la capture (`p_review_required` →
+    // `verification_required`, migration 0155) mais n'écrivait RIEN : ni le
+    // score, ni les signaux, ni leurs preuves chiffrées. Une sortie repartait
+    // sans terrain et le dépôt entier ne savait pas dire pourquoi — ni pour un
+    // opérateur, ni pour le joueur qui fait appel (E28). `anticheat_reviews`
+    // (0081) attendait depuis le lot 9, vide par construction.
+    //
+    // BEST-EFFORT ASSUMÉ, comme dans le pipeline historique : la capture est
+    // déjà refusée quoi qu'il arrive ici. Faire échouer l'ingestion parce que
+    // la ligne d'audit n'est pas passée priverait le joueur de son résultat
+    // sportif sans rien protéger. Idempotence PAR LA CONTRAINTE (`run_id`
+    // unique) et non par un `select` préalable : deux renvois simultanés ne
+    // peuvent pas empiler deux dossiers du même fait.
+    //
+    // VIE PRIVÉE (§12, 0081) : `signals` ne porte que des nombres — parts de
+    // durée, écarts, seuils. Le moteur n'émet aucune coordonnée, précisément
+    // parce que ce rapport voyage jusqu'à la revue et jusqu'à l'appel.
+    if (reviewRequired) {
+      try {
+        const review = await db.from('anticheat_reviews').insert(buildReviewRow({
+          runId: run.id, userId,
+          review: { system_decision: antiCheat.decision as ReviewableDecision,
+            suspicion: antiCheat.suspicion, signals: antiCheat.signals },
+        }));
+        if (review.error && !isDuplicateReview(review.error.code)) {
+          console.error('[ingest2026] anticheat review pending (capture déjà refusée):', review.error.message);
+        }
+      } catch(e) { console.error('[ingest2026] anticheat review pending (verdict inchangé)',e); }
+    }
     // XP failure and geometry failure are independent and both resumable.
     try {
       const evidence = { canonicalId:run.id,revision:1,sport:run.activity,startedAt:run.started_at,endedAt:run.ended_at_2026,

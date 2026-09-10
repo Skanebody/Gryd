@@ -71,6 +71,20 @@ export interface RawFix {
   accuracy: number;
   /** Vitesse capteur (m/s) si fournie — informative, JAMAIS source de vérité. */
   speed?: number;
+  /**
+   * La plateforme a-t-elle déclaré cette position SIMULÉE ?
+   * (`LocationObject.mocked` d'expo-location — ANDROID uniquement.)
+   *
+   * TROIS ÉTATS, et la différence est le sujet même du champ : `undefined` = la
+   * plateforme n'a rien dit (tout iOS, tout navigateur) ; `false` = l'appareil a
+   * répondu « non » ; `true` = fournisseur de position simulé.
+   *
+   * Aucun calcul du moteur ne le lit : il n'entre ni dans la distance, ni dans
+   * l'allure, ni dans le nettoyage. Il ne fait que VOYAGER jusqu'au serveur,
+   * seul juge (`IngestRunRequest.mockedLocation`). C'est un signal, pas une
+   * preuve : un binaire modifié l'omettrait.
+   */
+  mocked?: boolean;
 }
 
 /**
