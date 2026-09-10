@@ -56,7 +56,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // sans lui, `subject_id = moi` accepterait aussi la ligne d'un crew dont
       // l'identifiant vaudrait le mien. Un export ne parie pas sur l'unicité de
       // deux espaces d'UUID distincts.
-      const base = supabase.from(t.table).select('*').eq(t.column, userId);
+      // `columns` restreint la PROJECTION quand la table contient, à côté des
+      // données du demandeur, un secret vivant du groupe (le code d'un crew, un
+      // jeton d'invitation) ou l'identité d'un tiers (l'officier qui a décidé).
+      // Sans elle, `select('*')` ferait sortir par l'export ce que la RLS et
+      // les RPC gardent fermé — une fuite avec une preuve verte.
+      const base = supabase
+        .from(t.table)
+        .select(t.columns ? t.columns.join(',') : '*')
+        .eq(t.column, userId);
       const query = t.also ? base.match(t.also) : base;
       const res = t.single ? await query.maybeSingle() : await query;
       if (res.error) {

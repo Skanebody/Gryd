@@ -184,6 +184,64 @@ Deno.test('chaque table porteuse d’une identité, 2026 OU écrite par la refon
   assertEquals(wrongColumn, [], 'ces filtres portent sur une colonne que la table n’a pas');
 });
 
+Deno.test('une PROJECTION restreinte est appliquée, et elle exclut vraiment le secret', () => {
+  // Même raisonnement que pour `also` : une liste juste et un lecteur qui
+  // l'ignore, c'est la même fuite avec une preuve verte.
+  const fn = Deno.readTextFileSync(new URL('./index.ts', import.meta.url));
+  assert(
+    fn.includes(".select(t.columns ? t.columns.join(',') : '*')"),
+    'index.ts doit appliquer la projection `columns`',
+  );
+
+  // Ce qui ne doit JAMAIS sortir par l'export, table par table :
+  //  · un secret vivant du groupe (le code d'un crew, un jeton d'invitation) ;
+  //  · le nom de qui a décidé une mesure PRISE CONTRE le demandeur — le lot Q2
+  //    pose que l'exclu apprend le motif et jamais le décideur.
+  const forbidden: Record<string, string[]> = {
+    crews: ['code'],
+    crew_invites: ['token_hash', 'prefix'],
+    crew_warnings_2026: ['issued_by'],
+    crew_kicks_2026: ['decided_by'],
+  };
+  for (const [table, banned] of Object.entries(forbidden)) {
+    const entry = PERSONAL_TABLES.find((t) => t.table === table);
+    assert(entry !== undefined, `${table} doit être exportée`);
+    assert(entry?.columns !== undefined, `${table} doit porter une projection explicite`);
+    for (const column of banned) {
+      assertEquals(
+        entry?.columns?.includes(column),
+        false,
+        `${table}.${column} ne doit JAMAIS partir dans un export`,
+      );
+    }
+  }
+
+  // Et chaque colonne projetée doit EXISTER dans la table : une projection sur
+  // une colonne absente ferait échouer la requête entière, donc perdrait la
+  // table dans `partialErrors` — un export incomplet qui a l'air complet.
+  const bodies = new Map<string, string>();
+  for (const { sql } of migrationFiles()) {
+    for (const b of sql.matchAll(/create table (?:if not exists )?public\.([a-z0-9_]+)\s*\(([\s\S]*?)\n\);/g)) {
+      bodies.set(b[1], (bodies.get(b[1]) ?? '') + b[2]);
+    }
+    // Les colonnes AJOUTÉES après coup comptent autant que celles d'origine.
+    for (const a of sql.matchAll(/alter table public\.([a-z0-9_]+)([\s\S]*?);/g)) {
+      if (/add column/.test(a[2])) bodies.set(a[1], (bodies.get(a[1]) ?? '') + a[2]);
+    }
+  }
+  for (const t of PERSONAL_TABLES) {
+    if (t.columns === undefined) continue;
+    const body = bodies.get(t.table);
+    assert(body !== undefined, `${t.table} doit être déclarée par une migration`);
+    for (const column of t.columns) {
+      assert(
+        new RegExp(`(^|[\\s,(])${column}\\s`).test(body ?? ''),
+        `${t.table}.${column} n'existe pas dans le schéma`,
+      );
+    }
+  }
+});
+
 Deno.test('une table POLYMORPHE ne se filtre pas sur le seul identifiant', () => {
   // `leaderboard_entries.subject_id` désigne un joueur OU un crew (0082 : deux
   // tables cibles, aucune clé étrangère). Sans `subject_type`, l'export parierait

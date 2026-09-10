@@ -602,3 +602,409 @@ ne l'a pas enregistré.
 [Everything about Clan Roles](https://play.google.com/store/apps/editorial?id=mc_editorialmd_post_install_clash_of_clans_clan_roles_explained_fcp) ·
 [Clan War Leagues](https://clashofclans.fandom.com/wiki/Clan_War_Leagues) ·
 [Clans Guide: Ranks, Donations & Perks](https://skycoach.gg/blog/clash-of-clans/articles/clans-guide)
+
+---
+
+## 6. Contrats livrés (Q2) — écrit après la migration, pas avant
+
+> **Statut** : ce chapitre décrit du code APPLIQUÉ en migration et prouvé en
+> PGlite. Il est écrit le 11/09/2026, après coup, et ne promet rien au-delà de ce
+> que `npm run test:sql` rejoue. Les signatures viennent du catalogue Postgres
+> (`pg_get_function_identity_arguments`), les exemples de JSON sont copiés d'une
+> exécution réelle sur les trois migrations.
+>
+> **Migrations livrées** : `0188_crew_rules_2026.sql` · `0189_crew_board_2026.sql`
+> · `0190_crew_inactivity_2026.sql`. **Non poussées en production.**
+> **Tests** : `supabase/tests/crew_rules_2026.pglite.test.mjs` ·
+> `crew_board_2026.pglite.test.mjs` · `crew_inactivity_2026.pglite.test.mjs`.
+
+### 6.1 Ce qui a été livré, et les écarts avec §3
+
+| §3 annonçait | Livré | Écart |
+|---|---|---|
+| 13 RPC | **15** | +`crew_resolve_warning_2026` (un officier doit pouvoir lever un avertissement `manual`, que le job ne peut pas lever faute de fait mesurable) ; +`crew_dissolve_2026` (décision du fondateur du 11/09) |
+| 5 tables | **6 + 1 vue** | `crew_rules_2026`, `crew_rule_acceptances_2026`, `crew_warnings_2026`, `crew_kicks_2026`, **`crew_decisions_2026`** (le journal que 0093 réclamait), **`crew_sweep_log_2026`** (§3.3 ⑤ : « le job a-t-il tourné ? » doit avoir une réponse même à vide) ; vue simple `crew_member_activity_2026` |
+| `crew_applications` étendue | fait | + `charter_version integer` nullable |
+| — | **`crew_members.removed_by_server boolean`** | Un retrait AUTOMATIQUE n'a pas d'auteur humain. Laisser `removed_by` à `null` l'aurait fait passer pour un départ volontaire, donc lui aurait infligé le cooldown de 7 jours que 0093 refuse d'infliger à quelqu'un qu'on met dehors |
+| — | **`crews.archived_at / archived_by / archived_reason / name_available_at`** | Dissolution |
+| — | **`notifications.event_id` + unique partielle**, `type` élargi à `'crew'` | La déduplication de §14.3 appliquée à la boîte de réception |
+| `crew_discovery_2026` | fait | `crew_discovery` (0152) N'EST PAS remplacée : deux découvertes coexistent jusqu'à ce que Q3 bascule l'appel |
+
+**Trois fonctions existantes sont remplacées** (`create or replace`, signature et
+grants conservés) : `create_crew` (le nom d'un crew archivé est tenu),
+`join_crew_by_code` et `crew_join_intent` (un retrait automatique n'est pas un
+départ volontaire, un crew archivé ne recrute pas). **`crew_remove_member`
+(0093) n'est PAS remplacée** : la remplacer par un refus casserait le bouton
+d'exclusion du client actuel. Deux chemins d'exclusion coexistent donc jusqu'à
+Q3, dont un sans motif ni journal.
+
+### 6.2 Vocabulaire d'erreur, au complet
+
+Toutes les RPC rendent `jsonb`. Succès : `{ok: true, …}`. Refus :
+`{ok: false, reason: '<mot>', …}` — jamais une exception, jamais un message
+libre. Un client peut donc traduire chaque refus sans lire de prose.
+
+| Mot | Sens | Rendu par |
+|---|---|---|
+| `signed_out` | aucune session | toutes |
+| `no_crew` | l'appelant n'a aucun crew actif | toutes celles qui agissent sur SON crew |
+| `forbidden` | rôle insuffisant (matrice `CREW_PERMISSIONS`) | `crew_rules_set_2026`, `crew_member_board_2026`, `crew_warn_member_2026`, `crew_remove_member_2026`, `crew_decisions_log_2026`, `crew_resolve_warning_2026`, `crew_invite_by_handle_2026` |
+| `not_founder` | dissoudre exige le fondateur, ce n'est pas une question de niveau | `crew_dissolve_2026` |
+| `not_found` | objet inexistant, OU compte en suppression (zéro énumération) | `crew_rules_get_2026`, `crew_eligibility_2026`, `crew_apply_2026`, `crew_accept_charter_2026`, `crew_resolve_warning_2026`, `crew_invite_by_handle_2026` |
+| `not_member` | la cible n'est pas membre actif du crew | `crew_warn_member_2026`, `crew_remove_member_2026` |
+| `self` | jamais sur soi-même | `crew_warn_member_2026`, `crew_remove_member_2026`, `crew_invite_by_handle_2026` |
+| `cannot_target_lead` | le fondateur est intouchable | `crew_warn_member_2026`, `crew_remove_member_2026` |
+| `out_of_scope` | hors périmètre de rang (`CO_CAPTAIN_KICKABLE_ROLES`) | idem |
+| `full` | `CREW_MAX_MEMBERS` atteint | `crew_apply_2026`, `crew_invite_by_handle_2026` |
+| `cooldown` | délai en cours. `daysLeft` toujours ; `rejoinAllowedAt` en plus quand c'est le délai de re-adhésion au MÊME crew | `crew_apply_2026` |
+| `already_in_crew` | l'appelant (ou la cible) est déjà dans un crew | `crew_apply_2026`, `crew_invite_by_handle_2026` |
+| `pending` | une candidature est déjà en attente | `crew_apply_2026` |
+| `closed` | accueil `closed` ou `invite_only` (+ `recruitmentStatus`) | `crew_apply_2026` |
+| `dead_crew` | aucun membre actif, ou crew ARCHIVÉ | `crew_apply_2026`, `join_crew_by_code` |
+| `not_eligible` | exigences non satisfaites, **+ `missing`** | `crew_apply_2026` |
+| `charter_stale` | la version de charte présentée n'est plus la courante (+ `charterVersion`) | `crew_apply_2026`, `crew_accept_charter_2026` |
+| `rate_limited` | plafond quotidien de candidatures (+ `max`) | `crew_apply_2026` |
+| `bad_rules` | réglage refusé, **+ `detail`** (voir §6.4) | `crew_rules_set_2026` |
+| `bad_message` / `bad_note` | texte trop long (+ `max`) | `crew_apply_2026` / `crew_warn_member_2026`, `crew_remove_member_2026` |
+| `bad_reason` / `note_required` | motif hors catalogue / note obligatoire pour `other` | `crew_remove_member_2026` |
+| `bad_sort` / `bad_filter` | tri ou filtre hors catalogue | `crew_member_board_2026` |
+| `bad_activity` / `bad_recruitment` / `bad_requirements` | filtre de découverte hors catalogue | `crew_discovery_2026` |
+| `active_challenge` | un défi de crew est en cours (**+ `challengeId`, `endsAt`**) | `crew_dissolve_2026` |
+| `already_archived` | crew déjà dissous (+ `archivedAt`) | `crew_dissolve_2026` |
+
+### 6.3 Les quinze RPC
+
+Toutes en `security definer`, `set search_path = public, pg_temp`, avec
+`revoke all … from public, anon` AVANT tout `grant` (patron 0042/0083 §7 :
+`anon` hérite d'EXECUTE par `public`, un `revoke from anon` seul ne ferme rien).
+
+#### `crew_rules_get_2026(p_crew_id uuid) -> jsonb`
+Tout compte connecté, membre ou non. La fiche publique DOIT montrer exigences et
+charte avant l'entrée, sinon l'acceptation serait un consentement fictif.
+```json
+{ "ok": true,
+  "charter": "On court le mardi soir, et on attend tout le monde.",
+  "charterVersion": 1, "myAcceptedVersion": 1,
+  "requirements": { "min_level": 4, "min_distance_km_28d": 30 },
+  "enforcement": { "max_inactivity_days": 14, "auto_remove_after_days": 7 },
+  "updatedAt": "2026-09-10T18:47:00.78+00:00" }
+```
+`charter: null`, `requirements: {}`, `enforcement: {}` = un crew sans charte ni
+exigence ni règle. C'est l'état de TOUS les crews existants : aucun rétro-fit.
+
+#### `crew_rules_set_2026(p_charter text, p_requirements jsonb, p_enforcement jsonb) -> jsonb`
+`CREW_PERMISSIONS.changeSettings` = **founder seul**.
+```json
+{ "ok": true, "charterVersion": 1, "bumped": true }
+```
+`bumped` = le TEXTE a changé. Un changement de seuil ne fait jamais monter la
+version : sinon régler 20 → 21 jours redemanderait à cinquante personnes
+d'accepter un texte identique.
+
+#### `crew_eligibility_2026(p_crew_id uuid) -> jsonb`
+Mesure TOUJOURS l'appelant. Le capitaine n'en reçoit jamais le détail.
+```json
+{ "ok": true, "eligible": false,
+  "missing": [ { "key": "min_level", "need": 4, "have": 1, "unit": "level" },
+               { "key": "min_distance_km_28d", "need": 30, "have": 0, "unit": "km" } ],
+  "charterVersion": 1, "charterRequired": true, "invitesBypass": true }
+```
+`unit` ∈ `level` · `km` · `days` · `city` · `activity`. Pour `city` et
+`activity`, `need`/`have` sont des chaînes (ou un tableau de disciplines
+pratiquées). `invitesBypass: true` est le texte de la porte humaine :
+l'écran l'écrit sous la liste des conditions.
+
+#### `crew_apply_2026(p_crew_id uuid, p_message text, p_charter_version integer) -> jsonb`
+Succès : `{"ok": true, "effect": "applied"}` (accueil `on_request`) ou
+`{"ok": true, "effect": "joined"}` (accueil `open`, entrée immédiate, charte
+acceptée dans la MÊME transaction). Refus, dans cet ordre : `not_found` ·
+`bad_message` · `dead_crew` · `already_in_crew` · `closed` · `cooldown` (départ
+volontaire) · `cooldown` + `rejoinAllowedAt` (re-adhésion au même crew) ·
+`pending` · `rate_limited` · `full` · `not_eligible` · `charter_stale`.
+```json
+{ "ok": false, "reason": "not_eligible",
+  "missing": [ { "key": "min_level", "need": 4, "have": 1, "unit": "level" },
+               { "key": "min_distance_km_28d", "need": 30, "have": 0, "unit": "km" } ] }
+```
+
+#### `crew_accept_charter_2026(p_charter_version integer) -> jsonb`
+```json
+{ "ok": true, "charterVersion": 1 }
+```
+Il n'existe AUCUNE RPC de refus : ne pas appeler celle-ci EST le refus, et il
+n'a aucune conséquence.
+
+#### `crew_member_board_2026(p_sort text, p_filter text) -> jsonb`
+`CREW_PERMISSIONS.kick` = **co_captain et founder**. `p_sort` ∈ `last_run`
+(défaut) · `distance_28d` · `seniority` · `role`. `p_filter` ∈ `null` ·
+`at_risk` · `warned` · `never_ran` · `officers`.
+```json
+{ "ok": true, "sort": "last_run", "filter": null,
+  "generatedAt": "2026-09-10T18:47:00.793+00:00",
+  "rulesActive": { "max_inactivity_days": 14, "auto_remove_after_days": 7 },
+  "rows": [
+    { "userId": "44444444-…", "pseudo": "Dee", "role": "runner", "duty": "member",
+      "joinedAt": "2026-06-02T18:47:00.777+00:00", "seniorityDays": 100,
+      "lastRunAt": "2026-09-09T18:47:00.777+00:00",
+      "runs7d": 2, "runs28d": 2, "distance7dKm": 22, "distance28dKm": 22,
+      "loops28d": 1, "challengeDays": 0,
+      "outingsJoined28d": 0, "outingsCreated28d": 0,
+      "warnings": [], "standing": "compliant", "removalAt": null },
+    { "userId": "55555555-…", "pseudo": "Sam", "role": "runner", "duty": "member",
+      "joinedAt": "2026-06-22T18:47:00.777+00:00", "seniorityDays": 80,
+      "lastRunAt": "2026-08-11T18:47:00.777+00:00",
+      "runs7d": "not_shared", "runs28d": "not_shared",
+      "distance7dKm": "not_shared", "distance28dKm": "not_shared",
+      "loops28d": "not_shared", "challengeDays": "not_shared",
+      "outingsJoined28d": "not_shared", "outingsCreated28d": "not_shared",
+      "warnings": [], "standing": "compliant", "removalAt": null } ] }
+```
+**Trois lectures obligatoires pour Q3.**
+① Une mesure vaut soit une valeur, soit la chaîne `"not_shared"`. **Jamais
+`null` et jamais `0`** pour une donnée non partagée : `lastRunAt: null` veut
+dire « cette personne n'a jamais couru », ce qui est un fait, pas un masquage.
+② Sam a fermé son profil : SEULE `lastRunAt` lui est déverrouillée, parce que
+`max_inactivity_days` est active et lit cette mesure. La DISTANCE n'est
+déverrouillée par aucune règle — aucun des quatre réglages ne la lit.
+③ Les lignes masquées sont TOUJOURS reléguées en fin de tri, quel que soit leur
+chiffre : leur rang trahirait la mesure qu'on vient de masquer.
+`standing` ∈ `rule_off` · `compliant` · `warned` · `at_risk`. `rule_off` n'est
+pas « conforme » : sans règle active il n'y a rien à respecter.
+`warnings[].issuedBy` vaut `"server"` ou `"officer"` — **jamais un pseudo**.
+
+#### `crew_my_standing_2026() -> jsonb`
+Membre. **Cette lecture ÉCRIT** : elle acquitte les avertissements ouverts de
+l'appelant (`acknowledged_at`), ce qui rend vraie la garantie « jamais retiré
+sans avertissement lu ou vieux de N jours ».
+```json
+{ "ok": true, "crewId": "aaaaaaaa-…", "role": "runner", "duty": "member",
+  "rules": { "max_inactivity_days": 14, "auto_remove_after_days": 7 },
+  "my": { "lastRunAt": "2026-08-11T18:47:00.777+00:00", "runs7d": 0, "runs28d": 0,
+          "distance28dKm": 0, "loops28d": 0, "challengeDays": 0 },
+  "warnings": [], "atRisk": false, "removalAt": null }
+```
+`atRisk` et `removalAt` n'existent que si `auto_remove_after_days` est actif :
+sans retrait il n'y a pas de risque, donc rien à afficher.
+
+#### `crew_warn_member_2026(p_user_id uuid, p_note text) -> jsonb`
+`CREW_PERMISSIONS.kick`, périmètre `CO_CAPTAIN_KICKABLE_ROLES`, jamais soi-même,
+jamais le fondateur. Un avertissement manuel par membre et par JOUR.
+```json
+{ "ok": true, "effect": "warned", "warningId": "8a76fd86-…" }
+```
+Second appel le même jour : `{"ok": true, "effect": "unchanged", "warningId": "…"}`.
+
+#### `crew_remove_member_2026(p_user_id uuid, p_reason text, p_note text) -> jsonb`
+`p_reason` ∈ `inactivity` · `rules` · `challenge` · `behaviour` · `fit` ·
+`other` (note obligatoire). Note ≤ 200.
+```json
+{ "ok": true, "effect": "removed", "previousRole": "rookie",
+  "reason": "inactivity", "rejoinAllowedAt": "2026-10-10T18:47:00.804+00:00" }
+```
+Idempotente : `{"ok": true, "effect": "already_removed"}`.
+
+#### `crew_decisions_log_2026(p_limit integer) -> jsonb`
+`CREW_PERMISSIONS.kick`. `p_limit` borné à 200. `kind` ∈ `charter` · `rules` ·
+`application` · `warning` · `removal` · `dissolution` · `joined` · `left`.
+```json
+{ "ok": true, "entries": [
+  { "at": "2026-09-10T18:47:00.804+00:00", "kind": "removal",
+    "actor": "Ada", "target": "Gil", "reason": "inactivity", "automatic": false,
+    "detail": { "kickId": "f3d9535a-…", "previousRole": "rookie",
+                "hasNote": true, "rejoinAllowedAt": "2026-10-10T18:47:00.804+00:00" } },
+  { "at": "2026-09-10T18:47:00.78+00:00", "kind": "charter",
+    "actor": "Ada", "target": null, "reason": null, "automatic": false,
+    "detail": { "charterVersion": 1,
+                "requirements": { "min_level": 4, "min_distance_km_28d": 30 },
+                "enforcement": { "max_inactivity_days": 14, "auto_remove_after_days": 7 } } } ] }
+```
+Le journal, LUI, nomme le décideur. La notification reçue par l'exclu ne le
+nomme jamais : c'est exactement pourquoi les deux existent. `automatic: true` et
+`actor: null` = le job.
+
+#### `crew_resolve_warning_2026(p_warning_id uuid) -> jsonb`
+`CREW_PERMISSIONS.kick`. `{"ok": true, "effect": "resolved"}`, ou
+`"already_resolved"` (idempotente). La trace reste : levé n'est pas effacé.
+
+#### `crew_invite_by_handle_2026(p_handle text) -> jsonb`
+`CREW_PERMISSIONS.invite`. **OUTREPASSE les exigences et la charte.**
+```json
+{ "ok": true, "effect": "invited", "expiresAt": "2026-09-17T18:47:20.714+00:00" }
+```
+⚠ **Le jeton NE revient PAS à l'inviteur.** Il est posé dans
+`notifications` chez la personne visée (RLS propriétaire seul), sous
+`payload.token`. L'acceptation reste `redeem_crew_invite(token)` (0090), déjà
+écrite et testée : aucune porte neuve, aucun bouton mort. Autres retours :
+`{"ok": true, "effect": "already_member"}`, `not_found` (pseudo inconnu, mal
+formé ou compte en suppression : le même mot, zéro énumération), `self`,
+`already_in_crew`, `full`.
+
+#### `crew_discovery_2026(p_city_id text, p_query text, p_activity text, p_recruitment text, p_min_members integer, p_max_members integer, p_requirements text, p_active_only boolean, p_tags text[]) -> jsonb`
+`p_requirements` ∈ `none` · `any` · `eligible`. `p_active_only` : sortie à venir
+OU prise de contrôle dans les 14 jours.
+```json
+{ "ok": true, "cityId": "insee-76540", "cityName": "Rouen", "rows": [
+  { "id": "aaaaaaaa-…", "name": "Les Quais", "tag": "QUAI", "color": 0,
+    "cityId": "insee-76540", "tags": ["run_club"], "recruitmentStatus": "on_request",
+    "memberCount": 4, "upcomingOutings": 0, "nextOutingAt": null,
+    "membersHolding": 0, "holdsRun": false, "holdsBike": false, "lastCaptureAt": null,
+    "myRequestPending": false,
+    "hasRequirements": true, "hasCharter": true, "iAmEligible": false } ] }
+```
+`iAmEligible` est un booléen, **jamais la liste `missing`** : le détail
+n'appartient qu'à la fiche du crew. Les crews ARCHIVÉS et `closed`
+n'apparaissent jamais. Aucun code de crew (0036), aucune identité de membre,
+aucun lieu de rendez-vous (0085), aucune surface (0126).
+
+#### `crew_dissolve_2026(p_reason text) -> jsonb`
+**Fondateur seul** (`CREW_PERMISSIONS.archiveCrew`). Confirmation en deux temps
+côté client ; le serveur, lui, vérifie.
+```json
+{ "ok": true, "effect": "archived", "crewId": "aaaaaaaa-…",
+  "membersRemoved": 3, "nameAvailableAt": "2026-10-10T18:47:00.825+00:00" }
+```
+Refus : `not_founder` · `already_archived` (+ `archivedAt`) ·
+`active_challenge` (+ `challengeId`, `endsAt`).
+**Ce que la dissolution fait, exactement** : le crew passe `archived_at`,
+`recruitment_status = 'closed'`, tous les membres sortent (`removed_by` = le
+fondateur, donc ils échappent au cooldown de 7 jours ; le fondateur, lui, garde
+son cooldown car il a choisi), les avertissements ouverts sont résolus, les
+candidatures en attente passent `withdrawn`, les liens d'invitation vivants sont
+révoqués, une ligne `crew_decisions_2026` de type `dissolution` est écrite, et
+chaque ancien membre reçoit une notification `dissolved`.
+**Ce qu'elle ne fait PAS** : rien n'est supprimé. Ni la ligne du crew, ni son
+nom, ni l'historique des adhésions, ni les `capture_events_2026` de ses membres,
+ni les défis joués. Le titre territorial est individuel (0126) : personne ne perd
+un mètre carré. **Aucune RPC ne désarchive** : rendre un crew à la vie
+demanderait de décider qui en reprend la direction, ce qui est une décision de
+produit.
+**`active_challenge` REFUSE, il ne diffère pas.** §G20 pose qu'un défi a un
+résultat et qu'un nul est un vrai résultat. Dissoudre en cours de défi priverait
+de leur résultat les joueurs des DEUX crews, dont un crew tiers sans recours.
+L'option `archived_after_challenge` (armer la dissolution pour la clôture) est
+écartée : elle aurait créé une bombe à retardement invisible, des membres
+continuant à courir pour un crew déjà condamné.
+**Le nom** : `crews.name` n'a AUCUNE contrainte d'unicité dans ce schéma (0002).
+`name_available_at` est donc la SEULE réservation de nom qui existe, et elle ne
+vaut que pour les crews archivés. Avant cette date, `create_crew` refuse
+`name_unavailable` — le même mot que la modération, parce qu'on ne raconte pas
+l'histoire d'un groupe à quelqu'un qui n'en était pas.
+
+#### `sweep_crew_inactivity_2026(p_at timestamptz) -> jsonb`
+**`service_role` SEUL.** `p_at` est le mode accéléré des tests : l'horloge se
+passe en paramètre, jamais par une variable d'environnement cachée.
+```json
+{ "ok": true, "crews": 1, "warned": 3, "resolved": 0, "removed": 0,
+  "at": "2026-09-10T18:47:00.816+00:00" }
+```
+Job `pg_cron` : `crew-inactivity-sweep-2026`, `'10 3 * * *'` (UTC), posé par un
+`do $$ … $$` conditionnel au schéma `cron` — la migration reste rejouable là où
+`pg_cron` n'existe pas. Ordre d'exécution : ① lever les avertissements dont le
+fait a cessé ; ② écrire ceux qui sont dus ; ③ retirer. Lever en dernier
+retirerait quelqu'un dont l'avertissement venait d'être levé.
+
+### 6.4 Réglages : catalogues et refus
+
+`requirements` (toutes les clés facultatives, absentes = aucune exigence) :
+`min_level` · `min_distance_km_28d` · `min_active_days_28d` · `city_id` ·
+`activity`. `enforcement` : `min_weekly_outings` · `min_challenge_days` ·
+`max_inactivity_days` · `auto_remove_after_days`. **Zéro et absence veulent dire
+« règle éteinte »**, jamais « seuil de zéro ».
+
+`bad_rules` porte toujours un `detail` : `charter_too_long` · `not_an_object` ·
+`unknown_requirement` (+ `key`) · `unknown_enforcement` (+ `key`) ·
+`negative_requirement` (+ `key`) · `negative_enforcement` (+ `key`) ·
+`challenge_days_over_max` · `unknown_city` · `unknown_activity` ·
+`removal_without_warning`.
+
+**Ce que le job mesure, exactement.** `min_weekly_outings` compte des COURSES
+(`runs`, `status in ('valid','partial')`) sur la semaine lundi → dimanche
+Europe/Paris ÉCOULÉE, pas des présences à une sortie de crew : faire dépendre
+l'appartenance de la disponibilité d'un soir est refusé par §14.2.
+`max_inactivity_days` lit `max(runs.started_at)`. `min_challenge_days` lit
+`challenge_contributions_2026` (`withdrawn = false`) et **ne vise que les joueurs
+inscrits au roster** du défi. Un membre arrivé depuis moins de
+`max_inactivity_days`, ou en cours de semaine mesurée, n'est jamais averti.
+
+**Les trois garde-fous du retrait automatique, tous appliqués serveur :**
+① `auto_remove_after_days > 0` exige `max_inactivity_days > 0` (refus
+`bad_rules` / `removal_without_warning`) ; ② jamais un `founder` ni un
+`co_captain` ; ③ jamais sans que l'avertissement soit acquitté
+(`crew_my_standing_2026`) ou vieux de `CREW_WARNING_GRACE_DAYS` (3 jours).
+
+### 6.5 Constantes ajoutées à `game-rules.ts`
+
+`CREW_CHARTER_MAX_CHARS` 600 · `CREW_APPLICATION_MESSAGE_MAX` 280 ·
+`CREW_KICK_NOTE_MAX` 200 · `CREW_REQUIREMENT_WINDOW_DAYS` 28 ·
+`CREW_REJOIN_AFTER_KICK_DAYS` 30 · `CREW_JOIN_REQUESTS_PER_DAY_MAX` 5 ·
+`CREW_WARNING_GRACE_DAYS` 3 · `CREW_NAME_HOLD_AFTER_ARCHIVE_DAYS` 30 ·
+`CREW_MIN_CHALLENGE_DAYS_MAX` (= `CHALLENGE_RULES_2026.durationDays`) ·
+`CREW_REQUIREMENT_KEYS` / `_DEFAULTS` · `CREW_ENFORCEMENT_KEYS` / `_DEFAULTS` ·
+`CREW_KICK_REASONS` · `CREW_WARNING_KINDS` · `CREW_BOARD_SORTS` / `_FILTERS` ·
+`CREW_MEASURE_NOT_SHARED` · `CREW_STANDING_STATES` · `CREW_MUTUAL_AID_MEASURES` ·
+`CREW_NOTIFICATION_EVENTS_2026` · `CREW_DISSOLVE_REFUSALS`.
+
+Chacune a un miroir SQL nommé (`crew_charter_max_chars()`, …) et un test de
+dérive qui lit `game-rules.ts` à la source. **Aucune valeur de
+`NOTIFICATION_RULES_2026` n'est modifiée.**
+
+### 6.6 Notifications : ce que le serveur écrit, ce que Q3 doit peindre
+
+Le serveur écrit une ligne dans `public.notifications` (`type = 'crew'`, RLS
+propriétaire seul depuis 0006, publiée en temps réel depuis 0020), dédupliquée
+par `event_id`. **Il n'écrit AUCUNE phrase** : le payload porte l'événement et
+ses paramètres, la copie vit dans le catalogue typé du mobile où
+`Entry = Record<Locale, string>` impose les cinq langues.
+
+| `payload.event` | Destinataire | Transactionnel | P | Payload | Copie FR de référence (tutoiement, sans tiret long) |
+|---|---|---|---|---|---|
+| `application_received` | officiers | non | 3 | — | « Une demande attend une réponse. » |
+| `invited` | la personne invitée | non | 2 | `token`, `prefix`, `expiresAt`, `invitedBy` | « {crewName} t'invite à le rejoindre. » |
+| `charter_updated` | membres | non | 4 | `charterVersion` | « La charte de {crewName} a changé. Personne n'est exclu pour autant. » |
+| `warning_issued` | le membre visé seul | **oui** | 2 | `kind`, `note`, `removalAt` | inactivité : « {crewName} : ta dernière sortie remonte à plus de {n} jours. » · semaine : « {crewName} : il te manque une sortie cette semaine. » · si `removalAt` : « Sans sortie avant le {date}, tu quitteras {crewName}. » |
+| `removed` | le membre visé | **oui** | 1 | `reason`, `note`, `automatic`, `rejoinAllowedAt` | « Tu ne fais plus partie de {crewName}. Motif indiqué : {motif}. » |
+| `dissolved` | chaque ancien membre | **oui** | 1 | `archivedAt` | « Le crew {crewName} a été dissous par son capitaine. » |
+
+Tout payload porte aussi `event`, `crewId`, `crewName`, `transactional`.
+**`removal_imminent` (§3.4) N'EXISTE PAS**, et c'est un écart assumé : il
+n'aurait eu aucun producteur, et un second message pour le MÊME fait aurait
+doublé la sollicitation d'une personne déjà avertie — exactement ce que §14.3
+demande de regrouper. La date de retrait voyage donc dans `warning_issued`
+(`removalAt`, non nul si et seulement si `auto_remove_after_days` est armé), et
+l'écran « Ma situation » la lit de `crew_my_standing_2026`.
+`application_accepted`, `application_declined` et `member_joined` (§3.4) ne sont
+PAS déclarés : leur producteur serait `crew_decide_join_request` (0083), que ce
+lot ne remplace pas. Les arrivées restent servies par `crew_joins_2026` (0182).
+Aucun message ne nomme un tiers dans un contexte négatif, aucun ne contient de
+promotion, aucun n'utilise un niveau d'interruption critique.
+
+**Le budget de §14.1 n'est PAS consommé** par ces écritures, et c'est un choix
+explicite : `claim_notification_2026` (0141) arbitre les SOLLICITATIONS (push,
+e-mail), pas l'état de l'application. Soumettre la boîte de réception au budget
+hebdomadaire ferait qu'un membre puisse être exclu sans que l'app ait jamais
+gardé trace de son avertissement — le mensonge que L8 interdit, et le risque que
+la décision 4 nomme. Aucun canal distant n'existe (entitlement APNs retiré,
+ADR-013 tension n° 1).
+
+### 6.7 Ce que Q2 ne prouve pas, et qui reste à faire
+
+1. **PGlite ne prouve PAS la RLS** : il tourne en superutilisateur. Les tests
+   vérifient les privilèges au catalogue (`has_function_privilege`,
+   `has_table_privilege`, `relrowsecurity`), jamais un refus vécu par un rôle
+   restreint. Preuve réelle : `npm run verify:rls` APRÈS le push.
+2. **PGlite ne prouve PAS `pg_cron`** : le schéma `cron` n'existe pas, le bloc de
+   pose est sauté. Après push : `select * from cron.job where jobname =
+   'crew-inactivity-sweep-2026'`.
+3. **Aucune géométrie n'est lue** (pas de PostGIS sous PGlite) — et 0188-0190
+   n'en lisent aucune : les boucles sont COMPTÉES, jamais mesurées.
+4. **`crew_remove_member` (0093) reste sans motif** tant que Q3 n'a pas basculé
+   l'appel vers `crew_remove_member_2026`. C'est le seul endroit du lot où la
+   garantie « toute exclusion dit son motif » n'est pas encore tenue.
+5. **`redeem_crew_invite` (0090) applique encore le cooldown à TOUS les départs**,
+   exclusions comprises (divergence héritée de 0043). Une personne exclue ailleurs
+   il y a moins de 7 jours ne peut donc pas encore accepter une invitation.
+6. **`crew_stats()` (0086) reste figée** : elle agrège des tables gelées par
+   0118. Ne pas y brancher un écran de Q3 par réflexe.
+7. **Migrations NON POUSSÉES.** Codex pousse sur le même projet : `supabase
+   migration list` avant tout `db push`, et 0188-0190 ne sont réservées que dans
+   ce dépôt.

@@ -57,6 +57,23 @@ export interface PersonalTable {
    * livrerait la ligne d'un tiers serait une fuite, pas une imprécision.
    */
   readonly also?: Readonly<Record<string, string>>;
+  /**
+   * PROJECTION restreinte. Par défaut l'export rend `*`, ce qui est juste tant
+   * que la ligne ne contient QUE des données du demandeur. Trois cas cassent
+   * cette hypothèse et exigent une liste explicite :
+   *   · un SECRET VIVANT du groupe — `crews.code` (0036 : jamais lisible côté
+   *     client, servi aux seuls membres ACTIFS par `my_crew_code`) et
+   *     `crew_invites.token_hash` / `prefix` (0090). Les rendre à un fondateur
+   *     qui a quitté son crew rouvrirait par l'export une porte que la RLS
+   *     tient fermée ;
+   *   · l'IDENTITÉ D'UN TIERS qui a décidé quelque chose à propos du
+   *     demandeur — `crew_warnings_2026.issued_by`, `crew_kicks_2026.decided_by`.
+   *     La doctrine du lot Q2 est que l'exclu apprend le MOTIF, jamais le nom :
+   *     l'export ne doit pas être le trou par lequel ce nom sort ;
+   *   · une donnée d'un autre compte stockée sur la même ligne.
+   * Quand `columns` est présent, `index.ts` la passe telle quelle à `select()`.
+   */
+  readonly columns?: readonly string[];
 }
 
 /**
@@ -271,4 +288,57 @@ export const PERSONAL_TABLES: readonly PersonalTable[] = [
   { key: 'crewXpDaily', table: 'crew_xp_daily', column: 'user_id' },
   { key: 'crewFeedActions', table: 'crew_feed_events', column: 'actor_id' },
   { key: 'sectorsOwnedSolo', table: 'sector_snapshot', column: 'owner_user_id' },
+
+  // ── 2026 · gestion de crew (0188-0190) ────────────────────────────────────
+  // CE QUE LE JOUEUR A ACCEPTÉ, CE QU'ON LUI A REPROCHÉ, ET CE QU'ON EN A FAIT.
+  // Une acceptation de charte est un consentement horodaté : sans elle, la
+  // personne ne peut pas vérifier ce qu'on lui oppose. Un avertissement et une
+  // exclusion sont des décisions PRISES CONTRE elle : les taire dans une
+  // demande d'accès serait le pire endroit où faire une exception (art. 15).
+  //
+  // ⚠️ `issued_by` et `decided_by` NE SORTENT PAS. Le lot Q2 pose que l'exclu
+  // apprend le motif et jamais le nom de qui a tranché (le journal interne, lui,
+  // le garde et reste réservé aux officiers). Un export qui livrerait ce nom
+  // ferait par la porte de derrière exactement ce que la notification refuse —
+  // et transformerait le droit d'accès en outil de représailles, comme
+  // `social_blocks_2026.target_id` plus haut.
+  { key: 'crewCharterAcceptances2026', table: 'crew_rule_acceptances_2026', column: 'user_id' },
+  {
+    key: 'crewWarnings2026',
+    table: 'crew_warnings_2026',
+    column: 'user_id',
+    columns: ['id', 'crew_id', 'kind', 'note', 'issued_at', 'resolved_at', 'acknowledged_at', 'week_key'],
+  },
+  {
+    key: 'crewRemovals2026',
+    table: 'crew_kicks_2026',
+    column: 'user_id',
+    columns: ['id', 'crew_id', 'reason', 'note', 'decided_at', 'rejoin_allowed_at'],
+  },
+
+  // ── LEGACY QUE 0190 ÉCRIT DÉSORMAIS ───────────────────────────────────────
+  // `crews` et `crew_invites` sont entrées dans le périmètre le 11/09/2026 :
+  // 0190 les écrit (archivage d'un crew dissous, révocation de ses liens), donc
+  // la règle des écrivains les exige. Elles portent bien une donnée du
+  // demandeur — le crew qu'il a FONDÉ, les liens d'invitation qu'il a CRÉÉS —
+  // mais elles portent aussi un secret vivant, d'où la projection.
+  //   · `crews.code` (0036) est la clé d'entrée du groupe : un fondateur parti
+  //     n'a plus à l'avoir, et l'export n'est pas une porte dérobée.
+  //   · `crew_invites.token_hash` et `prefix` sont l'empreinte et le repère d'un
+  //     jeton vivant : les rendre permettrait de reconnaître un lien encore
+  //     valable. Ce qui appartient au créateur, c'est le FAIT d'avoir créé ce
+  //     lien, sa durée et son usage — pas de quoi le rejouer.
+  {
+    key: 'crewsFounded',
+    table: 'crews',
+    column: 'created_by',
+    columns: ['id', 'name', 'tag', 'color', 'city_id', 'created_at', 'recruitment_status',
+      'description', 'tags', 'level', 'xp', 'archived_at', 'archived_reason', 'name_available_at'],
+  },
+  {
+    key: 'crewInvitesCreated',
+    table: 'crew_invites',
+    column: 'created_by',
+    columns: ['id', 'crew_id', 'created_at', 'expires_at', 'revoked_at', 'uses', 'last_used_at'],
+  },
 ];

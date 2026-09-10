@@ -345,6 +345,12 @@ await t('le job constate l’inactivité, et DIX passages n’écrivent qu’UN 
   eq(w.map((x) => x.user_id).sort(), [OFF, SHY, GHO].sort(),
     'les trois inactifs de plus de 14 jours');
   eq(w[0].week_key, '', 'inactivité : UN seul avertissement ouvert à la fois, clé vide');
+  // Le retrait n'est PAS armé : l'avertissement ne doit annoncer AUCUNE date.
+  // Il n'existe pas de second message « retrait imminent » — §14.3 demande de
+  // regrouper, pas de doubler.
+  eq(await val(`select payload->>'removalAt' from public.notifications
+    where user_id = $1 and payload->>'event' = 'warning_issued'`, [GHO]), null,
+    'aucune date de retrait annoncée tant que la règle n’est pas armée');
 
   for (let i = 0; i < 9; i += 1) {
     const again = await sweep(0);
@@ -395,6 +401,24 @@ await t('le garde-fou de la DÉCISION 4 : jamais retiré sans avertissement acqu
 
   const now = await sweep(GRACE + 1);
   eq(now.removed, 1, `à J+${GRACE + 1}, Gil est retiré (Bo est co_captain : intouchable)`);
+});
+
+await t('quand le retrait EST armé, l’avertissement porte sa date — et il n’y a pas de second message', async () => {
+  // Un membre neuf, inactif depuis longtemps, sur un crew où le retrait est armé.
+  await db.query(`insert into public.crew_members (crew_id,user_id,role,joined_at)
+    values ($1,$2,'rookie', now() - interval '90 days')`, [CREW, NEW]);
+  const r = await sweep(0);
+  eq(r.warned, 1, 'un avertissement de plus');
+  const payload = (await q(`select payload from public.notifications
+    where user_id = $1 and payload->>'event' = 'warning_issued'`, [NEW]))[0].payload;
+  eq(payload.kind, 'inactivity', 'motif');
+  ok(payload.removalAt != null, 'la DATE de retrait voyage avec l’avertissement');
+  eq(await val(`select count(*)::int from public.notifications
+    where user_id = $1 and payload->>'event' = 'removal_imminent'`, [NEW]), 0,
+    'aucun second message : le catalogue ne déclare pas d’événement sans producteur');
+  // On la ressort du crew pour ne pas fausser la dissolution plus loin.
+  await db.query('delete from public.crew_members where crew_id = $1 and user_id = $2', [CREW, NEW]);
+  await db.query('delete from public.crew_warnings_2026 where user_id = $1', [NEW]);
 });
 
 await t('garde-fou ② : le job ne retire JAMAIS un founder ni un co_captain', async () => {

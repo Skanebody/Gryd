@@ -980,9 +980,10 @@ begin
   -- `issued_at` porte l'horloge du retrait. Un arrivant récent n'est jamais
   -- averti : on n'exige pas de quelqu'un qu'il ait couru avant d'arriver.
   for v_row in
-    select w.crew_id, w.user_id
+    select w.crew_id, w.user_id, w.after_days
     from (
-      select cm.crew_id, cm.user_id
+      select cm.crew_id, cm.user_id,
+             nullif(coalesce((ru.enforcement->>'auto_remove_after_days')::integer, 0), 0) as after_days
       from public.crew_members cm
       join public.crew_rules_2026 ru on ru.crew_id = cm.crew_id
       join public.crews c on c.id = cm.crew_id and c.archived_at is null
@@ -1006,9 +1007,19 @@ begin
       -- §3.4 `warning_issued`, TRANSACTIONNEL (décision 4). Texte de référence
       -- FR pour Q3, tutoiement, sans tiret long : « [crew] : ta dernière sortie
       -- remonte à plus de [n] jours. » Aucune injonction à courir (§14.2).
+      --
+      -- `removalAt` VOYAGE AVEC L'AVERTISSEMENT, et il n'existe PAS de second
+      -- message « retrait imminent » : la spec §3.4 en nommait un, mais deux
+      -- sollicitations pour le MÊME fait sont exactement ce que §14.3 demande
+      -- de regrouper. `null` quand le retrait n'est pas armé — donc l'écran
+      -- n'annonce jamais un risque qui n'existe pas.
       perform public.crew_notify_2026(v_row.user_id, 'warning_issued', v_row.crew_id,
         v_row.crew_id::text || ':inactivity:' || to_char(v_at, 'YYYY-MM-DD'),
-        jsonb_build_object('kind', 'inactivity'), v_at);
+        jsonb_build_object(
+          'kind', 'inactivity',
+          'removalAt', case when v_row.after_days is not null
+                            then v_at + make_interval(days => v_row.after_days) end),
+        v_at);
     end if;
   end loop;
 

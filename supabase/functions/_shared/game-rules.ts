@@ -6656,11 +6656,16 @@ export const CREW_NOTIFICATION_EVENTS_2026 = {
     category: 'crew', transactional: true, priority: 2,
     eventIdPrefix: 'crew_warning_issued:',
   },
-  /** Au membre visé : sans une sortie avant telle date, il quittera le crew. */
-  removal_imminent: {
-    category: 'crew', transactional: true, priority: 1,
-    eventIdPrefix: 'crew_removal_imminent:',
-  },
+  /*
+   * `removal_imminent` (§3.4 de la spec) N'EST PAS DÉCLARÉ, et c'est délibéré.
+   * Il n'aurait aucun producteur : le job écrit `warning_issued` puis `removed`.
+   * Un second message pour le MÊME fait aurait doublé la sollicitation d'une
+   * personne déjà avertie — exactement ce que §14.3 demande de regrouper. La
+   * DATE de retrait voyage donc dans le payload de `warning_issued`
+   * (`removalAt`, non nul si et seulement si le retrait est armé), et l'écran
+   * « Ma situation » la lit de `crew_my_standing_2026`. Déclarer une clé que
+   * rien n'écrit aurait fait promettre au catalogue plus que le code ne tient.
+   */
   /** À l'exclu : le motif, jamais le nom de qui a décidé (le journal interne le garde). */
   removed: {
     category: 'crew', transactional: true, priority: 1,

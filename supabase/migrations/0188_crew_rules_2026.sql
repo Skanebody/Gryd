@@ -216,7 +216,6 @@ returns jsonb language sql immutable set search_path = public, pg_temp as $$
     when 'invited'              then jsonb_build_object('transactional', false, 'priority', 2, 'prefix', 'crew_invited:')
     when 'charter_updated'      then jsonb_build_object('transactional', false, 'priority', 4, 'prefix', 'crew_charter_updated:')
     when 'warning_issued'       then jsonb_build_object('transactional', true,  'priority', 2, 'prefix', 'crew_warning_issued:')
-    when 'removal_imminent'     then jsonb_build_object('transactional', true,  'priority', 1, 'prefix', 'crew_removal_imminent:')
     when 'removed'              then jsonb_build_object('transactional', true,  'priority', 1, 'prefix', 'crew_removed:')
     when 'dissolved'            then jsonb_build_object('transactional', true,  'priority', 1, 'prefix', 'crew_dissolved:')
     else null
