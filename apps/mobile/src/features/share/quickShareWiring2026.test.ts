@@ -138,3 +138,29 @@ Deno.test('déclarer un schéma n’ajoute AUCUNE collecte au manifeste de confi
   assert(raw.includes('"NSPrivacyTracking": false'), 'le manifeste ne dit plus « aucun tracking »');
   assert(raw.includes('"NSPrivacyTrackingDomains": []'), 'un domaine de tracking est apparu');
 });
+
+// ─── 4. SANS COMPTE, ON PARTAGE QUAND MÊME ──────────────────────────────────
+
+Deno.test('un INVITÉ peut partager sa sortie locale : la garde vise « inconnu », pas « absent »', () => {
+  // `ownerId` a trois valeurs, et les confondre coûte une fonctionnalité :
+  //   · `undefined` = la session n'est pas résolue → on n'arme rien ;
+  //   · `null`      = INVITÉ, un propriétaire parfaitement légitime
+  //                   (`isResultOwnerCurrent2026` n'exige que `!== undefined`) ;
+  //   · `string`    = un compte.
+  // Une garde écrite `if (!ownerId) return` traiterait l'invité comme une
+  // session non résolue et lui retirerait le partage, alors que ses mesures
+  // sont sur l'appareil et lui appartiennent (cahier §9.2).
+  for (const [nom, src] of PORTES) {
+    const gardes = [...src.matchAll(/if \(([^)]*ownerId[^)]*)\)\s*return/g)].map((match) => match[1]);
+    for (const garde of gardes) {
+      assert(
+        !/!ownerId/.test(garde),
+        `${nom} : « ${garde} » refuse le partage à un invité (ownerId === null)`,
+      );
+    }
+    assert(
+      src.includes('ownerId === undefined'),
+      `${nom} : la session non résolue n’est plus distinguée de l’invité`,
+    );
+  }
+});

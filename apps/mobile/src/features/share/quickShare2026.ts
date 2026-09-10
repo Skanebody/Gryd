@@ -60,6 +60,20 @@ export type QuickShareFormat2026 = (typeof QUICK_SHARE_FORMATS_2026)[number];
  * sombre, avec l'accent porté sur la mesure principale : une décision de
  * rendu, pas un nouveau thème. `quickShareRendering2026` fait la traduction,
  * et c'est le seul endroit du dépôt qui la fait.
+ *
+ * ─── ET LES THÈMES COSMÉTIQUES, ALORS ? ────────────────────────────────────
+ * Le lot cosmétiques expose `CardThemeCosmetic2026` (arsenal/cosmetics2026.ts)
+ * — quatre thèmes d'affiche `{background, ink, accent}` gagnés au NIVEAU ou
+ * avec GRYD+. Ils ne sont volontairement pas branchés ICI, pour deux raisons
+ * qui tiennent au rôle de cette feuille :
+ *   1. elle doit marcher pour TOUT LE MONDE, y compris sans compte — une
+ *      sortie enregistrée en invité vit sur l'appareil et lui appartient
+ *      (cahier §9.2). Trois fonds gratuits, disponibles tout de suite ;
+ *   2. `SharePoster2026` rend un thème, pas un triplet de couleurs libres :
+ *      l'accepter demande de reprendre aussi `StudioComposition2026` et la
+ *      scène du film. C'est un chantier, pas une option de feuille rapide.
+ * Le Studio est l'endroit naturel de ce branchement : il gère DÉJÀ les objets
+ * possédés et GRYD+ (`StudioObjectArtwork2026`, `verifyStudioObject2026`).
  */
 export const QUICK_SHARE_THEMES_2026 = ['noir', 'chartreuse', 'minimal'] as const;
 export type QuickShareTheme2026 = (typeof QUICK_SHARE_THEMES_2026)[number];

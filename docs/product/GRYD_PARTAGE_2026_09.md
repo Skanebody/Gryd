@@ -193,6 +193,7 @@ confidentialité (sonder un schéma n'est pas une collecte — c'est testé).
 | « Copier le lien » | **Aucune page publique n'existe** et `gryd.run` n'est pas possédé | Une page `apps/web/app/run/[id]` + le domaine (O10) |
 | « Enregistrer dans Photos » | `expo-media-library` n'est pas installé | La feuille système le propose déjà via « Enregistrer l'image » |
 | Commune sur l'affiche | Aucune source sans appel réseau | Attacher la commune à la sortie côté serveur |
+| Thèmes cosmétiques sur la feuille rapide | `CardThemeCosmetic2026` (lot cosmétiques) est gagné au niveau ou avec GRYD+ ; la feuille doit marcher **sans compte**, et `SharePoster2026` rend un thème, pas un triplet de couleurs libres | Le branchement naturel est le **Studio**, qui gère déjà les objets possédés et GRYD+ |
 
 ---
 
