@@ -5982,3 +5982,167 @@ export const ANTICHEAT_ACCURACY_MIN_POINTS = 60;
  * il ouvre une revue, il ne condamne pas.
  */
 export const ANTICHEAT_HUMAN_MIN_ACCURACY_CV = 0.05;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PSEUDO 2026 — CHANGER SON @, AUX CONDITIONS D'INSTAGRAM
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// DEMANDE FONDATEUR (10/09/2026) : « Pour les pseudos, inspire-toi d'Instagram :
+// tu as un @ et tu peux le changer X fois tous les X temps, reprends les mêmes
+// conditions qu'Instagram. »
+//
+// ─── LES QUATRE RÈGLES D'INSTAGRAM, ÉCRITES ICI POUR QU'ON PUISSE LES OPPOSER ─
+//  1. Un nom d'utilisateur UNIQUE, précédé de « @ ».
+//  2. Modifiable au plus DEUX fois par période de QUATORZE jours.
+//  3. L'ancien pseudo reste RÉSERVÉ quatorze jours à son ancien titulaire :
+//     lui peut le reprendre, personne d'autre ne peut le prendre.
+//  4. Longueur maximale 30 ; minuscules, chiffres, points et tirets bas.
+//
+// ─── CE QUE GRYD REPREND, ET CE QU'IL GARDE PLUS STRICT ─────────────────────
+// Les règles 1, 2 et 3 sont reprises TELLES QUELLES (les trois constantes
+// ci-dessous). La règle 4 est reprise en PLUS STRICT, et c'était déjà le cas
+// avant ce lot : `HANDLE_REGEX` (plus haut, miroir exact du `check` de la
+// migration 0011) vaut `^[a-z0-9_]{3,20}$`. Donc :
+//   · pas de POINT — la migration 0047 argumente ce refus en détail (le point
+//     est quasi invisible à petite taille, il multiplie les sosies d'un handle
+//     réservé et rend la fin d'un token ambiguë en fin de phrase ou en deep
+//     link). Élargir l'alphabet est irréversible en pratique ; le restreindre
+//     plus tard casserait des comptes ;
+//   · 20 caractères, pas 30 — GRYD est en Saison 0, pas dans un espace de noms
+//     saturé par deux milliards de comptes ;
+//   · un PLANCHER de 3, qu'Instagram n'a pas.
+// Quand deux règles se croisent, la plus stricte gagne : la longueur reste dite
+// par `HANDLE_MIN_LENGTH` / `HANDLE_MAX_LENGTH`, et cette section n'en pose PAS
+// de copie — deux nombres pour une seule règle finiraient par diverger.
+//
+// ⚠️ CES TROIS CONSTANTES SONT LUES PAR L'ÉCRAN, JAMAIS APPLIQUÉES PAR LUI.
+// Le juge est la migration 0175 (`change_my_handle_2026`, SECURITY DEFINER) :
+// c'est elle qui compte les changements, pose la réservation et refuse. Le
+// mobile ne s'en sert que pour DIRE la règle et afficher ce qu'il reste. Les
+// mêmes valeurs sont écrites dans 0175 avec un renvoi à ce fichier — le SQL ne
+// peut pas importer du TypeScript, et `my_handle_status_2026()` renvoie donc
+// aussi ses propres valeurs pour que l'app n'ait jamais à supposer.
+
+/**
+ * Nombre de changements de @pseudo autorisés par fenêtre glissante
+ * (`HANDLE_CHANGE_WINDOW_DAYS`). DEUX, comme Instagram.
+ *
+ * POURQUOI UN PLAFOND, ET POURQUOI PAS UN SEUL. Un @ est une adresse : les
+ * autres joueurs le cherchent dans `/amis`, le citent dans le fil du crew, le
+ * partagent hors de l'app (`profileLink.ts`). Un pseudo qui change tous les
+ * jours n'est plus une adresse, et il ouvre la porte au harcèlement par
+ * rotation (on prend le @ de quelqu'un, on le rend, on le reprend). Un SEUL
+ * changement, à l'inverse, punirait la faute de frappe : le deuxième est
+ * exactement la marge qu'il faut pour se corriger.
+ */
+export const HANDLE_CHANGES_PER_WINDOW = 2;
+
+/**
+ * Durée (jours) de la fenêtre GLISSANTE sur laquelle les changements se
+ * comptent. QUATORZE, comme Instagram.
+ *
+ * GLISSANTE, pas calendaire : un joueur qui change le 13 et le 14 ne retrouve
+ * pas ses deux crédits le 1ᵉʳ du mois suivant, il retrouve le premier le 27 et
+ * le second le 28. Une fenêtre calendaire créerait une ruée de fin de mois et
+ * rendrait la date « prochain changement possible » impossible à annoncer
+ * honnêtement.
+ */
+export const HANDLE_CHANGE_WINDOW_DAYS = 14;
+
+/**
+ * Durée (jours) pendant laquelle un pseudo LIBÉRÉ reste réservé à son ancien
+ * titulaire. QUATORZE, comme Instagram.
+ *
+ * CE QUE CETTE RÉSERVATION PROTÈGE, ET DE QUOI. Sans elle, le pseudo qu'un
+ * joueur vient de quitter est disponible À LA SECONDE : n'importe qui peut le
+ * prendre, hériter des mentions, des liens partagés et des recherches faites
+ * par ses amis. C'est le scénario d'usurpation le moins cher qui existe, et il
+ * ne demande aucune compétence — juste d'attendre que quelqu'un se renomme.
+ * Quatorze jours donnent au joueur le temps de revenir en arrière, et à ses
+ * contacts le temps de s'apercevoir du changement.
+ *
+ * Elle ne rend pas le pseudo INVISIBLE : elle le rend INDISPONIBLE AUX AUTRES.
+ * Le titulaire, lui, peut le reprendre à tout moment pendant le délai, et cette
+ * reprise consomme un changement comme les autres (sinon on tiendrait un @ pour
+ * toujours en faisant l'aller-retour).
+ */
+export const HANDLE_HOLD_DAYS = 14;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COSMÉTIQUES 2026 — CE QU'ON PEUT CHANGER SUR SON PROFIL, ET À QUEL PRIX
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// DEMANDE FONDATEUR (10/09/2026) : « Est-ce qu'il y a d'autres moyens de
+// personnalisation de profil qu'utilisent d'autres applications, que l'on peut
+// faire payer in-app, qui ne seraient que du code et qui ne coûtent rien ? »
+//
+// ─── CE QUE CE BLOC POSE, ET CE QU'IL NE POSE PAS ──────────────────────────
+// Il pose les SEUILS DE NIVEAU des cosmétiques GRATUITS, et rien d'autre. Le
+// catalogue lui-même (identifiants, noms, dégradés, formes) vit dans
+// `apps/mobile/src/features/arsenal/cosmetics2026.ts` : ce sont des choix de
+// RENDU, pas des règles de jeu, et les mettre ici obligerait `packages/engine`
+// et les fonctions Edge à embarquer une table de couleurs.
+//
+// Les seuils, eux, SONT une règle : ils décident quand un objet devient
+// disponible, la migration 0180 en fige la traduction en XP (via
+// `xpForLevel2026`), et `supabase/tests/profile_cosmetics_2026.pglite.test.mjs`
+// refuse tout écart entre les deux. Un seuil recopié à la main dans une requête
+// serait exactement le nombre magique qu'ADR-003 interdit.
+//
+// ─── POURQUOI UNE ÉCHELLE NOMMÉE, ET PAS SIX NOMBRES ───────────────────────
+// `PROFILE_COSMETIC_LEVELS_2026.regular` se relit ; `4` ne se relit pas. Les
+// noms disent l'INTENTION du palier (ce que le joueur a déjà vécu quand il
+// l'atteint), et le jour où le fondateur veut décaler toute l'échelle, il
+// change six nombres à un seul endroit.
+//
+// ─── ANTI PAY-TO-WIN : CE BLOC NE PEUT PAS EN SORTIR ───────────────────────
+// Aucune de ces constantes n'entre dans un calcul de capture, d'XP, de points
+// de défi ou de classement. Un cosmétique change ce qu'on MONTRE, jamais ce
+// qu'on GAGNE (§16.2, `COMMERCIAL_PROPOSAL_2026` : multiplicateurs à 1). Le
+// test `cosmetics2026.test.ts` interdit tout champ numérique de bonus dans le
+// catalogue, et il rougirait si quelqu'un y glissait un « +5 % ».
+
+/**
+ * Les SIX paliers d'ouverture des cosmétiques gratuits, en NIVEAUX permanents
+ * (`levelForXp2026`). Les niveaux, et pas les XP : c'est le nombre que le
+ * joueur voit sur son profil, donc le seul qu'on puisse lui annoncer sans le
+ * faire compter. La conversion en XP est faite une fois, par `xpForLevel2026`.
+ *
+ * `included` vaut 1 : le niveau de départ de tout compte. Ce n'est pas une
+ * condition déguisée, c'est l'objet LIVRÉ AVEC LE COMPTE — celui qui décrit
+ * l'apparence actuelle de l'app. Sans lui, « équiper » n'aurait pas de retour
+ * en arrière, et retirer un cosmétique ressemblerait à une panne.
+ */
+export const PROFILE_COSMETIC_LEVELS_2026 = {
+  /** Livré avec le compte. L'apparence par défaut est un objet comme un autre. */
+  included: 1,
+  /** Première journée active créditée (100 XP) : la première sortie qui compte. */
+  firstLoop: 2,
+  /** Quelques semaines de sorties régulières. */
+  regular: 4,
+  /** L'habitude est prise. */
+  established: 8,
+  /** Une saison entière derrière soi. */
+  seasoned: 14,
+  /** Le long terme, sans plafond éditorial au-dessus. */
+  veteran: 25,
+} as const;
+
+/**
+ * Les SEPT emplacements d'identité. Un objet par emplacement, jamais deux :
+ * la clé primaire `(user_id, slot)` de `profile_cosmetics_2026` (migration
+ * 0180) le rend structurellement impossible, comme 0144 le fait déjà pour le
+ * cadre et le titre.
+ *
+ * Cette liste est la RÉFÉRENCE du `check(slot in (…))` de la migration ; le
+ * test PGlite compare les deux et refuse un emplacement ajouté d'un seul côté.
+ *
+ * G22 (« pas de sept rangs différents au-dessus du nom ») n'est PAS contredit :
+ * sept emplacements ne font pas sept rangs. Un rang classe ; ces objets ne
+ * classent rien, ne se comparent pas entre joueurs, et le profil n'en montre
+ * jamais plus d'un par zone (le nom porte sa couleur, l'avatar son cadre, la
+ * bannière son motif, le titre son badge).
+ */
+export const PROFILE_COSMETIC_SLOTS_2026 = [
+  'nameColor', 'avatarFrame', 'banner', 'trace', 'pin', 'titleBadge', 'cardTheme',
+] as const;
