@@ -13,10 +13,19 @@
  *
  * ═══ POURQUOI UNE LISTE DANS UN MODULE À PART ══════════════════════════════
  * Pour qu'un test puisse la CONFRONTER aux migrations sans démarrer la
- * fonction. `personalTables_test.ts` relit `supabase/migrations/*.sql`, y
- * cherche toutes les tables `*_2026` porteuses d'une colonne d'identité, et
- * exige leur présence ici. La liste ne peut donc plus prendre du retard en
- * silence sur le schéma : la prochaine table oubliée fera rougir le gate.
+ * fonction. `personalTables_test.ts` relit `supabase/migrations/*.sql` et exige
+ * ici toute table porteuse d'une colonne d'identité qui est SOIT suffixée
+ * `_2026`, SOIT écrite par une migration de la refonte (≥ 0118). La liste ne
+ * peut donc plus prendre du retard en silence sur le schéma : la prochaine
+ * table oubliée fera rougir le gate.
+ *
+ * ⚠️ LE SUFFIXE NE SUFFISAIT PAS, ET ÇA S'EST VU LE JOUR MÊME (10/09/2026,
+ * soir). La première version de ce test ne cherchait que `*_2026`. Le lot L
+ * (0160-0164) a publié le classement de commune en RÉUTILISANT les tables de
+ * 0082 — `leaderboard_snapshots`, `leaderboard_entries` — qui ne portent pas ce
+ * suffixe : mon rang, ma surface prise et ma surface tenue dans ma commune
+ * étaient hors export quelques heures après que la règle a été écrite. Le nom
+ * d'une table ne dit pas qui l'écrit ; seuls ses écrivains le disent.
  *
  * ═══ CE QUI N'Y EST PAS, ET POURQUOI ════════════════════════════════════════
  * · Les lignes où le joueur est la CIBLE et non l'auteur — `social_blocks_2026`
@@ -38,6 +47,16 @@ export interface PersonalTable {
   readonly column: string;
   /** `true` quand la table a au plus une ligne par compte. */
   readonly single?: boolean;
+  /**
+   * Égalités SUPPLÉMENTAIRES, pour les tables POLYMORPHES.
+   *
+   * `leaderboard_entries.subject_id` désigne un joueur OU un crew selon
+   * `subject_type` (0082 : « aucune clé étrangère, deux tables cibles »).
+   * Filtrer sur le seul identifiant reviendrait à parier qu'aucun `crews.id` ne
+   * vaut un `users.id` : improbable n'est pas impossible, et un export qui
+   * livrerait la ligne d'un tiers serait une fuite, pas une imprécision.
+   */
+  readonly also?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -68,6 +87,31 @@ export const PERSONAL_TABLES: readonly PersonalTable[] = [
   // même titre que ses courses. Cf. 0029_moderation.sql.
   { key: 'contentReports', table: 'content_reports', column: 'reporter_id' },
   { key: 'blockedPseudos', table: 'user_blocks', column: 'blocker_id' },
+
+  // ── TABLES LEGACY QUE LA REFONTE ÉCRIT ENCORE ─────────────────────────────
+  // Elles n'ont pas le suffixe `_2026` et sont donc passées entre les mailles de
+  // la première version de cette liste (10/09/2026, matin), qui ne cherchait que
+  // ce suffixe. Le nom d'une table ne dit pas qui l'écrit : le test lit
+  // désormais aussi les INSERT/UPDATE des migrations de la refonte.
+  //   · `feature_entitlements` (0026) : 0129 y écrit les droits premium tirés
+  //     d'un reçu App Store / Play. C'est ce qu'un joueur a PAYÉ.
+  //   · `leaderboard_entries` (0082) : depuis 0162, chaque snapshot horaire y
+  //     inscrit mon rang, ma surface prise et ma surface tenue dans MA commune.
+  //     Un rang est une phrase publique sur une personne (0164) — donc une
+  //     donnée personnelle, et l'une des rares que d'autres ont pu voir.
+  //   · `leaderboard_snapshots` (0082) : `audience_user_id` désigne la personne
+  //     POUR QUI un classement d'amis a été calculé. Le lot L n'en produit pas
+  //     encore (il écrit `null` pour la commune) : l'entrée rendra donc `[]`
+  //     aujourd'hui, et sera juste le jour où un classement d'amis existera.
+  //     Une liste d'export ne doit pas attendre que la fuite soit possible.
+  { key: 'featureEntitlements', table: 'feature_entitlements', column: 'user_id' },
+  {
+    key: 'leaderboardEntries',
+    table: 'leaderboard_entries',
+    column: 'subject_id',
+    also: { subject_type: 'user' },
+  },
+  { key: 'leaderboardAudience', table: 'leaderboard_snapshots', column: 'audience_user_id' },
 
   // ── 2026 · enregistrement, captures et territoire (0118) ──────────────────
   // `capture_events_2026` porte la GÉOMÉTRIE de chaque capture : c'est la donnée

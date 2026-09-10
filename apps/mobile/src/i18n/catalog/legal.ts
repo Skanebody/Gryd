@@ -695,9 +695,18 @@ export const C = defineCatalog({
    * anonymisées » sans le dire décrivait une suppression qui n'a pas lieu
    * telle quelle. On le DIT, plutôt que de changer une cascade de jeu par un
    * texte juridique.
+   *
+   * COMPLÉTÉ LE MÊME SOIR — LE CLASSEMENT DE COMMUNE (0160-0164). Les lignes de
+   * `leaderboard_entries` (0082) portent `subject_id` SANS clé étrangère : elles
+   * survivent donc à la purge, avec un identifiant que plus aucune table ne
+   * résout. Deux faits opposés, et les deux comptent : le classement EN COURS
+   * cesse de compter la personne dès la DEMANDE de suppression
+   * (`board_eligible_events_2026` exclut `deletion_requested_at`, 0161), tandis
+   * que les semaines déjà mesurées gardent leur ligne. Ni l'un ni l'autre
+   * n'était écrit ici.
    */
   privacyConservationBody: fr5(
-    '· Compte & données de jeu : tant que ton compte est actif.\n· Après suppression du compte : tes données personnelles sont effacées ou anonymisées sous 30 jours, sauf obligation légale de conservation (facturation, litige). Les photos et images que tu as publiées sont effacées avec le compte.\n· Tracés de tes sorties (course à pied comme vélo) : conservés avec ton compte, supprimés à la suppression du compte.\n· CE QUI SURVIT, DÉTACHÉ DE TOI : la forme des territoires que tu as capturés reste enregistrée après la suppression de ton compte, SANS ton identifiant, ton nom ni le tracé de ta sortie. Elle sert uniquement à expliquer l’historique des territoires des joueurs encore inscrits (qui a pris quoi, et quand) ; plus rien ne permet de la rattacher à toi. La même règle vaut pour ta participation à un défi de crew déjà publié.\n· Journaux techniques : conservés au maximum 12 mois, puis effacés.',
+    '· Compte & données de jeu : tant que ton compte est actif.\n· Après suppression du compte : tes données personnelles sont effacées ou anonymisées sous 30 jours, sauf obligation légale de conservation (facturation, litige). Les photos et images que tu as publiées sont effacées avec le compte.\n· Tracés de tes sorties (course à pied comme vélo) : conservés avec ton compte, supprimés à la suppression du compte.\n· CE QUI SURVIT, DÉTACHÉ DE TOI : la forme des territoires que tu as capturés reste enregistrée après la suppression de ton compte, SANS ton identifiant, ton nom ni le tracé de ta sortie. Elle sert uniquement à expliquer l’historique des territoires des joueurs encore inscrits (qui a pris quoi, et quand) ; plus rien ne permet de la rattacher à toi. La même règle vaut pour ta participation à un défi de crew déjà publié, et pour les lignes de classement des semaines écoulées : le rang et la surface y restent, sans ton nom ni rien qui permette de remonter jusqu’à toi. Le classement en cours, lui, cesse de te compter dès que tu demandes la suppression.\n· Journaux techniques : conservés au maximum 12 mois, puis effacés.',
   ),
   privacyDroitsHeading: fr5('TES DROITS'),
   privacyDroitsBody1: fr5('Conformément au RGPD, tu disposes des droits suivants sur tes données :'),

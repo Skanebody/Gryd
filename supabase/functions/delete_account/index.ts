@@ -38,6 +38,19 @@
  *    référencent rien du tout et SURVIVAIENT à la purge. Corrigé par la
  *    migration 0136, qui les supprime dans la même transaction que le compte.
  * L'export (art. 15/20) suit la même liste : `export_account/personalTables.ts`.
+ *
+ * ─── AJOUT DU MÊME SOIR : LE CLASSEMENT DE COMMUNE (0160-0164) ──────────────
+ * Deux faits, opposés, et les deux comptent :
+ *  · le classement EN COURS cesse de compter la personne dès CETTE demande —
+ *    `board_eligible_events_2026` (0161) exclut `deletion_requested_at is not
+ *    null`, donc le snapshot horaire suivant la retire sans attendre la purge ;
+ *  · les lignes DÉJÀ MESURÉES survivent : `leaderboard_entries.subject_id`
+ *    (0082) est polymorphe, donc sans clé étrangère — aucune cascade ne
+ *    l'atteint. Il reste un UUID que plus aucune table ne résout, comme le
+ *    `player_id` de `challenge_roster_2026`. C'est DÉCLARÉ dans la politique.
+ *    Le jour où on voudra les effacer, il faudra recalculer `subjects_count`
+ *    dans la même instruction : sinon un tableau annoncerait cinq sujets et en
+ *    servirait quatre, ce qui abaisserait le seuil d'ADR-013 en silence.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 

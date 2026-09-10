@@ -52,7 +52,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const partialErrors: { key: string; message: string }[] = [];
   for (const t of PERSONAL_TABLES) {
     try {
-      const query = supabase.from(t.table).select('*').eq(t.column, userId);
+      // `also` n'existe que pour les tables POLYMORPHES (leaderboard_entries) :
+      // sans lui, `subject_id = moi` accepterait aussi la ligne d'un crew dont
+      // l'identifiant vaudrait le mien. Un export ne parie pas sur l'unicité de
+      // deux espaces d'UUID distincts.
+      const base = supabase.from(t.table).select('*').eq(t.column, userId);
+      const query = t.also ? base.match(t.also) : base;
       const res = t.single ? await query.maybeSingle() : await query;
       if (res.error) {
         partialErrors.push({ key: t.key, message: res.error.message });

@@ -553,7 +553,12 @@ export default function ConfidentialitePage() {
                 l'effacer réécrirait leur passé. Une politique qui promettait
                 « effacées ou anonymisées » sans le dire décrivait une suppression
                 qui n'a pas lieu telle quelle. Même texte que la version in-app
-                (`apps/mobile/src/i18n/catalog/legal.ts`, privacyConservationBody). */}
+                (`apps/mobile/src/i18n/catalog/legal.ts`, privacyConservationBody).
+                COMPLÉTÉ LE MÊME SOIR : `leaderboard_entries` (0082) porte
+                `subject_id` sans clé étrangère, ses lignes survivent donc à la
+                purge avec un identifiant que plus aucune table ne résout — tandis
+                que le classement EN COURS cesse de compter la personne dès la
+                DEMANDE de suppression (0161 exclut `deletion_requested_at`). */}
             <li className={styles.item}>
               <b>Ce qui survit, détaché de toi&nbsp;:</b> la <b>forme des territoires</b>{' '}
               que tu as capturés reste enregistrée après la suppression de ton compte,{' '}
@@ -561,8 +566,11 @@ export default function ConfidentialitePage() {
               sert uniquement à expliquer l&rsquo;historique des territoires des joueurs
               encore inscrits (qui a pris quoi, et quand)&nbsp;; plus rien ne permet de la
               rattacher à toi. La même règle vaut pour ta participation à un défi de crew
-              déjà publié. Les photos et images que tu as publiées, elles, sont{' '}
-              <b>effacées avec le compte</b>.
+              déjà publié, et pour les <b>lignes de classement des semaines écoulées</b>
+              &nbsp;: le rang et la surface y restent, sans ton nom ni rien qui permette de
+              remonter jusqu&rsquo;à toi. Le <b>classement en cours</b>, lui, cesse de te
+              compter dès que tu demandes la suppression. Les photos et images que tu as
+              publiées, elles, sont <b>effacées avec le compte</b>.
             </li>
             <li className={styles.item}>
               <b>Journaux techniques&nbsp;:</b> conservés au maximum <b>12 mois</b>, puis

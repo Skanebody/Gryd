@@ -33,15 +33,35 @@ const IDENTITY_COLUMNS = [
   'blocker_id',
   'player_id',
   'created_by',
+  // Ajoutées le 10/09/2026 au soir, avec les tables de 0082 que le lot L
+  // réutilise : `leaderboard_entries.subject_id` (le sujet classé) et
+  // `leaderboard_snapshots.audience_user_id` (la personne POUR QUI un classement
+  // d'amis est calculé). Vérifié : aucune table `*_2026` ne les porte, cet ajout
+  // n'élargit donc la règle que là où il le doit.
+  'subject_id',
+  'audience_user_id',
 ] as const;
 
-/** Tables `*_2026` déclarées par les migrations, avec leurs colonnes d'identité. */
-function tablesFromMigrations(): Map<string, string[]> {
+/** La refonte 2026 commence à 0118 (`refonte_2026_polygon_authority`). */
+const REFONTE_FIRST_MIGRATION = 118;
+
+/** Les fichiers de migration, triés — une seule lecture du disque. */
+function migrationFiles(): { name: string; sql: string }[] {
+  return [...Deno.readDirSync(MIGRATIONS)]
+    .filter((e) => e.isFile && e.name.endsWith('.sql'))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((e) => ({ name: e.name, sql: Deno.readTextFileSync(new URL(e.name, MIGRATIONS)) }));
+}
+
+/**
+ * TOUTES les tables déclarées par les migrations, avec leurs colonnes
+ * d'identité — sans distinction de nom : c'est l'appelant qui décide lesquelles
+ * il exige, et le critère n'est pas le suffixe (voir `refonteWrittenTables`).
+ */
+function declaredTables(): Map<string, string[]> {
   const found = new Map<string, string[]>();
-  for (const entry of [...Deno.readDirSync(MIGRATIONS)].sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isFile || !entry.name.endsWith('.sql')) continue;
-    const sql = Deno.readTextFileSync(new URL(entry.name, MIGRATIONS));
-    const blocks = sql.matchAll(/create table (?:if not exists )?public\.([a-z0-9_]+_2026)\s*\(([\s\S]*?)\n\);/g);
+  for (const { sql } of migrationFiles()) {
+    const blocks = sql.matchAll(/create table (?:if not exists )?public\.([a-z0-9_]+)\s*\(([\s\S]*?)\n\);/g);
     for (const block of blocks) {
       const [, table, body] = block;
       const columns = IDENTITY_COLUMNS.filter((c) =>
@@ -51,6 +71,43 @@ function tablesFromMigrations(): Map<string, string[]> {
     }
   }
   return found;
+}
+
+/** Tables `*_2026` porteuses d'une identité (la règle d'origine). */
+function tablesFromMigrations(): Map<string, string[]> {
+  return new Map([...declaredTables()].filter(([t]) => t.endsWith('_2026')));
+}
+
+/**
+ * Tables que les migrations de la REFONTE écrivent réellement (insert/update),
+ * quel que soit leur nom.
+ *
+ * ═══ POURQUOI CE SECOND CRITÈRE EXISTE ══════════════════════════════════════
+ * Le suffixe `_2026` est une convention de nommage, pas une propriété du
+ * schéma : il dit qui a créé une table, jamais qui l'écrit AUJOURD'HUI. Le lot L
+ * (0160-0164) l'a démontré le jour même où la règle a été écrite, en publiant le
+ * classement de commune dans `leaderboard_snapshots` / `leaderboard_entries`
+ * (0082). Une table ressuscitée par la refonte porte des données du joueur
+ * VIVANT, exactement comme une table neuve.
+ */
+function refonteWrittenTables(): Set<string> {
+  const written = new Set<string>();
+  for (const { name, sql } of migrationFiles()) {
+    if (Number.parseInt(name.slice(0, 4), 10) < REFONTE_FIRST_MIGRATION) continue;
+    for (const m of sql.matchAll(/(?:insert into|update)\s+public\.([a-z0-9_]+)/gi)) {
+      written.add(m[1]);
+    }
+  }
+  return written;
+}
+
+/** Ce que l'export DOIT couvrir : l'union des deux critères. */
+function tablesOwedToTheRequester(): Map<string, string[]> {
+  const declared = declaredTables();
+  const written = refonteWrittenTables();
+  return new Map(
+    [...declared].filter(([t]) => t.endsWith('_2026') || written.has(t)),
+  );
 }
 
 Deno.test('étape 0 — la liste d’avant n’exportait AUCUNE table de la refonte 2026', () => {
@@ -79,11 +136,31 @@ Deno.test('étape 0 — la liste d’avant n’exportait AUCUNE table de la refo
   }
 });
 
-Deno.test('chaque table 2026 porteuse d’une identité est exportée', () => {
+Deno.test('étape 0 (bis) — le SUFFIXE `_2026` laissait passer trois tables', () => {
+  // La règle du matin ne cherchait que `create table public.*_2026`. Le lot L
+  // (0160-0164) a publié le classement de commune le soir même, dans les tables
+  // de 0082 : `leaderboard_entries` reçoit MON rang, MA surface prise et MA
+  // surface tenue à chaque snapshot horaire (0162). 0129, lui, écrit les droits
+  // premium dans `feature_entitlements` (0026). Aucune des trois ne porte le
+  // suffixe : aucune n'était donc exigée, et aucune n'était exportée.
+  const suffixOnly = tablesFromMigrations();
+  const owed = tablesOwedToTheRequester();
+  const invisibles = [...owed.keys()].filter((t) => !suffixOnly.has(t)).sort();
+  for (const blindSpot of ['feature_entitlements', 'leaderboard_entries', 'leaderboard_snapshots']) {
+    assertEquals(suffixOnly.has(blindSpot), false, `${blindSpot} échappait à la règle du suffixe`);
+    assert(invisibles.includes(blindSpot), `${blindSpot} doit être rattrapé par la règle des écrivains`);
+  }
+  // Ces tables sont bel et bien ÉCRITES par la refonte : ce n'est pas un
+  // ratissage large du legacy, c'est le schéma vivant.
+  const written = refonteWrittenTables();
+  for (const t of invisibles) assert(written.has(t), `${t} n'est écrite par aucune migration ≥ 0118`);
+});
+
+Deno.test('chaque table porteuse d’une identité, 2026 OU écrite par la refonte, est exportée', () => {
   const exported = new Map(PERSONAL_TABLES.map((t) => [t.table, t.column]));
   const missing: string[] = [];
   const wrongColumn: string[] = [];
-  for (const [table, columns] of tablesFromMigrations()) {
+  for (const [table, columns] of tablesOwedToTheRequester()) {
     const column = exported.get(table);
     if (column === undefined) {
       missing.push(table);
@@ -96,9 +173,23 @@ Deno.test('chaque table 2026 porteuse d’une identité est exportée', () => {
   assertEquals(
     missing,
     [],
-    'ces tables 2026 portent des données personnelles et ne sont PAS exportées',
+    'ces tables portent des données personnelles vivantes et ne sont PAS exportées',
   );
   assertEquals(wrongColumn, [], 'ces filtres portent sur une colonne que la table n’a pas');
+});
+
+Deno.test('une table POLYMORPHE ne se filtre pas sur le seul identifiant', () => {
+  // `leaderboard_entries.subject_id` désigne un joueur OU un crew (0082 : deux
+  // tables cibles, aucune clé étrangère). Sans `subject_type`, l'export parierait
+  // sur le fait qu'aucun `crews.id` ne vaut un `users.id`.
+  const entry = PERSONAL_TABLES.find((t) => t.table === 'leaderboard_entries');
+  assert(entry !== undefined, 'le classement doit être exporté');
+  assertEquals(entry?.also, { subject_type: 'user' });
+
+  // Et la fonction doit APPLIQUER ce filtre : une liste juste et un lecteur qui
+  // l'ignore, c'est la même fuite avec une preuve verte.
+  const fn = Deno.readTextFileSync(new URL('./index.ts', import.meta.url));
+  assert(fn.includes('t.also ? base.match(t.also) : base'), 'index.ts doit appliquer `also`');
 });
 
 Deno.test('aucune clé de sortie en double, aucune table en double', () => {
