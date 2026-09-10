@@ -639,12 +639,20 @@ export const C = defineCatalog({
     de: 'Kann ein Rivale meinen Loop beenden?',
     pt: 'Um rival pode terminar meu loop?',
   },
+  /**
+   * ⚠ « Contester » A ÉTÉ RETIRÉ LE 10/09/2026. La contestation n'existe plus :
+   * §5.3 du cahier est catégorique — « il n'y a ni bouclier, ni contestation de
+   * 18 heures, ni défense achetable ». Repasser une boucle est la SEULE façon
+   * de reprendre du terrain. Cet écran est atteignable (`/support` → `/faq` →
+   * `/calcul-zones`) : il décrivait donc une mécanique abolie à qui vient
+   * justement demander comment ça marche.
+   */
   q6A: {
-    fr: 'Non. Un rival peut contester la zone, jamais fermer ta boucle. En revanche, s’il a fait la même boucle que toi, il touche sa part comme tout le monde.',
-    en: 'No. A rival can contest the zone, never close your loop. But if they did the same loop as you, they get their share like everyone else.',
-    es: 'No. Un rival puede disputar la zona, nunca cerrar tu bucle. Eso sí, si hizo el mismo bucle que tú, cobra su parte como todos.',
-    de: 'Nein. Ein Rivale kann die Zone umkämpfen, aber nie deinen Loop schließen. War er auf demselben Loop, bekommt er aber seinen Anteil wie alle.',
-    pt: 'Não. Um rival pode disputar a zona, nunca fechar seu loop. Mas se ele fez o mesmo loop que você, recebe a parte dele como todo mundo.',
+    fr: 'Non. Personne ne ferme ta boucle à ta place. Un rival peut seulement repasser par là : sa propre boucle reprend la partie qui se recouvre, et rien de plus. Il n’y a ni bouclier ni contestation — repasser est la seule façon de reprendre.',
+    en: 'No. Nobody closes your loop for you. A rival can only go over it again: their own loop takes back the overlapping part, and nothing more. There is no shield and no contest — going over it again is the only way to take ground back.',
+    es: 'No. Nadie cierra tu bucle por ti. Un rival solo puede volver a pasar por allí: su propio bucle recupera la parte que se solapa, y nada más. No hay escudo ni disputa: volver a pasar es la única forma de recuperar terreno.',
+    de: 'Nein. Niemand schließt deinen Loop für dich. Ein Rivale kann die Strecke nur erneut zurücklegen: sein eigener Loop nimmt den überlappenden Teil zurück, mehr nicht. Es gibt weder Schutzschild noch Streitfall — die Strecke erneut zurücklegen ist die einzige Art, Gelände zurückzuholen.',
+    pt: 'Não. Ninguém fecha seu circuito no seu lugar. Um rival só pode passar por ali de novo: o circuito dele retoma a parte que se sobrepõe, e nada mais. Não existe escudo nem disputa — passar de novo é a única forma de retomar terreno.',
   },
   q7Q: {
     fr: 'Comment GRYD calcule les zones reprises à un rival ?',

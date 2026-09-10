@@ -25,9 +25,31 @@
 > bloquant, voix) — le groupe `(mvp)` est conservé en quarantaine, réconciliation à faire ; (3) trois
 > interactions backend constatées, non corrigées : `territory_reigns` restera vide sous le trigger de 0118
 > (`my_territory_history()` rendrait un vide qui a l'air vrai ; aucun écran atteignable ne le peint aujourd'hui),
-> `crew_overview()` figé sur `hex_claims` (lu par les écrans crew legacy `CrewHero` / `stats.ts` — à vérifier
-> sous l'entrée Codex), résidu dé-identifié dans `capture_events_2026` après purge de compte (`on delete set
-> null`, à documenter côté RGPD) ; (4) dette L18 : 585 `copy('fr','en')` inline dans `features/refonte/` ;
+> `crew_overview()` figé sur `hex_claims` — **CORRIGÉ le 10/09/2026 par la migration 0152** (`crew_facts_2026` :
+> `crew_overview` / `crew_discovery` / `crew_public_profile` / `crew_activity_feed` lisent `ownership_2026` +
+> `capture_events_2026` publiés ; ni surface ni rang de crew, le titre reste individuel — 0126) ; RESTE FIGÉ :
+> `crew_stats()` (épinglée `ruleset_version='legacy'` par 0118) et `crew_board()` (matview alimentée par les
+> tables héritées), donc `/crew-stats` peut afficher des zéros VRAIS d'une source MORTE, résidu dé-identifié
+> dans `capture_events_2026` après purge de compte (`on delete set
+> null`, à documenter côté RGPD) ; (4) dette L18 : ~585 `copy('fr','en')` inline dans `features/refonte/`
+> (`ProfilePrimitives.useRefonteCopy` ne connaît que fr/en). **Conséquence assumée le 10/09/2026** : `/langue`
+> ne propose plus que FR et EN (`SELECTABLE_LOCALES`, `src/i18n/store.ts`) et l'écran DIT pourquoi
+> (`reglages.langueOnlyTwo`) — un compte es/de/pt lisait du français sans avertissement. Les catalogues
+> restent typés 5 langues (ADR-009) ; rouvrir la liste exige d'abord de traduire les inline, dont les plus
+> fournis : `CrewHomeScreen.tsx`, `ProfileHomeScreen.tsx`, `SeasonJourneyScreen.tsx`, `CollectionScreen.tsx`,
+> `ProfilePrimitives.tsx`, plus `app/crew-feed.tsx`, `app/member.tsx`, `app/amis.tsx` et
+> `features/crew/CrewConversationScreen2026.tsx`. Verrou : `src/i18n/selectableLocales.test.ts` ;
+> (4bis) vocabulaire §15.1 NON tenu par les routes : `/warroom` et `/arsenal` survivent (beaucoup de liens,
+> renommage = audit de routes à part), et l'icône partagée `raid` (`packages/shared/src/icons.ts`) irrigue
+> `MapMode`, les tags de crew et `runStoryUi` — renommage non trivial, inscrit ici plutôt que bâclé ;
+> (4ter) deux domaines ORPHELINS constatés le 10/09/2026, corrigés mais pas supprimés : `features/explain/`
+> (20 fichiers dont 3 tests — `content.ts`, ses 9 schémas, `FAQ_ITEMS` et ses 29 entrées — plus le catalogue
+> `i18n/catalog/explain.ts`, 5 langues) n'est plus importé que par ses propres tests, tandis que la FAQ affichée (`app/faq.tsx`) écrit ses
+> dix questions en clair ; sa réponse `q6A` promettait encore la CONTESTATION que §5.3 abolit — réécrite en
+> 5 langues (verrou `i18n/catalog/explain.contestation.test.ts`), le domaine reste à trancher (supprimer ou
+> remonter, décision à part). Et `features/crew/revanche.ts`, qu'aucun écran n'importe, POSAIT au premier
+> lancement une revanche inventée (rival « MEUTE 20 », secteur parisien, 14 zones perdues) qu'il persistait :
+> seed retiré, store vide tant qu'aucun événement serveur ne l'alimente (verrou `features/crew/revanche.test.ts`) ;
 > (5) `_shared/` porte quatre fichiers `*2026` écrits à la main sans source de sync (`commercial2026`,
 > `premium2026`, `premium2026_io`, `recomputeProgress2026`) ; (6) GRYD+ (cahier §16.1) contredit ADR-011 :
 > les écrans existent, le SDK reste muet sans clé de production (`capability.ts`) — tension ouverte, App

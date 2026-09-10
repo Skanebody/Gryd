@@ -7,7 +7,7 @@
  *
  * Ce store PERSISTE (AsyncStorage, calque events.ts / requests.ts : lecture lazy,
  * écriture fire-and-forget best-effort, useSyncExternalStore natif) l'INSTANT de
- * déclenchement de la revanche (démo : un rival vient de reprendre un secteur).
+ * déclenchement de la revanche.
  * Le timestamp persiste → le compte à rebours reste cohérent au reload (il ne se
  * remet pas à 24 h à chaque ouverture d'app). Marquer la revanche « faite » la
  * retire (je suis allé reprendre, ou j'ai laissé filer).
@@ -24,9 +24,10 @@
  * règles NORMALES de reprise/vol (§3.4), tranché serveur. On ne révèle JAMAIS la
  * position exacte du rival, seulement le SECTEUR concerné.
  *
- * Tout est LOCAL (démo). TODO(O1) : brancher un vrai `revanche_windows` alimenté
- * par les événements de vol/reprise via Edge Function — écriture client interdite
- * (RLS).
+ * Tout est LOCAL, et VIDE : plus aucun déclencheur n'est fabriqué (10/09/2026 —
+ * un rival « MEUTE 20 » et « 14 zones perdues » étaient posés au premier
+ * lancement). Reste à brancher un vrai `revanche_windows` alimenté par les
+ * événements de vol/reprise via Edge Function — écriture client interdite (RLS).
  */
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -108,33 +109,26 @@ export interface RevancheView {
   hoursLeft: number;
 }
 
-// ─── Déclencheur démo (statique) ──────────────────────────────────────────────
-
-/**
- * Déclencheur démo : dès le premier montage, on SEED une revanche « fraîche »
- * (déclenchée il y a 2 h) si le store est vide — pour que la mission URGENTE
- * soit visible d'emblée avec un compte à rebours réaliste (~22 h restantes sur
- * les REVANCHE_WINDOW_HOURS). En conditions réelles, ce trigger viendrait d'un
- * événement serveur de vol/reprise. Les 2 h sont un décalage d'unité (ms/h),
- * pas une constante de jeu.
- */
-const DEMO_TRIGGERED_HOURS_AGO = 2;
-
-/** Le déclencheur démo (ancré relatif à l'ouverture de session, déterministe). */
-function demoTrigger(): RevancheTrigger {
-  return {
-    sector: 'Buttes-Chaumont',
-    rivalCrew: 'MEUTE 20',
-    zonesLost: 14,
-    triggeredAt: Date.now() - DEMO_TRIGGERED_HOURS_AGO * MS_PER_HOUR,
-  };
-}
+// ─── AUCUN DÉCLENCHEUR FABRIQUÉ ──────────────────────────────────────────────
+//
+// RETIRÉ LE 10/09/2026. Ce fichier posait au premier lancement une revanche
+// INVENTÉE — secteur « Buttes-Chaumont », rival « MEUTE 20 », « 14 zones
+// perdues » — et la PERSISTAIT dans AsyncStorage. C'était de la donnée factice
+// vivante : un crew rival qui n'existe pas, un quartier qui n'est pas celui du
+// joueur, et un compte à rebours sur un vol qui n'a jamais eu lieu. Le dépôt
+// s'interdit ça sans exception (« zéro donnée factice », CLAUDE.md).
+//
+// Le store reste donc VIDE tant que rien de réel ne l'alimente, et c'est un
+// état honnête : `useCrewRevanche()` rend `null`, aucun écran ne peint de
+// mission. `triggerRevanche()` existe toujours pour le jour où un événement
+// serveur de reprise (Edge Function, écriture client interdite par la RLS)
+// aura une porte — il n'en a aucune aujourd'hui, et ce fichier ne prétend
+// plus le contraire.
 
 // ─── Store minimal (notifier + snapshot mémoïsé, useSyncExternalStore) ────────
 
 /** La revanche courante persistée (null = aucune / marquée faite). */
 let trigger: RevancheTrigger | null = null;
-let seeded = false;
 let loaded = false;
 let loadPromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
@@ -153,23 +147,17 @@ function ensureLoaded(): Promise<void> {
       .then((raw) => {
         if (raw) {
           try {
-            const parsed = JSON.parse(raw) as { trigger: RevancheTrigger | null; seeded?: boolean };
-            if (parsed && typeof parsed === 'object') {
-              trigger = parsed.trigger ?? null;
-              seeded = parsed.seeded === true;
-            }
+            // `seeded` a existé dans ce payload jusqu'au 10/09/2026 (il armait
+            // le déclencheur fabriqué). Une clé en trop est ignorée, aucune
+            // migration de stockage n'est nécessaire.
+            const parsed = JSON.parse(raw) as { trigger: RevancheTrigger | null };
+            if (parsed && typeof parsed === 'object') trigger = parsed.trigger ?? null;
           } catch {
             // corpus corrompu → on repart propre (best effort).
           }
         }
-        // Premier lancement (jamais seedé) : on pose le déclencheur démo une
-        // seule fois, puis on persiste le drapeau `seeded` pour ne pas le
-        // ré-armer si l'utilisateur l'a marqué « fait » plus tard.
-        if (!seeded) {
-          trigger = demoTrigger();
-          seeded = true;
-          persist();
-        }
+        // Rien n'est posé au premier lancement : sans événement réel, il n'y a
+        // pas de revanche, et une absence n'a pas besoin d'être remplie.
         loaded = true;
         emit();
       })
@@ -183,16 +171,21 @@ function ensureLoaded(): Promise<void> {
 function persist() {
   void AsyncStorage.setItem(
     REVANCHE_STORAGE_KEY,
-    JSON.stringify({ trigger, seeded }),
+    JSON.stringify({ trigger }),
   ).catch(() => {});
 }
 
 // ─── Écritures (déclencher / marquer fait) ────────────────────────────────────
 
 /**
- * Déclenche une revanche (démo : un rival vient de reprendre un secteur). En
- * réel, alimenté par un événement serveur. Ancre le compte à rebours à
- * maintenant. ZÉRO effet de jeu : ne donne ni territoire ni point (§A.19).
+ * Déclenche une revanche à partir d'un fait RÉEL (un rival vient de reprendre
+ * un secteur). Ancre le compte à rebours à maintenant. ZÉRO effet de jeu : ne
+ * donne ni territoire ni point (§A.19).
+ *
+ * ⚠ AUCUN APPELANT AUJOURD'HUI, et c'est dit plutôt que masqué : la source
+ * serait un événement serveur de vol/reprise, qui n'existe pas encore. Cette
+ * fonction n'est PAS une porte de démonstration — lui passer des noms inventés
+ * remettrait exactement la donnée factice qu'on vient de retirer.
  */
 export function triggerRevanche(input: {
   sector: string;
@@ -205,27 +198,23 @@ export function triggerRevanche(input: {
     zonesLost: Math.max(0, Math.floor(input.zonesLost)),
     triggeredAt: Date.now(),
   };
-  seeded = true;
   persist();
   emit();
 }
 
 /**
  * Marque la revanche « faite » (je suis allé reprendre, ou je laisse filer) :
- * ferme la mission. Le drapeau `seeded` reste vrai → la démo ne ré-arme pas
- * automatiquement (l'écran garde son état voulu par l'utilisateur).
+ * ferme la mission. Rien ne la ré-arme.
  */
 export function clearRevanche(): void {
   trigger = null;
-  seeded = true;
   persist();
   emit();
 }
 
-/** RAZ complète (utilitaire démo / tests) : la prochaine charge re-seedera. */
+/** RAZ complète (tests) : le store repart vide, et le reste. */
 export function resetRevanche(): void {
   trigger = null;
-  seeded = false;
   persist();
   emit();
 }
