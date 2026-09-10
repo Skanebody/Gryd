@@ -66,9 +66,10 @@ scripts/         sync-game-rules.mjs (shared+engine → _shared/ + copies mobile
   comparer en PLAGE de 1 ms.
 
 ## Backend
-Projet Supabase `gryd` (`sydwxwwirinjoheeodcg`) — migrations appliquées jusqu'à `0169` en prod
+Projet Supabase `gryd` (`sydwxwwirinjoheeodcg`) — migrations appliquées jusqu'à `0174` en prod
 (11/09/2026 : 0129 sécurité, 0135-0169 vie privée · modération · notifications · récompenses · défis ·
-capture · classement · défis hebdo ; 17 fonctions Edge redéployées). Codex pousse sur le même projet : toujours
+capture · classement · défis hebdo ; 0174 anti-triche `mocked_location` ; 17 fonctions Edge redéployées,
+`ingest_run` et `digest_job` à nouveau le 11/09 après le lot anti-triche). Codex pousse sur le même projet : toujours
 `supabase migration list` avant un push. Secrets : jamais en dur ; `scratchpad-secrets.local`
 (gitignored). Base réelle : 3 comptes, 0 donnée de jeu.
 
