@@ -37,28 +37,35 @@ import {
   PACE_WINDOW_M,
   bestSplitIndex,
   elevationFrom,
+  hasTiming,
   paceSeries,
   splitsFrom,
   traceTotals,
   type JournalPoint,
 } from './metrics';
-import type { TraceSource } from './traceRead';
 
 /** Écart minimal, en secondes, pour afficher le temps écoulé À CÔTÉ du mouvement. */
 const ELAPSED_VISIBLE_GAP_S = 5;
 
 export interface RunAnalysisBlocks2026Props {
   activity: Activity;
+  /** La trace telle qu'elle a été LUE. Moins de deux points : rien à analyser. */
   points: readonly JournalPoint[];
-  traceSource: TraceSource;
   tone: ChartTone;
   testID?: string;
 }
 
+/**
+ * ⚠ CE COMPOSANT NE DEMANDE PAS D'OÙ VIENT LA TRACE, IL LUI DEMANDE CE QU'ELLE
+ * PORTE. Une trace masquée du serveur et une trace locale d'avant l'envoi n'ont
+ * pas la même provenance mais le même manque : aucun horodatage. La question
+ * qui décide de l'analyse est donc `hasTiming(points)`, pas une étiquette de
+ * colonne — un jour où une troisième source arrivera, elle sera traitée juste
+ * sans que personne ait à y penser.
+ */
 export function RunAnalysisBlocks2026({
   activity,
   points,
-  traceSource,
   tone,
   testID,
 }: RunAnalysisBlocks2026Props) {
@@ -68,18 +75,20 @@ export function RunAnalysisBlocks2026({
   const [width, setWidth] = useState(0);
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
 
+  const timed = hasTiming(points);
   const analysis = useMemo(() => {
-    if (traceSource !== 'full' || points.length < 2) return null;
+    if (!timed || points.length < 2) return null;
     return {
       totals: traceTotals(points, activity),
       splits: splitsFrom(points, activity),
       pace: paceSeries(points, activity),
       elevation: elevationFrom(points, activity),
     };
-  }, [points, activity, traceSource]);
+  }, [points, activity, timed]);
 
-  // Trace masquée : la carte existe, l'analyse non. On le dit une fois.
-  if (traceSource === 'masked') {
+  // Trace sans horodatage (masquée par le serveur, ou pas encore envoyée) : la
+  // carte existe, l'analyse non. On le dit une fois, on n'extrapole rien.
+  if (!timed && points.length >= 2) {
     return (
       <Text style={[styles.note, { color: palette.muted }]} testID={testID}>
         {t(C.traceMaskedNoTiming)}

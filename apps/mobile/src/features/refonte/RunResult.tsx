@@ -20,6 +20,9 @@ import { SocialPublicationAction2026 } from '../social/SocialPublicationAction20
 import { captureAreaLabel2026, captureAreaParts2026, captureExplanation2026, remainingCaptureArea2026, type CaptureReceipt2026, type RunReceipt2026 } from './captureReceipt2026';
 import { RealMap, type RealMapBounds, type RealMapGeoJSONLayer } from '../../ui/game/RealMap';
 import { VerifiedRunProgressMoment2026 } from './ProgressAchievementMoment2026';
+import { RunAnalysisBlocks2026 } from '../journal/RunAnalysisBlocks2026';
+import { parseTracePoints2026 } from '../journal/traceRead';
+import type { JournalPoint } from '../journal/metrics';
 
 type ResultParams2026 = { dist?: string; dur?: string; activity?: string; queued?: string; localId?: string };
 const clock = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n) % 60).padStart(2, '0')}`;
@@ -66,6 +69,26 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
   const distance = local ? result?.distanceM ?? local.distanceM : null;
   const duration = local ? result?.durationS ?? local.durationS : null;
   const segments = local?.traceSegments ?? [];
+  /**
+   * LA TRACE ANALYSABLE — les mêmes blocs que le détail d'une sortie archivée
+   * (`/course/[id]`), donc la même grammaire d'un écran à l'autre.
+   *
+   * DEUX SOURCES, ET L'ORDRE COMPTE :
+   *  · `uploadPayload.points` — les points tels que l'enregistreur les a
+   *    mesurés, HORODATÉS (`tracker.buildPayload()`). C'est la seule source qui
+   *    permette des splits et une courbe ;
+   *  · `traceSegments` — la géométrie seule, conservée pour l'affichage. Sans
+   *    temps, l'analyse ne s'affiche pas et l'écran DIT pourquoi (il n'étale
+   *    surtout pas l'allure moyenne sur des kilomètres jamais chronométrés).
+   * Ces points ne quittent pas l'appareil : le partage passe, lui, par le
+   * studio, qui applique sa protection de vie privée avant toute image.
+   */
+  const analysisPoints = useMemo<readonly JournalPoint[]>(() => {
+    const recorded = local?.uploadPayload?.points;
+    const timed = Array.isArray(recorded) ? parseTracePoints2026(recorded) : [];
+    if (timed.length >= 2) return timed;
+    return segments.flat();
+  }, [local?.uploadPayload, segments]);
   const map = useMemo(() => {
     const points = segments.flat();
     if (points.length === 0) return null;
@@ -146,6 +169,12 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
       <Metric value={duration === null ? '—' : clock(duration)} label={text('Durée', 'Duration')} />
       <Metric value={rate.value} label={activity === 'run' ? text('Allure · /km', 'Pace · /km') : text('Vitesse · km/h', 'Speed · km/h')} />
     </View>
+    {/* L'ANALYSE SPORTIVE, exactement comme dans le détail d'une sortie
+        archivée : temps en mouvement, splits au km, courbe d'allure, et le
+        relief le jour où une source d'altitude existera. */}
+    {analysisPoints.length >= 2 && <View style={s.analysis}>
+      <RunAnalysisBlocks2026 activity={activity} points={analysisPoints} tone="light" testID="run-result-analysis" />
+    </View>}
     {guestRecording && <View style={s.guest}>
       <Text style={s.impactTitle}>{text('Sans compte, cette sortie reste sur cet appareil', 'Without an account this outing stays on this device')}</Text>
       <Text style={s.body}>{text('Elle ne prend aucun terrain et n’apparaît sur aucune carte partagée. Ses mesures, elles, sont bien enregistrées ici.', 'It takes no terrain and appears on no shared map. Its measurements are saved here.')}</Text>
@@ -190,6 +219,7 @@ const s = StyleSheet.create({
   hero: { backgroundColor: c.carbon, overflow: 'hidden' }, header: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }, titlePlate: { minHeight: 44, borderRadius: 14, justifyContent: 'center', backgroundColor: 'transparent', paddingHorizontal: 14 }, title: { fontFamily: fonts.displayMedium, fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: c.darkInk }, close: { height: 44, width: 44, borderRadius: 22, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center' }, startPoint: { width: 13, height: 13, borderRadius: 7, backgroundColor: c.surface, borderWidth: 3, borderColor: c.carbon }, heroFooter: { position: 'absolute', bottom: 28, left: 20, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'transparent', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 }, heroMark: { fontFamily: fonts.text, fontSize: 12, color: c.darkInk }, emptyTrace: { flex: 1, paddingHorizontal: 42, justifyContent: 'center', alignItems: 'center', gap: 12 }, emptyText: { fontFamily: fonts.text, fontSize: 13, lineHeight: 20, textAlign: 'center', color: c.darkMuted },
   metrics: { flexDirection: 'row', paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }, metric: { flex: 1, gap: 5 }, metricValue: { fontFamily: fonts.displayMedium, fontSize: 27, lineHeight: 33, letterSpacing: -0.5, color: c.ink, fontVariant: ['tabular-nums'] }, metricLabel: { color: c.muted, fontFamily: fonts.text, fontSize: 12, lineHeight: 17 }, impact: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingTop: 18, paddingBottom: 16 }, impactTitle: { fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, color: c.ink, marginBottom: 5 }, body: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted }, progress: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 13, marginBottom: 16 },
   currentTerrain: { paddingBottom: 18, borderTopWidth: 1, borderTopColor: c.border },
+  analysis: { paddingTop: 20, paddingBottom: 4 },
   guest: { paddingTop: 18, gap: 6, borderBottomWidth: 1, borderBottomColor: c.border, paddingBottom: 6 },
   actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16, paddingBottom: 16 }, primary: { minHeight: 44, backgroundColor: c.accent, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 17, paddingVertical: 12 }, primaryText: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 14 }, journal: { minHeight: 44, flexDirection: 'row', gap: 6, alignItems: 'center' }, detailsButton: { minHeight: 48, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: c.border }, detailsLabel: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink, flexShrink: 1 }, details: { paddingTop: 10 }, detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, paddingVertical: 12 }, detailLabel: { flex: 1 }, detailValue: { maxWidth: '50%', textAlign: 'right' },
 });

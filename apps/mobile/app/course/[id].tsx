@@ -445,7 +445,6 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
           <RunAnalysisBlocks2026
             activity={run.activity}
             points={run.trace.points}
-            traceSource={run.trace.source}
             tone="dark"
             testID="course-detail-analysis"
           />

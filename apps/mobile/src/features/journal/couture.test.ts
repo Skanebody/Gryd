@@ -43,6 +43,7 @@ function codeSeul(source: string): string {
 }
 
 const DETAIL = '../../../app/course/[id].tsx';
+const RESULTAT = '../refonte/RunResult.tsx';
 const STATS = '../refonte/ProfileStatsScreen.tsx';
 const JOURNAL = './JournalSection2026.tsx';
 const CATALOGUE = '../../i18n/catalog/journal.ts';
@@ -96,6 +97,20 @@ Deno.test('couture — aucun écran ne recalcule un split ou une allure lissée'
       `${chemin} recalcule une allure ou un split au lieu de consommer features/journal/metrics`,
     );
   }
+});
+
+Deno.test('couture — la fin de sortie et le detail montrent les MÊMES blocs', () => {
+  const resultat = codeSeul(lire(RESULTAT));
+  assert(
+    resultat.includes('RunAnalysisBlocks2026'),
+    '/course-result n’affiche pas l’analyse : deux grammaires pour une même sortie',
+  );
+  // La trace analysée est celle de l'enregistreur (horodatée), pas la
+  // géométrie d'affichage : sans temps, il n'y a ni split ni courbe.
+  assert(
+    resultat.includes('uploadPayload?.points'),
+    '/course-result n’utilise pas les points horodatés de l’enregistrement',
+  );
 });
 
 // ─── LE JOURNAL ─────────────────────────────────────────────────────────────
