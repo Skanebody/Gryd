@@ -228,6 +228,21 @@ function rpcFixture(name: string, body: Record<string, unknown>, user: MockUser)
     // Aucun droit GRYD+ : le compte est neuf, et on n'invente pas un abonnement.
     case 'get_gryd_plus_access_2026':
       return null;
+    // Aucun cosmetique equipe : un objet sans emplacement rempli EST la reponse
+    // (0180/0181 : les emplacements par defaut sont derives cote client).
+    case 'get_profile_cosmetics_2026':
+      return {};
+    // Parrainage (0184-0186) : le serveur cree le code a la premiere lecture ;
+    // un compte neuf n'a ni parrain, ni filleul, ni recompense, ni credit.
+    case 'my_referral_2026':
+      return {
+        code: 'ABCDEF', accountAgeDays: 0, canRedeem: true, redeemBlockedReason: null,
+        myRunDone: false, sponsor: null, referees: [], rewards: [], boostActive: false,
+        bonusXp: 0, grydPlusCredit: null, remainingThisSeason: 5, nextStep: 'share',
+      };
+    // Personne n'est moderateur dans le harnais (0187 : habilitation nominative).
+    case 'am_i_moderator_2026':
+      return false;
     default:
       return undefined;
   }
