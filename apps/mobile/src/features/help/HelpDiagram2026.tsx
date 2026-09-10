@@ -70,9 +70,20 @@ const STROKE_HAIRLINE = 1;
 const DOT_START = 7;
 const DOT_HEAD = 6;
 const DASH_GUIDE = '3 7';
+/** Agrandissement de la marque « carte » posée dans un secteur (grille de 24). */
+const SECTOR_GLYPH_SCALE = 1.2;
 
 function draw(length: number, progress: number) {
   return { strokeDasharray: `${length} ${length}`, strokeDashoffset: length * (1 - progress) };
+}
+
+/**
+ * Une coche centrée sur (cx, cy), de rayon `r`. Son échelle suit la LARGEUR de
+ * la colonne : calée sur la hauteur, elle s'étirait en un « V » de trente-six
+ * points de haut, méconnaissable (constaté en capture le 10/09/2026).
+ */
+function check(cx: number, cy: number, r: number): string {
+  return `M${cx - r} ${cy}L${cx - r * 0.25} ${cy + r * 0.72}L${cx + r} ${cy - r * 0.78}`;
 }
 
 /** Le fond de rues, identique d'une planche à l'autre : un décor, pas une carte. */
@@ -133,7 +144,7 @@ function PointsArt({ t }: { t: number }) {
       const reveal = Math.min(1, Math.max(0, t * HELP_WEEK_COLUMNS - index));
       return <G key={index} opacity={0.25 + 0.75 * reveal}>
         <Rect x={x} y={top} width={width} height={height} rx={10} fill={on ? c.accent : 'none'} stroke={on ? c.accent : c.darkSurfaceMuted} strokeWidth={1.5} />
-        {on ? <Path d={`M${x + width * 0.28} ${top + height * 0.5}L${x + width * 0.45} ${top + height * 0.66}L${x + width * 0.74} ${top + height * 0.34}`} fill="none" stroke={c.ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" /> : null /* sur chartreuse : la coche est posee sur la colonne accent */}
+        {on ? <Path d={check(x + width / 2, top + height / 2, width * 0.26)} fill="none" stroke={c.ink} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" /> : null /* sur chartreuse : la coche est posee sur la colonne accent */}
       </G>;
     })}
   </G>;
@@ -158,7 +169,16 @@ function CrewArt({ t }: { t: number }) {
     })}
     {Array.from({ length: sectors }, (_, index) => {
       const x = pad + index * (sectorWidth + gap);
-      return <Rect key={index} x={x} y={58} width={sectorWidth} height={64} rx={14} fill={c.darkSurface} stroke={c.darkSurfaceMuted} strokeWidth={1.5} opacity={0.4 + 0.6 * t} />;
+      const glyph = 24 * SECTOR_GLYPH_SCALE;
+      return <G key={index} opacity={0.45 + 0.55 * t}>
+        <Rect x={x} y={58} width={sectorWidth} height={64} rx={14} fill={c.darkSurfaceMuted} stroke={c.darkMuted} strokeWidth={1} />
+        {/* Un rectangle vide ne dit pas « secteur ». La marque « carte » du jeu
+            d'icônes le dit sans un mot, donc sans traduction. */}
+        <G transform={`translate(${x + (sectorWidth - glyph) / 2} ${58 + (64 - glyph) / 2}) scale(${SECTOR_GLYPH_SCALE})`}
+          fill="none" stroke={c.darkInk} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          {GRYD_GLYPHS.map.map((d, key) => <Path key={key} d={d} />)}
+        </G>
+      </G>;
     })}
   </G>;
 }
@@ -174,7 +194,11 @@ function SeasonArt({ t }: { t: number }) {
   const span = HELP_ART_WIDTH - pad * 2;
   const step = tiers > 1 ? span / (tiers - 1) : 0;
   return <G>
-    <Line x1={pad} y1={y} x2={pad + span * t} y2={y} stroke={c.accent} strokeWidth={STROKE_TRACE} strokeLinecap="round" />
+    {/* Le rail est NEUTRE, et ce n'est pas un choix esthétique : une ligne
+        chartreuse qui traverse douze paliers se lit « saison terminée ». Le
+        guide ne connaît la progression de personne, il ne la peint donc pas.
+        Seul le départ porte l'accent. */}
+    <Line x1={pad} y1={y} x2={pad + span * t} y2={y} stroke={c.darkSurfaceMuted} strokeWidth={STROKE_TRACE} strokeLinecap="round" />
     {Array.from({ length: tiers }, (_, index) => {
       const x = pad + step * index;
       const first = index === 0;
@@ -210,7 +234,7 @@ function QuestionsArt({ t }: { t: number }) {
   const offsetX = (HELP_ART_WIDTH - glyph) / 2;
   const offsetY = (HELP_ART_HEIGHT - glyph) / 2;
   return <G>
-    {[0, 1, 2].map((index) => <Rect key={index} x={54 + index * 12} y={126 - index * 10} width={212 - index * 24} height={14} rx={7} fill={c.darkSurface} opacity={0.6 * t} />)}
+    {[0, 1, 2].map((index) => <Rect key={index} x={54 + index * 12} y={132 - index * 10} width={212 - index * 24} height={12} rx={6} fill={c.darkSurfaceMuted} opacity={0.9 * t} />)}
     <G transform={`translate(${offsetX} ${offsetY}) scale(${scale})`} fill="none" stroke={c.accent} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" opacity={0.35 + 0.65 * t}>
       {GRYD_GLYPHS.faq.map((d, index) => <Path key={index} d={d} />)}
     </G>

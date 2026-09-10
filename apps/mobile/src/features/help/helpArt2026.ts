@@ -81,10 +81,15 @@ export const HELP_TERRITORY_LENGTH = closedPathLength(HELP_TERRITORY);
 /** La part DÉJÀ possédée avant la sortie : hachurée, et jamais recomptée. */
 export const HELP_OWNED: readonly Vertex[] = [[112, 88], [178, 78], [200, 118], [140, 134]];
 export const HELP_OWNED_D = closedPathD(HELP_OWNED);
-/** Les hachures de cette part, tracées à l'intérieur du quadrilatère. */
+/**
+ * Les hachures de cette part. Elles sont VERTICALES et calculées entre les
+ * bords haut et bas du quadrilatère : des obliques posées à vue débordaient en
+ * bas à gauche (constaté en capture le 10/09/2026), et une hachure qui sort de
+ * sa zone raconte une possession qui n'existe pas.
+ */
 export const HELP_OWNED_HATCH: readonly (readonly [Vertex, Vertex])[] = [
-  [[118, 90], [128, 130]], [[132, 88], [143, 131]], [[146, 86], [157, 129]],
-  [[160, 84], [171, 127]], [[174, 82], [185, 118]],
+  [[124, 89], [124, 105]], [[136, 87], [136, 125]], [[148, 85], [148, 129]],
+  [[160, 83], [160, 126]], [[172, 81], [172, 123]], [[184, 91], [184, 120]],
 ];
 
 /** La limite de commune : indicative, jamais une frontière de jeu. */
