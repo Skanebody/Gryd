@@ -221,14 +221,19 @@ export function useCrewPublicProfile(crewId: string | null): PublicProfileState 
 
 // ─── L'INTENTION D'ADHÉSION — le serveur décide, jamais l'écran ─────────────
 
-export type JoinIntentResult =
-  | { ok: true; effect: 'joined' | 'requested' }
-  | { ok: false; reason: DiscoveryRefusal; daysLeft?: number };
-
-/**
- * Appelle `crew_join_intent` (0083). L'écran choisit un LIBELLÉ d'après le
- * recrutement lu ; c'est le serveur qui choisit l'EFFET. Un statut changé entre
- * la lecture et le tap est donc arbitré correctement, pas subi.
+/*
+ * ─── 11/09/2026 · `requestCrewJoin` A ÉTÉ RETIRÉ (LOT Q3) ────────────────────
+ *
+ * Il appelait `crew_join_intent` (0083), qui insère `(crew_id, user_id)` et
+ * RIEN d'autre : ni le mot du candidat (trou ① de la spec de gestion de crew),
+ * ni l'acceptation de charte, ni la moindre exigence d'entrée. Depuis 0188,
+ * `crew_apply_2026` écrit les trois, et l'écran `/crew-rejoindre` l'appelle.
+ *
+ * On ne garde PAS les deux chemins : deux façons d'entrer dans un crew avec des
+ * garanties différentes, c'est une porte dérobée sur les exigences que le
+ * capitaine vient de régler. `crew_join_intent` reste en base (0190 l'a même
+ * remplacé pour tenir compte des crews archivés) et sert encore à LIRE l'état
+ * d'une demande ; il n'a simplement plus d'appelant en écriture côté client.
  */
 // ─── LA CONTREPARTIE : les candidatures REÇUES ──────────────────────────────
 
@@ -333,22 +338,4 @@ export function useCrewJoinRequests(): JoinRequestsState {
   );
 
   return { canDecide, requests, busyId, decide, reload };
-}
-
-export async function requestCrewJoin(crewId: string): Promise<JoinIntentResult> {
-  if (!supabase) return { ok: false, reason: 'not_found' };
-  try {
-    const res = await supabase.rpc('crew_join_intent', { p_crew_id: crewId });
-    if (res.error) return { ok: false, reason: 'not_found' };
-    const raw = res.data as Record<string, unknown> | null;
-    if (raw?.ok === true) {
-      const effect = raw.effect === 'joined' ? 'joined' : 'requested';
-      return { ok: true, effect };
-    }
-    const reason = (typeof raw?.reason === 'string' ? raw.reason : 'not_found') as DiscoveryRefusal;
-    const daysLeft = typeof raw?.daysLeft === 'number' ? raw.daysLeft : undefined;
-    return { ok: false, reason, daysLeft };
-  } catch {
-    return { ok: false, reason: 'not_found' };
-  }
 }

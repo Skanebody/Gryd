@@ -26,11 +26,26 @@
  * Aucune notification n'existe (0083 § suspens) : le candidat ne sera pas
  * prévenu, et l'écran de la fiche publique le lui dit. Ici, on ne prétend pas
  * non plus « le candidat a été averti ».
+ *
+ * ══ 11/09/2026 · LE MOT DU CANDIDAT EST ENFIN LU (LOT Q3) ═════════════════
+ * Ce composant peignait `r.pseudo` et deux liens. `r.message` était parsé par
+ * `discoveryData.ts` puis JETÉ — non par négligence, mais parce qu'il valait
+ * toujours `null` : `crew_join_intent` (0093:550) insérait `(crew_id, user_id)`
+ * et rien d'autre. Le trou ① de la spec était donc double : personne
+ * n'écrivait, et personne ne lisait. `crew_apply_2026` (0188) écrit ; ce
+ * composant lit.
+ *
+ * « Sans mot. » est écrit EN TOUTES LETTRES quand il n'y en a pas, plutôt qu'un
+ * blanc : tout l'historique d'avant 0188 vaut `null`, et un vide se prendrait
+ * pour un défaut d'affichage. Le message n'est PAS tronqué, pour la même raison
+ * que le pseudo : on décide sur ce que la personne a écrit, pas sur son début.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, fontSizes, sizes, spacing } from '@klaim/shared';
 import { C } from '../../i18n/catalog/crew';
+import { G } from '../../i18n/catalog/crewGestion';
 import { useT } from '../../i18n/store';
+import { requestAgeText } from './management/crewManagementCopy';
 import { useCrewJoinRequests } from './discoveryData';
 
 export function CrewJoinRequests() {
@@ -39,14 +54,26 @@ export function CrewJoinRequests() {
 
   if (!canDecide || requests.length === 0) return null;
 
+  const now = Date.now();
+
   return (
     <View style={styles.root}>
       <Text style={styles.kicker}>{t(C.dRequestsKicker)}</Text>
-      {requests.map((r) => (
+      {requests.map((r) => {
+        const age = requestAgeText(t, r.createdAtMs, now);
+        return (
         <View key={r.id} style={styles.row}>
-          {/* Le pseudo n'est PAS tronqué : décider sur un nom coupé, c'est
-              décider sur autre chose que la personne (§A.9). */}
-          <Text style={styles.pseudo}>{r.pseudo}</Text>
+          <View style={styles.who}>
+            {/* Le pseudo n'est PAS tronqué : décider sur un nom coupé, c'est
+                décider sur autre chose que la personne (§A.9). */}
+            <Text style={styles.pseudo}>{r.pseudo}</Text>
+            {/* LE MOT DU CANDIDAT. Il existe le candidat comme personne avant de
+                l'exister comme statistique (§1.1). */}
+            <Text style={r.message ? styles.message : styles.noMessage}>
+              {r.message ?? t(G.requestNoMessage)}
+            </Text>
+            {age ? <Text style={styles.age}>{age}</Text> : null}
+          </View>
           <View style={styles.actions}>
             {/*
               Deux liens texte, PAS deux boutons : le CTA chartreuse de l'écran
@@ -75,7 +102,8 @@ export function CrewJoinRequests() {
             </Pressable>
           </View>
         </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -92,7 +120,9 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    // Le mot du candidat peut faire plusieurs lignes : les actions se calent en
+    // haut plutôt que de flotter au milieu d'un pavé de texte.
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.sm,
     minHeight: sizes.touchTarget,
@@ -100,7 +130,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.grisLigne,
   },
+  who: { flex: 1, gap: 2 },
   pseudo: { color: colors.blanc, fontSize: fontSizes.md, flexShrink: 1 },
+  // Le message n'est PAS tronqué (aucun `numberOfLines`) : décider sur le début
+  // d'une phrase, c'est décider sur autre chose que ce qui a été écrit (§A.9).
+  message: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20 },
+  noMessage: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20 },
+  age: { color: colors.gris, fontSize: fontSizes.xs },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
   action: { minHeight: sizes.touchTarget, justifyContent: 'center' },
   accept: { color: colors.blanc, fontFamily: fonts.textSemi, fontSize: fontSizes.sm, fontWeight: '600' },

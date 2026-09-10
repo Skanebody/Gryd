@@ -35,14 +35,29 @@
  * Après une candidature, il DIT qu'aucune notification n'existe (elle n'existe
  * pas : 0083 § suspens). Écrire « vous serez prévenu » serait une garantie que
  * le code ne tient pas — la même faute qu'une donnée fabriquée.
+ *
+ * ══ 11/09/2026 · CE QUE CE CREW DEMANDE (LOT Q3) ══════════════════════════
+ * DEUX BLOCS NOUVEAUX, et ils ne sont pas décoratifs : le risque 3 de la spec
+ * (§5.3) pose que la résolution de vie privée du tableau de suivi ne tient QUE
+ * SI la fiche publique affiche exigences ET règles AVANT l'entrée. Un capitaine
+ * ne peut pas voir les kilomètres d'un profil fermé au motif d'une règle que le
+ * candidat n'aurait jamais pu lire. « Écran de charte bâclé = consentement
+ * fictif. » L'ordre de §2.8 est tenu : accueil, sorties, effectif, EXIGENCES,
+ * CHARTE, activité, bouton.
+ *
+ * ══ L'ADHÉSION PASSE MAINTENANT PAR `/crew-rejoindre` ═════════════════════
+ * `crew_join_intent` (0083) n'écrit ni message, ni acceptation de charte, ni
+ * vérification d'exigence : il insère `(crew_id, user_id)`. L'appeler d'ici
+ * ferait entrer quelqu'un sans qu'il ait rien lu, et laisserait le capitaine
+ * sans le mot du candidat. Le bouton MÈNE donc à l'écran de candidature, qui
+ * appelle `crew_apply_2026` (0188) une fois les trois faits réunis.
  */
-import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, fontSizes, spacing } from '@klaim/shared';
 import { C, CREW_PROFILE_E } from '../src/i18n/catalog/crew';
+import { G } from '../src/i18n/catalog/crewGestion';
 import { useT } from '../src/i18n/store';
-import type { Entry } from '../src/i18n/types';
 import { useSession } from '../src/lib/session';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
@@ -53,10 +68,15 @@ import {
   seatsLeft,
 } from '../src/features/crew/discovery';
 import {
-  requestCrewJoin,
   useCrewPublicProfile,
   type PublicCrew,
 } from '../src/features/crew/discoveryData';
+import {
+  CrewCharterBlock,
+  CrewEnforcementBlock,
+  CrewRequirementsBlock,
+} from '../src/features/crew/management/CrewRulesBlocks';
+import { useCrewRules } from '../src/features/crew/management/crewManagementData';
 
 const DAY_MS = 86_400_000;
 
@@ -81,34 +101,13 @@ export default function CrewPublicRoute() {
    * traverser l'écran sans être peint.
    */
   const refused = refusalView(refusal);
-  const [busy, setBusy] = useState(false);
-  /** Résultat de MA dernière action — un fait, jamais une promesse. */
-  const [outcome, setOutcome] = useState<Entry | null>(null);
-  const [error, setError] = useState<Entry | null>(null);
-
-  const onJoin = useCallback(async () => {
-    if (!crewId || busy) return;
-    setBusy(true);
-    setError(null);
-    const res = await requestCrewJoin(crewId);
-    setBusy(false);
-    if (res.ok) {
-      setOutcome(res.effect === 'joined' ? C.dJoined : C.dRequestPending);
-      // On RELIT : l'écran doit refléter l'état serveur, pas l'état espéré.
-      reload();
-      return;
-    }
-    // Refus SERVEUR — on le dit avec ses mots, on n'en invente pas un autre.
-    setError(
-      res.reason === 'closed'
-        ? C.dClosedNote
-        : res.reason === 'already_in_crew'
-          ? C.dInOtherCrew
-          : res.reason === 'full'
-            ? C.crewFullNotice
-            : C.dFailedBody,
-    );
-  }, [crewId, busy, reload]);
+  /**
+   * CHARTE ET EXIGENCES. Cette lecture est ouverte à tout compte connecté
+   * (`crew_rules_get_2026`), membre ou non : c'est ce qui rend le consentement
+   * réel. Elle peut échouer SANS empêcher de lire la fiche : on dit alors qu'on
+   * n'a pas su lire les conditions, jamais qu'il n'y en a pas.
+   */
+  const rules = useCrewRules(crewId);
 
   if (!session) {
     return (
@@ -202,14 +201,26 @@ export default function CrewPublicRoute() {
       <CrewIdentity crew={crew} />
       <CrewFacts crew={crew} />
 
-      {/* L'ACTION — unique, et seulement si elle peut réussir. */}
-      <JoinBlock crew={crew} busy={busy} onJoin={() => void onJoin()} />
+      {/* CE QUE CE CREW DEMANDE — AVANT le bouton, jamais après (§2.8). Un
+          consentement qu'on donne puis qu'on lit n'est pas un consentement. */}
+      {rules.data ? (
+        <>
+          <CrewRequirementsBlock rules={rules.data} />
+          <CrewEnforcementBlock rules={rules.data} />
+          <CrewCharterBlock rules={rules.data} />
+        </>
+      ) : rules.failed ? (
+        // « Je n'ai pas su lire » ≠ « il n'y en a pas ». Sans cette phrase, un
+        // crew exigeant passerait pour un crew ouvert.
+        <Text style={styles.note}>{t(G.publicRulesUnread)}</Text>
+      ) : null}
 
-      {outcome ? <Text style={styles.outcome}>{t(outcome)}</Text> : null}
-      {outcome === C.dRequestPending || crew.myRequestPending ? (
+      {/* L'ACTION — unique, et seulement si elle peut réussir. */}
+      <JoinBlock crew={crew} onJoin={() => router.push({ pathname: '/crew-rejoindre', params: { crewId: crew.id } })} />
+
+      {crew.myRequestPending ? (
         <Text style={styles.note}>{t(C.dRequestNoNotice)}</Text>
       ) : null}
-      {error ? <Text style={styles.error}>{t(error)}</Text> : null}
 
       {/* L'ABSENCE, DITE : sans cette phrase, une fiche sans membres ressemble
           à une fiche à moitié chargée. */}
@@ -295,11 +306,9 @@ function CrewFacts({ crew }: { crew: PublicCrew }) {
  */
 function JoinBlock({
   crew,
-  busy,
   onJoin,
 }: {
   crew: PublicCrew;
-  busy: boolean;
   onJoin: () => void;
 }) {
   const t = useT();
@@ -328,11 +337,15 @@ function JoinBlock({
 
   return (
     <View style={styles.cta}>
+      {/*
+        LE LIBELLÉ vient de l'accueil lu ; l'EFFET est décidé par le serveur, sur
+        l'écran suivant. Un statut changé entre la lecture et le tap est donc
+        arbitré par `crew_apply_2026`, jamais subi par cet écran.
+      */}
       <Button
         label={t(affordance === 'join' ? C.dJoinCta : C.dRequestCta)}
         onPress={onJoin}
-        loading={busy}
-        analyticsId="crew_join_intent"
+        analyticsId="crew_apply_open"
       />
     </View>
   );
@@ -358,8 +371,10 @@ const styles = StyleSheet.create({
   facts: { marginTop: spacing.lg, gap: spacing.xs },
   fact: { color: colors.blanc, fontSize: fontSizes.md, lineHeight: 22 },
 
-  outcome: { color: colors.chartreuse, fontSize: fontSizes.sm, marginTop: spacing.lg, lineHeight: 20 },
-  error: { color: colors.blanc, fontSize: fontSizes.sm, marginTop: spacing.md, lineHeight: 20 },
+  // `outcome` et `error` sont partis avec l'appel direct à `crew_join_intent` :
+  // le résultat d'une candidature s'affiche désormais sur `/crew-rejoindre`,
+  // là où le geste a lieu. Les garder ici aurait laissé deux endroits capables
+  // d'annoncer une adhésion, dont un qui ne la déclenche plus.
   note: { color: colors.gris, fontSize: fontSizes.md, marginTop: spacing.lg, lineHeight: 22 },
   privacy: { color: colors.gris, fontSize: fontSizes.sm, marginTop: spacing.xl, lineHeight: 20 },
 });

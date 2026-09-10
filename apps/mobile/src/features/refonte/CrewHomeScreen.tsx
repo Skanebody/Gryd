@@ -17,7 +17,9 @@ import type { SocialPerson2026, SocialPost2026, SocialReactionKind2026 } from '.
 import { SocialAvatar2026, SocialPostCard2026 } from '../social/SocialPostCard2026';
 import { CREW_SPORTING_ROLES_2026, isCrewSportingRole2026, sportingRoleLabel2026, type CrewSportingRole2026 } from '../crew/crewConversation2026';
 import { resolveCrewJoinCode2026 } from '../crew/joinInput2026';
-import { canOpenCrewEdit, dutyOf, isCrewRole, leaveVerdict } from '../crew/memberRoles';
+import { canOpenCrewEdit, dutyOf, isCrewRole, leaveVerdict, roleHas } from '../crew/memberRoles';
+import { charterStale } from '../crew/management/crewRules2026';
+import { acceptCharter, useCrewRules } from '../crew/management/crewManagementData';
 import { crewEmblemSeed, isCrewEmblem } from '../crew/crewEmblem';
 import { crewDisciplinesLabel2026, crewIdentityLine2026, crewTerrainState2026 } from '../crew/crewIdentity2026';
 import { useRealCrew, type CrewRefusal, type RealCrewMember } from '../crew/real';
@@ -82,6 +84,8 @@ function CrewHomeContents() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<RealCrewMember | null>(null);
+  const [charterBusy, setCharterBusy] = useState(false);
+  const [charterDone, setCharterDone] = useState(false);
   useEffect(() => { screen('crew'); }, []);
   // Outing and feed hooks are account-scoped. A membership change invalidates their context.
   useEffect(() => { outings.reload(); feed.reload(); }, [crew.crew?.id, outings.reload, feed.reload]);
@@ -102,6 +106,24 @@ function CrewHomeContents() {
     setBusy(false);
     if (result.ok) { haptics.success(); track(EVENTS.crewJoined, { via: 'code' }); setMode('home'); crew.reload(); }
     else { haptics.error(); setError(refusal(result.reason)); }
+  }
+  /*
+   * ACCEPTER LA NOUVELLE CHARTE. Il n'existe AUCUNE RPC de refus, et ce n'est
+   * pas un oubli : ne pas appeler celle-ci EST le refus, et un refus n'exclut
+   * personne (§2.3 ①). Le bandeau ne porte donc qu'un seul bouton, et il ne se
+   * ferme pas tout seul.
+   */
+  async function acceptNewCharter() {
+    if (charterBusy || !crewRules.data) return;
+    setCharterBusy(true); setError(null);
+    const result = await acceptCharter(crewRules.data.charterVersion);
+    setCharterBusy(false);
+    if (result.kind === 'ok') { haptics.success(); setCharterDone(true); crewRules.reload(); }
+    else if (result.kind === 'refusal' && result.reason === 'charter_stale') {
+      // Le texte a encore bougé pendant la lecture : on relit plutôt que
+      // d'enregistrer un consentement à une version déjà remplacée.
+      haptics.error(); crewRules.reload();
+    } else { haptics.error(); setError(copy('Cette action n’a pas abouti. Vérifie ta connexion et réessaie.', 'This action did not complete. Check your connection and try again.')); }
   }
   async function leaveCrew() {
     if (busy) return;
@@ -188,6 +210,23 @@ function CrewHomeContents() {
    * son entrée « n'existe que pour qui a le droit ».
    */
   const canEditCrew = canOpenCrewEdit(myRole);
+  /*
+   * LA PORTE VERS `/crew-gestion`, dérivée de la PERMISSION RÉELLE.
+   * `crew_member_board_2026` (0189) est gatée sur `CREW_PERMISSIONS.kick`
+   * (co_captain et founder) : la peindre pour un membre simple donnerait un
+   * écran « réservé aux officiers », c'est-à-dire un bouton mort. On lit la
+   * matrice, on n'écrit pas `myRole === 'founder'` à la main : le jour où elle
+   * s'ouvre à un autre rang, la porte suit sans qu'on y pense.
+   */
+  const canManageCrew = roleHas(myRole, 'kick');
+  /*
+   * LA CHARTE A-T-ELLE CHANGÉ DEPUIS QUE JE L'AI ACCEPTÉE ? Un crew sans charte
+   * n'est JAMAIS « périmé » (`charterStale` le garantit) : sans ce garde, tous
+   * les crews existants afficheraient à vie un bandeau accusant leurs membres
+   * de ne pas avoir lu un texte qui n'existe pas.
+   */
+  const crewRules = useCrewRules(crew.crew?.id ?? null);
+  const charterChanged = crewRules.data !== null && charterStale(crewRules.data);
   /* Le rôle d'un membre, tel que `crew_overview` le rend. `null` = non lu. */
   const roleOfMember = (userId: string): string => crew.overview?.contributions.find(item => item.userId === userId)?.role ?? '';
 
@@ -238,6 +277,16 @@ function CrewHomeContents() {
               entier hors bornes n'affiche rien plutôt qu'un blason d'emprunt. */}
           <View style={local.crewIdentity}>{isCrewEmblem(crew.crew.color) ? <CrewCrest seed={crewEmblemSeed(crew.crew.color)} name={crew.crew.name} size="m" /> : null}<View style={local.flex}><Text style={local.heroTitle}>{crew.crew.name}</Text>{identityLine ? <Text style={local.micro}>{identityLine}</Text> : null}<Pressable accessibilityRole="button" onPress={() => setSection('members')} style={local.memberCount}><Text style={local.heroCopy}>{crew.memberCount.toLocaleString(locale)} {copy('membres', 'members')}</Text><GrydIcon name="chevronRight" size={16} color={c.darkMuted} /></Pressable></View><Pressable accessibilityRole="button" accessibilityLabel={copy('Inviter un membre', 'Invite a member')} onPress={() => goMode('invite')} style={local.lightCircle}><GrydIcon name="plus" size={20} color={c.ink} /></Pressable></View>
         </View>
+        {/* LA CHARTE A CHANGÉ. Le texte est SOUS les yeux au moment d'accepter :
+            cocher « j'ai lu » sous un texte replié n'est pas un consentement.
+            Et la phrase qui rassure vient AVEC : personne n'est exclu pour
+            avoir refusé. */}
+        {charterChanged && !charterDone && crewRules.data?.charter ? <View style={local.charterBanner}>
+          <Text style={local.rowTitle}>{copy('La charte de ton crew a changé.', 'Your crew charter has changed.')}</Text>
+          <Text style={local.body}>{crewRules.data.charter}</Text>
+          <Text style={local.copy}>{copy('Ne pas accepter n’exclut personne : la charte se lit, elle ne se subit pas.', 'Not accepting removes no one: the charter is read, not imposed.')}</Text>
+          <ProfileButton tone="light" label={copy('Lire et accepter', 'Read and accept')} busy={charterBusy} onPress={() => void acceptNewCharter()} secondary />
+        </View> : null}
         <ProfileSegments tone="light" value={section} onChange={setSection} options={[{ key: 'life', label: copy('Activité', 'Activity') }, { key: 'members', label: copy('Membres', 'Members') }]} />
         {section === 'life' ? <>
           <View style={local.outingCard}>
@@ -323,6 +372,16 @@ function CrewHomeContents() {
               conséquence lisible. */}
           <View style={local.dutyLegend}><Text style={local.cardLabel}>{copy('Les rôles du crew', 'Crew roles')}</Text>{CREW_ROLE_DUTIES.map(key => <View key={key} style={local.dutyRow}><Text style={local.rowTitle}>{t(CREW_DUTY_E[key])}</Text><Text style={[local.copy, local.flex]}>{t(CREW_DUTY_HELP_E[key])}</Text></View>)}</View>
           <ProfileLink tone="light" title={copy('Amis et abonnements', 'Friends and following')} subtitle={copy('Retrouver et suivre des sportifs.', 'Find and follow athletes.')} icon="ami" onPress={() => router.push('/amis')} />
+          {/* LA GESTION. Peinte pour qui peut RÉELLEMENT exclure : le tableau de
+              suivi est gaté sur la même permission côté serveur, donc la porte
+              et l'écran disent la même chose. */}
+          {canManageCrew ? <ProfileLink tone="light" title={copy('Gérer mon crew', 'Manage my crew')} subtitle={copy('Suivi des membres, avertissements, exclusions et journal.', 'Member board, warnings, removals and decision log.')} icon="crew" onPress={() => { haptics.light(); router.push('/crew-gestion'); }} /> : null}
+          {/* MA SITUATION, pour TOUT LE MONDE. Elle acquitte mes avertissements :
+              c'est ce qui rend vraie la garantie « jamais retiré sans
+              avertissement lu ». La cacher aux officiers n'aurait aucun sens,
+              ils sont membres aussi. */}
+          <ProfileLink tone="light" title={copy('Ma situation dans le crew', 'My standing in the crew')} subtitle={copy('Les règles de ce crew, mes mesures, mes avertissements.', 'This crew rules, my measures, my warnings.')} icon="historique" onPress={() => { haptics.light(); router.push('/crew-ma-situation'); }} />
+          {canEditCrew ? <ProfileLink tone="light" title={copy('Règles et exigences', 'Rules and requirements')} subtitle={copy('Conditions d’entrée, règles du crew et charte.', 'Entry conditions, crew rules and charter.')} icon="reglages" onPress={() => { haptics.light(); router.push('/crew-regles'); }} /> : null}
           {canEditCrew ? <ProfileLink tone="light" title={copy('Modifier le crew', 'Edit the crew')} subtitle={copy('Nom, description, accès et style.', 'Name, description, access and style.')} icon="reglages" onPress={() => { haptics.light(); router.push('/crew-edit'); }} /> : null}
           <ProfileLink tone="light" title={copy('Quitter ce crew', 'Leave this crew')} icon="fermer" onPress={() => {
             setError(null);
@@ -373,6 +432,7 @@ const local = StyleSheet.create({
   roleBadgeText: { fontFamily: fonts.textMedium, fontSize: 11, lineHeight: 16, color: c.muted },
   roleBadgeTextLead: { color: c.ink },
   dutyLegend: { backgroundColor: c.surface, borderRadius: 24, padding: 18, gap: 10 },
+  charterBanner: { backgroundColor: c.surface, borderRadius: 24, padding: 18, gap: 10 },
   dutyRow: { gap: 3 },
   memberList: { backgroundColor: c.surface, borderRadius: 24, paddingHorizontal: 18 }, member: { minHeight: 68, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: c.canvas }, memberIdentity: { flex: 1, gap: 4, minHeight: 44, justifyContent: 'center' }, memberAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.canvas, alignItems: 'center', justifyContent: 'center' }, memberInitial: { fontFamily: fonts.textMedium, color: c.ink, fontSize: 17 },
   state: { backgroundColor: c.surface, padding: 20, borderRadius: 24, gap: 14 }, form: { gap: 16, paddingTop: 8, paddingBottom: 20 }, back: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 }, input: { minHeight: 52, paddingHorizontal: 16, borderRadius: 16, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, fontFamily: fonts.text, fontSize: 15, color: c.ink },

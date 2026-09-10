@@ -268,9 +268,29 @@ Deno.test('la feuille appelle les fonctions DÉJÀ branchées, sans rien réimpl
   assert(src.includes('unblockMember(target)'), 'le déblocage doit passer par unblockMember');
   // La charge utile vient de la LIGNE (fonction pure), jamais d'un champ saisi.
   assert(src.includes('memberReportInput('), 'le signalement doit être pré-rempli');
-  assert(
-    !src.includes('TextInput'),
-    'aucune saisie de pseudo dans la feuille : elle est pré-remplie par construction',
+  /*
+   * ─── 11/09/2026 · CETTE RÈGLE A ÉTÉ RESSERRÉE, PAS ASSOUPLIE (LOT Q3) ──────
+   *
+   * Elle disait `!src.includes('TextInput')`, et son message disait pourquoi :
+   * « aucune saisie de PSEUDO dans la feuille ». C'était le bon invariant, servi
+   * par une mesure trop large — le seul chemin vers un signalement doit être la
+   * LIGNE d'où l'on vient (`memberReportInput(pseudo, …)`, `blockTargetFor`),
+   * jamais un nom retapé à la main. C'est ce qui rendait le formulaire de
+   * Confidentialité inutilisable : `runner_` + douze hexadécimaux ne se
+   * retapent pas.
+   *
+   * La gestion de crew apporte deux champs de TEXTE LIBRE qui ne désignent
+   * personne : la note d'un avertissement et celle d'un motif d'exclusion
+   * (`other` la rend obligatoire côté serveur). On mesure donc l'invariant
+   * réel : tout `TextInput` de cette feuille écrit dans `note`, et rien
+   * d'autre. Un champ lié à une IDENTITÉ ferait échouer le compte.
+   */
+  const inputs = src.split('<TextInput').length - 1;
+  assert(inputs > 0, 'la feuille doit porter la note d’un avertissement et celle d’un motif');
+  assertEquals(
+    src.split('onChangeText={setNote}').length - 1,
+    inputs,
+    'un champ de la feuille écrit ailleurs que dans la note : une identité s’y retaperait',
   );
 });
 

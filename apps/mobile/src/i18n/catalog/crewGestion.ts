@@ -602,6 +602,13 @@ export const G = defineCatalog({
     de: 'Beitritt anfragen',
     pt: 'Pedir para entrar',
   },
+  applySignedOut: {
+    fr: 'Connecte-toi pour demander à rejoindre un crew.',
+    en: 'Sign in to ask to join a crew.',
+    es: 'Inicia sesión para pedir unirte a un crew.',
+    de: 'Melde dich an, um einer Crew beizutreten.',
+    pt: 'Entre para pedir para entrar em um crew.',
+  },
   applyChecking: {
     fr: 'Vérification de tes conditions…',
     en: 'Checking your conditions…',

@@ -62,14 +62,34 @@
  *   restent en suspens — ils ne sont pas peints ici en attendant.
  *
  * ══ CE QUI N'EST PAS ICI NON PLUS ════════════════════════════════════════
- * Aucune action destructrice. Quitter le crew vit dans l'écran Crew
- * (`leave_crew`, 0042) ; supprimer un crew n'existe pas côté serveur
- * (`archiveCrew` est dans la matrice, pas dans le schéma). Poser un bouton
- * « Supprimer » qui échouerait serait exactement la faute que cet écran répare.
+ * Quitter le crew vit dans l'écran Crew (`leave_crew`, 0042).
+ *
+ * ══ 11/09/2026 · LA DISSOLUTION EXISTE (décision du fondateur) ════════════
+ * Le paragraphe ci-dessus disait, et c'était vrai : « supprimer un crew n'existe
+ * pas côté serveur (`archiveCrew` est dans la matrice, pas dans le schéma) ».
+ * `crew_dissolve_2026` (0190) l'a écrit. Le bouton n'est donc plus un bouton
+ * mort, et il vit ici parce que c'est l'écran des réglages du crew.
+ *
+ * TROIS PRÉCAUTIONS, dans cet ordre :
+ *   1. FONDATEUR SEUL (`CREW_PERMISSIONS.archiveCrew`). Le co-capitaine gère,
+ *      il ne décapite pas — même doctrine que `canLeaveCrew`.
+ *   2. CONFIRMATION EN DEUX TEMPS, avec ce que la dissolution FAIT et ce
+ *      qu'elle NE FAIT PAS écrit avant le premier tap. Rien n'est supprimé : ni
+ *      le crew, ni son nom, ni les sorties, ni les terrains (0126 : le titre
+ *      territorial est individuel, personne ne perd un mètre carré).
+ *   3. LES REFUS SONT NOMMÉS, et `active_challenge` rend sa DATE : un refus
+ *      sans échéance serait un cul-de-sac. Le défi n'est pas différé, il est
+ *      attendu — §G20 pose qu'un défi a un résultat, et le crew adverse y a
+ *      droit sans avoir rien décidé.
+ * Aucune RPC ne désarchive : rendre un crew à la vie demanderait de décider qui
+ * en reprend la direction, ce qui est une décision de produit. L'écran le dit.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import {
+  CREW_KICK_NOTE_MAX,
+  CREW_NAME_HOLD_AFTER_ARCHIVE_DAYS,
   CREW_TAG_KEYS,
   colors,
   elevation,
@@ -82,11 +102,18 @@ import {
   type CrewTag,
 } from '@klaim/shared';
 import { C, CREW_ROLE_E, CREW_TAG_E, RECRUITMENT_E } from '../src/i18n/catalog/crew';
-import { useT } from '../src/i18n/store';
+import { G } from '../src/i18n/catalog/crewGestion';
+import { useLocale, useT } from '../src/i18n/store';
 import { useSession } from '../src/lib/session';
+import { haptics } from '../src/lib/haptics';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
 import { Segmented } from '../src/ui/game/Segmented';
+import { dayText } from '../src/features/crew/management/crewManagementCopy';
+import {
+  dissolveCrew,
+  dissolveRefusalOf,
+} from '../src/features/crew/management/crewManagementData';
 import {
   NAME_MAX,
   blockReason,
@@ -102,6 +129,7 @@ import {
   type EditableCrew,
 } from '../src/features/crew/crewEdit';
 import { saveCrewEdit, useCrewEditContext } from '../src/features/crew/crewEditData';
+import { roleHas } from '../src/features/crew/memberRoles';
 
 /** Les 4 statuts de recrutement dans l'ordre du plus ouvert au plus fermé (§9). */
 const STATUS_ORDER: readonly CrewRecruitmentStatus[] = [
@@ -111,8 +139,18 @@ const STATUS_ORDER: readonly CrewRecruitmentStatus[] = [
   'closed',
 ];
 
+/**
+ * LES TROIS TEMPS DE LA ZONE DANGEREUSE. `idle` : le bouton, rien d'autre.
+ * `confirm` : ce que la dissolution fait, ce qu'elle ne fait pas, le motif
+ * facultatif, et deux boutons dont le premier est « garder mon crew ».
+ * `done` : c'est fait, et l'écran ne prétend plus éditer un crew qui n'existe
+ * plus.
+ */
+type DissolveStep = 'idle' | 'confirm' | 'done';
+
 export default function CrewEditRoute() {
   const t = useT();
+  const locale = useLocale();
   const { session } = useSession();
   const { loading, failed, refusal, ctx, reload } = useCrewEditContext();
 
@@ -128,6 +166,10 @@ export default function CrewEditRoute() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dissolveStep, setDissolveStep] = useState<DissolveStep>('idle');
+  const [dissolveReason, setDissolveReason] = useState('');
+  const [dissolving, setDissolving] = useState(false);
+  const [dissolveError, setDissolveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ctx) return;
@@ -177,12 +219,76 @@ export default function CrewEditRoute() {
     setNotice(out.renamed ? t(C.editSavedRenamed, { n: out.fouleesSpent }) : t(C.editSaved));
   }
 
+  /**
+   * DISSOUDRE. Le serveur revérifie tout : le rôle, l'archivage déjà fait, et
+   * surtout le défi en cours. On ne peint donc jamais un « c'est fait » qu'on
+   * n'a pas lu, et chaque refus dit son motif dans SES mots.
+   */
+  async function onDissolve() {
+    if (dissolving) return;
+    setDissolving(true);
+    setDissolveError(null);
+    const out = await dissolveCrew(dissolveReason);
+    setDissolving(false);
+    if (out.kind === 'ok') {
+      haptics.success();
+      setDissolveStep('done');
+      return;
+    }
+    haptics.error();
+    if (out.kind === 'failed') {
+      setDissolveError(t(G.actionFailed));
+      return;
+    }
+    if (out.kind === 'unsupported') {
+      setDissolveError(t(G.refusedUnsupported));
+      return;
+    }
+    const why = dissolveRefusalOf(out);
+    if (why === 'active_challenge') {
+      // La DATE de clôture voyage avec le refus : sans elle, le capitaine ne
+      // saurait pas quand réessayer, et le refus deviendrait un mur.
+      const endsAt =
+        typeof out.data.endsAt === 'string' ? dayText(Date.parse(out.data.endsAt), locale) : null;
+      setDissolveError(
+        endsAt ? t(G.dissolveActiveChallenge, { date: endsAt }) : t(G.refusedGeneric),
+      );
+      return;
+    }
+    setDissolveError(
+      why === 'not_founder'
+        ? t(G.dissolveNotFounder)
+        : why === 'already_archived'
+          ? t(G.dissolveAlready)
+          : why === 'no_crew'
+            ? t(G.boardNoCrewBody)
+            : t(G.refusedGeneric),
+    );
+  }
+
   // ── Pas connecté ──────────────────────────────────────────────────────────
   if (!session) {
     return (
       <StackScreen title={t(C.editTitle)}>
         <View style={styles.block}>
           <Text style={styles.body}>{t(C.editSignedOut)}</Text>
+        </View>
+      </StackScreen>
+    );
+  }
+
+  // ── LE CREW EST DISSOUS ───────────────────────────────────────────────────
+  // Un retour HONNÊTE à l'état sans crew : cet écran n'édite plus rien, et il
+  // ne prétend pas le contraire. Le seul geste restant est de repartir.
+  if (dissolveStep === 'done') {
+    return (
+      <StackScreen title={t(C.editTitle)}>
+        <View style={styles.block}>
+          <Text style={styles.title}>{t(G.dissolveDone)}</Text>
+          <Text style={styles.body}>{t(G.dissolveIrreversible)}</Text>
+          <View style={styles.cta}>
+            <Button label={t(C.createMyCrew)} onPress={() => router.replace('/(tabs)/crew')} />
+          </View>
         </View>
       </StackScreen>
     );
@@ -421,6 +527,72 @@ export default function CrewEditRoute() {
           <Text style={styles.discardText}>{t(C.editDiscard)}</Text>
         </Pressable>
       ) : null}
+
+      {/* ── ZONE DANGEREUSE · DISSOUDRE (fondateur SEUL) ──────────────────
+          Elle n'est peinte que pour qui peut réellement dissoudre : la
+          permission vient de `CREW_PERMISSIONS.archiveCrew`, pas d'un
+          `role === 'founder'` écrit à la main. Elle vit TOUT EN BAS, après
+          tout ce qui se répare, et sa couleur n'est jamais chartreuse : la
+          chartreuse marque ce qu'on veut faire, pas ce qu'on peut regretter. */}
+      {roleHas(live.role, 'archiveCrew') ? (
+        <View style={styles.danger}>
+          <Text style={styles.dangerTitle}>{t(G.dissolveZone)}</Text>
+
+          {dissolveStep === 'idle' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(G.dissolveCta)}
+              onPress={() => {
+                haptics.light();
+                setDissolveError(null);
+                setDissolveStep('confirm');
+              }}
+              style={({ pressed }) => [styles.dangerAction, pressed && styles.dim]}
+            >
+              <Text style={styles.dangerActionText}>{t(G.dissolveCta)}</Text>
+            </Pressable>
+          ) : (
+            <>
+              {/* CE QUE ÇA FAIT, puis CE QUE ÇA NE FAIT PAS. Le second compte
+                  autant : la peur de « tout perdre » est ce qui fait hésiter,
+                  et rien ne se perd. */}
+              <Text style={styles.body}>
+                {t(G.dissolveWhat, { n: CREW_NAME_HOLD_AFTER_ARCHIVE_DAYS })}
+              </Text>
+              <Text style={styles.body}>{t(G.dissolveIrreversible)}</Text>
+              <Text style={styles.label}>{t(G.dissolveReasonLabel)}</Text>
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                value={dissolveReason}
+                onChangeText={setDissolveReason}
+                multiline
+                maxLength={CREW_KICK_NOTE_MAX}
+                accessibilityLabel={t(G.dissolveReasonLabel)}
+                placeholderTextColor={colors.gris}
+              />
+              {/* GARDER passe en premier et reste le geste le plus facile. */}
+              <Button
+                variant="ghost"
+                size="md"
+                label={t(G.dissolveCancel)}
+                disabled={dissolving}
+                onPress={() => setDissolveStep('idle')}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t(G.dissolveConfirmCta)}
+                accessibilityState={{ disabled: dissolving, busy: dissolving }}
+                disabled={dissolving}
+                onPress={() => void onDissolve()}
+                style={({ pressed }) => [styles.dangerAction, pressed && styles.dim]}
+              >
+                <Text style={styles.dangerActionText}>{t(G.dissolveConfirmCta)}</Text>
+              </Pressable>
+            </>
+          )}
+          {dissolveError ? <Text style={styles.error}>{dissolveError}</Text> : null}
+        </View>
+      ) : null}
     </StackScreen>
   );
 }
@@ -513,4 +685,31 @@ const styles = StyleSheet.create({
 
   discard: { marginTop: spacing.xl, minHeight: sizes.touchTarget, justifyContent: 'center' },
   discardText: { color: colors.gris, fontSize: fontSizes.sm, textDecorationLine: 'underline' },
+
+  // ── Zone dangereuse : un filet, jamais un aplat. L15 — le mot « zone
+  // dangereuse » porte l'avertissement ; la teinte ne fait que le souligner,
+  // et l'écran reste lisible sans elle.
+  danger: {
+    marginTop: spacing.xxl,
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.grisLigne,
+    paddingTop: spacing.lg,
+  },
+  dangerTitle: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  dangerAction: {
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: gameColors.danger,
+    paddingHorizontal: spacing.md,
+  },
+  dangerActionText: { color: gameColors.danger, fontSize: fontSizes.sm, fontWeight: '700' },
 });

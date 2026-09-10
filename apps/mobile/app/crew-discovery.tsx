@@ -75,15 +75,30 @@ import {
   type DiscoveryFilter,
 } from '../src/features/crew/discovery';
 import { useCrewDiscovery } from '../src/features/crew/discoveryData';
+import { G } from '../src/i18n/catalog/crewGestion';
+import {
+  NO_DISCOVERY_FILTERS,
+  useCrewDiscovery2026,
+} from '../src/features/crew/management/crewManagementData';
 
 /** Un jour en millisecondes — unité de TEMPS, pas une constante de jeu. */
 const DAY_MS = 86_400_000;
+
+/**
+ * ─── 11/09/2026 · LE FILTRE PAR CONDITIONS D'ENTRÉE (LOT Q3, §2.7) ──────────
+ *
+ * `all` n'est PAS un filtre du serveur : c'est son absence. Les trois autres
+ * sont le catalogue fermé de `crew_discovery_2026` (`none` · `any` ·
+ * `eligible`), et le serveur refuse tout autre mot (`bad_requirements`).
+ */
+type ReqFilter = 'all' | 'none' | 'any' | 'eligible';
 
 export default function CrewDiscoveryRoute() {
   const t = useT();
   const { session } = useSession();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<DiscoveryFilter>('all');
+  const [reqFilter, setReqFilter] = useState<ReqFilter>('all');
   /**
    * Ville CHOISIE à la main. `null` = « laisse le serveur prendre la mienne »
    * (`users.city_id`). On ne pré-remplit RIEN : si le serveur ne connaît pas ma
@@ -94,6 +109,34 @@ export default function CrewDiscoveryRoute() {
   const { loading, failed, refusal, page, reload } = useCrewDiscovery({ cityId, query });
   /** Vocabulaire de refus FERMÉ (discovery.ts) : plus aucun motif ne traverse. */
   const refused = refusalView(refusal);
+
+  /**
+   * ══ POURQUOI DEUX LECTURES, ET CE QUE CHACUNE APPORTE ═══════════════════
+   *
+   * `crew_discovery` (0152) reste la SOURCE DE LA LISTE : elle seule rend
+   * `friendsInside` (« deux de tes amis sont dedans ») et `viewerInCrew`, dont
+   * dépendent le classement de pertinence et le filtre « Amis ». Basculer
+   * entièrement sur 0190 aurait supprimé un fait réel pour en gagner un autre.
+   *
+   * `crew_discovery_2026` (0190) sert d'ANNOTATION, et pour une seule raison :
+   * « je suis éligible » compare MES mesures aux exigences de CHAQUE crew, et
+   * ce calcul est serveur par construction — le client ne connaît ni mon niveau
+   * ni mes 28 derniers jours, et le détail de ce qui manque n'appartient qu'à
+   * la fiche du crew (§6.3). Les deux réponses se recollent par identifiant.
+   *
+   * Si l'annotation échoue, le filtre par conditions n'est PAS peint : un
+   * contrôle qui ne pourrait rien filtrer serait un bouton mort. L'écran dit
+   * alors pourquoi, au lieu de laisser un manque inexpliqué.
+   */
+  const annot = useCrewDiscovery2026({ ...NO_DISCOVERY_FILTERS, cityId, query });
+  const conditions = useMemo(() => {
+    const byId = new Map<string, { hasRequirements: boolean; eligible: boolean }>();
+    for (const r of annot.data?.rows ?? []) {
+      byId.set(r.id, { hasRequirements: r.hasRequirements, eligible: r.iAmEligible });
+    }
+    return byId;
+  }, [annot.data]);
+  const conditionsReadable = annot.data !== null;
 
   const crews = useMemo(() => {
     if (!page) return [] as readonly DiscoveryCrew[];
@@ -108,8 +151,19 @@ export default function CrewDiscoveryRoute() {
        */
       viewerActivity: null,
     });
-    return applyFilter(ranked, filter, { viewerInCrew: page.viewerInCrew });
-  }, [page, filter]);
+    const base = applyFilter(ranked, filter, { viewerInCrew: page.viewerInCrew });
+    if (reqFilter === 'all') return base;
+    // Un crew que l'annotation ne connaît pas est ÉCARTÉ des trois filtres de
+    // conditions plutôt que rangé au hasard : le garder dirait quelque chose de
+    // ses exigences, et on ne sait rien d'elles.
+    return base.filter((c) => {
+      const info = conditions.get(c.id);
+      if (!info) return false;
+      if (reqFilter === 'none') return !info.hasRequirements;
+      if (reqFilter === 'any') return info.hasRequirements;
+      return info.eligible;
+    });
+  }, [page, filter, reqFilter, conditions]);
 
   /**
    * ══ L'EVENT §8, ÉMIS SUR L'ÉTAT RÉELLEMENT ATTEINT ═══════════════════════
@@ -262,6 +316,31 @@ export default function CrewDiscoveryRoute() {
         ]}
       />
 
+      {/*
+        LES CONDITIONS D'ENTRÉE (§2.7). Peint SEULEMENT si le serveur a répondu :
+        un segment « je suis éligible » qui ne filtrerait rien serait un bouton
+        mort, et le pire de tous — il laisserait croire qu'aucun crew ne veut de
+        vous. Quand la lecture n'aboutit pas, l'écran le DIT.
+      */}
+      {conditionsReadable ? (
+        <Segmented
+          scrollable
+          style={styles.filters}
+          tone="surface"
+          accessibilityLabel={t(G.filterRequirements)}
+          value={reqFilter}
+          onChange={(id: ReqFilter) => setReqFilter(id)}
+          options={[
+            { id: 'all', label: t(G.filterAny) },
+            { id: 'none', label: t(G.filterReqNone) },
+            { id: 'any', label: t(G.filterReqAny) },
+            { id: 'eligible', label: t(G.filterReqEligible) },
+          ]}
+        />
+      ) : annot.failed ? (
+        <Text style={styles.body}>{t(G.publicRulesUnread)}</Text>
+      ) : null}
+
       {/* LECTURE EN COURS — n'affirme RIEN sur la ville. */}
       {loading && !page ? (
         <View style={styles.center}>
@@ -300,6 +379,9 @@ export default function CrewDiscoveryRoute() {
           key={c.id}
           crew={c}
           viewerInCrew={page?.viewerInCrew ?? false}
+          /* L'annotation, ou `null` quand on ne l'a pas lue : la ligne n'écrit
+             alors RIEN sur les conditions, plutôt que « aucune condition ». */
+          conditions={conditions.get(c.id) ?? null}
           onPress={() => router.push({ pathname: '/crew-public', params: { crewId: c.id } })}
         />
       ))}
@@ -322,10 +404,12 @@ export default function CrewDiscoveryRoute() {
 function CrewRow({
   crew,
   viewerInCrew,
+  conditions,
   onPress,
 }: {
   crew: DiscoveryCrew;
   viewerInCrew: boolean;
+  conditions: { hasRequirements: boolean; eligible: boolean } | null;
   onPress: () => void;
 }) {
   const t = useT();
@@ -397,6 +481,16 @@ function CrewRow({
           {activity}
         </Text>
 
+        {/* Ligne n°4 — LES CONDITIONS D'ENTRÉE, quand le serveur les a dites.
+            Deux mots seulement : ce crew en demande, et je les remplis ou non.
+            Le DÉTAIL de ce qui manque n'appartient qu'à la fiche du crew : le
+            mettre ici afficherait les kilomètres de quelqu'un dans une liste. */}
+        {conditions?.hasRequirements ? (
+          <Text style={conditions.eligible ? styles.rowEligible : styles.rowFacts}>
+            {conditions.eligible ? t(G.filterEligibleBadge) : t(G.filterHasRequirements)}
+          </Text>
+        ) : null}
+
         {/* Candidature en cours : un ÉTAT, pas un bouton (aucune action ne part
             d'ici — l'écran n'a aucune adhésion à offrir). */}
         {crew.myRequestPending ? (
@@ -446,4 +540,8 @@ const styles = StyleSheet.create({
   rowTag: { color: colors.gris, fontFamily: fonts.mono, fontSize: fontSizes.xs, letterSpacing: 1 },
   rowFacts: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: 20 },
   rowPending: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20 },
+  // L15 : « Tu remplis les conditions » est un TEXTE avant d'être une couleur.
+  // Le blanc gras le distingue de la ligne de faits ; la phrase, elle, se lit
+  // seule, en noir et blanc comme sous n'importe quel réglage d'accessibilité.
+  rowEligible: { color: colors.blanc, fontSize: fontSizes.sm, lineHeight: 20, fontWeight: '600' },
 });

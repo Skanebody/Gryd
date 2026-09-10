@@ -34,9 +34,13 @@
  * (fonction pure, testée) plutôt que réécrite à la main.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
+  CREW_KICK_NOTE_MAX,
+  CREW_KICK_REASONS,
+  CREW_KICK_REASON_REQUIRING_NOTE,
   CREW_MEMBER_ACTIONS,
+  CREW_REJOIN_AFTER_KICK_DAYS,
   colors,
   fontSizes,
   radii,
@@ -44,9 +48,11 @@ import {
   spacing,
   typography,
   withAlpha,
+  type CrewKickReason,
   type CrewRole,
 } from '@klaim/shared';
 import { C, CREW_DUTY_HELP_E, CREW_ROLE_E } from '../../i18n/catalog/crew';
+import { CREW_KICK_REASON_E, G } from '../../i18n/catalog/crewGestion';
 import { C as CReg } from '../../i18n/catalog/reglages';
 import { useT } from '../../i18n/store';
 import { useSession } from '../../lib/session';
@@ -69,21 +75,34 @@ import {
 } from './blocklist';
 import { assignableRolesFor, dutyOf, isCrewRole, nextRoleDown, nextRoleUp, roleActionsFor, roleRank } from './memberRoles';
 import {
-  removeMember,
   setMemberRole,
   transferLead,
   type MemberActionOutcome,
   type MemberActionRefusal,
 } from './memberRolesData';
+import {
+  removeMemberWithReason,
+  warnMember,
+  type WriteOutcome,
+} from './management/crewManagementData';
+import { dayText } from './management/crewManagementCopy';
+import { useLocale } from '../../i18n/store';
 
 /**
- * Un geste de rôle EN ATTENTE DE CONFIRMATION. Le rôle visé est capturé AU
- * MOMENT DU TAP et transporté jusqu'à l'appel : la confirmation affiche donc
- * exactement le rôle qui sera demandé, et non un rôle recalculé entre-temps.
+ * Un geste EN ATTENTE DE CONFIRMATION. Le paramètre est capturé AU MOMENT DU
+ * TAP et transporté jusqu'à l'appel : la confirmation affiche donc exactement
+ * ce qui sera demandé, et non un état recalculé entre-temps.
+ *
+ * ⚠ `remove` PORTE DÉSORMAIS SON MOTIF. C'était le dernier endroit du lot où
+ * l'exclusion partait muette : `crew_remove_member` (0093) n'a aucun paramètre
+ * de motif, n'écrit aucune ligne de journal et ne notifie personne. La personne
+ * exclue n'apprenait jamais pourquoi — la blessure du modèle Clash (spec §1.3
+ * ⑤), que GRYD refuse explicitement (§2.10).
  */
 type PendingRoleAction =
   | { key: 'promote' | 'demote'; role: CrewRole }
-  | { key: 'remove' }
+  | { key: 'remove'; reason: CrewKickReason; note: string }
+  | { key: 'warn'; note: string }
   | { key: 'transfer_lead' };
 
 /**
@@ -104,6 +123,56 @@ function refusalEntry(reason: MemberActionRefusal) {
     default:
       return C.maRefusedForbidden;
   }
+}
+
+/**
+ * CE QUE LE SERVEUR A RÉPONDU à un avertissement ou à une exclusion, en une
+ * phrase. Quatre issues, jamais confondues : fait · refusé avec SON motif ·
+ * serveur sans la fonction · injoignable. On ne dit jamais mieux que le serveur,
+ * et on ne transforme jamais un refus en « réessaie » : `forbidden` est une
+ * information, pas une panne.
+ *
+ * `already_removed` et `unchanged` disent « c'était déjà fait », pas « c'est
+ * fait » : la nuance est ce qui empêche un officier de croire qu'il vient
+ * d'exclure quelqu'un qu'un autre avait déjà exclu.
+ */
+function managementText(
+  res: WriteOutcome<string>,
+  key: 'remove' | 'warn',
+  t: ReturnType<typeof useT>,
+  locale: string,
+): string {
+  if (res.kind === 'failed') return t(G.actionFailed);
+  if (res.kind === 'unsupported') return t(G.refusedUnsupported);
+  if (res.kind === 'refusal') {
+    switch (res.reason) {
+      case 'out_of_scope':
+        return t(G.refusedScope);
+      case 'not_member':
+        return t(G.refusedNotMember);
+      case 'cannot_target_lead':
+        return t(G.refusedLead);
+      case 'self':
+        return t(G.refusedSelf);
+      case 'forbidden':
+        return t(G.refusedForbidden);
+      case 'note_required':
+        return t(G.kickNoteRequired);
+      default:
+        return t(G.refusedGeneric);
+    }
+  }
+  if (key === 'warn') {
+    return t(res.effect === 'unchanged' ? G.warnUnchanged : G.warnDone);
+  }
+  if (res.effect === 'already_removed') return t(C.maDoneAlready);
+  // La date de re-adhésion vient du SERVEUR (`rejoinAllowedAt`) : la recalculer
+  // ici la ferait diverger du jour où la constante change.
+  const day = dayText(
+    typeof res.data.rejoinAllowedAt === 'string' ? Date.parse(res.data.rejoinAllowedAt) : null,
+    locale,
+  );
+  return day ? `${t(G.kickDone)} ${t(G.kickRejoin, { date: day })}` : t(G.kickDone);
 }
 
 /**
@@ -166,7 +235,18 @@ export function PlayerActionsButton({ name, onPress }: { name: string; onPress: 
  * enregistré, et on le dit — l'étape n'existait pas avant le 28/07/2026, ce qui
  * obligeait l'écran à afficher « Signalement envoyé » dans les deux cas.
  */
-type SheetStep = 'choice' | 'role' | 'reason' | 'sent' | 'reportFailed' | 'confirm' | 'result';
+type SheetStep =
+  | 'choice'
+  | 'role'
+  | 'reason'
+  | 'sent'
+  | 'reportFailed'
+  | 'confirm'
+  | 'result'
+  /** LOT Q3 : le motif d'exclusion, obligatoire, choisi dans un catalogue fermé. */
+  | 'kick'
+  /** LOT Q3 : l'avertissement, en UN temps (il n'exclut personne). */
+  | 'warn';
 
 /**
  * E47 — LE CONTEXTE DE CREW, OPTIONNEL PAR CONSTRUCTION.
@@ -186,6 +266,12 @@ export interface MemberRoleContext {
   actorRole: string;
   /** Le rôle de la personne visée, tel que le serveur l'a rendu. */
   targetRole: string;
+  /**
+   * Le nom du crew, pour l'APERÇU du message que la personne exclue recevra
+   * (§4.1 E). Optionnel : les surfaces qui ne le connaissent pas n'affichent
+   * pas une phrase à trou, elles n'affichent pas d'aperçu du tout.
+   */
+  crewName?: string | null;
   /** Relit le roster après un geste ABOUTI : on ne réécrit jamais la ligne ici. */
   onChanged: () => void;
 }
@@ -200,6 +286,7 @@ export interface PlayerModerationSheetProps {
 
 export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModerationSheetProps) {
   const t = useT();
+  const locale = useLocale();
   const { session, configured } = useSession();
   const blocked = useBlockedPseudos();
   const [step, setStep] = useState<SheetStep>('choice');
@@ -209,6 +296,15 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
   /** Ce que le serveur a répondu — jamais ce qu'on espérait qu'il réponde. */
   const [outcome, setOutcome] = useState<MemberActionOutcome | null>(null);
   const [busy, setBusy] = useState(false);
+  /** LOT Q3 — le motif d'exclusion en cours de choix, et la note qui l'accompagne. */
+  const [kickReason, setKickReason] = useState<CrewKickReason>('inactivity');
+  const [note, setNote] = useState('');
+  /**
+   * Le résultat des gestes de GESTION (avertir, exclure avec motif). Séparé de
+   * `outcome` parce qu'ils n'ont pas les mêmes effets : `warned` et
+   * `already_removed` ne se rangent pas dans le vocabulaire de 0093.
+   */
+  const [mgmtText, setMgmtText] = useState<string | null>(null);
 
   // Chaque ouverture repart de la question 1 : sans ça, rouvrir la feuille sur
   // un AUTRE joueur la rouvrirait sur l'accusé de réception du précédent.
@@ -219,6 +315,9 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
       setPending(null);
       setOutcome(null);
       setBusy(false);
+      setKickReason('inactivity');
+      setNote('');
+      setMgmtText(null);
     }
   }, [pseudo]);
 
@@ -287,6 +386,15 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
     [crew],
   );
 
+  /**
+   * `other` est le SEUL motif qui rend la note obligatoire, et c'est le SERVEUR
+   * qui l'exige (`note_required`). On le dérive de game-rules plutôt que de
+   * l'écrire en dur : le jour où le catalogue change, l'écran suit sans qu'on y
+   * pense, et le bouton ne part jamais se faire refuser.
+   */
+  const kickNoteMissing =
+    kickReason === CREW_KICK_REASON_REQUIRING_NOTE && note.trim().length === 0;
+
   /** Le rôle visé par une promotion / rétrogradation d'UN cran, ou `null`. */
   const upRole = crew ? nextRoleUp(crew.actorRole, crew.targetRole) : null;
   const downRole = crew ? nextRoleDown(crew.actorRole, crew.targetRole) : null;
@@ -338,17 +446,57 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
     void runRoleAction(action);
   };
 
+  /**
+   * LES DEUX GESTES DE GESTION (LOT Q3). Ils passent par 0189, pas par 0093 :
+   * l'exclusion porte son MOTIF, écrit une ligne de journal et notifie la
+   * personne visée sans nommer qui a décidé.
+   *
+   * Le texte rendu est celui du SERVEUR traduit, jamais une supposition : un
+   * `already_removed` dit « c'était déjà fait », pas « c'est fait ».
+   */
+  const runManagementAction = async (action: PendingRoleAction) => {
+    if (!crew || busy || (action.key !== 'remove' && action.key !== 'warn')) return;
+    setBusy(true);
+    const res: WriteOutcome<string> =
+      action.key === 'remove'
+        ? await removeMemberWithReason(crew.userId, action.reason, action.note)
+        : await warnMember(crew.userId, action.note);
+    setBusy(false);
+    setMgmtText(managementText(res, action.key, t, locale));
+    setOutcome(null);
+    setStep('result');
+    if (res.kind === 'ok') {
+      track(EVENTS.crewMemberAction, {
+        action: action.key === 'remove' ? 'remove' : 'warn',
+        effect:
+          res.effect === 'unchanged' || res.effect === 'already_removed' ? 'unchanged' : 'done',
+      });
+      // On ne réécrit JAMAIS la ligne de notre côté : c'est le serveur qui sait.
+      crew.onChanged();
+      return;
+    }
+    if (res.kind === 'refusal') {
+      track(EVENTS.crewMemberAction, {
+        action: action.key === 'remove' ? 'remove' : 'warn',
+        effect: 'refused',
+      });
+    }
+  };
+
   const runRoleAction = async (action: PendingRoleAction) => {
     if (!crew || busy) return;
+    if (action.key === 'remove' || action.key === 'warn') {
+      await runManagementAction(action);
+      return;
+    }
     setBusy(true);
     const res =
-      action.key === 'remove'
-        ? await removeMember(crew.userId)
-        : action.key === 'transfer_lead'
-          ? await transferLead(crew.userId)
-          : await setMemberRole(crew.userId, action.role);
+      action.key === 'transfer_lead'
+        ? await transferLead(crew.userId)
+        : await setMemberRole(crew.userId, action.role);
     setBusy(false);
     setOutcome(res);
+    setMgmtText(null);
     setStep('result');
     /*
       L'EFFET MESURÉ EST CELUI DU SERVEUR, jamais l'intention. Un fondateur qui
@@ -447,13 +595,29 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
                   onPress={() => setStep('role')}
                 />
               ) : null}
+              {/* ── LOT Q3 · AVERTIR, PUIS EXCLURE ─────────────────────────
+                  Les deux partagent EXACTEMENT les bornes de `kick`
+                  (`CREW_PERMISSIONS.kick`, périmètre du co_captain, jamais soi,
+                  jamais le fondateur) : un avertissement entre dans le dossier
+                  de quelqu'un, le donner ne peut pas être un pouvoir plus large
+                  que celui d'exclure. D'où le même `roleActions.includes`.
+                  AVERTIR VIENT AVANT : c'est le geste réparable. */}
+              {roleActions.includes('remove') ? (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="alerte"
+                  label={t(G.warnCta)}
+                  onPress={() => setStep('warn')}
+                />
+              ) : null}
               {roleActions.includes('remove') ? (
                 <Button
                   variant="ghost"
                   size="md"
                   icon="alerte"
                   label={t(C.maRemove)}
-                  onPress={() => startRoleAction({ key: 'remove' })}
+                  onPress={() => setStep('kick')}
                 />
               ) : null}
               {roleActions.includes('transfer_lead') ? (
@@ -577,6 +741,112 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
             </>
           ) : null}
 
+          {/* ── LOT Q3 · AVERTIR : UN SEUL TEMPS ────────────────────────────
+              Un avertissement ne retire personne (seul l'avertissement
+              d'inactivité peut le faire, et uniquement si le capitaine a armé
+              la règle). Le confirmer en deux temps ferait croire l'inverse. */}
+          {step === 'warn' && crew ? (
+            <>
+              <View style={styles.stateCard}>
+                <Text style={styles.stateTitle}>{t(G.warnTitle, { name: pseudo ?? '' })}</Text>
+                <Text style={styles.stateBody}>{t(G.warnBody)}</Text>
+              </View>
+              <Text style={styles.miniLabel}>{t(G.warnNoteLabel)}</Text>
+              <TextInput
+                style={styles.noteInput}
+                value={note}
+                onChangeText={setNote}
+                multiline
+                maxLength={CREW_KICK_NOTE_MAX}
+                accessibilityLabel={t(G.warnNoteLabel)}
+                placeholderTextColor={colors.gris}
+              />
+              <Button
+                variant="ghost"
+                size="md"
+                icon="alerte"
+                label={t(G.warnCta)}
+                disabled={busy}
+                loading={busy}
+                onPress={() => void runRoleAction({ key: 'warn', note })}
+              />
+            </>
+          ) : null}
+
+          {/* ── LOT Q3 · EXCLURE : LE MOTIF, PUIS LA CONFIRMATION ───────────
+              Premier temps : le motif (catalogue FERMÉ de game-rules), la note,
+              et l'APERÇU EXACT de ce que la personne recevra. Décider d'exclure
+              sans voir ce que l'autre lira, c'est décider à l'aveugle. */}
+          {step === 'kick' && crew ? (
+            <>
+              <Text style={styles.miniLabel}>{t(G.kickReasonStep)}</Text>
+              <ScrollView style={styles.reasons} contentContainerStyle={styles.reasonsInner}>
+                {CREW_KICK_REASONS.map((r) => {
+                  const on = r === kickReason;
+                  return (
+                    <Pressable
+                      key={r}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      onPress={() => setKickReason(r)}
+                      style={({ pressed }) => [
+                        styles.reason,
+                        on && styles.reasonOn,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={[styles.reasonLabel, on && styles.reasonLabelOn]}>
+                        {t(CREW_KICK_REASON_E[r])}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <Text style={styles.miniLabel}>{t(G.warnNoteLabel)}</Text>
+              <TextInput
+                style={styles.noteInput}
+                value={note}
+                onChangeText={setNote}
+                multiline
+                maxLength={CREW_KICK_NOTE_MAX}
+                accessibilityLabel={t(G.warnNoteLabel)}
+                placeholderTextColor={colors.gris}
+              />
+              {/* `other` exige la note CÔTÉ SERVEUR (`note_required`) : on le dit
+                  ici plutôt que de laisser le bouton partir se faire refuser. */}
+              {kickNoteMissing ? <Text style={styles.invalid}>{t(G.kickNoteRequired)}</Text> : null}
+
+              {/* L'APERÇU. Il n'existe que si l'appelant connaît le nom du crew :
+                  une phrase à trou serait pire que pas d'aperçu du tout. */}
+              {crew.crewName ? (
+                <View style={styles.stateCard}>
+                  <Text style={styles.stateTitle}>{t(G.kickPreviewLabel)}</Text>
+                  <Text style={styles.stateBody}>
+                    {t(G.kickPreviewBody, {
+                      crew: crew.crewName,
+                      reason: t(CREW_KICK_REASON_E[kickReason]),
+                    })}
+                  </Text>
+                  <Text style={styles.note}>{t(G.kickPreviewNote)}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.note}>
+                {t(G.kickRejoinDays, { n: CREW_REJOIN_AFTER_KICK_DAYS })}
+              </Text>
+              <Button
+                variant="ghost"
+                size="md"
+                icon="alerte"
+                label={t(C.maRemove)}
+                disabled={busy || kickNoteMissing}
+                onPress={() => {
+                  setPending({ key: 'remove', reason: kickReason, note });
+                  setStep('confirm');
+                }}
+              />
+            </>
+          ) : null}
+
           {step === 'reason' ? (
             <>
               <Text style={styles.miniLabel}>{t(C.reportReasonStep)}</Text>
@@ -658,25 +928,34 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
                 <Text style={styles.stateTitle}>
                   {pending.key === 'remove'
                     ? t(C.maRemoveConfirmTitle, { name: pseudo ?? '' })
-                    : pending.key === 'transfer_lead'
-                      ? t(C.maTransferConfirmTitle, { name: pseudo ?? '' })
-                      : t(
-                          pending.key === 'promote'
-                            ? C.maPromoteConfirmTitle
-                            : C.maDemoteConfirmTitle,
-                          { name: pseudo ?? '', role: t(CREW_ROLE_E[pending.role]) },
-                        )}
+                    : pending.key === 'warn'
+                      ? t(G.warnTitle, { name: pseudo ?? '' })
+                      : pending.key === 'transfer_lead'
+                        ? t(C.maTransferConfirmTitle, { name: pseudo ?? '' })
+                        : t(
+                            pending.key === 'promote'
+                              ? C.maPromoteConfirmTitle
+                              : C.maDemoteConfirmTitle,
+                            { name: pseudo ?? '', role: t(CREW_ROLE_E[pending.role]) },
+                          )}
                 </Text>
                 <Text style={styles.stateBody}>
                   {pending.key === 'remove'
-                    ? t(C.maRemoveConfirmBody)
-                    : pending.key === 'transfer_lead'
-                      ? t(C.maTransferConfirmBody)
-                      : t(
-                          pending.key === 'promote'
-                            ? C.maPromoteConfirmBody
-                            : C.maDemoteConfirmBody,
-                        )}
+                    ? /* LE MOTIF EST RAPPELÉ DANS LA CONFIRMATION : sans lui, le
+                         second temps ne confirmerait pas ce qu'on a choisi au
+                         premier, et l'aperçu vu plus haut serait déjà oublié. */
+                      `${t(C.maRemoveConfirmBody)} ${t(G.logMotive, {
+                        reason: t(CREW_KICK_REASON_E[pending.reason]),
+                      })}`
+                    : pending.key === 'warn'
+                      ? t(G.warnBody)
+                      : pending.key === 'transfer_lead'
+                        ? t(C.maTransferConfirmBody)
+                        : t(
+                            pending.key === 'promote'
+                              ? C.maPromoteConfirmBody
+                              : C.maDemoteConfirmBody,
+                          )}
                 </Text>
               </View>
               <Button
@@ -693,6 +972,16 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
               Quatre issues DISTINCTES, jamais confondues : fait / refusé /
               serveur sans la fonction / injoignable. Un refus n'est pas une
               panne, et une panne n'affirme rien sur le geste. */}
+          {/* LOT Q3 — ce que le serveur a répondu à un AVERTISSEMENT ou à une
+              EXCLUSION À MOTIF. Séparé du bloc ci-dessous parce que leurs
+              effets ne se rangent pas dans le vocabulaire de 0093. */}
+          {step === 'result' && mgmtText !== null ? (
+            <View style={styles.stateCard}>
+              <Text style={styles.stateBody}>{mgmtText}</Text>
+              <Text style={styles.stateBody}>{t(C.maRoleServerSide)}</Text>
+            </View>
+          ) : null}
+
           {step === 'result' && outcome !== null ? (
             <View style={styles.stateCard}>
               <Text style={styles.stateBody}>
@@ -737,11 +1026,15 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
               if (step === 'confirm') {
                 const backToList =
                   showRoleList && (pending?.key === 'promote' || pending?.key === 'demote');
+                // Une exclusion revient à SON motif, jamais au début : refaire
+                // le choix du motif parce qu'on a hésité une seconde serait une
+                // punition de la prudence.
+                const backToKick = pending?.key === 'remove';
                 setPending(null);
-                setStep(backToList ? 'role' : 'choice');
+                setStep(backToList ? 'role' : backToKick ? 'kick' : 'choice');
                 return;
               }
-              if (step === 'role') {
+              if (step === 'role' || step === 'kick' || step === 'warn') {
                 setStep('choice');
                 return;
               }
@@ -836,4 +1129,20 @@ const styles = StyleSheet.create({
   },
   stateTitle: { ...typography.itemTitle, color: colors.blanc },
   stateBody: { ...typography.meta, color: colors.gris },
+
+  // ── LOT Q3 · la note qui accompagne un avertissement ou un motif ──────────
+  noteInput: {
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    borderRadius: radii.control,
+    color: colors.blanc,
+    fontSize: fontSizes.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    minHeight: sizes.touchTarget,
+    textAlignVertical: 'top',
+  },
+  // L15 : le motif d'invalidité est un TEXTE, la couleur ne fait que le
+  // hiérarchiser. Lu sans couleur, il dit encore ce qui manque.
+  invalid: { ...typography.meta, color: colors.blanc },
 });
