@@ -192,6 +192,28 @@ Deno.test('une table POLYMORPHE ne se filtre pas sur le seul identifiant', () =>
   assert(fn.includes('t.also ? base.match(t.also) : base'), 'index.ts doit appliquer `also`');
 });
 
+Deno.test('les tables des lots livrés APRÈS cette liste y sont, nommément', () => {
+  // La règle générale les couvre déjà. On les NOMME quand même : chacune vient
+  // d'un lot qui a atterri le même jour, et un nom dans un test est ce qui
+  // permet de répondre « oui, vérifié » sans relire un algorithme.
+  const exported = new Set(PERSONAL_TABLES.map((t) => t.table));
+  const perLot: Record<string, string[]> = {
+    'lot N · notifications (0140, 0141)': ['notification_preferences_2026', 'notification_log_2026'],
+    'lot L · classement de commune (0160-0164)': ['leaderboard_entries', 'leaderboard_snapshots'],
+    'lot Q · quêtes hebdomadaires (0165-0168)': [
+      'weekly_quest_assignments_2026',
+      'weekly_quest_faces_2026',
+      'weekly_quest_reward_ownership_2026',
+    ],
+    'audit sécurité (0129) · droits premium': ['feature_entitlements'],
+  };
+  for (const [lot, tables] of Object.entries(perLot)) {
+    for (const table of tables) {
+      assert(exported.has(table), `${lot} : ${table} n'est pas exportée`);
+    }
+  }
+});
+
 Deno.test('aucune clé de sortie en double, aucune table en double', () => {
   const keys = PERSONAL_TABLES.map((t) => t.key);
   assertEquals(keys.length, new Set(keys).size, 'deux entrées écriraient la même clé JSON');
