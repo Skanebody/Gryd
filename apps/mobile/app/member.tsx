@@ -9,6 +9,14 @@
  * `relation` (suivi, amitié, demande envoyée vs reçue, blocage), du point de
  * vue du LECTEUR ; l'écran ne peint plus que l'action qui peut aboutir.
  *
+ * ─── LE TROISIÈME DÉFAUT CORRIGÉ (10/09/2026) ──────────────────────────────
+ * « Bloquer ce membre » partait au PREMIER TAP. Le fil du crew, lui, demandait
+ * déjà confirmation — et l'appel est le même : `social_block_2026` supprime les
+ * abonnements dans les deux sens et rejette l'amitié en cours. Un geste qui
+ * défait des liens se demande, et se dit, avant de partir. Symétriquement, une
+ * personne DÉJÀ bloquée ne se voit plus proposer « Suivre » ni « Bloquer » :
+ * la seule action qui reste vraie est « Débloquer ».
+ *
  * ─── LE DÉFAUT CORRIGÉ (10/09/2026, App Review 1.2 · cahier §13.5) ──────────
  * Cet écran offrait « Bloquer ce membre » et RIEN pour SIGNALER. Les deux ne se
  * remplacent pas : bloquer protège celui qui bloque (et n'avertit personne),
@@ -41,6 +49,8 @@ export default function MemberRoute(){const {session}=useSession();const epoch=u
 function Member(){const copy=useRefonteCopy();const params=useLocalSearchParams<{userId?:string;handle?:string}>();const person=useSocialRead2026<SocialPerson2026|null>(params.userId?'social_member_2026':'social_member_by_handle_2026',params.userId?{p_user_id:params.userId}:{p_handle:params.handle??''});const [busy,setBusy]=useState(false);const [notice,setNotice]=useState<string|null>(null);
  /** null = feuille fermée ; sinon le motif choisi (ou null tant qu'aucun). */
  const [reporting,setReporting]=useState<{reason:ReportReason2026|null}|null>(null);
+ /** true = on a demandé à bloquer, on n'a pas encore bloqué. */
+ const [blocking,setBlocking]=useState(false);
  useEffect(()=>{screen('member_profile')},[]);
  async function act(rpc:string,args:Record<string,unknown>,message:string){if(!person.owner||busy)return;setBusy(true);try{const result=await socialRpc2026<{ok?:boolean;reason?:string}>(person.owner,rpc,args);if(result?.ok===false)throw new Error(result.reason);setNotice(message);person.reload()}catch(e){setNotice(socialError2026(String(e),copy('fr','en')==='en'))}finally{setBusy(false)}}
  /** MA relation, telle que le serveur la rend (0153). `undefined` = non lue. */
@@ -58,7 +68,15 @@ function Member(){const copy=useRefonteCopy();const params=useLocalSearchParams<
      `relation` absente (serveur en retard d'une migration) n'est PAS « aucune
      relation » : on ne peint alors AUCUNE action et on le dit. Un bouton
      affiché sur une supposition serait le mensonge qu'on vient de retirer. */}
- {!relation?<Text style={[s.body,{marginTop:24}]}>{copy('Le lien entre vos deux comptes n’a pas pu être lu. Les actions d’ami et d’abonnement reviendront dès que ce sera le cas.','Your connection to this account could not be read. Friend and follow actions will return once it can.')}</Text>:<>
+ {!relation?<Text style={[s.body,{marginTop:24}]}>{copy('Le lien entre vos deux comptes n’a pas pu être lu. Les actions d’ami et d’abonnement reviendront dès que ce sera le cas.','Your connection to this account could not be read. Friend and follow actions will return once it can.')}</Text>
+ /* DÉJÀ BLOQUÉE : ni ami, ni abonnement. `social_block_2026` a supprimé les
+    deux (0124:216) — proposer « Suivre » ici peindrait un geste qui se
+    défait au moment même où il se fait. Il ne reste qu'une chose à offrir :
+    revenir en arrière, et le dire. */
+ :relation.blocked?<>
+ <Text style={[s.body,{marginTop:24}]}>{copy('Tu as bloqué cette personne. Vous ne voyez plus vos publications, vos commentaires ni vos messages, ni l’un ni l’autre. Elle n’en a jamais été informée.','You blocked this person. Neither of you sees the other’s posts, comments or messages. They were never told.')}</Text>
+ <ProfileLink title={copy('Débloquer','Unblock')} icon="verrou" onPress={()=>void act('social_block_2026',{p_user_id:person.data!.id,p_blocked:false},copy('Membre débloqué. L’abonnement et l’amitié ne reviennent pas d’eux-mêmes.','Member unblocked. Following and friendship do not come back on their own.'))}/>
+ </>:<>
  {relation.friend?<Text style={[s.body,{marginTop:24}]}>{copy('Vous êtes amis.','You are friends.')}</Text>
   :relation.requestReceived?<><Text style={[s.body,{marginTop:24}]}>{copy('Cette personne t’a demandé en ami.','This person sent you a friend request.')}</Text><ProfileLink title={copy('Répondre à sa demande','Answer the request')} icon="ami" onPress={()=>router.push('/amis')}/></>
   :relation.requestSent?<Text style={[s.body,{marginTop:24}]}>{copy('Demande envoyée — en attente de sa réponse.','Request sent — waiting for an answer.')}</Text>
@@ -71,8 +89,20 @@ function Member(){const copy=useRefonteCopy();const params=useLocalSearchParams<
      Bloquer reste juste en dessous, et les deux se cumulent (0137 accepte le
      signalement d'une personne déjà bloquée — sinon « je bloque puis je
      signale », l'ordre naturel quand on est visé, serait impossible). */}
- <ProfileLink title={copy('Signaler ce profil','Report this profile')} icon="alerte" onPress={()=>{setNotice(null);setReporting({reason:null})}}/>
- <ProfileLink title={copy('Bloquer ce membre','Block member')} icon="verrou" onPress={()=>void act('social_block_2026',{p_user_id:person.data!.id,p_blocked:true},copy('Membre bloqué.','Member blocked.'))}/>
+ <ProfileLink title={copy('Signaler ce profil','Report this profile')} icon="alerte" onPress={()=>{setNotice(null);setBlocking(false);setReporting({reason:null})}}/>
+ {/* ─── BLOQUER SE DEMANDE, COMME SIGNALER (10/09/2026) ──────────────────
+     Le fil du crew avait déjà sa confirmation ; ce profil-ci bloquait au
+     PREMIER TAP, sans dire ce que bloquer fait. Or l'appel supprime les
+     abonnements dans les DEUX sens et rejette l'amitié en cours (0124:216) :
+     c'est irréversible d'un simple débloquage, et ça se dit AVANT. La ligne
+     disparaît quand la personne est déjà bloquée — au-dessus, c'est
+     « Débloquer » qui prend sa place. */}
+ {relation?.blocked?null:<ProfileLink title={copy('Bloquer ce membre','Block member')} icon="verrou" onPress={()=>{setNotice(null);setReporting(null);setBlocking(true)}}/>}
+ {blocking?<View style={{gap:10,paddingVertical:18}}>
+  <Text style={s.body}>{copy(`Bloquer ${person.data.name} ? Vous ne verrez plus vos publications, vos commentaires ni vos messages, ni l’un ni l’autre. Ton abonnement et toute demande d’ami en cours sont annulés, et ils ne reviendront pas tout seuls. Cette personne n’en est pas informée.`,`Block ${person.data.name}? Neither of you will see the other’s posts, comments or messages. Your following and any pending friend request are cancelled, and they do not come back on their own. This person is never told.`)}</Text>
+  <ProfileButton secondary busy={busy} label={copy('Confirmer le blocage','Confirm block')} onPress={()=>{void act('social_block_2026',{p_user_id:person.data!.id,p_blocked:true},copy('Membre bloqué. Tu peux le débloquer depuis ce profil.','Member blocked. You can unblock from this profile.')).then(()=>setBlocking(false))}}/>
+  <ProfileButton secondary label={copy('Annuler','Cancel')} onPress={()=>setBlocking(false)}/>
+ </View>:null}
  {reporting?<View style={{gap:10,paddingVertical:18}}>
   <Text style={s.body}>{reporting.reason===null?copy('Pourquoi signales-tu ce profil ? Le motif est transmis à la modération GRYD ; la personne n’en est jamais informée.','Why are you reporting this profile? The reason goes to GRYD moderation; the person is never told.'):copy('Confirmer ce signalement ? Il part une seule fois et reste consultable dans ton export de données.','Send this report? It is sent once and stays visible in your data export.')}</Text>
   {reporting.reason===null?REPORT_REASONS_2026.map(reason=><ProfileButton key={reason} secondary label={reasonLabel(reason)} onPress={()=>setReporting({reason})}/>):
