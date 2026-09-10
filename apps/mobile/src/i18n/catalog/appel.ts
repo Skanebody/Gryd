@@ -11,8 +11,18 @@
  * `flaggedWhy` (catalog/result.ts) a dû retirer « GRYD Verify examine cette
  * course » parce qu'aucune revue n'existait. On dit donc ce qui est VRAI :
  * la course est enregistrée, la capture n'est pas créditée, l'appel est reçu.
- * `delaiBody` le formule sans détour. NE PAS y remettre un délai tant qu'une
- * personne ne traite pas réellement la file.
+ * `delaiBody` le formule sans détour.
+ *
+ * ⚠️ LA CONDITION D'ORIGINE EST REMPLIE DEPUIS LE 14/09/2026, ET LE DÉLAI RESTE
+ * REFUSÉ. La migration 0187 donne à la file un opérateur réel : « tant qu'une
+ * personne ne traite pas la file » ne peut donc plus servir d'argument. Ce qui
+ * l'interdit maintenant est plus dur, parce que c'est un nombre : la seule
+ * échéance tenue par du code est l'expiration de `resolve_pending_captures_2026`
+ * (0156), 24 h après la FERMETURE DE LA BOUCLE et non après l'ouverture du
+ * dossier. Toute promesse plus longue (48 h, 72 h) annoncerait un examen APRÈS
+ * la perte du terrain. NE PAS remettre de délai ici tant que cette fenêtre n'a
+ * pas été allongée pour les faces `verification_required` — arbitrage produit,
+ * §2 de `docs/product/GRYD_REVUE_ANTITRICHE_PROCEDURE_2026_09.md`.
  *
  * ── AUCUN LANGAGE ACCUSATOIRE (E28) ───────────────────────────────────────
  * Pas un mot de « triche », de « fraude » ni de « suspicion » dans les textes

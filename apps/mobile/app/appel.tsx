@@ -12,13 +12,28 @@
  * d'appel, délai, statut, décision finale.
  *
  * ══ LE PIÈGE À NE PAS REFAIRE UN CRAN PLUS LOIN ═══════════════════════════
- * §11.4 demande « un délai ». Il n'y en a AUCUN : 0081 crée la file, mais
- * personne ne la dépile, et la table n'a même pas de colonne d'échéance (un test
- * PGlite le vérifie exprès). Écrire ici « une personne examine sous 48 h » serait
- * exactement la faute qu'on vient de corriger. L'écran dit donc ce qui est
- * VRAI : la course est enregistrée, la capture n'est pas créditée, l'appel est
- * reçu — et il DIT qu'il ne prévient pas (aucune notification n'existe).
- * ⚠️ Ne pas réintroduire un délai tant qu'aucun humain ne traite la file.
+ * §11.4 demande « un délai ». Il n'y en a AUCUN, et la raison a CHANGÉ le
+ * 14/09/2026 sans que la copie bouge d'un mot.
+ *
+ * AVANT : personne ne dépilait la file (0081, suspens n° 2). Un délai aurait été
+ * une promesse sans destinataire.
+ * DEPUIS 0187 : un modérateur la dépile (`/moderation`). La condition posée ici
+ * est donc remplie — et le délai reste refusé, pour une raison MESURABLE : la
+ * seule échéance que du code tient est l'expiration de
+ * `resolve_pending_captures_2026` (0156), soit 24 h après la FERMETURE DE LA
+ * BOUCLE, pas après l'ouverture du dossier. Une sortie envoyée à 23 h 50 laisse
+ * dix minutes utiles. Annoncer « sous 72 h » reviendrait donc à promettre un
+ * examen APRÈS que le terrain est perdu : tenu sur la forme, faux sur le fond.
+ * Un modérateur unique, non astreint, ne tient par ailleurs aucune échéance —
+ * une astreinte se décide, elle ne se code pas.
+ *
+ * L'écran dit donc ce qui est VRAI : la course est enregistrée, la capture n'est
+ * pas créditée, l'appel est reçu, et la décision s'affichera ici. Il DIT aussi
+ * qu'il ne prévient pas : aucun émetteur du dépôt n'appelle `can_notify_2026`
+ * (0141), le canal n'existe donc toujours pas.
+ * ⚠️ Ne pas réintroduire un délai tant que la fenêtre de 24 h de 0156 n'a pas
+ * été allongée pour les faces `verification_required` — arbitrage produit,
+ * documenté dans `docs/product/GRYD_REVUE_ANTITRICHE_PROCEDURE_2026_09.md` §2.
  *
  * ══ CINQ ÉTATS DISTINCTS, JAMAIS CONFONDUS ════════════════════════════════
  * lecture en cours · aucun serveur relié (O1) · pas connecté · échec de lecture
@@ -34,8 +49,12 @@
  * alors une vérification RÉELLE. Sans vérification, il affiche « aucune
  * vérification », ce qui reste la stricte vérité. Il ne fabrique AUCUN exemple,
  * AUCUNE démonstration, AUCUN cas d'école : une donnée inventée ici serait une
- * accusation inventée. Personne ne dépile encore la file de revue : chantier
- * n°1 de `docs/product/GRYD_ANTITRICHE_2026_09.md`.
+ * accusation inventée.
+ * ⚠️ MISE À JOUR 14/09/2026 : la file EST dépilée depuis la migration 0187
+ * (habilitation, file de modération, clôture journalisée) — le chantier n° 1 de
+ * `docs/product/GRYD_ANTITRICHE_2026_09.md` est fermé. Concrètement, cet écran
+ * peut désormais afficher une DÉCISION FINALE (`final_decision`), ce qui n'était
+ * jamais arrivé : le bloc « DÉCISION » cesse d'être du code mort.
  *
  * ══ AUCUN BOUTON MORT ═════════════════════════════════════════════════════
  * Le CTA « Faire appel » n'est peint QUE lorsqu'un appel est réellement
