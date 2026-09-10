@@ -487,7 +487,7 @@ const orphans = [...routes.keys()].filter((r) => (inbound.get(r)?.size ?? 0) ===
  * par `app/(tabs)/index.tsx`, `(tabs)` étant un groupe sans segment d'URL. Le
  * créer ferait deux fichiers pour le même chemin (docblock de `app/_layout.tsx`).
  */
-const ENTRY_ROUTES = ['/', '/onboarding', '/course', '/c/[code]', '/callback'];
+const ENTRY_ROUTES = ['/', '/onboarding', '/course-live', '/c/[code]', '/callback'];
 
 /**
  * Ce qui DOIT rester atteignable, sous peine de refus App Store ou d'infraction.
