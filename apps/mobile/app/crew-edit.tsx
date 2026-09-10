@@ -90,6 +90,7 @@ import { router } from 'expo-router';
 import {
   CREW_KICK_NOTE_MAX,
   CREW_NAME_HOLD_AFTER_ARCHIVE_DAYS,
+  CREW_SWITCH_COOLDOWN_DAYS,
   CREW_TAG_KEYS,
   colors,
   elevation,
@@ -286,8 +287,18 @@ export default function CrewEditRoute() {
         <View style={styles.block}>
           <Text style={styles.title}>{t(G.dissolveDone)}</Text>
           <Text style={styles.body}>{t(G.dissolveIrreversible)}</Text>
+          {/*
+            LE DÉLAI DU FONDATEUR, DIT ICI. Sa sortie est VOLONTAIRE (0190 laisse
+            `removed_by` à null pour lui seul), donc `CREW_SWITCH_COOLDOWN_DAYS`
+            s'applique. Peindre « Créer mon crew » enverrait droit sur un refus
+            `cooldown` : c'est exactement le bouton mort que cet écran répare
+            depuis sa première ligne. On revient à l'onglet, et on dit pourquoi.
+          */}
+          <Text style={styles.body}>
+            {t(G.dissolveFounderCooldown, { n: CREW_SWITCH_COOLDOWN_DAYS })}
+          </Text>
           <View style={styles.cta}>
-            <Button label={t(C.createMyCrew)} onPress={() => router.replace('/(tabs)/crew')} />
+            <Button label={t(G.dissolveBackCta)} onPress={() => router.replace('/(tabs)/crew')} />
           </View>
         </View>
       </StackScreen>

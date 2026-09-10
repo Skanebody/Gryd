@@ -290,6 +290,37 @@ Deno.test('dissolution : les refus viennent de CREW_DISSOLVE_REFUSALS', () => {
   assert(code.includes('CREW_DISSOLVE_REFUSALS'), 'le vocabulaire de refus est réécrit à la main');
 });
 
+Deno.test('dissolution : APRÈS le geste, aucune porte vers la création', () => {
+  /*
+   * LE PIÈGE EXACT, ET IL EST MÉCANIQUE : 0190 laisse `removed_by` à `null`
+   * pour le FONDATEUR seul, parce que sa sortie est volontaire. Il garde donc
+   * `CREW_SWITCH_COOLDOWN_DAYS`, et `create_crew` le refuserait avec
+   * `cooldown`. Un bouton « Créer mon crew » sur l'écran de dissolution serait
+   * un bouton mort garanti, au pire moment possible.
+   */
+  const code = codeSeul(lire(EDITION));
+  assert(
+    !code.includes("'/crew-create'"),
+    'l’écran de dissolution mène à la création, que le serveur refuserait',
+  );
+  assert(
+    code.includes('CREW_SWITCH_COOLDOWN_DAYS'),
+    'le délai que le fondateur garde n’est pas dit après la dissolution',
+  );
+});
+
+Deno.test('gestion : deux retours DISTINCTS, jamais la même phrase à deux endroits', () => {
+  // Un seul état afficherait le retour d'une levée d'avertissement SOUS le
+  // champ d'invitation, loin du geste qui l'a produit, et deux fois.
+  const code = codeSeul(lire(GESTION));
+  assert(code.includes('rowNotice'), 'le retour des gestes de ligne n’a pas son propre état');
+  assertEquals(
+    code.split('styles.notice}>{notice}').length - 1,
+    1,
+    'le retour d’invitation est peint plus d’une fois',
+  );
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ⑨ LES PORTES : chaque écran neuf est atteignable depuis l'arbre du crew
 // ═══════════════════════════════════════════════════════════════════════════

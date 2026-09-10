@@ -102,6 +102,13 @@ export default function CrewGestionRoute() {
   const [target, setTarget] = useState<BoardRow2026 | null>(null);
   const [handle, setHandle] = useState('');
   const [inviting, setInviting] = useState(false);
+  /*
+   * DEUX RETOURS, DEUX ENDROITS. Un seul état les afficherait aux DEUX places
+   * (sous la liste et sous le champ d'invitation) : la même phrase deux fois,
+   * dont une loin du geste qui l'a produite. On sépare ce qui répond à une
+   * LIGNE de ce qui répond à l'INVITATION.
+   */
+  const [rowNotice, setRowNotice] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,17 +138,16 @@ export default function CrewGestionRoute() {
    */
   const onResolve = useCallback(
     async (warningId: string) => {
-      setNotice(null);
-      setError(null);
+      setRowNotice(null);
       const out = await resolveWarning(warningId);
       if (out.kind === 'ok') {
         haptics.success();
-        setNotice(t(G.warnResolved));
+        setRowNotice(t(G.warnResolved));
         reload();
         return;
       }
       haptics.error();
-      setError(
+      setRowNotice(
         out.kind === 'unsupported'
           ? t(G.refusedUnsupported)
           : out.kind === 'failed'
@@ -333,7 +339,7 @@ export default function CrewGestionRoute() {
         )}
         {/* Le retour des gestes de LIGNE (levée d'avertissement) vit ici, sous
             la liste : au-dessus, il serait poussé hors de l'écran par le tri. */}
-        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+        {rowNotice ? <Text style={styles.notice}>{rowNotice}</Text> : null}
 
         {/* ── INVITER : le seul CTA chartreuse de l'écran ─────────────────── */}
         <View style={styles.invite}>

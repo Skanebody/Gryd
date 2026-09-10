@@ -979,6 +979,20 @@ export const G = defineCatalog({
     de: 'Deine Crew ist aufgelöst. Du bist in keiner Crew mehr.',
     pt: 'Seu crew foi dissolvido. Você não está em nenhum crew.',
   },
+  dissolveFounderCooldown: {
+    fr: 'Un délai de {n} jours s’applique avant de fonder ou de rejoindre un autre crew : tu as choisi cette dissolution.',
+    en: 'A {n}-day delay applies before founding or joining another crew: you chose this dissolution.',
+    es: 'Se aplica un plazo de {n} días antes de fundar o unirte a otro crew: tú elegiste esta disolución.',
+    de: 'Eine Frist von {n} Tagen gilt, bevor du eine andere Crew gründest oder ihr beitrittst: Du hast die Auflösung gewählt.',
+    pt: 'Aplica-se um prazo de {n} dias antes de fundar ou entrar em outro crew: você escolheu esta dissolução.',
+  },
+  dissolveBackCta: {
+    fr: 'Revenir à l’onglet Crew',
+    en: 'Back to the Crew tab',
+    es: 'Volver a la pestaña Crew',
+    de: 'Zurück zum Crew-Tab',
+    pt: 'Voltar à aba Crew',
+  },
   dissolveNotFounder: {
     fr: 'Seul le capitaine fondateur peut dissoudre un crew.',
     en: 'Only the founding captain can dissolve a crew.',
