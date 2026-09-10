@@ -1,4 +1,4 @@
-import { LEVEL_REWARDS_2026, PROGRESSION_RULES_2026, SEASON_REWARDS_2026 } from './game-rules';
+import { PROGRESSION_RULES_2026, SEASON_REWARDS_2026 } from './game-rules';
 import {
   addCalendarDays2026, instantMs2026, localDay2026, localWeek2026,
   scheduleProgressTimezoneChange2026, startOfLocalDay2026,
@@ -27,6 +27,10 @@ export function levelForXp2026(xp: number): number {
   return level;
 }
 
+/** §7.2 — le niveau, et RIEN d'autre. Cette fonction ne dresse aucune liste
+ * d'objets : les objets de niveau sont OCTROYÉS par le serveur (migration 0144)
+ * et lus tels quels (`levelRewards`). Un catalogue filtré ici serait un objet
+ * peint — possédé à l'écran, absent du compte. */
 export function careerProgress2026(xp: number) {
   const safeXp = Number.isFinite(xp) ? Math.max(0, Math.floor(xp)) : 0;
   const level = levelForXp2026(safeXp);
@@ -36,7 +40,6 @@ export function careerProgress2026(xp: number) {
     xp: safeXp, level, floorXp, nextLevelXp,
     xpRemaining: nextLevelXp - safeXp,
     progress: (safeXp - floorXp) / (nextLevelXp - floorXp),
-    unlockedRewards: LEVEL_REWARDS_2026.filter((reward) => reward.level <= level),
   };
 }
 

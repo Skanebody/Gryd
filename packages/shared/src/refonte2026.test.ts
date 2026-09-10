@@ -60,6 +60,10 @@ Deno.test('2026: permanent level formula and exact threshold boundaries, beyond 
   }
   equal(levelForXp2026(xpForLevel2026(51)), 51);
   equal(careerProgress2026(200).xpRemaining, 20);
+  // §7.2 — le calcul de carrière ne dresse AUCUNE liste d'objets : ceux-ci sont
+  // octroyés par 0144 et lus au serveur. Un catalogue filtré côté client
+  // remettrait à l'écran des objets qu'aucun compte ne possède.
+  equal(Object.keys(careerProgress2026(200)).filter(key => /reward/i.test(key)), []);
   equal(levelForXp2026(NaN), 1);
   throws(() => xpForLevel2026(1.5));
 });
