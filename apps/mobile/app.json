@@ -18,7 +18,7 @@
       "react-native-health",
       {
         "isClinicalDataEnabled": false,
-        "healthSharePermission": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire — tu choisis quoi partager.",
+        "healthSharePermission": "GRYD peut importer tes courses depuis Apple Santé pour capturer du territoire. Tu choisis quoi partager.",
         "healthUpdatePermission": "GRYD n'écrit rien dans Apple Santé : l'accès reste en lecture seule pour importer tes courses."
       }
     ],
@@ -203,7 +203,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "GRYD utilise ta position pendant tes courses pour capturer les zones que tu traverses sur la carte de ta ville. Hors course, elle n'est lue que ponctuellement, à l'ouverture d'un écran qui a besoin de te situer (la carte, la mission du jour) — jamais en continu. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
+          "locationWhenInUsePermission": "GRYD utilise ta position pendant tes courses pour capturer les zones que tu traverses sur la carte de ta ville. Hors course, elle n'est lue que ponctuellement, à l'ouverture d'un écran qui a besoin de te situer (la carte, la mission du jour), jamais en continu. Sans GPS, ta course est enregistrée mais aucun territoire ne peut être revendiqué.",
           "locationAlwaysAndWhenInUsePermission": "L'accès « Toujours » sert à continuer de capturer du territoire quand ton écran est verrouillé ou que GRYD passe en arrière-plan PENDANT ta course. Le suivi en arrière-plan n'est lancé qu'au départ d'une course, et l'indicateur de localisation de l'iPhone reste allumé tant qu'il tourne.",
           "locationAlwaysPermission": "L'accès « Toujours » sert à continuer de capturer du territoire quand ton écran est verrouillé ou que GRYD passe en arrière-plan PENDANT ta course. Le suivi en arrière-plan n'est lancé qu'au départ d'une course, et l'indicateur de localisation de l'iPhone reste allumé tant qu'il tourne.",
           "isIosBackgroundLocationEnabled": true,
@@ -214,7 +214,7 @@
       [
         "expo-sensors",
         {
-          "motionPermission": "GRYD compte tes pas pendant ta course pour vérifier que l'effort est bien celui d'une course à pied — c'est l'anti-triche GRYD Verify. Le podomètre n'est lu qu'entre le départ et l'arrivée d'une course."
+          "motionPermission": "GRYD compte tes pas pendant ta course pour vérifier que l'effort est bien celui d'une course à pied : c'est l'anti-triche GRYD Verify. Le podomètre n'est lu qu'entre le départ et l'arrivée d'une course."
         }
       ],
       [
