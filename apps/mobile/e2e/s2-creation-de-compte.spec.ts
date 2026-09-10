@@ -84,7 +84,8 @@ test.describe('S2 — creation de compte', () => {
      * terrain. La phrase actuelle est la vraie, et un test unitaire
      * (`features/run/liveChain2026.test.ts`) interdit desormais l'ancienne.
      */
-    await expect(page.getByText(FR.mapGuestNoTerrain)).toBeVisible();
+    // La phrase est peinte deux fois (carte de compte + feuille Couches) : la premiere suffit.
+    await expect(page.getByText(FR.mapGuestNoTerrain).first()).toBeVisible();
 
     await page.getByText(FR.mapFindMyTerritories).click();
     await expect(page).toHaveURL(/\/sign-in/, { timeout: 20_000 });
@@ -149,7 +150,8 @@ test.describe('S2 — creation de compte', () => {
     await expect(page.getByText(FR.emailTitle)).toBeVisible();
     await expect(page.getByLabel(FR.emailLabel)).toBeVisible();
     // Et l'ecran promet ce que l'e-mail contient VRAIMENT : un lien.
-    await expect(page.getByText(FR.emailWhatHappens)).toBeVisible();
+    // /sign-in reste monte sous la pile et porte la MEME phrase (meme entree de catalogue) : on vise celle de /email, la derniere.
+    await expect(page.getByText(FR.emailWhatHappens).last()).toBeVisible();
     await expect(page.getByRole('button', { name: FR.linkRequestCta })).toBeVisible();
   });
 

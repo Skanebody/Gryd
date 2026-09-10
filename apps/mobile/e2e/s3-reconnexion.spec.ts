@@ -66,7 +66,8 @@ test.describe('S3 — reconnexion', () => {
     // Et elle mene quelque part.
     await page.getByRole('button', { name: FR.profileSignIn, exact: true }).click();
     await expect(page).toHaveURL(/\/sign-in/, { timeout: 20_000 });
-    await expect(page.getByText(FR.authMethodsTitle)).toBeVisible();
+    // Le Profil reste monte sous la pile et porte le meme titre : on vise le titre de /sign-in, un heading.
+    await expect(page.getByRole('heading', { name: FR.authMethodsTitle })).toBeVisible();
   });
 
   test('reconnexion : l’age deja declare n’est pas redemande, et la session revient par le LIEN', async ({

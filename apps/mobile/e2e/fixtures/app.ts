@@ -121,7 +121,7 @@ export const FR = {
    */
   mapGuestNoTerrain: 'Sans compte, tes sorties restent sur cet appareil et ne prennent aucun terrain.',
   /** Bandeau de la carte elle-meme, invite : ce qui manque, et pourquoi. */
-  mapGuestNotice: 'Connecte-toi pour voir les terrains de ton compte.',
+  mapGuestNotice: 'Garde tes terrains',
 
   // src/features/nav/tabs.ts — les trois destinations de la barre basse
   navProfil: 'Profil',
@@ -180,7 +180,7 @@ export const FR = {
   emailBack: 'Retour',
   emailBackA11y: 'Revenir aux autres façons de se connecter',
   /** Ce que le lien FAIT — il connecte OU cree, et l'ecran ne devine pas lequel. */
-  emailWhatHappens: 'Un lien de connexion : il te connecte si ton compte existe, il le crée sinon.',
+  emailWhatHappens: 'Un lien par e-mail crée ton compte s’il n’existe pas, sinon il te connecte.',
   /** Le CTA unique de l'ecran. C'est un LIEN qui part, pas un code. */
   linkRequestCta: 'Recevoir le lien',
 
@@ -197,8 +197,8 @@ export const FR = {
   // Refus d'envoi
   errorInvalidEmail: 'Cette adresse n’a pas le bon format. Vérifie le @ et ce qui suit.',
   errorRateLimited: 'Trop de demandes d’affilée. Attends une minute avant de réessayer.',
-  errorNetwork: 'Envoi impossible — réessaie quand tu as du réseau.',
-  errorUnknown: 'L’envoi a échoué. Réessaie — rien n’a été enregistré.',
+  errorNetwork: 'Envoi impossible. Réessaie quand tu as du réseau.',
+  errorUnknown: 'L’envoi a échoué. Réessaie : rien n’a été enregistré.',
 
   /**
    * ─── LES CINQ VERDICTS DE `/callback` ─────────────────────────────────────
