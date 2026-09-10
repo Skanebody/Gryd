@@ -187,9 +187,24 @@ const KNOWN_ORPHANS = new Map([
   // pré-Codex) — c'est ce qui rend la perte auditable et réversible, et c'est
   // la seule forme sous laquelle une exemption est acceptable ici : elle nomme
   // ce qui a été coupé, pas « c'est normal ».
-  // ⚠️ Ces huit lignes sont une DETTE, pas un acquis. Elles doivent disparaître
+  // ⚠️ Ces lignes sont une DETTE, pas un acquis. Elles doivent disparaître
   // d'ici quand le cahier rebranchera l'écran — ou l'écran avec elles.
-  ['/activite', 'porte perdue : le legacy `app/(tabs)/index.tsx:279` (9d1b9e7) — la Carte de septembre n’a pas de cloche'],
+  // ⚠️ `/activite` A CHANGÉ DE MOTIF le 11/09/2026 (lot Notifications). Son
+  // ancienne raison (« la Carte de septembre n’a pas de cloche ») est morte :
+  // la cloche existe (`features/refonte/MapHome.tsx`), mais elle ouvre
+  // `/notifications`, le centre d’activité de §14.2 branché sur les faits
+  // que le serveur produit vraiment (0192-0193). `/activite` est devenue une
+  // ROUTE DE COMPATIBILITÉ vers elle : elle reste orpheline par construction,
+  // et c’est ce qu’on veut d’une redirection.
+  ['/activite', 'route de compatibilité → /notifications (app/activite.tsx) — le centre d’activité de §14.2 vit désormais sur /notifications, ouvert par la cloche de la Carte'],
+  // ⚠️ `/zone-attaquee/[contestId]` EST ENTRÉE ICI le 11/09/2026, et il faut
+  // dire pourquoi : sa SEULE porte était l’ancien `app/activite.tsx` (le flux
+  // E23, groupe « À DÉFENDRE »), qui lisait `territory_contests`. Le cahier
+  // §5.3 a supprimé la contestation de 18 heures : cet écran sert une
+  // mécanique que le jeu ne joue plus, et lui rendre une porte depuis le
+  // nouveau centre reviendrait à rouvrir une règle abolie. Écran conservé
+  // (ADR-001), jamais rebranché en l’état.
+  ['/zone-attaquee/[contestId]', 'porte perdue : `app/activite.tsx` (flux E23, groupe « À DÉFENDRE ») devenu une redirection vers /notifications le 11/09/2026 — l’écran sert la contestation de 18 heures, que §5.3 a supprimée'],
   ['/appel', 'porte perdue : `app/course-result.tsx:1350` (9d1b9e7) — course-result.tsx est devenu une ré-exportation de RunResult'],
   ['/challenges', 'porte perdue : `app/aujourdhui.tsx:256` (9d1b9e7) — /aujourdhui est devenu une route de compatibilité'],
   // ⚠️ `/course/analyse` EST SORTIE D'ICI le 10/09/2026 : elle a retrouvé sa

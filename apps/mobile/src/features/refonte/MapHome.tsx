@@ -13,6 +13,7 @@ import { GrydMark } from '../../ui/gryd/GrydMark';
 import { MePinMarker2026 } from '../../ui/game/MePinMarker2026';
 import { t, useLocale } from '../../i18n/store';
 import { C as CClassement } from '../../i18n/catalog/classement';
+import { C as CNotifications } from '../../i18n/catalog/notifications';
 import { useSession } from '../../lib/session';
 import { EVENTS, track } from '../../lib/analytics';
 import { getMapActivity, useMapActivity, useBasemapStyle } from '../map/mapPref';
@@ -33,6 +34,8 @@ import { territoryPaintLayers2026 } from './territoryPaint2026';
 import { useMyCosmetics2026 } from '../arsenal/useMyCosmetics2026';
 import { cosmeticTracePaint2026 } from '../arsenal/cosmetics2026';
 import { createMapLocationGate2026, readMapLocation2026, type MapLocationResult2026 } from './mapLocation2026';
+import { useUnreadNotifications2026 } from '../notifications/useUnreadNotifications2026';
+import { unreadBadge2026 } from '../notifications/notificationInbox2026';
 
 // France overview is labelled as exploration; it never impersonates a GPS position.
 const FRANCE: RealMapCamera = { lat: 46.6, lng: 2.5, zoom: 3.9 };
@@ -91,6 +94,9 @@ export default function MapHome() {
   // (`useMyCosmetics2026`) ; sans compte ou sans 0180, elle rend les objets
   // livrés et la carte garde exactement l'apparence d'avant ce lot.
   const cosmetics = useMyCosmetics2026();
+  // La cloche : un entier, lu par RPC, jamais la page entière du centre.
+  const { unread: unreadNotifications } = useUnreadNotifications2026();
+  const unreadBadge = unreadBadge2026(unreadNotifications);
   const { state: onboarding } = useOnboardingState();
   const place = usePlaceFocus();
   const handledPlace = useRef(0);
@@ -223,6 +229,21 @@ export default function MapHome() {
           <MapTranslucent2026 tone="dark" radius={22} />
           <View style={s.overlayContent}><GrydIcon name="search" size={16} color={c.darkInk} /></View>
           <Text style={s.placeName}>{cameraIntent.current === 'gps' && position ? text('Autour de moi', 'Around me') : cityName ?? 'France'}</Text>
+        </Pressable>
+        {/* LA CLOCHE (§14.2 : le centre d'activité est le canal PRINCIPAL, le
+            seul livrable sans APNs). Elle vit ici et PAS dans la barre de
+            navigation : celle-ci a trois destinations et jamais une quatrième
+            (spec §2.1). Le compteur n'existe que si `unread > 0` et DISPARAÎT
+            une fois lu : la pastille rouge permanente est interdite (G24), et
+            un « 0 » nu est le mensonge exact que L14 refuse. */}
+        <Pressable accessibilityRole="button"
+          accessibilityLabel={unreadBadge === null ? t(CNotifications.cloche) : t(CNotifications.clocheNonLus, { n: unreadBadge })}
+          onPress={() => router.push('/notifications')} style={({ pressed }) => [s.bell, pressed && s.pressed]}>
+          <MapTranslucent2026 tone="dark" radius={22} />
+          <View style={s.overlayContent}><GrydIcon name="bell" size={20} color={c.darkInk} /></View>
+          {unreadBadge === null ? null : <View pointerEvents="none" style={s.bellBadge}>
+            <Text style={s.bellBadgeText}>{unreadBadge}</Text>
+          </View>}
         </Pressable>
       </View>
       {/* LA PORTE DE COMPTE, SUR LA CARTE, SANS OUVRIR UNE FEUILLE.
@@ -389,6 +410,9 @@ const s = StyleSheet.create({
   place: { flex: 1, minHeight: 44, borderRadius: 22, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', gap: 8, alignItems: 'center' },
   placeName: { zIndex: 1, fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 18, color: c.darkInk, flex: 1, flexShrink: 1 },
   sports: { position: 'absolute', right: 16, zIndex: 4 }, tools: { position: 'absolute', right: 16, gap: 8, zIndex: 4 },
+  bell: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  bellBadge: { position: 'absolute', top: 1, right: -1, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent, zIndex: 2 },
+  bellBadgeText: { fontFamily: fonts.textSemi, fontSize: 10, lineHeight: 14, color: c.ink },
   controlSlot: { position: 'relative', zIndex: 2 }, mapControl: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' }, controlDisabled: { opacity: .6 },
   tooltip: { position: 'absolute', right: 52, top: 0, minHeight: 44, width: 156, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }, tooltipText: { zIndex: 1, fontFamily: fonts.textMedium, color: c.darkInk, fontSize: 12, lineHeight: 17 },
   // Le point chartreuse (positionHalo / positionDot / approximatePosition) a

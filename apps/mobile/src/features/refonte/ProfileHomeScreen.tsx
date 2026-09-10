@@ -12,6 +12,7 @@ import { useLocale } from '../../i18n/store';
 import { format, resolve } from '../../i18n/types';
 import { C as defisSemaine } from '../../i18n/catalog/defisSemaine';
 import { C as referralCopy } from '../../i18n/catalog/referral';
+import { C as notificationsCopy } from '../../i18n/catalog/notifications';
 import { buildReferralDeepLink } from '../referral/referral2026';
 import { useMyReferral2026 } from '../referral/useMyReferral2026';
 import { useProfileProgress } from './ProfileProgress';
@@ -388,7 +389,14 @@ function ProfileHomeContents() {
           désormais son propre groupe. C'est aussi là que le benchmark le met
           (INTVL « Integrations », Strava « Applications connectées ») : on ne
           branche pas une montre depuis une page d'identité.
-        Restent trois destinations, de la plus quotidienne à la plus rare. */}
+        Restent quatre destinations, de la plus quotidienne à la plus rare.
+        · « Notifications » (11/09/2026) est la SECONDE porte du centre
+          d'activité de §14.2. La première est la cloche de la carte, et elle
+          suffit à qui vient d'y voir un compteur ; celle-ci sert à qui cherche
+          après coup ce qu'il a manqué. Elle ouvre le CENTRE, jamais les
+          réglages : la ligne « Notifications » de Réglages, elle, règle ce que
+          l'on reçoit. Deux gestes distincts, deux endroits distincts. */}
+    <ProfileLink tone="light" title={resolve(notificationsCopy.titre, locale)} subtitle={resolve(notificationsCopy.intro, locale)} grydIcon="bell" onPress={() => router.push('/notifications')} />
     <ProfileLink tone="light" title={copy('Progression', 'Progress')} subtitle={copy('Niveaux et saison', 'Levels and season')} icon="niveau" onPress={() => router.push('/season')} />
     <ProfileLink tone="light" title={resolve(defisSemaine.entreeProfil, locale)} subtitle={resolve(defisSemaine.entreeProfilDetail, locale)} icon="badge" onPress={() => router.push('/defis-semaine')} />
     <ProfileLink tone="light" title="GRYD+" subtitle={copy('Studio, analyses et éditions', 'Studio, insights and editions')} icon="pass" onPress={() => router.push('/premium')} />

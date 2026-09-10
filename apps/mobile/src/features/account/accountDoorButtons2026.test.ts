@@ -10,6 +10,8 @@
  *
  *   app/defis.tsx:152            label={t(C.signIn)}              « Se connecter »
  *   app/activite.tsx:255         label: t(C.signInCta)            « Se connecter »
+ *     (l'écran a déménagé le 11/09/2026 : `/activite` redirige vers
+ *      `/notifications`, et la porte vit dans `NotificationCenter2026.tsx`)
  *   app/challenges/index.tsx:184 label={t(C.todaySignIn)}         « Se connecter »
  *   app/c/[code].tsx:321         label={t(C.rlSignIn)}            « Se connecter »
  *   app/crew-create.tsx:185      label={t(C.createSignIn)}        « Créer mon compte »
@@ -61,6 +63,7 @@ import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.t
 import { LOCALES } from '../../i18n/types.ts';
 import type { Entry } from '../../i18n/types.ts';
 import { C as ACTIVITE } from '../../i18n/catalog/activite.ts';
+import { C as NOTIFICATIONS } from '../../i18n/catalog/notifications.ts';
 import { C as CREW } from '../../i18n/catalog/crew.ts';
 import { C as HISTORIQUE } from '../../i18n/catalog/historique.ts';
 import { C as MOTIVATION } from '../../i18n/catalog/motivation.ts';
@@ -93,7 +96,15 @@ function lire(url: URL): string {
  */
 const ECRANS: readonly { chemin: string; avant: string; portes: number }[] = [
   { chemin: '../../../app/defis.tsx', avant: 't(C.signIn)', portes: 1 },
-  { chemin: '../../../app/activite.tsx', avant: 't(C.signInCta)', portes: 1 },
+  // ⚠️ `app/activite.tsx` EST SORTI DE CETTE LISTE le 11/09/2026, et il faut
+  // dire pourquoi : `/activite` est devenue une REDIRECTION vers
+  // `/notifications` (centre d'activité de §14.2, migrations 0192-0193), et
+  // une redirection de trois lignes ne rend aucune porte. Garder le chemin
+  // aurait rendu la règle verte sur rien du tout. L'écran qui a pris sa
+  // place, `features/notifications/NotificationCenter2026.tsx`, ne relève PAS
+  // de cette liste : il naît dans la famille `refonte` (ProfilePrimitives),
+  // pas dans la famille `ui` que ce lot convertissait. C'est
+  // `accountDoorShared2026.test.ts` qui tient sa porte (tone="light").
   { chemin: '../../../app/challenges/index.tsx', avant: 't(C.todaySignIn)', portes: 1 },
   { chemin: '../../../app/c/[code].tsx', avant: 't(C.rlSignIn)', portes: 1 },
   { chemin: '../../../app/crew-create.tsx', avant: 't(C.createSignIn)', portes: 1 },
@@ -250,6 +261,8 @@ const RAISONS: readonly { cle: string; entry: Entry }[] = [
   { cle: 'historique.detailSignedOutBody', entry: HISTORIQUE.detailSignedOutBody },
   { cle: 'reglages.identitySignInDetail', entry: REGLAGES.identitySignInDetail },
   { cle: 'reglages.notifSignedOutBody', entry: REGLAGES.notifSignedOutBody },
+  // ── 11/09/2026 · la raison de la porte du centre d'activité (§14.2) ─────
+  { cle: 'notifications.etatDeconnecte', entry: NOTIFICATIONS.etatDeconnecte },
 ];
 
 Deno.test('aucune raison n’ordonne « Connecte-toi » à qui n’a pas de compte', () => {
@@ -356,16 +369,19 @@ Deno.test('MUTATION : la porte locale de /qr, TERNAIRE, fait rougir la règle', 
 });
 
 Deno.test('MUTATION : une porte gardée par `configured` fait rougir la règle', () => {
-  const chemin = '../../../app/activite.tsx';
+  // Cette mutation se jouait sur `app/activite.tsx` jusqu'au 11/09/2026 ;
+  // l'écran est devenu une redirection, elle se joue donc sur une autre porte
+  // de la MÊME famille. La règle testée n'a pas bougé d'un mot.
+  const chemin = '../../../app/defis.tsx';
   const src = lire(new URL(chemin, import.meta.url));
-  assertEquals(fautesDePorte(src, 't(C.signInCta)'), []);
+  assertEquals(fautesDePorte(src, 't(C.signIn)'), []);
   // La régression la plus discrète : la porte partagée est bien là, mais elle
   // s'efface sur un build sans serveur — l'écran redevient muet.
   const garde = src.replace(
     '<AccountDoor2026',
     'configured ? (\n        <AccountDoor2026',
   );
-  assertEquals(fautesDePorte(garde, 't(C.signInCta)'), [
+  assertEquals(fautesDePorte(garde, 't(C.signIn)'), [
     'porte gardée par `configured` : elle redisparaît sans backend',
   ]);
 });
