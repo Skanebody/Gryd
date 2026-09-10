@@ -39,6 +39,7 @@ import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
 import { useMapActivity } from '../map/mapPref';
 import { ProfileButton, ProfilePage, ProfileSegments } from './ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 import {
   formatMeasuredAt2026,
   formatSquareKm2026,
@@ -145,8 +146,15 @@ export default function CommuneLeaderboard2026() {
     {authLoading || (!signedOut && (scopes.status === 'loading' || board.status === 'loading'))
       ? <View style={s.state}><ActivityIndicator size="small" color={c.ink} /><Text style={s.meta}>{t(C.chargement)}</Text></View>
       : signedOut
-        ? <Panel title={t(C.connexionTitre)} body={t(C.connexionCorps)}
-            action={{ label: t(C.connexionAction), onPress: () => router.push('/sign-in') }} />
+        /* ÉTAPE 0 (10/09/2026) : ce panneau disait « Se connecter »
+           (`C.connexionAction`), un mot qui n'ouvre rien à qui n'a PAS de
+           compte, alors que la porte qu'il ouvrait en CRÉE un. Le titre local
+           (« Le classement demande un compte ») cède la place à celui de la
+           porte ; la raison, elle, reste d'ici : c'est la seule phrase qui dit
+           POURQUOI la lecture est refusée. `tone="light"` n'est pas cosmétique
+           sur cette page claire : sans lui, la porte peindrait son texte de
+           l'échelle sombre, illisible. */
+        ? <AccountDoor2026 tone="light" reason={t(C.connexionCorps)} />
         : scopes.status === 'failed' || board.status === 'failed'
           ? <Panel title={t(C.echecTitre)} body={t(C.echecCorps)} alert
               action={{ label: t(C.reessayer), onPress: reload, secondary: true }} />

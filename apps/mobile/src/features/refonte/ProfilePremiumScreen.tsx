@@ -25,6 +25,7 @@ import {
 import { screen, track } from '../../lib/analytics';
 import { useLocale } from '../../i18n/store';
 import { ProfileButton, ProfilePage, s, useRefonteCopy } from './ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 
 import { PremiumObjectsPreview2026 } from './PremiumObjectsPreview2026';
 export function ProfilePremiumScreen() {
@@ -118,8 +119,20 @@ export function ProfilePremiumScreen() {
             <Text style={local.meta}>{pick2026(PLANNED_PRICE_NOTICE_2026, locale)}</Text>
             <Text style={local.meta}>{pick2026(NO_TRIAL_NOTICE_2026, locale)}</Text>
             {storeSaysNotOnSale2026(store) ? <Text style={local.toolTitle}>{pick2026(STORE_CLOSED_TITLE_2026, locale)}</Text> : null}
-            <Text style={local.meta}>{pick2026(STORE_CLOSED_COPY_2026[store.reason], locale)}</Text>
-            {store.reason === 'signedOut' && premium.canSignIn ? <View style={local.compactAction}><ProfileButton tone="light" label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /></View> : null}
+            {/* PAS DE COMPTE : la porte partagée, jamais un bouton à nous.
+                ÉTAPE 0 (10/09/2026) : « Me connecter », gardé par
+                `premium.canSignIn` (= `configured && !userId && !sessionLoading`).
+                Sans backend, l'écran gardait la phrase qui ORDONNE de se
+                connecter et retirait le bouton : un ordre au-dessus du vide.
+                `store.reason === 'signedOut'` implique déjà session restaurée
+                et sans utilisateur (`usePremium` : `sessionLoading ? 'loading'
+                : !userId ? 'signedOut'`) — la porte n'a donc aucune garde à
+                reprendre, et sans serveur elle se DIT fermée. La phrase de
+                boutique fermée devient sa RAISON : une seule voix, celle que
+                `/abonnement` sert déjà mot pour mot. */}
+            {store.reason === 'signedOut'
+              ? <AccountDoor2026 tone="light" compact reason={pick2026(STORE_CLOSED_COPY_2026.signedOut, locale)} />
+              : <Text style={local.meta}>{pick2026(STORE_CLOSED_COPY_2026[store.reason], locale)}</Text>}
             {store.reason === 'readFailed' ? <View style={local.compactAction}><ProfileButton tone="light" label={copy('Réessayer', 'Retry')} secondary onPress={premium.reload} /></View> : null}
           </View>}
       {store.open ? <><View style={local.compactAction}><ProfileButton tone="light" label={copy('S’abonner', 'Subscribe')} busy={busy === 'purchase'} disabled={busy !== null || !premium.selectedOffer || !isPurchasable(premium.selectedOffer)} onPress={() => void buy()} /></View><Text style={local.meta}>{copy('Renouvellement automatique. Résiliation dans les réglages du Store ; accès jusqu’à la fin de la période payée.', 'Renews automatically. Cancel in Store settings; access lasts until the paid period ends.')}</Text>{premium.selectedOffer?.freeTrial ? <Text style={local.meta}>{copy('Un essai peut être proposé selon ton éligibilité. Conditions confirmées par le Store avant achat.', 'A trial may be offered if eligible. The Store confirms terms before purchase.')}</Text> : null}</> : null}

@@ -44,9 +44,14 @@ export const STORE_CLOSED_COPY_2026: Readonly<Record<StoreClosedReason2026, Copy
     fr: 'Lecture de la boutique en cours.',
     en: 'Reading the store.',
   },
+  // LOT 11 (10/09/2026) — cette phrase est devenue la RAISON de la porte de
+  // compte partagée, sur `/premium` comme sur `/abonnement`. ÉTAPE 0 :
+  // « Connecte-toi pour voir les offres et retrouver tes droits. » — un ordre
+  // adressé à quelqu'un qui a déjà un compte, au-dessus d'un bouton qui en
+  // CRÉE un, et qui disparaissait sans backend. On ne dit plus que le fait.
   signedOut: {
-    fr: 'Connecte-toi pour voir les offres et retrouver tes droits.',
-    en: 'Sign in to see the plans and find your access.',
+    fr: 'Les offres et tes droits s’attachent à un compte.',
+    en: 'Plans and your access belong to an account.',
   },
   platform: {
     fr: 'Les achats se font depuis l’application iOS ou Android. Tes droits restent liés à ton compte.',

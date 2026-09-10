@@ -34,8 +34,9 @@
  * gardé son libellé d'avant. C'est exactement la propriété qui manquait — et
  * qu'aucun des 2 858 tests existants ne regardait.
  */
-import { assert } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { C } from '../../i18n/catalog/auth.ts';
+import { C as CLASSEMENT } from '../../i18n/catalog/classement.ts';
 import { LOCALES } from '../../i18n/types.ts';
 
 const PORTE = new URL('./AccountDoor2026.tsx', import.meta.url);
@@ -196,4 +197,124 @@ Deno.test('sources.tsx ne peint plus UNE porte PAR source connectable', () => {
   const porte = src.indexOf('<AccountDoor2026');
   assert(boucle > 0 && porte > 0, 'sources.tsx a changé de structure : ancres introuvables');
   assert(porte < boucle, 'la porte est repassée dans la boucle des sources : une par ligne');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §5 · LOT 11 — LES DEUX PORTES `profile` QUE LE LOT 9 N'AVAIT PAS VUES
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * ÉTAPE 0 (10/09/2026). Le lot 9 a cherché les portes dans `app/**` et dans
+ * les écrans de profil ; deux vivaient ailleurs, dans des écrans `refonte` que
+ * d'autres routes rendent, et elles répétaient le même mot :
+ *
+ *   CommuneLeaderboard2026.tsx:149  t(C.connexionAction)          « Se connecter »
+ *   ProfilePremiumScreen.tsx:122    copy('Me connecter','Sign in') « Me connecter »
+ *
+ * La seconde était EN PLUS gardée par `premium.canSignIn` (= `configured &&
+ * !userId && !sessionLoading`) : sur un build sans adresse Supabase, l'écran
+ * imprimait « Connecte-toi pour voir les offres » et RETIRAIT le bouton. Une
+ * phrase qui ordonne un geste, à côté du vide où ce geste devrait être.
+ *
+ * LE TON N'EST PAS UN DÉTAIL ICI. Ces deux écrans sont CLAIRS (`ProfilePage
+ * tone="light"`). La porte peint par défaut l'échelle sombre (`c.darkInk` sur
+ * `c.darkSurface`) : la poser sans `tone="light"` écrirait du quasi-blanc sur
+ * du quasi-blanc. Le mot serait là, et personne ne le lirait — la régression
+ * la plus silencieuse de tout ce chantier, invisible en revue de diff.
+ */
+const ECRANS_LOT_11: readonly { chemin: string; avant: string }[] = [
+  { chemin: '../refonte/CommuneLeaderboard2026.tsx', avant: 't(C.connexionAction)' },
+  { chemin: '../refonte/ProfilePremiumScreen.tsx', avant: "copy('Me connecter', 'Sign in')" },
+] as const;
+
+/**
+ * LES QUATRE FAUTES qu'une porte `profile` convertie peut reprendre. PURE, pour
+ * qu'une mutation puisse la rejouer sur une copie du source : une règle qu'on
+ * ne sait pas faire échouer ne prouve rien.
+ */
+function fautesDePorteClaire(source: string, avant: string): readonly string[] {
+  const fautes: string[] = [];
+  if (/router\.(?:push|replace|navigate)\([^)\n]*\/sign-in/.test(source)) {
+    fautes.push('porte locale vers /sign-in');
+  }
+  if (source.includes(avant)) fautes.push(`libellé d’avant : ${avant}`);
+  // Sans backend, la porte se DIT fermée ; elle ne s'efface pas (L8/L14/L19).
+  if (/(?:configured|canSignIn)\s*(?:\?|&&)\s*\(?\s*<AccountDoor2026/.test(source)) {
+    fautes.push('porte gardée : elle redisparaît sans backend');
+  }
+  // Écran clair + porte sombre = un texte quasi invisible.
+  if (/<AccountDoor2026(?![^>]*tone="light")/.test(source)) {
+    fautes.push('porte sombre sur un écran clair : `tone="light"` manque');
+  }
+  return fautes;
+}
+
+for (const { chemin, avant } of ECRANS_LOT_11) {
+  const nom = chemin.split('/').pop()!;
+
+  Deno.test(`${nom} : la porte de compte est le composant partagé`, () => {
+    const src = lire(new URL(chemin, import.meta.url));
+    assert(
+      /import \{ AccountDoor2026 \} from '[^']*AccountDoor2026'/.test(src),
+      `${nom} n’importe pas AccountDoor2026 : il a gardé sa porte à lui`,
+    );
+    assertEquals(
+      src.split('<AccountDoor2026').length - 1,
+      1,
+      `${nom} ne rend pas sa porte de compte, ou en rend deux`,
+    );
+    // La RAISON est locale : « le classement » n'est pas « l'abonnement ».
+    assert(
+      /<AccountDoor2026[^>]*reason=/.test(src),
+      `${nom} rend une porte sans dire ce que le compte débloque ICI`,
+    );
+  });
+
+  Deno.test(`${nom} : plus aucune porte locale, plus aucun libellé d’avant`, () => {
+    const src = lire(new URL(chemin, import.meta.url));
+    assertEquals(fautesDePorteClaire(src, avant), [], `${nom} a repris une faute de porte`);
+  });
+}
+
+Deno.test('la raison du classement reste un FAIT, dans les cinq langues', () => {
+  // Le titre local (« Le classement demande un compte ») cède la place à celui
+  // de la porte ; la raison, elle, reste locale — c'est la seule phrase qui
+  // explique POURQUOI la lecture est refusée, et elle ne s'invente pas ailleurs.
+  for (const locale of LOCALES) {
+    assert(
+      CLASSEMENT.connexionCorps[locale].trim().length > 0,
+      `classement.connexionCorps.${locale} est vide`,
+    );
+  }
+  assert(
+    !/connecte-toi pour/i.test(CLASSEMENT.connexionCorps.fr),
+    `« ${CLASSEMENT.connexionCorps.fr} » ordonne une connexion à qui n’a pas de compte`,
+  );
+  assert(
+    !/[—–]/.test(CLASSEMENT.connexionCorps.fr),
+    'classement.connexionCorps.fr contient un tiret long',
+  );
+});
+
+Deno.test('MUTATION : la porte de /premium regardée par `canSignIn` fait rougir la règle', () => {
+  const src = lire(new URL('../refonte/ProfilePremiumScreen.tsx', import.meta.url));
+  assertEquals(fautesDePorteClaire(src, "copy('Me connecter', 'Sign in')"), []);
+  // ÉTAPE 0, mot pour mot : la garde qui effaçait le bouton sans backend.
+  const garde = src.replace('<AccountDoor2026', 'premium.canSignIn ? <AccountDoor2026');
+  assertEquals(fautesDePorteClaire(garde, "copy('Me connecter', 'Sign in')"), [
+    'porte gardée : elle redisparaît sans backend',
+  ]);
+});
+
+Deno.test('MUTATION : une porte SOMBRE sur le classement clair fait rougir la règle', () => {
+  const src = lire(new URL('../refonte/CommuneLeaderboard2026.tsx', import.meta.url));
+  assertEquals(fautesDePorteClaire(src, 't(C.connexionAction)'), []);
+  // La régression invisible : on retire `tone="light"` DE LA PORTE, tout
+  // compile, et l'écran rend une porte dont on ne lit plus un mot. On vise la
+  // balise, pas la première occurrence du fichier : `ProfilePage` et
+  // `ProfileSegments` portent le même réglage bien avant elle, et une mutation
+  // qui les toucherait ne prouverait rien de la porte.
+  const sombre = src.replace('<AccountDoor2026 tone="light"', '<AccountDoor2026');
+  assertEquals(fautesDePorteClaire(sombre, 't(C.connexionAction)'), [
+    'porte sombre sur un écran clair : `tone="light"` manque',
+  ]);
 });
