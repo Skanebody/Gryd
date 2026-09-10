@@ -40,6 +40,8 @@ import { useSocialEpoch2026, socialRpc2026, useSocialRead2026 } from '../src/fea
 import { socialError2026, type SocialPerson2026 } from '../src/features/social/social2026Model';
 import { SocialAvatar2026 } from '../src/features/social/SocialPostCard2026';
 import { ProfileButton, ProfileLink, ProfilePage, s, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
+import { CosmeticBanner2026, CosmeticFrame2026, CosmeticName2026 } from '../src/features/arsenal/CosmeticArt2026';
+import { cosmeticInkColor2026, equippedCosmetic2026, parseEquippedCosmetics2026 } from '../src/features/arsenal/cosmetics2026';
 
 /** Les QUATRE motifs que `social_reports_2026` accepte — ni plus, ni moins. */
 const REPORT_REASONS_2026 = ['harassment', 'privacy', 'inappropriate', 'other'] as const;
@@ -51,6 +53,13 @@ function Member(){const copy=useRefonteCopy();const params=useLocalSearchParams<
  const [reporting,setReporting]=useState<{reason:ReportReason2026|null}|null>(null);
  /** true = on a demandé à bloquer, on n'a pas encore bloqué. */
  const [blocking,setBlocking]=useState(false);
+ /** Les cosmétiques VISIBLES de cette personne (0181), lus sans rien supposer. */
+ const worn=parseEquippedCosmetics2026(person.data?.cosmetics);
+ const memberName=equippedCosmetic2026('nameColor',worn.nameColor);
+ const memberFrame=equippedCosmetic2026('avatarFrame',worn.avatarFrame);
+ const memberBanner=equippedCosmetic2026('banner',worn.banner);
+ /** La bannière a besoin de la taille RÉELLE de la fiche : elle se mesure. */
+ const [cardBox,setCardBox]=useState({width:0,height:0});
  useEffect(()=>{screen('member_profile')},[]);
  async function act(rpc:string,args:Record<string,unknown>,message:string){if(!person.owner||busy)return;setBusy(true);try{const result=await socialRpc2026<{ok?:boolean;reason?:string}>(person.owner,rpc,args);if(result?.ok===false)throw new Error(result.reason);setNotice(message);person.reload()}catch(e){setNotice(socialError2026(String(e),copy('fr','en')==='en'))}finally{setBusy(false)}}
  /** MA relation, telle que le serveur la rend (0153). `undefined` = non lue. */
@@ -58,7 +67,27 @@ function Member(){const copy=useRefonteCopy();const params=useLocalSearchParams<
  const reasonLabel=(reason:ReportReason2026)=>reason==='harassment'?copy('Harcèlement','Harassment'):reason==='privacy'?copy('Vie privée','Privacy'):reason==='inappropriate'?copy('Contenu inapproprié','Inappropriate content'):copy('Autre motif','Other reason');
  return <ProfilePage title={copy('Profil du membre','Member profile')} back>
  {person.status==='loading'?<ActivityIndicator color={c.darkInk}/>:person.status==='failed'?<ProfileButton label={copy('Réessayer','Retry')} onPress={person.reload}/>:person.data?<>
- <View style={{flexDirection:'row',alignItems:'center',gap:18,marginVertical:18}}><SocialAvatar2026 person={person.data} size={80}/><View style={s.flex}><Text style={s.title}>{person.data.name}</Text><Text style={s.meta}>@{person.data.handle}</Text></View></View>{person.data.bio?<Text style={s.body}>{person.data.bio}</Text>:null}
+ {/* ─── CE QUE CETTE PERSONNE PORTE (lot personnalisation, 10/09/2026) ───
+     Sans ce bloc, un joueur pouvait choisir une couleur de nom, un cadre et
+     une bannière que PERSONNE d'autre ne voyait : un cosmétique invisible aux
+     autres n'est pas un cosmétique. La lecture vient de 0181, qui ne sort que
+     les CINQ emplacements publics — jamais le style de trace ni le thème de
+     partage. Un serveur sans 0181 n'envoie rien : `parseEquippedCosmetics2026`
+     rend alors les objets livrés, et la fiche garde son apparence d'avant. */}
+ <View style={{position:'relative',marginVertical:18,borderRadius:24,overflow:'hidden'}} onLayout={event=>setCardBox({width:event.nativeEvent.layout.width,height:event.nativeEvent.layout.height})}>
+  {cardBox.width>0?<View pointerEvents="none" style={{position:'absolute',left:0,top:0}}><CosmeticBanner2026 item={memberBanner} width={cardBox.width} height={cardBox.height}/></View>:null}
+  <View style={{flexDirection:'row',alignItems:'center',gap:18,padding:16}}>
+   <CosmeticFrame2026 item={memberFrame} size={80}><SocialAvatar2026 person={person.data} size={80}/></CosmeticFrame2026>
+   <View style={s.flex}>
+    <CosmeticName2026 item={memberName} size={22} weight="600" style={s.title} text={person.data.name}/>
+    {/* Le @ prend la TEINTE du cosmétique, pas son dégradé : à 13 pt sur une
+        fiche, un texte SVG perdrait le retour à la ligne et la sélection pour
+        un gain invisible. `cosmeticInkColor2026` rend la couleur pleine
+        équivalente. La ligne reste un `<Text>`, comme la couture du @ l'exige. */}
+    <Text style={[s.meta,{color:cosmeticInkColor2026(memberName)}]}>@{person.data.handle}</Text>
+   </View>
+  </View>
+ </View>{person.data.bio?<Text style={s.body}>{person.data.bio}</Text>:null}
  {person.data.isMe?<ProfileLink title={copy('Modifier mon profil','Edit my profile')} icon="profil" onPress={()=>router.push('/profil-edit')}/>:<>
  {/* ─── UNE SEULE ACTION PAR LIEN, CELLE QUI PEUT ABOUTIR ────────────────
      Cet écran peignait « Demander en ami », « Suivre » ET « Ne plus suivre »

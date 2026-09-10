@@ -4,7 +4,13 @@
  * ne dit combien d'abonnés a la personne ni qui la suit.
  */
 export type SocialRelation2026 = { following: boolean; friend: boolean; requestSent: boolean; requestReceived: boolean; blocked: boolean };
-export type SocialPerson2026 = { id: string; handle: string; name: string; bio?: string | null; avatarPath?: string | null; isMe?: boolean; relation?: SocialRelation2026 | null };
+/**
+ * `cosmetics` (0181) : les CINQ cosmétiques VISIBLES de cette personne, par
+ * emplacement. Optionnel — un serveur sans 0181 n'envoie rien, et l'écran peint
+ * alors l'apparence par défaut au lieu d'un trou. Ce champ ne décrit pas la
+ * personne : c'est du rendu, comme `avatarPath`.
+ */
+export type SocialPerson2026 = { id: string; handle: string; name: string; bio?: string | null; avatarPath?: string | null; isMe?: boolean; relation?: SocialRelation2026 | null; cosmetics?: Record<string, string> | null };
 /** §13.4 — réactions limitées et humaines. Liste FERMÉE, miroir du CHECK SQL (0153). */
 export type SocialReactionKind2026 = 'cheer' | 'thanks' | 'next_time';
 export const SOCIAL_REACTION_KINDS_2026: readonly SocialReactionKind2026[] = ['cheer', 'thanks', 'next_time'];

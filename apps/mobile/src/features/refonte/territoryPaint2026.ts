@@ -1,6 +1,6 @@
 import { refonteColors as c } from '@klaim/shared';
 import type { FeatureCollection } from 'geojson';
-export interface TerritoryPaintLayer2026 { id:string; data:FeatureCollection; fillColor?:string; fillOpacity?:number; fillOpacityStops?:readonly (readonly [number,number])[]; lineColor?:string; lineWidth?:number; lineOpacity?:number; lineDash?:readonly number[]; lineWidthStops?:readonly (readonly [number,number])[]; lineOffset?:number }
+export interface TerritoryPaintLayer2026 { id:string; data:FeatureCollection; fillColor?:string; fillOpacity?:number; fillOpacityStops?:readonly (readonly [number,number])[]; lineColor?:string; lineWidth?:number; lineOpacity?:number; lineDash?:readonly number[]; lineWidthStops?:readonly (readonly [number,number])[]; lineOffset?:number; lineBlur?:number }
 import type { OwnedFeature, TerritoryRole2026 } from './territoryModel2026';
 
 // Presentation tokens only. Palette has no sport, score, or capture authority.
@@ -54,11 +54,22 @@ export function ownerToneSlots2026(features: readonly OwnedFeature[]): Map<strin
   }
   return slots;
 }
+/**
+ * Le TRAIT de MON terrain, tel que le cosmétique équipé le décrit
+ * (`cosmeticTracePaint2026`). OPTIONNEL, et son absence rend EXACTEMENT la
+ * peinture d'avant le lot personnalisation : aucun appelant n'a à changer, et
+ * un serveur sans 0180 ne change rien à l'écran.
+ * Le trait est le SEUL réglé ici. Le remplissage, lui, reste la chartreuse de
+ * possession : c'est une information de jeu (« ce terrain est à moi »), pas une
+ * décoration, et un cosmétique n'a pas le droit d'y toucher.
+ */
+export interface TerritoryTracePaint2026 { lineColor: string; lineWidth: number; lineBlur?: number }
+
 export function territoryPaintLayers2026(input: {
   features: readonly OwnedFeature[]; filters: Record<TerritoryRole2026, boolean>; attenuate: boolean;
-  dark: boolean; selectedId: string | null;
+  dark: boolean; selectedId: string | null; trace?: TerritoryTracePaint2026 | null;
 }): TerritoryPaintLayer2026[] {
-  const { features, filters, attenuate, dark, selectedId } = input;
+  const { features, filters, attenuate, dark, selectedId, trace } = input;
   // Colour assignment uses all available faces so a role filter never recolours.
   const tones = ownerToneSlots2026(features);
   const visible = features.filter(f => filters[f.properties.role]);
@@ -77,7 +88,13 @@ export function territoryPaintLayers2026(input: {
   });
   // Current crew is a relationship highlight; it is never a collective title.
   layers.push({ id: 'terr-crew-affiliation', data: data(visible.filter(f => f.properties.role === 'crew')), lineColor: dark ? c.darkInk : c.ink, lineWidth: 1, lineOffset: 3 });
-  layers.push({ id: 'terr-personal-fill', data: data(visible.filter(f => f.properties.role === 'mine')), fillColor:c.accent, fillOpacity:.24, fillOpacityStops:[[4,.34],[13,.24],[17,.12]], lineColor:dark ? c.accent : c.ink,lineWidth:3 });
+  // Sur fond CLAIR, la chartreuse est illisible (contraste 1,2:1 — charte) : le
+  // cosmétique ne s'applique donc qu'au fond sombre, et le fond clair garde son
+  // encre. Un objet équipé qui rendrait le terrain invisible ne serait pas un
+  // cosmétique, ce serait une panne.
+  layers.push({ id: 'terr-personal-fill', data: data(visible.filter(f => f.properties.role === 'mine')), fillColor:c.accent, fillOpacity:.24, fillOpacityStops:[[4,.34],[13,.24],[17,.12]],
+    lineColor: dark ? trace?.lineColor ?? c.accent : c.ink, lineWidth: trace?.lineWidth ?? 3,
+    ...(dark && trace?.lineBlur ? { lineBlur: trace.lineBlur } : {}) });
   const selected = visible.find(f => f.properties.id === selectedId);
   if (selected) {
     layers.push({ id:'terr-selected-seam',data:data([selected]),lineColor:c.surface,lineWidth:7 });

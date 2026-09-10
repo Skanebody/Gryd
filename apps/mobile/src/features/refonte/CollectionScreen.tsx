@@ -27,6 +27,7 @@ import { LevelRewardArtwork2026, SeasonRewardArtwork2026 } from './SeasonRewardA
 import { canRenderSeasonIdentity2026 } from './seasonIdentityModel2026';
 import { ProfileButton, ProfileLink, ProfilePage, ProfileSegments, s, useRefonteCopy } from './ProfilePrimitives';
 import { AccountDoor2026 } from '../account/AccountDoor2026';
+import { CosmeticsPanel2026 } from '../arsenal/CosmeticsPanel2026';
 const COSMETIC_SECTIONS = new Set(['frames', 'skins_trace', 'templates', 'emblems', 'banners', 'skins_territory']);
 
 export function CollectionScreen() {
@@ -45,7 +46,9 @@ function CollectionContents() {
   // et équipables : les taire ici ferait mentir le compteur d'objets obtenus.
   const quests = useWeeklyQuests2026(); const [questNotice, setQuestNotice] = useState<string | null>(null);
   const [showLegacy, setShowLegacy] = useState(false);
-  const [segment, setSegment] = useState<'owned' | 'collections'>('owned');
+  // Trois segments depuis le lot « personnalisation » : les objets gagnés, la
+  // personnalisation du profil, et les collections (où l'achat vit déjà).
+  const [segment, setSegment] = useState<'owned' | 'cosmetics' | 'collections'>('owned');
   const [selectedId, setSelectedId] = useState<string | null>(null); const [legacyItem, setLegacyItem] = useState<ArsenalCatalogItem | null>(null);
   const [busy, setBusy] = useState(false); const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => { screen('arsenal'); }, []);
@@ -97,8 +100,8 @@ function CollectionContents() {
   const close = () => { if (!busy) { setSelectedId(null); setLegacyItem(null); setNotice(null); } };
   return <>
     <ProfilePage tone="light" title={copy('Collection', 'Collection')} back>
-      <ProfileSegments tone="light" value={segment} onChange={setSegment} options={[{ key: 'owned', label: copy('Mes objets', 'My objects') }, { key: 'collections', label: copy('Collections', 'Collections') }]} />
-      {segment === 'collections' ? <><CommercialCollectionsPanel2026 tone="light" locale={locale==='en'?'en':'fr'}/>{progress.data?<SeasonCollections2026 tone="light" progress={progress.data} reload={progress.reload} locale={locale}/>:null}</> : progress.status === 'loading' ? <View style={local.loading}><ActivityIndicator size="small" color={c.ink} /><Text style={local.meta}>{copy('Lecture de tes objets…', 'Loading your objects…')}</Text></View> : progress.status === 'signed-out' ? <>
+      <ProfileSegments tone="light" value={segment} onChange={setSegment} options={[{ key: 'owned', label: copy('Mes objets', 'My objects') }, { key: 'cosmetics', label: copy('Personnalisation', 'Personalisation') }, { key: 'collections', label: copy('Collections', 'Collections') }]} />
+      {segment === 'cosmetics' ? <CosmeticsPanel2026 /> : segment === 'collections' ? <><CommercialCollectionsPanel2026 tone="light" locale={locale==='en'?'en':'fr'}/>{progress.data?<SeasonCollections2026 tone="light" progress={progress.data} reload={progress.reload} locale={locale}/>:null}</> : progress.status === 'loading' ? <View style={local.loading}><ActivityIndicator size="small" color={c.ink} /><Text style={local.meta}>{copy('Lecture de tes objets…', 'Loading your objects…')}</Text></View> : progress.status === 'signed-out' ? <>
         <View style={local.intro}><Text style={local.introTitle}>{copy('Des éditions à garder.', 'Editions to keep.')}</Text><Text style={local.meta}>{copy('Des objets gagnés au fil des sorties, conservés dans ton compte.', 'Objects earned through your activities and kept in your account.')}</Text></View>
         <CataloguePreview locale={locale} />
         <AccountDoor2026 tone="light" reason={copy('Ces objets sont des aperçus de la collection. Ton compte est ce qui garde les tiens.', 'These are collection previews. Your account is what keeps the ones you earn.')} />

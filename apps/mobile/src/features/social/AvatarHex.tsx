@@ -24,6 +24,7 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { colors, gameColors, withAlpha } from '@klaim/shared';
+import { cosmeticRingPaint2026 } from '../arsenal/cosmetics2026';
 import type { PlayerTier } from '@klaim/shared';
 
 const VIEWBOX = 100;
@@ -67,6 +68,14 @@ function initials(handle: string): string {
 }
 
 export interface AvatarHexProps {
+  /**
+   * Cadre COSMÉTIQUE équipé (`profile_cosmetics_2026`, emplacement
+   * `avatarFrame`). Quand il est posé, il REMPLACE l'anneau de tier : G22
+   * refuse « sept rangs différents au-dessus du nom », et un cadre choisi ne
+   * doit pas se cumuler avec un cadre mérité. Absent ou inconnu = l'anneau de
+   * tier, exactement comme avant le lot personnalisation.
+   */
+  cosmeticFrameId?: string | null;
   /** Pseudo/handle → initiales gravées au centre. */
   handle: string;
   /** Tier joueur dérivé du niveau (playerTierForLevel). */
@@ -83,8 +92,11 @@ export interface AvatarHexProps {
   imageUri?: string;
 }
 
-export function AvatarHex({ handle, tier, crewTag, size = 84, imageUri }: AvatarHexProps) {
-  const s = TIER_STYLE[tier];
+export function AvatarHex({ handle, tier, crewTag, size = 84, imageUri, cosmeticFrameId }: AvatarHexProps) {
+  const cosmetic = cosmeticRingPaint2026(cosmeticFrameId);
+  const s: FrameStyle = cosmetic
+    ? { stroke: cosmetic.stroke, strokeWidth: cosmetic.strokeWidth, outerRing: cosmetic.outerRing, glow: null }
+    : TIER_STYLE[tier];
   const glowId = `avatarframe-${tier}`;
   const inner = hexPoints(CENTER, CENTER, 34);
   const outer = hexPoints(CENTER, CENTER, 44);
@@ -129,6 +141,7 @@ export function AvatarHex({ handle, tier, crewTag, size = 84, imageUri }: Avatar
         stroke={s.stroke}
         strokeWidth={s.strokeWidth}
         strokeLinejoin="round"
+        strokeDasharray={cosmetic?.dash ? [...cosmetic.dash] : undefined}
       />
 
       {/* La photo si le joueur en a une, sinon les initiales gravées (mono,

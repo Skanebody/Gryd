@@ -31,6 +31,7 @@ import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, elevation, fonts } from '@klaim/shared';
 import { GrydMark } from '../gryd/GrydMark';
+import { pinPathForCosmetic2026 } from '../../features/arsenal/CosmeticArt2026';
 
 /** Largeur du pin (diamètre de la tête). */
 export const ME_PIN_WIDTH = 40;
@@ -42,9 +43,13 @@ const PHOTO_SIZE = 26;
 const HALO_SIZE = 48;
 
 /**
- * Goutte : pointe en bas (20, 50), tête circulaire de rayon 18 centrée (20, 20).
- * L'arc part du flanc bas-gauche, fait le grand tour (large-arc) et redescend
- * sur le flanc bas-droit ; la fermeture rejoint la pointe.
+ * ─── LA SILHOUETTE DU PIN EST UN COSMÉTIQUE (lot personnalisation, 10/09) ───
+ * `styleId` nomme l'objet équipé (`profile_cosmetics_2026`, emplacement `pin`).
+ * Les cinq tracés vivent dans `features/arsenal/CosmeticArt2026` et partagent
+ * TOUS la même pointe, en (20, 50) : changer de pin ne déplace donc jamais la
+ * position affichée, qui est tout le sujet d'un pin (voir l'ancrage ci-dessus).
+ * `undefined` ou un identifiant inconnu rend la goutte — l'apparence d'avant ce
+ * lot, jamais un marqueur vide.
  */
 const PIN_PATH = 'M20 50 L11 35.6 A18 18 0 1 1 29 35.6 Z';
 
@@ -57,11 +62,14 @@ export interface MePinMarker2026Props {
   initials?: string;
   /** Position issue d'une précision grossière : le pin le DIT, il ne le cache pas. */
   approximate?: boolean;
+  /** Cosmétique de pin équipé. Absent = la goutte, l'apparence par défaut. */
+  styleId?: string | null;
 }
 
-export function MePinMarker2026({ label, photoUri, initials, approximate = false }: MePinMarker2026Props) {
+export function MePinMarker2026({ label, photoUri, initials, approximate = false, styleId }: MePinMarker2026Props) {
   const hasPhoto = typeof photoUri === 'string' && photoUri.length > 0;
   const mark = (initials ?? '').trim();
+  const path = styleId ? pinPathForCosmetic2026(styleId) : PIN_PATH;
 
   return <View
     pointerEvents="none"
@@ -74,7 +82,7 @@ export function MePinMarker2026({ label, photoUri, initials, approximate = false
     <View style={s.pin}>
       <Svg width={ME_PIN_WIDTH} height={ME_PIN_HEIGHT} viewBox={`0 0 ${ME_PIN_WIDTH} ${ME_PIN_HEIGHT}`}>
         <Path
-          d={PIN_PATH}
+          d={path}
           fill={elevation.overMap}
           stroke={colors.chartreuse}
           strokeWidth={2}

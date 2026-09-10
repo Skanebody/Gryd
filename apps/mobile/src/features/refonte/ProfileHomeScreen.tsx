@@ -16,6 +16,9 @@ import { adoptLocalActivities2026, useAdoptableLocalActivities2026, useAdoptionN
 import { profileMovementState2026 } from './ProfileMovementState2026';
 import { SeasonalIdentity2026 } from './SeasonalIdentity2026';
 import { CommercialIdentity2026 } from './CommercialIdentity2026';
+import { CosmeticBanner2026, CosmeticFrame2026, CosmeticName2026, CosmeticTitleBadge2026 } from '../arsenal/CosmeticArt2026';
+import { equippedCosmetic2026 } from '../arsenal/cosmetics2026';
+import { useMyCosmetics2026 } from '../arsenal/useMyCosmetics2026';
 import { useCommercialCollections2026 } from '../premium/useCommercialCollections2026';
 import { brandImagery } from '../../ui/gryd/brandImagery';
 import { SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
@@ -35,6 +38,19 @@ export function ProfileHomeScreen() {
 function ProfileHomeContents() {
   const copy = useRefonteCopy();
   const commercial = useCommercialCollections2026();
+  /**
+   * CE QUE JE PORTE. Une seule lecture, partagée avec la carte et la collection
+   * (`useMyCosmetics2026`). Sans compte, sans réseau ou sur un serveur sans
+   * 0180, chaque emplacement retombe sur l'objet LIVRÉ AVEC LE COMPTE — le
+   * profil garde alors exactement l'apparence qu'il avait, jamais un trou.
+   */
+  const cosmetics = useMyCosmetics2026();
+  const equippedName = equippedCosmetic2026('nameColor', cosmetics.equipped.nameColor);
+  const equippedFrame = equippedCosmetic2026('avatarFrame', cosmetics.equipped.avatarFrame);
+  const equippedBanner = equippedCosmetic2026('banner', cosmetics.equipped.banner);
+  const equippedTitleBadge = equippedCosmetic2026('titleBadge', cosmetics.equipped.titleBadge);
+  /** La bannière a besoin de la taille RÉELLE du bloc : elle se mesure. */
+  const [identityBox, setIdentityBox] = useState({ width: 0, height: 0 });
   const commercialFrame = commercial.rows.some(item=>item.id==='relief'&&item.owned&&item.equipped);
   const commercialEmblem = commercial.rows.some(item=>item.id==='clubhouse'&&item.owned&&item.equipped);
   const locale = useLocale();
@@ -123,6 +139,10 @@ function ProfileHomeContents() {
     });
   }
 
+  // Le cadre par défaut n'est pas annoncé : « sans cadre » n'apprend rien à
+  // personne. Un cadre équipé, lui, porte son nom (L15 : la forme + le mot).
+  const cosmeticFrameLabel = equippedFrame.family === 'avatarFrame' && equippedFrame.ring !== 'none'
+    ? copy(`Cadre ${equippedFrame.name.fr}`, `${equippedFrame.name.en} frame`) : undefined;
   const rewards = progress.data?.ownedRewards ?? [];
   // §7.2 — les objets de niveau comptent dans la collection au même titre que
   // ceux de saison ; l'emplacement d'identité, lui, reste unique (0144).
@@ -175,19 +195,45 @@ function ProfileHomeContents() {
         <Pressable accessibilityRole="button" disabled={adopting} onPress={() => void adoptionReceipt.acknowledge()} style={local.later}><Text style={local.actionText}>{copy('Plus tard', 'Later')}</Text></Pressable>
       </View>
     </View> : null}
+    {/* ─── LA ZONE D'IDENTITÉ PORTE MAINTENANT LES COSMÉTIQUES (10/09/2026) ──
+        La bannière se pose DERRIÈRE tout le bloc, le cadre autour de l'avatar,
+        la couleur sur le nom et le @, le badge sur le titre.
+
+        POURQUOI LA CARTE EST DEVENUE SOMBRE. Une bannière n'existe que sur une
+        surface sombre : la charte interdit la chartreuse sur fond clair
+        (contraste 1,2:1), et les couleurs de nom livrées — ivoire, chartreuse,
+        dégradés — sont toutes construites pour du carbone. Peindre une
+        bannière sous une carte blanche aurait donné soit un nom illisible, soit
+        une bannière invisible. La carte prend donc le carbone que
+        `identityArt` portait déjà, et ses textes passent à l'encre claire.
+        Sans aucun cosmétique équipé, le résultat est un aplat de carbone :
+        c'est l'objet « Carbone », livré avec le compte, et rien d'autre. */}
+    <View style={local.identityShell} onLayout={event => setIdentityBox({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}>
+      {identityBox.width > 0 ? <View pointerEvents="none" style={local.identityBanner}>
+        <CosmeticBanner2026 item={equippedBanner} width={identityBox.width} height={identityBox.height} />
+      </View> : null}
     <View style={local.identity}>
-      <View style={local.identityArt}><CommercialIdentity2026 size={48}><SeasonalIdentity2026 rewards={rewards.filter(reward => reward.rewardId !== 'title' && !(commercialFrame && reward.rewardId === 'profile_frame') && !(commercialEmblem && reward.rewardId === 'personal_emblem'))} levelRewards={levelRewards.filter(reward => reward.rewardId !== 'cartographer' && !(commercialFrame && (reward.rewardId === 'line_frame' || reward.rewardId === 'ridge_merit')))} collections={progress.data?.collections ?? []} size={48}>
+      <View style={local.identityArt}><CosmeticFrame2026 item={equippedFrame} size={48} label={cosmeticFrameLabel}><CommercialIdentity2026 size={48}><SeasonalIdentity2026 rewards={rewards.filter(reward => reward.rewardId !== 'title' && !(commercialFrame && reward.rewardId === 'profile_frame') && !(commercialEmblem && reward.rewardId === 'personal_emblem'))} levelRewards={levelRewards.filter(reward => reward.rewardId !== 'cartographer' && !(commercialFrame && (reward.rewardId === 'line_frame' || reward.rewardId === 'ridge_merit')))} collections={progress.data?.collections ?? []} size={48}>
         <View style={local.avatar}>{profileLoading || sessionLoading ? <ActivityIndicator color={c.darkInk} /> : profile.avatarUri && session ? <Image source={{ uri: profile.avatarUri }} style={local.avatarImage} /> : session ? <Text style={local.initials}>{effectiveInitials(profile)}</Text> : <GrydMark variant="symbol" size={20} color={c.darkInk} />}</View>
-      </SeasonalIdentity2026></CommercialIdentity2026></View>
+      </SeasonalIdentity2026></CommercialIdentity2026></CosmeticFrame2026></View>
       <View style={local.identityCopy}>
-        <Text style={local.name}>{sessionLoading || profileLoading ? '…' : session ? profile.displayName : copy('Invité', 'Guest')}</Text>
-        <Text style={local.meta}>{session ? profile.city || copy('Course et vélo', 'Run and ride') : copy('Sur cet appareil', 'On this device')}</Text>
-        {equippedTitle ? <Text style={local.identityTitle}>{titleCollection ?? equippedTitle.label}</Text> : equippedLevelTitle ? <Text style={local.identityTitle}>{rewardLabel2026(equippedLevelTitle.rewardId, equippedLevelTitle.label, locale)}</Text> : null}
+        <CosmeticName2026 item={equippedName} size={17} weight="600" style={local.name}
+          text={sessionLoading || profileLoading ? '…' : session ? profile.displayName : copy('Invité', 'Guest')} />
+        {/* Le @pseudo sous le nom (lot H) : c'est l'adresse que les autres
+            cherchent dans /amis et citent dans le crew, et elle n'était visible
+            NULLE PART sur son propre profil. Peint seulement quand il est LU :
+            pendant le chargement, `profile.handle` retombe sur un repli dérivé
+            de la session, et afficher ce repli comme « son @ » en ferait une
+            adresse que personne ne trouverait. */}
+        {session && !profileLoading && profile.handle ? <CosmeticName2026 item={equippedName} size={12} weight="400" style={local.meta} text={`@${profile.handle}`} /> : null}
+        <Text style={local.identityMeta}>{session ? profile.city || copy('Course et vélo', 'Run and ride') : copy('Sur cet appareil', 'On this device')}</Text>
+        {equippedTitle ? <CosmeticTitleBadge2026 item={equippedTitleBadge} label={titleCollection ?? equippedTitle.label} /> : equippedLevelTitle ? <CosmeticTitleBadge2026 item={equippedTitleBadge} label={rewardLabel2026(equippedLevelTitle.rewardId, equippedLevelTitle.label, locale)} /> : null}
       </View>
       {/* Plus de « Connexion » ici : la porte est le bloc du dessus, et deux
           portes pour un même geste en font une de trop. « Invité · Sur cet
           appareil » reste, parce que c'est l'état RÉEL de ce profil. */}
       {session ? <CircularAction2026 icon="chevronRight" label={copy('Modifier le profil', 'Edit profile')} onPress={() => router.push('/profil-edit')} /> : null}
+    </View>
     </View>
     {session ? <View style={local.identityLinks}>
       <Pressable accessibilityRole="button" onPress={() => router.push('/season')} style={local.identityLink}><Text style={local.meta}>{career ? copy(`Niveau ${career.level}`, `Level ${career.level}`) : copy('Progression', 'Progress')}</Text>{career ? <Text style={local.meta}>{career.xp.toLocaleString(locale)} XP</Text> : null}<GrydIcon name="chevronRight" size={14} color={c.muted} /></Pressable>
@@ -328,7 +374,7 @@ const local = StyleSheet.create({
   gate: { gap: 10, padding: 16, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 },
   gateTitle: { fontFamily: fonts.displayMedium, fontSize: 20, lineHeight: 26, letterSpacing: -0.5, color: c.ink },
   gateNote: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, textAlign: 'center' },
-  identity: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: 16, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, identityArt: { backgroundColor: c.carbon, borderRadius: 16 }, identityCopy: { flex: 1, minWidth: 90, gap: 4 }, avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.darkSurface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: 44, height: 44 }, initials: { fontFamily: fonts.displayMedium, fontSize: 18, color: c.darkInk }, name: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.ink, letterSpacing: -0.4 }, identityTitle: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted },
+  identityShell: { position: 'relative', borderRadius: 24, overflow: 'hidden', backgroundColor: c.carbon, marginBottom: 12 }, identity: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: 16 }, identityBanner: { ...StyleSheet.absoluteFillObject }, identityMeta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted }, identityArt: { backgroundColor: c.carbon, borderRadius: 16 }, identityCopy: { flex: 1, minWidth: 90, gap: 4 }, avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.darkSurface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: 44, height: 44 }, initials: { fontFamily: fonts.displayMedium, fontSize: 18, color: c.darkInk }, name: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.darkInk, letterSpacing: -0.4 }, identityTitle: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.darkMuted },
   meta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted }, body: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.ink }, actionText: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink }, iconAction: { width: 44, minHeight: 44, borderRadius: 22, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }, identityLinks: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, paddingHorizontal: 8, marginBottom: 12 }, identityLink: { minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center' },
   social: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   socialAction: { flex: 1, minWidth: 96, minHeight: 62, gap: 6, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 20, backgroundColor: c.surface, justifyContent: 'center' },

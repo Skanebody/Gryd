@@ -138,6 +138,14 @@ export interface RealMapGeoJSONLayer {
    * ~35 %. Distinct du `pulse` (qui anime l'opacité). Défaut 1 (plein).
    */
   lineOpacity?: number;
+  /**
+   * HALO du trait (px, `line-blur` MapLibre). Le trait garde sa largeur ; ses
+   * bords se diffusent. C'est ce qui fait le « néon » du cosmétique de trace
+   * (`features/arsenal/cosmetics2026`) sans ajouter une seconde couche sous la
+   * première — donc sans doubler le coût de rendu de la trace-héros. Absent =
+   * bord net, l'apparence d'avant le lot personnalisation.
+   */
+  lineBlur?: number;
   /** Pointillé (traitement decay AMENDEMENT-11/§4ter). */
   lineDash?: readonly number[];
   /**
@@ -600,6 +608,8 @@ export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
                   lineJoin: 'round',
                   // Opacité STATIQUE (route restante 60 %, exclu 35 %).
                   ...(spec.lineOpacity !== undefined ? { lineOpacity: spec.lineOpacity } : {}),
+                  // Halo néon : `line-blur` diffuse les bords sans élargir le trait.
+                  ...(spec.lineBlur !== undefined ? { lineBlur: spec.lineBlur } : {}),
                   ...(spec.lineDash ? { lineDasharray: [...spec.lineDash] } : {}),
                   ...(spec.lineOffset !== undefined ? { lineOffset: spec.lineOffset } : {}),
                 } satisfies LineLayerStyle)

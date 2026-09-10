@@ -141,6 +141,14 @@ export interface RealMapGeoJSONLayer {
    * ~35 %. Distinct du `pulse` (qui anime l'opacité en rAF). Défaut 1 (plein).
    */
   lineOpacity?: number;
+  /**
+   * HALO du trait (px, `line-blur` MapLibre). Le trait garde sa largeur ; ses
+   * bords se diffusent. C'est ce qui fait le « néon » du cosmétique de trace
+   * (`features/arsenal/cosmetics2026`) sans ajouter une seconde couche sous la
+   * première — donc sans doubler le coût de rendu de la trace-héros. Absent =
+   * bord net, l'apparence d'avant le lot personnalisation.
+   */
+  lineBlur?: number;
   /** Pointillé (traitement decay AMENDEMENT-11/§4ter). */
   lineDash?: readonly number[];
   /**
@@ -761,6 +769,8 @@ function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer, extrudeZones =
         ...(spec.lineOpacity !== undefined && !spec.pulse
           ? { 'line-opacity': spec.lineOpacity }
           : {}),
+        // Halo néon : `line-blur` diffuse les bords sans élargir le trait.
+        ...(spec.lineBlur !== undefined ? { 'line-blur': spec.lineBlur } : {}),
         ...(spec.lineDash ? { 'line-dasharray': [...spec.lineDash] } : {}),
         ...(spec.lineOffset !== undefined ? { 'line-offset': spec.lineOffset } : {}),
       },
@@ -771,6 +781,7 @@ function upsertLayer(map: MapLibreMap, spec: RealMapGeoJSONLayer, extrudeZones =
     if (spec.lineOpacity !== undefined && !spec.pulse) {
       map.setPaintProperty(lineId, 'line-opacity', spec.lineOpacity);
     }
+    if (spec.lineBlur !== undefined) map.setPaintProperty(lineId, 'line-blur', spec.lineBlur);
     if (spec.lineDash) map.setPaintProperty(lineId, 'line-dasharray', [...spec.lineDash]);
     if (spec.lineOffset !== undefined) {
       map.setPaintProperty(lineId, 'line-offset', spec.lineOffset);

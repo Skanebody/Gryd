@@ -42,6 +42,7 @@ import {
   ringRadiusFor,
 } from '../../ui/game/hexAvatar';
 import { itemByKey, isFrameItem } from '../arsenal';
+import { cosmeticRingPaint2026 } from '../arsenal/cosmetics2026';
 
 /** Choisit un texte lisible (blanc/noir) sur un fond donné — contraste charte. */
 function textOn(fill: string): string {
@@ -58,6 +59,13 @@ export interface PlayerCardAvatarProps {
   tier: BadgeTier;
   /** Clé de l'item FRAME équipé (portée profile) — override l'anneau si présent. */
   equippedFrameKey?: string;
+  /**
+   * Cadre COSMÉTIQUE 2026 (`profile_cosmetics_2026`, emplacement `avatarFrame`).
+   * PRIORITAIRE sur `equippedFrameKey` et sur le tier : G22 refuse le cumul de
+   * cadres, et le joueur a explicitement choisi celui-ci. Absent = rien ne
+   * change, l'anneau reste celui d'avant le lot personnalisation.
+   */
+  cosmeticFrameId?: string | null;
   /** Hauteur en px (défaut 72, la Player Card). La largeur en découle. */
   size?: number;
   /** true = c'est MOI (contour chartreuse — COULEUR seule, jamais l'épaisseur). */
@@ -90,9 +98,14 @@ export function PlayerCardAvatar({
   size = 72,
   isMe = true,
   imageUri,
+  cosmeticFrameId,
 }: PlayerCardAvatarProps) {
+  const cosmetic = cosmeticRingPaint2026(cosmeticFrameId);
   const ringTier = ringTierFor(equippedFrameKey, tier);
-  const frame = BADGE_TIER_STYLE[ringTier];
+  const tierFrame = BADGE_TIER_STYLE[ringTier];
+  const frame = cosmetic
+    ? { ring: cosmetic.stroke, strokeWidth: cosmetic.strokeWidth, ring2: cosmetic.outerRing ? cosmetic.stroke : undefined }
+    : tierFrame;
   const bodyStroke = isMe ? gameColors.crew : colors.grisLigne;
   const box = hexAvatarBox(size);
   const body = hexPoints(box.cx, box.cy, BODY_R);
@@ -117,6 +130,7 @@ export function PlayerCardAvatar({
           stroke={frame.ring}
           strokeWidth={frame.strokeWidth}
           strokeLinejoin="round"
+          strokeDasharray={cosmetic?.dash ? [...cosmetic.dash] : undefined}
         />
       ) : null}
       {frame?.ring2 ? (
