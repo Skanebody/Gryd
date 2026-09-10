@@ -27,12 +27,15 @@
  * vérifications réelles. Un chargement n'affirme RIEN sur le joueur ; un échec
  * ne se déguise jamais en « rien à afficher ».
  *
- * ══ ⚠️ EN PRODUCTION, CET ÉCRAN EST VIDE — ET C'EST HONNÊTE ═══════════════
- * `ingest_run` n'appelle pas encore `scoreRun` (câblage hors du lot 9) : aucune
- * ligne n'entre dans `anticheat_reviews`. L'écran affichera donc l'état « aucune
- * vérification » pour tout le monde, ce qui est la stricte vérité. Il ne fabrique
- * AUCUN exemple, AUCUNE démonstration, AUCUN cas d'école : une donnée inventée
- * ici serait une accusation inventée.
+ * ══ EN PRODUCTION, CET ÉCRAN PEUT SE REMPLIR (11/09/2026) ═════════════════
+ * Depuis le lot anti-triche du 11/09 (`ingest_run/refonte2026.ts` passe enfin le
+ * podomètre et le drapeau `mocked` à `scoreRun`, migration 0174), une sortie
+ * dont les signaux convergent ENTRE dans `anticheat_reviews` : cet écran montre
+ * alors une vérification RÉELLE. Sans vérification, il affiche « aucune
+ * vérification », ce qui reste la stricte vérité. Il ne fabrique AUCUN exemple,
+ * AUCUNE démonstration, AUCUN cas d'école : une donnée inventée ici serait une
+ * accusation inventée. Personne ne dépile encore la file de revue : chantier
+ * n°1 de `docs/product/GRYD_ANTITRICHE_2026_09.md`.
  *
  * ══ AUCUN BOUTON MORT ═════════════════════════════════════════════════════
  * Le CTA « Faire appel » n'est peint QUE lorsqu'un appel est réellement

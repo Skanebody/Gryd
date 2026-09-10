@@ -345,7 +345,7 @@ export const EU_CITIES_SOURCE = {
   licenseUrl: ${JSON.stringify(LICENSE_URL)},
   licenseNotice: ${JSON.stringify(licenseLine)},
   /** À AFFICHER sur la surface de crédits de données (obligation CC BY). */
-  attribution: 'Villes : GeoNames (geonames.org) — licence CC BY 4.0',
+  attribution: 'Villes : GeoNames (geonames.org), licence CC BY 4.0',
   /**
    * Périmètre, DÉRIVÉ et déclaré — jamais un tri à la main ville par ville :
    * pays de countryInfo.txt (continent = EU), puis borne est de l'Oural
