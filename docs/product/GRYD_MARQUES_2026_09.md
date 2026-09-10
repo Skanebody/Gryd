@@ -292,6 +292,11 @@ partie prenante.
 | **A. GRYD organise** | GRYD organisateur, la marque fournit le lot | Le joueur ne quitte jamais l'application, conforme à 5.3.1 | GRYD porte la responsabilité, rédige le règlement, gère réclamations et remise du lot |
 | **B. La marque organise** | La marque sur son site, comme le fait Strava | Responsabilité chez la marque, montage plus léger | Le joueur sort de l'application, la conversion chute, et il faut vérifier que 5.3 ne s'applique plus |
 
+**Le tirage attend l'anti-triche.** Une sortie dont les signaux convergent entre en revue (`0081`, `0155`) et un
+opérateur seul peut la clore (`0187`, ADR-015). Aucun tirage ne se fait avant la clôture des revues des finissants,
+sinon un lot part sur une sortie qui sera invalidée. À dire dans le règlement : le délai de tirage dépend de cette
+clôture.
+
 Recommandation : **B pour la première campagne**, puis A quand le règlement type et l'assurance sont en place.
 
 ---
@@ -354,7 +359,7 @@ SQL commence par l'étape 0, « le défaut existait », sinon rien ne distingue 
 | `crew_challenges_2026` (`0122`, `0148` à `0151`, `0169`) | Un défi sponsorisé est un objet **distinct** du défi classé | Ne jamais laisser un défi de marque écrire dans `challenge_contributions_2026` |
 | `items`, `user_inventory` (`0014`) | Les cosmétiques de marque sont des `items` sans prix | Le catalogue accepte aujourd'hui des types à effet : la restriction doit être explicite |
 | Catalogues de récompenses (`0121`, `0144`, `0165`) | Même patron : catalogue versionné, récompense par emplacement, étanchéité vérifiée | Reprendre le contrôle de collision de `0165` |
-| `anticheat_reviews` (`0081`, `0174`) | Une sortie suspendue ne valide **pas** un défi de marque | Un lot attribué à une sortie invalidée est un incident client autant qu'un incident de jeu |
+| `anticheat_reviews` (`0081`, `0174`, `0187`) | Une sortie en revue ne valide **pas** un défi de marque tant qu'un opérateur n'a pas tranché (`0187`) | Un lot attribué à une sortie ensuite invalidée est un incident client autant qu'un incident de jeu |
 | `game-rules.ts` (ADR-003) | Seuil k, plafonds, durée maximale : ce sont des constantes | Aucun nombre magique dans une migration ni dans le portail |
 
 ### 4.5 Les écrans
