@@ -192,6 +192,19 @@ const KNOWN_ORPHANS = new Map([
   ['/map/prepare', 'portes perdues : `app/map/missions/[missionId].tsx:82` et `app/zone-attaquee/[contestId].tsx:283` (9d1b9e7) — les deux sont devenues des routes de compatibilité'],
   ['/qr', 'portes perdues : `app/(tabs)/profil.tsx:289` et `app/amis.tsx:336` (9d1b9e7) — les deux fichiers ont été réécrits par le cahier'],
   ['/territoire', 'porte perdue : `app/(tabs)/profil.tsx:990` (9d1b9e7) — (tabs)/profil.tsx est devenu une ré-exportation de ProfileHomeScreen'],
+
+  // ─── 10/09/2026, LOT « RÉGLAGES ET PROFIL » ───────────────────────────────
+  [
+    '/warroom',
+    'porte perdue — et elle n’en était pas une. Le SEUL chemin nommé vers ' +
+      'Missions était le `flags.warRoom` de la branche `crew` de ' +
+      '`app/parametres/[section].tsx`, or la route intercepte ce slug par un ' +
+      '`<Redirect href="/(tabs)/crew">` avant tout rendu depuis le 09/09 : ' +
+      'personne ne pouvait ouvrir cette branche. Le lot Réglages a supprimé les ' +
+      'cinq branches mortes, et l’orpheline apparaît. Elle était déjà là ; elle ' +
+      'était masquée par du code qu’aucun joueur ne pouvait atteindre. La route ' +
+      'reste déclarée dans `app/(tabs)/_layout.tsx` et derrière `flags.warRoom`.',
+  ],
 ]);
 
 /** Ces chaînes ressemblent à des chemins mais n'en sont pas (préfixes, fixtures). */

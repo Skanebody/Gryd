@@ -74,11 +74,12 @@ export const SETTINGS_GLYPHS = {
   subscription: 'creditCard',
   sourcesDevices: 'devices',
   journal: 'journal',
-  collection: 'collection',
-  crew: 'crew',
+  // Les autorisations SYSTÈME : un cadenas, pas le bouclier de `privacyData` —
+  // ce que l'OS a décidé n'est pas ce que GRYD règle (cahier G27).
+  devicePermissions: 'lock',
+  duringActivity: 'spark',
   language: 'globe',
   howItWorks: 'mechanics',
-  replayDiscovery: 'replay',
   faq: 'faq',
   support: 'support',
   about: 'info',

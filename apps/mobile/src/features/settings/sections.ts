@@ -20,6 +20,14 @@
  * `/mes-parcours` n'était référencée que par ce catalogue mort : elle est
  * désormais peinte dans `app/parametres.tsx`, donc atteignable pour de vrai.
  *
+ * ═══ HUIT SLUGS → TROIS (10/09/2026, LOT RÉGLAGES ET PROFIL) ════════════════
+ * `profil`, `crew`, `carte`, `apropos`, `avance` ne décrivaient plus une
+ * sous-page : `app/parametres/[section].tsx` les intercepte par un `<Redirect>`
+ * avant tout rendu, et leurs branches JSX viennent d'être supprimées. Garder
+ * leur titre ici aurait entretenu le catalogue d'un écran qui n'existe plus —
+ * exactement la « deuxième vérité » que ce fichier a déjà payée une fois.
+ * Les redirections, elles, restent : ce sont des liens profonds, pas des pages.
+ *
  * Aucun nombre, aucune constante de jeu ici : navigation et texte seulement.
  */
 import type { IconName } from '@klaim/shared';
@@ -27,15 +35,7 @@ import { C } from '../../i18n/catalog/reglages';
 import type { Entry } from '../../i18n/types';
 
 /** Slug d'une sous-page interne rendue par app/parametres/[section].tsx. */
-export type SettingsSectionId =
-  | 'compte'
-  | 'profil'
-  | 'crew'
-  | 'course'
-  | 'notifications'
-  | 'carte'
-  | 'apropos'
-  | 'avance';
+export type SettingsSectionId = 'compte' | 'course' | 'notifications';
 
 export interface SettingsSectionMeta {
   /** Libellé — `Entry` i18n, jamais une chaîne déjà résolue (règle 17). */
@@ -52,13 +52,8 @@ export interface SettingsSectionMeta {
  */
 export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SettingsSectionMeta>> = {
   compte: { label: C.rowCompte, detail: C.rowCompteDetail, icon: 'profil' },
-  profil: { label: C.rowProfil, detail: C.rowProfilDetail, icon: 'ami' },
-  crew: { label: C.rowCrew, detail: C.rowCrewDetail, icon: 'crew' },
   course: { label: C.rowActivite, detail: C.rowActiviteDetail, icon: 'route' },
   notifications: { label: C.rowNotifs, detail: C.rowNotifsDetail, icon: 'cloche' },
-  carte: { label: C.rowCarte, detail: C.rowCarteDetail, icon: 'calques' },
-  apropos: { label: C.rowApropos, detail: C.rowAproposDetail, icon: 'crest' },
-  avance: { label: C.rowAvance, detail: C.rowAvanceDetail, icon: 'radar' },
 };
 
 /** Titre/détail/icône d'une sous-page. `undefined` reste possible pour un slug

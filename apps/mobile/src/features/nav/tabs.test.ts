@@ -111,12 +111,34 @@ Deno.test('2026 : le Profil porte un chemin nommé vers sa collection', async ()
   );
 });
 
-Deno.test('Missions (/warroom) reste atteignable par au moins un chemin nommé du repo', async () => {
-  // Hors périmètre de ce chantier (Aujourd'hui / Paramètres, pas la Carte) —
-  // on vérifie seulement qu’AUCUN chemin d’entrée n’a disparu au passage.
-  const aujourdhui = await code('../../../app/aujourdhui.tsx');
-  const parametres = await code('../../../app/parametres/[section].tsx');
-  const hasEntry =
-    aujourdhui.includes("'/warroom'") || parametres.includes("'/warroom'");
-  assert(hasEntry, 'Missions ne doit avoir aucune régression de reachability (Aujourd’hui/Paramètres)');
+/**
+ * ═══ CE TEST ÉTAIT UN FAUX VERT, ET IL A ÉTÉ RÉÉCRIT LE 10/09/2026 ═════════
+ *
+ * Il affirmait « Missions (/warroom) reste atteignable par au moins un chemin
+ * nommé du repo » en acceptant DEUX sources : `app/aujourdhui.tsx` ou
+ * `app/parametres/[section].tsx`. Les deux ont cessé d'être des chemins :
+ *  · `/aujourdhui` est devenu une route de compatibilité (`<Redirect>` → /season) ;
+ *  · le `'/warroom'` de Paramètres vivait dans la branche `crew`, que la route
+ *    intercepte par `<Redirect href="/(tabs)/crew">` AVANT tout rendu.
+ * Le test restait vert parce qu'il cherchait une CHAÎNE dans un fichier, pas une
+ * porte qu'un joueur peut pousser. Il a donc certifié pendant des semaines la
+ * « reachability » d'un écran que personne ne pouvait ouvrir — le mode d'échec
+ * exact que `features/settings/sections.test.ts` documente en tête.
+ *
+ * La vérité, aujourd'hui : `/warroom` est déclarée dans le groupe d'onglets,
+ * gardée par `flags.warRoom`, et n'a AUCUN chemin nommé. On ne le cache plus
+ * derrière une chaîne : on l'inscrit à l'endroit qui surveille les orphelines,
+ * `scripts/audit-routes.mjs`, et ce test vérifie que l'inscription existe. Le
+ * jour où Missions retrouve une porte, l'audit exige qu'elle sorte de
+ * `KNOWN_ORPHANS` — le rouge arrive alors du bon côté.
+ */
+Deno.test('Missions (/warroom) : son absence de porte est DOCUMENTÉE, pas supposée', async () => {
+  const layout = await code('../../../app/(tabs)/_layout.tsx');
+  assert(layout.includes('name="warroom"'), 'la route Missions ne doit pas disparaître du groupe tabs');
+
+  const audit = await Deno.readTextFile(new URL('../../../../../scripts/audit-routes.mjs', import.meta.url));
+  assert(
+    audit.includes("'/warroom'"),
+    'Missions n’a plus de chemin nommé ET n’est pas inscrite dans KNOWN_ORPHANS : une orpheline muette',
+  );
 });

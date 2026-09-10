@@ -6,7 +6,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 Deno.test('chaque ligne des réglages possède un glyphe distinct et défini', () => {
   const names = Object.values(SETTINGS_GLYPHS);
-  assert(names.length === 19, `inventaire Réglages incomplet (${names.length}/19)`);
+  assert(names.length === 18, `inventaire Réglages incomplet (${names.length}/18)`);
   assert(new Set(names).size === names.length, 'deux lignes des Réglages réutilisent le même glyphe');
 
   const drawings = names.map(name => {
