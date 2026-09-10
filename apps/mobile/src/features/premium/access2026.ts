@@ -27,21 +27,51 @@ export function readServerGrydPlusAccess2026(value: unknown, nowMs: number): Ser
  * confirmé. L'ordre est renversé : le serveur décide, le Store informe.
  *
  *  · `active`      — le reçu SERVEUR est actif ;
+ *  · `preSaleOpen` — personne ne PEUT payer, donc l'outil est ouvert à tout
+ *                    compte connecté (décision fondateur du 11/09/2026) ;
  *  · `pending`     — le Store a enregistré l'achat, le serveur pas encore : un
  *                    fait vrai et transitoire, ni un droit ni une panne ;
  *  · `inactive`    — le serveur a répondu, il n'y a pas de droit ;
  *  · `unavailable` — le reçu serveur n'a pas pu être lu : on NE SAIT PAS, même
  *                    si le SDK, lui, prétend le contraire.
+ *
+ * ── LA PRÉ-VENTE (11/09/2026, brouillon ADR-016) ───────────────────────────
+ * Le fondateur, à la question « ouvrir ou non les outils GRYD+ tant que rien
+ * n'est en vente ? » : « ouvre, faut les mettre en place si quelqu'un paie ».
+ * `storeCannotSell` porte ce fait, et il n'est JAMAIS écrit en dur : il descend
+ * de `storeCannotSellYet2026(storeAvailability2026(…))`, c'est-à-dire de l'état
+ * réel de la boutique. Le jour où une offre est lue avec son prix, il retombe à
+ * `false` et le droit serveur redevient seul juge — la bascule est mécanique.
+ *
+ * ── POURQUOI LA PRÉ-VENTE PASSE AVANT `pending`, ET APRÈS TOUT LE RESTE ────
+ * Après, parce qu'une lecture en cours (`loading`) et un reçu illisible
+ * (`unavailable`) n'affirment RIEN : ouvrir sur une non-réponse serait le même
+ * mensonge que fermer sur une non-réponse. Avant `pending`, parce que `pending`
+ * FERME les outils en attendant une confirmation qui, dans une boutique qui ne
+ * vend pas, ne viendra jamais : ce serait remurer la porte que la décision
+ * ouvre. Un reçu serveur ACTIF, lui, garde la priorité : un droit réel reste un
+ * droit réel, et l'écran doit pouvoir dire « abonnement actif » plutôt que
+ * « inclus gratuitement ».
  */
-export type GrydPlusAccessStatus2026 = 'loading' | 'signedOut' | 'active' | 'pending' | 'inactive' | 'unavailable';
+export type GrydPlusAccessStatus2026 = 'loading' | 'signedOut' | 'active' | 'preSaleOpen' | 'pending' | 'inactive' | 'unavailable';
+/**
+ * POURQUOI l'accès est ouvert, quand il l'est. `null` = il ne l'est pas.
+ * Les écrans en ont besoin : « abonné » et « inclus en attendant » ne se disent
+ * pas avec les mêmes mots, et confondre les deux ferait afficher « Abonnement
+ * actif » à quelqu'un qui n'a jamais payé.
+ */
+export type GrydPlusAccessReason2026 = 'server_entitlement' | 'pre_sale_open' | null;
 export function grydPlusAccessState2026(input: {
   sessionLoading: boolean; ownerId: string | null; loaded: boolean;
   server: ServerGrydPlusAccess2026 | null; storeActive: boolean;
-}): { status: GrydPlusAccessStatus2026; active: boolean } {
-  if (input.sessionLoading) return { status: 'loading', active: false };
-  if (!input.ownerId) return { status: 'signedOut', active: false };
-  if (!input.loaded) return { status: 'loading', active: false };
-  if (input.server === null) return { status: 'unavailable', active: false };
-  if (input.server.active) return { status: 'active', active: true };
-  return { status: input.storeActive ? 'pending' : 'inactive', active: false };
+  /** Fait de boutique, jamais une intention : cf. `storeCannotSellYet2026`. */
+  storeCannotSell: boolean;
+}): { status: GrydPlusAccessStatus2026; active: boolean; reason: GrydPlusAccessReason2026 } {
+  if (input.sessionLoading) return { status: 'loading', active: false, reason: null };
+  if (!input.ownerId) return { status: 'signedOut', active: false, reason: null };
+  if (!input.loaded) return { status: 'loading', active: false, reason: null };
+  if (input.server === null) return { status: 'unavailable', active: false, reason: null };
+  if (input.server.active) return { status: 'active', active: true, reason: 'server_entitlement' };
+  if (input.storeCannotSell) return { status: 'preSaleOpen', active: true, reason: 'pre_sale_open' };
+  return { status: input.storeActive ? 'pending' : 'inactive', active: false, reason: null };
 }

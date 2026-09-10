@@ -144,3 +144,63 @@ Deno.test('couture : pas de tiret long dans les textes français des trois écra
     }
   }
 });
+
+/**
+ * ─── LOT G (11/09/2026) : LA PRÉ-VENTE COUSUE AUX ÉCRANS ───────────────────
+ *
+ * Décision fondateur : « ouvre, faut les mettre en place si quelqu'un paie ».
+ * Les outils GRYD+ s'ouvrent à tout compte connecté TANT QUE rien n'est en
+ * vente. Trois façons de rater cette décision en écrivant du code juste :
+ *   · l'écrire en DUR (`active = true`) — vrai aujourd'hui, faux le jour de
+ *     l'ouverture, et personne ne s'en apercevrait ;
+ *   · laisser un écran affirmer « Abonnement actif » à qui n'a jamais payé ;
+ *   · réécrire la phrase localement, et se contredire d'un écran à l'autre.
+ * Ces trois-là sont tenues ici ; la DÉCISION elle-même est testée en unitaire
+ * dans `grydPlus2026.test.ts`.
+ */
+const ACCES = 'src/features/premium/useGrydPlusAccess.ts';
+
+Deno.test('couture pré-vente : le droit DESCEND de la boutique, jamais d’un « true » en dur', () => {
+  const code = codeSeul(source(ACCES));
+  assert(code.includes('storeAvailability2026('), 'le hook ne lit plus l’état réel de la boutique');
+  assert(code.includes('storeCannotSellYet2026('), 'le hook ne dérive plus la pré-vente de la boutique');
+  // Le mode d'échec exact qu'on refuse : un fait de vente écrit à la main.
+  for (const dur of ['storeCannotSell: true', 'storeCannotSell: !!', 'preSaleOpen = true']) {
+    assert(!code.includes(dur), `le hook écrit « ${dur} » : la pré-vente doit se LIRE, pas se décréter`);
+  }
+  // Et l'ouverture n'attend pas moins que les autres lectures : elle est bornée
+  // par la même patience, sinon un Store muet ouvrirait tout par défaut.
+  assert(code.includes('STORE_READ_PATIENCE_MS'), 'la lecture de la boutique n’est plus bornée');
+});
+
+Deno.test('couture pré-vente : les trois surfaces disent la MÊME phrase, écrite une fois', () => {
+  for (const chemin of [ABONNEMENT, PREMIUM, ANALYTICS]) {
+    const code = codeSeul(source(chemin));
+    assert(code.includes('PRE_SALE_INCLUDED_COPY_2026'), `${chemin} : le bandeau « inclus gratuitement » a disparu`);
+    assert(code.includes("'pre_sale_open'"), `${chemin} : la raison d’accès n’est plus distinguée d’un abonnement`);
+    // Réécrire la phrase sur place, c'est rouvrir les trois voix du 10/09.
+    assert(!code.includes('Inclus gratuitement'), `${chemin} : la phrase de pré-vente est réécrite localement au lieu d’être lue`);
+  }
+});
+
+Deno.test('couture pré-vente : « Gérer mon abonnement » n’existe que pour un ABONNÉ', () => {
+  // Le bouton mort évité : sans abonnement, la page Store d'Apple n'a rien à
+  // gérer. `access.active` ne suffit donc plus à le peindre.
+  for (const chemin of [ABONNEMENT, PREMIUM]) {
+    const code = codeSeul(source(chemin));
+    assert(code.includes('const subscribed = access.active && !included'), `${chemin} : « abonné » n’est plus distingué de « ouvert »`);
+    assert(code.includes("const included = access.reason === 'pre_sale_open'"), `${chemin} : la pré-vente n’est plus lue sur la raison d’accès`);
+    const index = code.indexOf('Gérer mon abonnement');
+    assert(index > 0, `${chemin} : « Gérer mon abonnement » a disparu`);
+    assert(code.slice(Math.max(0, index - 600), index).includes('subscribed'), `${chemin} : « Gérer mon abonnement » n’est plus gardé par un abonnement RÉEL`);
+  }
+});
+
+Deno.test('couture pré-vente : aucun achat proposé pendant que les outils sont offerts', () => {
+  // « S'abonner » reste gardé par `store.open` (test plus haut) ; ce qui se
+  // vérifie ici est l'autre bout : l'écran d'OUTIL n'a aucune surface de vente.
+  const analytics = codeSeul(source(ANALYTICS));
+  for (const libelle of ['S’abonner', 'Restaurer mes achats', 'purchaseSelected', 'usePremium']) {
+    assert(!analytics.includes(libelle), `/premium-analytics : « ${libelle} » ne doit pas exister sur un écran d’outil`);
+  }
+});

@@ -9,6 +9,8 @@ import {
   NO_TRIAL_NOTICE_2026,
   PERIOD_COPY_2026,
   PLANNED_PRICE_NOTICE_2026,
+  PRE_SALE_INCLUDED_COPY_2026,
+  PRE_SALE_SWITCH_NOTICE_2026,
   STORE_CLOSED_COPY_2026,
   STORE_CLOSED_TITLE_2026,
   formatEurCents2026,
@@ -47,6 +49,17 @@ export function ProfilePremiumScreen() {
   // G28 : « "Premium activé" n'apparaît qu'après confirmation des droits. »
   // Le cache du SDK ne suffit plus ; il produit l'état intermédiaire `pending`.
   const active = access.active;
+  /**
+   * ── « OUVERT » ET « ABONNÉ » NE SONT PLUS LE MÊME FAIT (11/09/2026) ───────
+   * Décision fondateur : tant que personne ne peut payer, les outils GRYD+ sont
+   * ouverts à tout compte connecté. `access.active` devient donc vrai sans
+   * qu'aucun euro n'ait changé de main — et écrire « Abonnement actif » ou
+   * peindre « Gérer mon abonnement » dans ce cas serait un mensonge net, avec
+   * en prime un bouton qui mène à une page Store où il n'y a rien à gérer.
+   * Un seul booléen sépare les deux, et c'est lui qui garde tout le bloc.
+   */
+  const included = access.reason === 'pre_sale_open';
+  const subscribed = access.active && !included;
   const awaitingConfirmation = !active && (access.status === 'pending' || lastResult?.kind === 'purchase_pending');
   useEffect(() => { screen('premium'); track(EVENTS.paywallView, { trigger: 'profile_gryd_plus' }); }, []);
   // Sept états nommés (G28), et jamais un message de panne pour un refus, une
@@ -71,10 +84,10 @@ export function ProfilePremiumScreen() {
   const restore = async () => { const result = await premium.restore(); if (result) { track(EVENTS.purchasesRestored, { result: result.kind }); access.reload(); } };
   // Une échéance CONFIRMÉE d'abord ; celle du Store ne sert que d'information
   // quand le serveur a déjà ouvert le droit.
-  const expiry = access.expiresAtMs ?? (active && pro?.kind === 'active' ? pro.expiresAtMs : null);
+  const expiry = access.expiresAtMs ?? (subscribed && pro?.kind === 'active' ? pro.expiresAtMs : null);
   return <ProfilePage tone="light" title="GRYD+" back>
     <View style={local.intro}>
-      <View style={local.statusLine}><View style={[local.statusDot, active && local.statusActive]} /><Text style={local.heroMeta}>{active ? copy('Abonnement actif', 'Subscription active') : awaitingConfirmation ? copy('Achat enregistré · confirmation en cours', 'Purchase registered · confirming') : access.status === 'unavailable' ? copy('Droits non vérifiés', 'Access not verified') : copy('GRYD · ÉDITION PLUS', 'GRYD · PLUS EDITION')}</Text></View>
+      <View style={local.statusLine}><View style={[local.statusDot, active && local.statusActive]} /><Text style={local.heroMeta}>{subscribed ? copy('Abonnement actif', 'Subscription active') : included ? copy('Outils ouverts · avant la mise en vente', 'Tools open · before sale') : awaitingConfirmation ? copy('Achat enregistré · confirmation en cours', 'Purchase registered · confirming') : access.status === 'unavailable' ? copy('Droits non vérifiés', 'Access not verified') : copy('GRYD · ÉDITION PLUS', 'GRYD · PLUS EDITION')}</Text></View>
       <Text style={local.title}>{copy('Une autre dimension\npour tes sorties.', 'Another dimension\nfor your activities.')}</Text>
       <Text style={local.heroMeta}>{copy('Analyse. Compose. Garde une trace.', 'Analyse. Compose. Keep a memory.')}</Text>
       <View style={local.heroObject} pointerEvents="none"><RewardEmblem variant="contour" size={100} tone="neutral" state="preview" accessibilityLabel={copy('Édition en aperçu', 'Edition preview')} /></View>
@@ -89,11 +102,20 @@ export function ProfilePremiumScreen() {
         <Text style={local.toolTitle}>{copy('Composer', 'Compose')}</Text><Text style={local.meta}>{copy('4 formats dans le Studio.', '4 formats in the Studio.')}</Text>
       </Pressable>
     </View>
+    {/* ── LE BANDEAU DE PRÉ-VENTE, COLLÉ AUX OUTILS QU'IL QUALIFIE ─────────
+        Il ne remplace pas le tarif prévu plus bas : le joueur a le droit de
+        savoir ce que ça coûtera, ET que ça ne lui coûte rien aujourd'hui. La
+        règle de bascule est dite ici, pas sur l'outil : prévenir vaut mieux
+        que reprendre en silence (ADR-014, écart n° 3). */}
+    {included ? <View style={local.included}><GrydIcon name="check" size={17} color={c.ink} /><View style={s.flex}>
+      <Text style={local.includedText}>{pick2026(PRE_SALE_INCLUDED_COPY_2026, locale)}</Text>
+      <Text style={local.meta}>{pick2026(PRE_SALE_SWITCH_NOTICE_2026, locale)}</Text>
+    </View></View> : null}
     <Pressable accessibilityRole="button" accessibilityState={{expanded:showEditions}} aria-expanded={showEditions} onPress={() => setShowEditions(value=>!value)} style={local.editions}>
       <View style={s.flex}><Text style={local.toolTitle}>{copy('Les éditions de saison', 'Season editions')}</Text><Text style={local.meta}>{copy(`${PROGRESSION_RULES_2026.premiumVariantTiers.length} variantes à découvrir`, `${PROGRESSION_RULES_2026.premiumVariantTiers.length} variants to discover`)}</Text></View><View style={local.circle}><GrydIcon name={showEditions ? 'minus' : 'plus'} size={19} color={c.ink} /></View>
     </Pressable>
     {showEditions ? <PremiumObjectsPreview2026 tone="light" locale={locale==='en'?'en':'fr'}/> : null}
-    {active ? <View style={local.account}>
+    {subscribed ? <View style={local.account}>
       {expiry ? <Text style={local.meta}>{access.cancelled || pro?.kind === 'active' && pro.cancelled ? copy('Résilié · disponible jusqu’au ', 'Cancelled · available until ') : copy('Échéance le ', 'Period ends on ')}{new Date(expiry).toLocaleDateString(locale)}</Text> : null}
       <View style={local.compactAction}><ProfileButton tone="light" label={copy('Gérer mon abonnement', 'Manage subscription')} onPress={() => router.push('/abonnement')} /></View>
     </View> : <View style={local.account}>
@@ -155,5 +177,8 @@ const local = StyleSheet.create({
   index: { fontFamily: fonts.mono, fontSize: 12, color: c.muted, fontVariant: ['tabular-nums'] }, toolTitle: { fontFamily: fonts.displaySemi, fontSize: 14, lineHeight: 20, color: c.ink },
   editions: { marginTop: 12, backgroundColor: c.surface, padding: 14, borderRadius: 24, minHeight: 72, flexDirection: 'row', gap: 12, alignItems: 'center' },
   planned: { gap: 10, paddingVertical: 4 }, plannedRow: { gap: 2 },
+  // Pré-vente : cadre + icône, jamais la couleur seule (L15).
+  included: { marginTop: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.accent },
+  includedText: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink, marginBottom: 4 },
   account: { marginTop: 16, paddingBottom: 14, gap: 12 }, sectionTitle: { fontFamily: fonts.displaySemi, fontSize: 17, lineHeight: 22, color: c.ink }, loading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }, compactAction: { alignSelf: 'flex-start', marginTop: 2 }, plan: { minHeight: 68, flexDirection: 'row', gap: 12, alignItems: 'center', borderWidth: 1, borderColor: c.border, borderRadius: 18, padding: 12, marginBottom: 10, backgroundColor: c.surface }, planSelected: { borderColor: c.ink }, planHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }, radio: { width: 18, height: 18, borderWidth: 1, borderColor: c.muted, borderRadius: 9, alignItems: 'center', justifyContent: 'center' }, radioSelected: { borderColor: c.ink }, radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.ink }, savings: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 12, backgroundColor: c.accent, paddingHorizontal: 6, borderRadius: 4 }, price: { fontFamily: fonts.displayMedium, fontSize: 16, lineHeight: 22, color: c.ink, fontVariant: ['tabular-nums'], flexShrink: 1, textAlign: 'right' }, notice: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.ink, paddingBottom: 14 }, utility: { minHeight: 44, paddingVertical: 10, flexDirection: 'row', gap: 10, alignItems: 'center' }, utilityText: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink }, disclosure: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border }, details: { gap: 10, paddingVertical: 14 }, legal: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, marginTop: 8 }, legalLink: { minHeight: 44, justifyContent: 'center' },
 });

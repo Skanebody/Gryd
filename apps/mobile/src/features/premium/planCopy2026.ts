@@ -145,3 +145,31 @@ export const RENEWAL_NOTICE_2026: Copy2026 = {
   fr: 'Renouvellement automatique. Résiliation dans les réglages de l’App Store ; l’accès dure jusqu’à la fin de la période payée.',
   en: 'Renews automatically. Cancel in App Store settings; access lasts until the end of the paid period.',
 };
+
+/**
+ * ─── LA PHRASE DE LA PRÉ-VENTE (décision fondateur du 11/09/2026) ──────────
+ * « ouvre, faut les mettre en place si quelqu'un paie. » Les outils GRYD+ sont
+ * donc ouverts à tout compte connecté TANT QUE rien n'est en vente.
+ *
+ * Elle dit deux choses, et pas une de plus : que c'est gratuit AUJOURD'HUI, et
+ * que ce n'est pas définitif. Elle ne promet AUCUNE date d'ouverture (ADR-011
+ * interdit le « bientôt »), ne remercie pas le joueur d'un cadeau qu'il n'a pas
+ * demandé, et ne fabrique aucune urgence : « jusqu'à l'ouverture de GRYD+ » est
+ * un fait conditionnel, pas un compte à rebours.
+ */
+export const PRE_SALE_INCLUDED_COPY_2026: Copy2026 = {
+  fr: 'Inclus gratuitement jusqu’à l’ouverture de GRYD+.',
+  en: 'Included for free until GRYD+ opens.',
+};
+
+/**
+ * LA RÈGLE DE BASCULE, DITE AVANT qu'elle ne s'applique. Le jour de l'ouverture,
+ * ces outils redeviennent réservés aux abonnés : le taire serait exactement le
+ * « ouvrir puis reprendre en silence » que redoutait ADR-014 (écart n° 3). On
+ * l'écrit donc à l'endroit qui informe (`/premium`, `/abonnement`), pas sur
+ * l'outil lui-même, où ce serait une menace au milieu d'un usage.
+ */
+export const PRE_SALE_SWITCH_NOTICE_2026: Copy2026 = {
+  fr: 'Le jour où GRYD+ sera mis en vente, ces outils redeviendront réservés aux abonnés. Aucune date n’est fixée.',
+  en: 'The day GRYD+ goes on sale, these tools return to subscribers only. No date is set.',
+};

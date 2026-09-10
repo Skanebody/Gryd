@@ -50,7 +50,7 @@ export { useGrydPlusAccess, refreshServerGrydPlusAccess } from './useGrydPlusAcc
 export { readPurchaseFailure2026 } from './purchaseFailure2026';
 export type { PurchaseFailure2026, StoreErrorLike2026 } from './purchaseFailure2026';
 export { grydPlusAccessState2026, readServerGrydPlusAccess2026 } from './access2026';
-export type { GrydPlusAccessStatus2026, ServerGrydPlusAccess2026 } from './access2026';
+export type { GrydPlusAccessReason2026, GrydPlusAccessStatus2026, ServerGrydPlusAccess2026 } from './access2026';
 // ── L'OFFRE DÉCIDÉE (game-rules) + LA BOUTIQUE RÉELLE (§16.1, retour 10/09) ──
 export {
   GRYD_PLUS_BENEFITS_2026,
@@ -61,6 +61,7 @@ export {
   plannedYearlySavingsPercent2026,
   showsPlannedPrices2026,
   storeAvailability2026,
+  storeCannotSellYet2026,
   storeSaysNotOnSale2026,
 } from './plan2026';
 export {
@@ -70,6 +71,8 @@ export {
   PERIOD_COPY_2026,
   PERMANENT_COLLECTION_COPY_2026,
   PLANNED_PRICE_NOTICE_2026,
+  PRE_SALE_INCLUDED_COPY_2026,
+  PRE_SALE_SWITCH_NOTICE_2026,
   RENEWAL_NOTICE_2026,
   STORE_CLOSED_COPY_2026,
   STORE_CLOSED_TITLE_2026,

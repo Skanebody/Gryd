@@ -243,3 +243,40 @@ export function storeSaysNotOnSale2026(availability: StoreAvailability2026): boo
 export function showsPlannedPrices2026(availability: StoreAvailability2026): boolean {
   return !availability.open;
 }
+
+/**
+ * ─── LA PRÉ-VENTE : « PERSONNE NE PEUT PAYER » EST UN FAIT VÉRIFIABLE ──────
+ *
+ * Décision du fondateur du 11/09/2026, mot pour mot, à la question « ouvrir ou
+ * non les outils GRYD+ tant que rien n'est en vente ? » : « ouvre, faut les
+ * mettre en place si quelqu'un paie ». Elle tranche l'écart n° 3 laissé ouvert
+ * par ADR-014 (« les outils GRYD+ restent murés derrière un droit que personne
+ * ne peut obtenir ») et elle est consignée dans
+ * `docs/product/ADR-016-BROUILLON-GRYDPLUS-OUVERT.md`.
+ *
+ * Cette fonction dit UNE chose et une seule : la boutique est-elle fermée POUR
+ * DE BON, ou seulement PAS ENCORE LUE ? Les quatre motifs ci-dessous sont des
+ * faits établis — il n'y a pas de clé, pas de produit, pas de prix confirmé, ou
+ * la plateforme n'a pas d'achat in-app. Dans ces quatre cas, aucun joueur au
+ * monde ne peut payer, donc réserver un outil aux abonnés reviendrait à le
+ * réserver à personne : un mur sans porte.
+ *
+ * Les TROIS motifs exclus le sont pour la même raison qu'ailleurs dans ce
+ * fichier : ils n'affirment rien.
+ *   · `checking`  — la lecture est en cours. Un chargement ne conclut pas.
+ *   · `signedOut` — sans compte, on ne sait rien, et un outil personnel n'a de
+ *                   toute façon aucune donnée à montrer.
+ *   · `readFailed`— la lecture a échoué. « On ne sait pas » n'est pas « fermé ».
+ *
+ * Et la réciproque est la RÈGLE DE BASCULE : le jour où la boutique s'ouvre
+ * (une offre lue avec son prix confirmé), cette fonction rend `false` d'elle-
+ * même, et le droit serveur redevient seul juge. Aucun drapeau à basculer à la
+ * main, aucune date écrite nulle part.
+ */
+export function storeCannotSellYet2026(availability: StoreAvailability2026): boolean {
+  if (availability.open) return false;
+  return availability.reason === 'notConfigured'
+    || availability.reason === 'nothingOnSale'
+    || availability.reason === 'noConfirmedPrice'
+    || availability.reason === 'platform';
+}

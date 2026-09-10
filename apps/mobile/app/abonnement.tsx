@@ -51,6 +51,8 @@ import {
   PERMANENT_COLLECTION_COPY_2026,
   PERMANENT_COLLECTION_PRICES_2026,
   PLANNED_PRICE_NOTICE_2026,
+  PRE_SALE_INCLUDED_COPY_2026,
+  PRE_SALE_SWITCH_NOTICE_2026,
   RENEWAL_NOTICE_2026,
   STORE_CLOSED_COPY_2026,
   STORE_CLOSED_TITLE_2026,
@@ -81,7 +83,16 @@ export default function AbonnementScreen() {
   const store = storeAvailability2026({ status, offers: premium.offers, blockedReason: premium.blockedReason });
   const planned = showsPlannedPrices2026(store);
   const savings = plannedYearlySavingsPercent2026();
-  const expiry = access.expiresAtMs ?? (access.active && pro?.kind === 'active' ? pro.expiresAtMs : null);
+  /**
+   * PRÉ-VENTE (décision fondateur du 11/09/2026) : les outils GRYD+ sont ouverts
+   * à tout compte connecté tant que rien n'est en vente. `access.active` est
+   * donc vrai sans abonnement — un cinquième état, distinct des quatre autres,
+   * qu'on n'a pas le droit de replier sur « GRYD+ actif » (ce serait affirmer un
+   * paiement) ni sur « Gratuit » (ce serait taire que les outils sont ouverts).
+   */
+  const included = access.reason === 'pre_sale_open';
+  const subscribed = access.active && !included;
+  const expiry = access.expiresAtMs ?? (subscribed && pro?.kind === 'active' ? pro.expiresAtMs : null);
   const shown = purchases ? recentPurchases(purchases) : null;
   // Un abonnement ACTIF est le seul cas où « Gérer » a une destination réelle :
   // sans droit ouvert, la page Store d'Apple ne montrerait rien à gérer.
@@ -110,6 +121,10 @@ export default function AbonnementScreen() {
     </View> : access.status === 'pending' ? <View style={s.state}>
       <Text style={s.title}>{copy('Confirmation en cours', 'Confirming')}</Text>
       <Text style={s.body}>{copy('L’App Store a enregistré ton achat. Tes droits s’ouvriront dès que le serveur l’aura confirmé.', 'The App Store registered your purchase. Your access opens as soon as the server confirms it.')}</Text>
+    </View> : included ? <View style={s.state}>
+      <Text style={s.title}>{copy('Outils GRYD+ ouverts', 'GRYD+ tools open')}</Text>
+      <Text style={s.body}>{pick2026(PRE_SALE_INCLUDED_COPY_2026, locale)}</Text>
+      <Text style={s.meta}>{pick2026(PRE_SALE_SWITCH_NOTICE_2026, locale)}</Text>
     </View> : access.active ? <View style={s.state}>
       <Text style={s.title}>{copy('GRYD+ actif', 'GRYD+ active')}</Text>
       {expiry ? <Text style={s.body}>{access.cancelled
@@ -124,6 +139,8 @@ export default function AbonnementScreen() {
     {/* ─── 2. GRYD+ ──────────────────────────────────────────────────────── */}
     <ProfileSection title="GRYD+" />
     <Text style={s.body}>{copy('GRYD+ ajoute des outils d’analyse privée et de composition. Il ne touche à rien de ce qui se gagne sur le terrain.', 'GRYD+ adds private analysis and composition tools. It changes nothing of what is earned on the ground.')}</Text>
+    {/* La même phrase que `/premium` et que l'outil lui-même : une seule voix. */}
+    {included ? <Text style={[s.body, { marginTop: 10 }]}>{pick2026(PRE_SALE_INCLUDED_COPY_2026, locale)}</Text> : null}
     <View style={[s.gap, { marginTop: 14 }]}>{GRYD_PLUS_BENEFITS_2026.map(benefit =>
       <Text key={benefit.id} style={s.body}>{benefitLabel2026(benefit.id, benefit.count, locale)}</Text>)}</View>
     {noPaidGameAdvantage2026() ? <Text style={[s.meta, { marginTop: 14 }]}>{pick2026(NO_PAID_ADVANTAGE_COPY_2026, locale)}</Text> : null}
@@ -187,7 +204,10 @@ export default function AbonnementScreen() {
 
     {/* ─── 4. GÉRER ──────────────────────────────────────────────────────── */}
     <ProfileSection title={copy('Gérer', 'Manage')} />
-    {access.active ? manageUrl ? <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}>
+    {/* « Gérer mon abonnement » n'a de destination QUE s'il y a un abonnement.
+        En pré-vente il n'y en a aucun : le bouton mènerait à une page Store
+        vide, c'est-à-dire un bouton mort (MASTER §12). */}
+    {subscribed ? manageUrl ? <View style={{ alignSelf: 'flex-start', marginBottom: 12 }}>
       <ProfileButton label={copy('Gérer mon abonnement', 'Manage my subscription')} secondary onPress={() => {
         haptics.light();
         void Linking.openURL(manageUrl).catch(() => setMessage(copy('L’App Store n’a pas pu s’ouvrir. Retrouve ton abonnement dans les réglages de ton appareil.', 'The App Store could not open. Find your subscription in your device settings.')));
