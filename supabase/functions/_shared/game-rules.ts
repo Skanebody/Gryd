@@ -6682,6 +6682,227 @@ export const CREW_NOTIFICATION_EVENT_KEYS_2026 =
   Object.keys(CREW_NOTIFICATION_EVENTS_2026) as readonly CrewNotificationEvent2026[];
 
 /**
+ * ═══ LE CATALOGUE DE LA BOÎTE DE RÉCEPTION (§14.2, 11/09/2026) ═════════════
+ *
+ * ─── LA DEMANDE, MOT POUR MOT ───────────────────────────────────────────────
+ * Fondateur, 11/09/2026 : « mets en place un producteur de notification, les
+ * notifications doivent être courtes avec un emoji ». Ce catalogue EST le
+ * contrat : une clé = un fait du jeu, son emoji, sa catégorie de réglage
+ * (§14.1), sa priorité, et le préfixe d'identifiant qui rend le doublon
+ * impossible (§14.3).
+ *
+ * ─── CE QU'IL PORTE, ET CE QU'IL NE PORTE PAS ───────────────────────────────
+ * Il porte l'EMOJI, parce qu'un emoji ne se traduit pas : il est le même dans
+ * les cinq langues, et le figer ici (puis en SQL, `notification_kind_2026`)
+ * empêche deux producteurs d'en choisir deux différents pour le même fait.
+ *
+ * Il ne porte AUCUNE PHRASE, et c'est la décision de forme du lot. Le titre et
+ * le corps vivent dans le catalogue typé du mobile
+ * (`apps/mobile/src/i18n/catalog/notifications.ts`, où `Entry` impose les cinq
+ * langues), exactement comme l'a tranché 0188 : écrire du français en base
+ * l'aurait figé en une seule langue et aurait violé L18. Le SERVEUR écrit un
+ * FAIT et ses paramètres ; l'application le dit dans la langue du lecteur.
+ * Le jour du push distant, c'est le dispatcheur qui rendra le texte, avec la
+ * langue du compte — même catalogue, autre moment.
+ *
+ * ─── LES SIX FAITS DE CREW NE SONT PAS RECOPIÉS ─────────────────────────────
+ * Ils DÉRIVENT de `CREW_NOTIFICATION_EVENTS_2026` (0188) par étalement :
+ * catégorie, transactionnalité, priorité et préfixe viennent de là, et seuls
+ * l'emoji, la famille et le lien s'ajoutent. Recopier ces quatre champs aurait
+ * créé deux vérités pour un même message.
+ *
+ * ─── `family` EST LA COLONNE `type` DE 0006 ─────────────────────────────────
+ * `public.notifications.type` porte une contrainte `check` fermée. Trois
+ * valeurs s'y ajoutent en 0192 (`capture`, `result`, `event`) ; `crew` et
+ * `reward` existaient. Ce n'est pas une seconde taxonomie : c'est le nom de
+ * famille que la table exige déjà, et le fait précis reste dans
+ * `payload->>'event'`.
+ *
+ * ─── `deepLink` : UN MODÈLE, PAS UNE URL ────────────────────────────────────
+ * `{clé}` nomme une clé du payload. `null` veut dire « ce message n'ouvre
+ * rien » — et c'est un fait, pas un oubli : retiré d'un crew ou membre d'un
+ * crew dissous, il n'existe plus d'écran de ce crew pour toi. L'application ne
+ * peint alors aucune affordance de tap (« aucun bouton mort »).
+ */
+export const NOTIFICATION_EVENTS_2026 = {
+  // ── Sport : ce que la sortie a produit ────────────────────────────────────
+  /**
+   * Le terrain est publié sur la carte (`capture_events_2026` passe
+   * `scheduled → published`, 0156 l. 147). UNE ligne par SORTIE, pas par face :
+   * l'`event_id` porte le `run_id`, donc la deuxième face publiée d'une même
+   * boucle rencontre l'index unique et n'écrit rien. C'est le regroupement de
+   * §14.3, tenu par une contrainte plutôt que par la bonne volonté du producteur.
+   *
+   * AUCUNE SURFACE DANS LE MESSAGE, et c'est un refus de mentir : au moment où
+   * la première face bascule, les autres ne sont pas encore publiées — tout
+   * total écrit là serait partiel. Le chiffre vit sur l'écran de la sortie, où
+   * il est complet.
+   */
+  capture_published: {
+    category: 'sport', transactional: false, priority: 3, emoji: '🏁',
+    family: 'capture', eventIdPrefix: 'capture_published:', deepLink: '/course/{runId}',
+  },
+  /**
+   * La sortie part en vérification (0155/0187). TRANSACTIONNELLE : c'est l'état
+   * d'une chose que le joueur vient de faire, pas une relance. Sans elle, une
+   * course « en attente » resterait muette jusqu'à ce qu'il repense à regarder.
+   */
+  result_pending: {
+    category: 'results', transactional: true, priority: 2, emoji: '⏳',
+    family: 'result', eventIdPrefix: 'result_pending:', deepLink: '/course/{runId}',
+  },
+  /**
+   * La vérification est TERMINÉE et la sortie est réadmise (`pending →
+   * scheduled`, 0187 l. 410 après un verdict d'opérateur). §14.2, première
+   * ligne : « Ta sortie est analysée. Ton résultat est prêt. »
+   */
+  result_ready: {
+    category: 'results', transactional: true, priority: 1, emoji: '✅',
+    family: 'result', eventIdPrefix: 'result_ready:', deepLink: '/course/{runId}',
+  },
+  /**
+   * La sortie ne prend pas de terrain (`→ rejected`). DEUX chemins mènent ici et
+   * ils méritent le même message : le verdict d'opérateur qui confirme le
+   * soupçon (0187 l. 449) et l'expiration de 24 h sans reçu
+   * (`resolve_pending_captures_2026`, 0156 l. 59). Le message dit le FAIT, jamais
+   * le soupçon : une suspicion est une donnée sensible (ADR-015 §2).
+   */
+  result_refused: {
+    category: 'results', transactional: true, priority: 1, emoji: '⛔',
+    family: 'result', eventIdPrefix: 'result_refused:', deepLink: '/course/{runId}',
+  },
+
+  // ── Récompenses : un objet, jamais un avantage (ADR-013 §4) ───────────────
+  /** Défi personnel de la semaine accompli (0165-0168). */
+  weekly_quest_done: {
+    category: 'sport', transactional: false, priority: 3, emoji: '🎯',
+    family: 'reward', eventIdPrefix: 'weekly_quest_done:', deepLink: '/defis-semaine',
+  },
+  /** Une des huit récompenses de niveau du §7.2 vient d'être octroyée (0144). */
+  level_reward: {
+    category: 'results', transactional: false, priority: 3, emoji: '🏅',
+    family: 'reward', eventIdPrefix: 'level_reward:', deepLink: '/season',
+  },
+  /**
+   * §3.7 — le parrainage abouti, dit UNE FOIS aux deux. Seul fait de ce
+   * catalogue qui avait déjà un producteur avant ce lot (0186, l. 248) : sa
+   * règle vit aussi dans `NOTIFICATION_RULES_2026.referralCompleted`, et le
+   * test PGlite vérifie que les deux coïncident.
+   */
+  referral_completed: {
+    category: 'results', transactional: false, priority: 3, emoji: '🎁',
+    family: 'reward', eventIdPrefix: 'referral_completed:', deepLink: '/parrainage',
+  },
+
+  // ── Crew : la vie du groupe ───────────────────────────────────────────────
+  /** §14.2 : « Tu as rejoint Les Foulées du Canal. » Au NOUVEAU membre. */
+  crew_joined: {
+    category: 'crew', transactional: false, priority: 2, emoji: '👋',
+    family: 'crew', eventIdPrefix: 'crew_joined:', deepLink: '/crew',
+  },
+  /** Aux membres déjà là : quelqu'un est entré. Jamais au monde. */
+  crew_member_joined: {
+    category: 'crew', transactional: false, priority: 3, emoji: '👥',
+    family: 'crew', eventIdPrefix: 'crew_member_joined:', deepLink: '/crew',
+  },
+  /** Le capitaine a publié une annonce épinglée (0096, `crew_announcements`). */
+  crew_announcement: {
+    category: 'crew', transactional: false, priority: 3, emoji: '📣',
+    family: 'crew', eventIdPrefix: 'crew_announcement:', deepLink: '/crew-feed',
+  },
+  /** Le défi de crew passe `scheduled → active` (0122 l. 340). Au roster réservé. */
+  crew_challenge_started: {
+    category: 'crew', transactional: false, priority: 3, emoji: '⚔️',
+    family: 'crew', eventIdPrefix: 'crew_challenge_started:', deepLink: '/crew-challenges',
+  },
+  /**
+   * §14.2 : « Le résultat de votre défi est prêt. » Une fois, après clôture
+   * EFFECTIVE (`→ final`, 0122 l. 345) — jamais sur une publication
+   * intermédiaire, qui n'est pas un résultat.
+   */
+  crew_challenge_ended: {
+    category: 'crew', transactional: false, priority: 2, emoji: '🏆',
+    family: 'crew', eventIdPrefix: 'crew_challenge_ended:', deepLink: '/crew-challenges',
+  },
+
+  // ── Événements suivis (§14.2, lignes 2 et 3) ──────────────────────────────
+  /** Une sortie de crew est proposée (0085 `crew_outing_create`). */
+  crew_outing_proposed: {
+    category: 'events', transactional: false, priority: 3, emoji: '📅',
+    family: 'event', eventIdPrefix: 'crew_outing_proposed:', deepLink: '/crew-sortie',
+  },
+  /**
+   * « Le rendez-vous de dimanche a changé. » Aux INSCRITS seuls, et
+   * TRANSACTIONNELLE : un changement matériel n'attend pas 9 h du matin pour
+   * être vrai. L'`event_id` porte la RÉVISION — une correction supplémentaire
+   * produit une ligne, deux passages de la même révision n'en produisent aucune.
+   */
+  crew_outing_changed: {
+    category: 'events', transactional: true, priority: 2, emoji: '🔁',
+    family: 'event', eventIdPrefix: 'crew_outing_changed:', deepLink: '/crew-sortie',
+  },
+  /** L'annulation, aux inscrits. Transactionnelle pour la même raison. */
+  crew_outing_cancelled: {
+    category: 'events', transactional: true, priority: 1, emoji: '🚫',
+    family: 'event', eventIdPrefix: 'crew_outing_cancelled:', deepLink: '/crew-sortie',
+  },
+
+  // ── Les six faits de crew de 0188 : DÉRIVÉS, jamais recopiés ──────────────
+  application_received: {
+    ...CREW_NOTIFICATION_EVENTS_2026.application_received,
+    emoji: '📥', family: 'crew', deepLink: '/crew-gestion',
+  },
+  invited: {
+    ...CREW_NOTIFICATION_EVENTS_2026.invited,
+    emoji: '✉️', family: 'crew', deepLink: '/crew-rejoindre',
+  },
+  charter_updated: {
+    ...CREW_NOTIFICATION_EVENTS_2026.charter_updated,
+    emoji: '📜', family: 'crew', deepLink: '/crew-regles',
+  },
+  warning_issued: {
+    ...CREW_NOTIFICATION_EVENTS_2026.warning_issued,
+    emoji: '⚠️', family: 'crew', deepLink: '/crew-ma-situation',
+  },
+  /** Ni le nom ni l'avatar de qui a décidé (§2.5). Le journal interne le garde. */
+  removed: {
+    ...CREW_NOTIFICATION_EVENTS_2026.removed,
+    emoji: '🚪', family: 'crew', deepLink: null,
+  },
+  dissolved: {
+    ...CREW_NOTIFICATION_EVENTS_2026.dissolved,
+    emoji: '📕', family: 'crew', deepLink: null,
+  },
+} as const;
+export type NotificationKind2026 = keyof typeof NOTIFICATION_EVENTS_2026;
+export const NOTIFICATION_KIND_KEYS_2026 =
+  Object.keys(NOTIFICATION_EVENTS_2026) as readonly NotificationKind2026[];
+/** Les familles de `public.notifications.type` que ce catalogue emploie. */
+export const NOTIFICATION_FAMILIES_2026 = ['capture', 'result', 'reward', 'crew', 'event'] as const;
+
+/**
+ * COURT, ET MESURÉ. « Les notifications doivent être courtes » (fondateur,
+ * 11/09/2026) n'est pas une intention : c'est une longueur, testée sur les cinq
+ * langues de `catalog/notifications.ts`. 60 et 140 sont les ordres de grandeur
+ * qu'iOS affiche sans couper sur un écran verrouillé ; les dépasser reviendrait
+ * à écrire pour une bannière qui n'existe pas encore.
+ *
+ * `refreshMinimumIntervalMs` borne la RELECTURE de la boîte, pas un sondage :
+ * l'application relit à l'ouverture de l'écran et au retour au premier plan, et
+ * ignore une demande qui suit la précédente de moins d'une minute. Aucun
+ * `setInterval` n'existe — un centre d'activité qui interroge le serveur en
+ * boucle vide la batterie pour une nouvelle qui n'arrive pas.
+ */
+export const NOTIFICATION_INBOX_2026 = {
+  maximumTitleCharacters: 60,
+  maximumBodyCharacters: 140,
+  pageSize: 30,
+  refreshMinimumIntervalMs: 60_000,
+  /** Au-delà, la cloche écrit « 99+ » plutôt qu'un nombre que personne ne lit. */
+  unreadBadgeMaximum: 99,
+} as const;
+
+/**
  * Dissolution — les refus NOMMÉS de `crew_dissolve_2026`, décidés serveur.
  *
  * `active_challenge` EST UN REFUS, PAS UN ARCHIVAGE DIFFÉRÉ, et c'est la
@@ -6699,3 +6920,113 @@ export const CREW_DISSOLVE_REFUSALS = [
   'signed_out', 'no_crew', 'not_founder', 'active_challenge', 'already_archived',
 ] as const;
 export type CrewDissolveRefusal = (typeof CREW_DISSOLVE_REFUSALS)[number];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRACÉS 2026 — CE QUE GRYD GARDE D'UNE SORTIE, ET QUI EN DÉCIDE
+//
+// ═══ LA DÉCISION DU FONDATEUR (11/09/2026) ═════════════════════════════════
+// « Trace GPS : ce qui est le plus adapté, ou mettre dans les réglages
+// l'option, mais ne pas purger directement. » Elle tranche une contradiction
+// qui vivait dans le dépôt depuis le 28/07 :
+//   · `runs.polyline_masked` (trace expurgée, écrite par `ingest_run`) était
+//     purgée à 90 jours POUR TOUT LE MONDE par le job `gryd_purge_polylines`
+//     (migrations 0101 + 0102) ;
+//   · `runs.trace_points_2026` (les points COMPLETS et horodatés, migration
+//     0118, écrite par `ingest_run/refonte2026.ts`) n'était JAMAIS purgée.
+// Deux formes de la même trace, deux durées de vie opposées, et le joueur
+// n'avait aucun mot à dire sur l'une ni sur l'autre.
+//
+// ═══ CE QUE LE RANG 0 DIT, ET QUI TRANCHE DANS LE MÊME SENS ════════════════
+// `docs/product/GRYD_REFONTE_INTEGRALE_2026_09.md` §18.5 : « trace canonique
+// conservée TANT QUE L'ACTIVITÉ EST CONSERVÉE ». Le défaut n'est donc pas une
+// durée, c'est l'absence de durée — et une purge automatique à 90 jours était
+// en fait un écart au cahier, pas son application.
+//
+// ═══ POURQUOI CE N'EST PAS UN RENONCEMENT À LA MINIMISATION ════════════════
+// La minimisation RGPD porte sur ce qu'on COLLECTE et sur la FINALITÉ, pas sur
+// une durée uniforme imposée à tous. La trace d'une sortie EST le service :
+// c'est elle qui dessine la carte du détail, les splits, la courbe d'allure et
+// le dénivelé. L'effacer d'office au bout de 90 jours retirait au joueur la
+// chose qu'il était venu chercher, sans jamais le lui demander. Ce qui manquait
+// n'était pas une purge : c'était un CHOIX, et un moyen d'effacer à la demande.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Les trois conservations possibles d'un tracé, du plus permissif au plus
+ * court. L'ORDRE EST CELUI DE L'ÉCRAN : le défaut d'abord.
+ *
+ *  · `keep`     — DÉFAUT. Rien n'est effacé : le tracé vit aussi longtemps que
+ *                 la sortie. Ce choix ne déclenche AUCUNE purge, sur AUCUNE des
+ *                 deux formes de trace.
+ *  · `days_90`  — les deux formes s'effacent 90 jours après le départ.
+ *  · `days_365` — les deux formes s'effacent 1 an après le départ.
+ *
+ * LES DEUX FORMES PARTENT ENSEMBLE, et c'est le cœur de l'alignement : garder
+ * `trace_points_2026` en effaçant `polyline_masked` (ou l'inverse) laisserait
+ * un joueur croire qu'il a effacé sa trace alors que l'autre colonne la porte
+ * encore. Une préférence de vie privée qui ne couvre qu'une moitié de la donnée
+ * n'est pas une préférence, c'est une illusion.
+ */
+export const TRACE_RETENTION_CHOICES_2026 = ['keep', 'days_90', 'days_365'] as const;
+export type TraceRetentionChoice2026 = (typeof TRACE_RETENTION_CHOICES_2026)[number];
+
+/**
+ * Le choix par DÉFAUT — celui qui s'applique à qui n'a jamais rien réglé, et
+ * celui que porte la colonne `user_profiles.trace_retention_2026` (0195).
+ *
+ * `keep` N'EST PAS UN DÉFAUT PARESSEUX. C'est le seul qui ne change rien pour
+ * personne le jour de la migration : aucun tracé existant n'est effacé par
+ * l'arrivée de la préférence. Un défaut à `days_90` aurait, lui, effacé en une
+ * nuit les tracés de tous les comptes — une purge de masse déclenchée par un
+ * déploiement, que personne n'aurait demandée.
+ */
+export const TRACE_RETENTION_DEFAULT_2026: TraceRetentionChoice2026 = 'keep';
+
+/**
+ * Durée de conservation en JOURS, ou `null` quand il n'y en a pas.
+ *
+ * ⚠️ MIROIR CÔTÉ SQL. Une fonction PostgreSQL ne peut pas lire un module
+ * TypeScript : `purge_traces_by_retention_2026` (0196) recopie ces deux
+ * nombres, exactement comme `0102` recopiait `RAW_POLYLINE_RETENTION_DAYS`. Si
+ * une valeur change ici, une migration SUIVANTE doit la reprendre là-bas — une
+ * migration ne se réécrit jamais. Le test PGlite du lot confronte les deux.
+ */
+export const TRACE_RETENTION_DAYS_2026: Readonly<
+  Record<TraceRetentionChoice2026, number | null>
+> = {
+  keep: null,
+  days_90: 90,
+  days_365: 365,
+};
+
+/**
+ * Les refus NOMMÉS de `delete_run_trace_2026` (0195) — l'effacement immédiat,
+ * à la demande, d'UN tracé.
+ *
+ * ═══ `review_open` EST LE PLANCHER ANTI-TRICHE, ET IL PROTÈGE LES DEUX CAMPS ═
+ * Tant qu'une revue anti-triche (`anticheat_reviews`, 0081) ou un recours
+ * (`anticheat_appeals`) est OUVERT sur une sortie, son tracé n'est effacé par
+ * RIEN : ni le job de rétention, ni ce bouton.
+ *   · côté joueur — le tracé EST la preuve de son recours. Le laisser
+ *     s'effacer pendant l'instruction reviendrait à lui faire perdre son
+ *     dossier par une préférence qu'il a réglée des mois plus tôt ;
+ *   · côté jeu — sans plancher, effacer la preuve deviendrait le premier geste
+ *     de qui vient d'être signalé.
+ * 0081 le dit sans détour : AUCUN engagement de délai n'est tenu par du code
+ * (`sla_due_at` n'existe pas). Une revue peut donc rester ouverte plus
+ * longtemps que la plus longue des conservations — c'est le seul état du
+ * schéma qui puisse dépasser 90 jours, et donc le seul qui mérite un plancher.
+ * Le pipeline de capture, lui, n'en a pas besoin : une capture `pending`
+ * expire dans les 24 h de la fermeture physique (0156), très loin des 90 jours
+ * de la plus courte conservation.
+ *
+ * `not_found` couvre les deux situations que la RLS rend volontairement
+ * indistinguables — identifiant inconnu, ou sortie d'autrui : distinguer les
+ * deux serait un oracle d'existence sur la donnée d'un tiers.
+ */
+export const TRACE_DELETE_REFUSALS_2026 = [
+  'signed_out',
+  'not_found',
+  'review_open',
+] as const;
+export type TraceDeleteRefusal2026 = (typeof TRACE_DELETE_REFUSALS_2026)[number];
