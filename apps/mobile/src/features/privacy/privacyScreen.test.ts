@@ -102,3 +102,68 @@ Deno.test('la conséquence de la discrétion nomme la LIGNE, pas seulement le no
   }
   assert(C.territoryNameGovernNote.fr.includes('ta ligne'));
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// LA ZONE « BLOCAGE & SIGNALEMENT » NE PEUT PLUS ENVOYER SUR UN CHEMIN MORT
+// ════════════════════════════════════════════════════════════════════════════
+//
+// ÉTAPE 0 — TROIS PHRASES FAUSSES, LE 10/09/2026 AU SOIR :
+//   · « touche « … » sur la ligne du joueur, dans ton crew OU AU CLASSEMENT » —
+//     `CommuneLeaderboard2026` n'a aucune action par ligne ; le raccourci n'y a
+//     jamais existé. Un chemin mort, dans l'écran de sécurité ;
+//   · « Bloquer remplace son pseudo par « Joueur bloqué » dans ton crew ET AU
+//     CLASSEMENT » — au classement, 0164 rend `label = null` et l'écran affiche
+//     « Joueur · ABC123 » ;
+//   · « GRYD n'a pas de messagerie, il n'y a donc AUCUN MESSAGE À SIGNALER » —
+//     0127 a ouvert la conversation de crew et son signalement, 0124 le fil et
+//     ses commentaires. Répondre « il n'y a rien à signaler » à quelqu'un qui
+//     vient de recevoir un message est le pire refus que cet écran puisse faire.
+
+Deno.test('le raccourci « … » n’est promis que là où il existe', async () => {
+  const board = await read(
+    '../refonte/CommuneLeaderboard2026.tsx',
+  );
+  // Le fait, d'abord : le classement ne monte AUCUNE feuille de modération.
+  assertEquals(
+    board.includes('PlayerModerationSheet'),
+    false,
+    'si le classement gagne un « … », c’est la COPIE qu’il faut rouvrir',
+  );
+  // Le crew, lui, l'a bien.
+  const roster = await read('../crew/CrewRosterGroups.tsx');
+  assert(roster.includes('PlayerModerationSheet'), 'le roster porte le raccourci');
+  // Donc la note ne l'envoie pas au classement.
+  assertEquals(C.blockShortcutNote.fr.includes('ou au classement'), false);
+  for (const locale of LOCALES) {
+    assert(
+      /profil|perfil|Profil/i.test(C.blockShortcutNote[locale]),
+      `la note ${locale} doit nommer la seconde porte réelle : le profil du joueur`,
+    );
+  }
+});
+
+Deno.test('un message SE signale — et la note dit où', async () => {
+  const conversation = await read('../crew/CrewConversationScreen2026.tsx');
+  assert(
+    conversation.includes("'crew_message_report_2026'"),
+    'la conversation de crew signale un message (0127)',
+  );
+  const feed = await read('../../../app/crew-feed.tsx');
+  assert(feed.includes("'social_report_2026'"), 'le fil signale une publication (0124)');
+  // La phrase qui niait leur existence ne peut pas revenir.
+  for (const locale of LOCALES) {
+    const text = C.signalerMessageNote[locale];
+    assertEquals(
+      /pas de messagerie|no messaging|no tiene mensajería|keine Nachrichten|não tem mensagens/i.test(text),
+      false,
+      `la note ${locale} nie encore la conversation de crew`,
+    );
+  }
+});
+
+Deno.test('« Joueur bloqué » n’est cité que pour la surface qui l’affiche', () => {
+  // Le libellé exact appartient au roster ; au classement, la ligne perd son
+  // nom sans prendre ce libellé.
+  assert(C.blockNote.fr.includes('dans ton crew, sa ligne devient'));
+  assert(C.blockNote.fr.includes('perd son nom'), 'le classement est décrit pour ce qu’il fait');
+});

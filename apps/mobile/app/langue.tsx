@@ -5,8 +5,17 @@
  *
  * ─── ORDRE DE COMPOSITION ─────────────────────────────────────────────────────
  *   1. `StackScreen` : kicker « RÉGLAGES · LANGUE » + titre + sous-titre ;
- *   2. UN groupe radio, cinq lignes : nom de la langue, et la mention « Langue
- *      actuelle » sur la seule qui l'est.
+ *   2. UN groupe radio : nom de la langue, et la mention « Langue actuelle »
+ *      sur la seule qui l'est ;
+ *   3. la NOTE qui dit pourquoi la liste est courte.
+ *
+ * ─── DEUX LANGUES, PAS CINQ (10/09/2026) ──────────────────────────────────────
+ * L'écran proposait les CINQ `LOCALES`. Les catalogues les tiennent bien toutes
+ * (une `Entry` est un Record complet, ADR-009), mais le domaine « refonte »
+ * n'écrit pas ses textes dans un catalogue : il appelle `useRefonteCopy`, qui ne
+ * connaît que `fr` et `en` (~620 appels). Un compte espagnol lisait donc du
+ * français sur des écrans entiers. La liste vient maintenant de
+ * `SELECTABLE_LOCALES` (i18n/store), et l'écran DIT pourquoi elle est courte.
  *
  * ─── CE QUI A ÉTÉ RETIRÉ, ET POURQUOI ─────────────────────────────────────────
  * · LES CINQ CADRES PERMANENTS. Chaque ligne portait `borderWidth: 1` en
@@ -38,8 +47,8 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { borderState, colors, elevation, radii, sizes, spacing, typography } from '@klaim/shared';
 import { C } from '../src/i18n/catalog/reglages';
-import { setLocale, useLocale, useT } from '../src/i18n/store';
-import { LOCALES, LOCALE_LABELS, type Locale } from '../src/i18n/types';
+import { SELECTABLE_LOCALES, setLocale, useLocale, useT } from '../src/i18n/store';
+import { LOCALE_LABELS, type Locale } from '../src/i18n/types';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { StackScreen } from '../src/ui/StackScreen';
@@ -66,7 +75,7 @@ export default function LangueScreen() {
       subtitle={t(C.langueSubtitle)}
     >
       <View accessibilityRole="radiogroup" style={styles.list}>
-        {LOCALES.map((loc) => {
+        {SELECTABLE_LOCALES.map((loc) => {
           const selected = loc === current;
           return (
             <Pressable
@@ -91,6 +100,11 @@ export default function LangueScreen() {
           );
         })}
       </View>
+
+      {/* POURQUOI DEUX ET PAS CINQ — dit ici, pas seulement dans un commentaire
+          de code. Une liste courte sans explication se lit comme une limite du
+          produit ; c'est une limite de la TRADUCTION, et elle est datée. */}
+      <Text style={styles.note}>{t(C.langueOnlyTwo)}</Text>
     </StackScreen>
   );
 }
@@ -117,4 +131,5 @@ const styles = StyleSheet.create({
   name: { ...typography.itemTitle, color: colors.blanc },
   nameSelected: { color: colors.chartreuse },
   current: { ...typography.meta, color: colors.gris, marginLeft: 12, flexShrink: 1 },
+  note: { ...typography.meta, color: colors.gris, marginTop: spacing.lg, lineHeight: 20 },
 });

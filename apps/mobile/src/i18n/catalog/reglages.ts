@@ -1503,12 +1503,21 @@ export const C = defineCatalog({
    * tous les rangs en dessous. La copie décrit maintenant le geste exact, et
    * nomme les deux surfaces où il agit.
    */
+  /**
+   * DEUX SURFACES, DEUX RENDUS — et la copie ne peut pas n'en citer qu'un
+   * (corrigé le 10/09/2026 au soir). « Joueur bloqué » est le libellé du ROSTER
+   * de crew (`CrewRosterGroups`, `RealCrewScreen`). Au classement de commune,
+   * `read_leaderboard_2026` (0164) rend `label = null` et l'écran affiche
+   * « Joueur · ABC123 » : la ligne perd son nom, elle ne prend pas ce libellé.
+   * Citer un libellé entre guillemets pour une surface qui en affiche un autre,
+   * c'est faux à l'endroit exact où l'on promet de la précision.
+   */
   blockNote: {
-    fr: 'Bloquer remplace son pseudo par « Joueur bloqué » dans ton crew et au classement, sans jamais le prévenir. Sa place au classement reste, pour que les rangs restent justes. Tu peux débloquer ici quand tu veux.',
-    en: 'Blocking replaces their name with “Blocked player” in your crew and the leaderboard, without ever notifying them. Their leaderboard place stays, so ranks stay true. You can unblock here whenever you want.',
-    es: 'Bloquear sustituye su usuario por «Jugador bloqueado» en tu crew y en la clasificación, sin avisarle nunca. Su puesto se mantiene, para que los rangos sigan siendo correctos. Puedes desbloquear aquí cuando quieras.',
-    de: 'Blockieren ersetzt seinen Namen in deinem Crew und der Rangliste durch „Blockierter Spieler“ — ohne ihn je zu benachrichtigen. Sein Platz bleibt, damit die Ränge stimmen. Du kannst hier jederzeit entsperren.',
-    pt: 'Bloquear troca o nome dele por “Jogador bloqueado” no seu crew e no ranking, sem nunca avisá-lo. A posição dele continua, para os rankings seguirem certos. Você pode desbloquear aqui quando quiser.',
+    fr: 'Bloquer masque son nom, sans jamais le prévenir : dans ton crew, sa ligne devient « Joueur bloqué » ; au classement de ta commune, elle perd son nom mais garde sa place, pour que les rangs restent justes. Tu peux débloquer ici quand tu veux.',
+    en: 'Blocking hides their name, and they are never told: in your crew their row becomes “Blocked player”; in your commune’s leaderboard the row loses its name but keeps its place, so ranks stay true. You can unblock here whenever you want.',
+    es: 'Bloquear oculta su nombre, sin avisarle nunca: en tu crew su línea pasa a ser «Jugador bloqueado»; en la clasificación de tu municipio la línea pierde el nombre pero conserva su puesto, para que los rangos sigan siendo correctos. Puedes desbloquear aquí cuando quieras.',
+    de: 'Blockieren verbirgt seinen Namen, ohne ihn je zu benachrichtigen: In deiner Crew wird seine Zeile zu „Blockierter Spieler“; in der Rangliste deiner Gemeinde verliert die Zeile ihren Namen, behält aber ihren Platz, damit die Ränge stimmen. Du kannst hier jederzeit entsperren.',
+    pt: 'Bloquear esconde o nome dele, sem nunca avisá-lo: no seu crew a linha vira “Jogador bloqueado”; na classificação do seu município a linha perde o nome mas mantém o lugar, para os rankings seguirem certos. Você pode desbloquear aqui quando quiser.',
   },
   /**
    * LE CHEMIN COURT, dit AVANT le formulaire. Le pseudo GRYD par défaut est un
@@ -1517,12 +1526,21 @@ export const C = defineCatalog({
    * Guideline 1.2. Le formulaire reste — pour signaler quelqu'un qu'on ne
    * croise plus nulle part — mais il n'est plus la porte principale.
    */
+  /**
+   * ⚠️ « au classement » A ÉTÉ RETIRÉ (10/09/2026, soir). Le raccourci « … »
+   * existe dans les surfaces de CREW (`CrewRosterGroups`, `RealCrewScreen`,
+   * `CrewHomeScreen`, `CrewActivityScreen` montent `PlayerModerationSheet`) et
+   * sur le profil d'un joueur (`app/member.tsx`, depuis 0137). Le classement de
+   * commune (`CommuneLeaderboard2026`) n'a AUCUNE action par ligne : envoyer
+   * quelqu'un y chercher un « … » qui n'existe pas, c'est un chemin mort dans
+   * l'écran de sécurité — l'endroit où l'on peut le moins se le permettre.
+   */
   blockShortcutNote: {
-    fr: 'Plus simple : touche « … » sur la ligne du joueur, dans ton crew ou au classement — le pseudo y est déjà rempli.',
-    en: 'Simpler: tap “…” on the player’s row, in your crew or the leaderboard — the name is already filled in.',
-    es: 'Más simple: toca «…» en la fila del jugador, en tu crew o en la clasificación — el usuario ya viene puesto.',
-    de: 'Einfacher: Tippe auf „…“ in der Zeile des Spielers, im Crew oder in der Rangliste — der Name ist schon eingetragen.',
-    pt: 'Mais simples: toque em “…” na linha do jogador, no seu crew ou no ranking — o nome já vem preenchido.',
+    fr: 'Plus simple : touche « … » sur la ligne du joueur dans ton crew, ou ouvre son profil — le pseudo y est déjà rempli. Le classement de ta commune, lui, ne propose pas ce raccourci : reviens ici avec son pseudo.',
+    en: 'Simpler: tap “…” on the player’s row in your crew, or open their profile — the name is already filled in. Your commune’s leaderboard doesn’t offer that shortcut: come back here with their username.',
+    es: 'Más simple: toca «…» en la fila del jugador en tu crew, o abre su perfil — el usuario ya viene puesto. La clasificación de tu municipio no ofrece ese atajo: vuelve aquí con su usuario.',
+    de: 'Einfacher: Tippe auf „…“ in der Zeile des Spielers in deiner Crew, oder öffne sein Profil — der Name ist schon eingetragen. Die Rangliste deiner Gemeinde bietet diese Abkürzung nicht: Komm mit dem Nutzernamen hierher zurück.',
+    pt: 'Mais simples: toque em “…” na linha do jogador no seu crew, ou abra o perfil dele — o nome já vem preenchido. A classificação do seu município não oferece esse atalho: volte aqui com o usuário.',
   },
   pseudoJoueurLabel: {
     fr: 'PSEUDO DU JOUEUR',
@@ -1593,12 +1611,21 @@ export const C = defineCatalog({
    * (A-43 §9) et l'écran Crew le dit lui-même. La note décrit maintenant la
    * seule cible qui existe : un joueur, par son pseudo.
    */
+  /**
+   * ⚠️ « GRYD n'a pas de messagerie » ÉTAIT VRAI, ET NE L'EST PLUS. 0127 a
+   * ouvert la conversation de crew (`crew_messages_2026`) et son signalement
+   * (`crew_message_report_2026`, câblé dans `CrewConversationScreen2026`) ;
+   * 0124 a ouvert le fil et ses commentaires (`social_report_2026`, câblé dans
+   * `app/crew-feed.tsx`). Dire à quelqu'un qu'il n'y a « aucun message à
+   * signaler » alors qu'il vient d'en recevoir un est le pire refus possible :
+   * l'app le renvoie chez lui au lieu de lui montrer la porte qui existe.
+   */
   signalerMessageNote: {
-    fr: 'Le signalement porte sur un JOUEUR, par son pseudo : GRYD n’a pas de messagerie, il n’y a donc aucun message à signaler.',
-    en: 'A report targets a PLAYER, by username: GRYD has no messaging, so there is no message to report.',
-    es: 'El reporte apunta a un JUGADOR, por su usuario: GRYD no tiene mensajería, así que no hay ningún mensaje que reportar.',
-    de: 'Eine Meldung betrifft eine SPIELERIN oder einen Spieler, per Nutzername: GRYD hat keine Nachrichten, es gibt also nichts zu melden.',
-    pt: 'A denúncia é sobre um JOGADOR, pelo usuário: o GRYD não tem mensagens, então não há mensagem a denunciar.',
+    fr: 'Ce formulaire signale un JOUEUR, par son pseudo. Un message ou une publication se signale là où il s’affiche : « … » sur le message dans la conversation de ton crew, « Signaler la publication » en ouvrant une publication du fil. C’est le seul endroit d’où l’on peut désigner un contenu précis.',
+    en: 'This form reports a PLAYER, by username. A message or a post is reported where it appears: “…” on the message in your crew conversation, “Report post” once you open a post in the feed. That is the only place a specific piece of content can be pointed at.',
+    es: 'Este formulario reporta a un JUGADOR, por su usuario. Un mensaje o una publicación se reporta donde aparece: «…» en el mensaje de la conversación de tu crew, «Reportar la publicación» al abrir una publicación del muro. Es el único lugar desde donde se puede señalar un contenido concreto.',
+    de: 'Dieses Formular meldet eine PERSON, per Nutzername. Eine Nachricht oder ein Beitrag wird dort gemeldet, wo er steht: „…“ an der Nachricht in der Unterhaltung deiner Crew, „Beitrag melden“, wenn du einen Beitrag im Feed öffnest. Nur dort lässt sich ein bestimmter Inhalt benennen.',
+    pt: 'Este formulário denuncia um JOGADOR, pelo usuário. Uma mensagem ou publicação se denuncia onde ela aparece: “…” na mensagem da conversa do seu crew, “Denunciar a publicação” ao abrir uma publicação do feed. É o único lugar de onde dá para apontar um conteúdo específico.',
   },
   lireCodeConduite: {
     fr: 'Lire le code de conduite',

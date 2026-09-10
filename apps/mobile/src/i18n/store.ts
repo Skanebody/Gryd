@@ -12,9 +12,41 @@
  */
 import { useCallback, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LOCALES, type Entry, type Locale, format, resolve } from './types';
+import { type Entry, type Locale, format, resolve } from './types';
 
 const STORAGE_KEY = 'gryd.locale.v1';
+
+/**
+ * ─── LES LANGUES RÉELLEMENT PROPOSÉES (10/09/2026) ──────────────────────────
+ *
+ * `LOCALES` en compte CINQ, et les catalogues typés les tiennent toutes : une
+ * `Entry` est un `Record<Locale, string>` COMPLET, donc rien n'expédie une
+ * chaîne non traduite (ADR-009). Ce contrat vaut pour le CATALOGUE — il ne vaut
+ * pas pour l'app entière.
+ *
+ * LE CONSTAT, MESURÉ : le domaine « refonte » (journal, communauté, collection,
+ * conversation, fil de crew…) n'écrit pas ses textes dans un catalogue. Il
+ * appelle `useRefonteCopy()` (`features/refonte/ProfilePrimitives.tsx`), qui
+ * ne connaît QUE deux langues — `locale === 'en' ? en : fr`. Un compte réglé en
+ * espagnol, en allemand ou en portugais lit donc du FRANÇAIS sur des écrans
+ * entiers. Environ 620 appels `copy(fr, en)` sont concernés.
+ *
+ * LA DÉCISION : ne proposer que ce qui est tenu. Le sélecteur n'offre plus que
+ * le français et l'anglais, et l'écran DIT pourquoi. Les trois autres langues
+ * ne sont ni supprimées ni reniées — les catalogues restent typés cinq langues,
+ * et elles reviendront dans cette liste le jour où le domaine refonte parlera
+ * autre chose que deux langues. Proposer une langue qu'on ne parle qu'à moitié
+ * serait exactement la promesse au-delà du code que le dépôt s'interdit.
+ *
+ * ⚠ NE PAS « corriger » en rajoutant es/de/pt ici sans avoir traduit
+ * `useRefonteCopy` : la liste est la PROMESSE, pas le catalogue.
+ */
+export const SELECTABLE_LOCALES: readonly Locale[] = ['fr', 'en'];
+
+/** Une valeur inconnue n'est jamais une langue proposée (défaut le plus sûr). */
+export function isSelectableLocale(value: unknown): value is Locale {
+  return typeof value === 'string' && (SELECTABLE_LOCALES as readonly string[]).includes(value);
+}
 
 function deviceLocale(): Locale {
   try {
@@ -24,7 +56,10 @@ function deviceLocale(): Locale {
       getLocales(): { languageCode: string | null }[];
     };
     const code = Localization.getLocales()[0]?.languageCode ?? '';
-    if ((LOCALES as readonly string[]).includes(code)) return code as Locale;
+    // Un téléphone en espagnol reçoit l'ANGLAIS, pas l'espagnol : c'est la
+    // langue que l'app parle réellement de bout en bout. Lui servir un
+    // espagnol à trous serait pire qu'une langue étrangère assumée.
+    if (isSelectableLocale(code)) return code;
   } catch {
     // Web preview / module indisponible : on retombe sur le défaut.
   }
@@ -45,8 +80,10 @@ function ensureHydrated(): void {
   hydrated = true;
   void AsyncStorage.getItem(STORAGE_KEY)
     .then((saved) => {
-      if (saved && (LOCALES as readonly string[]).includes(saved) && saved !== locale) {
-        locale = saved as Locale;
+      // Un choix persisté AVANT la restriction (es/de/pt) n'est pas restauré :
+      // il rouvrirait la langue à trous sans que le sélecteur puisse en sortir.
+      if (isSelectableLocale(saved) && saved !== locale) {
+        locale = saved;
         emit();
       }
     })
@@ -74,7 +111,9 @@ export function getLocale(): Locale {
 
 /** Change la langue (sélecteur Paramètres) : immédiat + persisté. */
 export function setLocale(next: Locale): void {
-  if (next === locale) return;
+  // Garde de dernier recours : une langue hors liste n'est pas appliquée. Le
+  // sélecteur ne peut pas la produire, mais un appelant futur, si.
+  if (!isSelectableLocale(next) || next === locale) return;
   locale = next;
   emit();
   void AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {
