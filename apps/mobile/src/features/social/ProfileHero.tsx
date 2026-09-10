@@ -69,9 +69,17 @@ const LEVEL_PILL_H = 20;
 
 export interface ProfileHeroProps {
   /**
-   * Photo de profil. C'est une copie LOCALE (documentDirectory) : elle n'est
-   * envoyée nulle part aujourd'hui — le héros ne laisse donc rien croire sur sa
-   * visibilité par les autres (aucune mention « vue par… »).
+   * Photo de profil — URL SIGNÉE du bucket `social-2026` (privé, migration
+   * 0124), ou URI locale pendant l'aperçu d'un envoi en cours.
+   *
+   * ⚠️ CE COMMENTAIRE DISAIT LE CONTRAIRE, ET C'ÉTAIT FAUX (corrigé le
+   * 10/09/2026). Il affirmait « copie LOCALE, envoyée nulle part » : la photo
+   * PART bel et bien vers le bucket depuis `profileStore.saveProfile`, et
+   * `user_profiles.avatar_path_2026` la référence. Qui la voit dépend du
+   * réglage de visibilité du profil (`social_media_readable_2026`), pas du
+   * téléphone. Le héros n'écrit toujours aucune mention « vue par… » : ce
+   * réglage a UN seul endroit où se lire et se changer (pastille de
+   * visibilité), et un second récit ici en ferait deux.
    */
   photoUri?: string;
   initials: string;

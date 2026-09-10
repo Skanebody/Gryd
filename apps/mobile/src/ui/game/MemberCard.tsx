@@ -45,6 +45,15 @@ export interface MemberCardProps {
   role: CrewRole;
   /** Tier joueur (frame de l'avatar). */
   tier?: BadgeTier;
+  /**
+   * Photo du membre. Elle vient du serveur, en DEUX temps : `social_member_2026`
+   * (0124) renvoie `avatarPath` — le chemin dans le bucket privé `social-2026` —
+   * et `useSocialMedia2026(person.avatarPath)` en tire une URL signée pour le
+   * lecteur autorisé. Ne jamais passer un chemin brut ici : le bucket n'est pas
+   * public, une URL construite à la main répondrait 400.
+   * Absente = initiale du pseudo (`PlayerAvatarFrame`), qui est un choix
+   * d'identité valable, pas un trou à combler.
+   */
   imageUri?: string;
   /** Dispo guerre (« Dispo guerre » chartreuse si true). */
   warReady?: boolean;

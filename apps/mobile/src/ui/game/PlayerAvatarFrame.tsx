@@ -52,7 +52,11 @@ export interface PlayerAvatarFrameProps {
   /** Tier joueur (frame road → legend). Absent = pas de frame. */
   tier?: BadgeTier;
   size?: PlayerAvatarSize;
-  /** Photo de profil (uri locale/distante). Repli : initiales. */
+  /**
+   * Photo de profil : URL SIGNÉE du bucket privé `social-2026` (0124), ou URI
+   * locale le temps d'un aperçu. Repli : initiale du nom. Le repli n'est pas un
+   * état dégradé — l'avatar généré est une identité GRYD à part entière.
+   */
   imageUri?: string;
   /** true = c'est MOI (contour chartreuse — COULEUR seule, jamais l'épaisseur). */
   isMe?: boolean;

@@ -3,14 +3,21 @@
  * doc social Partie C). Même logique visuelle « rareté = intensité » que
  * CrewFrame (§43.2) mais côté joueur : road = contour graphite → legend =
  * or + halo. Le tier vient du niveau joueur (playerTierForLevel). Les initiales
- * du pseudo sont gravées au centre (pas de photo en MVP). Un mini-blason crew
+ * du pseudo sont gravées au centre, SAUF si le joueur a mis une photo de profil
+ * (`imageUri`) : elle est alors clippée dans l'hexagone, initiales en repli.
+ * Les deux sont des chemins de PREMIÈRE CLASSE : un visage pour ceux qui
+ * veulent l'être, le pseudo gravé pour ceux qui veulent rester derrière lui.
+ * Un mini-blason crew
  * (tag) peut être posé en pastille bas-droite. Tokens stricts : seul un or chaud
  * (hors palette chartreuse, réservé aux hauts tiers) apparaît, exactement comme
  * CrewFrame/BadgeHex. react-native-svg (déjà en dépendance).
  */
+import { useId } from 'react';
 import Svg, {
   Circle,
+  ClipPath,
   Defs,
+  Image as SvgImage,
   Polygon,
   RadialGradient,
   Stop,
@@ -68,25 +75,37 @@ export interface AvatarHexProps {
   crewTag?: string;
   /** Côté en px (défaut 84). */
   size?: number;
+  /**
+   * Photo de profil (URL signée du bucket `social-2026`, ou URI locale pendant
+   * un aperçu). Absente = initiales gravées. Ne PAS traiter son absence comme
+   * un état dégradé : l'avatar généré est une identité GRYD à part entière.
+   */
+  imageUri?: string;
 }
 
-export function AvatarHex({ handle, tier, crewTag, size = 84 }: AvatarHexProps) {
+export function AvatarHex({ handle, tier, crewTag, size = 84, imageUri }: AvatarHexProps) {
   const s = TIER_STYLE[tier];
   const glowId = `avatarframe-${tier}`;
   const inner = hexPoints(CENTER, CENTER, 34);
   const outer = hexPoints(CENTER, CENTER, 44);
+  // Identifiant de clip UNIQUE par instance (leçon PlayerCardAvatar : un id
+  // dérivé de la taille collisionnait dès que deux avatars cohabitaient).
+  const clipId = `avatarhex-${useId()}`;
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
-      {s.glow ? (
-        <Defs>
+      <Defs>
+        {s.glow ? (
           <RadialGradient id={glowId} cx="50%" cy="50%" r="50%">
             <Stop offset="0%" stopColor={s.stroke} stopOpacity={0.5} />
             <Stop offset="65%" stopColor={s.stroke} stopOpacity={0.12} />
             <Stop offset="100%" stopColor={s.stroke} stopOpacity={0} />
           </RadialGradient>
-        </Defs>
-      ) : null}
+        ) : null}
+        <ClipPath id={clipId}>
+          <Polygon points={inner} />
+        </ClipPath>
+      </Defs>
 
       {s.glow ? <Circle cx={CENTER} cy={CENTER} r={CENTER - 1} fill={`url(#${glowId})`} /> : null}
 
@@ -112,17 +131,30 @@ export function AvatarHex({ handle, tier, crewTag, size = 84 }: AvatarHexProps) 
         strokeLinejoin="round"
       />
 
-      {/* Initiales gravées (mono, comme le tag crew) */}
-      <SvgText
-        x={CENTER}
-        y={CENTER + 7}
-        textAnchor="middle"
-        fontSize={26}
-        fontWeight="700"
-        fill={colors.blanc}
-      >
-        {initials(handle)}
-      </SvgText>
+      {/* La photo si le joueur en a une, sinon les initiales gravées (mono,
+          comme le tag crew). Jamais les deux, jamais un rond vide. */}
+      {imageUri ? (
+        <SvgImage
+          x={CENTER - 34}
+          y={CENTER - 34}
+          width={68}
+          height={68}
+          preserveAspectRatio="xMidYMid slice"
+          href={{ uri: imageUri }}
+          clipPath={`url(#${clipId})`}
+        />
+      ) : (
+        <SvgText
+          x={CENTER}
+          y={CENTER + 7}
+          textAnchor="middle"
+          fontSize={26}
+          fontWeight="700"
+          fill={colors.blanc}
+        >
+          {initials(handle)}
+        </SvgText>
+      )}
 
       {/* Mini-blason crew (pastille bas-droite) */}
       {crewTag ? (

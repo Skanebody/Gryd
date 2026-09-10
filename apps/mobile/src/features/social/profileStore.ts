@@ -88,12 +88,17 @@ export interface EditableProfile {
    * visage pour ceux qui veulent l'être, le pseudo pour ceux qui veulent rester
    * anonymes. Rien ne pousse vers l'un ou l'autre.
    *
-   * PORTÉE ACTUELLE — LOCALE. L'URI pointe vers une copie de l'image dans le
-   * sandbox de l'app (documentDirectory) : elle n'est envoyée NULLE PART, donc
-   * elle n'est visible que par le propriétaire du téléphone. L'UI doit le dire
-   * (« l'app ne ment jamais ») et ne jamais laisser croire que les autres
-   * joueurs la voient. Ce qui reste à câbler pour la rendre publique est
-   * documenté dans `avatarPhoto.ts`.
+   * PORTÉE RÉELLE — SERVEUR (corrigé le 10/09/2026 ; ce commentaire disait
+   * l'inverse). Ce champ porte une URL SIGNÉE, dérivée d'`avatarPath` par la
+   * lecture ci-dessous (`createSignedUrl`, 120 s) : la photo vit dans le bucket
+   * `social-2026`, privé (0124), et qui peut la lire découle du réglage de
+   * visibilité du profil, pas du téléphone. Il ne porte une URI LOCALE que dans
+   * un cas : entre le choix d'une photo et la fin de son envoi.
+   *
+   * ⚠️ `saveProfile` s'appuie sur cette distinction : une valeur qui ne
+   * commence PAS par `https://` déclenche un téléversement. Reposer une URI
+   * locale après un envoi déjà fait enverrait donc la même photo deux fois.
+   * Le circuit complet est documenté dans `avatarPhoto.ts`.
    */
   avatarUri: string;
   /**

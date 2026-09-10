@@ -63,8 +63,10 @@ export interface PlayerCardAvatarProps {
   /** true = c'est MOI (contour chartreuse — COULEUR seule, jamais l'épaisseur). */
   isMe?: boolean;
   /**
-   * Photo de profil (URI locale ou distante). Absente = avatar généré. Le choix
-   * « pas de photo » est délibéré et pleinement valable, pas un état dégradé.
+   * Photo de profil : URL SIGNÉE du bucket privé `social-2026` (0124) — c'est ce
+   * que `profileStore` pose dans `avatarUri` après lecture — ou URI locale le
+   * temps d'un aperçu d'envoi. Absente = avatar généré. Le choix « pas de
+   * photo » est délibéré et pleinement valable, pas un état dégradé.
    */
   imageUri?: string;
 }
