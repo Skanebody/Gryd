@@ -56,7 +56,14 @@ import {
 import type { PurchaseBlockedReason } from './capability';
 import type { PurchaseFailure2026 } from './purchaseFailure2026';
 
-export type PremiumStatus = 'loading' | 'signedOut' | 'unavailable' | 'error' | 'empty' | 'ready';
+/**
+ * Les six états ci-dessus. Le type est DÉCLARÉ dans `plan2026.ts` — un module
+ * pur en a besoin, et il ne peut pas importer ce fichier sans traîner React
+ * Native, la session et Supabase dans un test Deno. Il est réexporté ici parce
+ * que c'est ici qu'il est PRODUIT, et c'est ici qu'on vient le lire.
+ */
+export type { PremiumStatus } from './plan2026';
+import type { PremiumStatus } from './plan2026';
 
 /** Résultat de la DERNIÈRE action, pour le message d'écran. Jamais persistant. */
 export type PremiumActionResult =
@@ -137,6 +144,19 @@ export interface UsePremiumResult {
   readonly restore: () => Promise<PremiumActionResult | null>;
 }
 
+/**
+ * Combien de temps on attend le Store avant de DIRE qu'on n'a pas su lire.
+ *
+ * Ce n'est pas une constante de jeu (elle n'a rien à faire dans
+ * `game-rules.ts`) : c'est une patience d'interface. Douze secondes, parce
+ * qu'une lecture d'offres qui n'a pas abouti au bout de douze secondes
+ * n'aboutira pas dans les trois suivantes, et qu'au-delà l'attente coûte plus
+ * qu'elle ne rapporte. La même patience vaut pour le reçu serveur
+ * (`useGrydPlusAccess`) : deux échéances différentes pour la même page
+ * produiraient deux verdicts successifs sur un seul fait.
+ */
+export const STORE_READ_PATIENCE_MS = 12_000;
+
 export function usePremium(): UsePremiumResult {
   const { session, loading: sessionLoading, configured } = useSession();
   const userId = session?.user?.id ?? null;
@@ -171,8 +191,27 @@ export function usePremium(): UsePremiumResult {
     const unobserve = observeCustomerInfo(userId, customerInfo => {
       if (!cancelled && owner.current === userId) { setInfo(customerInfo); setLoadedOwner(userId); }
     });
+    /**
+     * ── AJOUTÉ LE 10/09/2026 : LA LECTURE POUVAIT NE JAMAIS FINIR ───────────
+     * `fetchCurrentOffering` fait `await sdk.getOfferings()` SANS échéance
+     * (`client.ts`). Un SDK qui ne répond pas — réseau qui pend, réponse
+     * jamais rendue — laissait cette promesse en vol pour toujours : `status`
+     * restait 'loading', et l'écran tournait indéfiniment. Un spinner sans fin
+     * est un mensonge de la même famille qu'un chiffre inventé : il affirme
+     * « ça arrive » alors que plus rien n'arrive (L8/L14).
+     *
+     * Passé le délai, on DIT qu'on n'a pas réussi à lire (état 'error', avec
+     * son bouton « Réessayer ») au lieu de faire attendre. Si la vraie réponse
+     * finit par arriver, elle écrase ce verdict : la vérité tardive gagne.
+     */
+    const patience = setTimeout(() => {
+      if (cancelled || owner.current !== userId) return;
+      setLoadedOwner(userId);
+      setStatus(courant => courant === 'loading' ? 'error' : courant);
+    }, STORE_READ_PATIENCE_MS);
     void Promise.allSettled([fetchCurrentOffering(userId), fetchCustomerInfo(userId)]).then(([current, customer]) => {
       if (cancelled || owner.current !== userId) return;
+      clearTimeout(patience);
       setLoadedOwner(userId);
       if (customer.status === 'fulfilled') setInfo(customer.value);
       if (current.status !== 'fulfilled') { setStatus('error'); return; }
@@ -180,7 +219,7 @@ export function usePremium(): UsePremiumResult {
       setOffering(current.value?.availablePackages ?? []); setOffers(read); setSelected(defaultOfferPeriod(read));
       setStatus(read.length ? 'ready' : 'empty');
     });
-    return () => { cancelled = true; unobserve(); };
+    return () => { cancelled = true; clearTimeout(patience); unobserve(); };
   }, [capability, sessionLoading, userId, reloadKey]);
   const ownInfo = loadedOwner === userId ? info : null;
   const ownOffers = loadedOwner === userId ? offers : [];

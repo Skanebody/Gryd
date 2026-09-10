@@ -76,7 +76,16 @@ Deno.test('ADR-011 → ADR-012 : AUCUN écran inattendu ne touche au SDK d’ach
     const src = await Deno.readTextFile(new URL(f, RACINE));
     // Un IMPORT, pas une mention : les docblocks du dépôt citent souvent ces
     // noms pour expliquer qu'ils ne les utilisent PAS (`app/season.tsx` le fait).
-    if (/^import[^\n]*\b(usePremium|useStorePrices|configurePurchases)\b/m.test(src)) {
+    //
+    // ⚠️ ÉTAPE 0 — LE FILET S'EST TROUÉ LE 10/09/2026. La règle était
+    // `/^import[^\n]*\b(usePremium|…)\b/m` : elle n'inspectait que la PREMIÈRE
+    // ligne d'un import. Le jour où `ProfilePremiumScreen.tsx` est passé à un
+    // import multi-lignes (un nom par ligne), `usePremium` a cessé d'être vu —
+    // le verrou serait devenu vert sans rien verrouiller, et un troisième écran
+    // aurait pu appeler le SDK sans que personne ne le sache. On lit donc le
+    // BLOC d'import entier, de `import` jusqu'à son `from '…'`.
+    const blocs = src.match(/^import[\s\S]*?from\s*['\"][^'\"]+['\"]/gm) ?? [];
+    if (blocs.some((bloc) => /\b(usePremium|useStorePrices|configurePurchases)\b/.test(bloc))) {
       coupables.push(f);
     }
   }
