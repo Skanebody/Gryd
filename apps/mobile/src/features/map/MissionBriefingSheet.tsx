@@ -345,7 +345,7 @@ export function MissionBriefingSheet({
         // délaissée (cf. `i18n/catalog/mission.ts`, qui en garde le motif). Ne
         // pas la réintroduire : une phrase accessible qui nomme la course est un
         // mensonge lu à voix haute.
-        accessibilityLabel={`${t(M.briefStart)} — ${t(ACTIVITY_NAME[activity])}`}
+        accessibilityLabel={`${t(M.briefStart)}, ${t(ACTIVITY_NAME[activity])}`}
         onPress={() => {
           haptics.medium();
           onStart();

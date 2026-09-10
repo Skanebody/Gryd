@@ -73,7 +73,7 @@ export const C = defineCatalog({
     pt: 'Compartilhar meu cartão de jogador',
   },
   toastShareReady: {
-    fr: 'Carte de partage prête — capture-la pour la partager',
+    fr: 'Carte de partage prête. Capture-la pour la partager',
     en: 'Share card ready — screenshot it to share',
     es: 'Carta lista — haz una captura para compartirla',
     de: 'Share-Karte bereit — Screenshot machen und teilen',
@@ -399,7 +399,7 @@ export const C = defineCatalog({
   },
   /** Note de pied : la visibilité vit à UN seul endroit (anti-toggles dupliqués). */
   visibilityLivesInPrivacy: {
-    fr: 'Les réglages de visibilité vivent dans Confidentialité — un seul endroit.',
+    fr: 'Les réglages de visibilité vivent dans Confidentialité : un seul endroit.',
     en: 'Visibility settings live in Privacy — one single place.',
     es: 'Los ajustes de visibilidad viven en Privacidad — un solo lugar.',
     de: 'Sichtbarkeit wird in Privatsphäre verwaltet — an einem Ort.',
@@ -735,7 +735,7 @@ export const C = defineCatalog({
     pt: 'Entre para ver os frames que você possui.',
   },
   framesUnread: {
-    fr: 'Inventaire non lu pour l’instant — on n’affiche pas des cadres qu’on n’a pas pu vérifier.',
+    fr: 'Inventaire non lu pour l’instant : on n’affiche pas des cadres qu’on n’a pas pu vérifier.',
     en: 'Inventory not loaded yet — we don’t show frames we couldn’t verify.',
     es: 'Inventario sin cargar — no mostramos frames que no hemos podido verificar.',
     de: 'Inventar noch nicht geladen — wir zeigen keine Frames, die wir nicht prüfen konnten.',
@@ -749,7 +749,7 @@ export const C = defineCatalog({
     pt: 'Você ainda não tem nenhum frame. Até lá, o seu Player Card usa o anel do seu nível.',
   },
   arsenalLink: {
-    fr: 'Débloquer d’autres frames — Arsenal',
+    fr: 'Débloquer d’autres frames · Arsenal',
     en: 'Unlock more frames — Arsenal',
     es: 'Desbloquear más frames — Arsenal',
     de: 'Mehr Frames freischalten — Arsenal',
@@ -777,7 +777,7 @@ export const C = defineCatalog({
     pt: 'Sem escolha, o card mostra automaticamente suas 3 insígnias mais raras.',
   },
   savedNotice: {
-    fr: 'Enregistré — ton profil est à jour.',
+    fr: 'Enregistré. Ton profil est à jour.',
     en: 'Saved — your profile is up to date.',
     es: 'Guardado — tu perfil está al día.',
     de: 'Gespeichert — dein Profil ist aktuell.',
@@ -1007,7 +1007,7 @@ export const C = defineCatalog({
     pt: 'Escanear um QR',
   },
   toastScannerSoon: {
-    fr: 'Scanner — écran à venir (O1)',
+    fr: 'Scanner · écran à venir (O1)',
     en: 'Scanner — screen coming soon (O1)',
     es: 'Escáner — pantalla próximamente (O1)',
     de: 'Scanner — Screen folgt (O1)',
@@ -1050,7 +1050,7 @@ export const C = defineCatalog({
     pt: 'Ver o perfil',
   },
   toastProfileSoon: {
-    fr: 'Profil de @{handle} — écran à venir (O1)',
+    fr: 'Profil de @{handle} · écran à venir (O1)',
     en: 'Profile of @{handle} — screen coming soon (O1)',
     es: 'Perfil de @{handle} — pantalla próximamente (O1)',
     de: 'Profil von @{handle} — Screen folgt (O1)',
@@ -1316,7 +1316,7 @@ export const C = defineCatalog({
    * JOUEURS, cyclistes compris, et la promesse doit dire ce qui arrivera.
    */
   qrHintReal: {
-    fr: 'Ton @ est ton identité GRYD. Montre ton code pour qu’on te retrouve — la recherche de joueurs, elle, arrivera plus tard.',
+    fr: 'Ton @ est ton identité GRYD. Montre ton code pour qu’on te retrouve. La recherche de joueurs, elle, arrivera plus tard.',
     en: 'Your @ is your GRYD identity. Show your code so people can find you — player search will come later.',
     es: 'Tu @ es tu identidad GRYD. Muestra tu código para que te encuentren; la búsqueda de jugadores llegará más tarde.',
     de: 'Dein @ ist deine GRYD-Identität. Zeig deinen Code, damit man dich findet — die Spielersuche kommt später.',
@@ -1503,7 +1503,7 @@ export const C = defineCatalog({
   },
   /** Bloc hybride : dire que les deux mondes ne s'additionnent JAMAIS (E14). */
   metricsScopeBoth: {
-    fr: 'Deux mondes séparés — jamais additionnés.',
+    fr: 'Deux mondes séparés, jamais additionnés.',
     en: 'Two separate worlds — never added up.',
     es: 'Dos mundos separados: nunca se suman.',
     de: 'Zwei getrennte Welten — nie addiert.',
@@ -1746,7 +1746,7 @@ export const C = defineCatalog({
   // leur sujet : « lecture en cours » tout seul ne veut rien dire) et l'a11y.
   /** Lecture en vol — état BORNÉ (le hook aboutit ou retombe sur « indisponible »). */
   previewMissionLoading: {
-    fr: 'Prochaine mission — lecture en cours',
+    fr: 'Prochaine mission · lecture en cours',
     en: 'Next mission — loading',
     es: 'Próxima misión — cargando',
     de: 'Nächste Mission — wird geladen',
@@ -1754,7 +1754,7 @@ export const C = defineCatalog({
   },
   /** Lecture TENTÉE et revenue vide : on le dit, on n'invente pas de mission. */
   previewMissionUnavailable: {
-    fr: 'Prochaine mission — lecture impossible',
+    fr: 'Prochaine mission · lecture impossible',
     en: 'Next mission — could not be read',
     es: 'Próxima misión — no se pudo leer',
     de: 'Nächste Mission — nicht lesbar',

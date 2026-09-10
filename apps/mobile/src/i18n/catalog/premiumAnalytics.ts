@@ -116,7 +116,7 @@ export const C = defineCatalog({
     pt: 'Só para Club',
   },
   lockedBody: {
-    fr: 'Voici ce que cette page calcule sur TON territoire — rien n’est flouté, elle n’est simplement pas encore ouverte pour toi.',
+    fr: 'Voici ce que cette page calcule sur TON territoire : rien n’est flouté, elle n’est simplement pas encore ouverte pour toi.',
     en: 'Here is what this page computes on YOUR territory — nothing is blurred, it is simply not open to you yet.',
     es: 'Esto es lo que esta página calcula sobre TU territorio: nada está difuminado, solo aún no está abierta para ti.',
     de: 'Das berechnet diese Seite über DEIN Gebiet — nichts ist verschwommen, sie ist für dich nur noch nicht offen.',
@@ -218,7 +218,7 @@ export const C = defineCatalog({
     pt: 'Todas as suas zonas acabaram de ser tomadas: ainda não há diferença para colorir.',
   },
   heatNoGeometry: {
-    fr: 'Aucune de tes zones n’a encore de contour exploitable — les chiffres ci-dessous restent justes.',
+    fr: 'Aucune de tes zones n’a encore de contour exploitable. Les chiffres ci-dessous restent justes.',
     en: 'None of your zones has a usable outline yet — the figures below still hold.',
     es: 'Ninguna de tus zonas tiene aún un contorno utilizable; las cifras de abajo siguen siendo exactas.',
     de: 'Keine deiner Zonen hat schon eine brauchbare Kontur — die Zahlen unten stimmen trotzdem.',
@@ -320,7 +320,7 @@ export const C = defineCatalog({
     pt: 'Defesas ganhas',
   },
   lossesUnavailable: {
-    fr: 'Les pertes ne sont pas mesurables : quand une zone change de mains, rien ne conserve qu’elle a été à toi. On ne peut donc pas écrire « 0 perte » — ce serait faux.',
+    fr: 'Les pertes ne sont pas mesurables : quand une zone change de mains, rien ne conserve qu’elle a été à toi. On ne peut donc pas écrire « 0 perte », ce serait faux.',
     en: 'Losses cannot be measured: when a zone changes hands, nothing records that it was yours. So we cannot write “0 lost” — that would be false.',
     es: 'Las pérdidas no son medibles: cuando una zona cambia de manos, nada guarda que fue tuya. No podemos escribir «0 pérdidas»: sería falso.',
     de: 'Verluste sind nicht messbar: wechselt eine Zone den Besitzer, hält nichts fest, dass sie dir gehörte. „0 Verluste“ wäre schlicht falsch.',
@@ -364,7 +364,7 @@ export const C = defineCatalog({
     pt: 'Defender agora',
   },
   watchDeadlinePassed: {
-    fr: 'Échéance dépassée — la résolution est côté serveur',
+    fr: 'Échéance dépassée · la résolution est côté serveur',
     en: 'Deadline passed — the server decides',
     es: 'Plazo vencido: lo resuelve el servidor',
     de: 'Frist abgelaufen — der Server entscheidet',

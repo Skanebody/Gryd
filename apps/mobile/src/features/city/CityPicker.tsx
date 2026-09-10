@@ -346,7 +346,7 @@ function CityRow({
       accessibilityState={{ selected, disabled }}
       // Le nom accessible porte le statut : un lecteur d'écran doit entendre la
       // même chose qu'un œil voit, y compris « pas encore ouverte ».
-      accessibilityLabel={badge ? `${cityEntryLabel(city)} — ${badge}` : cityEntryLabel(city)}
+      accessibilityLabel={badge ? `${cityEntryLabel(city)}, ${badge}` : cityEntryLabel(city)}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [

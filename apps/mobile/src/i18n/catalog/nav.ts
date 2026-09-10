@@ -92,7 +92,7 @@ export const C = defineCatalog({
   //    L'entrée reste : elle décrit encore le départ, et le typage impose ses
   //    5 langues le jour où une surface la reprend. ──
   slideToStartA11y: {
-    fr: '{label} — glisse pour lancer la course',
+    fr: '{label}, glisse pour lancer la course',
     en: '{label} — slide to start the run',
     es: '{label} — desliza para empezar la carrera',
     de: '{label} — schieb, um den Lauf zu starten',
@@ -202,7 +202,7 @@ export const C = defineCatalog({
     pt: 'Começar um pedal livre',
   },
   a11yDefendre: {
-    fr: 'Défendre {zone} — lancer la course de défense',
+    fr: 'Défendre {zone}, lancer la course de défense',
     en: 'Defend {zone} — start the defense run',
     es: 'Defiende {zone} — inicia la carrera de defensa',
     de: '{zone} schützen — Lauf zur Verteidigung starten',
@@ -210,14 +210,14 @@ export const C = defineCatalog({
   },
   /** Jumeau VÉLO de `a11yDefendre`. */
   a11yDefendreBike: {
-    fr: 'Défendre {zone} — lancer la sortie vélo de défense',
+    fr: 'Défendre {zone}, lancer la sortie vélo de défense',
     en: 'Defend {zone} — start the defense ride',
     es: 'Defiende {zone} — inicia la salida en bici de defensa',
     de: '{zone} schützen — Radausfahrt zur Verteidigung starten',
     pt: 'Defender {zone} — começar o pedal de defesa',
   },
   a11yConquerir: {
-    fr: 'Conquérir {zone} — lancer la course de conquête',
+    fr: 'Conquérir {zone}, lancer la course de conquête',
     en: 'Conquer {zone} — start the conquest run',
     es: 'Conquista {zone} — inicia la carrera de conquista',
     de: '{zone} erobern — Lauf zur Eroberung starten',
@@ -225,7 +225,7 @@ export const C = defineCatalog({
   },
   /** Jumeau VÉLO de `a11yConquerir`. */
   a11yConquerirBike: {
-    fr: 'Conquérir {zone} — lancer la sortie vélo de conquête',
+    fr: 'Conquérir {zone}, lancer la sortie vélo de conquête',
     en: 'Conquer {zone} — start the conquest ride',
     es: 'Conquista {zone} — inicia la salida en bici de conquista',
     de: '{zone} erobern — Radausfahrt zur Eroberung starten',
@@ -241,14 +241,14 @@ export const C = defineCatalog({
    * le préfixe du bouton (`goActivity*A11y`).
    */
   a11yTerminer: {
-    fr: 'Terminer {zone} — refermer la boucle du crew',
+    fr: 'Terminer {zone}, refermer la boucle du crew',
     en: 'Finish {zone} — close the crew loop',
     es: 'Termina {zone} — cierra el circuito del crew',
     de: '{zone} beenden — die Crew-Runde schließen',
     pt: 'Terminar {zone} — fechar o circuito do crew',
   },
   a11yRejoindre: {
-    fr: 'Rejoindre la mission du crew — {mission}',
+    fr: 'Rejoindre la mission du crew : {mission}',
     en: 'Join the crew mission — {mission}',
     es: 'Únete a la misión del crew — {mission}',
     de: 'Der Crew-Mission beitreten — {mission}',
@@ -343,14 +343,14 @@ export const C = defineCatalog({
   // texte plafonné « 99+ » de la pastille — un lecteur d'écran n'a pas de
   // contrainte de largeur, il n'a aucune raison d'hériter d'un arrondi.
   headerBellA11yOne: {
-    fr: 'Activité — {n} zone à défendre',
+    fr: 'Activité, {n} zone à défendre',
     en: 'Activity — {n} zone to defend',
     es: 'Actividad — {n} zona que defender',
     de: 'Aktivität — {n} Zone zu verteidigen',
     pt: 'Atividade — {n} zona a defender',
   },
   headerBellA11yMany: {
-    fr: 'Activité — {n} zones à défendre',
+    fr: 'Activité, {n} zones à défendre',
     en: 'Activity — {n} zones to defend',
     es: 'Actividad — {n} zonas que defender',
     de: 'Aktivität — {n} Zonen zu verteidigen',
@@ -364,7 +364,7 @@ export const C = defineCatalog({
     pt: 'Planejar uma rota',
   },
   planRouteA11y: {
-    fr: "Planifier un parcours — ouvrir le planificateur d'itinéraire",
+    fr: "Planifier un parcours, ouvrir le planificateur d'itinéraire",
     en: 'Plan a route — open the route planner',
     es: 'Planificar una ruta — abrir el planificador de rutas',
     de: 'Route planen — den Routenplaner öffnen',
@@ -408,7 +408,7 @@ export const C = defineCatalog({
    * n'est pas exposée. On dit donc le seul mot vrai dans les deux cas.
    */
   pendingRunNote: {
-    fr: '1 sortie à synchroniser — toucher pour envoyer',
+    fr: '1 sortie à synchroniser. Toucher pour envoyer',
     en: '1 activity to sync — tap to send',
     es: '1 salida por sincronizar — toca para enviar',
     de: '1 Aktivität zu synchronisieren — tippen zum Senden',

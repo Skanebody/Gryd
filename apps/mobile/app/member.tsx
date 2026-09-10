@@ -79,7 +79,7 @@ function Member(){const copy=useRefonteCopy();const params=useLocalSearchParams<
  </>:<>
  {relation.friend?<Text style={[s.body,{marginTop:24}]}>{copy('Vous êtes amis.','You are friends.')}</Text>
   :relation.requestReceived?<><Text style={[s.body,{marginTop:24}]}>{copy('Cette personne t’a demandé en ami.','This person sent you a friend request.')}</Text><ProfileLink title={copy('Répondre à sa demande','Answer the request')} icon="ami" onPress={()=>router.push('/amis')}/></>
-  :relation.requestSent?<Text style={[s.body,{marginTop:24}]}>{copy('Demande envoyée — en attente de sa réponse.','Request sent — waiting for an answer.')}</Text>
+  :relation.requestSent?<Text style={[s.body,{marginTop:24}]}>{copy('Demande envoyée. En attente de sa réponse.','Request sent — waiting for an answer.')}</Text>
   :<View style={{alignSelf:'flex-start',marginTop:24}}><ProfileButton label={copy('Demander en ami','Add friend')} busy={busy} onPress={()=>void act('friend_request',{p_handle:person.data!.handle},copy('Demande envoyée.','Request sent.'))}/></View>}
  {relation.following
   ?<ProfileLink title={copy('Ne plus suivre','Unfollow')} icon="ami" onPress={()=>void act('unfollow_user',{p_handle:person.data!.handle},copy('Abonnement retiré.','Following removed.'))}/>

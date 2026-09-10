@@ -92,7 +92,7 @@ export const C = defineCatalog({
     pt: 'Nenhum servidor conectado',
   },
   noBackendBody: {
-    fr: 'Cette version de l’app n’est reliée à aucun serveur : il n’y a pas de compte à rejoindre, donc rien à lire. Tes liens ne sont pas vides — ils ne sont nulle part encore.',
+    fr: 'Cette version de l’app n’est reliée à aucun serveur : il n’y a pas de compte à rejoindre, donc rien à lire. Tes liens ne sont pas vides, ils ne sont nulle part encore.',
     en: 'This build isn’t connected to any server: there is no account to join, so nothing to read. Your connections aren’t empty — they aren’t anywhere yet.',
     es: 'Esta versión de la app no está conectada a ningún servidor: no hay cuenta a la que entrar, así que no hay nada que leer. Tus vínculos no están vacíos: todavía no están en ninguna parte.',
     de: 'Dieser Build ist mit keinem Server verbunden: Es gibt kein Konto und damit nichts zu lesen. Deine Verbindungen sind nicht leer — sie existieren noch nirgends.',
@@ -372,7 +372,7 @@ export const C = defineCatalog({
     pt: 'O servidor não executou essa ação. Nada mudou.',
   },
   errNetwork: {
-    fr: 'Je n’ai pas joint le serveur. Je ne sais pas si l’action est passée — rouvre la page pour voir.',
+    fr: 'Je n’ai pas joint le serveur. Je ne sais pas si l’action est passée. Rouvre la page pour voir.',
     en: 'I couldn’t reach the server. I don’t know whether it went through — reopen the page to check.',
     es: 'No pude contactar con el servidor. No sé si la acción se aplicó: vuelve a abrir la página para verlo.',
     de: 'Der Server war nicht erreichbar. Ob die Aktion durchging, weiß ich nicht — öffne die Seite erneut.',
@@ -666,7 +666,7 @@ export const C = defineCatalog({
    * l'inverse exact de `duelErrZoneUnavailable`, qui reste volontairement muet.
    */
   duelErrZoneAddress: {
-    fr: 'Ce libellé ressemble à une adresse. Écris un lieu public — un parc, une place, une station.',
+    fr: 'Ce libellé ressemble à une adresse. Écris un lieu public : un parc, une place, une station.',
     en: 'That label looks like an address. Write a public place instead — a park, a square, a station.',
     es: 'Esta etiqueta parece una dirección. Escribe un lugar público: un parque, una plaza, una estación.',
     de: 'Diese Angabe sieht nach einer Adresse aus. Schreib einen öffentlichen Ort — Park, Platz, Station.',

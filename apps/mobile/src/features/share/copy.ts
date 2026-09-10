@@ -659,7 +659,7 @@ export const SHARE_COPY = defineCatalog({
   // une promesse de plus que `applySharePrivacy`.
   /** a11y du badge (le badge lui-même n'affiche que le mot « Protégé »). */
   protectedDetailA11y: {
-    fr: 'Protégé — voir ce qui est protégé',
+    fr: 'Protégé, voir ce qui est protégé',
     en: 'Protected — see what’s protected',
     es: 'Protegido: ver qué está protegido',
     de: 'Geschützt – ansehen, was geschützt ist',
@@ -735,7 +735,7 @@ export const SHARE_COPY = defineCatalog({
    * armer.
    */
   protectionZonesNone: {
-    fr: 'Zones privées : aucune déclarée — l’app ne permet pas encore d’en créer.',
+    fr: 'Zones privées : aucune déclarée, l’app ne permet pas encore d’en créer.',
     en: 'Private zones: none set — the app can’t create them yet.',
     es: 'Zonas privadas: ninguna — la app aún no permite crearlas.',
     de: 'Private Zonen: keine – die App kann sie noch nicht anlegen.',

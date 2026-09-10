@@ -463,7 +463,7 @@ export const C = defineCatalog({
     pt: 'Pronto: todas as outras sessões foram encerradas. Você pode repetir se precisar.',
   },
   otherDevicesFailed: {
-    fr: 'La déconnexion n’a pas abouti — rien n’a été coupé. Vérifie ta connexion et réessaie.',
+    fr: 'La déconnexion n’a pas abouti : rien n’a été coupé. Vérifie ta connexion et réessaie.',
     en: 'Sign-out didn’t go through — nothing was cut off. Check your connection and try again.',
     es: 'El cierre de sesión no se completó: no se cortó nada. Revisa tu conexión e inténtalo otra vez.',
     de: 'Die Abmeldung ist fehlgeschlagen — nichts wurde beendet. Prüfe deine Verbindung und versuch es erneut.',
@@ -489,7 +489,7 @@ export const C = defineCatalog({
    * n'est pas lisible par l'app.
    */
   otherDevicesNoListNote: {
-    fr: 'GRYD ne peut pas te montrer la liste de tes appareils : le service qui gère les connexions ne communique à l’app que la session de CE téléphone — ni les autres, ni leur modèle, ni leur dernière activité. Plutôt qu’une liste inventée, il n’y a qu’une action, et elle est réelle.',
+    fr: 'GRYD ne peut pas te montrer la liste de tes appareils : le service qui gère les connexions ne communique à l’app que la session de CE téléphone, ni les autres, ni leur modèle, ni leur dernière activité. Plutôt qu’une liste inventée, il n’y a qu’une action, et elle est réelle.',
     en: 'GRYD can’t show you a list of your devices: the sign-in service only tells the app about THIS phone’s session — not the others, not their model, not their last activity. Rather than an invented list, there’s just one action, and it’s real.',
     es: 'GRYD no puede mostrarte la lista de tus dispositivos: el servicio de acceso solo le comunica a la app la sesión de ESTE teléfono, no las demás, ni su modelo, ni su última actividad. En vez de una lista inventada, hay una sola acción, y es real.',
     de: 'GRYD kann dir keine Geräteliste zeigen: Der Login-Dienst meldet der App nur die Sitzung DIESES Telefons — nicht die anderen, nicht deren Modell, nicht deren letzte Aktivität. Statt einer erfundenen Liste gibt es nur eine Aktion, und die ist echt.',
@@ -561,7 +561,7 @@ export const C = defineCatalog({
     pt: 'Cópia RGPD das suas atividades e zonas',
   },
   deleteAccountDetail: {
-    fr: "Depuis l'app — irréversible, c'est ton droit",
+    fr: "Depuis l'app · irréversible, c'est ton droit",
     en: 'From the app — irreversible, and your right',
     es: 'Desde la app — irreversible, y es tu derecho',
     de: 'Direkt in der App — endgültig, dein gutes Recht',
@@ -765,7 +765,7 @@ export const C = defineCatalog({
     pt: 'Ainda não ativadas neste telefone',
   },
   pushRegistered: {
-    fr: 'Activées sur cet appareil — touche pour les couper',
+    fr: 'Activées sur cet appareil. Touche pour les couper',
     en: 'On for this device — tap to turn them off',
     es: 'Activadas en este dispositivo — toca para desactivarlas',
     de: 'Auf diesem Gerät aktiv — tippe zum Ausschalten',
@@ -779,14 +779,14 @@ export const C = defineCatalog({
     pt: 'Registrando…',
   },
   pushDenied: {
-    fr: 'Refusées pour GRYD dans les réglages du téléphone — tu peux les réautoriser là-bas',
+    fr: 'Refusées pour GRYD dans les réglages du téléphone. Tu peux les réautoriser là-bas',
     en: 'Denied for GRYD in your phone settings — you can allow them again there',
     es: 'Denegadas para GRYD en los ajustes del teléfono — puedes permitirlas de nuevo allí',
     de: 'In den Handy-Einstellungen für GRYD abgelehnt — du kannst sie dort wieder erlauben',
     pt: 'Negadas para o GRYD nos ajustes do telefone — você pode permitir de novo lá',
   },
   pushUnsupported: {
-    fr: 'Indisponible dans le navigateur — depuis l’app installée uniquement',
+    fr: 'Indisponible dans le navigateur : depuis l’app installée uniquement',
     en: 'Not available in the browser — from the installed app only',
     es: 'No disponible en el navegador — solo desde la app instalada',
     de: 'Im Browser nicht verfügbar — nur in der installierten App',
@@ -807,7 +807,7 @@ export const C = defineCatalog({
    * est faux et enverrait le joueur mettre à jour pour rien.
    */
   pushNoCredentials: {
-    fr: 'Cette version ne peut pas recevoir de message envoyé à distance — rien à faire de ton côté',
+    fr: 'Cette version ne peut pas recevoir de message envoyé à distance. Rien à faire de ton côté',
     en: 'This version can’t receive messages sent remotely — nothing for you to do',
     es: 'Esta versión no puede recibir mensajes enviados a distancia — no tienes que hacer nada',
     de: 'Diese Version kann keine aus der Ferne gesendeten Nachrichten empfangen — du musst nichts tun',
@@ -821,7 +821,7 @@ export const C = defineCatalog({
     pt: 'Entre na conta para receber avisos das suas zonas',
   },
   pushError: {
-    fr: 'Impossible d’enregistrer cet appareil pour l’instant — réessaie plus tard',
+    fr: 'Impossible d’enregistrer cet appareil pour l’instant. Réessaie plus tard',
     en: 'Couldn’t register this device right now — try again later',
     es: 'No se pudo registrar este dispositivo ahora — inténtalo más tarde',
     de: 'Gerät konnte gerade nicht registriert werden — versuch es später',
@@ -952,7 +952,7 @@ export const C = defineCatalog({
   // Plage calme et budget INTERPOLÉS depuis `NOTIFICATION_RULES_2026` : aucun
   // nombre de politique ne vit dans une chaîne.
   notifBudgetNote: {
-    fr: 'Rien entre {start} h et {end} h. Au plus {week} messages non essentiels par semaine, et {day} par jour. Ce qui touche à ton compte ou à un événement annulé passe quand même — sans vente ajoutée.',
+    fr: 'Rien entre {start} h et {end} h. Au plus {week} messages non essentiels par semaine, et {day} par jour. Ce qui touche à ton compte ou à un événement annulé passe quand même, sans vente ajoutée.',
     en: 'Nothing between {start}:00 and {end}:00. At most {week} non-essential messages a week, and {day} a day. Anything about your account or a cancelled event still goes through — with nothing to sell.',
     es: 'Nada entre las {start} h y las {end} h. Como máximo {week} mensajes no esenciales por semana, y {day} al día. Lo que afecta a tu cuenta o a un evento cancelado pasa igual — sin venta añadida.',
     de: 'Nichts zwischen {start} und {end} Uhr. Höchstens {week} nicht wesentliche Nachrichten pro Woche und {day} pro Tag. Was dein Konto oder einen abgesagten Termin betrifft, kommt trotzdem — ohne Verkauf.',
@@ -994,7 +994,7 @@ export const C = defineCatalog({
     pt: 'Salvando sua escolha…',
   },
   notifSaveFailed: {
-    fr: 'Ton choix n’a pas pu être enregistré — il a été remis comme avant. Réessaie.',
+    fr: 'Ton choix n’a pas pu être enregistré : il a été remis comme avant. Réessaie.',
     en: 'Your choice couldn’t be saved — it was put back as it was. Try again.',
     es: 'No se pudo guardar tu elección — se dejó como estaba. Inténtalo otra vez.',
     de: 'Deine Auswahl konnte nicht gespeichert werden — sie steht wieder wie zuvor. Versuch es erneut.',
@@ -1258,7 +1258,7 @@ export const C = defineCatalog({
    * en aurait fait une surprise.
    */
   privSubtitle: {
-    fr: 'Quatre choses peuvent te rendre visible : ton nom et ton crew inscrits sur les territoires que tu tiens, ton profil ouvert à d’autres joueurs, ton rang dans le classement de ta commune, et ce que tu publies toi-même dans le fil et la conversation de ton crew. Les réglages ci-dessous gouvernent les trois premières — la quatrième ne part que si tu publies.',
+    fr: 'Quatre choses peuvent te rendre visible : ton nom et ton crew inscrits sur les territoires que tu tiens, ton profil ouvert à d’autres joueurs, ton rang dans le classement de ta commune, et ce que tu publies toi-même dans le fil et la conversation de ton crew. Les réglages ci-dessous gouvernent les trois premières. La quatrième ne part que si tu publies.',
     en: 'Four things can make you visible: your name and crew shown on the territories you hold, your profile opened to other players, your rank in your commune’s leaderboard, and whatever you publish yourself in your crew feed and conversation. The settings below govern the first three — the fourth only leaves if you publish.',
     es: 'Cuatro cosas pueden hacerte visible: tu nombre y tu crew inscritos en los territorios que mantienes, tu perfil abierto a otros jugadores, tu puesto en la clasificación de tu municipio, y lo que publicas tú mismo en el muro y la conversación de tu crew. Los ajustes de abajo gobiernan los tres primeros — el cuarto solo sale si publicas.',
     de: 'Vier Dinge können dich sichtbar machen: dein Name und deine Crew auf den Gebieten, die du hältst, dein für andere Spieler geöffnetes Profil, dein Rang in der Rangliste deiner Gemeinde, und was du selbst im Feed und in der Unterhaltung deiner Crew veröffentlichst. Die Einstellungen unten steuern die ersten drei — das Vierte geht nur weg, wenn du es veröffentlichst.',
@@ -1303,7 +1303,7 @@ export const C = defineCatalog({
    * ce choix sur le COMPTE et non sur le téléphone.
    */
   visScopeNote: {
-    fr: 'Ce choix part sur ton compte : le serveur l’applique et il te suit sur tous tes appareils. Il décide qui peut ouvrir ton profil, qui voit ton nom sur les territoires que tu tiens, et qui voit ton nom dans le classement de ta commune — c’est le même arbitre pour les trois.',
+    fr: 'Ce choix part sur ton compte : le serveur l’applique et il te suit sur tous tes appareils. Il décide qui peut ouvrir ton profil, qui voit ton nom sur les territoires que tu tiens, et qui voit ton nom dans le classement de ta commune. C’est le même arbitre pour les trois.',
     en: 'This choice goes to your account: the server enforces it and it follows you on every device. It decides who can open your profile, who sees your name on the territories you hold, and who sees your name in your commune’s leaderboard — one and the same rule for all three.',
     es: 'Esta elección va a tu cuenta: el servidor la aplica y te acompaña en todos tus dispositivos. Decide quién puede abrir tu perfil, quién ve tu nombre en los territorios que mantienes y quién ve tu nombre en la clasificación de tu municipio: es la misma regla para los tres.',
     de: 'Diese Wahl geht an dein Konto: Der Server setzt sie durch und sie gilt auf allen deinen Geräten. Sie entscheidet, wer dein Profil öffnen kann, wer deinen Namen auf den Gebieten sieht, die du hältst, und wer deinen Namen in der Rangliste deiner Gemeinde sieht — dieselbe Regel für alle drei.',
@@ -1559,7 +1559,7 @@ export const C = defineCatalog({
    * l'écran de sécurité — l'endroit où l'on peut le moins se le permettre.
    */
   blockShortcutNote: {
-    fr: 'Plus simple : touche « … » sur la ligne du joueur dans ton crew, ou ouvre son profil — le pseudo y est déjà rempli. Le classement de ta commune, lui, ne propose pas ce raccourci : reviens ici avec son pseudo.',
+    fr: 'Plus simple : touche « … » sur la ligne du joueur dans ton crew, ou ouvre son profil, le pseudo y est déjà rempli. Le classement de ta commune, lui, ne propose pas ce raccourci : reviens ici avec son pseudo.',
     en: 'Simpler: tap “…” on the player’s row in your crew, or open their profile — the name is already filled in. Your commune’s leaderboard doesn’t offer that shortcut: come back here with their username.',
     es: 'Más simple: toca «…» en la fila del jugador en tu crew, o abre su perfil — el usuario ya viene puesto. La clasificación de tu municipio no ofrece ese atajo: vuelve aquí con su usuario.',
     de: 'Einfacher: Tippe auf „…“ in der Zeile des Spielers in deiner Crew, oder öffne sein Profil — der Name ist schon eingetragen. Die Rangliste deiner Gemeinde bietet diese Abkürzung nicht: Komm mit dem Nutzernamen hierher zurück.',
@@ -1756,7 +1756,7 @@ export const C = defineCatalog({
     pt: 'MEUS DADOS (RGPD)',
   },
   ageMinimum: {
-    fr: 'Âge minimum : 16 ans — confirmé à ton inscription.',
+    fr: 'Âge minimum : 16 ans, confirmé à ton inscription.',
     en: 'Minimum age: 16 — confirmed at sign-up.',
     es: 'Edad mínima: 16 años — confirmada al registrarte.',
     de: 'Mindestalter: 16 Jahre — bei der Anmeldung bestätigt.',
@@ -1777,7 +1777,7 @@ export const C = defineCatalog({
     pt: 'EXPORTAR (RGPD)',
   },
   exportNote: {
-    fr: "Récupère une copie de toutes tes données — sorties, zones, profil — au format JSON, via le partage. Ça n'efface rien.",
+    fr: "Récupère une copie de toutes tes données (sorties, zones, profil) au format JSON, via le partage. Ça n'efface rien.",
     en: 'Get a copy of all your data — activities, zones, profile — as JSON, via the share sheet. Nothing gets deleted.',
     es: 'Recibe una copia de todos tus datos — actividades, zonas, perfil — en formato JSON, mediante el menú de compartir. No borra nada.',
     de: 'Hol dir eine Kopie all deiner Daten — Aktivitäten, Zonen, Profil — als JSON über das Teilen-Menü. Es wird nichts gelöscht.',
@@ -1980,7 +1980,7 @@ export const C = defineCatalog({
    * avait été rejetée, et l'app lui répondait à côté. Neutralisation intégrale.
    */
   supportSubtitle: {
-    fr: 'Comprendre pourquoi une sortie compte — ou pas — et faire valoir tes droits.',
+    fr: 'Comprendre pourquoi une sortie compte, ou pas, et faire valoir tes droits.',
     en: 'Understand why an activity counts — or not — and exercise your rights.',
     es: 'Entiende por qué una actividad cuenta — o no — y haz valer tus derechos.',
     de: 'Versteh, warum eine Aktivität zählt — oder nicht — und nutz deine Rechte.',
@@ -2022,7 +2022,7 @@ export const C = defineCatalog({
     pt: 'Por que minha atividade não contou?',
   },
   whyNotCountedBody: {
-    fr: 'Boucle non fermée, GPS trop faible, zone trop étroite ou interdite… GRYD calcule chaque zone selon des règles claires. Voir comment une sortie devient une zone — ou pas.',
+    fr: 'Boucle non fermée, GPS trop faible, zone trop étroite ou interdite… GRYD calcule chaque zone selon des règles claires. Voir comment une sortie devient une zone, ou pas.',
     en: 'Unclosed loop, weak GPS, area too narrow or off-limits… GRYD scores every zone by clear rules. See how an activity becomes a zone — or not.',
     es: 'Bucle sin cerrar, GPS débil, zona demasiado estrecha o prohibida… GRYD calcula cada zona con reglas claras. Mira cómo una actividad se convierte en zona — o no.',
     de: 'Runde nicht geschlossen, GPS zu schwach, Zone zu schmal oder gesperrt… GRYD berechnet jede Zone nach klaren Regeln. Sieh, wie eine Aktivität zur Zone wird — oder nicht.',
@@ -2054,7 +2054,7 @@ export const C = defineCatalog({
    * droit que le code ne tient pas.
    */
   notCountedBody: {
-    fr: 'Une sortie peut être vérifiée, partielle, stats only, doublon ou rejetée. Seules les sorties vérifiées capturent du territoire — les autres comptent quand même pour ta performance. GRYD affiche le statut de chaque sortie et la règle qui l’a produit.',
+    fr: 'Une sortie peut être vérifiée, partielle, stats only, doublon ou rejetée. Seules les sorties vérifiées capturent du territoire. Les autres comptent quand même pour ta performance. GRYD affiche le statut de chaque sortie et la règle qui l’a produit.',
     en: 'An activity can be verified, partial, stats only, duplicate or rejected. Only verified activities capture territory — the others still count toward your performance. GRYD shows each activity’s status and the rule behind it.',
     es: 'Una actividad puede ser verificada, parcial, solo stats, duplicada o rechazada. Solo las actividades verificadas capturan territorio — las demás cuentan igualmente para tu rendimiento. GRYD muestra el estado de cada actividad y la regla que lo produjo.',
     de: 'Eine Aktivität kann verifiziert, partiell, nur Stats, Duplikat oder abgelehnt sein. Nur verifizierte Aktivitäten erobern Gebiet — die anderen zählen trotzdem für deine Leistung. GRYD zeigt den Status jeder Aktivität und die Regel dahinter.',
@@ -2152,7 +2152,7 @@ export const C = defineCatalog({
    * et nomme le seul canal qui existe vraiment.
    */
   supportFootnote: {
-    fr: 'Chaque décision de vérification est explicable : la règle appliquée est affichée avec la sortie. GRYD n’a pas encore de canal de contestation dans l’app — le seul point de contact publié est l’adresse postale du siège, dans les Mentions légales.',
+    fr: 'Chaque décision de vérification est explicable : la règle appliquée est affichée avec la sortie. GRYD n’a pas encore de canal de contestation dans l’app. Le seul point de contact publié est l’adresse postale du siège, dans les Mentions légales.',
     en: 'Every verification decision is explainable: the rule applied is shown with the activity. GRYD has no in-app appeal channel yet — the only published point of contact is the registered office address, in the Legal notice.',
     es: 'Cada decisión de verificación es explicable: la regla aplicada se muestra junto a la actividad. GRYD todavía no tiene canal de reclamación en la app — el único punto de contacto publicado es la dirección postal de la sede, en el Aviso legal.',
     de: 'Jede Verifizierungsentscheidung ist erklärbar: Die angewandte Regel steht bei der Aktivität. GRYD hat noch keinen Einspruchskanal in der App — der einzige veröffentlichte Kontakt ist die Postanschrift des Sitzes im Impressum.',
@@ -2303,7 +2303,7 @@ export const C = defineCatalog({
    * nomme en premier — la copie suit le code, jamais l'inverse.
    */
   reportEnfBody: {
-    fr: 'Sur la ligne d’un joueur — dans ton crew ou au classement — touche « … », puis Signaler et choisis un motif. Il faut un compte pour que le signalement parte. Une personne examine chaque signalement enregistré.',
+    fr: 'Sur la ligne d’un joueur (dans ton crew ou au classement), touche « … », puis Signaler et choisis un motif. Il faut un compte pour que le signalement parte. Une personne examine chaque signalement enregistré.',
     en: 'On a player’s row — in your crew or the leaderboard — tap “…”, then Report and pick a reason. An account is required for the report to be sent. A person reviews every recorded report.',
     es: 'En la fila de un jugador — en tu crew o en la clasificación — toca «…», luego Denunciar y elige un motivo. Hace falta una cuenta para que el reporte se envíe. Una persona revisa cada reporte registrado.',
     de: 'Tippe in der Zeile eines Spielers — im Crew oder in der Rangliste — auf „…“, dann Melden und wähl einen Grund. Für den Versand ist ein Konto nötig. Ein Mensch prüft jede gespeicherte Meldung.',
@@ -2361,7 +2361,7 @@ export const C = defineCatalog({
   },
 
   conduiteFootnote: {
-    fr: 'En jouant à GRYD, tu acceptes ce code de conduite. Le contenu haineux ou de harcèlement n’a pas sa place ici — une personne examine chaque signalement enregistré.',
+    fr: 'En jouant à GRYD, tu acceptes ce code de conduite. Le contenu haineux ou de harcèlement n’a pas sa place ici : une personne examine chaque signalement enregistré.',
     en: 'By playing GRYD, you accept this code of conduct. Hateful or harassing content has no place here — a person reviews every recorded report.',
     es: 'Al jugar a GRYD aceptas este código de conducta. El contenido de odio o acoso no tiene cabida aquí — una persona revisa cada reporte registrado.',
     de: 'Wenn du GRYD spielst, akzeptierst du diesen Verhaltenskodex. Hass oder Belästigung haben hier keinen Platz — ein Mensch prüft jede gespeicherte Meldung.',
@@ -2455,7 +2455,7 @@ export const C = defineCatalog({
     pt: 'Não deu para carregar seu crew',
   },
   crewLoadFailedBody: {
-    fr: 'On ne sait pas si tu en as un — on préfère le dire plutôt que d’inventer.',
+    fr: 'On ne sait pas si tu en as un. On préfère le dire plutôt que d’inventer.',
     en: 'We don’t know whether you have one — better to say so than to guess.',
     es: 'No sabemos si tienes uno — preferimos decirlo a inventarlo.',
     de: 'Wir wissen nicht, ob du eine hast — lieber ehrlich als geraten.',
@@ -2600,7 +2600,7 @@ export const C = defineCatalog({
   /** Ce que l'interrupteur du nom gouverne EXACTEMENT (colonne `discreet_mode`,
    *  lue par `territory_owner_identity_2026`). */
   territoryNameGovernNote: {
-    fr: 'Quand il est fermé, la carte affiche les territoires que tu tiens sans ton nom ni ton crew, pour tout le monde — et tu sors entièrement du classement de ta commune : pas seulement ton nom, ta ligne.',
+    fr: 'Quand il est fermé, la carte affiche les territoires que tu tiens sans ton nom ni ton crew, pour tout le monde, et tu sors entièrement du classement de ta commune : pas seulement ton nom, ta ligne.',
     en: 'When it is off, the map shows the territories you hold without your name or your crew, for everyone — and you leave your commune’s leaderboard entirely: not just your name, your whole row.',
     es: 'Cuando está cerrado, el mapa muestra los territorios que mantienes sin tu nombre ni tu crew, para todo el mundo, y sales por completo de la clasificación de tu municipio: no solo tu nombre, tu línea entera.',
     de: 'Wenn er aus ist, zeigt die Karte die Gebiete, die du hältst, ohne deinen Namen und ohne deine Crew — für alle. Und du verschwindest ganz aus der Rangliste deiner Gemeinde: nicht nur dein Name, deine ganze Zeile.',
@@ -2683,7 +2683,7 @@ export const C = defineCatalog({
     pt: 'Ajustes não lidos',
   },
   audienceFailedBody: {
-    fr: 'On n’a pas pu lire tes réglages de visibilité. Rien n’a changé sur ton compte — c’est une lecture qui a échoué, pas un réglage qui s’est fermé.',
+    fr: 'On n’a pas pu lire tes réglages de visibilité. Rien n’a changé sur ton compte : c’est une lecture qui a échoué, pas un réglage qui s’est fermé.',
     en: 'We could not read your visibility settings. Nothing changed on your account — a read failed, no setting closed itself.',
     es: 'No pudimos leer tus ajustes de visibilidad. Nada cambió en tu cuenta: falló una lectura, no se cerró ningún ajuste.',
     de: 'Deine Sichtbarkeits-Einstellungen konnten nicht gelesen werden. Auf deinem Konto hat sich nichts geändert — ein Lesevorgang ist fehlgeschlagen, keine Einstellung hat sich geschlossen.',

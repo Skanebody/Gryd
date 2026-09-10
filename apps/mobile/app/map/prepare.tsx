@@ -258,7 +258,7 @@ export default function PrepareActivityRoute() {
         <View style={[styles.sticky, { paddingBottom: insets.bottom + spacing.sm }]}>
           <Button
             label={t(P.startCta)}
-            accessibilityLabel={`${t(P.startA11y)} — ${t(ACTIVITY_NAME[activity])}`}
+            accessibilityLabel={`${t(P.startA11y)}, ${t(ACTIVITY_NAME[activity])}`}
             analyticsId="activity_start"
             /* L'OBJECTIF VOYAGE AVEC LE DÉPART, la discipline aussi
                (`plannerStartHref`, pur et testé) : c'est le même contrat que le
@@ -478,7 +478,7 @@ export default function PrepareActivityRoute() {
         {optionsOpen ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${t(P.optionRoutePlan)} — ${t(M.missionPlanA11y)}`}
+            accessibilityLabel={`${t(P.optionRoutePlan)}, ${t(M.missionPlanA11y)}`}
             onPress={() => {
               haptics.light();
               router.push(plannerHref(activity));

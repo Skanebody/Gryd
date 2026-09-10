@@ -115,7 +115,7 @@ export const C = defineCatalog({
    * devient suffisante — avec l'haptique succès, jamais une alerte.
    */
   defensePossible: {
-    fr: 'Défense possible — termine la boucle',
+    fr: 'Défense possible. Termine la boucle',
     en: 'Defence possible — close the loop',
     es: 'Defensa posible — cierra el bucle',
     de: 'Verteidigung möglich — schließ die Schleife',
@@ -201,7 +201,7 @@ export const C = defineCatalog({
    * mentirait par immobilité.
    */
   zoneUnavailable: {
-    fr: 'Zone illisible pour l’instant — ta sortie continue d’être enregistrée.',
+    fr: 'Zone illisible pour l’instant. Ta sortie continue d’être enregistrée.',
     en: 'Zone unreadable for now — your outing is still being recorded.',
     es: 'Zona ilegible por ahora — tu salida se sigue registrando.',
     de: 'Zone derzeit nicht lesbar — deine Aktivität wird weiter aufgezeichnet.',

@@ -54,14 +54,14 @@ export const C = defineCatalog({
    * seule copie, un seul CTA (§A : 1 écran = 1 décision).
    */
   noGpsNativeBody: {
-    fr: 'GRYD mesure ta course avec le GPS. Sans position autorisée, rien ne peut être enregistré — et on préfère te le dire plutôt que t’afficher une course qui n’a pas eu lieu.',
+    fr: 'GRYD mesure ta course avec le GPS. Sans position autorisée, rien ne peut être enregistré, et on préfère te le dire plutôt que t’afficher une course qui n’a pas eu lieu.',
     en: 'GRYD measures your run with GPS. Without location access nothing can be recorded — and we would rather tell you than show you a run that never happened.',
     es: 'GRYD mide tu carrera con el GPS. Sin ubicación autorizada no se puede registrar nada, y preferimos decírtelo antes que mostrarte una carrera que no existió.',
     de: 'GRYD misst deinen Lauf per GPS. Ohne freigegebenen Standort kann nichts aufgezeichnet werden — und das sagen wir dir lieber, als dir einen Lauf zu zeigen, den es nie gab.',
     pt: 'O GRYD mede sua corrida por GPS. Sem localização autorizada nada pode ser registrado — e preferimos dizer isso a mostrar uma corrida que não aconteceu.',
   },
   noGpsNativeBodyBike: {
-    fr: 'GRYD mesure ta sortie avec le GPS. Sans position autorisée, rien ne peut être enregistré — et on préfère te le dire plutôt que t’afficher une sortie qui n’a pas eu lieu.',
+    fr: 'GRYD mesure ta sortie avec le GPS. Sans position autorisée, rien ne peut être enregistré, et on préfère te le dire plutôt que t’afficher une sortie qui n’a pas eu lieu.',
     en: 'GRYD measures your ride with GPS. Without location access nothing can be recorded — and we would rather tell you than show you a ride that never happened.',
     es: 'GRYD mide tu salida con el GPS. Sin ubicación autorizada no se puede registrar nada, y preferimos decírtelo antes que mostrarte una salida que no existió.',
     de: 'GRYD misst deine Fahrt per GPS. Ohne freigegebenen Standort kann nichts aufgezeichnet werden — und das sagen wir dir lieber, als dir eine Fahrt zu zeigen, die es nie gab.',
@@ -73,14 +73,14 @@ export const C = defineCatalog({
    * endroit, puis « Réessayer » relance vraiment la lecture du capteur.
    */
   noGpsDeniedWebBody: {
-    fr: 'Ce site n’a pas accès à ta position. Autorise la localisation pour cette page dans ton navigateur, puis réessaie — GRYD n’affichera jamais une course qui n’a pas eu lieu.',
+    fr: 'Ce site n’a pas accès à ta position. Autorise la localisation pour cette page dans ton navigateur, puis réessaie. GRYD n’affichera jamais une course qui n’a pas eu lieu.',
     en: 'This site has no access to your location. Allow location for this page in your browser, then try again — GRYD will never show you a run that never happened.',
     es: 'Este sitio no tiene acceso a tu ubicación. Permite la localización para esta página en tu navegador y vuelve a intentarlo: GRYD nunca mostrará una carrera que no existió.',
     de: 'Diese Seite hat keinen Zugriff auf deinen Standort. Erlaube den Standort für diese Seite im Browser und versuch es erneut — GRYD zeigt dir nie einen Lauf, den es nie gab.',
     pt: 'Este site não tem acesso à sua localização. Permita a localização para esta página no navegador e tente de novo — o GRYD nunca vai mostrar uma corrida que não aconteceu.',
   },
   noGpsDeniedWebBodyBike: {
-    fr: 'Ce site n’a pas accès à ta position. Autorise la localisation pour cette page dans ton navigateur, puis réessaie — GRYD n’affichera jamais une sortie qui n’a pas eu lieu.',
+    fr: 'Ce site n’a pas accès à ta position. Autorise la localisation pour cette page dans ton navigateur, puis réessaie. GRYD n’affichera jamais une sortie qui n’a pas eu lieu.',
     en: 'This site has no access to your location. Allow location for this page in your browser, then try again — GRYD will never show you a ride that never happened.',
     es: 'Este sitio no tiene acceso a tu ubicación. Permite la localización para esta página en tu navegador y vuelve a intentarlo: GRYD nunca mostrará una salida que no existió.',
     de: 'Diese Seite hat keinen Zugriff auf deinen Standort. Erlaube den Standort für diese Seite im Browser und versuch es erneut — GRYD zeigt dir nie eine Fahrt, die es nie gab.',
@@ -103,14 +103,14 @@ export const C = defineCatalog({
   },
   /** Aucune API de géolocalisation ici : rien ne débloque, donc aucun faux bouton. */
   noGpsNoSensorBody: {
-    fr: 'Ce navigateur ne donne aucun accès à la position. GRYD ne peut rien mesurer ici — ouvre GRYD sur ton téléphone pour courir.',
+    fr: 'Ce navigateur ne donne aucun accès à la position. GRYD ne peut rien mesurer ici : ouvre GRYD sur ton téléphone pour courir.',
     en: 'This browser gives no access to location. GRYD cannot measure anything here — open GRYD on your phone to run.',
     es: 'Este navegador no da ningún acceso a la ubicación. GRYD no puede medir nada aquí: abre GRYD en tu teléfono para correr.',
     de: 'Dieser Browser gibt keinen Zugriff auf den Standort. GRYD kann hier nichts messen — öffne GRYD auf deinem Handy zum Laufen.',
     pt: 'Este navegador não dá acesso à localização. O GRYD não pode medir nada aqui — abra o GRYD no seu telefone para correr.',
   },
   noGpsNoSensorBodyBike: {
-    fr: 'Ce navigateur ne donne aucun accès à la position. GRYD ne peut rien mesurer ici — ouvre GRYD sur ton téléphone pour rouler.',
+    fr: 'Ce navigateur ne donne aucun accès à la position. GRYD ne peut rien mesurer ici : ouvre GRYD sur ton téléphone pour rouler.',
     en: 'This browser gives no access to location. GRYD cannot measure anything here — open GRYD on your phone to ride.',
     es: 'Este navegador no da ningún acceso a la ubicación. GRYD no puede medir nada aquí: abre GRYD en tu teléfono para pedalear.',
     de: 'Dieser Browser gibt keinen Zugriff auf den Standort. GRYD kann hier nichts messen — öffne GRYD auf deinem Handy zum Fahren.',
@@ -277,7 +277,7 @@ export const C = defineCatalog({
   },
   /** Bande ROUGE — un fait, pas un reproche, avec la seule chose à faire. */
   ringPoor: {
-    fr: 'Signal faible — sors à découvert',
+    fr: 'Signal faible. Sors à découvert',
     en: 'Weak signal — move into the open',
     es: 'Señal débil — sal a cielo abierto',
     de: 'Schwaches Signal — geh ins Freie',

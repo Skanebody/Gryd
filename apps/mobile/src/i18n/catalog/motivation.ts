@@ -82,7 +82,7 @@ export const C = defineCatalog({
     pt: 'DEFENDER',
   },
   todayCtaA11y: {
-    fr: '{objective} — départ immédiat sur le plan du jour',
+    fr: '{objective}, départ immédiat sur le plan du jour',
     en: '{objective} — start now on today’s plan',
     es: '{objective} — salida inmediata con el plan del día',
     de: '{objective} — sofort mit dem Tagesplan starten',
@@ -349,7 +349,7 @@ export const C = defineCatalog({
     pt: 'Objetivo alcançado. Bom trabalho.',
   },
   almostThere: {
-    fr: 'Plus que {remaining} — tu y es presque.',
+    fr: 'Plus que {remaining}. Tu y es presque.',
     en: 'Only {remaining} to go — you’re almost there.',
     es: 'Te quedan {remaining} — ya casi lo tienes.',
     de: 'Nur noch {remaining} — fast geschafft.',
@@ -437,7 +437,7 @@ export const C = defineCatalog({
     pt: 'Visibilidade e compartilhamento',
   },
   visibilityRowSublabel: {
-    fr: 'Qui voit ton profil, tes courses et ta trace — dans Confidentialité.',
+    fr: 'Qui voit ton profil, tes courses et ta trace · dans Confidentialité.',
     en: 'Who sees your profile, your runs and your trace — in Privacy.',
     es: 'Quién ve tu perfil, tus carreras y tu trazado — en Privacidad.',
     de: 'Wer dein Profil, deine Läufe und deine Spur sieht — unter Privatsphäre.',

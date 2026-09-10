@@ -202,7 +202,7 @@ export function PlaceSearchScreen() {
 
 function PlaceRow({ place, locale, onPress }: { place: PlaceResult; locale: string; onPress: () => void }) {
   const t = useT();
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${place.label} — ${t(C.resultOpenA11y)}`} onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${place.label}, ${t(C.resultOpenA11y)}`} onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
     <GrydIcon name="pin" size={20} color={c.darkMuted} />
     <View style={styles.rowCopy}><Text style={styles.rowLabel}>{place.label}</Text>{place.distanceKm !== null ? <Text style={styles.rowMeta}>{t(C.resultDistance, { km: formatPlaceDistanceKm(place.distanceKm, locale) })}</Text> : null}</View>
     <GrydIcon name="arrowUpRight" size={16} color={c.darkMuted} />

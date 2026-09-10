@@ -75,7 +75,7 @@ export const C = defineCatalog({
    * champ mot de passe qui ne viendra pas et croit l'écran cassé.
    */
   subtitle: {
-    fr: 'On t’envoie un lien. Un tap et tu es dedans — aucun mot de passe à retenir.',
+    fr: 'On t’envoie un lien. Un tap et tu es dedans, aucun mot de passe à retenir.',
     en: 'We send you a link. One tap and you’re in — no password to remember.',
     es: 'Te enviamos un enlace. Un toque y estás dentro: ninguna contraseña que recordar.',
     de: 'Wir schicken dir einen Link. Ein Tipp und du bist drin — kein Passwort zum Merken.',
@@ -293,14 +293,14 @@ export const C = defineCatalog({
 
   // ─── Échecs de transport (jamais un mur — §4.1) ────────────────────────────
   errorNetwork: {
-    fr: 'Envoi impossible — réessaie quand tu as du réseau.',
+    fr: 'Envoi impossible. Réessaie quand tu as du réseau.',
     en: 'Couldn’t send — try again when you’re online.',
     es: 'No se pudo enviar: reinténtalo con conexión.',
     de: 'Senden fehlgeschlagen — versuch es mit Netz erneut.',
     pt: 'Não foi possível enviar — tente quando tiver internet.',
   },
   errorUnknown: {
-    fr: 'L’envoi a échoué. Réessaie — rien n’a été enregistré.',
+    fr: 'L’envoi a échoué. Réessaie : rien n’a été enregistré.',
     en: 'Sending failed. Try again — nothing was saved.',
     es: 'El envío falló. Reinténtalo: no se ha guardado nada.',
     de: 'Senden fehlgeschlagen. Versuch es nochmal — nichts wurde gespeichert.',

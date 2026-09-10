@@ -52,7 +52,7 @@ import { defineCatalog } from '../types';
 export const C = defineCatalog({
   // ── AMENDEMENT-41 : LE RELAIS (sorties de groupe) ─────────────────────────
   qRelayQ: {
-    fr: 'On était plusieurs sur la boucle — qui prend la zone ?',
+    fr: 'On était plusieurs sur la boucle. Qui prend la zone ?',
     en: 'Several of us on the same loop — who takes the zone?',
     es: 'Éramos varios en el mismo bucle — ¿quién toma la zona?',
     de: 'Wir waren zu mehreren auf demselben Loop — wer bekommt die Zone?',
@@ -165,7 +165,7 @@ export const C = defineCatalog({
     pt: 'TOUR GUIADO · {n} ETAPAS',
   },
   calcSubtitle: {
-    fr: 'Chaque zone gagnée s’explique — chaque zone refusée aussi.',
+    fr: 'Chaque zone gagnée s’explique, chaque zone refusée aussi.',
     en: 'Every zone you win has a reason — every zone refused too.',
     es: 'Cada zona ganada se explica — y cada zona rechazada también.',
     de: 'Jede gewonnene Zone lässt sich erklären — jede abgelehnte auch.',
@@ -205,7 +205,7 @@ export const C = defineCatalog({
     pt: 'A linha toma as ruas',
   },
   secLigneLine: {
-    fr: 'Une sortie qui ne se referme pas prend les rues qu’elle traverse — elles sont à toi. Pas de zone pleine : ferme la boucle pour l’intérieur.',
+    fr: 'Une sortie qui ne se referme pas prend les rues qu’elle traverse, elles sont à toi. Pas de zone pleine : ferme la boucle pour l’intérieur.',
     en: 'An outing that doesn’t close still takes the streets it crosses — they’re yours. No full zone though: close the loop to claim the inside.',
     es: 'Una salida que no se cierra toma las calles que recorre: son tuyas. Pero sin zona completa: cierra el bucle para ganar el interior.',
     de: 'Eine Tour, die sich nicht schließt, nimmt die Straßen, über die sie führt — sie gehören dir. Aber keine volle Zone: Schließ den Loop für das Innere.',
@@ -428,7 +428,7 @@ export const C = defineCatalog({
     pt: 'PERGUNTAS E RESPOSTAS',
   },
   faqSubtitle: {
-    fr: 'Toutes les réponses, détails au tap. Chaque capture — ou refus — s’explique.',
+    fr: 'Toutes les réponses, détails au tap. Chaque capture, ou refus, s’explique.',
     en: 'Every answer, details on tap. Every capture — or refusal — has a reason.',
     es: 'Todas las respuestas, detalles al tocar. Cada captura — o rechazo — se explica.',
     de: 'Alle Antworten, Details per Tipp. Jede Eroberung — oder Ablehnung — lässt sich erklären.',
@@ -569,7 +569,7 @@ export const C = defineCatalog({
     pt: 'Ir em linha reta captura alguma coisa?',
   },
   q2A: {
-    fr: 'Oui : les rues que tu traverses deviennent à toi. Ça n’ouvre pas une ZONE pleine (l’intérieur) — pour ça, ferme une boucle.',
+    fr: 'Oui : les rues que tu traverses deviennent à toi. Ça n’ouvre pas une ZONE pleine (l’intérieur). Pour ça, ferme une boucle.',
     en: 'Yes: the streets you cross become yours. It doesn’t open a full ZONE (the inside) — for that, close a loop.',
     es: 'Sí: las calles que recorres pasan a ser tuyas. No abre una ZONA completa (el interior); para eso, cierra un bucle.',
     de: 'Ja: Die Straßen deiner Spur gehören dir. Eine volle ZONE (das Innere) gibt es so nicht — dafür schließt du einen Loop.',
@@ -648,7 +648,7 @@ export const C = defineCatalog({
    * justement demander comment ça marche.
    */
   q6A: {
-    fr: 'Non. Personne ne ferme ta boucle à ta place. Un rival peut seulement repasser par là : sa propre boucle reprend la partie qui se recouvre, et rien de plus. Il n’y a ni bouclier ni contestation — repasser est la seule façon de reprendre.',
+    fr: 'Non. Personne ne ferme ta boucle à ta place. Un rival peut seulement repasser par là : sa propre boucle reprend la partie qui se recouvre, et rien de plus. Il n’y a ni bouclier ni contestation. Repasser est la seule façon de reprendre.',
     en: 'No. Nobody closes your loop for you. A rival can only go over it again: their own loop takes back the overlapping part, and nothing more. There is no shield and no contest — going over it again is the only way to take ground back.',
     es: 'No. Nadie cierra tu bucle por ti. Un rival solo puede volver a pasar por allí: su propio bucle recupera la parte que se solapa, y nada más. No hay escudo ni disputa: volver a pasar es la única forma de recuperar terreno.',
     de: 'Nein. Niemand schließt deinen Loop für dich. Ein Rivale kann die Strecke nur erneut zurücklegen: sein eigener Loop nimmt den überlappenden Teil zurück, mehr nicht. Es gibt weder Schutzschild noch Streitfall — die Strecke erneut zurücklegen ist die einzige Art, Gelände zurückzuholen.',
@@ -663,7 +663,7 @@ export const C = defineCatalog({
   },
   /** {steal} = valeur d'une zone volée (game-rules), {n} = valeur de base. */
   q7A: {
-    fr: 'Ta boucle passe sur son territoire, tu le prends. Une zone reprise rapporte plus qu’une zone libre : {steal} au lieu de {base}. Sauf si elle est protégée — voir « Pourquoi je n’ai pas pu prendre cette zone ? ».',
+    fr: 'Ta boucle passe sur son territoire, tu le prends. Une zone reprise rapporte plus qu’une zone libre : {steal} au lieu de {base}. Sauf si elle est protégée : voir « Pourquoi je n’ai pas pu prendre cette zone ? ».',
     en: 'Your loop passes over their territory, you take it. A retaken zone pays more than a free one: {steal} instead of {base}. Unless it’s protected — see “Why couldn’t I take that zone?”.',
     es: 'Tu bucle pasa por su territorio y se lo quitas. Una zona recuperada da más que una libre: {steal} en vez de {base}. Salvo que esté protegida — mira «¿Por qué no pude tomar esa zona?».',
     de: 'Dein Loop führt über sein Gebiet, du nimmst es. Eine zurückeroberte Zone bringt mehr als eine freie: {steal} statt {base}. Außer sie ist geschützt — siehe „Warum konnte ich diese Zone nicht nehmen?“.',

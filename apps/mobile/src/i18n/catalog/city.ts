@@ -139,7 +139,7 @@ export const C = defineCatalog({
    * `CITY_DISC_RADIUS_M` (game-rules) — jamais écrit en dur dans la phrase.
    */
   openExplain: {
-    fr: 'L’ouvrir crée une aire de jeu approximative — un disque de {km} km autour du centre, pas les limites de la ville — et y démarre une saison.',
+    fr: 'L’ouvrir crée une aire de jeu approximative (un disque de {km} km autour du centre, pas les limites de la ville) et y démarre une saison.',
     en: 'Opening it creates an approximate play area — a {km} km disc around the centre, not the city limits — and starts a season there.',
     es: 'Abrirla crea un área de juego aproximada — un disco de {km} km alrededor del centro, no los límites de la ciudad — y arranca una temporada.',
     de: 'Öffnen erzeugt ein ungefähres Spielgebiet — eine Scheibe von {km} km um das Zentrum, nicht die Stadtgrenzen — und startet dort eine Saison.',
@@ -210,7 +210,7 @@ export const C = defineCatalog({
    * écrit en dur. {n} = plafond.
    */
   openFailedQuota: {
-    fr: 'Tu as déjà ouvert {n} villes — c’est la limite. Réessaie depuis une ville déjà ouverte.',
+    fr: 'Tu as déjà ouvert {n} villes : c’est la limite. Réessaie depuis une ville déjà ouverte.',
     en: 'You have already opened {n} cities — that is the limit. Pick a city that is already open.',
     es: 'Ya has abierto {n} ciudades — es el límite. Elige una ciudad ya abierta.',
     de: 'Du hast bereits {n} Städte geöffnet — das ist das Limit. Wähle eine bereits geöffnete Stadt.',
@@ -272,7 +272,7 @@ export const C = defineCatalog({
    * coureurs solo et zéro crew. On énonce donc exactement ce qui a été compté.
    */
   emptyCity: {
-    fr: 'Aucun crew ici pour l’instant — crée le premier.',
+    fr: 'Aucun crew ici pour l’instant. Crée le premier.',
     en: 'No crew here yet — create the first one.',
     es: 'Ningún crew aquí todavía — crea el primero.',
     de: 'Noch kein Crew hier — gründe das erste.',
@@ -364,7 +364,7 @@ export const C = defineCatalog({
    * sélecteur sait ouvrir une ville : la phrase dit les DEUX chemins.
    */
   crewNeedsOpenCity: {
-    fr: 'Choisis une ville ouverte — ou ouvre la tienne depuis la liste.',
+    fr: 'Choisis une ville ouverte, ou ouvre la tienne depuis la liste.',
     en: 'Pick an open city — or open yours from the list.',
     es: 'Elige una ciudad abierta — o abre la tuya desde la lista.',
     de: 'Wähle eine offene Stadt — oder öffne deine aus der Liste.',
@@ -425,14 +425,14 @@ export const C = defineCatalog({
     pt: 'Contornos das cidades abertas',
   },
   creditsZonesBody: {
-    fr: 'Les 34 969 communes de France — celle où tu cours ouvre ton terrain — et les contours qui décident si une course capture viennent du découpage administratif officiel français.',
+    fr: 'Les 34 969 communes de France (celle où tu cours ouvre ton terrain) et les contours qui décident si une course capture viennent du découpage administratif officiel français.',
     en: 'The 34,969 French communes — the one you run in opens your ground — and the boundaries deciding whether a run captures come from the official French administrative dataset.',
     es: 'Las 34 969 comunas de Francia —aquella en la que corres abre tu terreno— y los contornos que deciden si una carrera captura vienen del catastro administrativo oficial francés.',
     de: 'Die 34 969 französischen Gemeinden — die, in der du läufst, öffnet dein Gebiet — und die Grenzen, die über Eroberungen entscheiden, stammen aus dem offiziellen französischen Verwaltungsdatensatz.',
     pt: 'As 34 969 comunas da França — aquela onde você corre abre seu terreno — e os contornos que decidem se uma corrida captura vêm do recorte administrativo oficial francês.',
   },
   creditsZonesAttribution: {
-    fr: 'Communes et contours administratifs : geo.api.gouv.fr (Etalab) — Licence Ouverte 2.0',
+    fr: 'Communes et contours administratifs : geo.api.gouv.fr (Etalab) · Licence Ouverte 2.0',
     en: 'Communes and administrative boundaries: geo.api.gouv.fr (Etalab) — Open Licence 2.0',
     es: 'Comunas y contornos administrativos: geo.api.gouv.fr (Etalab) — Licence Ouverte 2.0',
     de: 'Gemeinden und Verwaltungsgrenzen: geo.api.gouv.fr (Etalab) — Licence Ouverte 2.0',

@@ -47,7 +47,7 @@ export const C = defineCatalog({
     pt: 'AJUSTES · MINHAS ROTAS',
   },
   subtitle: {
-    fr: 'Ce que GRYD te propose pour ta prochaine sortie. Un parcours proposé ne donne jamais de points ni de territoire — il suggère.',
+    fr: 'Ce que GRYD te propose pour ta prochaine sortie. Un parcours proposé ne donne jamais de points ni de territoire : il suggère.',
     // fr et es disaient déjà « sortie » / « salida » : seules les trois langues
     // qui fuyaient sont retouchées — on ne réécrit pas ce qui est déjà juste.
     en: 'What GRYD suggests for your next outing. A suggested route never grants points or territory — it only suggests.',
@@ -265,7 +265,7 @@ export const C = defineCatalog({
     pt: 'Aprender com minhas atividades',
   },
   learnHint: {
-    fr: 'GRYD regarde tes distances, tes allures et tes horaires — les tiens seulement, jamais ceux des autres. Aucun point de départ n’est enregistré.',
+    fr: 'GRYD regarde tes distances, tes allures et tes horaires : les tiens seulement, jamais ceux des autres. Aucun point de départ n’est enregistré.',
     en: 'GRYD looks at your distances, paces and times — yours only, never anyone else’s. No start point is stored.',
     es: 'GRYD mira tus distancias, ritmos y horarios: solo los tuyos, nunca los de otros. No se guarda ningún punto de salida.',
     de: 'GRYD schaut auf deine Distanzen, Tempi und Zeiten — nur deine, nie die anderer. Kein Startpunkt wird gespeichert.',
@@ -342,7 +342,7 @@ export const C = defineCatalog({
     pt: 'Ajustes ilegíveis',
   },
   prefsUnavailable: {
-    fr: 'GRYD n’a pas pu lire tes réglages de parcours. Rien n’a été modifié — un réseau qui lâche n’efface aucune préférence.',
+    fr: 'GRYD n’a pas pu lire tes réglages de parcours. Rien n’a été modifié : un réseau qui lâche n’efface aucune préférence.',
     en: 'GRYD could not read your route settings. Nothing was changed — a network that drops erases no preference.',
     es: 'GRYD no pudo leer tus ajustes de rutas. No se cambió nada — una red que falla no borra ninguna preferencia.',
     de: 'GRYD konnte deine Routen-Einstellungen nicht lesen. Es wurde nichts geändert — ein abbrechendes Netz löscht keine Präferenz.',

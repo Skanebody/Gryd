@@ -199,7 +199,7 @@ export const C = defineCatalog({
     pt: 'Gerenciar na loja',
   },
   manageNote: {
-    fr: 'La résiliation et le changement de formule se font dans ton Store — GRYD ne peut pas le faire à ta place.',
+    fr: 'La résiliation et le changement de formule se font dans ton Store. GRYD ne peut pas le faire à ta place.',
     en: 'Cancelling or switching plans happens in your Store — GRYD can’t do it for you.',
     es: 'La cancelación y el cambio de plan se hacen en tu tienda: GRYD no puede hacerlo por ti.',
     de: 'Kündigung und Tarifwechsel laufen über deinen Store — GRYD kann das nicht für dich tun.',
@@ -392,7 +392,7 @@ export const C = defineCatalog({
     pt: 'Não foi possível ler sua assinatura',
   },
   failedBody: {
-    fr: 'On ne sait pas où en est ton abonnement — ce n’est pas la même chose que ne pas en avoir. Rien n’a été modifié.',
+    fr: 'On ne sait pas où en est ton abonnement : ce n’est pas la même chose que ne pas en avoir. Rien n’a été modifié.',
     en: 'We don’t know where your subscription stands — that isn’t the same as not having one. Nothing was changed.',
     es: 'No sabemos en qué punto está tu suscripción, y eso no es lo mismo que no tenerla. No se cambió nada.',
     de: 'Wir wissen nicht, wie es um dein Abo steht — das ist nicht dasselbe wie keines zu haben. Es wurde nichts geändert.',

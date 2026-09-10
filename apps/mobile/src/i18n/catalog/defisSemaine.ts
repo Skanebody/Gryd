@@ -33,7 +33,7 @@ export const C = defineCatalog({
     pt: 'Desafios da semana',
   },
   intro: {
-    fr: 'Deux défis à la fois. Ils demandent d’aller ailleurs, avec quelqu’un, ou autrement — jamais plus.',
+    fr: 'Deux défis à la fois. Ils demandent d’aller ailleurs, avec quelqu’un, ou autrement, jamais plus.',
     en: 'Two challenges at a time. They ask for elsewhere, with someone, or differently — never more.',
     es: 'Dos retos a la vez. Piden ir a otro sitio, con alguien o de otra forma — nunca más.',
     de: 'Zwei Aufgaben zugleich. Sie fragen nach woanders, mit jemandem, anders — nie nach mehr.',

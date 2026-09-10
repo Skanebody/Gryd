@@ -80,7 +80,7 @@ export function ContextualRunButton({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              accessibilityLabel ?? `${label} — départ immédiat. Maintiens pour les choix avancés.`
+              accessibilityLabel ?? `${label}, départ immédiat. Maintiens pour les choix avancés.`
             }
             accessibilityState={{ disabled }}
             disabled={disabled}
@@ -159,7 +159,7 @@ export function FloatingActionButton({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
-            accessibilityLabel ?? `${label} — départ immédiat. Maintiens pour les choix avancés.`
+            accessibilityLabel ?? `${label}, départ immédiat. Maintiens pour les choix avancés.`
           }
           accessibilityState={{ disabled }}
           disabled={disabled}

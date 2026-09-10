@@ -202,7 +202,7 @@ function Board({ board, area, day, reload }: {
     <View style={s.list}>
       {board.entries.slice(0, LEADERBOARD_ROWS_LIMIT).map((row) => <View key={row.key}
         style={[s.row, row.isMe && s.mine]}
-        accessibilityLabel={`${row.rank}. ${row.isMe ? t(C.toi) : row.label ?? t(C.ligneAnonyme, { code: row.key.slice(0, 6).toUpperCase() })} — ${t(C.terrainPris, { km: area(row.newTerrainM2) })}`}>
+        accessibilityLabel={`${row.rank}. ${row.isMe ? t(C.toi) : row.label ?? t(C.ligneAnonyme, { code: row.key.slice(0, 6).toUpperCase() })}, ${t(C.terrainPris, { km: area(row.newTerrainM2) })}`}>
         <Text style={[s.rank, row.isMe && s.mineText]}>{row.rank}</Text>
         <View style={s.who}>
           <Text style={[s.name, row.isMe && s.mineText]} numberOfLines={1}>

@@ -127,7 +127,7 @@ export const C = defineCatalog({
     pt: 'Permitido',
   },
   motionDenied: {
-    fr: 'Refusé — le GPS seul suffit à jouer.',
+    fr: 'Refusé. Le GPS seul suffit à jouer.',
     en: 'Declined — GPS alone is enough to play.',
     es: 'Rechazado: el GPS por sí solo basta para jugar.',
     de: 'Abgelehnt — GPS allein reicht zum Spielen.',
@@ -203,7 +203,7 @@ export const C = defineCatalog({
     pt: 'Permitido',
   },
   notificationsDenied: {
-    fr: 'Refusé — tu retrouveras tout dans l’app.',
+    fr: 'Refusé. Tu retrouveras tout dans l’app.',
     en: 'Declined — you’ll find it all inside the app.',
     es: 'Rechazado: lo encontrarás todo dentro de la app.',
     de: 'Abgelehnt — du findest alles in der App wieder.',
@@ -217,7 +217,7 @@ export const C = defineCatalog({
     pt: 'Bloqueado no nível do sistema. Dá para reabrir nas configurações do aparelho.',
   },
   notificationsUnavailable: {
-    fr: 'Indisponible ici — les notifications vivent sur le téléphone.',
+    fr: 'Indisponible ici : les notifications vivent sur le téléphone.',
     en: 'Unavailable here — notifications live on the phone.',
     es: 'No disponible aquí: las notificaciones viven en el móvil.',
     de: 'Hier nicht verfügbar — Mitteilungen leben am Handy.',
@@ -263,7 +263,7 @@ export const C = defineCatalog({
   },
   /** Le serveur a refusé l'enregistrement — réseau, RLS, session expirée. */
   notificationsDeliveryError: {
-    fr: 'Autorisation enregistrée. L’enregistrement de cet appareil a échoué — à reprendre dans Réglages.',
+    fr: 'Autorisation enregistrée. L’enregistrement de cet appareil a échoué : à reprendre dans Réglages.',
     en: 'Permission saved. Registering this device failed — pick it up again in Settings.',
     es: 'Permiso guardado. Falló el registro de este dispositivo: retómalo en Ajustes.',
     de: 'Erlaubnis gespeichert. Die Geräteregistrierung ist fehlgeschlagen — in den Einstellungen fortsetzen.',

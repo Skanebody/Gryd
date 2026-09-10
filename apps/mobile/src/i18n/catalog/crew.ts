@@ -75,7 +75,7 @@ export const C = defineCatalog({
    * zones prises à vélo — le mot « coureurs » décrivait mal le calcul lui-même.
    */
   emptyBody: {
-    fr: 'Un crew cumule le territoire de ses membres — et le défend quand tu dors. Fonde le tien ou rejoins-en un en 1 tap.',
+    fr: 'Un crew cumule le territoire de ses membres, et le défend quand tu dors. Fonde le tien ou rejoins-en un en 1 tap.',
     en: 'A crew stacks the territory of its members — and defends it while you sleep. Found yours or join one in 1 tap.',
     es: 'Un crew suma el territorio de sus miembros — y lo defiende mientras duermes. Funda el tuyo o únete a uno en 1 toque.',
     de: 'Ein Crew bündelt das Revier seiner Mitglieder — und verteidigt es, während du schläfst. Gründe deins oder tritt mit 1 Tipp bei.',
@@ -623,7 +623,7 @@ export const C = defineCatalog({
     pt: 'Vou fechar o circuito',
   },
   sigLoopOpen: {
-    fr: 'La boucle est ouverte — qui la ferme ?',
+    fr: 'La boucle est ouverte. Qui la ferme ?',
     en: 'The loop is open — who closes it?',
     es: 'El bucle está abierto — ¿quién lo cierra?',
     de: 'Die Schleife ist offen — wer schließt sie?',
@@ -684,7 +684,7 @@ export const C = defineCatalog({
    * secteur RÉEL + libellé de signal. « KORO · République — Je défends ce soir ».
    */
   pingLine: {
-    fr: '{author} · {sector} — {signal}',
+    fr: '{author} · {sector} · {signal}',
     en: '{author} · {sector} — {signal}',
     es: '{author} · {sector} — {signal}',
     de: '{author} · {sector} — {signal}',
@@ -692,7 +692,7 @@ export const C = defineCatalog({
   },
   /** Même phrase, pour un signal SANS lieu (« sortie ce soir ? »). */
   pingLineNoSector: {
-    fr: '{author} — {signal}',
+    fr: '{author} · {signal}',
     en: '{author} — {signal}',
     es: '{author} — {signal}',
     de: '{author} — {signal}',
@@ -751,7 +751,7 @@ export const C = defineCatalog({
   },
   /** Le crew ne tient rien de nommé : on le DIT au lieu de proposer un lieu vide. */
   pingNoSector: {
-    fr: 'Aucune zone à épingler pour l’instant — les signaux sans lieu restent possibles.',
+    fr: 'Aucune zone à épingler pour l’instant. Les signaux sans lieu restent possibles.',
     en: 'No zone to pin yet — signals without a place are still available.',
     es: 'Aún no hay zona que marcar — las señales sin lugar siguen disponibles.',
     de: 'Noch keine Zone zum Markieren — Signale ohne Ort bleiben möglich.',
@@ -811,7 +811,7 @@ export const C = defineCatalog({
   },
   /** Crew sans aucun hex : on le DIT, on ne décore pas un zéro. */
   rlNoTerritory: {
-    fr: 'Ton crew n’a pas encore de territoire — sors pour en prendre.',
+    fr: 'Ton crew n’a pas encore de territoire. Sors pour en prendre.',
     en: 'Your crew holds no territory yet — head out and take some.',
     es: 'Tu crew aún no tiene territorio — sal a conquistarlo.',
     de: 'Euer Crew hält noch kein Revier — geht raus und erobert welches.',
@@ -870,7 +870,7 @@ export const C = defineCatalog({
   /** Flash juste après la fondation : « premiers membres » est exact — il n'y a
    *  encore que le fondateur, et un crew se remplit sans distinction de monde. */
   rlCreated: {
-    fr: '{name} est fondé — invite tes premiers membres',
+    fr: '{name} est fondé. Invite tes premiers membres',
     en: '{name} is founded — invite your first members',
     es: '{name} está fundado — invita a tus primeros miembros',
     de: '{name} ist gegründet — lade deine ersten Mitglieder ein',
@@ -905,7 +905,7 @@ export const C = defineCatalog({
     pt: 'Nenhum crew corresponde a este código.',
   },
   rlErrAlreadyInCrew: {
-    fr: 'Tu es déjà dans un crew — quitte-le d’abord.',
+    fr: 'Tu es déjà dans un crew. Quitte-le d’abord.',
     en: 'You’re already in a crew — leave it first.',
     es: 'Ya estás en un crew — sal de él primero.',
     de: 'Du bist schon in einem Crew — verlasse ihn zuerst.',
@@ -1079,7 +1079,7 @@ export const C = defineCatalog({
     pt: 'Lendo o território…',
   },
   territoryUnavailable: {
-    fr: 'Territoire non lu — la lecture n’a pas abouti.',
+    fr: 'Territoire non lu : la lecture n’a pas abouti.',
     en: 'Territory not read — the request didn’t complete.',
     es: 'Territorio no leído — la lectura no se completó.',
     de: 'Revier nicht gelesen — die Abfrage kam nicht durch.',
@@ -1099,7 +1099,7 @@ export const C = defineCatalog({
    * (`full`, 0050) : un bouton qui échoue toujours est un bouton mort.
    */
   crewFullNotice: {
-    fr: 'Crew complet — plus aucune place pour l’instant.',
+    fr: 'Crew complet. Plus aucune place pour l’instant.',
     en: 'Crew full — no spot left for now.',
     es: 'Crew completo — sin plazas por ahora.',
     de: 'Crew voll — derzeit kein Platz frei.',
@@ -1196,7 +1196,7 @@ export const C = defineCatalog({
     pt: 'Não foi possível carregar seu crew',
   },
   rlLoadFailedBody: {
-    fr: 'On n’a pas pu joindre le serveur. Ton crew et ton territoire sont intacts — c’est l’affichage qui manque.',
+    fr: 'On n’a pas pu joindre le serveur. Ton crew et ton territoire sont intacts : c’est l’affichage qui manque.',
     en: 'We couldn’t reach the server. Your crew and territory are intact — only the display is missing.',
     es: 'No pudimos contactar el servidor. Tu crew y tu territorio están intactos — solo falta mostrarlos.',
     de: 'Der Server war nicht erreichbar. Dein Crew und dein Revier sind unversehrt — nur die Anzeige fehlt.',
@@ -1258,7 +1258,7 @@ export const C = defineCatalog({
     pt: 'DEFENDER',
   },
   defendA11y: {
-    fr: 'Défendre {sector} — il reste {h} heures',
+    fr: 'Défendre {sector}, il reste {h} heures',
     en: 'Defend {sector} — {h} hours left',
     es: 'Defender {sector} — quedan {h} horas',
     de: '{sector} schützen — noch {h} Stunden',
@@ -1274,7 +1274,7 @@ export const C = defineCatalog({
     pt: 'TERRITÓRIO DO CREW',
   },
   territoryA11y: {
-    fr: 'Territoire crew : {sector} {pct} % — ouvrir la carte',
+    fr: 'Territoire crew : {sector} {pct} %. Ouvrir la carte',
     en: 'Crew territory: {sector} {pct}% — open the map',
     es: 'Territorio del crew: {sector} {pct} % — abrir el mapa',
     de: 'Crew-Revier: {sector} {pct} % — Karte öffnen',
@@ -1624,7 +1624,7 @@ export const C = defineCatalog({
     pt: 'Publicar a saída para o crew',
   },
   outingCreated: {
-    fr: 'Sortie créée — le crew la voit (démo)',
+    fr: 'Sortie créée. Le crew la voit (démo)',
     en: 'Outing created — the crew can see it (demo)',
     es: 'Salida creada — el crew la ve (demo)',
     de: 'Run erstellt — das Crew sieht ihn (Demo)',
@@ -1712,7 +1712,7 @@ export const C = defineCatalog({
   },
   used: { fr: 'Utilisé', en: 'Used', es: 'Usado', de: 'Benutzt', pt: 'Usado' },
   glueNote: {
-    fr: 'Ces gestes nourrissent le crew et le coffre — jamais de territoire ni de points.',
+    fr: 'Ces gestes nourrissent le crew et le coffre, jamais de territoire ni de points.',
     en: 'These moves feed the crew and the chest — never territory or points.',
     es: 'Estos gestos alimentan el crew y el cofre — nunca territorio ni puntos.',
     de: 'Diese Gesten stärken Crew und Truhe — nie Revier oder Punkte.',
@@ -1815,14 +1815,14 @@ export const C = defineCatalog({
     pt: 'Editar o crew',
   },
   inviteCopied: {
-    fr: 'Lien d’invitation copié — {link}',
+    fr: 'Lien d’invitation copié · {link}',
     en: 'Invite link copied — {link}',
     es: 'Enlace de invitación copiado — {link}',
     de: 'Einladungslink kopiert — {link}',
     pt: 'Link de convite copiado — {link}',
   },
   inviteShared: {
-    fr: 'Invitation partagée — {link}',
+    fr: 'Invitation partagée · {link}',
     en: 'Invite shared — {link}',
     es: 'Invitación compartida — {link}',
     de: 'Einladung geteilt — {link}',
@@ -1967,7 +1967,7 @@ export const C = defineCatalog({
     pt: 'Próximo nível: {tier} · {pct}%',
   },
   tierOpened: {
-    fr: 'Palier {tier} ouvert — récompenses au crew (démo)',
+    fr: 'Palier {tier} ouvert. Récompenses au crew (démo)',
     en: '{tier} tier opened — rewards to the crew (demo)',
     es: 'Nivel {tier} abierto — recompensas para el crew (demo)',
     de: 'Stufe {tier} geöffnet — Belohnungen fürs Crew (Demo)',
@@ -2004,7 +2004,7 @@ export const C = defineCatalog({
 
   // ── Perks (détail) ─────────────────────────────────────────────────────────
   perkNote: {
-    fr: "Cosmétique et organisation — jamais d'avantage territorial.",
+    fr: "Cosmétique et organisation, jamais d'avantage territorial.",
     en: 'Cosmetics and organization — never a territorial advantage.',
     es: 'Cosmética y organización — nunca ventaja territorial.',
     de: 'Kosmetik und Orga — nie ein Reviervorteil.',
@@ -2111,7 +2111,7 @@ export const C = defineCatalog({
     pt: 'Mostrar o Mural do crew',
   },
   wallSub: {
-    fr: 'Supporters de la saison — sans montant, offrande anonyme respectée.',
+    fr: 'Supporters de la saison. Sans montant, offrande anonyme respectée.',
     en: 'Season supporters — no amounts, anonymous gifts respected.',
     es: 'Seguidores de la temporada — sin importes, donación anónima respetada.',
     de: 'Supporter der Saison — ohne Beträge, anonyme Spenden bleiben anonym.',
@@ -2148,7 +2148,7 @@ export const C = defineCatalog({
     pt: 'MEMBROS · {n}/{max}',
   },
   roleTrialSuffix: {
-    fr: ' · essai — {n} j restants',
+    fr: ' · essai · {n} j restants',
     en: ' · trial — {n} d left',
     es: ' · prueba — {n} d restantes',
     de: ' · Probe — noch {n} T.',
@@ -2232,7 +2232,7 @@ export const C = defineCatalog({
     pt: 'Bloquear {name}',
   },
   memberActionSent: {
-    fr: '{action} · {name} — envoyé au crew (démo)',
+    fr: '{action} · {name} · envoyé au crew (démo)',
     en: '{action} · {name} — sent to the crew (demo)',
     es: '{action} · {name} — enviado al crew (demo)',
     de: '{action} · {name} — ans Crew gesendet (Demo)',
@@ -2591,7 +2591,7 @@ export const C = defineCatalog({
     pt: 'Opcional · acelera o baú',
   },
   boostProposedNotice: {
-    fr: 'Boost proposé au crew — 100 % optionnel, aucune obligation (démo)',
+    fr: 'Boost proposé au crew. 100 % optionnel, aucune obligation (démo)',
     en: 'Boost suggested to the crew — 100% optional, no obligation (demo)',
     es: 'Boost propuesto al crew — 100 % opcional, sin obligación (demo)',
     de: 'Boost dem Crew vorgeschlagen — 100 % optional, keine Pflicht (Demo)',
@@ -2677,7 +2677,7 @@ export const C = defineCatalog({
     pt: 'Seu nome não aparece · sem ranking',
   },
   giftOfferedNotice: {
-    fr: 'Cadeau offert au crew — à réclamer sous {h} h (démo)',
+    fr: 'Cadeau offert au crew. À réclamer sous {h} h (démo)',
     en: 'Gift offered to the crew — claim within {h} h (demo)',
     es: 'Regalo ofrecido al crew — para reclamar en {h} h (demo)',
     de: 'Geschenk ans Crew — innerhalb von {h} h abholen (Demo)',
@@ -2693,7 +2693,7 @@ export const C = defineCatalog({
 
   // ── Notices colle quotidienne / actions ────────────────────────────────────
   alreadyDoneToday: {
-    fr: 'Déjà fait aujourd’hui — reviens demain (démo)',
+    fr: 'Déjà fait aujourd’hui. Reviens demain (démo)',
     en: 'Already done today — come back tomorrow (demo)',
     es: 'Ya hecho hoy — vuelve mañana (demo)',
     de: 'Heute schon erledigt — komm morgen wieder (Demo)',
@@ -2728,28 +2728,28 @@ export const C = defineCatalog({
     pt: '{label} · +{n} XP social (demo)',
   },
   boostUsedToday: {
-    fr: 'Boost coffre déjà utilisé aujourd’hui — 1×/jour (démo)',
+    fr: 'Boost coffre déjà utilisé aujourd’hui · 1×/jour (démo)',
     en: 'Chest boost already used today — 1×/day (demo)',
     es: 'Boost de cofre ya usado hoy — 1×/día (demo)',
     de: 'Truhenboost heute schon benutzt — 1×/Tag (Demo)',
     pt: 'Boost de baú já usado hoje — 1×/dia (demo)',
   },
   boostGiven: {
-    fr: 'Boost coffre offert — le coffre crew avance un peu (démo)',
+    fr: 'Boost coffre offert. Le coffre crew avance un peu (démo)',
     en: 'Chest boost given — the crew chest inches forward (demo)',
     es: 'Boost de cofre dado — el cofre del crew avanza un poco (demo)',
     de: 'Truhenboost gesetzt — die Crew-Truhe rückt etwas vor (Demo)',
     pt: 'Boost de baú dado — o baú do crew avança um pouco (demo)',
   },
   donationRecorded: {
-    fr: '{cta} · {zone} — don enregistré, le crew le voit (démo)',
+    fr: '{cta} · {zone} · don enregistré, le crew le voit (démo)',
     en: '{cta} · {zone} — donation recorded, the crew sees it (demo)',
     es: '{cta} · {zone} — aporte registrado, el crew lo ve (demo)',
     de: '{cta} · {zone} — Gabe gespeichert, das Crew sieht sie (Demo)',
     pt: '{cta} · {zone} — doação registrada, o crew vê (demo)',
   },
   sentToCrewNotice: {
-    fr: '{cta} · {zone} — envoyé au crew (démo)',
+    fr: '{cta} · {zone} · envoyé au crew (démo)',
     en: '{cta} · {zone} — sent to the crew (demo)',
     es: '{cta} · {zone} — enviado al crew (demo)',
     de: '{cta} · {zone} — ans Crew gesendet (Demo)',
@@ -2965,21 +2965,21 @@ export const C = defineCatalog({
     pt: 'Faltam {m} m para capturar a zona',
   },
   bonusDetailDefense: {
-    fr: '{zone} s’efface dans {h} h — défends-la',
+    fr: '{zone} s’efface dans {h} h. Défends-la',
     en: '{zone} fades in {h} h — defend it',
     es: '{zone} se borra en {h} h — defiéndela',
     de: '{zone} verblasst in {h} h — verteidige sie',
     pt: '{zone} apaga em {h} h — defenda',
   },
   bonusDetailDefenseNoZone: {
-    fr: 'Une zone s’efface dans {h} h — défends-la',
+    fr: 'Une zone s’efface dans {h} h. Défends-la',
     en: 'A zone fades in {h} h — defend it',
     es: 'Una zona se borra en {h} h — defiéndela',
     de: 'Eine Zone verblasst in {h} h — verteidige sie',
     pt: 'Uma zona apaga em {h} h — defenda',
   },
   bonusDetailChest: {
-    fr: 'Coffre à {pct} % — chaque sortie compte',
+    fr: 'Coffre à {pct} %. Chaque sortie compte',
     en: 'Chest at {pct}% — every run counts',
     es: 'Cofre al {pct} % — cada salida cuenta',
     de: 'Truhe bei {pct} % — jeder Run zählt',
@@ -3218,7 +3218,7 @@ export const C = defineCatalog({
     pt: 'Explorar crews',
   },
   discoverSubtitle: {
-    fr: 'Rejoins un crew vivant — les tags te disent lesquels attaquent et défendent vraiment.',
+    fr: 'Rejoins un crew vivant. Les tags te disent lesquels attaquent et défendent vraiment.',
     en: 'Join a living crew — the tags tell you which ones really attack and defend.',
     es: 'Únete a un crew vivo — los tags te dicen cuáles atacan y defienden de verdad.',
     de: 'Tritt einem lebendigen Crew bei — die Tags zeigen dir, wer wirklich angreift und verteidigt.',
@@ -3687,7 +3687,7 @@ export const C = defineCatalog({
     pt: 'Mudar o nome custa {n} passadas.',
   },
   editNameCostFree: {
-    fr: 'Nom inchangé — rien ne sera débité.',
+    fr: 'Nom inchangé. Rien ne sera débité.',
     en: 'Name unchanged — nothing will be charged.',
     es: 'Nombre sin cambios — no se cobrará nada.',
     de: 'Name unverändert — es wird nichts abgebucht.',
@@ -3876,7 +3876,7 @@ export const C = defineCatalog({
     pt: 'Salvo.',
   },
   editSavedRenamed: {
-    fr: 'Enregistré — {n} foulées débitées pour le nouveau nom.',
+    fr: 'Enregistré. {n} foulées débitées pour le nouveau nom.',
     en: 'Saved — {n} strides charged for the new name.',
     es: 'Guardado — {n} zancadas cobradas por el nuevo nombre.',
     de: 'Gespeichert — {n} Schritte für den neuen Namen abgebucht.',
@@ -4030,7 +4030,7 @@ export const C = defineCatalog({
    * La règle : on décrit ce que le geste DEMANDE, jamais ce qu'il obtiendra.
    */
   cInviteJoinBody: {
-    fr: 'Ce code demande l’entrée dans un crew. C’est le serveur qui répond — et le nom du crew n’apparaît qu’une fois l’entrée accordée.',
+    fr: 'Ce code demande l’entrée dans un crew. C’est le serveur qui répond, et le nom du crew n’apparaît qu’une fois l’entrée accordée.',
     en: 'This code requests entry into a crew. The server decides — and the crew’s name only appears once entry is granted.',
     es: 'Este código pide la entrada en un crew. El servidor responde — y el nombre del crew solo aparece cuando se concede la entrada.',
     de: 'Dieser Code beantragt den Eintritt in einen Crew. Der Server entscheidet — und der Name des Crews erscheint erst nach der Zusage.',
@@ -4174,7 +4174,7 @@ export const C = defineCatalog({
    * est vrai dans les deux mondes.
    */
   dHeroBody: {
-    fr: 'Un crew tient un quartier à plusieurs. Regarde qui tient déjà du terrain près de chez toi, puis rejoins — ou fonde le tien.',
+    fr: 'Un crew tient un quartier à plusieurs. Regarde qui tient déjà du terrain près de chez toi, puis rejoins, ou fonde le tien.',
     en: 'A crew holds a neighbourhood together. See who already holds ground near you, then join — or found your own.',
     es: 'Un crew defiende un barrio en grupo. Mira quién ya tiene terreno cerca de ti y únete — o funda el tuyo.',
     de: 'Ein Crew hält ein Viertel gemeinsam. Sieh, wer in deiner Nähe schon Gebiet hält, und tritt bei — oder gründe dein eigenes.',
@@ -4452,7 +4452,7 @@ export const C = defineCatalog({
     pt: 'PEDIR PARA ENTRAR',
   },
   dRequestPending: {
-    fr: 'Demande envoyée — en attente du crew.',
+    fr: 'Demande envoyée. En attente du crew.',
     en: 'Request sent — waiting for the crew.',
     es: 'Solicitud enviada — esperando al crew.',
     de: 'Anfrage gesendet — das Crew entscheidet.',
@@ -4477,7 +4477,7 @@ export const C = defineCatalog({
     pt: 'Você está no crew.',
   },
   dClosedNote: {
-    fr: 'Ce crew ne recrute pas ici — il faut un code d’invitation.',
+    fr: 'Ce crew ne recrute pas ici : il faut un code d’invitation.',
     en: 'This crew isn’t recruiting here — an invite code is required.',
     es: 'Este crew no recluta aquí — hace falta un código de invitación.',
     de: 'Dieses Crew rekrutiert hier nicht — es braucht einen Einladungscode.',
@@ -4515,7 +4515,7 @@ export const C = defineCatalog({
   },
   /** Aucun rang : un crew neuf n'est pas « dernier », il n'est pas classé. */
   dNoRank: {
-    fr: 'Pas encore classé — ce crew ne tient aucune zone.',
+    fr: 'Pas encore classé : ce crew ne tient aucune zone.',
     en: 'Not ranked yet — this crew holds no zone.',
     es: 'Aún sin clasificar — este crew no retiene ninguna zona.',
     de: 'Noch nicht platziert — dieses Crew hält keine Zone.',
@@ -4649,7 +4649,7 @@ export const C = defineCatalog({
   },
   /** Contours généralisés : la même garantie que pour un joueur (§12). */
   dPublicMapPrivacy: {
-    fr: 'Contours approchés — aucun tracé, aucun départ, aucun horaire.',
+    fr: 'Contours approchés. Aucun tracé, aucun départ, aucun horaire.',
     en: 'Approximate outlines — no route, no start point, no timing.',
     es: 'Contornos aproximados — ni recorrido, ni salida, ni horario.',
     de: 'Ungefähre Umrisse — keine Strecke, kein Start, keine Uhrzeit.',
@@ -4823,7 +4823,7 @@ export const C = defineCatalog({
     pt: 'Quem verá este encontro',
   },
   oPrivacyBody: {
-    fr: 'Les membres actifs de ton crew, et personne d’autre. Aucune position n’est enregistrée : seul le lieu que tu écris est publié. Choisis un point public — pas une adresse, pas un digicode.',
+    fr: 'Les membres actifs de ton crew, et personne d’autre. Aucune position n’est enregistrée : seul le lieu que tu écris est publié. Choisis un point public, pas une adresse, pas un digicode.',
     en: 'Your crew’s active members, and nobody else. No location is recorded: only the spot you type is published. Pick a public landmark — not an address, not a door code.',
     es: 'Los miembros activos de tu crew, y nadie más. No se guarda ninguna posición: solo se publica el sitio que escribes. Elige un punto público — ni una dirección, ni un código de portal.',
     de: 'Die aktiven Mitglieder deines Crews, sonst niemand. Es wird keine Position gespeichert: veröffentlicht wird nur der Ort, den du schreibst. Wähle einen öffentlichen Treffpunkt — keine Adresse, keinen Türcode.',
@@ -5018,7 +5018,7 @@ export const C = defineCatalog({
   },
   /** Le rejeu n'est PAS un échec : on dit qu'aucun doublon n'a été créé. */
   oPublishedDuplicate: {
-    fr: 'Ce rendez-vous existait déjà — rien n’a été publié en double.',
+    fr: 'Ce rendez-vous existait déjà. Rien n’a été publié en double.',
     en: 'That meet-up already existed — nothing was published twice.',
     es: 'Esa cita ya existía — no se publicó nada dos veces.',
     de: 'Dieses Treffen gab es schon — nichts wurde doppelt veröffentlicht.',
@@ -5652,7 +5652,7 @@ export const C = defineCatalog({
   },
   /** IDEMPOTENCE : le geste avait déjà abouti. Ni erreur, ni faux succès. */
   maDoneAlready: {
-    fr: 'C’était déjà fait — rien n’a changé.',
+    fr: 'C’était déjà fait. Rien n’a changé.',
     en: 'Already done — nothing changed.',
     es: 'Ya estaba hecho: nada cambió.',
     de: 'War schon erledigt – nichts hat sich geändert.',
@@ -5701,7 +5701,7 @@ export const C = defineCatalog({
     pt: 'Este servidor ainda não conhece essa ação. Nada foi tentado.',
   },
   maFailed: {
-    fr: 'On n’a pas pu joindre le serveur. On ne sait pas si le geste est passé — rouvre la liste pour voir.',
+    fr: 'On n’a pas pu joindre le serveur. On ne sait pas si le geste est passé. Rouvre la liste pour voir.',
     en: 'We couldn’t reach the server. We don’t know whether it went through — reopen the list to check.',
     es: 'No pudimos contactar con el servidor. No sabemos si la acción pasó: vuelve a abrir la lista para verlo.',
     de: 'Der Server war nicht erreichbar. Ob die Aktion durchging, wissen wir nicht – öffne die Liste erneut.',
@@ -6000,7 +6000,7 @@ export const C = defineCatalog({
   },
   /** Mission NON LUE — l'écran ne dit rien du crew, et le dit. */
   msUnread: {
-    fr: 'Mission non chargée. On n’a pas pu lire l’état du crew — ça ne veut pas dire qu’il n’y a rien à faire.',
+    fr: 'Mission non chargée. On n’a pas pu lire l’état du crew : ça ne veut pas dire qu’il n’y a rien à faire.',
     en: 'Mission not loaded. We couldn’t read the crew’s state — that doesn’t mean there’s nothing to do.',
     es: 'Misión no cargada. No pudimos leer el estado del crew: no significa que no haya nada que hacer.',
     de: 'Mission nicht geladen. Der Crew-Status ließ sich nicht lesen – das heißt nicht, dass nichts ansteht.',
@@ -6052,7 +6052,7 @@ export const C = defineCatalog({
     pt: 'Nada aconteceu aqui ainda. A primeira captura abre o histórico.',
   },
   actFailed: {
-    fr: 'On n’a pas pu lire l’activité. Ce n’est pas un crew silencieux — c’est l’affichage qui manque.',
+    fr: 'On n’a pas pu lire l’activité. Ce n’est pas un crew silencieux : c’est l’affichage qui manque.',
     en: 'We couldn’t load the activity. This isn’t a quiet crew — only the display is missing.',
     es: 'No pudimos leer la actividad. No es un crew silencioso: solo falta mostrarla.',
     de: 'Die Aktivität konnte nicht geladen werden. Der Crew ist nicht still – nur die Anzeige fehlt.',

@@ -213,7 +213,7 @@ export function MapBottomSheet({
           <View {...panResponder.panHandlers}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Panneau de course — glisse ou touche pour ouvrir"
+              accessibilityLabel="Panneau de course, glisse ou touche pour ouvrir"
               onPress={cycle}
               style={styles.handleZone}
             >

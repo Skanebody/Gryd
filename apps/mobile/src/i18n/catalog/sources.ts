@@ -76,7 +76,7 @@ export const C = defineCatalog({
     pt: 'Importar exige uma conta',
   },
   needsAccountBody: {
-    fr: 'Un fichier importé est envoyé au serveur GRYD, qui décide seul de ce qu’il capture. Sans compte, il n’a nulle part où l’envoyer — autant te le dire avant que tu choisisses le fichier.',
+    fr: 'Un fichier importé est envoyé au serveur GRYD, qui décide seul de ce qu’il capture. Sans compte, il n’a nulle part où l’envoyer. Autant te le dire avant que tu choisisses le fichier.',
     en: 'An imported file is sent to the GRYD server, which alone decides what it captures. Without an account there is nowhere to send it — better to say so before you pick the file.',
     es: 'Un archivo importado se envía al servidor de GRYD, que decide solo lo que captura. Sin cuenta no hay a dónde enviarlo — mejor decírtelo antes de que elijas el archivo.',
     de: 'Eine importierte Datei geht an den GRYD-Server, der allein entscheidet, was erobert wird. Ohne Konto gibt es kein Ziel — besser, du weißt das vor der Dateiauswahl.',

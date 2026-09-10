@@ -157,7 +157,7 @@ export const C = defineCatalog({
     pt: 'Livre',
   },
   handleTaken: {
-    fr: 'Déjà pris. Choisis-en un autre — tu n’as encore rien à y perdre.',
+    fr: 'Déjà pris. Choisis-en un autre, tu n’as encore rien à y perdre.',
     en: 'Already taken. Pick another one — you’ve got nothing invested yet.',
     es: 'Ya está ocupado. Elige otro: todavía no tienes nada que perder.',
     de: 'Schon vergeben. Nimm einen anderen — du verlierst noch nichts dabei.',
@@ -267,7 +267,7 @@ export const C = defineCatalog({
    * l'ait vérifié.
    */
   suggestionsUnavailable: {
-    fr: 'Pas de suggestion pour l’instant — essaie une variante.',
+    fr: 'Pas de suggestion pour l’instant. Essaie une variante.',
     en: 'No suggestion right now — try a variant.',
     es: 'Ninguna sugerencia por ahora: prueba una variante.',
     de: 'Gerade kein Vorschlag — probier eine Variante.',
@@ -366,14 +366,14 @@ export const C = defineCatalog({
     pt: 'Esse handle acabou de ser pego. Escolha outro.',
   },
   errorNetwork: {
-    fr: 'Enregistrement impossible — réessaie quand tu as du réseau.',
+    fr: 'Enregistrement impossible. Réessaie quand tu as du réseau.',
     en: 'Couldn’t save — try again when you’re online.',
     es: 'No se pudo guardar: reinténtalo con conexión.',
     de: 'Speichern fehlgeschlagen — versuch es mit Netz erneut.',
     pt: 'Não foi possível salvar — tente quando tiver internet.',
   },
   errorUnknown: {
-    fr: 'L’enregistrement a échoué. Réessaie — ta saisie est toujours là.',
+    fr: 'L’enregistrement a échoué. Réessaie : ta saisie est toujours là.',
     en: 'Saving failed. Try again — what you typed is still here.',
     es: 'No se pudo guardar. Reinténtalo: lo que has escrito sigue ahí.',
     de: 'Speichern fehlgeschlagen. Versuch es nochmal — deine Eingabe bleibt.',

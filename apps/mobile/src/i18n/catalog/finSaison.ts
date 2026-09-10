@@ -302,7 +302,7 @@ export const C = defineCatalog({
     pt: 'Balanço indisponível',
   },
   etatEchecCorps: {
-    fr: 'La lecture a échoué. Ton rang n’est pas perdu — il est côté serveur.',
+    fr: 'La lecture a échoué. Ton rang n’est pas perdu : il est côté serveur.',
     en: 'The read failed. Your rank is not lost — it lives on the server.',
     es: 'La lectura falló. Tu rango no se ha perdido: está en el servidor.',
     de: 'Das Laden schlug fehl. Dein Rang ist nicht verloren — er liegt auf dem Server.',

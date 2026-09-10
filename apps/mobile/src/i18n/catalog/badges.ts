@@ -153,7 +153,7 @@ export const C = defineCatalog({
     pt: 'Insígnia secreta',
   },
   secretRequirement: {
-    fr: 'Condition secrète — enchaîne les sorties pour la découvrir.',
+    fr: 'Condition secrète. Enchaîne les sorties pour la découvrir.',
     en: 'Secret condition — keep your outings going to find it.',
     es: 'Condición secreta: encadena salidas para descubrirla.',
     de: 'Geheime Bedingung – bleib aktiv, um sie zu entdecken.',
@@ -227,7 +227,7 @@ export const C = defineCatalog({
     pt: 'Entrar',
   },
   emptyLine: {
-    fr: 'Aucun badge encore — ta première sortie en ouvre un.',
+    fr: 'Aucun badge encore. Ta première sortie en ouvre un.',
     en: 'No badge yet — your first outing opens one.',
     es: 'Ninguna insignia aún: tu primera salida abre una.',
     de: 'Noch kein Abzeichen – deine erste Aktivität öffnet eines.',
@@ -354,7 +354,7 @@ export const C = defineCatalog({
   },
   /** Message effectivement partagé — que des faits du badge, aucune stat inventée. */
   unlockShareText: {
-    fr: '{name} — débloqué sur GRYD. {requirement}',
+    fr: '{name} · débloqué sur GRYD. {requirement}',
     en: '{name} — unlocked on GRYD. {requirement}',
     es: '{name} — desbloqueada en GRYD. {requirement}',
     de: '{name} — auf GRYD freigeschaltet. {requirement}',

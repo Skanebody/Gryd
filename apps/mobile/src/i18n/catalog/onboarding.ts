@@ -218,7 +218,7 @@ export const C = defineCatalog({
    * discipline. La clé garde son nom (interne, jamais lu par un joueur).
    */
   firstRunGpsNote: {
-    fr: 'Tes zones arrivent à ta première sortie — GPS allumé au départ.',
+    fr: 'Tes zones arrivent à ta première sortie. GPS allumé au départ.',
     en: 'Your zones come with your first outing — GPS on at the start.',
     es: 'Tus zonas llegan en tu primera salida: GPS activo al empezar.',
     de: 'Deine Zonen kommen mit der ersten Tour — GPS an beim Start.',

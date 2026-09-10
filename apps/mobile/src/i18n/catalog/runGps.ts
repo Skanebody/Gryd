@@ -112,7 +112,7 @@ export const C = defineCatalog({
 
   // ── Pills secondaires du haut ────────────────────────────────────────────
   statsOnlyMode: {
-    fr: '{mode} — stats uniquement, aucune capture',
+    fr: '{mode} · stats uniquement, aucune capture',
     en: '{mode} — stats only, no capture',
     es: '{mode} — solo stats, sin captura',
     de: '{mode} — nur Stats, keine Zonen',
@@ -453,7 +453,7 @@ export const C = defineCatalog({
 
   // ── Pill signal GPS (informatif, jamais bloquant, anti-shame) ────────────
   signalRevoked: {
-    fr: 'GPS coupé — réactive la position dans Réglages',
+    fr: 'GPS coupé. Réactive la position dans Réglages',
     en: 'GPS off — re-enable location in Settings',
     es: 'GPS desactivado — reactiva la ubicación en Ajustes',
     de: 'GPS aus — Standort in den Einstellungen aktivieren',
@@ -470,7 +470,7 @@ export const C = defineCatalog({
    * n'existe pas ici, et seul un IMPÉRATIF adressé au joueur est fautif.
    */
   signalLost: {
-    fr: 'Signal perdu — on continue, rien n’est compté à tort',
+    fr: 'Signal perdu. On continue, rien n’est compté à tort',
     en: 'Signal lost — still tracking, nothing counted wrongly',
     es: 'Señal perdida — seguimos, nada se cuenta mal',
     de: 'Signal verloren — läuft weiter, nichts wird falsch gezählt',
@@ -486,7 +486,7 @@ export const C = defineCatalog({
    * « mach weiter » = continue, sans discipline.
    */
   signalWeak: {
-    fr: 'GPS faible — continue, le signal revient',
+    fr: 'GPS faible. Continue, le signal revient',
     en: 'Weak GPS — keep going, the signal will return',
     es: 'GPS débil — sigue, la señal vuelve',
     de: 'GPS schwach — mach weiter, das Signal kommt zurück',
@@ -621,7 +621,7 @@ export const C = defineCatalog({
     pt: 'PERCURSO INTERROMPIDO RECUPERADO',
   },
   restoreQuestion: {
-    fr: '{distance} — reprendre ou enregistrer telle quelle ?',
+    fr: '{distance} : reprendre ou enregistrer telle quelle ?',
     en: '{distance} — resume or save as is?',
     es: '{distance} — ¿reanudar o guardar tal cual?',
     de: '{distance} — fortsetzen oder so speichern?',
@@ -645,7 +645,7 @@ export const C = defineCatalog({
     pt: 'ATIVIDADE INTERROMPIDA RECUPERADA',
   },
   restoreOtherActivityBody: {
-    fr: '{distance} en {name}. Une sortie d’une autre discipline ne se fusionne pas avec celle-ci — enregistre-la telle quelle.',
+    fr: '{distance} en {name}. Une sortie d’une autre discipline ne se fusionne pas avec celle-ci. Enregistre-la telle quelle.',
     en: '{distance} of {name}. An outing from another discipline cannot be merged into this one — save it as is.',
     es: '{distance} de {name}. Una salida de otra disciplina no se fusiona con esta: guárdala tal cual.',
     de: '{distance} beim {name}. Eine Aktivität einer anderen Disziplin lässt sich nicht mit dieser zusammenführen — speichere sie unverändert.',
@@ -979,7 +979,7 @@ export const C = defineCatalog({
    * serveur reste seul juge, et il jugera quand la sortie lui parviendra.
    */
   offlineQueuedNote: {
-    fr: 'Hors ligne — ta sortie est gardée sur le téléphone et partira au retour du réseau.',
+    fr: 'Hors ligne : ta sortie est gardée sur le téléphone et partira au retour du réseau.',
     en: 'Offline — your activity is kept on the phone and will upload when the network is back.',
     es: 'Sin conexión: tu salida se guarda en el teléfono y se enviará al volver la red.',
     de: 'Offline — deine Aktivität bleibt auf dem Handy und geht raus, sobald das Netz da ist.',
@@ -994,7 +994,7 @@ export const C = defineCatalog({
    * CONSÉQUENCE (le verdict prendra un peu plus de temps), rien d'autre.
    */
   sensorInconsistentNote: {
-    fr: 'Des points ne collent pas au reste — ta sortie continue, le verdict sera vérifié à l’arrivée.',
+    fr: 'Des points ne collent pas au reste. Ta sortie continue, le verdict sera vérifié à l’arrivée.',
     en: 'Some points don’t match the rest — your activity continues, the verdict gets checked at the finish.',
     es: 'Algunos puntos no encajan con el resto: tu salida continúa, el veredicto se revisará al llegar.',
     de: 'Einige Punkte passen nicht zum Rest — deine Aktivität läuft weiter, das Urteil wird am Ziel geprüft.',

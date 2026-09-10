@@ -58,7 +58,7 @@ export const C = defineCatalog({
     pt: 'Planejar esta rota',
   },
   missionPlanA11y: {
-    fr: 'Planifier ce parcours — ouvrir le planificateur d’itinéraire',
+    fr: 'Planifier ce parcours, ouvrir le planificateur d’itinéraire',
     en: 'Plan this route — open the route planner',
     es: 'Planificar esta ruta — abrir el planificador de rutas',
     de: 'Route planen — den Routenplaner öffnen',
@@ -86,7 +86,7 @@ export const C = defineCatalog({
     pt: 'Ver a missão',
   },
   missionOpenA11y: {
-    fr: 'Voir la mission — ouvrir l’écran de mission',
+    fr: 'Voir la mission, ouvrir l’écran de mission',
     en: 'View mission — open the mission screen',
     es: 'Ver la misión — abrir la pantalla de misión',
     de: 'Mission ansehen — den Missionsbildschirm öffnen',
@@ -186,7 +186,7 @@ export const C = defineCatalog({
     pt: 'Ajustar',
   },
   briefAdjustA11y: {
-    fr: 'Ajuster l’itinéraire — ouvrir le planificateur',
+    fr: 'Ajuster l’itinéraire, ouvrir le planificateur',
     en: 'Adjust the route — open the planner',
     es: 'Ajustar la ruta — abrir el planificador',
     de: 'Route anpassen — den Planer öffnen',
@@ -354,7 +354,7 @@ export const C = defineCatalog({
     pt: 'PREPARAR A SAÍDA',
   },
   recoPrepareA11y: {
-    fr: 'Préparer la sortie — ouvrir l’écran de préparation',
+    fr: 'Préparer la sortie, ouvrir l’écran de préparation',
     en: 'Get ready — open the preparation screen',
     es: 'Preparar la salida — abrir la pantalla de preparación',
     de: 'Ausflug vorbereiten — Vorbereitungsbildschirm öffnen',

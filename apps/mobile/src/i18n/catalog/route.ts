@@ -209,7 +209,7 @@ export const C = defineCatalog({
     pt: 'Largada = sua posição atual (toque para recentrar).',
   },
   hintGpsError: {
-    fr: 'Position introuvable — active la localisation pour partir.',
+    fr: 'Position introuvable. Active la localisation pour partir.',
     en: 'Location not found — turn on location to start.',
     es: 'Posición no encontrada — activa la ubicación para salir.',
     de: 'Standort nicht gefunden — zum Starten die Ortung aktivieren.',
@@ -268,7 +268,7 @@ export const C = defineCatalog({
     pt: '~{min} min no seu ritmo habitual.',
   },
   summaryNoPace: {
-    fr: 'Durée non estimée — ton allure n’est pas connue.',
+    fr: 'Durée non estimée : ton allure n’est pas connue.',
     en: 'No time estimate — your pace isn’t known.',
     es: 'Sin estimación de tiempo — no se conoce tu ritmo.',
     de: 'Keine Zeitschätzung — dein Tempo ist nicht bekannt.',
@@ -293,14 +293,14 @@ export const C = defineCatalog({
 
   // ── Toasts (honnêtes, re-tentables) ──────────────────────────────────────
   toastRouteUnavailable: {
-    fr: 'Parcours indisponible — réessaie dans un instant',
+    fr: 'Parcours indisponible. Réessaie dans un instant',
     en: 'Route unavailable — try again in a moment',
     es: 'Ruta no disponible — reintenta en un momento',
     de: 'Route nicht verfügbar — gleich noch mal versuchen',
     pt: 'Rota indisponível — tente de novo em instantes',
   },
   toastPositionNotFound: {
-    fr: 'Position introuvable — active la localisation',
+    fr: 'Position introuvable. Active la localisation',
     en: 'Location not found — turn on location',
     es: 'Posición no encontrada — activa la ubicación',
     de: 'Standort nicht gefunden — Ortung aktivieren',
@@ -508,7 +508,7 @@ export const C = defineCatalog({
     pt: 'Distância em quilômetros',
   },
   distanceRangeHint: {
-    fr: '{min} à {max} km — le tracé suit les rues.',
+    fr: '{min} à {max} km, le tracé suit les rues.',
     en: '{min} to {max} km — the route follows the streets.',
     es: '{min} a {max} km — el trazado sigue las calles.',
     de: '{min} bis {max} km — die Route folgt den Straßen.',
@@ -537,7 +537,7 @@ export const C = defineCatalog({
     pt: 'Calculando outras voltas…',
   },
   loopsUnavailable: {
-    fr: 'Autres boucles indisponibles — touche Régénérer.',
+    fr: 'Autres boucles indisponibles. Touche Régénérer.',
     en: 'Other loops unavailable — tap Regenerate.',
     es: 'Otros bucles no disponibles — toca Regenerar.',
     de: 'Keine anderen Runden verfügbar — auf Neu erzeugen tippen.',
@@ -559,7 +559,7 @@ export const C = defineCatalog({
     pt: 'Outras voltas perto de você',
   },
   a11yStart: {
-    fr: '{verb} — démarrer',
+    fr: '{verb}, démarrer',
     en: '{verb} — start',
     es: '{verb} — empezar',
     de: '{verb} — starten',
@@ -727,7 +727,7 @@ export const C = defineCatalog({
    * réponse.
    */
   toastRouteNoLoop: {
-    fr: 'Aucune boucle trouvée ici — essaie une autre distance.',
+    fr: 'Aucune boucle trouvée ici. Essaie une autre distance.',
     en: 'No loop found here — try another distance.',
     es: 'No se ha encontrado ningún bucle aquí — prueba otra distancia.',
     de: 'Hier keine Runde gefunden — probiere eine andere Distanz.',
@@ -776,7 +776,7 @@ export const C = defineCatalog({
    * serveur garde la précision réelle de chaque point (spec l.1106).
    */
   hintGpsApprox: {
-    fr: 'Position approximative — le départ du tracé peut être décalé.',
+    fr: 'Position approximative : le départ du tracé peut être décalé.',
     en: 'Approximate location — the route’s start may be offset.',
     es: 'Posición aproximada: la salida del trazado puede quedar desplazada.',
     de: 'Ungefährer Standort — der Routenstart kann verschoben sein.',

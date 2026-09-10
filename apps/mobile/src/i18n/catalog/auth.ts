@@ -315,7 +315,7 @@ export const C = defineCatalog({
     pt: 'O login com Google ainda não está configurado (O2). Use Apple por enquanto.',
   },
   errorSignInFailed: {
-    fr: 'La connexion a échoué. Réessaie — ta course ne se perdra jamais pour ça.',
+    fr: 'La connexion a échoué. Réessaie : ta course ne se perdra jamais pour ça.',
     en: 'Sign-in failed. Try again — your run will never be lost because of this.',
     es: 'No se pudo iniciar sesión. Reintenta: tu carrera nunca se perderá por esto.',
     de: 'Anmeldung fehlgeschlagen. Versuch es nochmal — dein Lauf geht dadurch nie verloren.',
@@ -610,14 +610,14 @@ export const C = defineCatalog({
 
   // ─── Verify Hub : échecs honnêtes (filet UI AMENDEMENT-15 §3) ──────────────
   connectFailed: {
-    fr: 'Connexion impossible — réessaie plus tard',
+    fr: 'Connexion impossible. Réessaie plus tard',
     en: 'Couldn’t connect — try again later',
     es: 'No se pudo conectar: inténtalo más tarde',
     de: 'Verbindung fehlgeschlagen — versuch es später',
     pt: 'Não foi possível conectar — tente mais tarde',
   },
   disconnectFailed: {
-    fr: 'Déconnexion impossible — réessaie plus tard',
+    fr: 'Déconnexion impossible. Réessaie plus tard',
     en: 'Couldn’t disconnect — try again later',
     es: 'No se pudo desconectar: inténtalo más tarde',
     de: 'Trennen fehlgeschlagen — versuch es später',
@@ -648,7 +648,7 @@ export const C = defineCatalog({
     pt: 'Seletor de arquivos indisponível neste aparelho',
   },
   gpxUnreadable: {
-    fr: 'Fichier illisible — réessaie avec un autre .gpx',
+    fr: 'Fichier illisible. Réessaie avec un autre .gpx',
     en: 'Unreadable file — try another .gpx',
     es: 'Archivo ilegible: prueba con otro .gpx',
     de: 'Datei nicht lesbar — versuch eine andere .gpx',
@@ -677,7 +677,7 @@ export const C = defineCatalog({
     pt: 'Atividade importada no seu diário privado',
   },
   gpxDuplicate: {
-    fr: 'Sortie déjà enregistrée — rien n’a été dupliqué',
+    fr: 'Sortie déjà enregistrée. Rien n’a été dupliqué',
     en: 'Activity already recorded — nothing was duplicated',
     es: 'Carrera ya registrada: no se duplicó nada',
     de: 'Lauf bereits erfasst — nichts wurde doppelt angelegt',
@@ -691,7 +691,7 @@ export const C = defineCatalog({
     pt: 'Corrida recusada pela verificação',
   },
   gpxSendFailed: {
-    fr: 'Envoi impossible — réessaie quand tu as du réseau',
+    fr: 'Envoi impossible. Réessaie quand tu as du réseau',
     en: 'Couldn’t send — try again when you’re online',
     es: 'No se pudo enviar: reinténtalo con conexión',
     de: 'Senden fehlgeschlagen — versuch es mit Netz erneut',
@@ -740,7 +740,7 @@ export const C = defineCatalog({
   },
   /** Pourquoi la liste est courte : on n'affiche que ce qui marche vraiment. */
   sourcesScopeNote: {
-    fr: 'Cette liste ne montre que les sources qui fonctionnent aujourd’hui. Les autres apparaîtront le jour où elles marcheront vraiment — pas avant.',
+    fr: 'Cette liste ne montre que les sources qui fonctionnent aujourd’hui. Les autres apparaîtront le jour où elles marcheront vraiment, pas avant.',
     en: 'This list only shows sources that work today. The others will appear the day they actually work — not before.',
     es: 'Esta lista solo muestra las fuentes que funcionan hoy. Las demás aparecerán el día que funcionen de verdad, no antes.',
     de: 'Diese Liste zeigt nur Quellen, die heute funktionieren. Die anderen erscheinen, sobald sie wirklich laufen — vorher nicht.',

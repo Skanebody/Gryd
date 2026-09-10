@@ -255,7 +255,7 @@ export const C = defineCatalog({
   },
   /** Bande orange : utilisable, mais la capture sera moins précise. On le dit. */
   gpsApproximate: {
-    fr: 'Signal approximatif — la capture sera plus grossière',
+    fr: 'Signal approximatif : la capture sera plus grossière',
     en: 'Rough signal — the capture will be coarser',
     es: 'Señal aproximada — la captura será más burda',
     de: 'Ungenaues Signal — die Eroberung wird gröber',
@@ -271,7 +271,7 @@ export const C = defineCatalog({
   },
   /** Permission refusée : sans elle, aucune capture n'est possible. */
   gpsDenied: {
-    fr: 'Localisation refusée — aucune zone ne pourra être capturée',
+    fr: 'Localisation refusée : aucune zone ne pourra être capturée',
     en: 'Location denied — no zone can be captured',
     es: 'Ubicación denegada — no se podrá capturar ninguna zona',
     de: 'Standort abgelehnt — keine Zone kann erobert werden',
@@ -287,7 +287,7 @@ export const C = defineCatalog({
   /** Bande rouge d'E19 : mesuré, et franchement mauvais. On le dit sans le
    *  déguiser en « approximatif » — le départ reste possible, la capture non. */
   gpsPoor: {
-    fr: 'Signal faible — sors à découvert avant de partir',
+    fr: 'Signal faible. Sors à découvert avant de partir',
     en: 'Weak signal — step into the open before you go',
     es: 'Señal débil — sal a cielo abierto antes de salir',
     de: 'Schwaches Signal — geh vor dem Start ins Freie',
@@ -299,7 +299,7 @@ export const C = defineCatalog({
    * « faible » (qui a mesuré). L'écran ne peint alors aucune bande.
    */
   gpsUnavailable: {
-    fr: 'Aucune mesure — la localisation ne répond pas',
+    fr: 'Aucune mesure : la localisation ne répond pas',
     en: 'No reading — location isn’t responding',
     es: 'Sin medición — la ubicación no responde',
     de: 'Keine Messung — der Standort antwortet nicht',
@@ -320,7 +320,7 @@ export const C = defineCatalog({
    * on ne remplit pas ce trou par une valeur plausible.
    */
   batteryUnknown: {
-    fr: 'Niveau inconnu — cet appareil ne le publie pas',
+    fr: 'Niveau inconnu : cet appareil ne le publie pas',
     en: 'Level unknown — this device doesn’t report it',
     es: 'Nivel desconocido — este dispositivo no lo publica',
     de: 'Ladestand unbekannt — dieses Gerät meldet ihn nicht',
@@ -336,14 +336,14 @@ export const C = defineCatalog({
   },
   /** Sous le seuil où le système commence à brider ce dont le GPS dépend. */
   batteryLow: {
-    fr: '{p} % — l’enregistrement GPS peut être bridé',
+    fr: '{p} % · l’enregistrement GPS peut être bridé',
     en: '{p} % — GPS recording may be throttled',
     es: '{p} % — la grabación GPS puede limitarse',
     de: '{p} % — die GPS-Aufzeichnung kann gedrosselt werden',
     pt: '{p} % — a gravação de GPS pode ser limitada',
   },
   batteryCharging: {
-    fr: '{p} % — en charge',
+    fr: '{p} % · en charge',
     en: '{p} % — charging',
     es: '{p} % — cargando',
     de: '{p} % — lädt',
@@ -367,7 +367,7 @@ export const C = defineCatalog({
   },
   /** Des sorties attendent : rien n'est perdu, et on le prouve en le disant. */
   syncPending: {
-    fr: '{n} sortie(s) en attente d’envoi — rien n’est perdu',
+    fr: '{n} sortie(s) en attente d’envoi. Rien n’est perdu',
     en: '{n} outing(s) waiting to upload — nothing is lost',
     es: '{n} salida(s) pendientes de envío — no se pierde nada',
     de: '{n} Ausflug/Ausflüge warten auf Upload — nichts geht verloren',
@@ -379,7 +379,7 @@ export const C = defineCatalog({
    * que personne n'a vérifiée.
    */
   syncUnknown: {
-    fr: 'État inconnu — la file d’envoi n’a pas pu être lue',
+    fr: 'État inconnu : la file d’envoi n’a pas pu être lue',
     en: 'Status unknown — the upload queue couldn’t be read',
     es: 'Estado desconocido — no se pudo leer la cola de envío',
     de: 'Status unbekannt — die Warteschlange war nicht lesbar',
@@ -396,7 +396,7 @@ export const C = defineCatalog({
    * fonde.
    */
   syncOffline: {
-    fr: 'Hors ligne — la sortie sera envoyée au retour du réseau',
+    fr: 'Hors ligne : la sortie sera envoyée au retour du réseau',
     en: 'Offline — the outing uploads when the network returns',
     es: 'Sin conexión — la salida se enviará al volver la red',
     de: 'Offline — der Ausflug wird bei Netz wieder gesendet',
@@ -404,7 +404,7 @@ export const C = defineCatalog({
   },
   /** Pas connecté : la course s'enregistre en local, sans territoire. */
   syncSignedOut: {
-    fr: 'Non connecté — la sortie sera enregistrée sans territoire',
+    fr: 'Non connecté : la sortie sera enregistrée sans territoire',
     en: 'Signed out — the outing records without territory',
     es: 'Sin sesión — la salida se guardará sin territorio',
     de: 'Nicht angemeldet — der Ausflug wird ohne Gebiet gespeichert',

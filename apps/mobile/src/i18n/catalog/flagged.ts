@@ -188,7 +188,7 @@ export const C = defineCatalog({
 
   // ── Note d'honnêteté + liste ──
   demoNote: {
-    fr: 'Classement de démonstration — Saison 0 ouvre Paris et Lille, l’Europe suit.',
+    fr: 'Classement de démonstration. Saison 0 ouvre Paris et Lille, l’Europe suit.',
     en: 'Demo leaderboard — Season 0 opens Paris and Lille, Europe follows.',
     es: 'Clasificación de demostración — la Temporada 0 abre Paris y Lille, Europa sigue.',
     de: 'Demo-Rangliste — Saison 0 startet in Paris und Lille, Europa folgt.',
@@ -240,7 +240,7 @@ export const C = defineCatalog({
     pt: 'Temporada indisponível',
   },
   rewardHint: {
-    fr: 'Tu es #{rank} — reste dans le Top 10 pour les débloquer.',
+    fr: 'Tu es #{rank}. Reste dans le Top 10 pour les débloquer.',
     en: 'You’re #{rank} — stay in the Top 10 to unlock them.',
     es: 'Eres #{rank} — quédate en el Top 10 para desbloquearlas.',
     de: 'Du bist #{rank} — bleib in den Top 10, um sie freizuschalten.',
@@ -344,7 +344,7 @@ export const C = defineCatalog({
     pt: 'faltam {time}',
   },
   heroDetailA11y: {
-    fr: '{title} — voir le détail sur la carte',
+    fr: '{title}, voir le détail sur la carte',
     en: '{title} — view detail on the map',
     es: '{title} — ver el detalle en el mapa',
     de: '{title} — Detail auf der Karte zeigen',
@@ -490,56 +490,56 @@ export const C = defineCatalog({
 
   // ── Toasts d'action (jamais de promesse serveur) ──
   toastDefense: {
-    fr: 'Défense {zone} — choisis ta route',
+    fr: 'Défense {zone}. Choisis ta route',
     en: 'Defense {zone} — pick your route',
     es: 'Defensa {zone} — elige tu ruta',
     de: 'Abwehr {zone} — wähl deine Route',
     pt: 'Defesa {zone} — escolha sua rota',
   },
   toastRevanche: {
-    fr: 'Cap sur {zone} — reprends tes zones',
+    fr: 'Cap sur {zone}. Reprends tes zones',
     en: 'Head to {zone} — take back your zones',
     es: 'Rumbo a {zone} — recupera tus zonas',
     de: 'Auf nach {zone} — hol deine Zonen zurück',
     pt: 'Rumo a {zone} — retome suas zonas',
   },
   toastRaid: {
-    fr: 'Raid rejoint — cap sur {zone}',
+    fr: 'Raid rejoint. Cap sur {zone}',
     en: 'Raid joined — head to {zone}',
     es: 'Te uniste al raid — rumbo a {zone}',
     de: 'Raid beigetreten — auf nach {zone}',
     pt: 'Você entrou no raid — rumo a {zone}',
   },
   toastConquete: {
-    fr: 'Conquête collective rejointe — cap sur {zone}',
+    fr: 'Conquête collective rejointe. Cap sur {zone}',
     en: 'Crew conquest joined — head to {zone}',
     es: 'Te uniste a la conquista — rumbo a {zone}',
     de: 'Eroberung beigetreten — auf nach {zone}',
     pt: 'Você entrou na conquista — rumo a {zone}',
   },
   toastBoucle: {
-    fr: 'Cap sur {zone} — termine la boucle du crew',
+    fr: 'Cap sur {zone}. Termine la boucle du crew',
     en: 'Head to {zone} — finish the crew’s loop',
     es: 'Rumbo a {zone} — cierra el bucle del crew',
     de: 'Auf nach {zone} — beende die Crew-Schleife',
     pt: 'Rumo a {zone} — feche a volta do crew',
   },
   toastCoffre: {
-    fr: 'Cap sur le coffre — cours pour le remplir',
+    fr: 'Cap sur le coffre. Cours pour le remplir',
     en: 'Head for the chest — run to fill it',
     es: 'Rumbo al cofre — corre para llenarlo',
     de: 'Auf zur Truhe — lauf, um sie zu füllen',
     pt: 'Rumo ao baú — corra para enchê-lo',
   },
   toastPropose: {
-    fr: 'Proposé (démo) — {pseudo} pour {mission}',
+    fr: 'Proposé (démo) · {pseudo} pour {mission}',
     en: 'Suggested (demo) — {pseudo} for {mission}',
     es: 'Propuesto (demo) — {pseudo} para {mission}',
     de: 'Vorgeschlagen (Demo) — {pseudo} für {mission}',
     pt: 'Sugerido (demo) — {pseudo} para {mission}',
   },
   emptyMissions: {
-    fr: 'Aucune mission en cours — cours pour ouvrir le terrain, le crew suivra.',
+    fr: 'Aucune mission en cours. Cours pour ouvrir le terrain, le crew suivra.',
     en: 'No missions right now — run to open ground, the crew will follow.',
     es: 'Ninguna misión en curso — corre para abrir terreno, el crew te seguirá.',
     de: 'Keine Mission gerade — lauf und öffne das Feld, die Crew folgt.',
@@ -576,7 +576,7 @@ export const C = defineCatalog({
     pt: 'Sugerir a ',
   },
   recoProposeA11y: {
-    fr: 'Proposer la mission à {pseudo} — {skill}',
+    fr: 'Proposer la mission à {pseudo}, {skill}',
     en: 'Suggest the mission to {pseudo} — {skill}',
     es: 'Proponer la misión a {pseudo} — {skill}',
     de: 'Die Mission {pseudo} vorschlagen — {skill}',
@@ -628,14 +628,14 @@ export const C = defineCatalog({
     pt: 'max',
   },
   chestPhraseNext: {
-    fr: '{pct} % — encore {pts} pts pour le palier {tier}.',
+    fr: '{pct} %, encore {pts} pts pour le palier {tier}.',
     en: '{pct}% — {pts} pts to the {tier} tier.',
     es: '{pct} % — faltan {pts} pts para el nivel {tier}.',
     de: '{pct} % — noch {pts} Pkt. bis Stufe {tier}.',
     pt: '{pct}% — faltam {pts} pts para o nível {tier}.',
   },
   chestPhraseMax: {
-    fr: '{pct} % — palier {tier} atteint cette semaine.',
+    fr: '{pct} %, palier {tier} atteint cette semaine.',
     en: '{pct}% — {tier} tier reached this week.',
     es: '{pct} % — nivel {tier} alcanzado esta semana.',
     de: '{pct} % — Stufe {tier} diese Woche erreicht.',
@@ -649,7 +649,7 @@ export const C = defineCatalog({
     pt: 'Baú do crew',
   },
   coffreA11y: {
-    fr: 'Coffre du crew — {phrase} Voir le coffre.',
+    fr: 'Coffre du crew : {phrase} Voir le coffre.',
     en: 'Crew chest — {phrase} View the chest.',
     es: 'Cofre del crew — {phrase} Ver el cofre.',
     de: 'Crew-Truhe — {phrase} Truhe zeigen.',
@@ -984,7 +984,7 @@ export const C = defineCatalog({
    * de territoire (STREAK_MULTIPLIER_CAP, engine/scoring.ts).
    */
   guardrailStreakGel: {
-    fr: 'Ne capture aucune zone. Il préserve ta série — donc le multiplicateur de points qu’elle porte. Ne s’achète jamais.',
+    fr: 'Ne capture aucune zone. Il préserve ta série, donc le multiplicateur de points qu’elle porte. Ne s’achète jamais.',
     en: 'Captures no zone. It preserves your streak — and the points multiplier that comes with it. Never for sale.',
     es: 'No captura ninguna zona. Preserva tu racha — y el multiplicador de puntos que conlleva. Nunca está a la venta.',
     de: 'Erobert keine Zone. Er bewahrt deine Serie — und deren Punkte-Multiplikator. Nie käuflich.',
@@ -1058,14 +1058,14 @@ export const C = defineCatalog({
     pt: 'Mesmo catálogo, filtrado por utilidade imediata. O detalhe sempre explica o limite.',
   },
   footnote: {
-    fr: 'Aucun objet ne vend des zones, des kilomètres, une victoire ou un rang de ligue — tout ça se gagne en courant. Les Éclats servent au style ; le confort reste capé.',
+    fr: 'Aucun objet ne vend des zones, des kilomètres, une victoire ou un rang de ligue : tout ça se gagne en courant. Les Éclats servent au style ; le confort reste capé.',
     en: 'No item sells zones, kilometers, a win or a league rank — all of that is earned by running. Éclats are for style; comfort stays capped.',
     es: 'Ningún objeto vende zonas, kilómetros, una victoria ni un puesto de liga — todo eso se gana corriendo. Los Éclats son para el estilo; la comodidad tiene tope.',
     de: 'Kein Objekt verkauft Zonen, Kilometer, Siege oder einen Liga-Rang — all das erläufst du dir. Éclats sind für den Style; Komfort bleibt gedeckelt.',
     pt: 'Nenhum item vende zonas, quilômetros, vitória ou posição de liga — tudo isso se ganha correndo. Os Éclats são para o estilo; o conforto tem teto.',
   },
   footnoteSub: {
-    fr: 'Les Foulées se gagnent en courant — bientôt dépensables.',
+    fr: 'Les Foulées se gagnent en courant. Bientôt dépensables.',
     en: 'Foulées are earned by running — spendable soon.',
     es: 'Las Foulées se ganan corriendo — pronto podrás gastarlas.',
     de: 'Foulées verdienst du beim Laufen — bald einlösbar.',
@@ -1169,7 +1169,7 @@ export const C = defineCatalog({
     pt: 'Moeda de pagamento',
   },
   bientotSaison1: {
-    fr: 'Bientôt — Saison 1',
+    fr: 'Bientôt · Saison 1',
     en: 'Soon — Season 1',
     es: 'Pronto — Temporada 1',
     de: 'Bald — Saison 1',
@@ -1227,7 +1227,7 @@ export const C = defineCatalog({
     pt: 'Presentear anonimamente',
   },
   anonymeSub: {
-    fr: 'Le feed dira « Un membre a offert… » — jamais ton nom ni le montant.',
+    fr: 'Le feed dira « Un membre a offert… », jamais ton nom ni le montant.',
     en: 'The feed will say “A member gifted…” — never your name or the amount.',
     es: 'El feed dirá «Un miembro regaló…» — nunca tu nombre ni el importe.',
     de: 'Der Feed sagt „Ein Mitglied hat verschenkt…“ — nie dein Name, nie der Betrag.',
@@ -1343,7 +1343,7 @@ export const C = defineCatalog({
    * branche qui n'a pas encore regardé la discipline.
    */
   boardCityUnknownBody: {
-    fr: 'Un classement appartient à une ville. La tienne se rattache toute seule au premier effort compté — on ne te montrera pas celui d’une autre.',
+    fr: 'Un classement appartient à une ville. La tienne se rattache toute seule au premier effort compté. On ne te montrera pas celui d’une autre.',
     en: 'A leaderboard belongs to a city. Yours gets linked on your first counted effort — we won’t show you someone else’s.',
     es: 'Una clasificación pertenece a una ciudad. La tuya se vincula sola en tu primer esfuerzo contado — no te mostraremos la de otra.',
     de: 'Eine Rangliste gehört zu einer Stadt. Deine wird bei der ersten gewerteten Aktivität zugeordnet — die einer anderen zeigen wir dir nicht.',
@@ -1391,14 +1391,14 @@ export const C = defineCatalog({
     pt: 'Ainda não aberto',
   },
   boardNoSourceCrews: {
-    fr: 'Le classement des crews ouvrira quand assez de crews joueront. Rien à afficher d’ici là — on préfère le vide au faux.',
+    fr: 'Le classement des crews ouvrira quand assez de crews joueront. Rien à afficher d’ici là : on préfère le vide au faux.',
     en: 'The crew leaderboard opens once enough crews are playing. Nothing to show until then — empty beats fake.',
     es: 'La clasificación de crews abrirá cuando haya suficientes crews jugando. Nada que mostrar hasta entonces — mejor vacío que falso.',
     de: 'Die Crew-Rangliste öffnet, sobald genug Crews spielen. Bis dahin nichts — lieber leer als erfunden.',
     pt: 'O ranking de crews abre quando houver crews suficientes jogando. Nada até lá — melhor vazio que falso.',
   },
   boardNoSourceVille: {
-    fr: 'Le classement des villes ouvrira quand plusieurs villes seront jouées. Rien à afficher d’ici là — on préfère le vide au faux.',
+    fr: 'Le classement des villes ouvrira quand plusieurs villes seront jouées. Rien à afficher d’ici là : on préfère le vide au faux.',
     en: 'The city leaderboard opens once several cities are being played. Nothing to show until then — empty beats fake.',
     es: 'La clasificación de ciudades abrirá cuando se jueguen varias ciudades. Nada que mostrar hasta entonces — mejor vacío que falso.',
     de: 'Die Städte-Rangliste öffnet, sobald mehrere Städte gespielt werden. Bis dahin nichts — lieber leer als erfunden.',
@@ -1461,7 +1461,7 @@ export const C = defineCatalog({
     pt: 'Entre para ver seu saldo e inventário. Nada aparece antes de ser lido.',
   },
   walletUnreadNote: {
-    fr: 'Solde et inventaire non lus pour l’instant — on ne devine pas un compte.',
+    fr: 'Solde et inventaire non lus pour l’instant : on ne devine pas un compte.',
     en: 'Balance and inventory not loaded — we don’t guess an account.',
     es: 'Saldo e inventario sin cargar — no adivinamos una cuenta.',
     de: 'Guthaben und Inventar nicht geladen — wir raten kein Konto.',
@@ -1556,7 +1556,7 @@ export const C = defineCatalog({
   },
   /** Le crew existe mais ne figure pas dans les premières lignes lues. */
   crewStickyUnranked: {
-    fr: 'Ton crew n’est pas encore classé — il ne tient aucune zone.',
+    fr: 'Ton crew n’est pas encore classé : il ne tient aucune zone.',
     en: 'Your crew isn’t ranked yet — it holds no zone.',
     es: 'Tu crew aún no está clasificado — no retiene ninguna zona.',
     de: 'Dein Crew ist noch nicht platziert — es hält keine Zone.',

@@ -363,7 +363,7 @@ export function buildChallengeNudge(ch: ChallengeNudgeInput): ChallengeNudge | n
 
   if (remaining === 0) {
     return {
-      title: `${ch.name} — objectif atteint`,
+      title: `${ch.name} : objectif atteint`,
       body: ch.kind === 'crew'
         ? `${who} avez bouclé ${ch.name}. Beau travail collectif.`
         : `${who} as bouclé ${ch.name}. Beau travail.`,

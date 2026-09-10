@@ -373,7 +373,7 @@ export const C = defineCatalog({
     pt: 'Renovação a {date}',
   },
   proEndsOn: {
-    fr: 'Renouvellement coupé — accès jusqu’au {date}',
+    fr: 'Renouvellement coupé · accès jusqu’au {date}',
     en: 'Auto-renew off — access until {date}',
     es: 'Renovación desactivada — acceso hasta el {date}',
     de: 'Verlängerung aus — Zugang bis {date}',

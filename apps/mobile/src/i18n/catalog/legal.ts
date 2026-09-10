@@ -277,7 +277,7 @@ export const C = defineCatalog({
    * Confidentialité refuse et le dit (`confidentialite.tsx:238` et `:298`).
    */
   dataBody: {
-    fr: 'Si tu as un compte, tu peux récupérer une copie de tes données et le supprimer à tout moment, depuis Réglages puis Confidentialité. La suppression rend ton profil invisible immédiatement, puis efface définitivement tes données à l’issue d’un délai — te reconnecter avant la fin de ce délai annule la suppression.',
+    fr: 'Si tu as un compte, tu peux récupérer une copie de tes données et le supprimer à tout moment, depuis Réglages puis Confidentialité. La suppression rend ton profil invisible immédiatement, puis efface définitivement tes données à l’issue d’un délai. Te reconnecter avant la fin de ce délai annule la suppression.',
     en: 'If you have an account, you can download a copy of your data and delete it at any time, from Settings then Privacy. Deletion hides your profile immediately, then permanently erases your data after a delay — signing back in before the end of that delay cancels the deletion.',
     es: 'Si tienes una cuenta, puedes descargar una copia de tus datos y eliminarla cuando quieras, desde Ajustes y luego Privacidad. La eliminación oculta tu perfil de inmediato y borra definitivamente tus datos tras un plazo — volver a iniciar sesión antes del final de ese plazo cancela la eliminación.',
     de: 'Wenn du ein Konto hast, kannst du jederzeit eine Kopie deiner Daten herunterladen und es löschen, unter Einstellungen und dann Datenschutz. Die Löschung blendet dein Profil sofort aus und entfernt deine Daten nach einer Frist endgültig — meldest du dich vorher wieder an, wird die Löschung abgebrochen.',
@@ -371,7 +371,7 @@ export const C = defineCatalog({
 
   /** Bandeau (note d'état) de chaque document — la SEULE ligne réellement traduite. */
   legalReference: {
-    fr: 'Version française de référence — seul le texte français fait foi.',
+    fr: 'Version française de référence : seul le texte français fait foi.',
     en: 'French reference version — only the French text is legally binding.',
     es: 'Versión de referencia en francés — solo el texto francés da fe.',
     de: 'Französische Referenzfassung — nur der französische Text ist verbindlich.',

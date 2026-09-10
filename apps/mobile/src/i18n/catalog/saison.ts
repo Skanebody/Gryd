@@ -321,14 +321,14 @@ export const C = defineCatalog({
   // la planche ; elle disait le faux contre le code — et c'est toujours le code
   // qui gagne. Une saison remet à zéro LE TABLEAU, jamais LA CARTE.
   resetLigne1: {
-    fr: 'Au reset : seuls les points et le rang de saison repartent à zéro. Ta carte reste — zones capturées, boucliers, badges et compte sont conservés.',
+    fr: 'Au reset : seuls les points et le rang de saison repartent à zéro. Ta carte reste : zones capturées, boucliers, badges et compte sont conservés.',
     en: 'At reset: only season points and rank go back to zero. Your map stays — captured zones, shields, badges and account are kept.',
     es: 'En el reinicio: solo los puntos y el rango de temporada vuelven a cero. Tu mapa se queda: zonas capturadas, escudos, insignias y cuenta se conservan.',
     de: 'Beim Reset: Nur Saisonpunkte und -rang starten bei null. Deine Karte bleibt — eroberte Zonen, Schilde, Abzeichen und Konto bleiben erhalten.',
     pt: 'No reset: só os pontos e a posição da temporada voltam a zero. Seu mapa fica — zonas capturadas, escudos, emblemas e conta são mantidos.',
   },
   resetLigne2: {
-    fr: 'Les récompenses sont cosmétiques — jamais un avantage de capture.',
+    fr: 'Les récompenses sont cosmétiques, jamais un avantage de capture.',
     en: 'Rewards are cosmetic — never a capture advantage.',
     es: 'Las recompensas son cosméticas — nunca una ventaja de captura.',
     de: 'Belohnungen sind kosmetisch — nie ein Eroberungsvorteil.',
@@ -476,7 +476,7 @@ export const C = defineCatalog({
     pt: 'Regras da temporada',
   },
   regleRangsSepares: {
-    fr: 'Les rangs à pied et vélo sont séparés — deux mondes, jamais additionnés.',
+    fr: 'Les rangs à pied et vélo sont séparés : deux mondes, jamais additionnés.',
     en: 'Running and Bike ranks are separate — two worlds, never summed.',
     es: 'Los rangos a pie y en bici están separados: dos mundos, nunca sumados.',
     de: 'Lauf- und Rad-Ränge sind getrennt — zwei Welten, nie addiert.',
@@ -594,7 +594,7 @@ export const C = defineCatalog({
     pt: 'Temporada indisponível',
   },
   ecranEchecCorps: {
-    fr: 'La lecture a échoué. On ne sait pas où en est la saison — on ne devine pas.',
+    fr: 'La lecture a échoué. On ne sait pas où en est la saison, et on ne devine pas.',
     en: 'The read failed. We do not know where the season stands — we do not guess.',
     es: 'La lectura falló. No sabemos en qué punto está la temporada, y no lo adivinamos.',
     de: 'Das Laden schlug fehl. Wo die Saison steht, ist unbekannt — wir raten nicht.',
@@ -623,7 +623,7 @@ export const C = defineCatalog({
     pt: 'XP indisponível',
   },
   xpEchecCorps: {
-    fr: 'La lecture de ta progression a échoué. Ton XP n’a pas bougé — c’est l’affichage qui manque, pas les points.',
+    fr: 'La lecture de ta progression a échoué. Ton XP n’a pas bougé : c’est l’affichage qui manque, pas les points.',
     en: 'Reading your progress failed. Your XP hasn’t moved — it’s the display that’s missing, not the points.',
     es: 'Falló la lectura de tu progreso. Tu XP no se movió: falta la vista, no los puntos.',
     de: 'Deine Fortschrittsdaten konnten nicht geladen werden. Dein XP ist unverändert — es fehlt die Anzeige, nicht die Punkte.',

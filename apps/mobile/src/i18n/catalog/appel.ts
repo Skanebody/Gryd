@@ -119,7 +119,7 @@ export const C = defineCatalog({
     pt: 'Não foi possível carregar',
   },
   echecBody: {
-    fr: 'On n’a pas pu lire tes vérifications. Ça ne dit rien sur tes courses — seulement que la lecture a échoué.',
+    fr: 'On n’a pas pu lire tes vérifications. Ça ne dit rien sur tes courses, seulement que la lecture a échoué.',
     en: 'We could not read your verifications. That says nothing about your runs — only that the read failed.',
     es: 'No pudimos leer tus verificaciones. Eso no dice nada de tus carreras, solo que la lectura falló.',
     de: 'Deine Prüfungen konnten nicht gelesen werden. Das sagt nichts über deine Läufe — nur, dass das Laden fehlschlug.',
@@ -358,7 +358,7 @@ export const C = defineCatalog({
     pt: 'SEU RECURSO',
   },
   appelInvite: {
-    fr: 'Tu peux demander un réexamen. Ajoute un mot si tu veux — ce n’est pas obligatoire.',
+    fr: 'Tu peux demander un réexamen. Ajoute un mot si tu veux, ce n’est pas obligatoire.',
     en: 'You can ask for a review. Add a note if you want — it is not required.',
     es: 'Puedes pedir una revisión. Añade una nota si quieres, no es obligatorio.',
     de: 'Du kannst eine erneute Prüfung beantragen. Eine Notiz ist möglich, aber nicht nötig.',
@@ -407,7 +407,7 @@ export const C = defineCatalog({
     pt: 'Seu recurso foi decidido.',
   },
   appelEchec: {
-    fr: 'L’appel n’est pas parti. Rien n’a été enregistré — tu peux réessayer.',
+    fr: 'L’appel n’est pas parti. Rien n’a été enregistré, tu peux réessayer.',
     en: 'The appeal did not go through. Nothing was recorded — you can retry.',
     es: 'La apelación no se envió. No se registró nada; puedes reintentar.',
     de: 'Der Einspruch wurde nicht gesendet. Nichts wurde erfasst — versuch es erneut.',

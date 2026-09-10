@@ -314,7 +314,7 @@ export const C = defineCatalog({
     pt: 'Esta não é uma zona que você defende',
   },
   etatPasDefenseurCorps: {
-    fr: 'Soit c’est toi qui attaques, soit la zone appartient à ton crew — la défense de crew n’est pas encore suivie ici.',
+    fr: 'Soit c’est toi qui attaques, soit la zone appartient à ton crew : la défense de crew n’est pas encore suivie ici.',
     en: 'Either you’re the attacker, or the zone belongs to your crew — crew defence isn’t tracked here yet.',
     es: 'O eres tú quien ataca, o la zona pertenece a tu crew: la defensa de crew aún no se sigue aquí.',
     de: 'Entweder greifst du selbst an, oder die Zone gehört deiner Crew — Crew-Verteidigung wird hier noch nicht verfolgt.',
@@ -383,7 +383,7 @@ export const C = defineCatalog({
   },
   /** `geometry_generalized` absente : la carte disparaît, et on dit pourquoi. */
   contourAbsent: {
-    fr: 'Le contour de cette zone n’est pas encore calculé — l’échéance, elle, est bien réelle.',
+    fr: 'Le contour de cette zone n’est pas encore calculé. L’échéance, elle, est bien réelle.',
     en: 'This zone’s outline isn’t computed yet — the deadline is real all the same.',
     es: 'El contorno de esta zona aún no está calculado; el plazo sí es real.',
     de: 'Der Umriss dieser Zone ist noch nicht berechnet — die Frist ist trotzdem echt.',

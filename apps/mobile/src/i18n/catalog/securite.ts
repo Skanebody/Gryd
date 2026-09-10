@@ -126,7 +126,7 @@ export const C = defineCatalog({
    * composeur SANS numéro plutôt que d'en deviner un.
    */
   emergencyNoNumber: {
-    fr: 'Numéro local inconnu ici — on ouvre le composeur, compose le numéro de ton pays.',
+    fr: 'Numéro local inconnu ici : on ouvre le composeur, compose le numéro de ton pays.',
     en: 'Local number unknown here — we open the dialler, enter your country’s number.',
     es: 'Número local desconocido aquí — abrimos el marcador, marca el de tu país.',
     de: 'Lokale Nummer hier unbekannt — wir öffnen die Tastatur, wähle die Nummer deines Landes.',

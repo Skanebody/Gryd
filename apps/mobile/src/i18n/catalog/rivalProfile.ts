@@ -50,7 +50,7 @@ export const RIVAL_C = defineCatalog({
    * plus.
    */
   unavailableBody: {
-    fr: 'Ce profil ne t’est pas accessible. Il n’existe pas, ou son propriétaire ne le partage pas avec toi — GRYD ne dit pas lequel des deux, ce serait déjà en dire trop sur quelqu’un.',
+    fr: 'Ce profil ne t’est pas accessible. Il n’existe pas, ou son propriétaire ne le partage pas avec toi. GRYD ne dit pas lequel des deux, ce serait déjà en dire trop sur quelqu’un.',
     en: 'This profile is not available to you. Either it does not exist, or its owner does not share it with you — GRYD will not say which, as that would already reveal too much about someone.',
     es: 'Este perfil no está a tu alcance. O no existe, o su propietario no lo comparte contigo: GRYD no dice cuál de los dos, ya sería revelar demasiado sobre alguien.',
     de: 'Dieses Profil ist für dich nicht verfügbar. Entweder existiert es nicht, oder sein Inhaber teilt es nicht mit dir – GRYD sagt nicht, was davon zutrifft: das verriete bereits zu viel über jemanden.',

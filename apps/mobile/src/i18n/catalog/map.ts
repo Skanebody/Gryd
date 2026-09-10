@@ -131,7 +131,7 @@ export const C = defineCatalog({
     pt: 'Mostrar infos do mapa',
   },
   hudHideA11y: {
-    fr: 'Masquer les infos — carte plein écran',
+    fr: 'Masquer les infos, carte plein écran',
     en: 'Hide info — full-screen map',
     es: 'Ocultar la info: mapa a pantalla completa',
     de: 'Infos ausblenden — Karte im Vollbild',
@@ -185,7 +185,7 @@ export const C = defineCatalog({
     pt: '{n} zonas',
   },
   optionsA11y: {
-    fr: 'Voir les options — parcours, équipe et détails',
+    fr: 'Voir les options : parcours, équipe et détails',
     en: 'See options — routes, team and details',
     es: 'Ver opciones: rutas, equipo y detalles',
     de: 'Optionen ansehen — Routen, Team und Details',
@@ -264,7 +264,7 @@ export const C = defineCatalog({
     pt: 'DETALHES',
   },
   missionA11y: {
-    fr: 'Mission {label} — ouvrir la War Room',
+    fr: 'Mission {label}, ouvrir la War Room',
     en: 'Mission {label} — open the War Room',
     es: 'Misión {label}: abrir la War Room',
     de: 'Mission {label} — War Room öffnen',
@@ -338,7 +338,7 @@ export const C = defineCatalog({
     pt: 'Fechar',
   },
   closeZoneA11y: {
-    fr: 'Fermer la zone — revenir à la carte',
+    fr: 'Fermer la zone, revenir à la carte',
     en: 'Close the zone — back to the map',
     es: 'Cerrar la zona: volver al mapa',
     de: 'Zone schließen — zurück zur Karte',
@@ -359,7 +359,7 @@ export const C = defineCatalog({
     pt: 'Mais',
   },
   moreA11y: {
-    fr: 'Plus — détail de la zone : surface, tenue, pression et activité',
+    fr: 'Plus, détail de la zone : surface, tenue, pression et activité',
     en: 'More — zone details: area, hold, pressure and activity',
     es: 'Más: detalle de la zona (superficie, control, presión y actividad)',
     de: 'Mehr — Zonen-Detail: Fläche, Halten, Druck und Aktivität',
@@ -766,14 +766,14 @@ export const C = defineCatalog({
   //    LA SHEET (territoire), pas « panneau de course », et il annonce les DEUX
   //    chemins — glisser OU toucher : le geste n'est jamais le seul moyen. ──
   sheetHandleOpenA11y: {
-    fr: 'Panneau territoire — glisse ou touche pour déployer',
+    fr: 'Panneau territoire, glisse ou touche pour déployer',
     en: 'Territory panel — drag or tap to expand',
     es: 'Panel de territorio — desliza o toca para desplegar',
     de: 'Gebietsleiste – ziehen oder tippen zum Öffnen',
     pt: 'Painel de território — arraste ou toque para abrir',
   },
   sheetHandleCloseA11y: {
-    fr: 'Panneau territoire — glisse ou touche pour replier',
+    fr: 'Panneau territoire, glisse ou touche pour replier',
     en: 'Territory panel — drag or tap to collapse',
     es: 'Panel de territorio — desliza o toca para plegar',
     de: 'Gebietsleiste – ziehen oder tippen zum Schließen',
@@ -922,7 +922,7 @@ export const C = defineCatalog({
     pt: 'Planejar para depois',
   },
   zonePlanLaterA11y: {
-    fr: 'Planifier pour plus tard — ouvrir le planificateur d’itinéraire',
+    fr: 'Planifier pour plus tard, ouvrir le planificateur d’itinéraire',
     en: 'Plan it for later — open the route planner',
     es: 'Planificar para después — abrir el planificador de rutas',
     de: 'Später planen — den Routenplaner öffnen',
@@ -1012,7 +1012,7 @@ export const C = defineCatalog({
     pt: 'Defender',
   },
   defendCtaA11y: {
-    fr: 'Défendre — préparer une boucle de défense sur cette zone',
+    fr: 'Défendre, préparer une boucle de défense sur cette zone',
     en: 'Defend — set up a defense loop on this zone',
     es: 'Defender — preparar un bucle de defensa en esta zona',
     de: 'Verteidigen — eine Verteidigungsschleife für diese Zone vorbereiten',
@@ -1027,7 +1027,7 @@ export const C = defineCatalog({
     pt: 'Alertar o crew',
   },
   defenseAlertCrewA11y: {
-    fr: 'Alerter le crew — envoyer un signal de renfort sur cette zone',
+    fr: 'Alerter le crew, envoyer un signal de renfort sur cette zone',
     en: 'Alert the crew — send a backup signal on this zone',
     es: 'Alertar al crew — enviar una señal de refuerzo en esta zona',
     de: 'Crew alarmieren — ein Verstärkungssignal für diese Zone senden',
@@ -1050,7 +1050,7 @@ export const C = defineCatalog({
     pt: 'Entre num crew para alertá-lo',
   },
   defenseAlertCooldown: {
-    fr: 'Déjà alerté — patiente un peu',
+    fr: 'Déjà alerté. Patiente un peu',
     en: 'Already alerted — hold on',
     es: 'Ya alertado — espera un poco',
     de: 'Bereits alarmiert — kurz warten',
@@ -1071,7 +1071,7 @@ export const C = defineCatalog({
     pt: 'Entre para alertar seu crew',
   },
   defenseAlertFailed: {
-    fr: 'Impossible d’alerter — réessaie',
+    fr: 'Impossible d’alerter. Réessaie',
     en: 'Couldn’t alert — try again',
     es: 'No se pudo alertar — inténtalo de nuevo',
     de: 'Alarmieren fehlgeschlagen — erneut versuchen',
@@ -1778,7 +1778,7 @@ export const C = defineCatalog({
    * tranche, et il le fera au retour du réseau (`activity_upload_queued`).
    */
   offlineNote: {
-    fr: 'Hors ligne — carte en mémoire. Tu peux courir : ta sortie partira au retour du réseau.',
+    fr: 'Hors ligne, carte en mémoire. Tu peux courir : ta sortie partira au retour du réseau.',
     en: 'Offline — cached map. You can still run: your activity uploads when the network is back.',
     es: 'Sin conexión: mapa en caché. Puedes correr, tu salida se enviará al volver la red.',
     de: 'Offline — Karte aus dem Cache. Du kannst laufen: Deine Aktivität geht raus, sobald das Netz da ist.',

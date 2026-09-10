@@ -138,7 +138,7 @@ export const C = defineCatalog({
     pt: 'Protegida {h} h',
   },
   zoneFragile: {
-    fr: 'Fragile — repasse dessus pour la garder',
+    fr: 'Fragile. Repasse dessus pour la garder',
     en: 'Fragile — run through it to keep it',
     es: 'Frágil — vuelve a pasar para conservarla',
     de: 'Brüchig — lauf hindurch, um sie zu behalten',
