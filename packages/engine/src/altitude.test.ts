@@ -120,11 +120,34 @@ Deno.test('altitude : elle survit à cleanTrace + smoothTrace + decimateForPaylo
   assert(payload.length >= 2, 'la trace de contrôle doit survivre au nettoyage');
   assert(payload.every((p) => typeof p.alt === 'number'),
     'chaque point conservé garde son altitude jusqu’au payload');
-  // Le lissage ne touche QUE lat/lng : une altitude lissée avec les poids de la
-  // position inventerait un relief (l’altitude GPS est bien plus bruitée).
-  const altitudesBrutes = new Set(brut.map((f) => f.alt));
-  assert(smoothed.every((p) => altitudesBrutes.has(p.alt)),
-    'smoothTrace ne doit modifier aucune altitude');
+});
+
+Deno.test('altitude : smoothTrace la MOYENNE (et n’en invente pas là où il n’y en a pas)', () => {
+  // Une oscillation de ±2 m sur une trace plate : c’est elle qui produisait
+  // 596 m de D+ imaginaire avant `ELEVATION_SMOOTH_WINDOW_S`.
+  const oscillante: RawFix[] = [];
+  for (let i = 0; i < 120; i++) oscillante.push(fixEst(i * 3, i, 100 + (i % 2 === 0 ? 2 : -2)));
+  const lisse = smoothTrace(cleanTrace(oscillante, 'run').points);
+  // Au milieu de la trace, la fenêtre est pleine des deux côtés : la moyenne
+  // tombe sur 100 m à quelques centièmes près.
+  const milieu = lisse[Math.floor(lisse.length / 2)]!;
+  assert(Math.abs((milieu.alt ?? 0) - 100) < 0.2,
+    `l’oscillation doit s’annuler (altitude lissée obtenue : ${milieu.alt})`);
+  // Et une trace SANS altitude n’en reçoit pas une : la fenêtre moyenne ce qui
+  // a été mesuré, elle ne comble aucun trou.
+  const nue = smoothTrace(cleanTrace(montee(20, 0).map(({ alt: _a, ...reste }) => reste), 'run').points);
+  assert(nue.every((p) => p.alt === undefined), 'aucune altitude ne se fabrique au lissage');
+});
+
+Deno.test('altitude : une VRAIE montée survit au lissage', () => {
+  // Le lissage doit tuer le bruit, pas les côtes : +0,5 m par relevé sur 200 s.
+  const lisse = smoothTrace(cleanTrace(montee(200, 0.5), 'run').points);
+  const premier = lisse[0]?.alt ?? 0;
+  const dernier = lisse[lisse.length - 1]?.alt ?? 0;
+  // Les bords d’une moyenne glissante rabotent la moitié de la fenêtre de chaque
+  // côté (±10 s ⇒ ±5 m ici) : on borne la perte, on ne l’ignore pas.
+  assert(dernier - premier > 89 && dernier - premier <= 99.5,
+    `montée de 99,5 m attendue quasi intacte, obtenue ${dernier - premier}`);
 });
 
 // ════════════════════════════════════════════════════════════════════════════

@@ -6146,3 +6146,142 @@ export const PROFILE_COSMETIC_LEVELS_2026 = {
 export const PROFILE_COSMETIC_SLOTS_2026 = [
   'nameColor', 'avatarFrame', 'banner', 'trace', 'pin', 'titleBadge', 'cardTheme',
 ] as const;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ÉCRAN DE COURSE 2026 — CE QUE LES CHIFFRES DU BANDEAU LIVE MESURENT
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// DEMANDE FONDATEUR (11/09/2026) : « Comment s'affiche l'écran quand on est en
+// course ? Vérifie qu'on a bien au minimum toutes les informations que Strava
+// et INTVL peuvent donner. »
+//
+// L'audit comparatif complet vit dans `docs/product/GRYD_ECRAN_DE_COURSE_2026_09.md`.
+// Ce qui suit n'est PAS la liste des mesures — c'est la liste des FENÊTRES : les
+// trois durées qui décident de ce qu'un chiffre affiché en pleine course veut
+// dire. Elles sont ici, et pas dans le module qui les applique, pour une raison
+// mécanique : le module pur et son test doivent parler de la MÊME valeur, sinon
+// le test verrouille un nombre que l'écran n'utilise pas.
+//
+// ⚠️ CE QUI N'EST DÉLIBÉRÉMENT PAS RECOPIÉ ICI. Trois seuils de l'écran de
+// course existaient DÉJÀ, nommés et testés, avant ce lot. En poser une copie
+// aurait créé exactement la divergence silencieuse que ce fichier existe pour
+// empêcher — deux nombres pour une seule règle finissent toujours par diverger,
+// et celui qui diverge est celui que personne ne relit :
+//   · la PAUSE AUTOMATIQUE — `GPS_PAUSE_SPEED_MS` (0,7 m/s) pendant
+//     `GPS_PAUSE_AFTER_S` (10 s), plus haut dans ce fichier. Le lot R n'a pas
+//     ajouté de seuil : il a ajouté le RÉGLAGE qui manquait
+//     (`/parametres/course`, une préférence par discipline — cahier §8.2) ;
+//   · le SEUIL ANTI-BRUIT DU DÉNIVELÉ — `ELEVATION_NOISE_M` (3 m d'hystérésis),
+//     dans `apps/mobile/src/features/journal/metrics.ts`. L'écran de course
+//     appelle `elevationFrom` de ce module : le D+ lu en courant et le D+ lu le
+//     soir dans le détail de la sortie sortent donc de la MÊME fonction. Deux
+//     seuils auraient fait mentir l'un des deux écrans ;
+//   · la LONGUEUR D'UN SPLIT — `SPLIT_DISTANCE_M` (1 km), même module, pour la
+//     même raison : les splits du live et ceux du journal sont les mêmes objets,
+//     calculés par `splitsFrom`.
+
+/**
+ * FENÊTRE DE L'ALLURE INSTANTANÉE, en secondes.
+ *
+ * ─── POURQUOI UNE FENÊTRE, ET POURQUOI PAS L'ALLURE MOYENNE ─────────────────
+ * Le bandeau live ne montrait qu'une allure MOYENNE depuis le départ. Au bout
+ * d'une heure, elle ne bouge plus : un coureur qui accélère franchement pendant
+ * trois minutes voit son chiffre passer de 5'28 à 5'26. C'est la mesure la moins
+ * utile pendant l'effort, et c'est la seule que GRYD donnait — Strava affiche
+ * les deux, INTVL pilote l'écart à une cible sur l'instant.
+ *
+ * ─── POURQUOI QUINZE SECONDES ───────────────────────────────────────────────
+ * L'allure point à point est illisible : à 1 Hz avec 10 m de précision, deux
+ * relevés distants de 3 m donnent des allures qui sautent du simple au triple.
+ * Il faut donc lisser, et le choix de la fenêtre est un arbitrage exact :
+ *   · trop courte (≤ 5 s) → le chiffre danse et devient du bruit affiché ;
+ *   · trop longue (≥ 60 s) → il ne dit plus « maintenant » mais « la minute
+ *     d'avant », et il rate exactement ce pour quoi on le regarde (une côte,
+ *     une accélération, un fractionné).
+ * Quinze secondes, c'est environ 60 m de course et 100 m de vélo : assez pour
+ * que le bruit du capteur s'annule, assez peu pour rester l'instant présent.
+ *
+ * Ce n'est PAS une règle de jeu au sens strict (elle ne décide ni capture, ni
+ * point, ni XP) mais elle décide de ce qu'un chiffre AFFIRME à quelqu'un qui
+ * court, ce qui est exactement le genre de valeur qu'on ne veut pas voir
+ * apparaître deux fois dans le dépôt.
+ */
+export const LIVE_PACE_WINDOW_S = 15;
+
+/**
+ * FENÊTRE DE LA CADENCE, en secondes.
+ *
+ * La cadence se lit en pas par minute et se compare à des repères stables
+ * (~160-180 spm en course). Une fenêtre courte la ferait osciller de 20 spm à
+ * chaque foulée manquée par le podomètre, ce qui rendrait la comparaison
+ * impossible. Trente secondes est le compromis retenu : c'est assez de foulées
+ * (~85) pour qu'une manquée ne pèse rien, et assez court pour qu'un changement
+ * d'allure se voie dans la demi-minute.
+ *
+ * ⚠️ Le podomètre n'échantillonne PAS à intervalle régulier (`Pedometer.watch-
+ * StepCount` émet sur événement). La fenêtre est donc appliquée à des
+ * ÉCHANTILLONS HORODATÉS, et la cadence vaut `null` tant que la fenêtre n'en
+ * contient pas deux — jamais un zéro, qui accuserait de marcher quelqu'un dont
+ * le capteur n'a simplement pas encore parlé.
+ */
+export const LIVE_CADENCE_WINDOW_S = 30;
+
+/**
+ * DURÉE MINIMALE D'UN TOUR MANUEL, en secondes.
+ *
+ * Le bouton « Tour » est pressé en courant, souvent sans regarder. Sans
+ * plancher, un double appui (ou un appui rebondi sur un écran mouillé) créerait
+ * un tour de 0,2 s à une allure absurde, qui polluerait le résumé de la sortie
+ * pour toujours — un tour ne se supprime pas après coup.
+ *
+ * CINQ SECONDES : au-dessus de tout rebond tactile et de toute hésitation du
+ * pouce, très en dessous du plus court intervalle qu'un pratiquant chronomètre
+ * réellement (un 100 m se court en ~12 s). Le geste refusé ne disparaît pas en
+ * silence — l'écran garde le tour en cours et ne repart pas de zéro.
+ */
+export const LIVE_LAP_MIN_DURATION_S = 5;
+
+/**
+ * FENÊTRE DE LISSAGE DE L'ALTITUDE, en secondes.
+ *
+ * ─── LE CHIFFRE QUI AURAIT MENTI DÈS LE PREMIER JOUR ────────────────────────
+ * `elevationFrom` (journal) protège déjà du bruit par une hystérésis de
+ * `ELEVATION_NOISE_M` (3 m) : une montée ne compte qu'une fois qu'elle a dépassé
+ * ce seuil depuis le dernier point de référence. Cette protection suffit contre
+ * une DÉRIVE lente ; elle ne fait rien contre une altitude qui OSCILLE. Mesuré
+ * sur une trace de contrôle parfaitement plate de 900 m dont l'altitude oscille
+ * de ±2 m (4 m crête à crête, ce qu'un GPS de téléphone produit couramment —
+ * l'erreur verticale vaut 1,5 à 3 fois l'erreur horizontale) : chaque oscillation
+ * franchit les 3 m, et le total annoncé était **596 m de D+ sur une sortie
+ * plate**. Un chiffre pareil sur l'écran de course n'est pas une imprécision,
+ * c'est un mensonge d'écran (L8/L14).
+ *
+ * ─── LE LISSAGE VIT DANS `smoothTrace`, DONC AVANT LE PAYLOAD ───────────────
+ * Pas dans l'écran, et c'est la décision importante : la valeur lissée est celle
+ * qui part dans `RunPoint.alt`, donc celle qui est archivée dans
+ * `runs.trace_points_2026`, donc celle que le détail de sortie relira le soir.
+ * Lisser côté écran seulement aurait donné deux dénivelés pour une seule sortie
+ * — le second démentant le premier quelques heures plus tard.
+ *
+ * ─── POURQUOI UNE MOYENNE SUR VINGT SECONDES, ET PAS UNE MÉDIANE ────────────
+ * `GPS_MEDIAN_WINDOW` (5 points) lisse lat/lng par MÉDIANE, ce qui préserve les
+ * virages à 90°. Une médiane est le mauvais outil ici : sur une oscillation de
+ * période courte, elle rend alternativement l'une puis l'autre valeur — le
+ * sillon reste. Une MOYENNE, elle, l'annule. Et la fenêtre se compte en SECONDES,
+ * pas en points : le capteur n'échantillonne pas à cadence fixe (`distanceInterval`
+ * espace les relevés quand on ralentit), et une fenêtre en points vaudrait
+ * 5 secondes en courant et 2 secondes à vélo.
+ *
+ * VINGT SECONDES : assez large pour qu'une erreur verticale de quelques mètres,
+ * non corrélée d'un relevé à l'autre, s'annule (~21 échantillons à 1 Hz) ; assez
+ * courte pour qu'une vraie côte reste une côte — à 5 % de pente et 3 m/s, on
+ * monte 3 m en vingt secondes, soit exactement l'ordre du seuil d'hystérésis. Un
+ * lissage plus long commencerait à raboter les bosses réelles, c'est-à-dire à
+ * mentir dans l'autre sens.
+ *
+ * ⚠️ NE LISSE QUE L'ALTITUDE. La position, la distance, l'allure et le verdict
+ * de capture sont strictement inchangés : aucun calcul de jeu ne lit l'altitude
+ * (anti-pay-to-win, règle 10 — le dénivelé n'est pas une monnaie).
+ */
+export const ELEVATION_SMOOTH_WINDOW_S = 20;

@@ -69,6 +69,21 @@ export interface StoredRun {
    * rendrait au chrono les heures perdues à la première.
    */
   deadMs?: number;
+  /**
+   * MARQUES DE TOUR (epoch ms) posées par le bouton « Tour » (LOT R, 11/09/2026).
+   *
+   * Persistées pour la même raison que `deadMs` : une sortie tuée par l'OS
+   * revient avec sa trace INTACTE, et ses tours reviendraient vides — le résumé
+   * de fin ne parlerait plus de la même sortie que l'écran d'avant le crash.
+   *
+   * Des HORODATAGES, jamais des mesures : distance et durée de chaque tour se
+   * relisent sur la trace restaurée (`liveMetrics2026.lapsFrom`). Un tour ne peut
+   * donc pas survivre à la disparition des points qui le composent.
+   *
+   * OPTIONNEL : une course écrite avant ce champ n'en porte pas, et c'est un
+   * fait (« aucun tour n'a été posé »), pas une liste vide inventée.
+   */
+  lapMarks?: number[];
 }
 
 async function readRun(key: string): Promise<StoredRun | null> {

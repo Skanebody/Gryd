@@ -90,6 +90,20 @@ export interface RealRunApi {
   dismissBackground: () => void;
   togglePause: () => void;
   /**
+   * TOUR MANUEL (« lap », LOT R) — pose une marque horodatée sur la sortie.
+   * Rend `false` quand le geste tombe sous `LIVE_LAP_MIN_DURATION_S` (double
+   * appui, rebond tactile) : l'écran n'a alors rien à annoncer, il a déjà
+   * désactivé le bouton via `canMarkLap`.
+   */
+  markLap: () => boolean;
+  /**
+   * Le bouton « Tour » est-il actionnable MAINTENANT ? Recalculé à chaque tick
+   * (1 Hz) : le bouton se DÉSACTIVE pendant le plancher au lieu de refuser en
+   * silence, parce qu'« aucun bouton mort » vaut aussi pour un bouton qui ne
+   * fait rien une seconde sur cinq.
+   */
+  canMarkLap: boolean;
+  /**
    * Fin de course : arrêt propre capteurs/tâche, payload IngestRunRequest réel
    * envoyé via Supabase SI session réelle, buffer purgé. Résout les stats
    * réelles pour la navigation. `uploadQueued` : l'envoi a échoué (hors-ligne)

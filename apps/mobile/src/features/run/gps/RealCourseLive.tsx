@@ -1,26 +1,86 @@
+/**
+ * GRYD — L'ÉCRAN PENDANT LA SORTIE (LOT R, 11/09/2026).
+ *
+ * ═══ CE QU'IL MONTRAIT, ET CE QUI MANQUAIT ══════════════════════════════════
+ * Demande fondateur : « Comment s'affiche l'écran quand on est en course ?
+ * Vérifie qu'on a bien au minimum toutes les informations que Strava et INTVL
+ * peuvent donner. » L'écran affichait TROIS chiffres — distance, temps actif,
+ * allure MOYENNE — plus une carte, les notices GPS et deux boutons. L'audit
+ * ligne à ligne vit dans `docs/product/GRYD_ECRAN_DE_COURSE_2026_09.md`.
+ *
+ * Ce lot ajoute : l'allure INSTANTANÉE (celle qui bouge encore après une heure),
+ * le dernier kilomètre et la liste des splits, la cadence, le dénivelé positif,
+ * la précision GPS chiffrée, l'état de la boucle GRYD, le tour manuel d'INTVL,
+ * le verrouillage tactile, l'écran maintenu allumé et l'annonce vocale au
+ * kilomètre.
+ *
+ * ═══ LA RÈGLE QUI GOUVERNE CHAQUE CASE ══════════════════════════════════════
+ * Une mesure absente rend un TIRET CADRATIN, jamais un « 0 » (L8, doctrine de
+ * `liveRate.ts`). Et la case ne DISPARAÎT pas : le bandeau est lu en mouvement,
+ * on retrouve une information par sa PLACE avant de la lire — une mise en page
+ * qui se réorganise au premier kilomètre, sous les yeux de quelqu'un qui court,
+ * coûte plus cher que la case vide qu'elle évite.
+ *
+ * ═══ LISIBILITÉ EN PLEIN SOLEIL ═════════════════════════════════════════════
+ * Chiffres blancs (`c.darkInk`, #FAFAFA) sur carbone (#0A0A0A) : le contraste
+ * maximal de la charte. La chartreuse (`c.accent`) ne porte AUCUN chiffre — elle
+ * ne marque que l'état vivant (le point d'enregistrement, le meilleur
+ * kilomètre) : un chiffre chartreuse sur carbone descend à un contraste que le
+ * plein soleil efface, et la charte réserve l'accent au rôle, pas à la donnée.
+ */
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, refonteColors as c } from '@klaim/shared';
-import { useLocale } from '../../../i18n/store';
+import { useLocale, useT } from '../../../i18n/store';
+import { C } from '../../../i18n/catalog/courseLive';
 import { GrydIcon } from '../../../ui/gryd';
 import { RealMap, realMapAvailable, type RealMapCamera, type RealMapGeoJSONLayer, type RealMapRef } from '../../../ui/game/RealMap';
-import { liveRateDisplay } from './liveRate';
+import { liveRateDisplay, NO_MEASURE } from './liveRate';
 import { courseResultParams } from './resultHandoff';
+import { bestSplitIndex, type Split } from '../../journal/metrics';
+import { loopClosurePhase, loopMissingM } from './engine/loopClosure';
+import { roundLoopM } from './engine/loopHint';
+import { useKeepScreenAwake2026 } from './keepAwake2026';
+import type { Lap } from './liveMetrics2026';
 import type { RealRunApi } from './gateTypes';
 
 function clock(seconds: number) { const value = Math.floor(Math.max(0, seconds)); return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`; }
+/** « 5'28 » — la convention d'allure de tout le produit (`liveRate.formatPaceMmSs`). */
+function pace(sPerKm: number | null) { if (sPerKm === null || !Number.isFinite(sPerKm) || sPerKm <= 0) return NO_MEASURE; const s = Math.round(sPerKm); return `${Math.floor(s / 60)}'${String(s % 60).padStart(2, '0')}`; }
+/** Un entier, ou le tiret. Aucun arrondi ne fabrique de mesure : `null` reste `null`. */
+function whole(value: number | null) { return value === null || !Number.isFinite(value) ? NO_MEASURE : String(Math.round(value)); }
+/**
+ * FRACTION DE LA PISTE À FRANCHIR POUR DÉVERROUILLER. Un glissement, pas un tap :
+ * c'est le seul geste qu'un frottement de poche ou une goutte de pluie ne
+ * produit pas. 60 % est assez long pour être délibéré, assez court pour se faire
+ * d'un pouce, sur un écran tenu à bout de bras.
+ */
+const UNLOCK_RATIO = 0.6;
+
 /** A sports instrument. Capture is evaluated after saving, by the server. */
 export function RealCourseLive({ run }: { run: RealRunApi }) {
   const insets = useSafeAreaInsets();
   const fr = useLocale() === 'fr';
+  const t = useT();
+  // L'écran reste allumé tant que cet écran est monté. No-op silencieux là où le
+  // module natif n'existe pas encore (build antérieur) : un confort de lecture
+  // ne peut pas coûter une sortie.
+  useKeepScreenAwake2026();
   const [finishing, setFinishing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [locked, setLocked] = useState(false);
   const finishingRef = useRef(false);
   const snapshot = run.snapshot;
   const paused = snapshot.phase === 'paused-user';
-  const rate = liveRateDisplay(run.activity, snapshot.paceSPerKm, fr ? ',' : '.');
+  const decimal = fr ? ',' : '.';
+  const rate = liveRateDisplay(run.activity, snapshot.paceSPerKm, decimal);
+  // L'allure de MAINTENANT passe par le MÊME formateur que la moyenne : le
+  // cycliste lit deux vitesses, le coureur deux allures. Deux conversions
+  // séparées finiraient par diverger d'un dixième, à trois centimètres l'une de
+  // l'autre sur l'écran.
+  const now = liveRateDisplay(run.activity, snapshot.livePaceSPerKm ?? 0, decimal);
   const mapRef = useRef<RealMapRef>(null);
   // Sans module natif, `flyTo` est vide : le bouton de recentrage serait allumé
   // et sans effet. On ne le peint pas (« aucun bouton mort »).
@@ -36,6 +96,17 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       { id: 'live-route-core', data, lineColor: c.accent, lineWidth: 4, lineWidthStops: [[10, 2], [14, 3], [18, 5]] },
     ];
   }, [snapshot.traceSegments]);
+  // LA BOUCLE : la mesure qu'aucune app de course ne donne, parce qu'elle est le
+  // jeu. Même AUTORITÉ que la voix et que le serveur (`loopClosurePhase`) : un
+  // écran qui annoncerait « fermée » sur son propre seuil promettrait une
+  // capture que le serveur refuserait.
+  const closure = loopClosurePhase({
+    conquest: run.effectiveMode === 'conquete', activity: run.activity,
+    distanceM: snapshot.distanceM, gapM: snapshot.loopGapM,
+  });
+  const splits = snapshot.splits;
+  const bestSplit = bestSplitIndex(splits);
+  const laps = snapshot.laps;
   const finish = async () => {
     if (finishingRef.current) return;
     finishingRef.current = true; setFinishing(true); setFailed(false);
@@ -65,13 +136,69 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       {lastPoint && mapReady && <Pressable style={s.recenter} accessibilityRole="button" accessibilityLabel={fr ? 'Recentrer sur le dernier point enregistré' : 'Centre on the last recorded point'} onPress={() => mapRef.current?.flyTo(camera)}><GrydIcon name="location" size={21} color={c.darkInk} /></Pressable>}
     </View>
     <View style={[s.dock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <View style={s.status}><View style={[s.dot, (paused || snapshot.signal !== 'ok') && s.dotMuted]} /><Text style={s.statusText}>{paused ? (fr ? 'En pause' : 'Paused') : (fr ? 'Enregistrement' : 'Recording')}</Text></View>
-      <View style={s.metrics}>
-        <View style={s.metric}><Text style={s.distance}>{(snapshot.distanceM / 1000).toLocaleString(fr ? 'fr-FR' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text><Text style={s.metricLabel}>{fr ? 'Distance · km' : 'Distance · km'}</Text></View>
-        <View style={s.metric}><Text style={s.number}>{clock(snapshot.activeS)}</Text><Text style={s.metricLabel}>{fr ? 'Temps actif' : 'Moving time'}</Text></View>
-        <View style={s.metric}><Text style={s.number}>{rate.value}</Text><Text style={s.metricLabel}>{run.activity === 'run' ? (fr ? 'Allure · /km' : 'Pace · /km') : (fr ? 'Vitesse · km/h' : 'Speed · km/h')}</Text></View>
+      {/* ── LIGNE D'ÉTAT : ce qui est mesuré, et avec quelle précision ──────
+          Strava rend la qualité du signal par trois barres ; GRYD rend le
+          CHIFFRE, parce qu'il décide de ce que le serveur acceptera comme
+          boucle. Le cacher ferait découvrir la raison d'un refus après coup. */}
+      <View style={s.status}>
+        <View style={[s.dot, (paused || snapshot.signal !== 'ok') && s.dotMuted]} />
+        <Text style={s.statusText}>{paused ? (fr ? 'En pause' : 'Paused') : (fr ? 'Enregistrement' : 'Recording')}</Text>
+        <Text style={s.statusDivider}>·</Text>
+        <Text style={s.statusText}>{snapshot.accuracyM === null
+          ? t(C.gpsAccuracyUnknown)
+          : t(C.gpsAccuracy, { m: Math.round(snapshot.accuracyM) })}</Text>
       </View>
+
+      {/* ── LES TROIS GRANDS CHIFFRES : ceux qu'on lit d'un coup d'œil ────── */}
+      <View style={s.metrics}>
+        <View style={s.metric}><Text style={s.distance}>{(snapshot.distanceM / 1000).toLocaleString(fr ? 'fr-FR' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text><Text style={s.metricLabel}>{t(C.metricDistance)}</Text></View>
+        <View style={s.metric}><Text style={s.number}>{clock(snapshot.activeS)}</Text><Text style={s.metricLabel}>{t(C.metricActiveTime)}</Text></View>
+        <View style={s.metric}><Text style={s.number}>{snapshot.livePaceSPerKm === null ? NO_MEASURE : now.value}</Text><Text style={s.metricLabel}>{t(run.activity === 'run' ? C.metricPaceNow : C.metricSpeedNow)}</Text></View>
+      </View>
+
+      {/* ── LA SECONDE RANGÉE : mesurée si la plateforme le permet, TIRET sinon.
+          Chaque case garde sa place et son libellé — le libellé dit alors ce
+          qui manque, et la mise en page ne bouge pas en pleine course. */}
+      <View style={s.secondary}>
+        <View style={s.metric}><Text style={s.small}>{rate.value}</Text><Text style={s.metricLabel}>{t(run.activity === 'run' ? C.metricPaceAvg : C.metricSpeedAvg)}</Text></View>
+        <View style={s.metric}><Text style={s.small}>{whole(snapshot.elevationGainM)}</Text><Text style={s.metricLabel}>{t(C.metricElevation)}</Text></View>
+        <View style={s.metric}><Text style={s.small}>{whole(snapshot.cadenceSpm)}</Text><Text style={s.metricLabel}>{t(C.metricCadence)}</Text></View>
+      </View>
+
+      {/* ── LA BOUCLE GRYD : la seule mesure de cet écran qui parle du JEU ─── */}
+      {run.effectiveMode === 'conquete' && <View style={s.loop}>
+        <GrydIcon name="loop" size={16} color={closure === 'closed' ? c.accent : c.darkMuted} />
+        <Text style={[s.loopText, closure === 'closed' && s.loopClosed]}>
+          {closure === 'closed'
+            ? t(C.loopClosed)
+            : snapshot.loopGapM === null || closure === 'idle'
+              ? t(C.loopUnknown)
+              : t(C.loopRemaining, { m: roundLoopM(loopMissingM(snapshot.loopGapM, run.activity)) })}
+        </Text>
+      </View>}
+
       <ScrollView style={s.messages} contentContainerStyle={s.messagesContent} showsVerticalScrollIndicator={false}>
+        {/* ── LES KILOMÈTRES, PENDANT QU'ON COURT ────────────────────────────
+            Mêmes objets que le détail de sortie (`splitsFrom`) : le « 5'42 au
+            3ᵉ km » lu en courant est celui qu'on relira le soir. Le meilleur
+            kilomètre porte l'accent ; il n'est décerné qu'entre kilomètres
+            COMPLETS (comparer un résidu de 120 m couronnerait le résidu). */}
+        {splits.length > 0 && <View style={s.section}>
+          <View style={s.sectionHead}>
+            <Text style={s.sectionTitle}>{t(C.splitsTitle)}</Text>
+            {snapshot.lastSplit !== null && <Text style={s.sectionAside}>{t(C.metricLastKm)} · {pace(snapshot.lastSplit.paceSPerKm)}</Text>}
+          </View>
+          {splits.map((split) => <SplitRow key={split.index} split={split} best={split.index === bestSplit} partial={t(C.splitPartial)} />)}
+        </View>}
+
+        {/* ── LES TOURS (« lap » d'INTVL) : seulement s'il y en a ────────────
+            Sans marque, il n'y a qu'un tour implicite — l'afficher répéterait la
+            sortie entière sous un autre nom. La section naît au premier tour. */}
+        {laps.length > 1 && <View style={s.section}>
+          <Text style={s.sectionTitle}>{t(C.lapsTitle)}</Text>
+          {laps.map((lap) => <LapRow key={lap.index} lap={lap} fr={fr} activity={run.activity} decimal={decimal} />)}
+        </View>}
+
         {/* ─── TROIS CAUSES, TROIS PHRASES (10/09/2026) ────────────────────
             Un seul bandeau les servait toutes, et il disait « signal faible »
             à quelqu'un dont la PRÉCISION EXACTE est coupée dans les réglages :
@@ -91,16 +218,106 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
         {failed && <Text accessibilityRole="alert" style={s.fine}>{fr ? 'La sauvegarde n’a pas abouti. Les données restent sur cet écran.' : 'Saving did not complete. Your data remains on this screen.'}</Text>}
       </ScrollView>
       <View style={s.controls}>
-        {paused && <Pressable disabled={finishing} accessibilityState={{ disabled: finishing }} accessibilityRole="button" onPress={() => void finish()} style={s.secondary}><GrydIcon name="stop" size={17} color={c.darkInk} /><Text style={s.secondaryText}>{finishing ? (fr ? 'Enregistrement…' : 'Saving…') : (fr ? 'Terminer' : 'Finish')}</Text></Pressable>}
+        {paused && <Pressable disabled={finishing} accessibilityState={{ disabled: finishing }} accessibilityRole="button" onPress={() => void finish()} style={s.secondary2}><GrydIcon name="stop" size={17} color={c.darkInk} /><Text style={s.secondaryText}>{finishing ? (fr ? 'Enregistrement…' : 'Saving…') : (fr ? 'Terminer' : 'Finish')}</Text></Pressable>}
+        {/* TOUR : désactivé PENDANT le plancher (`LIVE_LAP_MIN_DURATION_S`)
+            plutôt que muet — un bouton qui ne fait rien une seconde sur cinq est
+            un bouton mort une seconde sur cinq. */}
+        <Pressable disabled={finishing || !run.canMarkLap} accessibilityState={{ disabled: finishing || !run.canMarkLap }} accessibilityRole="button" accessibilityLabel={t(C.a11yLap)} onPress={() => { run.markLap(); }} style={[s.ghost, (finishing || !run.canMarkLap) && s.disabled]}><GrydIcon name="flag" size={17} color={c.darkInk} /><Text style={s.secondaryText}>{t(C.lapCta)}</Text></Pressable>
         <Pressable disabled={finishing} accessibilityState={{ disabled: finishing }} accessibilityRole="button" onPress={run.togglePause} style={[s.primary, finishing && s.disabled]}><GrydIcon name={paused ? 'play' : 'pause'} color={c.ink} size={20} /><Text style={s.primaryText}>{paused ? (fr ? 'Reprendre' : 'Resume') : 'Pause'}</Text></Pressable>
+        {/* VERROU : le geste le plus facile à provoquer par accident, sur un
+            écran dans une poche ou sous la pluie, est celui qui TERMINE la
+            sortie. Le verrou le met hors de portée sans rien arrêter. */}
+        <Pressable disabled={finishing} accessibilityState={{ disabled: finishing }} accessibilityRole="button" accessibilityLabel={t(C.lockCta)} onPress={() => setLocked(true)} style={[s.ghost, finishing && s.disabled]}><GrydIcon name="lock" size={17} color={c.darkInk} /><Text style={s.secondaryText}>{t(C.lockCta)}</Text></Pressable>
       </View>
+    </View>
+    {locked && <LockOverlay
+      title={t(C.lockedTitle)} body={t(C.lockedBody)} hint={t(C.unlockHint)} a11y={t(C.a11yUnlock)}
+      distance={(snapshot.distanceM / 1000).toLocaleString(fr ? 'fr-FR' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      distanceLabel={t(C.metricDistance)} time={clock(snapshot.activeS)} timeLabel={t(C.metricActiveTime)}
+      onUnlock={() => setLocked(false)} top={insets.top} bottom={insets.bottom} />}
+  </View>;
+}
+
+/** Une ligne de split. `partial` marque le kilomètre EN COURS : son allure n'est pas comparable. */
+function SplitRow({ split, best, partial }: { split: Split; best: boolean; partial: string }) {
+  return <View style={s.row}>
+    <Text style={[s.rowIndex, best && s.rowBest]}>{split.index}</Text>
+    <Text style={s.rowMain}>{split.complete ? pace(split.paceSPerKm) : `${pace(split.paceSPerKm)} · ${partial}`}</Text>
+    <Text style={s.rowAside}>{split.complete ? '1,00 km' : `${(split.distanceM / 1000).toFixed(2)} km`}</Text>
+  </View>;
+}
+
+/**
+ * Une ligne de tour. Le tour EN COURS le dit : sa durée grandit sous les yeux,
+ * et le présenter comme bouclé le rendrait comparable aux autres, ce qu'il n'est
+ * pas encore.
+ */
+function LapRow({ lap, fr, activity, decimal }: { lap: Lap; fr: boolean; activity: RealRunApi['activity']; decimal: string }) {
+  const rate = lap.paceSPerKm === null ? NO_MEASURE : liveRateDisplay(activity, lap.paceSPerKm, decimal).value;
+  return <View style={s.row}>
+    <Text style={[s.rowIndex, !lap.closed && s.rowOpen]}>{lap.index}</Text>
+    <Text style={s.rowMain}>{clock(lap.durationS)} · {rate}</Text>
+    <Text style={s.rowAside}>{(lap.distanceM / 1000).toLocaleString(fr ? 'fr-FR' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km</Text>
+  </View>;
+}
+
+/**
+ * L'ÉCRAN VERROUILLÉ. Il n'arrête RIEN — il le dit d'ailleurs en toutes lettres,
+ * sinon un voile plein écran se lirait comme une interruption.
+ *
+ * Il garde les deux chiffres qu'on veut voir sans rien toucher (temps et
+ * distance) et n'offre qu'un geste : GLISSER. Le déverrouillage se mesure sur la
+ * largeur RÉELLE de la piste (`onLayout`), jamais sur une largeur supposée : un
+ * seuil en pixels codé en dur serait franchi d'un frottement sur un petit écran
+ * et inatteignable au pouce sur une tablette.
+ */
+function LockOverlay({ title, body, hint, a11y, distance, distanceLabel, time, timeLabel, onUnlock, top, bottom }: {
+  title: string; body: string; hint: string; a11y: string;
+  distance: string; distanceLabel: string; time: string; timeLabel: string;
+  onUnlock: () => void; top: number; bottom: number;
+}) {
+  const [width, setWidth] = useState(0);
+  const [dx, setDx] = useState(0);
+  const startRef = useRef(0);
+  const threshold = width * UNLOCK_RATIO;
+  return <View style={[s.lock, { paddingTop: top + 24, paddingBottom: bottom + 24 }]}>
+    <View style={s.lockHead}><GrydIcon name="lock" size={18} color={c.darkMuted} /><Text style={s.lockTitle}>{title}</Text></View>
+    <Text style={s.lockBody}>{body}</Text>
+    <View style={s.lockMetrics}>
+      <View style={s.metric}><Text style={s.distance}>{distance}</Text><Text style={s.metricLabel}>{distanceLabel}</Text></View>
+      <View style={s.metric}><Text style={s.distance}>{time}</Text><Text style={s.metricLabel}>{timeLabel}</Text></View>
+    </View>
+    <View style={s.track} onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
+      <Text style={s.trackHint}>{hint}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={a11y}
+        // Le lecteur d'écran ne glisse pas : pour lui, l'activation SUFFIT.
+        // Refuser le tap ici rendrait l'écran verrouillé définitif à quelqu'un
+        // qui navigue en VoiceOver, au milieu d'une sortie.
+        onAccessibilityTap={onUnlock}
+        onTouchStart={(e) => { startRef.current = e.nativeEvent.pageX; setDx(0); }}
+        onTouchMove={(e) => setDx(Math.max(0, e.nativeEvent.pageX - startRef.current))}
+        onTouchEnd={() => { if (threshold > 0 && dx >= threshold) onUnlock(); setDx(0); }}
+        onTouchCancel={() => setDx(0)}
+        style={[s.knob, { transform: [{ translateX: Math.min(dx, Math.max(0, width - 56)) }] }]}
+      ><GrydIcon name="chevronRight" size={20} color={c.ink} /></Pressable>
     </View>
   </View>;
 }
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: c.carbon }, scene: { flex: 1, minHeight: 140, overflow: 'hidden' },
   header: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, headerLabel: { minHeight: 44, borderRadius: 14, backgroundColor: c.floating, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 9 }, sport: { color: c.darkInk, fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20 }, minimize: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.floating, alignItems: 'center', justifyContent: 'center' }, position: { width: 14, height: 14, borderRadius: 7, backgroundColor: c.accent, borderWidth: 3, borderColor: c.carbon }, positionMuted: { backgroundColor: c.darkInk }, recenter: { position: 'absolute', bottom: 36, right: 16, width: 44, height: 44, borderRadius: 22, backgroundColor: c.floating, alignItems: 'center', justifyContent: 'center' }, traceEmpty: { position: 'absolute', top: '45%', alignSelf: 'center', maxWidth: 240, padding: 16, alignItems: 'center', gap: 9, borderRadius: 16, backgroundColor: c.floating }, traceLabel: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted, textAlign: 'center' },
-  dock: { paddingHorizontal: 20, paddingTop: 15, backgroundColor: c.carbon }, status: { flexDirection: 'row', alignItems: 'center', gap: 7 }, dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: c.accent }, dotMuted: { backgroundColor: c.darkMuted }, statusText: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 12 }, metrics: { flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingTop: 12, paddingBottom: 15 }, metric: { flex: 1, gap: 5 }, distance: { color: c.darkInk, fontFamily: fonts.displayMedium, fontSize: 34, lineHeight: 40, letterSpacing: -1, fontVariant: ['tabular-nums'] }, number: { color: c.darkInk, fontFamily: fonts.displayRegular, fontSize: 27, lineHeight: 34, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }, metricLabel: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, lineHeight: 17 },
-  messages: { flexGrow: 0, maxHeight: 150 }, messagesContent: { gap: 7 }, notice: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', paddingBottom: 3 }, noticeText: { flex: 1, color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, lineHeight: 18 }, noticeAction: { minHeight: 44, flexDirection: 'row', gap: 12, alignItems: 'center' }, fine: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, lineHeight: 18 }, restore: { borderTopWidth: 1, borderTopColor: c.darkSurfaceMuted, paddingTop: 12, gap: 5 }, restoreTitle: { color: c.darkInk, fontFamily: fonts.displayMedium, fontSize: 20 }, restoreAction: { minHeight: 44, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 22, paddingTop: 12 }, primary: { minHeight: 44, borderRadius: 22, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 12, gap: 10 }, primaryText: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 14 }, disabled: { opacity: 0.5 }, secondary: { minHeight: 44, paddingHorizontal: 4, paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 9 }, secondaryText: { flexShrink: 1, color: c.darkInk, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19 },
+  dock: { paddingHorizontal: 20, paddingTop: 15, backgroundColor: c.carbon }, status: { flexDirection: 'row', alignItems: 'center', gap: 7 }, dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: c.accent }, dotMuted: { backgroundColor: c.darkMuted }, statusText: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 12 }, statusDivider: { color: c.darkSurfaceMuted, fontFamily: fonts.text, fontSize: 12 },
+  metrics: { flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingTop: 12, paddingBottom: 10 }, secondary: { flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingBottom: 12 }, metric: { flex: 1, gap: 5 },
+  // Chiffres BLANCS sur carbone : le contraste maximal de la charte, le seul qui
+  // survive au plein soleil. La chartreuse ne porte jamais un chiffre.
+  distance: { color: c.darkInk, fontFamily: fonts.displayMedium, fontSize: 34, lineHeight: 40, letterSpacing: -1, fontVariant: ['tabular-nums'] }, number: { color: c.darkInk, fontFamily: fonts.displayRegular, fontSize: 27, lineHeight: 34, letterSpacing: -0.5, fontVariant: ['tabular-nums'] }, small: { color: c.darkInk, fontFamily: fonts.displayRegular, fontSize: 19, lineHeight: 25, letterSpacing: -0.2, fontVariant: ['tabular-nums'] }, metricLabel: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, lineHeight: 17 },
+  loop: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12 }, loopText: { flex: 1, color: c.darkMuted, fontFamily: fonts.text, fontSize: 13, lineHeight: 18 }, loopClosed: { color: c.accent, fontFamily: fonts.textMedium },
+  messages: { flexGrow: 0, maxHeight: 190 }, messagesContent: { gap: 7 }, notice: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', paddingBottom: 3 }, noticeText: { flex: 1, color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, lineHeight: 18 }, noticeAction: { minHeight: 44, flexDirection: 'row', gap: 12, alignItems: 'center' }, fine: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, lineHeight: 18 }, restore: { borderTopWidth: 1, borderTopColor: c.darkSurfaceMuted, paddingTop: 12, gap: 5 }, restoreTitle: { color: c.darkInk, fontFamily: fonts.displayMedium, fontSize: 20 }, restoreAction: { minHeight: 44, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  section: { gap: 3, paddingBottom: 6 }, sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }, sectionTitle: { color: c.darkMuted, fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 18, letterSpacing: 0.6, textTransform: 'uppercase' }, sectionAside: { color: c.darkInk, fontFamily: fonts.text, fontSize: 12, lineHeight: 18, fontVariant: ['tabular-nums'] },
+  row: { flexDirection: 'row', alignItems: 'baseline', gap: 12, paddingVertical: 3 }, rowIndex: { width: 22, color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, fontVariant: ['tabular-nums'] }, rowBest: { color: c.accent, fontFamily: fonts.textMedium }, rowOpen: { color: c.darkInk }, rowMain: { flex: 1, color: c.darkInk, fontFamily: fonts.text, fontSize: 13, lineHeight: 19, fontVariant: ['tabular-nums'] }, rowAside: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 12, fontVariant: ['tabular-nums'] },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, paddingTop: 12, flexWrap: 'wrap' }, primary: { minHeight: 44, borderRadius: 22, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 12, gap: 10 }, primaryText: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 14 }, disabled: { opacity: 0.5 }, secondary2: { minHeight: 44, paddingHorizontal: 4, paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 9 }, ghost: { minHeight: 44, paddingHorizontal: 10, paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }, secondaryText: { flexShrink: 1, color: c.darkInk, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19 },
+  lock: { ...StyleSheet.absoluteFillObject, backgroundColor: c.carbon, paddingHorizontal: 24, justifyContent: 'center', gap: 14 }, lockHead: { flexDirection: 'row', alignItems: 'center', gap: 9 }, lockTitle: { color: c.darkInk, fontFamily: fonts.displayMedium, fontSize: 20 }, lockBody: { color: c.darkMuted, fontFamily: fonts.text, fontSize: 13, lineHeight: 19 }, lockMetrics: { flexDirection: 'row', gap: 16, paddingVertical: 18 },
+  track: { height: 56, borderRadius: 28, backgroundColor: c.darkSurface, justifyContent: 'center', paddingHorizontal: 4 }, trackHint: { position: 'absolute', alignSelf: 'center', color: c.darkMuted, fontFamily: fonts.text, fontSize: 13 }, knob: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
 });

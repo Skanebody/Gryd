@@ -23,6 +23,7 @@ import {
   type Activity,
   activityRules,
   DEFAULT_ACTIVITY,
+  ELEVATION_SMOOTH_WINDOW_S,
   GPS_ACCURACY_GOOD_M,
   GPS_ACCURACY_MAX_M,
   GPS_DECIMATE_EPSILON_M,
@@ -74,16 +75,18 @@ export interface RawFix {
   /**
    * ALTITUDE (m au-dessus du niveau de la mer) si la plateforme la rend.
    *
-   * ─── ELLE TRAVERSE LE MOTEUR SANS JAMAIS ÊTRE LUE PAR LUI ─────────────────
-   * Aucune fonction de ce fichier ne la consulte : ni `cleanTrace` (qui juge sur
-   * la précision HORIZONTALE, la vitesse et les sauts), ni `smoothTrace` (qui ne
-   * lisse que lat/lng — l'altitude GPS d'un téléphone est bien plus bruitée que
-   * sa position, et la lisser avec les mêmes poids inventerait un relief), ni
-   * `detectPauses`, ni `totalDistanceM` (la distance de GRYD est PLANE, comme
-   * celle du serveur : la corriger de la pente ici donnerait deux distances pour
-   * une seule sortie). Elle est simplement TRANSPORTÉE — `smoothTrace` et
-   * `decimateForPayload` recopient le fix entier — jusqu'à `rawFixesToRunPoints`,
-   * qui la pose dans `RunPoint.alt`.
+   * ─── AUCUNE DÉCISION DU MOTEUR NE LA LIT ──────────────────────────────────
+   * Ni `cleanTrace` (qui juge sur la précision HORIZONTALE, la vitesse et les
+   * sauts), ni `detectPauses`, ni `totalDistanceM` : la distance de GRYD est
+   * PLANE, comme celle du serveur — la corriger de la pente ici donnerait deux
+   * distances pour une seule sortie. Un point n'est donc jamais gardé ni rejeté
+   * pour son altitude.
+   *
+   * `smoothTrace` est la SEULE fonction qui la touche, et pas avec le même outil
+   * que la position : une MOYENNE glissante sur `ELEVATION_SMOOTH_WINDOW_S`, et
+   * non la médiane pondérée par `accuracy` (qui est une précision horizontale, et
+   * qui laisserait passer les oscillations — voir son en-tête, et les 596 m de D+
+   * qu'une trace plate produisait sans elle).
    *
    * Le dénivelé, lui, se calcule AILLEURS et une seule fois
    * (`features/journal/metrics.elevationFrom`, hystérésis `ELEVATION_NOISE_M`) :
@@ -300,9 +303,28 @@ const median = (values: number[]): number => {
  * quasi intact (les virages à 90° sont préservés), un fix douteux est tiré
  * vers la médiane locale. Jamais de lissage à travers une discontinuité
  * (gapBefore) : chaque tronçon est lissé séparément. ts/accuracy inchangés.
+ *
+ * ─── L'ALTITUDE, ELLE, EST MOYENNÉE — ET C'EST UN AUTRE OUTIL (LOT R) ───────
+ * `alt` ne passe PAS par la médiane pondérée ci-dessus, pour deux raisons.
+ * D'abord parce que le poids serait faux : `accuracy` est une précision
+ * HORIZONTALE, et l'erreur verticale d'un GNSS vaut 1,5 à 3 fois celle-là.
+ * Ensuite parce qu'une médiane est le mauvais instrument contre une OSCILLATION :
+ * elle rend alternativement l'une puis l'autre valeur, et le sillon survit.
+ *
+ * Or ce sillon coûtait cher : mesuré sur une trace plate de 900 m dont
+ * l'altitude oscille de ±2 m, `elevationFrom` (hystérésis `ELEVATION_NOISE_M`,
+ * 3 m) annonçait **596 m de D+**. On applique donc une MOYENNE GLISSANTE sur
+ * `ELEVATION_SMOOTH_WINDOW_S` secondes — une fenêtre de TEMPS, parce que le
+ * capteur n'échantillonne pas à cadence fixe.
+ *
+ * Le lissage est ici, et pas dans l'écran, parce que c'est cette valeur qui part
+ * dans `RunPoint.alt`, donc dans `runs.trace_points_2026` : le D+ lu en courant
+ * et celui relu le soir sortent de la même altitude. AUCUN autre chiffre ne
+ * bouge — la distance de GRYD reste plane, et rien dans le jeu ne lit l'altitude.
  */
 export function smoothTrace(points: readonly CleanFix[]): CleanFix[] {
   const half = (GPS_MEDIAN_WINDOW - 1) >> 1;
+  const altHalfMs = (ELEVATION_SMOOTH_WINDOW_S * MS_PER_S) / 2;
   const out: CleanFix[] = [];
   for (const seg of splitAtGaps(points)) {
     for (let i = 0; i < seg.length; i++) {
@@ -321,10 +343,41 @@ export function smoothTrace(points: readonly CleanFix[]): CleanFix[] {
         ...p,
         lat: p.lat + (median(lats) - p.lat) * w,
         lng: p.lng + (median(lngs) - p.lng) * w,
+        // Un relevé SANS altitude n'en reçoit pas une : la fenêtre ne comble
+        // aucun trou, elle moyenne ce qui a été mesuré (et rien si rien ne l'a
+        // été). Le champ reste alors absent, et `elevationFrom` dira `false`.
+        ...(typeof p.alt === 'number' && Number.isFinite(p.alt)
+          ? { alt: meanAltitude(seg, i, altHalfMs) }
+          : {}),
       });
     }
   }
   return out;
+}
+
+/**
+ * Altitude MOYENNE des relevés du tronçon situés à ±`halfMs` du relevé `i`.
+ *
+ * Bornée par balayage depuis `i` (les tronçons sont triés par ts) : O(fenêtre),
+ * pas O(n) par point. Les relevés sans altitude sont ignorés — ils ne comptent
+ * ni au numérateur ni au dénominateur, sinon un trou d'altimètre tirerait la
+ * moyenne vers zéro, c'est-à-dire vers le niveau de la mer.
+ */
+function meanAltitude(seg: readonly CleanFix[], i: number, halfMs: number): number {
+  const centre = seg[i]!;
+  let sum = 0;
+  let count = 0;
+  for (let k = i; k >= 0; k--) {
+    const q = seg[k]!;
+    if (centre.ts - q.ts > halfMs) break;
+    if (typeof q.alt === 'number' && Number.isFinite(q.alt)) { sum += q.alt; count++; }
+  }
+  for (let k = i + 1; k < seg.length; k++) {
+    const q = seg[k]!;
+    if (q.ts - centre.ts > halfMs) break;
+    if (typeof q.alt === 'number' && Number.isFinite(q.alt)) { sum += q.alt; count++; }
+  }
+  return count > 0 ? sum / count : centre.alt!;
 }
 
 // ─── detectPauses : pause auto (feu rouge, lacet, photo) ────────────────────

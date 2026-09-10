@@ -68,6 +68,10 @@ import { canResumeInterrupted } from './runActivity';
 import { backgroundOfferSeen, markBackgroundOfferSeen } from './backgroundOffer';
 import { loadAutoPause2026, saveAutoPause2026 } from './autoPausePref';
 import { gaugePhaseFromClosure2026, VOICE_LINE_2026 } from './liveVoice';
+import { kmAnnouncement2026 } from './liveAnnounce2026';
+import { loadVoicePref2026 } from './voicePref2026';
+import { canMarkLap as lapAllowed2026 } from './liveMetrics2026';
+import { getLocale } from '../../../i18n/store';
 import { loopClosurePhase } from './engine/loopClosure';
 import { gaugeHaptic, gaugeVoice, signalHaptic, startVoice, type GaugePhase, type GaugeVoiceCue } from '../../../mvp/run/feedback';
 import { say, stopSpeaking } from '../../../mvp/run/voice';
@@ -145,6 +149,20 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
    */
   const gaugePhaseRef = useRef<GaugePhase>('silent');
   const gaugeSaidRef = useRef<GaugeVoiceCue | null>(null);
+  /**
+   * ─── LA VOIX AU KILOMÈTRE (LOT R) ────────────────────────────────────────
+   * `voiceOnRef` porte la préférence (`/parametres/course`), lue à l'amorce
+   * comme la pause automatique : le tick doit rester synchrone, il ne peut rien
+   * aller lire pendant qu'on court. Elle gouverne TOUTE la voix — quelqu'un qui
+   * coupe les annonces ne demande pas « moins d'annonces ».
+   *
+   * `lastAnnouncedKmRef` est la mémoire qui empêche de répéter : le tick tourne
+   * à 1 Hz et l'index du dernier kilomètre complet ne change qu'une fois, mais
+   * sans mémoire, un recalcul de trace (un point tardif qui arrive) rejouerait
+   * l'annonce. On n'annonce donc QUE la progression, jamais un état.
+   */
+  const voiceOnRef = useRef(true);
+  const lastAnnouncedKmRef = useRef(0);
   const signalRef = useRef<'searching' | 'weak' | 'good'>('searching');
   /**
    * Préférence de PAUSE AUTOMATIQUE par discipline (cahier §8.2), chargée à
@@ -210,6 +228,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       // Le temps mort suit la sortie sur le disque : sans lui, un SECOND kill
       // rendrait au chrono les heures perdues à la première interruption.
       deadMs: t.deadMs,
+      // LOT R — les TOURS suivent la sortie pour la même raison : la trace
+      // revient intacte après un kill, ses tours reviendraient vides.
+      lapMarks: [...t.lapMarks],
     };
     if (pendingStoredRef.current !== null) await saveCurrentRun(run);
     else await saveActiveRun(run);
@@ -388,6 +409,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
             ...stored,
             activity: storedActivity(stored),
             initialFixes: stored.fixes,
+            initialLapMarks: stored.lapMarks,
           });
           const endedAt = stored.fixes.reduce((latest, f) => Math.max(latest, f.ts), stored.startedAt);
           closer.finish(endedAt);
@@ -445,8 +467,11 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       // joueur l'apprenait après avoir déjà perdu des points, sur un écran où
       // il court. On la pose une fois, à l'amorce, quand elle est utile — et
       // jamais à froid : il y a une sortie qui commence derrière.
-      const [runAutoPause, bikeAutoPause] = await Promise.all([loadAutoPause2026('run'), loadAutoPause2026('bike')]);
+      const [runAutoPause, bikeAutoPause, voiceOn] = await Promise.all([
+        loadAutoPause2026('run'), loadAutoPause2026('bike'), loadVoicePref2026(),
+      ]);
       if (!alive) return;
+      voiceOnRef.current = voiceOn;
       autoPauseRef.current = { run: runAutoPause, bike: bikeAutoPause };
       bumpAutoPause(n => n + 1);
       const bg = adapter.background;
@@ -497,7 +522,20 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       const pulse = gaugeHaptic(gaugePhaseRef.current, phase);
       gaugePhaseRef.current = phase;
       if (pulse !== null) haptics[pulse]();
-      if (cue !== null) { gaugeSaidRef.current = cue; say(VOICE_LINE_2026[cue]); }
+      if (cue !== null) { gaugeSaidRef.current = cue; if (voiceOnRef.current) say(VOICE_LINE_2026[cue]); }
+      // ── LE KILOMÈTRE ANNONCÉ (LOT R) ──────────────────────────────────────
+      // La seule annonce qui se RÉPÈTE, et la première chose qu'on attend d'une
+      // app de course. Elle ne parle que sur la PROGRESSION de l'index (jamais
+      // sur son état) et se tait quand l'allure du split n'est pas exploitable :
+      // un chiffre faux dit dans l'oreille de quelqu'un qui court ne peut être
+      // ni vérifié ni relu.
+      const lastKm = snap.lastSplit;
+      if (voiceOnRef.current && lastKm !== null && lastKm.index > lastAnnouncedKmRef.current) {
+        lastAnnouncedKmRef.current = lastKm.index;
+        const line = kmAnnouncement2026(t.activity, lastKm.index, lastKm.paceSPerKm,
+          getLocale() === 'en' ? '.' : ',');
+        if (line !== null) say(line);
+      }
       // La PERTE de signal : une alerte de fiabilité, jamais une réprimande —
       // seule la perte parle, et seulement depuis un signal qu'on avait.
       const level = snap.signal === 'ok' ? 'good' : snap.signal === 'weak' ? 'weak' : 'searching';
@@ -593,6 +631,21 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     setBgPrompt('hidden');
   }, []);
 
+  /**
+   * TOUR MANUEL (LOT R). Le tracker applique le plancher
+   * (`LIVE_LAP_MIN_DURATION_S`) et rend `false` s'il refuse ; on re-photographie
+   * dans tous les cas, pour que le résumé des tours à l'écran soit celui de
+   * l'instant du geste et pas celui du tick précédent.
+   */
+  const markLap = useCallback((): boolean => {
+    const t = trackerRef.current;
+    if (t === null) return false;
+    const now = Date.now();
+    const marked = t.markLap(now);
+    if (marked) { haptics.light(); setSnapshot(t.snapshot(now)); }
+    return marked;
+  }, []);
+
   const togglePause = useCallback(() => {
     const t = trackerRef.current;
     if (t === null) return;
@@ -634,6 +687,9 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         userPausedMs: stored.userPausedMs,
         deadMs,
         initialSteps: current.stepCount, // cumul conservé à la fusion
+        // Les tours de la sortie INTERROMPUE, puis ceux posés depuis la reprise :
+        // c'est la même sortie, ses tours ne se recomptent pas depuis 1.
+        initialLapMarks: [...(stored.lapMarks ?? []), ...current.lapMarks],
       });
       // L'IDENTITÉ DE LA SORTIE VIENT DE CHANGER : la course reprise garde le
       // `runId` de la course interrompue (idempotence serveur, ci-dessus), donc
@@ -651,7 +707,8 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       if (await saveActiveRun({ runId: merged.runId, recordingOwnerId: merged.recordingOwnerId,
         recordingSessionId: merged.recordingSessionId, sharedMapParticipation: merged.sharedMapParticipation,
         mode: merged.mode, activity: merged.activity, startedAt: merged.startedAt,
-        fixes: [...merged.rawFixes], userPausedMs: merged.userPausedMs, deadMs: merged.deadMs })) await clearCurrentRun();
+        fixes: [...merged.rawFixes], userPausedMs: merged.userPausedMs, deadMs: merged.deadMs,
+        lapMarks: [...merged.lapMarks] })) await clearCurrentRun();
     })();
   }, [drainBackground, flush]);
 
@@ -665,6 +722,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
         ...stored,
         activity: storedActivity(stored),
         initialFixes: [...stored.fixes, ...bg],
+        initialLapMarks: stored.lapMarks,
       });
       const endedAt = closer.rawFixes.reduce((latest, f) => Math.max(latest, f.ts), stored.startedAt);
       closer.finish(endedAt);
@@ -712,7 +770,8 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     const localSaved = await saveLocalActivity2026(localActivity);
     const finalBuffer: StoredRun = { runId: t.runId, recordingOwnerId: t.recordingOwnerId,
       recordingSessionId: t.recordingSessionId, sharedMapParticipation: t.sharedMapParticipation,
-      mode: t.mode, activity: t.activity, startedAt: t.startedAt, fixes: [...t.rawFixes], userPausedMs: t.userPausedMs, deadMs: t.deadMs };
+      mode: t.mode, activity: t.activity, startedAt: t.startedAt, fixes: [...t.rawFixes], userPausedMs: t.userPausedMs, deadMs: t.deadMs,
+      lapMarks: [...t.lapMarks] };
     const bufferSaved = pendingStoredRef.current === null ? await saveActiveRun(finalBuffer) : await saveCurrentRun(finalBuffer);
     // Le VRAI tracé mesuré SURVIT jusqu'au Résultat (pic peak-end §25) : sans ça
     // il mourait ici. Armé avant la navigation ; purgé au départ de la course
@@ -871,7 +930,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // (`startVoice(true)` rend null) : la course avait déjà commencé, parfois
     // des kilomètres plus tôt, et le dire démentirait l'écran à voix haute.
     const opening = startVoice(false);
-    if (opening !== null) say(VOICE_LINE_2026[opening]);
+    if (opening !== null && voiceOnRef.current) say(VOICE_LINE_2026[opening]);
     haptics.light();
     setSnapshot(tracker.snapshot(Date.now()));
     setKind('real');
@@ -960,6 +1019,10 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       allowBackground,
       dismissBackground,
       togglePause,
+      markLap,
+      // Recalculé à chaque rendu (donc à chaque tick, 1 Hz) : le bouton se
+      // désactive PENDANT le plancher plutôt que d'échouer sans le dire.
+      canMarkLap: lapAllowed2026(t.startedAt, t.lapMarks, Date.now()),
       finish,
     },
   };

@@ -55,6 +55,17 @@ import {
 import { mockedLocationForPayload, stepCountForPayload } from '../motionIntegrity';
 import { farthestGapM, loopGapM } from './engine/loopHint';
 import { recentSpeedMps } from './engine/liveView';
+import {
+  cadenceSpm,
+  lapsFrom,
+  lastCompleteSplit,
+  liveElevationGainM,
+  livePaceSPerKm,
+  liveSplits,
+  type Lap,
+  type StepSample,
+} from './liveMetrics2026';
+import type { Split } from '../../journal/metrics';
 import { sampleEvenly, splitAndSampleAtGaps } from './traceSample';
 
 const MS_PER_S = 1_000;
@@ -185,6 +196,37 @@ export interface TrackerSnapshot {
    * l'instant). Sert la réduction de SÉCURITÉ d'E08 — jamais un affichage.
    */
   recentSpeedMps: number | null;
+
+  // ─── LOT R (11/09/2026) : CE QUE STRAVA ET INTVL DONNENT ──────────────────
+  // Toutes ces mesures suivent la même règle, et c'est la seule qui compte pour
+  // un écran lu en courant : `null` quand la mesure n'a pas eu lieu. L'écran
+  // garde alors la case et son libellé et remplace le chiffre par un tiret
+  // cadratin (convention de `liveRate.ts`) — jamais un « 0 » nu (L8).
+
+  /**
+   * ALLURE INSTANTANÉE (s/km) sur `LIVE_PACE_WINDOW_S`. C'est la mesure qui
+   * manquait le plus : `paceSPerKm` est la moyenne DEPUIS LE DÉPART, et au bout
+   * d'une heure elle ne bouge plus — accélérer franchement trois minutes la
+   * déplaçait de deux secondes. `null` à l'arrêt et au démarrage.
+   */
+  livePaceSPerKm: number | null;
+  /** Les kilomètres de la sortie, calculés par le module du JOURNAL (`splitsFrom`). */
+  splits: readonly Split[];
+  /** Le dernier kilomètre COMPLET (celui qu'on annonce), `null` avant le 1er km. */
+  lastSplit: Split | null;
+  /** D+ cumulé (m), ou `null` si la plateforme ne rend aucune altitude. */
+  elevationGainM: number | null;
+  /** Cadence (pas/min) sur `LIVE_CADENCE_WINDOW_S`, `null` sans podomètre. */
+  cadenceSpm: number | null;
+  /**
+   * PRÉCISION du dernier relevé reçu (m), `null` quand aucun n'est arrivé.
+   * Strava n'affiche qu'un pictogramme ; GRYD affiche le CHIFFRE, parce que la
+   * précision décide de ce que le serveur acceptera comme boucle — la cacher
+   * reviendrait à faire découvrir après coup pourquoi une capture a été refusée.
+   */
+  accuracyM: number | null;
+  /** Les tours manuels (« lap » d'INTVL) — au moins un, celui en cours. */
+  laps: readonly Lap[];
 }
 
 /**
@@ -240,6 +282,23 @@ export interface RunPipelineState {
   readonly autoPause?: boolean;
   /** Instant de début de la pause manuelle EN COURS, `null` si aucune. */
   readonly userPausedSinceTs: number | null;
+  /**
+   * MARQUES DE TOUR (epoch ms) posées par le bouton « Tour » (LOT R).
+   *
+   * Des horodatages, jamais des mesures : distance et durée de chaque tour se
+   * relisent sur la trace. Un tour ne peut donc pas totaliser plus que la
+   * sortie, et la somme des tours retombe sur la distance du bandeau — ce qu'un
+   * compteur incrémenté à part aurait fini par démentir.
+   */
+  readonly lapMarks?: readonly number[];
+  /**
+   * ÉCHANTILLONS DE PODOMÈTRE horodatés (LOT R) — la cadence en vit.
+   *
+   * Le tracker en pousse un à chaque émission de `Pedometer.watchStepCount`.
+   * Absents (ou moins de deux dans la fenêtre) ⇒ cadence `null` : « pas de
+   * capteur » et « zéro pas » ne se confondent jamais.
+   */
+  readonly stepSamples?: readonly StepSample[];
   /** La course est clôturée (le tracker n'accepte plus rien). */
   readonly finished: boolean;
 }
@@ -327,6 +386,9 @@ export function computeSnapshot(state: RunPipelineState, nowTs: number): Tracker
   }
 
   const km = distanceM / 1000;
+  // Calculés UNE fois : `lastSplit` est une lecture de cette liste, pas un
+  // second parcours de la trace qui pourrait en diverger.
+  const splits = liveSplits(smoothed, state.activity);
   return {
     phase,
     distanceM,
@@ -352,6 +414,21 @@ export function computeSnapshot(state: RunPipelineState, nowTs: number): Tracker
     loopGapM: loopGapM(smoothed),
     farthestGapM: farthestGapM(smoothed),
     recentSpeedMps: recentSpeedMps(smoothed, nowTs, RECENT_SPEED_WINDOW_MS),
+    // ── LOT R : les mesures que Strava et INTVL donnent ──────────────────────
+    // Toutes dérivées de la MÊME trace lissée que la distance : aucune ne peut
+    // raconter une autre sortie que celle du bandeau. Les splits et le dénivelé
+    // passent par le module du journal (`splitsFrom`, `elevationFrom`), donc le
+    // chiffre lu en courant est celui qu'on relira le soir.
+    livePaceSPerKm: livePaceSPerKm(smoothed, nowTs),
+    splits,
+    lastSplit: lastCompleteSplit(splits),
+    elevationGainM: liveElevationGainM(smoothed, state.activity),
+    cadenceSpm: cadenceSpm(state.stepSamples ?? [], nowTs),
+    // La précision du DERNIER relevé, pas une moyenne : c'est celle qui décide
+    // de ce qui est en train d'être mesuré. Un relevé périmé (signal perdu) ne
+    // dit plus rien de maintenant — l'écran lit `signal` pour ça.
+    accuracyM: lastRaw !== null && Number.isFinite(lastRaw.accuracy) ? lastRaw.accuracy : null,
+    laps: lapsFrom(smoothed, state.lapMarks ?? [], nowTs),
     // Position approximative : le dernier fix est FRAIS mais inutilisable
     // (accuracy > max) — signature de « Précision exacte » désactivée
     // (iOS 14+) ou d'une permission Android coarse. accuracyRejects garde le

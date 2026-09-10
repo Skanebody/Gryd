@@ -87,6 +87,9 @@ export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
   // 1024 px et ré-encodée en JPEG AVANT l'envoi (`social/avatarPhoto.ts`).
   'expo-image-manipulator': 'MIT',
   'expo-image-picker': 'MIT',
+  // Ajouté le 11/09/2026 (lot R) : l'écran de course garde l'écran allumé
+  // pendant l'enregistrement, comme toute app de sport (`keepAwake2026.ts`).
+  'expo-keep-awake': 'MIT',
   'expo-linking': 'MIT',
   'expo-localization': 'MIT',
   'expo-location': 'MIT',

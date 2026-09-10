@@ -127,6 +127,14 @@ import { useT } from '../../src/i18n/store';
 import { useSession } from '../../src/lib/session';
 import { screen, track } from '../../src/lib/analytics';
 import { getHapticsEnabled, setHapticsEnabled } from '../../src/lib/haptics';
+// LOT R — « Pendant la sortie » gouverne enfin ce que la sortie FAIT : la pause
+// automatique (moteur `detectPauses`, préférence PAR DISCIPLINE, cahier §8.2) ne
+// se réglait que pendant le compte à rebours du départ, et les annonces vocales
+// ne se réglaient nulle part. Les deux magasins sont ceux de la chaîne vivante,
+// jamais une copie locale.
+import { loadAutoPause2026, saveAutoPause2026 } from '../../src/features/run/gps/autoPausePref';
+import { loadVoicePref2026, saveVoicePref2026 } from '../../src/features/run/gps/voicePref2026';
+import { C as CL } from '../../src/i18n/catalog/courseLive';
 import {
   settingsRowBySection,
   type SettingsSectionId,
@@ -318,6 +326,15 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
   const identityUnknown = sessionLoading;
   const [hapticsOn, setHapticsOn] = useState(true);
   /**
+   * LOT R — trois préférences de sortie, TOUJOURS lues avant d'être peintes.
+   * `null` = « pas encore lu » : l'interrupteur n'affiche alors aucun état,
+   * plutôt qu'un état supposé qui se corrigerait sous les yeux du joueur (même
+   * règle que `PreflightApi.autoPause`).
+   */
+  const [autoPauseRun, setAutoPauseRun] = useState<boolean | null>(null);
+  const [autoPauseBike, setAutoPauseBike] = useState<boolean | null>(null);
+  const [voiceOn, setVoiceOn] = useState<boolean | null>(null);
+  /**
    * E78 — révocation des AUTRES sessions. Deux bribes d'état seulement (en vol /
    * issue de la dernière tentative) : tout le reste est DÉRIVÉ par un module pur
    * et testé (`features/account/otherDevices.ts`), pour que la règle « ne peins
@@ -375,6 +392,16 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
     void getHapticsEnabled().then((v) => {
       if (alive) setHapticsOn(v);
     });
+    // Les trois magasins de « Pendant la sortie », lus ensemble : un
+    // interrupteur qui apparaîtrait après les autres donnerait l'impression que
+    // le réglage vient d'être créé.
+    void Promise.all([loadAutoPause2026('run'), loadAutoPause2026('bike'), loadVoicePref2026()])
+      .then(([forRun, forBike, voice]) => {
+        if (!alive) return;
+        setAutoPauseRun(forRun);
+        setAutoPauseBike(forBike);
+        setVoiceOn(voice);
+      });
     return () => {
       alive = false;
     };
@@ -523,10 +550,62 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
                 setHapticsEnabled(v);
               }}
             />
-            {/* « Annonces audio · Bientôt » vivait ici : un réglage annoncé, un
+            {/* ── LOT R (11/09/2026) ────────────────────────────────────────
+                « Annonces audio · Bientôt » vivait ici : un réglage annoncé, un
                 rendez-vous jamais pris, et une ligne de plus à parcourir pour
-                zéro décision. Une fonction qui n'existe pas ne mérite pas une
-                rangée dans une liste de réglages. */}
+                zéro décision. La fonction EXISTE désormais (départ, kilomètre,
+                boucle presque fermée, boucle fermée) : la ligne revient en
+                INTERRUPTEUR, jamais en constat.
+
+                Et la PAUSE AUTOMATIQUE descend ici. Elle existait — moteur,
+                préférence par discipline, défaut du cahier §8.2 — mais ne se
+                réglait que pendant le compte à rebours du départ, c'est-à-dire
+                trois secondes avant de partir, sur l'écran où l'on décide le
+                moins bien. Deux disciplines, deux lignes : un cycliste s'arrête
+                pour de vrai à chaque carrefour, un coureur non.
+
+                Aucune ligne ne se peint tant que son magasin n'a pas répondu :
+                un interrupteur affiché sur une valeur supposée se corrigerait
+                sous les yeux du joueur, qui croirait l'avoir changé. */}
+            {autoPauseRun !== null && (
+              <SwitchRow
+                title={t(CL.setAutoPauseRunTitle)}
+                subtitle={t(CL.setAutoPauseRunSubtitle)}
+                value={autoPauseRun}
+                onValueChange={(v) => {
+                  setAutoPauseRun(v);
+                  void saveAutoPause2026('run', v);
+                }}
+              />
+            )}
+            {autoPauseBike !== null && (
+              <SwitchRow
+                title={t(CL.setAutoPauseBikeTitle)}
+                subtitle={t(CL.setAutoPauseBikeSubtitle)}
+                value={autoPauseBike}
+                onValueChange={(v) => {
+                  setAutoPauseBike(v);
+                  void saveAutoPause2026('bike', v);
+                }}
+              />
+            )}
+            {voiceOn !== null && (
+              <>
+                <SwitchRow
+                  title={t(CL.setVoiceTitle)}
+                  subtitle={t(CL.setVoiceSubtitle)}
+                  value={voiceOn}
+                  onValueChange={(v) => {
+                    setVoiceOn(v);
+                    void saveVoicePref2026(v);
+                  }}
+                />
+                {/* Ce que la voix NE SAIT PAS faire, dit ici et pas découvert
+                    en courant : `expo-speech` ne touche pas la session audio
+                    d'iOS et `app.json` ne déclare pas le mode `audio`. */}
+                <Text style={styles.note}>{t(CL.setVoiceNote)}</Text>
+              </>
+            )}
           </Section>
         </>
       ) : null}

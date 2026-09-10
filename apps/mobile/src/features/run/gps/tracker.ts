@@ -35,10 +35,20 @@ import {
   type RunPipelineState,
   type TrackerSnapshot,
 } from './runPipeline';
+import { canMarkLap, type StepSample } from './liveMetrics2026';
 
 // Les types de la photo instantanée VIVENT dans le module pur ; on les
 // ré-exporte ici parce que tout l'écran de course les importe depuis `tracker`.
 export type { TrackerPhase, TrackerSnapshot } from './runPipeline';
+
+/**
+ * Nombre d'échantillons de podomètre gardés en mémoire (LOT R). La cadence ne
+ * regarde que `LIVE_CADENCE_WINDOW_S` ; au-delà, garder plus n'apporte rien et
+ * ferait grossir un tableau pendant trois heures. 240 couvre très largement la
+ * fenêtre, même sur un capteur bavard. Ce n'est PAS une constante de jeu (elle
+ * ne décide d'aucun chiffre affiché) : c'est un plafond mémoire.
+ */
+const STEP_SAMPLES_MAX = 240;
 
 export interface TrackerInit {
   recordingOwnerId?: string | null;
@@ -80,6 +90,12 @@ export interface TrackerInit {
    * CETTE discipline, lue au départ. Absente ⇒ le défaut de la discipline.
    */
   autoPause?: boolean;
+  /**
+   * Reprise après kill / fusion : marques de TOUR déjà posées (LOT R). Sans
+   * elles, une sortie rouverte perdrait ses tours alors que sa trace, elle,
+   * revient intacte — le résumé de fin ne parlerait plus de la même sortie.
+   */
+  initialLapMarks?: readonly number[];
 }
 
 export class RunTracker {
@@ -108,6 +124,22 @@ export class RunTracker {
   /** Pas comptés par L'ABONNEMENT courant (cumulés depuis watchStepCount). */
   private stepsSinceWatch = 0;
   private stepSub: { remove(): void } | null = null;
+  /**
+   * ÉCHANTILLONS HORODATÉS DU PODOMÈTRE (LOT R) — la cadence en vit.
+   *
+   * `stepCount` seul ne suffit pas : c'est un cumul, il ne dit rien du RYTHME.
+   * Une cadence se lit sur une fenêtre, donc sur des relevés datés. On garde le
+   * strict nécessaire (`STEP_SAMPLES_MAX`) : une sortie de trois heures ne doit
+   * pas faire grossir un tableau sans fin dans la mémoire d'un téléphone qui
+   * enregistre déjà une trace.
+   */
+  private stepSamples: StepSample[] = [];
+  /**
+   * MARQUES DE TOUR (« lap » d'INTVL) — des horodatages, jamais des mesures.
+   * Elles vivent dans le tracker parce qu'elles appartiennent à LA SORTIE : un
+   * état d'écran les perdrait au premier remontage (minimiser le suivi, rotation).
+   */
+  private lapMarksList: number[] = [];
   /**
    * Un abonnement podomètre a-t-il RÉELLEMENT tourné pendant cette sortie ?
    *
@@ -138,6 +170,7 @@ export class RunTracker {
     this.deadMsTotal = init.deadMs ?? 0;
     this.autoPause = init.autoPause;
     this.stepBase = init.initialSteps ?? 0;
+    this.lapMarksList = [...(init.initialLapMarks ?? [])];
     // Un cumul repris d'une session précédente PROUVE qu'un podomètre a tourné.
     this.stepSensorRan = this.stepBase > 0;
   }
@@ -167,6 +200,24 @@ export class RunTracker {
     return this.stepSensorRan;
   }
 
+  /** Marques de tour posées jusqu'ici (LOT R) — persistées avec la sortie. */
+  get lapMarks(): readonly number[] {
+    return this.lapMarksList;
+  }
+
+  /**
+   * Pose une marque de TOUR. Rend `false` quand le geste est refusé — un double
+   * appui ou un rebond tactile sous `LIVE_LAP_MIN_DURATION_S`. L'écran s'en sert
+   * pour désactiver le bouton PENDANT le plancher plutôt que de le laisser
+   * échouer en silence (« aucun bouton mort »).
+   */
+  markLap(nowTs: number): boolean {
+    if (this.finished) return false;
+    if (!canMarkLap(this.startedAt, this.lapMarksList, nowTs)) return false;
+    this.lapMarksList.push(nowTs);
+    return true;
+  }
+
   /**
    * Podomètre (AMENDEMENT-15 §2 « steps si dispo via pedometer ») : démarré par
    * le hook AVEC la course, guardé isAvailableAsync — no-op web/simulateur/
@@ -187,6 +238,12 @@ export class RunTracker {
       this.stepSub = Pedometer.watchStepCount((result) => {
         // result.steps = cumul depuis CET abonnement (jamais additionné à lui-même).
         this.stepsSinceWatch = Math.max(0, result.steps);
+        // LOT R — la CADENCE : le cumul est daté à l'instant où il arrive. Le
+        // podomètre n'émet pas à cadence fixe (iOS par paquets, Android au fil
+        // des pas), donc la fenêtre se mesure sur ces horodatages, jamais sur
+        // une fréquence supposée.
+        this.stepSamples.push({ ts: Date.now(), steps: this.stepCount });
+        if (this.stepSamples.length > STEP_SAMPLES_MAX) this.stepSamples.shift();
       });
       // POSÉ APRÈS l'abonnement réussi, et jamais retiré : à partir d'ici, un
       // total de zéro pas est une MESURE, pas une absence de capteur.
@@ -257,6 +314,8 @@ export class RunTracker {
       deadMs: this.deadMsTotal,
       autoPause: this.autoPause,
       userPausedSinceTs: this.userPaused ? this.userPauseStartedTs : null,
+      lapMarks: this.lapMarksList,
+      stepSamples: this.stepSamples,
       finished: this.finished,
     };
   }

@@ -387,6 +387,339 @@ export const C = defineCatalog({
     de: 'Noch nichts. Unter einem Dach oder zwischen hohen Häusern kann das dauern.',
     pt: 'Ainda nada. Sob um teto ou entre prédios altos, isso pode demorar.',
   },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LE BANDEAU DE COURSE (LOT R, 11/09/2026)
+  // ══════════════════════════════════════════════════════════════════════════
+  //
+  // Demande fondateur : « Vérifie qu'on a bien au minimum toutes les
+  // informations que Strava et INTVL peuvent donner. » Ces libellés nomment les
+  // mesures qui manquaient. Ils sont COURTS parce qu'ils sont lus en mouvement
+  // (§A : comprendre l'écran en moins de trois secondes), et ils portent leur
+  // unité : un chiffre sans unité, lu en courant, se lit dans celle qu'on croit.
+  //
+  // ⚠️ LE LIBELLÉ RESTE QUAND LE CHIFFRE DISPARAÎT. C'est la règle posée par
+  // `liveRate.ts` : une mesure absente rend un tiret cadratin, et le libellé dit
+  // alors CE QUI MANQUE. Une case qui disparaîtrait ferait bouger la mise en
+  // page sous les yeux de quelqu'un qui court.
+
+  /** Grande case 1. L'unité est dans le libellé (le chiffre reste nu et lisible). */
+  metricDistance: {
+    fr: 'Distance · km',
+    en: 'Distance · km',
+    es: 'Distancia · km',
+    de: 'Distanz · km',
+    pt: 'Distância · km',
+  },
+  /**
+   * Grande case 2. « Temps actif » et non « Temps » : le chrono se fige aux
+   * pauses (manuelle, et automatique si elle est activée). Dire « Temps » ferait
+   * croire à l'horloge du départ, que ce chiffre n'est pas.
+   */
+  metricActiveTime: {
+    fr: 'Temps actif',
+    en: 'Moving time',
+    es: 'Tiempo activo',
+    de: 'Aktive Zeit',
+    pt: 'Tempo ativo',
+  },
+  /** Grande case 3, course à pied : l'allure de MAINTENANT (fenêtre courte). */
+  metricPaceNow: {
+    fr: 'Allure · maintenant',
+    en: 'Pace · now',
+    es: 'Ritmo · ahora',
+    de: 'Tempo · jetzt',
+    pt: 'Ritmo · agora',
+  },
+  /** Grande case 3, vélo : la même mesure, dans la grandeur du cycliste. */
+  metricSpeedNow: {
+    fr: 'Vitesse · maintenant',
+    en: 'Speed · now',
+    es: 'Velocidad · ahora',
+    de: 'Tempo · jetzt',
+    pt: 'Velocidade · agora',
+  },
+  /** Petite case : la moyenne depuis le départ (ce que l'écran montrait seul). */
+  metricPaceAvg: {
+    fr: 'Allure · moyenne',
+    en: 'Pace · average',
+    es: 'Ritmo · medio',
+    de: 'Tempo · Schnitt',
+    pt: 'Ritmo · médio',
+  },
+  metricSpeedAvg: {
+    fr: 'Vitesse · moyenne',
+    en: 'Speed · average',
+    es: 'Velocidad · media',
+    de: 'Tempo · Schnitt',
+    pt: 'Velocidade · média',
+  },
+  /** Petite case : dénivelé POSITIF cumulé. « D+ » est la notation universelle. */
+  metricElevation: {
+    fr: 'D+ · m',
+    en: 'Elev. gain · m',
+    es: 'Desnivel + · m',
+    de: 'Höhenmeter · m',
+    pt: 'Ganho · m',
+  },
+  /** Petite case : cadence en pas par minute. */
+  metricCadence: {
+    fr: 'Cadence · ppm',
+    en: 'Cadence · spm',
+    es: 'Cadencia · ppm',
+    de: 'Kadenz · Schr./min',
+    pt: 'Cadência · ppm',
+  },
+  /** Dernier kilomètre COMPLET, celui qu'on compare (jamais un km entamé). */
+  metricLastKm: {
+    fr: 'Dernier km',
+    en: 'Last km',
+    es: 'Último km',
+    de: 'Letzter km',
+    pt: 'Último km',
+  },
+
+  // ─── QUALITÉ DU SIGNAL : le chiffre, pas seulement un pictogramme ─────────
+  /**
+   * Précision horizontale du DERNIER relevé. GRYD affiche le nombre là où les
+   * autres montrent trois barres, parce que c'est lui qui décide de ce que le
+   * serveur acceptera comme boucle : le cacher ferait découvrir après coup
+   * pourquoi une capture a été refusée.
+   */
+  gpsAccuracy: {
+    fr: 'GPS ± {m} m',
+    en: 'GPS ± {m} m',
+    es: 'GPS ± {m} m',
+    de: 'GPS ± {m} m',
+    pt: 'GPS ± {m} m',
+  },
+  gpsAccuracyUnknown: {
+    fr: 'GPS en recherche',
+    en: 'GPS searching',
+    es: 'GPS buscando',
+    de: 'GPS sucht',
+    pt: 'GPS procurando',
+  },
+
+  // ─── LA BOUCLE : la mesure que Strava n'a pas ─────────────────────────────
+  /** Distance À VOL D'OISEAU qui reste pour revenir refermer la boucle. */
+  loopRemaining: {
+    fr: 'Boucle · {m} m à refermer',
+    en: 'Loop · {m} m to close',
+    es: 'Bucle · faltan {m} m',
+    de: 'Schleife · noch {m} m',
+    pt: 'Volta · faltam {m} m',
+  },
+  loopClosed: {
+    fr: 'Boucle fermée',
+    en: 'Loop closed',
+    es: 'Bucle cerrado',
+    de: 'Schleife geschlossen',
+    pt: 'Volta fechada',
+  },
+  loopUnknown: {
+    fr: 'Boucle · en attente des premiers mètres',
+    en: 'Loop · waiting for the first metres',
+    es: 'Bucle · esperando los primeros metros',
+    de: 'Schleife · warte auf die ersten Meter',
+    pt: 'Volta · aguardando os primeiros metros',
+  },
+
+  // ─── SPLITS ET TOURS ──────────────────────────────────────────────────────
+  splitsTitle: {
+    fr: 'Kilomètres',
+    en: 'Kilometres',
+    es: 'Kilómetros',
+    de: 'Kilometer',
+    pt: 'Quilômetros',
+  },
+  /** Le kilomètre EN COURS, marqué comme tel : son allure n'est pas comparable. */
+  splitPartial: {
+    fr: 'en cours',
+    en: 'in progress',
+    es: 'en curso',
+    de: 'läuft',
+    pt: 'em curso',
+  },
+  lapsTitle: {
+    fr: 'Tours',
+    en: 'Laps',
+    es: 'Vueltas',
+    de: 'Runden',
+    pt: 'Voltas',
+  },
+  lapCta: {
+    fr: 'Tour',
+    en: 'Lap',
+    es: 'Vuelta',
+    de: 'Runde',
+    pt: 'Volta',
+  },
+  a11yLap: {
+    fr: 'Marquer un tour',
+    en: 'Mark a lap',
+    es: 'Marcar una vuelta',
+    de: 'Runde markieren',
+    pt: 'Marcar uma volta',
+  },
+
+  // ─── VERROUILLAGE DE L'ÉCRAN ──────────────────────────────────────────────
+  //
+  // Un écran tactile dans une poche ou sous la pluie déclenche des appuis. Sans
+  // verrou, le geste le plus facile à provoquer par accident est celui qui
+  // termine la sortie. Le déverrouillage est un GLISSEMENT, pas un tap : c'est
+  // le seul geste qu'un frottement ne produit pas.
+  lockCta: {
+    fr: 'Verrouiller',
+    en: 'Lock',
+    es: 'Bloquear',
+    de: 'Sperren',
+    pt: 'Bloquear',
+  },
+  lockedTitle: {
+    fr: 'Écran verrouillé',
+    en: 'Screen locked',
+    es: 'Pantalla bloqueada',
+    de: 'Bildschirm gesperrt',
+    pt: 'Tela bloqueada',
+  },
+  /** L'enregistrement CONTINUE : le dire, sinon le verrou ressemble à un arrêt. */
+  lockedBody: {
+    fr: 'La sortie continue d’être enregistrée.',
+    en: 'Your outing keeps recording.',
+    es: 'La salida sigue grabándose.',
+    de: 'Die Aufzeichnung läuft weiter.',
+    pt: 'A atividade continua a ser gravada.',
+  },
+  unlockHint: {
+    fr: 'Glisse pour déverrouiller',
+    en: 'Slide to unlock',
+    es: 'Desliza para desbloquear',
+    de: 'Zum Entsperren wischen',
+    pt: 'Deslize para desbloquear',
+  },
+  a11yUnlock: {
+    fr: 'Déverrouiller l’écran de course',
+    en: 'Unlock the run screen',
+    es: 'Desbloquear la pantalla de carrera',
+    de: 'Laufbildschirm entsperren',
+    pt: 'Desbloquear a tela de corrida',
+  },
+
+  // ─── LA VOIX AU KILOMÈTRE ─────────────────────────────────────────────────
+  //
+  // `voiceKmSplit` est DITE, pas affichée : elle passe par `say()`, qui prend une
+  // entrée du catalogue et jamais du texte (L18 rendue structurelle). Les valeurs
+  // ({km}, {rate}) sont interpolées par le code — le catalogue ne calcule rien.
+  //
+  // Elle ne s'ajoute au bavardage de personne : la sortie ne parlait jusqu'ici
+  // que TROIS fois (départ, boucle presque fermée, boucle fermée), et cette
+  // annonce est la seule qui se répète. C'est aussi la seule que tout le monde
+  // attend d'une app de course, et elle est désactivable d'un interrupteur
+  // (`/parametres/course`).
+  voiceKmSplit: {
+    fr: 'Kilomètre {km}. {rate}.',
+    en: 'Kilometre {km}. {rate}.',
+    es: 'Kilómetro {km}. {rate}.',
+    de: 'Kilometer {km}. {rate}.',
+    pt: 'Quilômetro {km}. {rate}.',
+  },
+  /** La grandeur DITE, en toutes lettres : « 5 minutes 28 par kilomètre ». */
+  voicePaceSpoken: {
+    fr: '{min} minutes {sec} par kilomètre',
+    en: '{min} minutes {sec} per kilometre',
+    es: '{min} minutos {sec} por kilómetro',
+    de: '{min} Minuten {sec} pro Kilometer',
+    pt: '{min} minutos {sec} por quilômetro',
+  },
+  voiceSpeedSpoken: {
+    fr: '{kmh} kilomètres heure',
+    en: '{kmh} kilometres per hour',
+    es: '{kmh} kilómetros por hora',
+    de: '{kmh} Stundenkilometer',
+    pt: '{kmh} quilômetros por hora',
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // « PENDANT LA SORTIE » — les deux réglages que le lot R rend opposables
+  // ══════════════════════════════════════════════════════════════════════════
+  //
+  // Ils vivent dans `/parametres/course`, à côté des haptiques. Ils sont ICI et
+  // non dans `catalog/reglages.ts` parce qu'ils décrivent le comportement de
+  // l'écran de course, pas celui des Réglages : le jour où la pause automatique
+  // change de règle, c'est ce catalogue-ci qu'on relit.
+  //
+  // La pause automatique EXISTAIT (moteur `detectPauses`, préférence par
+  // discipline `autoPausePref.ts`, défaut du cahier §8.2) et n'était réglable
+  // que pendant le compte à rebours du départ — c'est-à-dire au pire moment,
+  // trois secondes avant de partir. Elle se règle désormais à froid.
+
+  setAutoPauseRunTitle: {
+    fr: 'Pause automatique · à pied',
+    en: 'Auto-pause · running',
+    es: 'Pausa automática · a pie',
+    de: 'Auto-Pause · Laufen',
+    pt: 'Pausa automática · a pé',
+  },
+  /**
+   * DIT CE QUE LE RÉGLAGE FAIT AU CHRONO, pas ce qu'il « active ». Un coureur
+   * qui voit son temps se figer au feu rouge sans l'avoir demandé perd la seule
+   * chose qu'un chronomètre promet : être celui de sa montre.
+   */
+  setAutoPauseRunSubtitle: {
+    fr: 'Le chrono se fige quand tu t’arrêtes. Désactivée par défaut à pied.',
+    en: 'The clock freezes when you stop. Off by default when running.',
+    es: 'El crono se detiene cuando paras. Desactivada por defecto a pie.',
+    de: 'Die Uhr stoppt, wenn du stehst. Beim Laufen standardmäßig aus.',
+    pt: 'O cronômetro para quando você para. Desligada por padrão a pé.',
+  },
+  setAutoPauseBikeTitle: {
+    fr: 'Pause automatique · vélo',
+    en: 'Auto-pause · cycling',
+    es: 'Pausa automática · bici',
+    de: 'Auto-Pause · Rad',
+    pt: 'Pausa automática · bike',
+  },
+  setAutoPauseBikeSubtitle: {
+    fr: 'Activée par défaut : à vélo, un arrêt au carrefour est un vrai arrêt.',
+    en: 'On by default: on a bike, a stop at a junction is a real stop.',
+    es: 'Activada por defecto: en bici, una parada en el cruce es una parada real.',
+    de: 'Standardmäßig an: auf dem Rad ist ein Halt an der Kreuzung ein echter Halt.',
+    pt: 'Ligada por padrão: de bike, uma parada no cruzamento é uma parada real.',
+  },
+  setVoiceTitle: {
+    fr: 'Annonces vocales',
+    en: 'Voice announcements',
+    es: 'Anuncios de voz',
+    de: 'Sprachansagen',
+    pt: 'Anúncios de voz',
+  },
+  /**
+   * ELLE ÉNUMÈRE CE QUI EST DIT. Un interrupteur « annonces vocales » sans
+   * inventaire laisse imaginer un commentaire continu — et c'est exactement ce
+   * que GRYD ne fait pas : quatre moments, pas un flux.
+   */
+  setVoiceSubtitle: {
+    fr: 'Le départ, chaque kilomètre avec son allure, la boucle presque fermée, la boucle fermée.',
+    en: 'The start, each kilometre with its pace, the loop almost closed, the loop closed.',
+    es: 'La salida, cada kilómetro con su ritmo, el bucle casi cerrado, el bucle cerrado.',
+    de: 'Der Start, jeder Kilometer mit Tempo, die Schleife fast geschlossen, die Schleife geschlossen.',
+    pt: 'A partida, cada quilômetro com seu ritmo, a volta quase fechada, a volta fechada.',
+  },
+  /**
+   * L'HONNÊTETÉ SUR CE QUE LA VOIX NE SAIT PAS FAIRE (L14). `expo-speech` ne
+   * touche pas la session audio d'iOS et `app.json` ne déclare pas le mode
+   * d'arrière-plan `audio` : écran verrouillé, l'annonce est probablement muette,
+   * et la musique n'est pas baissée. Le dire ici évite de promettre par un
+   * interrupteur ce que le code ne tient pas.
+   */
+  setVoiceNote: {
+    fr: 'Écran verrouillé, l’annonce peut rester muette selon l’appareil. GRYD ne baisse pas ta musique.',
+    en: 'With the screen locked, the announcement may stay silent depending on the device. GRYD does not duck your music.',
+    es: 'Con la pantalla bloqueada, el anuncio puede quedar mudo según el dispositivo. GRYD no baja tu música.',
+    de: 'Bei gesperrtem Bildschirm kann die Ansage je nach Gerät stumm bleiben. GRYD senkt deine Musik nicht ab.',
+    pt: 'Com a tela bloqueada, o anúncio pode ficar mudo conforme o aparelho. O GRYD não abaixa sua música.',
+  },
 });
 
 /**
