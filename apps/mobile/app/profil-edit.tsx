@@ -37,11 +37,15 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSession } from '../src/lib/session';
+import { useLocale } from '../src/i18n/store';
 import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
-import { fonts, refonteColors as c } from '@klaim/shared';
+import { fonts, refonteColors as c, HANDLE_CHANGES_PER_WINDOW, HANDLE_CHANGE_WINDOW_DAYS, HANDLE_HOLD_DAYS, HANDLE_MAX_LENGTH, HANDLE_MIN_LENGTH } from '@klaim/shared';
 import { useMyProfile, type EditableProfile } from '../src/features/social/profileStore';
-import { useSocialEpoch2026, uploadSocialImage2026 } from '../src/features/social/social2026Data';
+import { sanitizeHandle } from '../src/features/social/playerHandle';
+import { socialRpc2026, useSocialEpoch2026, uploadSocialImage2026 } from '../src/features/social/social2026Data';
+import { handleCreditSentence2026, handleRefusalMessage2026, handleRuleSentence2026, parseHandleChange2026, type HandleStatus2026 } from '../src/features/social/handleStatus2026';
+import { useMyHandleStatus2026 } from '../src/features/social/handleStatus2026Data';
 import { socialError2026 } from '../src/features/social/social2026Model';
 import { avatarPathAccepted, avatarUploadRefusal, cameraAvatarAvailable, captureAvatarPhoto, pickAvatarPhoto } from '../src/features/social/avatarPhoto';
 import { discardAvatarObject2026, signMyAvatarUrl2026 } from '../src/features/social/myAvatar';
@@ -83,7 +87,8 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 }
 
 function Editor(){
- const copy=useRefonteCopy();const {session}=useSession();const account=useMyProfile();const owner=session?.user.id??null;
+ const copy=useRefonteCopy();const locale=useLocale();const {session}=useSession();const account=useMyProfile();const owner=session?.user.id??null;
+ const handleState=useMyHandleStatus2026();
  const [draft,setDraft]=useState<EditableProfile|null>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState<string|null>(null);
  /** Le chemin que le SERVEUR référence aujourd'hui. Jamais supprimé sans enregistrement. */
  const serverPath=useRef<string|null>(null);
@@ -96,10 +101,36 @@ function Editor(){
  // n'a jamais référencé n'a aucune raison de survivre dans le bucket.
  useEffect(()=>()=>{const uid=ownerRef.current;if(!uid)return;for(const path of uploaded.current)if(path!==serverPath.current)void discardAvatarObject2026(uid,path);},[]);
  const patch=(value:Partial<EditableProfile>)=>setDraft(current=>current?{...current,...value}:current);
+ const en=copy('fr','en')==='en';
+ const showDate=(iso:string)=>new Date(iso).toLocaleDateString(locale);
+ /** Les champs de texte LIBRES. Le pseudo n'en fait plus partie : il a sa règle. */
+ const textField=(key:'displayName'|'bio',label:string,max:number)=>draft?<View style={styles.field}><Text style={styles.label}>{label}</Text>
+  <TextInput accessibilityLabel={label} value={draft[key]} onChangeText={value=>patch({[key]:value})} style={[s.input,key==='bio'&&styles.bio]} maxLength={max} autoCapitalize="sentences" multiline={key==='bio'} placeholderTextColor={c.darkMuted}/>
+ </View>:null;
  async function save(){
   if(!draft||busy)return;setBusy(true);setError(null);
   try{
-   await account.save(draft);
+   // ─── LE PSEUDO PASSE PAR SA PROPRE PORTE, ET CE N'EST PAS UN DOUBLON ────
+   // `save_my_social_profile_2026` sait refuser un renommage depuis 0175 (les
+   // deux chemins partagent la même règle serveur), mais il ne sait le dire
+   // que par un NOM d'exception : « handle_rate_limited » sans la date du
+   // prochain changement, « handle_held » sans l'horizon de la réservation.
+   // `change_my_handle_2026` rend l'objet complet — c'est lui, et lui seul,
+   // qui permet d'écrire au joueur une phrase qu'il peut noter.
+   // Aucun double décompte : quand ce premier appel réussit, le second voit un
+   // pseudo INCHANGÉ et ne consomme rien (motif « unchanged », migration 0175).
+   const wanted=draft.handle.trim().toLowerCase();
+   if(owner&&wanted.length>0&&wanted!==account.editable.handle.trim().toLowerCase()){
+    const verdict=parseHandleChange2026(await socialRpc2026<unknown>(owner,'change_my_handle_2026',{new_handle:wanted}));
+    if(!verdict.ok){
+     haptics.error();
+     setError(handleRefusalMessage2026(verdict,en,showDate,{min:HANDLE_MIN_LENGTH,max:HANDLE_MAX_LENGTH}));
+     handleState.reload();
+     return;
+    }
+    handleState.reload();
+   }
+   await account.save({...draft,handle:wanted||draft.handle});
    const kept=draft.avatarPath??null;const uid=ownerRef.current;
    // L'enregistrement a réussi : le serveur ne référence plus que `kept`.
    const orphans=[...uploaded.current,serverPath.current].filter((path):path is string=>!!path&&path!==kept);
@@ -111,13 +142,87 @@ function Editor(){
  return <ProfilePage title={copy('Modifier le profil','Edit profile')} back>
  {!session?<AccountDoor2026 reason={copy('Ton nom, ton pseudo et ta photo s’enregistrent sur ton compte, pas sur ce téléphone.','Your name, handle and photo are saved to your account, not to this phone.')}/>:account.loading?<ActivityIndicator color={c.darkInk}/>:account.failed?<><Text style={s.body}>{copy('Le profil est indisponible.','Profile unavailable.')}</Text><ProfileButton label={copy('Réessayer','Retry')} onPress={account.reload}/></>:draft?<>
  <AvatarField owner={owner} draft={draft} patch={patch} copy={copy} onUploaded={path=>{uploaded.current=[...uploaded.current,path]}}/>
- {([{key:'displayName',label:copy('Nom affiché','Display name'),max:40},{key:'handle',label:copy('Pseudo','Handle'),max:20},{key:'bio',label:copy('Bio','Bio'),max:280}] as const).map(field=><View key={field.key} style={styles.field}><Text style={styles.label}>{field.label}</Text><TextInput accessibilityLabel={field.label} value={draft[field.key]} onChangeText={value=>patch({[field.key]:value})} style={[s.input,field.key==='bio'&&styles.bio]} maxLength={field.max} autoCapitalize={field.key==='handle'?'none':'sentences'} autoCorrect={field.key!=='handle'} multiline={field.key==='bio'} placeholderTextColor={c.darkMuted}/></View>)}
+ {/* Le pseudo se glisse ENTRE le nom et la bio, là où il était : il a quitté la
+     boucle des champs libres parce qu'il n'en est plus un (une règle serveur
+     le gouverne, et l'écran doit la dire), pas parce qu'il change de place. */}
+ {textField('displayName',copy('Nom affiché','Display name'),40)}
+ <HandleField draft={draft} patch={patch} copy={copy} en={en} showDate={showDate} state={handleState}/>
+ {textField('bio',copy('Bio','Bio'),280)}
  <ProfileSection title={copy('Qui voit ton profil ?','Who sees your profile?')}/>
  {([{key:'private',label:copy('Moi uniquement','Only me')},{key:'friends',label:copy('Mes amis','Friends')},{key:'crew',label:copy('Mon crew et mes amis','Crew and friends')},{key:'public',label:copy('Les membres GRYD','GRYD members')}] as const).map(option=><Pressable key={option.key} style={styles.visibility} accessibilityRole="radio" accessibilityState={{selected:(draft.visibility??'crew')===option.key}} onPress={()=>patch({visibility:option.key})}><Text style={styles.label}>{option.label}</Text><GrydIcon name={(draft.visibility??'crew')===option.key?'check':'plus'} size={18} color={c.darkInk}/></Pressable>)}
  <Text style={[s.meta,{marginVertical:16}]}>{copy('Ce choix ne publie aucune sortie ni position. Les anciens profils locaux restent sur cet appareil.','This choice publishes no activities or location. Previous local profiles stay on this device.')}</Text>
  {error?<Text accessibilityRole="alert" style={s.body}>{error}</Text>:null}<View style={{alignSelf:'flex-start',marginTop:18}}><ProfileButton label={copy('Enregistrer','Save')} busy={busy} disabled={!draft.displayName.trim()||!draft.handle.trim()} onPress={()=>void save()}/></View>
  </>:null}
  </ProfilePage>;
+}
+
+/**
+ * LE BLOC PSEUDO — LES CONDITIONS D'INSTAGRAM, DITES AVANT D'ÊTRE SUBIES.
+ *
+ * Le fondateur a demandé les règles d'Instagram : deux changements par
+ * quatorze jours, ancien pseudo réservé quatorze jours. Une cadence pareille
+ * n'existe vraiment que si elle est ÉCRITE À L'AVANCE. Découvrir un plafond au
+ * moment où il vous refuse quelque chose, c'est une règle cachée : le bloc pose
+ * donc la phrase de règle sous le champ, avant toute frappe, et le décompte à
+ * côté.
+ *
+ * QUATRE ÉTATS DE LECTURE, ET AUCUN REPLI. `my_handle_status_2026()` peut ne
+ * pas répondre. Écrire « il te reste 2 changements » dans ce cas serait un
+ * chiffre inventé au moment précis où le joueur s'apprête à agir dessus. On dit
+ * alors qu'on ne sait pas, on offre « Réessayer », et on laisse le champ
+ * UTILISABLE : le serveur reste le juge à l'enregistrement, il n'a jamais eu
+ * besoin que l'écran sache compter.
+ *
+ * « REPRENDRE @ANCIEN » N'EXISTE QUE S'IL EXISTE. Le bouton n'est peint que
+ * lorsque le serveur nomme une réservation en cours (`reclaimable`) : pas
+ * d'emplacement grisé, pas de bouton mort. S'il n'y a rien à reprendre, il n'y
+ * a rien à l'écran.
+ */
+function HandleField({draft,patch,copy,en,showDate,state}:{
+ draft:EditableProfile;patch:(value:Partial<EditableProfile>)=>void;
+ copy:(fr:string,en:string)=>string;en:boolean;showDate:(iso:string)=>string;
+ state:{status:'signedOut'|'loading'|'ready'|'failed';data:HandleStatus2026|null;reload:()=>void};
+}){
+ const label=copy('Pseudo','Handle');
+ const status=state.data;
+ // La règle affichée vient du SERVEUR quand il l'a dite ; les constantes
+ // partagées ne servent que de repli quand la lecture n'a pas abouti.
+ const rule=handleRuleSentence2026(
+  status?.changesPerWindow??HANDLE_CHANGES_PER_WINDOW,
+  status?.windowDays??HANDLE_CHANGE_WINDOW_DAYS,
+  status?.holdDays??HANDLE_HOLD_DAYS,
+  en,
+ );
+ return <View style={styles.field}>
+  <Text style={styles.label}>{label}</Text>
+  <View style={styles.handleRow}>
+   <Text style={styles.at}>@</Text>
+   <TextInput accessibilityLabel={label} value={draft.handle} onChangeText={value=>patch({handle:sanitizeHandle(value)})}
+    style={[s.input,s.flex]} maxLength={HANDLE_MAX_LENGTH} autoCapitalize="none" autoCorrect={false} autoComplete="username"
+    placeholderTextColor={c.darkMuted}/>
+  </View>
+  <Text style={s.meta}>{rule}</Text>
+
+  {/* ── CE QU'IL LUI RESTE : quatre états, et le vrai à chaque fois ── */}
+  {state.status==='loading'?<View style={styles.handleState} accessibilityLiveRegion="polite"><ActivityIndicator color={c.darkInk}/><Text style={s.meta}>{copy('Lecture de tes changements restants…','Reading your remaining changes…')}</Text></View>
+  :state.status==='failed'?<View style={styles.handleState} accessibilityLiveRegion="polite">
+    <Text style={s.body}>{copy('Tes changements restants n’ont pas pu être lus. Tu peux quand même enregistrer : c’est le serveur qui tranche.','Your remaining changes could not be read. You can still save: the server decides.')}</Text>
+    <Pressable style={styles.action} accessibilityRole="button" onPress={state.reload}><Text style={styles.link}>{copy('Réessayer','Try again')}</Text></Pressable>
+   </View>
+  :state.status==='signedOut'?<Text style={s.meta}>{copy('Ton pseudo vit sur ton compte, pas sur ce téléphone.','Your handle lives on your account, not on this phone.')}</Text>
+  :status?<View style={styles.handleState}>
+    <Text style={s.meta}>{handleCreditSentence2026(status,en,showDate)}</Text>
+    {/* La reprise est une action à part entière : elle REMPLIT le champ, elle
+        n'enregistre rien. Le joueur garde la main sur « Enregistrer ». */}
+    {status.reclaimable&&status.reclaimable.handle!==draft.handle?<Pressable style={styles.action} accessibilityRole="button"
+      onPress={()=>{haptics.light();patch({handle:status.reclaimable!.handle})}}>
+     <GrydIcon name="replay" size={18} color={c.darkInk}/>
+     <Text style={styles.link}>{copy(`Reprendre @${status.reclaimable.handle}`,`Take back @${status.reclaimable.handle}`)}</Text>
+    </Pressable>:null}
+    {status.reclaimable?<Text style={s.meta}>{copy(`Il te reste réservé jusqu’au ${showDate(status.reclaimable.heldUntil)}. Personne d’autre ne peut le prendre avant.`,`It stays reserved for you until ${showDate(status.reclaimable.heldUntil)}. Nobody else can take it before then.`)}</Text>:null}
+   </View>
+  :null}
+ </View>;
 }
 
 /**
@@ -279,6 +384,9 @@ const styles=StyleSheet.create({
  action:{minHeight:44,flexDirection:'row',alignItems:'center',gap:10,justifyContent:'flex-start'},
  link:{color:c.darkInk,fontFamily:fonts.textMedium,fontSize:14},
  field:{gap:6,marginTop:14},
+ handleRow:{flexDirection:'row',alignItems:'center',gap:8},
+ at:{color:c.darkMuted,fontFamily:fonts.displayMedium,fontSize:18},
+ handleState:{gap:4,paddingTop:2},
  label:{color:c.darkInk,fontFamily:fonts.text,fontSize:14},
  bio:{minHeight:80,textAlignVertical:'top'},
  visibility:{minHeight:48,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderColor:c.darkSurfaceMuted},

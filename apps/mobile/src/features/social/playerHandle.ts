@@ -26,9 +26,21 @@
  * `editable.handle` non vide OU une session — un joueur non connecté ne voit
  * donc jamais ce repli présenté comme « son » code à montrer.
  *
+ * ─── 10/09/2026 : CE FILTRE N'EST PLUS SEULEMENT UN REPLI ──────────────────
+ * `sanitizeHandle` filtre désormais aussi la FRAPPE du champ pseudo de
+ * /profil-edit (lot H, « pseudo @ façon Instagram ») : ce que le joueur tape
+ * traverse la même réduction que ce que la session dérive. Deux conséquences.
+ * D'abord, l'écran écarte la frappe interdite au lieu de laisser taper puis de
+ * gronder. Ensuite, le `20` codé en dur ici décidait silencieusement de la
+ * longueur maximale SAISISSABLE : il vient de `HANDLE_MAX_LENGTH` désormais,
+ * sans quoi changer la borne dans game-rules.ts n'aurait rien changé au champ.
+ *
+ * Il ne DÉCIDE toujours rien : `change_my_handle_2026` (migration 0175) reste
+ * seul juge du format, de l'unicité, de la cadence et des réservations.
+ *
  * PUR : aucun React, aucun i18n, aucun réseau — Deno-testable.
  */
-import { HANDLE_REGEX } from '@klaim/shared';
+import { HANDLE_MAX_LENGTH, HANDLE_REGEX } from '@klaim/shared';
 
 /**
  * Réduit un texte libre à l'alphabet technique du @handle (base 0011).
@@ -39,7 +51,7 @@ import { HANDLE_REGEX } from '@klaim/shared';
  * On choisit à la place des mots de repli qui n'en ont pas besoin.
  */
 export function sanitizeHandle(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+  return raw.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, HANDLE_MAX_LENGTH);
 }
 
 /** Ultime filet, jamais localisé : il ne sert que si tout le reste est vide. */

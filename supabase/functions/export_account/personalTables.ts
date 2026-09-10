@@ -175,6 +175,21 @@ export const PERSONAL_TABLES: readonly PersonalTable[] = [
   { key: 'crewMessages2026', table: 'crew_messages_2026', column: 'author_id' },
   { key: 'crewMessageReports2026', table: 'crew_message_reports_2026', column: 'reporter_id' },
 
+  // ── 2026 · historique du @pseudo (0175) ───────────────────────────────────
+  // L'HISTORIQUE D'UN PSEUDO EST UNE DONNÉE PERSONNELLE, et l'une des plus
+  // parlantes : il dit sous quels noms cette personne s'est présentée, et
+  // quand. Le lui rendre est le minimum d'une demande d'accès (art. 15), et
+  // c'est aussi le seul moyen pour elle de vérifier le décompte qu'on lui
+  // oppose (« il te reste 1 changement »).
+  //
+  // `handle_holds_2026` suit, bien que le test de couverture ne l'EXIGE pas :
+  // sa colonne d'identité s'appelle `held_for`, un nom que le détecteur ne
+  // connaissait pas. Elle porte pourtant, en clair, un pseudo que cette
+  // personne a porté et qui lui reste réservé. L'ajouter au détecteur ferme le
+  // trou pour de bon ; l'exporter ferme le trou pour elle, tout de suite.
+  { key: 'handleChanges2026', table: 'handle_changes_2026', column: 'user_id' },
+  { key: 'handleHolds2026', table: 'handle_holds_2026', column: 'held_for' },
+
   // ── 2026 · notifications (0140, 0141) ─────────────────────────────────────
   // Les RÉGLAGES sont un choix explicite du joueur : les lui rendre est le
   // minimum d'une demande d'accès. Le JOURNAL, lui, dit ce que GRYD lui a

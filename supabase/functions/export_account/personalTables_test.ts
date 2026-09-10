@@ -40,6 +40,12 @@ const IDENTITY_COLUMNS = [
   // n'élargit donc la règle que là où il le doit.
   'subject_id',
   'audience_user_id',
+  // Ajoutée le 10/09/2026 avec `handle_holds_2026` (0175) : la réservation de
+  // quatorze jours d'un ancien @pseudo appartient à son ancien titulaire, et
+  // `held_for` est la seule colonne qui le désigne. Vérifié : aucune autre
+  // table du schéma ne porte ce nom, cet ajout n'élargit donc la règle que là
+  // où il le doit.
+  'held_for',
 ] as const;
 
 /** La refonte 2026 commence à 0118 (`refonte_2026_polygon_authority`). */
