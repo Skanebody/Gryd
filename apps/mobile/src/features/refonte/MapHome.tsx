@@ -11,7 +11,8 @@ import { MapTranslucent2026 } from '../../ui/gryd/MapTranslucent2026';
 import { MotionReveal2026, useControlMotion2026 } from '../../ui/gryd/Motion2026';
 import { GrydNavBar } from '../nav/GrydNavBar';
 import { GrydMark } from '../../ui/gryd/GrydMark';
-import { useLocale } from '../../i18n/store';
+import { t, useLocale } from '../../i18n/store';
+import { C as CClassement } from '../../i18n/catalog/classement';
 import { useSession } from '../../lib/session';
 import { EVENTS, track } from '../../lib/analytics';
 import { getMapActivity, useMapActivity, useBasemapStyle } from '../map/mapPref';
@@ -278,7 +279,7 @@ export default function MapHome() {
                   panneau de zone, qui n'existe que si un terrain est sélectionné :
                   la porte disparaîtrait exactement quand la commune est vide, or
                   c'est là que l'écran a le plus à dire (« Premier ici »). */}
-              <Pressable style={s.optionRow} onPress={() => { setSheet(null); router.push('/classement-commune'); }} accessibilityRole="button"><Text style={s.optionText}>{text('Ta commune, cette semaine', 'Your town, this week')}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
+              <Pressable style={s.optionRow} onPress={() => { setSheet(null); router.push('/classement-commune'); }} accessibilityRole="button"><Text style={s.optionText}>{t(CClassement.entreeCarte)}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
               <Pressable style={s.optionRow} onPress={() => { setSheet(null); router.push('/calcul-zones'); }} accessibilityRole="button"><Text style={s.optionText}>{text('Comprendre les boucles', 'How loops work')}</Text><GrydIcon name="chevronRight" size={19} /></Pressable>
             </> : ownership.loading ? <Text style={s.sheetNote}>{text('Chargement des terrains…', 'Loading terrains…')}</Text> : ownership.failed ? <Pressable style={s.optionRow} onPress={ownership.reload}><Text style={s.optionText}>{text('Réessayer', 'Try again')}</Text></Pressable> : ownership.features.length === 0 ? <Text style={s.sheetNote}>{ownership.signedOut ? text('Connecte-toi pour voir les terrains partagés.', 'Sign in to see shared terrains.') : text('Aucun terrain partagé dans cette zone.', 'No shared terrain in this area.')}</Text> : visibleFeatures.map(f => <Pressable key={f.properties.id} style={s.optionRow} onPress={() => { setSelectedId(f.properties.id); setSheet(null); }} accessibilityRole="button"><Text style={s.optionText}>{territoryOwnerLabel2026(f, fr)}</Text><Text style={s.optionText}>{area(f.properties.areaM2)} km²</Text></Pressable>)}
           </ScrollView>

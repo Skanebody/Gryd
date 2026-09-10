@@ -60,6 +60,7 @@ import { currentResultOwner2026 } from '../resultOwner2026';
 import { HTTP_STATUS_NONE } from '../analysis/analysisMachine';
 import { beginSyncFactRun, publishSyncFact } from '../analysis/syncFactBus';
 import { recordRun } from '../runJournal';
+import { announceResultReady2026 } from '../resultNotice2026';
 import { resumedDeadTimeMs } from './runPipeline';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import { saveLocalActivity2026, type LocalActivity2026 } from '../../refonte/localActivities';
@@ -269,6 +270,16 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
           // (pendingUpload), pour qu'une capture faite sans réseau ne soit jamais
           // invisible au funnel. Ici : chemin LIVE.
           if (result) emitRunResultAnalytics(result, 'live');
+          // ── « TA SORTIE EST ANALYSÉE. TON RÉSULTAT EST PRÊT. » (§14.2) ────
+          // Le résultat existe MAINTENANT, et le joueur a pu ranger son
+          // téléphone pendant que la requête volait : c'est le seul instant du
+          // dépôt où cette phrase est vraie et où personne ne la lit encore.
+          // Sans `await` : la notification ne doit pas retarder d'un seul
+          // aller-retour l'écran de résultat. Tout le reste — préférence
+          // « résultats », plage calme, budget, doublon par `clientRunId`, et
+          // le silence total si l'app est déjà devant le résultat — est tranché
+          // par le moteur §14.3 dans `announceResultReady2026`, jamais ici.
+          void announceResultReady2026(payload.clientRunId);
           return 'sent';
         }
         if (isPermanentRejection(error)) {

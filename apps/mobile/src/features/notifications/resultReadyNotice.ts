@@ -24,18 +24,17 @@
  * demander une permission pour un message qui ne partira pas, serait la même
  * faute une couche plus bas.
  *
- * ─── CE MODULE N'A PAS ENCORE D'APPELANT — ET L'ÉCRAN LE DIT ───────────────
- * Le seul endroit d'où il peut partir est le chemin du résultat
- * (`src/features/run/**`, `src/mvp/run/**`, `app/course/analyse.tsx`), qui
- * appartient à un autre lot. Tant que cet appel d'une ligne n'existe pas,
- * AUCUNE notification de résultat ne part — et `reglages.notifLocalOnlyNote` le
- * déclare en toutes lettres au joueur plutôt que de lui promettre un message
- * qui n'arriverait jamais. L'appel attendu, quand le résultat est disponible :
+ * ─── CE MODULE A EXACTEMENT UN APPELANT (10/09/2026) ───────────────────────
+ * `features/run/resultNotice2026.ts`, appelé par `useRealRunCore.uploadOrQueue`
+ * à l'instant où `ingest_run` répond — le seul endroit du dépôt où un résultat
+ * existe alors que le joueur peut avoir rangé son téléphone. C'est lui qui fait
+ * les deux lectures que ce module refuse de faire (les réglages du compte, la
+ * traduction), et `liveChain2026.test.ts` verrouille qu'il reste SEUL : deux
+ * appelants, ce serait deux messages pour une sortie.
  *
- *     await notifyResultReady({
- *       runId, content: { title: t(C.…), body: t(C.…) },
- *       settings, appActive: AppState.currentState === 'active',
- *     });
+ * Le drain de la file d'envoi différé n'en est pas un second : il ne tourne
+ * qu'au retour au premier plan, où `appActive` refuserait le message de toute
+ * façon.
  *
  * PUR d'i18n : le titre et le corps arrivent en prop, résolus par l'appelant.
  */

@@ -493,3 +493,97 @@ Deno.test('2026 : une capture ordinaire ne fabrique pas de points de défi', () 
   );
 });
 
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// RACCORD A — « TA SORTIE EST ANALYSÉE. TON RÉSULTAT EST PRÊT. » (§14.2)
+//
+// ÉTAPE 0 : `features/notifications/resultReadyNotice.ts` savait envoyer ce
+// message et n'avait AUCUN APPELANT — son propre en-tête le disait (« CE MODULE
+// N'A PAS ENCORE D'APPELANT »). Un `grep -r notifyResultReady apps/mobile` ne
+// rendait que sa définition et une note de réglages. Pendant ce temps
+// `analyse.leaveNotified` promettait au joueur « on te prévient quand le
+// résultat est prêt » : une phrase que rien dans le dépôt ne pouvait tenir.
+// Les trois gardes ci-dessous échouent toutes sur l'état d'avant.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Tous les `.ts`/`.tsx` de `apps/mobile/src`, chemin relatif à ce test. */
+function mobileSources(): string[] {
+  const root = new URL('../../', import.meta.url);
+  const out: string[] = [];
+  const walk = (dir: URL, prefix: string): void => {
+    for (const e of Deno.readDirSync(dir)) {
+      const child = new URL(`${e.name}${e.isDirectory ? '/' : ''}`, dir);
+      if (e.isDirectory) walk(child, `${prefix}${e.name}/`);
+      else if (e.name.endsWith('.ts') || e.name.endsWith('.tsx')) out.push(`${prefix}${e.name}`);
+    }
+  };
+  walk(root, '');
+  return out;
+}
+
+Deno.test('résultat prêt : le message §14.2 a exactement UN appelant, et c’est le chemin du résultat', () => {
+  const callers = mobileSources().filter((rel) =>
+    // La définition et sa propre documentation ne comptent pas.
+    !rel.endsWith('notifications/resultReadyNotice.ts') &&
+    !rel.endsWith('.test.ts') && !rel.endsWith('.test.tsx') &&
+    /notifyResultReady\s*\(/.test(code(`../../${rel}`)),
+  );
+  assert(callers.length === 1,
+    `le message de résultat doit partir d’un seul endroit, pas ${callers.length} : ${callers.join(', ')}`);
+  assert(callers[0] === 'features/run/resultNotice2026.ts',
+    `l’appelant doit être le chemin du résultat, pas ${callers[0]}`);
+});
+
+Deno.test('résultat prêt : la réponse d’ingestion déclenche l’annonce, sans la faire attendre', () => {
+  const core = code('./gps/useRealRunCore.ts');
+  const accepted = core.indexOf("publishSyncFact({ kind: 'server_accepted' }");
+  assert(accepted > 0, 'le fait « le serveur a répondu » doit exister');
+  const call = core.indexOf('announceResultReady2026(payload.clientRunId)');
+  assert(call > accepted,
+    'l’annonce doit partir APRÈS la réponse acceptée — jamais sur un envoi encore en vol');
+  assert(core.slice(accepted, call).includes("return 'sent'") === false,
+    'et avant que `uploadOrQueue` ne rende la main');
+  assert(/void announceResultReady2026\(/.test(core),
+    'sans `await` : une notification ne doit pas retarder l’écran de résultat');
+  assert((core.match(/announceResultReady2026\(/g) ?? []).length === 1,
+    'une seule fois : la matrice §14.2 dit « une fois » pour cet événement');
+});
+
+Deno.test('résultat prêt : l’écran ouvert et les réglages illisibles ferment tous deux le message', () => {
+  const notice = code('./resultNotice2026.ts');
+  assert(notice.includes("appActive: AppState.currentState === 'active'"),
+    'l’app au premier plan, c’est le joueur DEVANT son résultat : rien ne part');
+  assert(notice.includes("my_notification_settings_2026"),
+    'les réglages §14.1 se lisent sur le compte, jamais sur le téléphone');
+  assert(notice.includes('parseNotificationSettings2026'),
+    'et se comprennent avec le parseur partagé');
+  assert(!notice.includes('DEFAULT_NOTIFICATION_SETTINGS_2026'),
+    'une lecture ratée ne retombe JAMAIS sur les défauts : ce serait notifier ' +
+      'quelqu’un qui a peut-être coupé la catégorie');
+  const guard = notice.indexOf("why: 'settings_unreadable'");
+  assert(guard > 0 && guard < notice.indexOf('notifyResultReady({'),
+    'le refus de deviner doit précéder l’envoi');
+});
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// RACCORD B — LA PORTE DU CLASSEMENT DE COMMUNE (ADR-013 §2.1)
+//
+// ÉTAPE 0 : la porte existait bien dans la feuille de la carte, mais son
+// libellé passait par le raccourci local `text(fr, en)` — DEUX langues sur
+// cinq — pendant que `i18n/catalog/classement.ts` portait `entreeCarte`, écrit
+// pour elle, avec ses cinq traductions et AUCUN lecteur. Un joueur en espagnol,
+// en allemand ou en portugais lisait donc de l'anglais sur l'unique entrée d'un
+// écran entièrement traduit.
+// ════════════════════════════════════════════════════════════════════════════
+
+Deno.test('carte : la porte de la commune existe, et parle les cinq langues', () => {
+  const map = code('../refonte/MapHome.tsx');
+  assert(map.includes("router.push('/classement-commune')"),
+    'la seule porte du classement de commune doit vivre dans la feuille de la carte');
+  assert(map.includes('t(CClassement.entreeCarte)'),
+    'son libellé vient du catalogue — le raccourci `text(fr, en)` n’en connaît que deux');
+  assert(!/text\('Ta commune/.test(map),
+    'le libellé à deux langues ne doit pas revenir à côté du catalogue');
+});

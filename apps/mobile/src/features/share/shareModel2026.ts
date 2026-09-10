@@ -12,7 +12,14 @@ export type ShareTheme2026 = 'dark' | 'light';
 interface ShareFactsInput2026 {
   card: { activity: 'run' | 'bike'; distanceKm: string; clockLabel: string; paceLabel: string };
   territory2026?: {
-    status: 'private' | 'pending' | 'scheduled' | 'published' | 'no_loop';
+    /**
+     * Le vocabulaire du serveur s'enrichit (`rejected` est arrivé avec
+     * l'admission de capture). Ce type reste donc OUVERT : seuls `published` et
+     * `scheduled` produisent un gain ci-dessous, et tout le reste — connu ou
+     * non — n'en produit aucun. Fermer l'union ferait échouer la compilation à
+     * chaque mot nouveau, sans jamais rendre une carte de partage plus vraie.
+     */
+    status: 'private' | 'pending' | 'scheduled' | 'published' | 'no_loop' | 'rejected' | (string & {});
     newTerrainM2: number | null;
     loopAreaM2: number;
   };

@@ -441,4 +441,30 @@ export const C = defineCatalog({
     de: 'Du kannst gehen: Das Ergebnis wartet in deinem Verlauf.',
     pt: 'Você pode sair: o resultado ficará no seu histórico.',
   },
+
+  // ── LE MESSAGE QUI TIENT LA PROMESSE DE `leaveNotified` ───────────────────
+  //
+  // Première ligne de la matrice §14.2 du cahier, coupée à l'endroit où elle
+  // est déjà coupée là-bas : « Ta sortie est analysée. Ton résultat est prêt. »
+  // Le titre annonce le FAIT (l'analyse a eu lieu), le corps annonce ce qu'on
+  // peut en faire (aller voir). Rien de plus : la matrice interdit de mettre le
+  // verdict dans la notification — un gain annoncé hors de l'écran serait un
+  // spoil, et surtout un chiffre affirmé par un client qui ne l'a pas encore lu.
+  //
+  // Servi par `features/run/resultNotice2026.ts`, seul appelant, sur le seul
+  // chemin où la réponse d'`ingest_run` arrive : `uploadOrQueue`.
+  noticeTitle: {
+    fr: 'Ta sortie est analysée.',
+    en: 'Your activity has been analysed.',
+    es: 'Tu salida está analizada.',
+    de: 'Deine Aktivität ist ausgewertet.',
+    pt: 'Sua atividade foi analisada.',
+  },
+  noticeBody: {
+    fr: 'Ton résultat est prêt.',
+    en: 'Your result is ready.',
+    es: 'Tu resultado está listo.',
+    de: 'Dein Ergebnis ist da.',
+    pt: 'Seu resultado está pronto.',
+  },
 });
