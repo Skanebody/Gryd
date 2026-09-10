@@ -30,6 +30,8 @@ import { useRecordingChoice2026 } from './useRecordingChoice2026';
 import { territoryOwnerLabel2026, territoryRoleLabel2026, type TerritoryRole2026 } from './territoryModel2026';
 
 import { territoryPaintLayers2026 } from './territoryPaint2026';
+import { useMyCosmetics2026 } from '../arsenal/useMyCosmetics2026';
+import { cosmeticTracePaint2026 } from '../arsenal/cosmetics2026';
 import { createMapLocationGate2026, readMapLocation2026, type MapLocationResult2026 } from './mapLocation2026';
 
 // France overview is labelled as exploration; it never impersonates a GPS position.
@@ -84,6 +86,11 @@ export default function MapHome() {
   const basemapRevision = useSyncExternalStore(subscribeBasemapSpecs, basemapSpecRevision, basemapSpecRevision);
   useEffect(() => prefetchLocalizedBasemaps(basemap), [basemap]);
   const { profile } = useMyProfile();
+  // Ce que je PORTE sur la carte : la silhouette du pin, et le trait de mon
+  // terrain. Une seule lecture partagée avec le profil et la collection
+  // (`useMyCosmetics2026`) ; sans compte ou sans 0180, elle rend les objets
+  // livrés et la carte garde exactement l'apparence d'avant ce lot.
+  const cosmetics = useMyCosmetics2026();
   const { state: onboarding } = useOnboardingState();
   const place = usePlaceFocus();
   const handledPlace = useRef(0);
@@ -161,9 +168,10 @@ export default function MapHome() {
     return () => subscription.remove();
   }, [activityReady, locate]);
 
+  const trace = useMemo(() => cosmeticTracePaint2026(cosmetics.equipped.trace), [cosmetics.equipped.trace]);
   const layers = useMemo<ReadonlyArray<RealMapGeoJSONLayer>>(() => territoryPaintLayers2026({
-    features: ownership.features, filters: roleFilters, attenuate, dark: basemap !== 'color', selectedId,
-  }), [ownership.features, roleFilters, attenuate, selectedId, basemap]);
+    features: ownership.features, filters: roleFilters, attenuate, dark: basemap !== 'color', selectedId, trace,
+  }), [ownership.features, roleFilters, attenuate, selectedId, basemap, trace]);
 
   const text = (a: string, b: string) => fr ? a : b;
   const bottom = insets.bottom + GRYD_NAV_BOTTOM_GAP + GRYD_NAV_BAR_HEIGHT + 12;
@@ -199,7 +207,7 @@ export default function MapHome() {
         onPress={event => { setSelectedId(event.zoneId ?? null); if (event.zoneId) track(EVENTS.mapZoneTap, { role: 'terrain' }); }}
         markers={position ? [{ id: 'me', ...position, children: <MePinMarker2026
           label={approximate ? text('Position approximative', 'Approximate location') : text('Ma position', 'My location')}
-          photoUri={pinPhoto} initials={pinInitials} approximate={approximate} /> }] : []} />
+          photoUri={pinPhoto} initials={pinInitials} approximate={approximate} styleId={cosmetics.equipped.pin} /> }] : []} />
     </View>
     <View pointerEvents="box-none" style={[s.header, { top: insets.top + 12 }]}>
       <View style={s.topRow}>
@@ -328,7 +336,9 @@ export default function MapHome() {
                 <Text style={s.optionText}>{[text('Clair', 'Light'), text('Noir', 'Dark'), 'Satellite'][i]}</Text>
               </Pressable>)}</View>}
               <Text style={s.sheetNote}>{text('Une nuance par propriétaire. Trait plein : solo ou affiliation masquée. Pointillés : membre d’un crew. Chaque terrain reste individuel.', 'A shade per owner. Solid line: solo or hidden affiliation. Dashes: crew member. Every territory remains individually owned.')}</Text><Text style={s.sheetNote}>{text('Afficher les terrains', 'Show terrain')}</Text>
-              {(['mine','crew','others'] as const).map(role => <View key={role} style={s.optionRow}><View style={s.filterLabel}><RoleLine role={role} light /><Text style={s.optionText}>{territoryRoleLabel2026(role, fr)}</Text></View><Switch value={roleFilters[role]} onValueChange={value => setRoleFilters(current => ({ ...current, [role]: value }))} accessibilityLabel={territoryRoleLabel2026(role, fr)} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} /></View>)}
+              {(['mine','crew','others'] as const).map(role => { /* LOT K — la ligne « crew » PORTE LE NOM du crew quand le serveur l'a rendu (`get_ownership_2026`, contrat 2026.3). « Membres de mon crew » est un rôle ; « Membres des Quais » est le sien. Aucune lecture ajoutée : ce nom était déjà chargé, il ne servait qu'à la note du bas. */
+                const label = role === 'crew' && ownership.crew ? `${text('Membres de', 'Members of')} ${ownership.crew.name}` : territoryRoleLabel2026(role, fr);
+                return <View key={role} style={s.optionRow}><View style={s.filterLabel}><RoleLine role={role} light /><Text style={s.optionText}>{label}</Text></View><Switch value={roleFilters[role]} onValueChange={value => setRoleFilters(current => ({ ...current, [role]: value }))} accessibilityLabel={label} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} /></View>; })}
               {session && <Text style={s.sheetNote}>{ownership.signedOut ? text('Connecte-toi pour retrouver ton crew.', 'Sign in to find your crew.') : ownership.loading ? text('Lecture du crew…', 'Loading crew…') : ownership.failed ? text('Crew indisponible avec les terrains.', 'Crew unavailable with terrain.') : ownership.crew ? `${text('Crew actuel', 'Current crew')} : ${ownership.crew.name}. ${text('Chaque terrain appartient à son joueur.', 'Each terrain belongs to its player.')}` : text('Aucun crew actif trouvé pour ton compte.', 'No active crew found for your account.')}</Text>}
               {session && <>
               <View style={s.optionRow}><Text style={s.optionText}>{text('Terrain partagé au départ', 'Share terrain when starting')}</Text><Switch value={choice.shared} disabled={!session || !choice.ready || choice.saving} onValueChange={value => void choice.save(value)} accessibilityLabel={text('Participer à la carte partagée', 'Participate in shared terrain')} trackColor={{ true: c.ink, false: c.border }} thumbColor={c.surface} /></View>

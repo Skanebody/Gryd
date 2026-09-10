@@ -61,11 +61,21 @@ import type { CrewPing } from './engine/crewSignals';
  * raison que `ACTIVITY_GROUP_ORDER` (E23) : renverser l'ordre changerait ce que
  * l'écran dit, pas seulement à quoi il ressemble.
  */
-export type CrewActivitySection = 'announcement' | 'outing' | 'conquest' | 'help';
+export type CrewActivitySection = 'announcement' | 'outing' | 'join' | 'conquest' | 'help';
 
+/**
+ * `join` (les arrivées) se place APRÈS les rendez-vous et AVANT les faits de
+ * territoire. Ce rang n'est pas un goût : §13.4 demande que « les mises en
+ * avant tournent entre nouveaux membres, organisateurs, réguliers et réussites
+ * personnelles » et met explicitement en garde contre le fait de « réserver
+ * toute la visibilité aux plus rapides ». Une arrivée sous les captures serait
+ * exactement cela. Elle reste sous les rendez-vous, qui, eux, appellent une
+ * action datée.
+ */
 export const CREW_ACTIVITY_SECTION_ORDER: readonly CrewActivitySection[] = [
   'announcement',
   'outing',
+  'join',
   'conquest',
   'help',
 ];
@@ -338,6 +348,45 @@ export interface CrewConquest {
   createdAtMs: number;
 }
 
+/**
+ * UNE ARRIVÉE dans le crew (migration 0182 · `crew_members.joined_at`).
+ *
+ * §14.2 fait de « Demande d'adhésion acceptée » un des événements de crew du
+ * cahier, et ADR-013 §5 tranche que le canal principal est le centre d'activité
+ * DANS l'app. Avant 0182, personne dans un crew n'apprenait nulle part qu'un
+ * nouveau membre était arrivé — ni notification (aucun appelant de
+ * `claim_notification_2026`), ni fil.
+ *
+ * ⚠️ IL N'Y A PAS DE JUMEAU « DÉPART ». Ce n'est pas un oubli : afficher
+ * « Untel a quitté le crew » serait une mise en cause publique, jamais une
+ * nouvelle utile (§13.5). Le serveur ne le rend pas non plus.
+ */
+export interface CrewJoin {
+  userId: string;
+  /** Pseudo d'un membre ACTIF. `null` = plus de profil public (compte en
+   *  suppression) : la ligne tombe alors, plutôt que d'afficher un fantôme. */
+  pseudo: string | null;
+  /**
+   * Instant TRONQUÉ À L'HEURE par le serveur (PUBLIC_TIMESTAMP_TRUNC). La
+   * minute exacte d'une arrivée n'apprend rien et se recoupe trop bien avec le
+   * reste : l'écran ne doit pas prétendre la connaître.
+   */
+  joinedAtMs: number;
+}
+
+/** jsonb → une arrivée, ou `null` (contrat inattendu, profil disparu). */
+export function parseCrewJoin(raw: unknown): CrewJoin | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const userId = asText(o.userId);
+  const joinedAtMs = asMs(o.joinedAt);
+  const pseudo = asText(o.pseudo);
+  // Sans pseudo, la ligne dirait « quelqu'un a rejoint » : une nouvelle sans
+  // sujet. On la laisse tomber — le membre reste au roster, lui.
+  if (!userId || joinedAtMs === null || !pseudo) return null;
+  return { userId, pseudo, joinedAtMs };
+}
+
 /** Ce que `crew_activity_feed()` rend quand la lecture aboutit. */
 export interface CrewActivityContext {
   role: string;
@@ -345,6 +394,14 @@ export interface CrewActivityContext {
   canPost: boolean;
   announcements: readonly CrewAnnouncement[];
   conquests: readonly CrewConquest[];
+  /**
+   * Arrivées récentes (0182). Liste VIDE sur un serveur d'avant 0182 : c'est
+   * la seule lecture honnête d'une clé absente — « je n'ai rien reçu », pas
+   * « personne n'est arrivé ». Les deux se ressemblent à l'écran et disent
+   * autre chose ; ici, l'écran n'affirme rien puisqu'une section vide est
+   * OMISE (voir `buildCrewActivity`).
+   */
+  joins: readonly CrewJoin[];
   maxAnnouncements: number;
   bodyMax: number;
 }
@@ -481,6 +538,9 @@ export function parseCrewActivityContext(raw: unknown): CrewActivityContext | nu
   const conquests = Array.isArray(o.conquests)
     ? o.conquests.map(parseCrewConquest).filter((c): c is CrewConquest => c !== null)
     : [];
+  const joins = Array.isArray(o.joins)
+    ? o.joins.map(parseCrewJoin).filter((j): j is CrewJoin => j !== null)
+    : [];
   // Le plafond vient du SERVEUR. La constante locale n'est qu'un repli quand un
   // serveur plus ancien ne le rend pas — jamais la source, sinon un client
   // périmé afficherait « 3 max » là où le serveur en accepte 5.
@@ -497,6 +557,7 @@ export function parseCrewActivityContext(raw: unknown): CrewActivityContext | nu
     canPost: o.canPost === true,
     announcements,
     conquests,
+    joins,
     maxAnnouncements,
     bodyMax,
   };
@@ -512,6 +573,7 @@ export function parseCrewActivityContext(raw: unknown): CrewActivityContext | nu
 export type CrewActivityItem =
   | { section: 'announcement'; sortKey: number; announcement: CrewAnnouncement }
   | { section: 'outing'; sortKey: number; outing: CrewOuting }
+  | { section: 'join'; sortKey: number; join: CrewJoin }
   | { section: 'conquest'; sortKey: number; conquest: CrewConquest }
   | { section: 'help'; sortKey: number; ping: CrewPing };
 
@@ -525,6 +587,8 @@ export interface CrewActivityInputs {
   /** Sorties À VENIR, telles que `crew_outing_context()` les rend. */
   outings: readonly CrewOuting[];
   conquests: readonly CrewConquest[];
+  /** Arrivées récentes, telles que `crew_activity_feed()` les rend (0182). */
+  joins: readonly CrewJoin[];
   /** Pings encore VIVANTS, tels que `visibleCrewPings` les rend. */
   pings: readonly CrewPing[];
   /**
@@ -573,6 +637,14 @@ export function buildCrewActivity(inputs: CrewActivityInputs): CrewActivityGroup
     }))
     .sort((x, y) => x.sortKey - y.sortKey);
 
+  // Les arrivées se filtrent sur le PSEUDO, comme les annonces : une personne
+  // bloquée ne s'annonce pas dans un fil qu'on lit (Apple 1.2). Le membre reste
+  // au roster — le blocage masque une PAROLE, il n'efface pas une appartenance.
+  const joins: CrewActivityItem[] = inputs.joins
+    .filter((j) => !inputs.isBlocked(j.pseudo))
+    .map((j) => ({ section: 'join' as const, sortKey: j.joinedAtMs, join: j }))
+    .sort((x, y) => y.sortKey - x.sortKey);
+
   const conquests: CrewActivityItem[] = inputs.conquests
     .map((c) => ({ section: 'conquest' as const, sortKey: c.createdAtMs, conquest: c }))
     .sort((x, y) => y.sortKey - x.sortKey);
@@ -585,6 +657,7 @@ export function buildCrewActivity(inputs: CrewActivityInputs): CrewActivityGroup
   const bySection: Record<CrewActivitySection, CrewActivityItem[]> = {
     announcement: announcements,
     outing: outings,
+    join: joins,
     conquest: conquests,
     help,
   };

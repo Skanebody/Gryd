@@ -102,10 +102,18 @@ const ping = (id: string, atMs: number, pseudo = 'A'): CrewPing => ({
 
 const NEVER_BLOCKED = () => false;
 
+/** Une arrivée (0182), telle que `crew_activity_feed` la rend. */
+const join = (pseudo: string, atMs: number, userId = pseudo) => ({
+  userId,
+  pseudo,
+  joinedAtMs: atMs,
+});
+
 const inputs = (over: Partial<CrewActivityInputs> = {}): CrewActivityInputs => ({
   announcements: [],
   outings: [],
   conquests: [],
+  joins: [],
   pings: [],
   isBlocked: NEVER_BLOCKED,
   ...over,
@@ -113,10 +121,11 @@ const inputs = (over: Partial<CrewActivityInputs> = {}): CrewActivityInputs => (
 
 // ═══ 1. L'ordre des sections est une CONSTANTE ═══════════════════════════════
 
-Deno.test('E48 — les quatre sections suivent l’ordre de la spéc, quoi qu’il arrive', () => {
+Deno.test('E48 — les cinq sections suivent l’ordre de la spéc, quoi qu’il arrive', () => {
   assertEquals(CREW_ACTIVITY_SECTION_ORDER, [
     'announcement',
     'outing',
+    'join',
     'conquest',
     'help',
   ]);
@@ -130,11 +139,55 @@ Deno.test('E48 — les quatre sections suivent l’ordre de la spéc, quoi qu’
       pings: [ping('p1', 8_000)],
       outings: [outing('o1', new Date(7_000).toISOString())],
       announcements: [ann('a1', 1_000)],
+      joins: [join('NEUF', 6_000)],
     }),
   );
   assertEquals(
     groups.map((g) => g.section),
-    ['announcement', 'outing', 'conquest', 'help'],
+    ['announcement', 'outing', 'join', 'conquest', 'help'],
+  );
+});
+
+/**
+ * §13.4 : « les mises en avant tournent entre nouveaux membres, organisateurs,
+ * réguliers et réussites personnelles […] Ne pas réserver toute la visibilité
+ * aux plus rapides. » Une arrivée SOUS les captures serait exactement cela.
+ */
+Deno.test('0182 — une arrivée passe AVANT les faits de territoire', () => {
+  const groups = buildCrewActivity(
+    inputs({ conquests: [conq('c1', 9_000)], joins: [join('NEUF', 1_000)] }),
+  );
+  assertEquals(
+    groups.map((g) => g.section),
+    ['join', 'conquest'],
+  );
+});
+
+Deno.test('0182 — les arrivées se trient par récence, et un pseudo bloqué disparaît', () => {
+  const groups = buildCrewActivity(
+    inputs({
+      joins: [join('VIEUX', 1_000), join('NEUF', 9_000), join('GENANT', 5_000)],
+      isBlocked: (p) => p === 'GENANT',
+    }),
+  );
+  assertEquals(groups.length, 1);
+  assertEquals(
+    groups[0]?.items.map((i) => (i.section === 'join' ? i.join.pseudo : null)),
+    ['NEUF', 'VIEUX'],
+  );
+});
+
+/**
+ * Un serveur d'avant 0182 ne rend PAS la clé `joins`. La section doit alors
+ * être ABSENTE — et surtout pas un en-tête « ILS ONT REJOINT » au-dessus du
+ * vide, qui affirmerait « personne n'est arrivé » à propos d'une clé qu'on n'a
+ * jamais reçue.
+ */
+Deno.test('0182 — aucune arrivée reçue : la section est absente, elle n’affirme rien', () => {
+  const groups = buildCrewActivity(inputs({ announcements: [ann('a1', 1_000)] }));
+  assertEquals(
+    groups.map((g) => g.section),
+    ['announcement'],
   );
 });
 

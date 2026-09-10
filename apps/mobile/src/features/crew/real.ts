@@ -123,6 +123,27 @@ export interface CrewOverview {
   territory: CrewTerritory;
   /** Mon rôle dans le crew, ou null si le serveur ne le renseigne pas. */
   myRole: string | null;
+  /**
+   * LA VILLE DU CREW, nommée (migration 0182 · `crews.city_id → city_zones`).
+   *
+   * `null` a deux causes, et l'écran les traite pareil : un serveur d'avant
+   * 0182, ou une ville que `city_zones` ne connaît pas. Dans les deux cas on ne
+   * sait pas nommer ce lieu — donc on ne le nomme pas. Jamais l'identifiant
+   * brut à la place : « rouen-sud-2 » n'est pas un nom de ville.
+   */
+  cityName: string | null;
+  /**
+   * L'ACCUEIL du crew (§13.1 : « la découverte doit montrer son accueil »),
+   * tel que `crews.recruitment_status` le porte : `open` · `on_request` ·
+   * `invite_only`. Typé LARGE volontairement — la base reste souveraine sur ce
+   * vocabulaire, et un statut inconnu de ce build ne doit pas devenir « open ».
+   *
+   * ⚠️ Ce fait était rendu par `crew_public_profile` (0152 §3) à qui n'est PAS
+   * dans le crew, et perdu dès l'adhésion : la page de son propre crew en
+   * disait moins que la fiche publique du voisin. C'est le défaut que 0182
+   * corrige.
+   */
+  access: string | null;
   contributions: CrewContribution[];
   /**
    * `null` = le serveur n'a pas (encore) rendu la trajectoire — backend
@@ -316,6 +337,11 @@ export function parseCrewOverview(raw: unknown): CrewOverview | null {
     }
   }
 
+  // Ville et accueil vivent sur la LIGNE DU CREW (0182), pas sur le bloc
+  // territoire : ce sont des faits d'identité, pas des faits de jeu. Absents
+  // d'un serveur d'avant 0182 ⇒ `null`, et l'écran ne peint alors rien.
+  const identity = (root.crew && typeof root.crew === 'object' ? root.crew : {}) as Record<string, unknown>;
+
   return {
     territory: {
       ruleset: asText(t.ruleset) ?? '',
@@ -325,6 +351,8 @@ export function parseCrewOverview(raw: unknown): CrewOverview | null {
       lastCaptureAt: asText(t.lastCaptureAt),
     },
     myRole: asText(root.role),
+    cityName: asText(identity.city_name),
+    access: asText(identity.access),
     contributions,
     progress: parseCrewProgress(root),
   };

@@ -19,6 +19,7 @@ import { CREW_SPORTING_ROLES_2026, isCrewSportingRole2026, sportingRoleLabel2026
 import { resolveCrewJoinCode2026 } from '../crew/joinInput2026';
 import { canOpenCrewEdit, dutyOf, isCrewRole, leaveVerdict } from '../crew/memberRoles';
 import { crewEmblemSeed, isCrewEmblem } from '../crew/crewEmblem';
+import { crewDisciplinesLabel2026, crewIdentityLine2026, crewTerrainState2026 } from '../crew/crewIdentity2026';
 import { useRealCrew, type CrewRefusal, type RealCrewMember } from '../crew/real';
 import { nextCrewOuting2026 } from './crewNextOuting2026';
 import { parseCrewOutings2026, type CrewOuting2026 } from './crewOutingsModel2026';
@@ -153,6 +154,33 @@ function CrewHomeContents() {
    */
   const myRole = crew.overview?.myRole ?? '';
   /*
+   * VILLE ET ACCUEIL (migration 0182). Ils étaient rendus par la fiche PUBLIQUE
+   * d'un crew (`crew_public_profile`, 0152 §3) et perdus dès l'adhésion : la
+   * page de son propre crew en disait MOINS que celle du voisin. `null` quand
+   * on ne sait pas — l'écran ne peint alors aucune ligne (jamais l'identifiant
+   * technique de la ville en guise de nom).
+   */
+  const identityLine = crewIdentityLine2026(
+    { cityName: crew.overview?.cityName ?? null, access: crew.overview?.access },
+    locale !== 'en',
+  );
+  /*
+   * LE TERRAIN DU CREW, en QUATRE états. Il vient de `crew_overview.territory`
+   * (0152) — une donnée que `real.ts` lisait déjà et qu'AUCUN écran de
+   * septembre n'affichait. Ce bloc remplace `/crew-stats`, qui est une
+   * redirection depuis le cahier et dont la source (`crew_stats()`, épinglée
+   * `ruleset_version='legacy'` par 0118) ne peut plus rien mesurer.
+   *
+   * ⚠️ DES PERSONNES, JAMAIS UNE EMPRISE. 0126 : le titre territorial est
+   * INDIVIDUEL. Un crew n'a ni surface ni rang, et l'écran le DIT plutôt que de
+   * laisser croire à un chiffre absent.
+   */
+  const terrain = crewTerrainState2026({
+    loading: crew.overviewLoading,
+    failed: crew.overviewFailed,
+    territory: crew.overview?.territory ?? null,
+  });
+  /*
    * LA PORTE VERS `/crew-edit` ÉTAIT PEINTE POUR TOUT LE MONDE. `crew_edit`
    * (0084) gate ses trois champs sur des permissions qui valent `['founder']` :
    * six rôles sur sept arrivaient donc sur « tu n'as pas le droit ». Deux
@@ -208,7 +236,7 @@ function CrewHomeContents() {
           {/* Le BLASON du crew, dérivé de `crews.color` — la valeur choisie à la
               création est enfin relue quelque part (voir crewEmblem.ts). Un
               entier hors bornes n'affiche rien plutôt qu'un blason d'emprunt. */}
-          <View style={local.crewIdentity}>{isCrewEmblem(crew.crew.color) ? <CrewCrest seed={crewEmblemSeed(crew.crew.color)} name={crew.crew.name} size="m" /> : null}<View style={local.flex}><Text style={local.heroTitle}>{crew.crew.name}</Text><Pressable accessibilityRole="button" onPress={() => setSection('members')} style={local.memberCount}><Text style={local.heroCopy}>{crew.memberCount.toLocaleString(locale)} {copy('membres', 'members')}</Text><GrydIcon name="chevronRight" size={16} color={c.darkMuted} /></Pressable></View><Pressable accessibilityRole="button" accessibilityLabel={copy('Inviter un membre', 'Invite a member')} onPress={() => goMode('invite')} style={local.lightCircle}><GrydIcon name="plus" size={20} color={c.ink} /></Pressable></View>
+          <View style={local.crewIdentity}>{isCrewEmblem(crew.crew.color) ? <CrewCrest seed={crewEmblemSeed(crew.crew.color)} name={crew.crew.name} size="m" /> : null}<View style={local.flex}><Text style={local.heroTitle}>{crew.crew.name}</Text>{identityLine ? <Text style={local.micro}>{identityLine}</Text> : null}<Pressable accessibilityRole="button" onPress={() => setSection('members')} style={local.memberCount}><Text style={local.heroCopy}>{crew.memberCount.toLocaleString(locale)} {copy('membres', 'members')}</Text><GrydIcon name="chevronRight" size={16} color={c.darkMuted} /></Pressable></View><Pressable accessibilityRole="button" accessibilityLabel={copy('Inviter un membre', 'Invite a member')} onPress={() => goMode('invite')} style={local.lightCircle}><GrydIcon name="plus" size={20} color={c.ink} /></Pressable></View>
         </View>
         <ProfileSegments tone="light" value={section} onChange={setSection} options={[{ key: 'life', label: copy('Activité', 'Activity') }, { key: 'members', label: copy('Membres', 'Members') }]} />
         {section === 'life' ? <>
@@ -226,11 +254,40 @@ function CrewHomeContents() {
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push('/crew-conversation')} style={local.conversation}><View style={local.actionCircle}><GrydIcon name="message" size={20} color={c.ink} /></View><View style={local.flex}><Text style={local.rowTitle}>{copy('Conversation', 'Conversation')}</Text><Text style={local.copy}>{copy('Préparer la prochaine sortie ensemble.', 'Plan your next activity together.')}</Text></View><GrydIcon name="chevronRight" size={18} color={c.muted} /></Pressable>
           <View style={local.shortcutRow}><Pressable accessibilityRole="button" onPress={() => goMode('invite')} style={local.shortcut}><GrydIcon name="share" size={20} color={c.ink} /><Text style={local.actionText}>{copy('Inviter', 'Invite')}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push('/amis')} style={local.shortcut}><GrydIcon name="profile" size={20} color={c.ink} /><Text style={local.actionText}>{copy('Mes amis', 'My friends')}</Text></Pressable></View>
+          {/* LE TERRAIN DU CREW — ce que `crew_overview.territory` (0152) sait
+              dire, et que rien n'affichait. Quatre états DISTINCTS ; la note du
+              bas n'est pas une excuse, c'est la règle du jeu (0126 : le titre
+              est individuel, un crew n'a pas de surface à lui). */}
+          <View style={local.outingCard}>
+            <View style={local.cardHeading}><Text style={local.cardLabel}>{copy('Le terrain du crew', 'Crew terrain')}</Text><GrydIcon name="map" size={20} color={c.muted} /></View>
+            {terrain.kind === 'loading' ? <View style={local.inlineState}><ActivityIndicator color={c.ink} /><Text style={local.copy}>{copy('Lecture du terrain…', 'Loading terrain…')}</Text></View>
+              : terrain.kind === 'unavailable' ? <><Text style={local.copy}>{copy('Le terrain du crew n’a pas pu être lu. Ce n’est pas un crew sans terrain : c’est la lecture qui manque.', 'Crew terrain could not be read. This is not a crew without terrain: only the reading is missing.')}</Text><Pressable accessibilityRole="button" onPress={crew.reload} style={local.primaryRow}><Text style={local.actionText}>{copy('Réessayer', 'Try again')}</Text><View style={local.actionCircle}><GrydIcon name="arrowUpRight" size={20} color={c.ink} /></View></Pressable></>
+              : terrain.kind === 'empty' ? <><Text style={local.outingTitle}>{copy('Personne ne tient encore de terrain', 'No one holds terrain yet')}</Text><Text style={local.copy}>{copy('Ferme une boucle et ton nom sera le premier du crew à en tenir.', 'Close a loop and you will be the first in the crew to hold some.')}</Text></>
+              : <>
+                <Text style={local.outingTitle}>{terrain.membersHolding.toLocaleString(locale)} {terrain.membersHolding > 1 ? copy('membres tiennent du terrain', 'members hold terrain') : copy('membre tient du terrain', 'member holds terrain')}</Text>
+                {crewDisciplinesLabel2026(terrain, locale !== 'en') ? <Text style={local.copy}>{crewDisciplinesLabel2026(terrain, locale !== 'en')}</Text> : null}
+                {terrain.lastCaptureAt && Number.isFinite(Date.parse(terrain.lastCaptureAt)) ? <Text style={local.micro}>{copy('Dernière prise', 'Latest capture')} : {new Date(terrain.lastCaptureAt).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}</Text> : null}
+              </>}
+            {/* Ce que le crew n'a PAS, dit une fois. Sans cette phrase, l'absence
+                de km² se lit comme un chiffre qui n'a pas chargé. */}
+            <Text style={local.micro}>{copy('Chaque terrain appartient à son joueur. Un crew n’a ni surface ni classement à lui.', 'Each terrain belongs to its player. A crew has no area and no ranking of its own.')}</Text>
+          </View>
           <View style={local.bento}>
-            <CrewTile icon="versus" title={copy('Défis de crew', 'Crew challenges')} detail={copy('Invitations et résultats.', 'Invitations and results.')} onPress={() => router.push('/crew-challenges')} prominent />
+            {/* G20 porte le nom « Défi de la semaine ». La TUILE est une PORTE, pas
+                une affirmation : elle décrit ce qu'on trouve derrière, jamais
+                l'existence d'un défi en cours — l'état réel (aucune arène
+                publiée tant qu'aucun joueur ne court vraiment là, 0151) se lit
+                sur l'écran des défis, avec ses quatre états. */}
+            <CrewTile icon="versus" title={copy('Défi de la semaine', 'Weekly challenge')} detail={copy('Cinq contre cinq. Invitations et résultats.', 'Five against five. Invitations and results.')} onPress={() => router.push('/crew-challenges')} prominent />
             <CrewTile icon="map" title={copy('Terrains', 'Terrain')} detail={copy('Voir la carte.', 'Open the map.')} onPress={() => router.push('/(tabs)')} />
           </View>
           {announcement ? <View style={local.announcement}><View style={local.cardHeading}><Text style={local.cardLabel}>{copy('Annonce', 'Announcement')}</Text><GrydIcon name="bell" size={20} color={c.muted} /></View><Text style={local.body}>{announcement.body}</Text><ProfileLink tone="light" title={copy('Voir les annonces', 'View announcements')} icon="feed" onPress={() => router.push('/crew-activite')} /></View> : null}
+          {/* LA PORTE DU JOURNAL DU CREW, SANS CONDITION. Elle vivait DANS le
+              bloc « Annonce » : sur un crew calme (aucune annonce épinglée), le
+              fil complet — arrivées, sorties proposées, captures — n'était
+              atteignable par aucun geste. Une porte qui n'existe que quand il y
+              a déjà quelque chose à voir n'est pas une porte. */}
+          <ProfileLink tone="light" title={copy('Journal du crew', 'Crew journal')} subtitle={copy('Arrivées, sorties proposées et captures.', 'Arrivals, proposed outings and captures.')} icon="historique" onPress={() => router.push('/crew-activite')} />
           <View><ProfileSection tone="light" title={copy('Partagé avec le crew', 'Shared with your crew')} action={copy('Tout voir', 'View all')} onPress={() => router.push({ pathname: '/crew-feed', params: { activity: feedActivity } })} /><ProfileSegments tone="light" value={feedActivity} onChange={setFeedActivity} options={[{ key: 'run', label: copy('Course', 'Run') }, { key: 'bike', label: copy('Vélo', 'Ride') }]} /></View>
           {social.status === 'loading' ? <View style={local.state}><ActivityIndicator color={c.ink} /><Text style={local.copy}>{copy('Lecture des publications…', 'Loading posts…')}</Text></View> : social.status === 'failed' ? <View style={local.state}><ProfileLink tone="light" title={copy('Le fil est indisponible · Réessayer', 'Feed unavailable · Retry')} icon="historique" onPress={social.reload} /></View> : recent.length ? recent.map(post => <View key={post.id} style={local.socialSurface}><SocialPostCard2026 post={post} tone="light" busy={reactionBusy} onReact={kind => void encourage(post, kind)} onOpen={() => router.push({ pathname: '/crew-feed', params: { activity: feedActivity, postId: post.id } })} /></View>) : <View style={local.state}><GrydIcon name="camera" size={24} color={c.ink} /><Text style={local.rowTitle}>{copy('Le fil attend vos sorties', 'Your outings belong here')}</Text><Text style={local.copy}>{copy('Les sorties partagées avec le crew apparaîtront ici.', 'Activities shared with the crew will appear here.')}</Text></View>}
           {reactionError ? <Text accessibilityRole="alert" style={local.body}>{reactionError}</Text> : null}

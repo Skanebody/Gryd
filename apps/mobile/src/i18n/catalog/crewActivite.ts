@@ -72,6 +72,39 @@ export const C = defineCatalog({
     de: 'VORGESCHLAGENE AUSFAHRTEN',
     pt: 'SAÍDAS PROPOSTAS',
   },
+  /**
+   * « ILS ONT REJOINT » et non « NOUVEAUX MEMBRES » : le second est une
+   * étiquette posée sur des gens (et qui périme mal — on reste « nouveau »
+   * combien de temps ?), le premier est un FAIT daté. §13.4 demande d'ailleurs
+   * de faire tourner les mises en avant, pas de créer une caste.
+   */
+  secJoin: {
+    fr: 'ILS ONT REJOINT',
+    en: 'THEY JOINED',
+    es: 'SE HAN UNIDO',
+    de: 'SIE SIND DAZUGEKOMMEN',
+    pt: 'ELES ENTRARAM',
+  },
+  /** Une arrivée, dite sans cérémonie. Le pseudo précède, l'écran l'insère. */
+  joinFact: {
+    fr: 'a rejoint le crew',
+    en: 'joined the crew',
+    es: 'se ha unido al crew',
+    de: 'ist dem Crew beigetreten',
+    pt: 'entrou no crew',
+  },
+  /**
+   * Ce que l'écran dit à celui qui vient d'arriver, une fois, sans injonction.
+   * §13.4 mot pour mot : « Ta sortie compte dans celle du crew. » On ne
+   * transforme pas cet accueil en ordre de courir (§14.2).
+   */
+  joinWelcome: {
+    fr: 'Dis bonjour dans la conversation quand tu veux.',
+    en: 'Say hello in the conversation whenever you like.',
+    es: 'Saluda en la conversación cuando quieras.',
+    de: 'Sag Hallo im Gespräch, wann immer du magst.',
+    pt: 'Diga olá na conversa quando quiser.',
+  },
   secConquest: {
     fr: 'FAITS DU CREW',
     en: 'CREW FACTS',
@@ -466,6 +499,7 @@ export const C = defineCatalog({
 export const CREW_ACTIVITY_SECTION_E: Readonly<Record<CrewActivitySection, Entry>> = {
   announcement: C.secAnnouncement,
   outing: C.secOuting,
+  join: C.secJoin,
   conquest: C.secConquest,
   help: C.secHelp,
 };

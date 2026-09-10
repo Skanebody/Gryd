@@ -367,3 +367,115 @@ Deno.test('rôles : la liste ne s’ajoute que si elle OUVRE quelque chose', () 
       'la même chose',
   );
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⑤ LOT K — « UNE FOIS DANS UN CREW, QU'EST-CE QU'IL SE PASSE ? » (11/09/2026)
+//
+// ÉTAPE 0 — LES DÉFAUTS EXISTAIENT, et les voici nommés :
+//
+//  · LA PAGE DE SON PROPRE CREW EN DISAIT MOINS QUE LA FICHE DU VOISIN.
+//    `crew_public_profile` (0152 §3) rend `cityName` et `recruitmentStatus` à
+//    qui n'est PAS dans le crew ; `crew_overview` ne les rendait pas. On
+//    perdait deux faits en adhérant. (Corrigé par 0182 + la ligne d'identité.)
+//
+//  · LE TERRAIN DU CREW ÉTAIT LU ET JAMAIS AFFICHÉ. `real.ts` parse
+//    `crew_overview.territory` (membersHolding, holdsRun, holdsBike,
+//    lastCaptureAt) depuis 0152 ; AUCUN écran de septembre ne le rendait.
+//    `/crew-stats`, la seule surface qui aurait pu, est une redirection depuis
+//    le cahier — et sa source (`crew_stats()`) est épinglée `legacy` par 0118.
+//
+//  · LE JOURNAL DU CREW N'AVAIT DE PORTE QUE S'IL Y AVAIT DÉJÀ UNE ANNONCE.
+//    Le lien vers `/crew-activite` vivait DANS le bloc « Annonce » : sur un
+//    crew calme, le fil complet n'était atteignable par aucun geste.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Deno.test('crew : la page du crew nomme sa VILLE et son ACCUEIL', () => {
+  const code = codeSeul(lire(ACCUEIL));
+  assert(
+    code.includes('crewIdentityLine2026('),
+    'la ligne ville · accueil a disparu : la fiche publique d’un crew en dit ' +
+      'de nouveau plus que la page de son propre crew',
+  );
+  // Et elle vient de l'AGRÉGAT SERVEUR, jamais d'un repli local.
+  assert(
+    /cityName:\s*crew\.overview\?\.cityName/.test(code),
+    'la ville n’est plus lue sur crew_overview (0182)',
+  );
+  assert(
+    /access:\s*crew\.overview\?\.access/.test(code),
+    'l’accueil n’est plus lu sur crew_overview (0182)',
+  );
+});
+
+Deno.test('crew : le TERRAIN du crew est affiché, avec ses quatre états', () => {
+  const code = codeSeul(lire(ACCUEIL));
+  assert(code.includes('crewTerrainState2026('), 'le bloc terrain du crew a disparu');
+  // Les quatre états sont DISTINCTS à l'écran. Si l'un d'eux cesse d'être
+  // traité, le rendu retombe sur un autre — et « je n'ai pas pu lire » se
+  // peindrait « personne ne tient de terrain ».
+  for (const etat of ["'loading'", "'unavailable'", "'empty'"]) {
+    assert(
+      code.includes(`terrain.kind === ${etat}`),
+      `l’état ${etat} du terrain de crew n’est plus distingué`,
+    );
+  }
+  assert(code.includes('terrain.membersHolding'), 'le terrain ne se dit plus en MEMBRES');
+  // Et la règle du jeu est dite, sinon l'absence de km² se lit comme un
+  // chiffre qui n'a pas chargé (0126 : le titre territorial est individuel).
+  assert(
+    code.includes('ni surface ni classement'),
+    'l’écran n’explique plus pourquoi un crew n’a pas de surface',
+  );
+});
+
+Deno.test('crew : la porte du JOURNAL du crew ne dépend plus d’une annonce', () => {
+  const source = lire(ACCUEIL);
+  const code = codeSeul(source);
+  const journal = lignes(source, "copy('Journal du crew'");
+  assertEquals(journal.length, 1, 'la porte du journal du crew doit exister une fois');
+  // ÉTAPE 0 rejouée : avant, le SEUL lien vers /crew-activite était à
+  // l'intérieur du bloc `{announcement ? … : null}`.
+  const portes = lignes(source, "router.push('/crew-activite')");
+  assert(
+    portes.length >= 2,
+    'il ne reste qu’une porte vers le journal du crew, et elle est ' +
+      'conditionnelle : un crew sans annonce n’y accède plus',
+  );
+  assert(
+    code.includes("subtitle={copy('Arrivées, sorties proposées et captures."),
+    'la porte du journal ne dit plus ce qu’on trouve derrière',
+  );
+});
+
+Deno.test('crew : AUCUNE lecture d’une source figée (crew_stats / crew_board)', () => {
+  /*
+   * `crew_stats()` est épinglée `runs.ruleset_version = 'legacy'` par 0118 et
+   * `crew_board()` lit une matview alimentée par les tables héritées : les
+   * deux rendent des ZÉROS VRAIS d'une source MORTE. `features/crew/statsData.ts`
+   * les appelle encore et n'a plus AUCUN importeur — c'est ce qui le rend
+   * inoffensif, et c'est exactement ce qui pourrait cesser d'être vrai au
+   * prochain « on réutilise ce hook, il existe déjà ».
+   */
+  for (const chemin of [ACCUEIL, '../crew/CrewActivityScreen.tsx', '../refonte/RunResult.tsx']) {
+    const code = codeSeul(lire(chemin));
+    assert(!code.includes('crew_stats'), `${chemin} lit crew_stats(), gelée par 0118`);
+    assert(!code.includes('crew_board'), `${chemin} lit crew_board(), matview héritée`);
+    assert(!code.includes('statsData'), `${chemin} importe le câblage de la source figée`);
+  }
+});
+
+Deno.test('résultat : le bloc « pour ton crew » n’annonce JAMAIS une surface de crew', () => {
+  const code = codeSeul(lire('../refonte/RunResult.tsx'));
+  assert(code.includes('useCrewRunImpact2026('), 'le résultat ne dit plus rien du crew');
+  assert(
+    code.includes("crewImpact.kind === 'ready'"),
+    'le bloc crew se peint sur autre chose qu’une lecture ABOUTIE : ' +
+      '« je n’ai pas pu lire » et « tu n’as pas de crew » ne sont pas la même ' +
+      'chose, et aucun des deux n’est une carte à afficher',
+  );
+  // Le « combien » vient de `capture_result_2026`, une seule fois, plus haut.
+  assert(
+    !/crewImpact[^\n]*(km²|areaM2|newTerrainM2)/.test(code),
+    'le bloc crew affiche une surface au nom du crew (0126 : le titre est individuel)',
+  );
+});

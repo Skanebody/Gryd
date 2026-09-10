@@ -161,6 +161,10 @@ export function CrewActivityScreen() {
         announcements: feed.ctx?.announcements ?? [],
         outings: outings.ctx?.upcoming ?? [],
         conquests: feed.ctx?.conquests ?? [],
+        // Arrivées (0182). `?? []` n'affirme RIEN : la section vide est OMISE
+        // par le moteur, donc un serveur d'avant 0182 ne fait pas dire au fil
+        // « personne n'est arrivé » — il n'en parle simplement pas.
+        joins: feed.ctx?.joins ?? [],
         pings: pings ?? [],
         isBlocked,
       }),
@@ -406,6 +410,9 @@ export function CrewActivityScreen() {
             {g.section === 'conquest' ? (
               <Text style={styles.hint}>{t(C.factDeferredNote)}</Text>
             ) : null}
+            {g.section === 'join' ? (
+              <Text style={styles.hint}>{t(C.joinWelcome)}</Text>
+            ) : null}
             {g.section === 'outing' ? (
               <>
                 <Text style={styles.hint}>{t(C.outingNoRsvp)}</Text>
@@ -462,6 +469,8 @@ function rowKey(item: CrewActivityItem): string {
       return `a:${item.announcement.id}`;
     case 'outing':
       return `o:${item.outing.id}`;
+    case 'join':
+      return `j:${item.join.userId}:${item.join.joinedAtMs}`;
     case 'conquest':
       return `c:${item.conquest.id}`;
     default:
@@ -543,6 +552,29 @@ function Row({ item, blocked, busy, myUserId, canPost, onRemove, onModerate }: R
             {o.placeLabel !== null ? <Text style={styles.meta}>{o.placeLabel}</Text> : null}
           </View>
         </View>
+      </View>
+    );
+  }
+
+  if (item.section === 'join') {
+    const j = item.join;
+    // Le pseudo est GARANTI non nul par `parseCrewJoin` (une arrivée sans sujet
+    // n'est pas une nouvelle). Il passe quand même par `displayedPseudo` : un
+    // joueur bloqué reste masqué partout, sans exception d'écran.
+    return (
+      <View style={styles.row}>
+        <View style={styles.dot} />
+        <View style={styles.rowBody}>
+          <Text style={styles.rowText}>
+            {`${displayedPseudo(blocked, j.pseudo ?? '', t(CrewC.blockedPlayerRow))} ${t(C.joinFact)}`}
+          </Text>
+          <View style={styles.metaRow}>
+            <Text style={styles.meta}>{ageLabel(j.joinedAtMs, t)}</Text>
+          </View>
+        </View>
+        {j.pseudo !== null ? (
+          <PlayerActionsButton name={j.pseudo} onPress={() => onModerate(j.pseudo!)} />
+        ) : null}
       </View>
     );
   }
