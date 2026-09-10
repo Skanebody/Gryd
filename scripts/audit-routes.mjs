@@ -114,15 +114,14 @@ const QUARANTINE_DIRS = ['apps/mobile/app/(mvp)/'];
  * autrement qu'en tapant sur un lien, ou des trous connus et inscrits.
  */
 const KNOWN_ORPHANS = new Map([
-  [
-    '/profil-rival/[handle]',
-    'E56 — atteint par lien profond / QR uniquement. La raison a CHANGÉ le ' +
-      '27/07/2026 : ce n’est plus « O1 n’expose pas de rival consenti » (la ' +
-      'lecture consentie existe et l’écran s’en sert), c’est qu’aucune surface ' +
-      'de l’app ne DÉSIGNE encore un autre joueur. Le cahier de septembre a ' +
-      'réécrit `/amis` autour de `/member` (app/amis.tsx:19) — le rival public ' +
-      'n’y est toujours pas nommé.',
-  ],
+  // ⚠️ `/profil-rival/[handle]` A ÉTÉ RETIRÉ D'ICI le 11/09/2026 (lot Q4). Sa
+  // raison tenait en une phrase : « aucune surface de l'app ne DÉSIGNE encore
+  // un autre joueur, il n'est atteint que par lien profond ou QR ». Le QR
+  // vient d'arriver : `/qr` a un onglet Scanner (`features/scan/`), et un QR
+  // de profil `gryd://u/<handle>` y produit un `router.push` réel vers cet
+  // écran (`scanTarget2026.ts`, testé). L'exemption serait donc devenue
+  // fausse, et une exemption fausse est pire qu'une orpheline : elle éteint la
+  // surveillance d'une route vivante.
   // ⚠️ `/zones-rival/[handle]` et `/challenges/[id]` ONT ÉTÉ RETIRÉS D'ICI le
   // 09/09/2026. Leur raison disait « le lien est un gabarit `${…}` que ce
   // script ne sait pas reconnaître » — c'était vrai de l'AUDIT, pas du code.

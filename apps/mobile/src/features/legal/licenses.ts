@@ -77,6 +77,11 @@ export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
   expo: 'MIT',
   'expo-apple-authentication': 'MIT',
   'expo-auth-session': 'MIT',
+  // Ajouté le 11/09/2026 (lot Q4) : le scanner de QR de crew de `/qr`
+  // (`features/scan/`). iOS n'ouvre pas un `gryd://` depuis l'app Appareil
+  // photo et le domaine des universal links n'existe pas (O10) : sans ce
+  // module, un QR de crew n'était lisible par AUCUN appareil.
+  'expo-camera': 'MIT',
   'expo-clipboard': 'MIT',
   'expo-constants': 'MIT',
   'expo-crypto': 'MIT',

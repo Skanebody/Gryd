@@ -1,6 +1,11 @@
 /**
  * GRYD — L'INVITATION NE PROMET PAS UNE PAGE QUI N'EXISTE PAS.
  *
+ * ⚠ 11/09/2026 — CE TEST A SUIVI SON ÉCRAN. `refonte/CrewInviteScreen.tsx`
+ * (un MODE de la page Crew) est devenu `crew/CrewInvitationScreen2026.tsx`
+ * (la route `/crew-invitation`). La garde ci-dessous n'a pas bougé d'un mot :
+ * c'est la DÉCISION du 10/09 qu'elle protège, pas un chemin de fichier.
+ *
  * ÉTAPE 0 — LE DÉFAUT EXISTAIT, et il tenait en trois faits vérifiables :
  *   1. `CrewInviteScreen.tsx` partageait `buildInviteLink(code)`, c'est-à-dire
  *      `https://gryd.run/c/<code>` (`features/crew/invite.ts:57`) ;
@@ -18,7 +23,7 @@
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 
-const SCREEN = new URL('./CrewInviteScreen.tsx', import.meta.url);
+const SCREEN = new URL('./CrewInvitationScreen2026.tsx', import.meta.url);
 const APP_JSON = new URL('../../../app.json', import.meta.url);
 const WEB_APP_DIR = new URL('../../../../web/app/', import.meta.url);
 
@@ -29,9 +34,26 @@ Deno.test('l’invitation partage le lien profond réel, jamais un https sans pa
     !/buildInviteLink\(/.test(src),
     'plus aucun `https://gryd.run/c/…` : sans domaine déclaré ni page servie, c’est une 404',
   );
-  // QR et lien partagé encodent LA MÊME chose — sinon la phrase redevient fausse.
+});
+
+Deno.test('le QR et le lien partagé portent le MÊME jeton, par construction', async () => {
+  const src = (await Deno.readTextFile(SCREEN)).replace(/\/\*[\s\S]*?\*\//g, '');
+  // UNE SEULE construction du lien dans tout l'écran : deux appels
+  // indépendants divergeraient au premier changement de format, et un QR
+  // imprimé ne se corrige pas.
+  const appels = src.match(/buildInviteDeepLink\(/g) ?? [];
+  assertEquals(appels.length, 2, 'le lien doit se construire à un seul endroit (import + appel)');
+  assert(
+    /const link = buildInviteDeepLink\(code\);/.test(src),
+    'le lien est nommé une fois, puis réutilisé',
+  );
   const qr = src.slice(src.indexOf('<QRCode'), src.indexOf('<QRCode') + 200);
-  assert(qr.includes('buildInviteDeepLink(code)'), 'le QR encode le même lien que le partage');
+  assert(qr.includes('value={link}'), 'le QR encode le lien nommé, pas une seconde construction');
+  // Partager ET copier consomment le MÊME `link`.
+  assert(
+    /copyInviteLink\(link\)/.test(src) && /shareInviteLink\(link\)/.test(src),
+    'partager et copier doivent envoyer exactement ce que le QR encode',
+  );
 });
 
 Deno.test('la phrase sous le lien dit ce qui se passe SANS l’app', async () => {

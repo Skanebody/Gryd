@@ -6,18 +6,23 @@
  *
  * ── CE QUI EST LIVRÉ, ET CE QUI NE L'EST PAS ────────────────────────────────
  * La planche décrit DEUX onglets (« Mon code | Scanner ») et une variante crew.
- *  · L'onglet SCANNER n'est pas peint : `apps/mobile/package.json` n'a AUCUNE
- *    dépendance caméra (ni expo-camera, ni scanner de code-barres) et ce
- *    chantier n'a pas le droit d'en installer. Un segmented dont un onglet sur
- *    deux ne peut rien faire est un bouton mort déguisé en navigation ; et un
- *    segmented à un seul item n'est plus un segmented. On l'OMET, et on le DIT
- *    en bas d'écran, avec l'alternative qui marche (montrer / envoyer).
- *    Corollaire : l'état « permission caméra refusée » de la planche n'existe
- *    pas ici — on ne demande aucune permission.
- *  · La variante « INVITER AU CREW » EXISTE DÉJÀ ailleurs
- *    (`features/crew/CrewInviteQRScreen`, atteinte depuis l'onglet Crew) et
- *    n'est pas dupliquée : deux générateurs de QR crew divergeraient au premier
- *    changement de format de lien.
+ *  · L'onglet SCANNER EXISTE DEPUIS LE 11/09/2026 (lot Q4). Il n'existait pas
+ *    avant, et l'ancien en-tête de ce fichier disait pourquoi : le dépôt
+ *    n'avait AUCUNE dépendance caméra. `expo-camera` est maintenant au build,
+ *    et la règle qui justifiait l'absence n'a pas changé d'un mot : un onglet
+ *    qui ne peut rien faire est un bouton mort déguisé en navigation. C'est
+ *    `scanCapability2026` qui tranche, en lisant le BINAIRE (config embarquée
+ *    + module natif) : sur le web l'onglet n'est pas peint du tout, et sur un
+ *    build antérieur au plugin il est peint mais dit qu'un nouveau build est
+ *    nécessaire. Le segmented n'apparaît donc jamais avec un côté mort.
+ *  · L'onglet SCANNER NE DEMANDE AUCUN COMPTE. Scanner l'invitation de
+ *    quelqu'un est justement ce que fait une personne qui n'a pas encore de
+ *    compte : `/c/[code]` mémorise l'invitation et propose d'en créer un. Le
+ *    segmented vit donc AU-DESSUS des états de profil, pas dedans.
+ *  · La variante « INVITER AU CREW » EXISTE DÉJÀ ailleurs (`/crew-invitation`,
+ *    `features/crew/CrewInvitationScreen2026`, atteinte en un tap depuis la
+ *    page du crew) et n'est pas dupliquée : deux générateurs de QR crew
+ *    divergeraient au premier changement de format de lien.
  *
  * ── LES TROIS ÉTATS, JAMAIS CONFONDUS ──────────────────────────────────────
  *   (a) hydratation (session ou profil pas encore lus) → on n'affirme RIEN,
@@ -39,12 +44,15 @@
  * « scannez pour défier » (il n'existe ni suivi ni duel joueur-contre-joueur) :
  * on dit ce que le code CONTIENT, et on dit que la page n'est pas en ligne.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, fontSizes, iconSizes, sizes, spacing } from '@klaim/shared';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
 import { Icon } from '../src/ui/Icon';
+import { Segmented } from '../src/ui/game/Segmented';
+import { QRScannerPanel2026 } from '../src/features/scan/QRScannerPanel2026';
+import { scanAvailable2026 } from '../src/features/scan/scanCapability2026';
 import { useT } from '../src/i18n/store';
 import { C } from '../src/i18n/catalog/qr';
 import { EVENTS, track } from '../src/lib/analytics';
@@ -61,11 +69,21 @@ import { ToastHost, useToast } from '../src/features/social/Toast';
 import { copyText, openShareSheet, shareAsImage } from '../src/features/share/shareActions';
 import type { ShareActionResult } from '../src/features/share/shareActions';
 
+type QRTab = 'code' | 'scan';
+
 export default function QRScreen() {
   const t = useT();
   const toast = useToast();
   /** Cible EXACTE de l'export PNG (`collapsable={false}` obligatoire côté natif). */
   const cardRef = useRef<View>(null);
+  const [tab, setTab] = useState<QRTab>('code');
+  /**
+   * CE BINAIRE SAIT-IL SCANNER ? Mesuré une fois : ni le natif embarqué ni la
+   * config du build ne changent en cours d'écran. `unsupported_platform` (web)
+   * ⇒ AUCUN onglet : un segmented à un seul item n'est plus un segmented.
+   */
+  const scan = useMemo(() => scanAvailable2026(), []);
+  const hasScanTab = scan !== 'unsupported_platform';
 
   const { session, configured, loading: sessionLoading } = useSession();
   const { profile, editable, loading: profileLoading } = useMyProfile();
@@ -139,10 +157,41 @@ export default function QRScreen() {
     settle(shareAsImage(cardRef.current, profileShareMessage(link)), 'profile_qr_image');
   }, [link, settle]);
 
+  /**
+   * LE SÉLECTEUR D'ONGLETS. Il vit AU-DESSUS des trois états du profil, parce
+   * que scanner ne dépend d'aucun compte : la personne qui n'en a pas encore
+   * est précisément celle qui scanne l'invitation d'un ami. `tone="surface"` :
+   * la chartreuse reste au CTA de l'écran (§A4), jamais sur une navigation.
+   */
+  const tabs = hasScanTab ? (
+    <Segmented
+      style={styles.tabs}
+      tone="surface"
+      accessibilityLabel={t(C.title)}
+      value={tab}
+      onChange={(id: QRTab) => setTab(id)}
+      options={[
+        { id: 'code' as QRTab, label: t(C.tabMyCode) },
+        { id: 'scan' as QRTab, label: t(C.tabScanner) },
+      ]}
+    />
+  ) : null;
+
+  // ── L'ONGLET SCANNER : il n'attend NI session NI profil ───────────────────
+  if (tab === 'scan') {
+    return (
+      <StackScreen title={t(C.title)} icon="qr">
+        {tabs}
+        <QRScannerPanel2026 />
+      </StackScreen>
+    );
+  }
+
   // ── (a) HYDRATATION : une phrase, rien d'autre. Un chargement n'affirme rien. ─
   if (hydrating) {
     return (
       <StackScreen title={t(C.title)} icon="qr">
+        {tabs}
         <Text style={styles.loading}>{t(C.stateLoading)}</Text>
       </StackScreen>
     );
@@ -164,13 +213,21 @@ export default function QRScreen() {
   if (!link) {
     return (
       <StackScreen title={t(C.title)} icon="qr">
+        {tabs}
         <AccountDoor2026
           family="ui"
           reason={t(C.stateSignedOutBody)}
           analyticsId="qr_sign_in"
         />
-        <Text style={styles.footnote}>{t(C.scannerTitle)}</Text>
-        <Text style={styles.footnoteBody}>{t(C.scannerBody)}</Text>
+        {/* La note « scanner » ne se dit QUE là où il n'y a pas d'onglet
+            (le web) : ailleurs, l'onglet parle pour lui-même, et répéter son
+            absence sous un onglet présent serait faux. */}
+        {hasScanTab ? null : (
+          <>
+            <Text style={styles.footnote}>{t(C.scannerTitle)}</Text>
+            <Text style={styles.footnoteBody}>{t(C.scannerBody)}</Text>
+          </>
+        )}
       </StackScreen>
     );
   }
@@ -204,6 +261,7 @@ export default function QRScreen() {
       }
       floating={<ToastHost state={toast} />}
     >
+      {tabs}
       <View ref={cardRef} collapsable={false}>
         <ProfileQRCard
           displayName={ownsName ? profile.displayName : null}
@@ -238,15 +296,21 @@ export default function QRScreen() {
       </View>
 
       {/* Ce qui n'existe pas encore, dit à sa place : en bas, en gris, après
-          l'action — jamais en travers de l'écran. */}
-      <Text style={styles.footnote}>{t(C.scannerTitle)}</Text>
-      <Text style={styles.footnoteBody}>{t(C.scannerBody)}</Text>
+          l'action, jamais en travers de l'écran. La note « scanner » disparaît
+          dès qu'un onglet Scanner existe : il dit lui-même son état. */}
+      {hasScanTab ? null : (
+        <>
+          <Text style={styles.footnote}>{t(C.scannerTitle)}</Text>
+          <Text style={styles.footnoteBody}>{t(C.scannerBody)}</Text>
+        </>
+      )}
       <Text style={styles.footnoteBody}>{t(C.linkPending)}</Text>
     </StackScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  tabs: { marginTop: spacing.lg },
   headerAction: {
     width: sizes.touchTarget,
     height: sizes.touchTarget,

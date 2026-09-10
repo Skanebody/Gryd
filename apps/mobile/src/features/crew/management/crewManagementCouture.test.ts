@@ -69,6 +69,8 @@ const DECOUVERTE = '../../../../app/crew-discovery.tsx';
 const FEUILLE = '../PlayerModerationSheet.tsx';
 const DEMANDES = '../CrewJoinRequests.tsx';
 const ACCUEIL = '../../refonte/CrewHomeScreen.tsx';
+/** La porte de gestion vit dans son propre composant depuis le lot Q4 (11/09). */
+const RACCOURCI = '../CrewManagementShortcut2026.tsx';
 const DONNEES = './crewManagementData.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -327,8 +329,42 @@ Deno.test('gestion : deux retours DISTINCTS, jamais la même phrase à deux endr
 
 Deno.test('portes : l’accueil du crew mène à la gestion, aux règles et à ma situation', () => {
   const code = codeSeul(lire(ACCUEIL));
-  assert(code.includes("'/crew-gestion'"), 'aucune porte vers le tableau de suivi');
+  /*
+   * ⚠ 11/09/2026 (lot Q4) : le `router.push('/crew-gestion')` a QUITTÉ ce
+   * fichier. La porte porte maintenant un COMPTEUR d'alertes, donc deux
+   * lectures serveur gatées sur une permission d'officier ; les écrire dans
+   * l'accueil aurait envoyé deux RPC de plus à chaque membre simple. Le test
+   * suit la composition plutôt que le fichier : l'accueil MONTE le composant,
+   * et le composant POUSSE la route. Se contenter du premier laisserait passer
+   * un composant qui ne navigue nulle part.
+   */
+  assert(
+    code.includes('CrewManagementShortcut2026'),
+    'l’accueil ne monte plus la porte du tableau de suivi',
+  );
+  assert(
+    codeSeul(lire(RACCOURCI)).includes("'/crew-gestion'"),
+    'aucune porte vers le tableau de suivi',
+  );
   assert(code.includes("'/crew-ma-situation'"), 'aucune porte vers « ma situation »');
+});
+
+Deno.test('portes : le compteur d’alertes DISPARAÎT à zéro, jamais une pastille', () => {
+  /*
+   * Une pastille permanente ferait de « rien à faire » une alerte, et le
+   * capitaine cesserait de la lire au bout d'une semaine. Le sous-titre
+   * redevient la description de l'écran quand les deux comptes valent zéro.
+   */
+  const code = codeSeul(lire(RACCOURCI));
+  assert(code.includes('alerts.pending > 0'), 'les demandes sont peintes sans condition');
+  assert(code.includes('alerts.atRisk > 0'), 'les membres à risque sont peints sans condition');
+  assert(
+    code.includes('parts.length > 0'),
+    'le sous-titre ne retombe pas sur la description quand il n’y a rien à dire',
+  );
+  // Le compte vient des RPC réelles, jamais d'un état local optimiste.
+  assert(code.includes('useCrewJoinRequests'), 'les demandes ne viennent pas du serveur');
+  assert(code.includes('useCrewBoard'), 'les membres à risque ne viennent pas du serveur');
 });
 
 Deno.test('portes : la gestion mène au journal et aux règles', () => {

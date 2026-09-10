@@ -20,13 +20,13 @@ import { resolveCrewJoinCode2026 } from '../crew/joinInput2026';
 import { canOpenCrewEdit, dutyOf, isCrewRole, leaveVerdict, roleHas } from '../crew/memberRoles';
 import { charterStale } from '../crew/management/crewRules2026';
 import { acceptCharter, useCrewRules } from '../crew/management/crewManagementData';
+import { CrewManagementShortcut2026 } from '../crew/CrewManagementShortcut2026';
 import { crewEmblemSeed, isCrewEmblem } from '../crew/crewEmblem';
 import { crewDisciplinesLabel2026, crewIdentityLine2026, crewTerrainState2026 } from '../crew/crewIdentity2026';
 import { useRealCrew, type CrewRefusal, type RealCrewMember } from '../crew/real';
 import { nextCrewOuting2026 } from './crewNextOuting2026';
 import { parseCrewOutings2026, type CrewOuting2026 } from './crewOutingsModel2026';
 import { useCrewActivity } from '../crew/crewActivityData';
-import { CrewInviteScreen } from './CrewInviteScreen';
 import { PlayerModerationSheet, useBlockedPseudos } from '../crew/PlayerModerationSheet';
 import { isPseudoBlocked } from '../crew/blocklist';
 import { CrewCrest } from '../../ui/game/CrewCrest';
@@ -46,7 +46,18 @@ import { ProfileButton, ProfileLink, ProfilePage, ProfileSection, ProfileSegment
  * l'adhésion. Garder les modes en doublon aurait laissé deux formulaires de
  * création à tenir d'accord — dont un invisible.
  */
-type Mode = 'home' | 'join' | 'invite';
+/*
+ * ⚠ `invite` A ÉTÉ RETIRÉ DES MODES (11/09/2026, lot Q4).
+ *
+ * L'affiche d'invitation vivait ici, en troisième « mode » de cet écran. Elle a
+ * maintenant sa route (`/crew-invitation`, `crew/CrewInvitationScreen2026`),
+ * pour trois raisons qui se payaient toutes : aucune adresse à ouvrir depuis
+ * un raccourci ou une notification, aucun retour système (le « Retour au
+ * crew » était un état local que le geste iOS ignorait), et un écran invisible
+ * pour `scripts/audit-routes.mjs`. Les quatre portes « Inviter » de cette page
+ * poussent désormais la MÊME route.
+ */
+type Mode = 'home' | 'join';
 
 export function CrewHomeScreen() {
   const { session, loading } = useSession();
@@ -163,7 +174,10 @@ function CrewHomeContents() {
     finally { reactionLock.current = false; setReactionBusy(false); }
   }
   const goMode = (next: Mode) => { setError(null); setMode(next); };
-  if (mode === 'invite' && crew.crew) return <CrewInviteScreen crewName={crew.crew.name} fetchMyCode={crew.fetchMyCode} onBack={() => goMode('home')} />;
+  /* UNE SEULE porte d'invitation, poussée par les quatre affordances de la
+     page : le « + » de l'en-tête, le raccourci « Inviter », l'action de la
+     liste des membres, et le repli du bloc « aucune sortie prévue ». */
+  const openInvite = () => { haptics.light(); router.push('/crew-invitation'); };
   const nextOuting = nextCrewOuting2026(outings.ctx?.upcoming ?? [], Date.now());
   const recent = Array.isArray(social.data) ? social.data.slice(0, 3) : [];
   const announcement = feed.ctx?.announcements.find(item => !item.authorPseudo || !isPseudoBlocked(blocked, item.authorPseudo));
@@ -275,7 +289,7 @@ function CrewHomeContents() {
           {/* Le BLASON du crew, dérivé de `crews.color` — la valeur choisie à la
               création est enfin relue quelque part (voir crewEmblem.ts). Un
               entier hors bornes n'affiche rien plutôt qu'un blason d'emprunt. */}
-          <View style={local.crewIdentity}>{isCrewEmblem(crew.crew.color) ? <CrewCrest seed={crewEmblemSeed(crew.crew.color)} name={crew.crew.name} size="m" /> : null}<View style={local.flex}><Text style={local.heroTitle}>{crew.crew.name}</Text>{identityLine ? <Text style={local.micro}>{identityLine}</Text> : null}<Pressable accessibilityRole="button" onPress={() => setSection('members')} style={local.memberCount}><Text style={local.heroCopy}>{crew.memberCount.toLocaleString(locale)} {copy('membres', 'members')}</Text><GrydIcon name="chevronRight" size={16} color={c.darkMuted} /></Pressable></View><Pressable accessibilityRole="button" accessibilityLabel={copy('Inviter un membre', 'Invite a member')} onPress={() => goMode('invite')} style={local.lightCircle}><GrydIcon name="plus" size={20} color={c.ink} /></Pressable></View>
+          <View style={local.crewIdentity}>{isCrewEmblem(crew.crew.color) ? <CrewCrest seed={crewEmblemSeed(crew.crew.color)} name={crew.crew.name} size="m" /> : null}<View style={local.flex}><Text style={local.heroTitle}>{crew.crew.name}</Text>{identityLine ? <Text style={local.micro}>{identityLine}</Text> : null}<Pressable accessibilityRole="button" onPress={() => setSection('members')} style={local.memberCount}><Text style={local.heroCopy}>{crew.memberCount.toLocaleString(locale)} {copy('membres', 'members')}</Text><GrydIcon name="chevronRight" size={16} color={c.darkMuted} /></Pressable></View><Pressable accessibilityRole="button" accessibilityLabel={copy('Inviter un membre', 'Invite a member')} onPress={openInvite} style={local.lightCircle}><GrydIcon name="plus" size={20} color={c.ink} /></Pressable></View>
         </View>
         {/* LA CHARTE A CHANGÉ. Le texte est SOUS les yeux au moment d'accepter :
             cocher « j'ai lu » sous un texte replié n'est pas un consentement.
@@ -298,11 +312,11 @@ function CrewHomeContents() {
               {rsvpError ? <Text accessibilityRole="alert" style={local.copy}>{rsvpError}</Text> : null}
             </View> : outings.loading ? <View style={local.inlineState}><ActivityIndicator color={c.ink} /><Text style={local.copy}>{copy('Lecture des rendez-vous…', 'Loading meetups…')}</Text></View> : outings.ctx ? <>
               <Text style={local.outingTitle}>{copy('Aucune sortie prévue', 'No outing planned')}</Text><Text style={local.copy}>{copy('Le prochain rendez-vous reste à choisir.', 'Your next meetup is still to be chosen.')}</Text>
-              {outings.ctx.canCreate ? <Pressable accessibilityRole="button" onPress={() => router.push('/crew-sortie')} style={local.primaryRow}><Text style={local.actionText}>{copy('Proposer une sortie', 'Plan an outing')}</Text><View style={local.primaryCircle}><GrydIcon name="plus" size={20} color={c.ink} /></View></Pressable> : <Pressable accessibilityRole="button" onPress={() => goMode('invite')} style={local.primaryRow}><Text style={local.actionText}>{copy('Inviter un ami', 'Invite a friend')}</Text><View style={local.actionCircle}><GrydIcon name="plus" size={20} color={c.ink} /></View></Pressable>}
+              {outings.ctx.canCreate ? <Pressable accessibilityRole="button" onPress={() => router.push('/crew-sortie')} style={local.primaryRow}><Text style={local.actionText}>{copy('Proposer une sortie', 'Plan an outing')}</Text><View style={local.primaryCircle}><GrydIcon name="plus" size={20} color={c.ink} /></View></Pressable> : <Pressable accessibilityRole="button" onPress={openInvite} style={local.primaryRow}><Text style={local.actionText}>{copy('Inviter un ami', 'Invite a friend')}</Text><View style={local.actionCircle}><GrydIcon name="plus" size={20} color={c.ink} /></View></Pressable>}
             </> : <><Text style={local.copy}>{copy('Les rendez-vous sont momentanément indisponibles.', 'Outings are temporarily unavailable.')}</Text>{outings.failed ? <Pressable accessibilityRole="button" onPress={outings.reload} style={local.primaryRow}><Text style={local.actionText}>{copy('Réessayer', 'Try again')}</Text><View style={local.actionCircle}><GrydIcon name="arrowUpRight" size={20} color={c.ink} /></View></Pressable> : null}</>}
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push('/crew-conversation')} style={local.conversation}><View style={local.actionCircle}><GrydIcon name="message" size={20} color={c.ink} /></View><View style={local.flex}><Text style={local.rowTitle}>{copy('Conversation', 'Conversation')}</Text><Text style={local.copy}>{copy('Préparer la prochaine sortie ensemble.', 'Plan your next activity together.')}</Text></View><GrydIcon name="chevronRight" size={18} color={c.muted} /></Pressable>
-          <View style={local.shortcutRow}><Pressable accessibilityRole="button" onPress={() => goMode('invite')} style={local.shortcut}><GrydIcon name="share" size={20} color={c.ink} /><Text style={local.actionText}>{copy('Inviter', 'Invite')}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push('/amis')} style={local.shortcut}><GrydIcon name="profile" size={20} color={c.ink} /><Text style={local.actionText}>{copy('Mes amis', 'My friends')}</Text></Pressable></View>
+          <View style={local.shortcutRow}><Pressable accessibilityRole="button" onPress={openInvite} style={local.shortcut}><GrydIcon name="share" size={20} color={c.ink} /><Text style={local.actionText}>{copy('Inviter', 'Invite')}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push('/amis')} style={local.shortcut}><GrydIcon name="profile" size={20} color={c.ink} /><Text style={local.actionText}>{copy('Mes amis', 'My friends')}</Text></Pressable></View>
           {/* LE TERRAIN DU CREW — ce que `crew_overview.territory` (0152) sait
               dire, et que rien n'affichait. Quatre états DISTINCTS ; la note du
               bas n'est pas une excuse, c'est la règle du jeu (0126 : le titre
@@ -342,7 +356,7 @@ function CrewHomeContents() {
           {reactionError ? <Text accessibilityRole="alert" style={local.body}>{reactionError}</Text> : null}
           <ProfileLink tone="light" title={copy('Choisir une sortie dans mon journal', 'Choose an activity from my journal')} icon="historique" onPress={() => router.push('/(tabs)/profil')} />
         </> : <>
-          <ProfileSection tone="light" title={copy('Membres du crew', 'Crew members')} action={copy('Inviter', 'Invite')} onPress={() => goMode('invite')} />
+          <ProfileSection tone="light" title={copy('Membres du crew', 'Crew members')} action={copy('Inviter', 'Invite')} onPress={openInvite} />
           <View style={local.contributionPanel}><Pressable accessibilityRole="button" accessibilityState={{expanded:editingContribution}} aria-expanded={editingContribution} onPress={() => setEditingContribution(value => !value)} style={local.contributionHeading}><View style={local.flex}><Text style={local.rowTitle}>{copy('Ma contribution', 'My contribution')}</Text><Text style={local.copy}>{copy('Un rôle volontaire pour aider le groupe.', 'A voluntary role to help the group.')}</Text></View><GrydIcon name={editingContribution ? 'minus' : 'plus'} size={20} color={c.ink} /></Pressable>{editingContribution ? <><Text style={local.copy}>{copy('Propose d’accueillir les nouveaux, d’organiser des sorties ou de repérer des parcours publics. Ce choix n’accorde aucun pouvoir de gestion ni qualification sportive.', 'Offer to welcome newcomers, organize outings or scout public routes. This grants no administrative power or sporting qualification.')}</Text>{sportingRoles.status === 'loading' ? <ActivityIndicator color={c.ink} /> : sportingRoles.status === 'failed' ? <ProfileLink tone="light" title={copy('Contributions indisponibles · Réessayer', 'Contributions unavailable · Retry')} icon="historique" onPress={sportingRoles.reload} /> : [...CREW_SPORTING_ROLES_2026, null].map(role => { const current = voluntaryRoles.find(item => item.userId === session?.user.id)?.role; return <Pressable key={role ?? 'none'} accessibilityRole="radio" accessibilityState={{ checked: current === role, disabled: contributionBusy }} aria-checked={current === role} aria-disabled={contributionBusy} disabled={contributionBusy} onPress={() => void chooseContribution(role)} style={local.contributionChoice}><Text style={[local.actionText, local.flex]}>{role ? sportingRoleLabel2026(role, locale === 'en') : copy('Sans rôle volontaire', 'No voluntary role')}</Text><GrydIcon name={current === role ? 'check' : 'plus'} size={20} color={c.ink} /></Pressable>; })}</> : null}</View>
           {sportingRoles.status === 'ready' ? <View accessibilityRole="radiogroup" accessibilityLabel={copy('Retrouver une personne du crew', 'Find someone in your crew')} style={local.memberFilters}>{([
             {key:'all',label:copy('Tous','All')}, {key:'welcomer',label:copy('Accueil','Welcome')}, {key:'outing_host',label:copy('Sorties','Outings')}, {key:'route_scout',label:copy('Parcours','Routes')},
@@ -375,7 +389,11 @@ function CrewHomeContents() {
           {/* LA GESTION. Peinte pour qui peut RÉELLEMENT exclure : le tableau de
               suivi est gaté sur la même permission côté serveur, donc la porte
               et l'écran disent la même chose. */}
-          {canManageCrew ? <ProfileLink tone="light" title={copy('Gérer mon crew', 'Manage my crew')} subtitle={copy('Suivi des membres, avertissements, exclusions et journal.', 'Member board, warnings, removals and decision log.')} icon="crew" onPress={() => { haptics.light(); router.push('/crew-gestion'); }} /> : null}
+          {/* Le SOUS-TITRE compte ce qui attend derrière (candidatures, membres
+              à risque), et redevient la description de l'écran dès qu'il n'y a
+              rien : jamais une pastille permanente. Les deux lectures vivent
+              dans l'enfant, donc elles ne partent QUE pour un officier. */}
+          {canManageCrew ? <CrewManagementShortcut2026 /> : null}
           {/* MA SITUATION, pour TOUT LE MONDE. Elle acquitte mes avertissements :
               c'est ce qui rend vraie la garantie « jamais retiré sans
               avertissement lu ». La cacher aux officiers n'aurait aucun sens,
