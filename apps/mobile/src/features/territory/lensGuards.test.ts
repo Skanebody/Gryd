@@ -129,15 +129,36 @@ Deno.test('lastActivity lit la discipline SANS filtrer sur elle', async () => {
   );
 });
 
+/**
+ * ─── OÙ LE SPORT SE NOMME A CHANGÉ DE FICHIER (10/09/2026) ─────────────────
+ * Ce test lisait `ProfileHomeScreen.tsx` et y cherchait trois chaînes en dur
+ * (`copy('Course à pied', 'Run')`, `runs.slice(0,`, `openRun(run)`) : l'écran
+ * recopiait alors sa liste de sorties à la main. Le lot « Réglages et Profil »
+ * a monté `features/journal/JournalSection2026` à sa place — la ligne y gagne
+ * la vignette du tracé, l'allure et le terrain, et le sport y est NOMMÉ dans
+ * le corps de la ligne au lieu de ne vivre que dans un libellé
+ * d'accessibilité.
+ *
+ * L'invariant surveillé n'a pas bougé d'un pouce : le journal doit nommer le
+ * sport effectivement choisi, et la liste doit venir du journal du MÊME sport.
+ * Seuls les deux fichiers où cet invariant s'écrit ont changé. Le laisser
+ * pointer sur l'ancien emplacement l'aurait rendu ROUGE pour une bonne
+ * refonte, puis vert pour toujours après une suppression négligente.
+ */
 Deno.test('2026 : le Profil nomme le sport du journal et de sa dernière sortie', async () => {
-  const src = await code('../refonte/ProfileHomeScreen.tsx');
+  const ecran = await code('../refonte/ProfileHomeScreen.tsx');
+  const ligne = await code('../journal/JournalSection2026.tsx');
   assert(
-    src.includes("activity === 'bike'") && src.includes("copy('Course à pied', 'Run')") && src.includes("copy('Sortie vélo', 'Ride')"),
-    'le journal filtré doit nommer le sport effectivement choisi',
+    ligne.includes("entry.activity === 'run' ? AC.optionRun : AC.optionBike"),
+    'la ligne du journal doit nommer le sport effectivement choisi (catalogue setupActivity, 5 langues)',
   );
   assert(
-    src.includes('useProfileJournal(activity)') && src.includes('runs.slice(0,') && src.includes('openRun(run)'),
-    'la dernière sortie doit venir du journal du même sport',
+    ligne.includes('activityLabel'),
+    'le nom du sport doit être RENDU, pas seulement calculé',
+  );
+  assert(
+    ecran.includes('useProfileJournal(activity)') && ecran.includes('runs={runs}') && ecran.includes('onOpen={openRun}'),
+    'la liste doit venir du journal du même sport, et son tap ouvrir la sortie',
   );
 });
 

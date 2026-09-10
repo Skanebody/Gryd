@@ -12,18 +12,21 @@ import { useLocale } from '../../i18n/store';
 import { resolve } from '../../i18n/types';
 import { C as defisSemaine } from '../../i18n/catalog/defisSemaine';
 import { useProfileProgress } from './ProfileProgress';
+import { adoptLocalActivities2026, useAdoptableLocalActivities2026, useAdoptionNoticeAcknowledged2026 } from './localActivities';
 import { profileMovementState2026 } from './ProfileMovementState2026';
 import { SeasonalIdentity2026 } from './SeasonalIdentity2026';
 import { CommercialIdentity2026 } from './CommercialIdentity2026';
 import { useCommercialCollections2026 } from '../premium/useCommercialCollections2026';
-import { adoptLocalActivities2026, useAdoptableLocalActivities2026, useAdoptionNoticeAcknowledged2026, useLocalActivities2026 } from './localActivities';
 import { brandImagery } from '../../ui/gryd/brandImagery';
-import { PosterTrace } from '../share/PosterTrace2026';
 import { SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
 import { resolveStudioObject2026 } from '../share/studioObjects2026';
 import { rewardLabel2026 } from './SeasonRewardLabels2026';
 import { retryPendingUpload } from '../../lib/pendingUpload';
 import { ProfileButton, ProfileLink, ProfilePage, s, useRefonteCopy } from './ProfilePrimitives';
+import { JournalSection2026 } from '../journal/JournalSection2026';
+import { buildProfileLink } from '../social/profileLink';
+import { openShareSheet } from '../share/shareActions';
+import { haptics } from '../../lib/haptics';
 
 export function ProfileHomeScreen() {
   const { session, loading } = useSession();
@@ -36,7 +39,7 @@ function ProfileHomeContents() {
   const commercialEmblem = commercial.rows.some(item=>item.id==='clubhouse'&&item.owned&&item.equipped);
   const locale = useLocale();
   const { session, loading: sessionLoading, configured } = useSession();
-  const { profile, loading: profileLoading } = useMyProfile();
+  const { profile, editable, loading: profileLoading } = useMyProfile();
   const crew = useRealCrew();
   const progress = useProfileProgress();
   const adoptable = useAdoptableLocalActivities2026();
@@ -47,9 +50,7 @@ function ProfileHomeContents() {
   const [activity, setActivity] = useState<Activity>('run');
   const [period, setPeriod] = useState<'month' | 'all'>('month');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
   const history = useProfileJournal(activity);
-  const localActivities = useLocalActivities2026();
   const journal = history.runs;
   const journalStatus = history.status;
   useEffect(() => { screen('profil'); }, []);
@@ -75,6 +76,53 @@ function ProfileHomeContents() {
     } finally { setAdopting(false); }
   }
 
+  /**
+   * ─── MON @ N'EST À MOI QUE S'IL VIENT DE MOI (même porte que /qr et /amis) ──
+   * `useMyProfile()` ne laisse jamais un @handle blanc à l'écran : sans saisie
+   * ni session il retombe sur « @coureur ». Ce repli est honnête pour un
+   * libellé d'avatar ; il ne l'est pas dans une invitation, où l'on écrit à
+   * quelqu'un « voici comment me retrouver ». On n'invite donc que si le @ est
+   * adossé à une saisie du joueur ou à un compte.
+   */
+  const ownsHandle = editable.handle.trim().length > 0 || !!session;
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  /**
+   * ─── CE QUE L'INVITATION EMPORTE, ET CE QU'ELLE N'EMPORTE PAS ──────────────
+   * PAS LE LIEN. `buildProfileLink()` produit bien `gryd.run/u/<handle>`, mais
+   * AUCUNE page ne répond dessus : l'arbitrage de domaine n'est pas rendu (O10)
+   * et `apps/web` n'a ni route `/u/[handle]` ni route `/c/[code]`. C'est écrit
+   * noir sur blanc dans `/qr` (« le domaine GRYD n'est pas encore en ligne »).
+   * Un message qui SORT de l'app vers un tiers ne peut pas porter une adresse
+   * morte : le tiers, lui, n'a pas notre note en bas d'écran. Ce dépôt a déjà
+   * corrigé exactement cette faute une fois, sur le sticker de partage — « le
+   * mensonge SORTAIT de l'app » (`shareActions.stickerText`).
+   *
+   * CE QU'ELLE EMPORTE : le @handle. Il est utilisable AUJOURD'HUI — `/amis`
+   * porte une recherche « Nom ou pseudo » servie par un RPC serveur. L'ami
+   * installe GRYD, cherche le @, envoie sa demande. La boucle se ferme.
+   *
+   * Le jour où le domaine répondra, `buildProfileLink` est déjà là et la ligne
+   * ci-dessous n'aura qu'à l'ajouter — c'est pour ça qu'on le calcule.
+   */
+  const profileLink = ownsHandle ? buildProfileLink(profile.handle) : null;
+  const inviteMessage = copy(
+    `Je suis sur GRYD : mes sorties dessinent mon terrain sur la carte. Mon pseudo est @${profile.handle}. Cherche-le dans Amis quand tu auras l’appli.`,
+    `I’m on GRYD: my activities draw my ground on the map. My handle is @${profile.handle}. Search for it under Friends once you have the app.`,
+  );
+  function invite() {
+    if (!profileLink) return;
+    setInviteNotice(null);
+    void openShareSheet(inviteMessage).then(result => {
+      if (result.ok) { void haptics.success(); return; }
+      // Fermer une feuille de partage est un droit : le silence est la bonne
+      // réponse. Seule l'IMPOSSIBILITÉ de partager mérite une phrase.
+      if (result.reason === 'unavailable') setInviteNotice(copy(
+        'Le partage n’est pas disponible sur cet appareil.',
+        'Sharing is unavailable on this device.',
+      ));
+    });
+  }
+
   const rewards = progress.data?.ownedRewards ?? [];
   // §7.2 — les objets de niveau comptent dans la collection au même titre que
   // ceux de saison ; l'emplacement d'identité, lui, reste unique (0144).
@@ -85,7 +133,6 @@ function ProfileHomeContents() {
   const equippedTitle = rewards.find(reward => reward.rewardId === 'title' && reward.equipped);
   const equippedLevelTitle = levelRewards.find(reward => reward.rewardId === 'cartographer' && reward.equipped);
   const titleCollection = equippedTitle ? progress.data?.collections.find(item => item.id === equippedTitle.collectionId)?.title : null;
-  const activityLabel = activity === 'bike' ? copy('Sortie vélo', 'Ride') : copy('Course à pied', 'Run');
   // Le chiffre héros se dérive de l'ÉTAT DE LECTURE, jamais de la seule
   // présence d'une donnée : un échec ne se peint pas comme un profil vide.
   const movement = profileMovementState2026({ status: progress.status, activeDays: progress.data?.activeDays ?? null });
@@ -147,6 +194,48 @@ function ProfileHomeContents() {
       {crew.crew ? <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/crew')} style={local.identityLink}><GrydIcon name="crew" size={16} color={c.muted} /><Text style={local.meta}>{crew.crew.name}</Text></Pressable> : null}
     </View> : null}
 
+    {/* ─── LE BLOC SOCIAL (10/09/2026) ────────────────────────────────────────
+        INTVL met « Refer a friend » tout en haut de ses réglages, avant tout le
+        reste, et paie l'invitation en XP. Le cahier §15.2 tranche les deux
+        points : la place revient à l'INVITATION (« Rendez-vous → membres » est
+        notre seule boucle de croissance mesurable), et « le parrainage ne donne
+        ni XP ni points ni chance supplémentaire de gagner un prix ».
+        Donc : la place, oui — sur le Profil, juste sous l'identité, là où l'on
+        regarde déjà qui l'on est. La récompense, non. Aucun compteur, aucun
+        palier, aucune promesse de gain : trois gestes, et c'est tout.
+
+        ⚠️ PAS DE « ENTRER UN CODE DE PARRAINAGE ». La table `public.referrals`
+        existe dans le schéma (0002) mais RIEN ne l'écrit : aucune RPC ne
+        transforme un code en lien de parrainage, aucune Edge Function ne pose
+        `activated_at`, et le client ne peut pas lire l'`user_id` d'un tiers
+        pour insérer la ligne. Peindre le champ serait un bouton mort. La
+        proposition chiffrée est dans
+        `docs/product/GRYD_REGLAGES_PROFIL_AUDIT_2026_09.md`, § Parrainage. */}
+    <View style={local.social}>
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: !profileLink }} aria-disabled={!profileLink}
+        disabled={!profileLink} onPress={invite}
+        style={[local.socialAction, !profileLink && local.socialActionOff]}>
+        <GrydIcon name="share" size={18} color={profileLink ? c.ink : c.muted} />
+        <Text style={[local.socialLabel, !profileLink && local.socialLabelOff]}>{copy('Inviter un ami', 'Invite a friend')}</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/amis')} style={local.socialAction}>
+        <GrydIcon name="crew" size={18} color={c.ink} />
+        <Text style={local.socialLabel}>{copy('Ajouter des amis', 'Add friends')}</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/qr')} style={local.socialAction}>
+        <GrydIcon name="accountCard" size={18} color={c.ink} />
+        <Text style={local.socialLabel}>{copy('Mon code', 'My code')}</Text>
+      </Pressable>
+    </View>
+    {/* Les DEUX raisons d'un partage impossible ne sont pas la même, et elles
+        n'appellent pas le même geste : sans compte on en crée un ; avec un
+        compte mais sans pseudo choisi, on va l'écrire. Un seul message gris
+        pour les deux enverrait la moitié des gens dans la mauvaise pièce. */}
+    {!profileLink ? <Text style={local.meta}>{session
+      ? copy('Choisis un pseudo dans « Modifier le profil » : c’est lui qui te rend trouvable.', 'Pick a handle under “Edit profile”: that is what makes you findable.')
+      : copy('Un compte te donne un pseudo, et un pseudo te rend trouvable par tes amis.', 'An account gives you a handle, and a handle is what makes you findable.')}</Text> : null}
+    {inviteNotice ? <Text accessibilityRole="alert" style={local.meta}>{inviteNotice}</Text> : null}
+
     <View style={local.hero}>
       <MovementPhoto2026 label={copy(brandImagery.movement.fr, brandImagery.movement.en)} />
       <View style={local.heroCopy}>
@@ -178,16 +267,24 @@ function ProfileHomeContents() {
       <Text style={local.emptyTitle}>{selectedDay ? copy('Aucune sortie ce jour-là', 'No activity on this day') : copy('Aucune sortie enregistrée', 'No recorded activities')}</Text>
       <Text style={local.meta}>{copy('Ta prochaine sortie trouvera sa place ici.', 'Your next activity will appear here.')}</Text>
       {session && progress.data ? <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)')} style={local.startAction}><Text style={local.actionText}>{copy('Ouvrir la carte', 'Open map')}</Text><View style={local.startCircle}><GrydIcon name="arrowUpRight" size={20} color={c.ink} /></View></Pressable> : null}
-    </View> : <View style={local.runList}>
-      {runs.slice(0, showAll ? undefined : 3).map(run => { const trace = run.localId ? localActivities.activities.find(item => item.clientRunId === run.localId)?.traceSegments : undefined;
-        return <Pressable key={run.id} accessibilityRole="button" accessibilityLabel={`${activityLabel} · ${new Date(run.startedAtMs).toLocaleDateString(locale)} · ${run.km.toLocaleString(locale)} km`} onPress={() => openRun(run)} style={local.runRow}>
-          <View style={local.runVisual}>{trace?.some(segment => segment.length > 1) ? <PosterTrace segments={trace} width={64} height={58} light /> : <GrydIcon name={activity} size={22} color={c.muted} />}</View>
-          <View style={s.flex}><Text style={local.meta}>{new Date(run.startedAtMs).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })}</Text><View style={local.runMeasures}><Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={local.runDistance}>{run.km.toLocaleString(locale, { maximumFractionDigits: 2 })}<Text style={local.meta}> km</Text></Text><Text style={local.meta}>{Math.round(run.durationS / 60)} min</Text></View>{run.pending ? <Text style={local.pending}>{copy('À synchroniser', 'Sync pending')}</Text> : null}</View><GrydIcon name="arrowUpRight" size={16} color={c.muted} />
-        </Pressable>;
-      })}
+    </View> : <>
+      {/* ─── LE JOURNAL EST MONTÉ, PLUS RECOPIÉ (10/09/2026) ─────────────────
+          Cette liste vivait ici, en dur : date, kilomètres, minutes. Deux
+          sorties de 5 km s'y ressemblaient trait pour trait, et une sortie qui
+          avait PRIS du terrain se lisait comme une sortie sans capture —
+          alors que l'allure, le statut et le reçu de capture étaient déjà lus
+          par `history/real.ts`. `features/journal/JournalSection2026` porte
+          désormais la ligne complète (vignette du tracé, allure ou vitesse,
+          terrain gagné, verdict serveur) et son propre dépliage.
+          CE QUI RESTE ICI, ET DOIT Y RESTER : les états. La section ne peint
+          ni vide, ni chargement, ni échec — seul l'écran hôte sait distinguer
+          « pas connecté », « en cours », « échec » et « lu, et rien » (L8/L19).
+          Les filtres (discipline, jour, période) et le lien vers /performance
+          restent également à l'écran : ils gouvernent `runs`, ils ne sont pas
+          la liste. */}
+      <JournalSection2026 runs={runs} onOpen={openRun} onExpand={() => { setPeriod('all'); setSelectedDay(null); }} />
       {history.historyStatus !== 'ready' ? <Text style={local.notice}>{copy('Sorties de cet appareil. Le journal en ligne est indisponible.', 'Activities from this device. The online journal is unavailable.')}</Text> : null}
-      {runs.length > 3 || showAll ? <Pressable accessibilityRole="button" onPress={() => { setShowAll(!showAll); setPeriod('all'); setSelectedDay(null); }} style={local.more}><Text style={local.actionText}>{showAll ? copy('Réduire', 'Show less') : copy('Toutes les sorties', 'All activities')}</Text><GrydIcon name="chevronRight" size={16} color={c.muted} /></Pressable> : null}
-    </View>}
+    </>}
 
     <Pressable accessibilityRole="button" onPress={() => router.push('/arsenal')} style={local.collection}>
       <View style={local.rewardArt}>{ownedPreview && previewObject ? <SeasonRewardArtwork2026 object={previewObject} rewardId={ownedPreview.rewardId} tier={ownedPreview.tier} size={42} state="earned" locale={locale === 'en' ? 'en' : 'fr'} /> : <GrydIcon name="collection" size={30} color={c.darkInk} />}</View>
@@ -199,10 +296,17 @@ function ProfileHomeContents() {
       <View style={local.compact}><ProfileButton tone="light" label={copy('Rattacher mes sorties', 'Link my activities')} secondary busy={adopting} onPress={() => void adopt()} /></View>
     </View> : null}
     {adoptionNotice && session ? <Text accessibilityRole="alert" style={local.notice}>{adoptionNotice}</Text> : null}
-    <ProfileLink tone="light" title={copy('Amis', 'Friends')} subtitle={copy('Membres et demandes', 'Members and requests')} icon="ami" onPress={() => router.push('/amis')} />
+    {/* ─── CE QUI RESTE EN BAS, ET CE QUI EST PARTI ───────────────────────
+        · « Amis » a rejoint le bloc social du haut : deux portes pour le même
+          geste en font une de trop, et celle du bas arrivait après le journal,
+          la collection et les sorties de l'appareil.
+        · « Sources et appareils » est parti dans Réglages, qui lui donne
+          désormais son propre groupe. C'est aussi là que le benchmark le met
+          (INTVL « Integrations », Strava « Applications connectées ») : on ne
+          branche pas une montre depuis une page d'identité.
+        Restent trois destinations, de la plus quotidienne à la plus rare. */}
     <ProfileLink tone="light" title={copy('Progression', 'Progress')} subtitle={copy('Niveaux et saison', 'Levels and season')} icon="niveau" onPress={() => router.push('/season')} />
     <ProfileLink tone="light" title={resolve(defisSemaine.entreeProfil, locale)} subtitle={resolve(defisSemaine.entreeProfilDetail, locale)} icon="badge" onPress={() => router.push('/defis-semaine')} />
-    <ProfileLink tone="light" title={copy('Sources et appareils', 'Sources and devices')} icon="lien" onPress={() => router.push('/sources')} />
     <ProfileLink tone="light" title="GRYD+" subtitle={copy('Studio, analyses et éditions', 'Studio, insights and editions')} icon="pass" onPress={() => router.push('/premium')} />
   </ProfilePage>;
 }
@@ -224,11 +328,16 @@ const local = StyleSheet.create({
   gateNote: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, textAlign: 'center' },
   identity: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: 16, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, identityArt: { backgroundColor: c.carbon, borderRadius: 16 }, identityCopy: { flex: 1, minWidth: 90, gap: 4 }, avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.darkSurface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: 44, height: 44 }, initials: { fontFamily: fonts.displayMedium, fontSize: 18, color: c.darkInk }, name: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.ink, letterSpacing: -0.4 }, identityTitle: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted },
   meta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted }, body: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.ink }, actionText: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink }, iconAction: { width: 44, minHeight: 44, borderRadius: 22, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }, identityLinks: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, paddingHorizontal: 8, marginBottom: 12 }, identityLink: { minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  social: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  socialAction: { flex: 1, minWidth: 96, minHeight: 62, gap: 6, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 20, backgroundColor: c.surface, justifyContent: 'center' },
+  socialActionOff: { opacity: 0.55 },
+  socialLabel: { fontFamily: fonts.textMedium, fontSize: 12, lineHeight: 17, color: c.ink },
+  socialLabelOff: { color: c.muted },
   hero: { backgroundColor: c.carbon, borderRadius: 24, overflow: 'hidden', marginBottom: 12 }, heroImage: { position: 'absolute', width: '100%', resizeMode: 'cover' }, heroCopy: { padding: 16, gap: 8 }, heroEyebrow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, heroMeta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted }, heroTitle: { fontFamily: fonts.displayMedium, fontSize: 20, lineHeight: 26, letterSpacing: -.5, color: c.darkInk }, heroValue: { fontFamily: fonts.displayMedium, fontSize: 28, lineHeight: 34, color: c.darkInk, fontVariant: ['tabular-nums'] }, heroUnit: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20 }, heroCta: { minHeight: 44, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4 }, heroCtaText: { fontFamily: fonts.textSemi, fontSize: 13, lineHeight: 19, color: c.ink }, heroLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, marginTop: 2 }, heroLinkText: { flex: 1, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.darkInk }, heroState: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   journalHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 8, marginBottom: 12, gap: 8 }, sectionTitle: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.ink }, sports: { marginLeft: 'auto', flexDirection: 'row', gap: 4, backgroundColor: c.surface, borderRadius: 24, padding: 3 }, sport: { minHeight: 44, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 22 }, sportSelected: { backgroundColor: c.carbon }, sportTextSelected: { color: c.darkInk }, selectedText: { color: c.ink, fontFamily: fonts.textSemi },
   calendar: { flexDirection: 'row', paddingVertical: 8, backgroundColor: c.surface, borderRadius: 24, marginBottom: 12 }, day: { flex: 1, alignItems: 'center', paddingVertical: 9, gap: 6, minHeight: 68, borderRadius: 20 }, daySelected: { backgroundColor: c.carbon }, dayName: { fontFamily: fonts.text, fontSize: 12, color: c.muted }, dayNumber: { fontFamily: fonts.displayMedium, fontSize: 17, color: c.ink }, dayTextSelected: { color: c.darkInk }, dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'transparent' }, activeDot: { backgroundColor: c.ink, borderWidth: 1, borderColor: c.accent },
   overview: { backgroundColor: c.surface, borderRadius: 24, padding: 18, marginBottom: 12 }, periods: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 12 }, period: { minHeight: 44, justifyContent: 'center' }, stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, summaryMetric: { flex: 1, minWidth: 72, gap: 4 }, statValue: { fontFamily: fonts.displayMedium, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'], color: c.ink },
   loading: { padding: 20, gap: 12, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, empty: { padding: 20, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12, gap: 6 }, emptyTitle: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.ink }, startAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }, startCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
-  runList: { backgroundColor: c.surface, borderRadius: 24, paddingHorizontal: 18, marginBottom: 12 }, runRow: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border }, runVisual: { width: 64, height: 58, alignItems: 'center', justifyContent: 'center' }, runMeasures: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 14 }, runDistance: { fontFamily: fonts.displayMedium, fontSize: 20, lineHeight: 26, fontVariant: ['tabular-nums'], color: c.ink }, pending: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted }, more: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pending: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted },
   collection: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, marginBottom: 12, borderRadius: 24, backgroundColor: c.surface }, rewardArt: { padding: 8, borderRadius: 18, backgroundColor: c.carbon }, adoption: { gap: 10, padding: 20, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, adoptionActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 }, later: { minHeight: 44, paddingHorizontal: 4, justifyContent: 'center' }, notice: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.muted, marginVertical: 12 }, compact: { alignSelf: 'flex-start' },
 });

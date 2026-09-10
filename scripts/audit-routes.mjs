@@ -190,7 +190,11 @@ const KNOWN_ORPHANS = new Map([
   // (« À NETTOYER »), et c'est ce qui l'a fait remarquer.
   ['/defi', 'porte perdue : `app/amis.tsx:415` (9d1b9e7) — /amis a été réécrit autour de /member'],
   ['/map/prepare', 'portes perdues : `app/map/missions/[missionId].tsx:82` et `app/zone-attaquee/[contestId].tsx:283` (9d1b9e7) — les deux sont devenues des routes de compatibilité'],
-  ['/qr', 'portes perdues : `app/(tabs)/profil.tsx:289` et `app/amis.tsx:336` (9d1b9e7) — les deux fichiers ont été réécrits par le cahier'],
+  // `/qr` A RETROUVÉ SA PORTE le 10/09/2026 : le bloc social du Profil pose
+  // « Mon code » (`features/refonte/ProfileHomeScreen.tsx`). Ses deux portes
+  // d'août avaient disparu avec la réécriture de `(tabs)/profil.tsx` et de
+  // `amis.tsx` ; l'écran, lui, n'avait jamais cessé de fonctionner. Le laisser
+  // ici aurait fait cesser la surveillance de sa PROCHAINE vraie régression.
   ['/territoire', 'porte perdue : `app/(tabs)/profil.tsx:990` (9d1b9e7) — (tabs)/profil.tsx est devenu une ré-exportation de ProfileHomeScreen'],
 
   // ─── 10/09/2026, LOT « RÉGLAGES ET PROFIL » ───────────────────────────────
