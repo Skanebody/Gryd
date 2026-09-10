@@ -17,10 +17,12 @@
  *    en toutes lettres sous la ligne du boost. Laisser croire qu'un parrainage
  *    fait monter au classement serait faux : les tables de 0160-0164 ne voient
  *    rien passer.
- *  · UN OBJET DESSINÉ AU HASARD. Les quatre cosmétiques exclusifs sont NOMMÉS ;
- *    leur art vit dans `features/arsenal/cosmetics2026.ts`, qu'un autre lot
- *    construit et que celui-ci ne touche pas. Tant qu'il n'y est pas, l'écran le
- *    dit (`objetPasEncorePeint`) au lieu de peindre une vignette inventée.
+ *  · UN OBJET DESSINÉ AU HASARD. Depuis la migration 0191, le CADRE et la
+ *    TRACE de parrainage sont de vrais cosmétiques du catalogue : leur aperçu
+ *    est le rendu RÉEL (`CosmeticPreview2026`), pas une vignette inventée, et
+ *    la ligne renvoie là où on les équipe. Les DEUX TITRES, eux, n'ont aucun
+ *    emplacement de profil qui sache les porter (0191, note « LES DEUX
+ *    TITRES ») : ils gardent l'icône et l'écran le DIT (`objetTitresIci`).
  *
  * ─── LES QUATRE ÉTATS (L8/L14/L19), NOMMÉS SÉPARÉMENT ───────────────────────
  *  ① pas connecté  → `AccountDoor2026`, la porte unique du dépôt ;
@@ -50,6 +52,8 @@ import { screen } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import { GrydIcon } from '../../ui/gryd';
 import { AccountDoor2026 } from '../account/AccountDoor2026';
+import { CosmeticPreview2026 } from '../arsenal/CosmeticArt2026';
+import { cosmeticById2026 } from '../arsenal/cosmetics2026';
 import { ProfileButton, ProfilePage, ProfileSection, s, lightStyles } from '../refonte/ProfilePrimitives';
 import { copyText, openShareSheet } from '../share/shareActions';
 import { useSession } from '../../lib/session';
@@ -66,6 +70,19 @@ const REWARD_LABELS: Readonly<Record<string, Entry>> = {
   referral_title_parrain: C.objetTitreParrain,
   referral_title_filleul: C.objetTitreFilleul,
 };
+
+/** Côté de l'aperçu dans la ligne. Une valeur de mise en page, pas une règle. */
+const APERCU = 44;
+
+/**
+ * UN OCTROI QUI S'ÉQUIPE, c'est-à-dire un objet que le catalogue cosmétique
+ * connaît (migration 0191). Le cadre et la trace en sont ; les DEUX TITRES n'en
+ * sont pas, faute d'une maison de titres qui sache les porter. La distinction
+ * se DÉRIVE du catalogue et n'est écrite nulle part sous forme de liste : un
+ * build en retard sur le serveur retombe donc du bon côté tout seul.
+ */
+const equippableReward = (reward: ReferralReward2026): boolean =>
+  reward.kind === 'collection' && cosmeticById2026(reward.rewardId) !== null;
 
 export function ReferralScreen2026() {
   const { session, loading } = useSession();
@@ -146,11 +163,17 @@ function ReferralContents() {
     const title = label !== null ? t(label)
       : reward.kind === 'xp_boost' ? f(C.objetBoost, { x: reward.boostMultiplier ?? REFERRAL_XP_BOOST_2026.multiplier })
         : f(C.objetGrydPlus, { n: data?.grydPlusCredit?.days ?? 0 });
+    // L'APERÇU RÉEL, ou rien. `cosmeticById2026` ne rend un objet que si CE
+    // build sait le peindre : un serveur en avance d'une saison retombe donc
+    // sur l'icône, jamais sur un carré vide ni sur un dessin approximatif.
+    const art = reward.kind === 'collection' ? cosmeticById2026(reward.rewardId) : null;
     const detail = reward.kind === 'collection' ? t(C.objetExclusif)
       : reward.kind === 'xp_boost' ? `${t(C.boostPortee)} ${boostWindowCopy(reward)}`
         : creditCopy();
     return <View key={`${reward.kind}:${reward.rewardId}:${index}`} style={local.reward}>
-      <GrydIcon name={reward.kind === 'collection' ? 'collection' : reward.kind === 'xp_boost' ? 'chart' : 'lock'} size={20} color={c.ink} />
+      {art !== null
+        ? <View aria-hidden style={local.art}><CosmeticPreview2026 item={art} size={APERCU} /></View>
+        : <GrydIcon name={reward.kind === 'collection' ? 'collection' : reward.kind === 'xp_boost' ? 'chart' : 'lock'} size={20} color={c.ink} />}
       <View style={s.flex}>
         <Text style={[s.linkTitle, lightStyles.linkTitle]}>{title}</Text>
         <Text style={[s.meta, lightStyles.meta]}>{detail}</Text>
@@ -260,7 +283,19 @@ function ReferralContents() {
                 ? <Text style={[s.meta, lightStyles.meta]}>{t(C.recompensesVide)}</Text>
                 : <>
                   {data.rewards.map(rewardRow)}
-                  <Text style={[s.meta, lightStyles.meta, local.step]}>{t(C.objetPasEncorePeint)}</Text>
+                  {/* Chaque phrase ne s'imprime QUE si l'objet qu'elle décrit est
+                      là, et la coupure est DÉRIVÉE du catalogue, jamais d'une
+                      liste d'identifiants recopiée ici : ce que ce build sait
+                      peindre s'équipe, le reste se lit sur cette page. */}
+                  {data.rewards.some(equippableReward) ? <>
+                    <Text style={[s.meta, lightStyles.meta, local.step]}>{t(C.objetPorte)}</Text>
+                    <View style={local.collectionDoor}>
+                      <ProfileButton tone="light" secondary label={t(C.actionCollection)}
+                        onPress={() => router.push({ pathname: '/arsenal', params: { segment: 'cosmetics' } })} />
+                    </View>
+                  </> : null}
+                  {data.rewards.some(reward => reward.kind === 'collection' && !equippableReward(reward))
+                    ? <Text style={[s.meta, lightStyles.meta, local.step]}>{t(C.objetTitresIci)}</Text> : null}
                   {data.bonusXp > 0 ? <Text style={[s.meta, lightStyles.meta]}>{f(C.bonusXp, { n: data.bonusXp })}</Text> : null}
                 </>}
 
@@ -323,5 +358,7 @@ const local = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: c.border,
   },
+  art: { width: APERCU, alignItems: 'center', justifyContent: 'center' },
+  collectionDoor: { alignSelf: 'flex-start', paddingTop: 12 },
   input: { marginTop: 10, marginBottom: 12, letterSpacing: 3 },
 });

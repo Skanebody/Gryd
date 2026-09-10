@@ -18,10 +18,14 @@
  *     cosmétique n'aurait aucun état de retour.
  *  3. AUCUN EFFET DE JEU — la seule chose qu'un joueur payant ne doit jamais
  *     obtenir. Un champ nommé `bonus`, `xp`, `multiplier`… fait rougir ce test.
- *  4. PAS DE DÉRIVE avec la migration 0180 — un objet ajouté ici et absent du
- *     serveur serait un objet équipable qui échoue à l'équipement.
+ *  4. PAS DE DÉRIVE avec les migrations 0180 + 0191 — un objet ajouté ici et
+ *     absent du serveur serait un objet équipable qui échoue à l'équipement.
  *  5. LA COUTURE COMMERCIALE — « Pas encore en vente » n'est jamais une
  *     supposition : il descend de `storeAvailability2026`, lu dans l'écran.
+ *  6. LES OBJETS DE PARRAINAGE (0191) — gratuits, exclusifs, et jamais décrits
+ *     avec le vocabulaire de la vente : ni un niveau, ni GRYD+, ni une
+ *     collection payée ne les ouvre, et leur état affiché est « Réservé au
+ *     parrainage », pas « Pas encore en vente ».
  */
 import { assert, assertEquals } from 'jsr:@std/assert@^1';
 import { COMMERCIAL_PROPOSAL_2026, PROFILE_COSMETIC_LEVELS_2026, PROFILE_COSMETIC_SLOTS_2026 } from '@klaim/shared';
@@ -39,6 +43,7 @@ const CONTEXTE_NEUF: CosmeticUnlockContext2026 = {
   ownedSeasonRewardIds: [],
   ownedCollectionIds: [],
   grydPlusActive: false,
+  referralRewardIds: [],
 };
 
 Deno.test('1 — chaque identifiant est unique, et chaque objet appartient à un emplacement connu', () => {
@@ -187,8 +192,12 @@ Deno.test('10 — la lecture serveur ignore ce qu’elle ne connaît pas', () =>
   assertEquals(Object.keys(lu).sort().join(','), [...PROFILE_COSMETIC_SLOTS_2026].sort().join(','));
 });
 
-Deno.test('11 — aucune dérive entre le catalogue et la migration 0180', async () => {
-  const sql = await Deno.readTextFile(new URL('supabase/migrations/0180_profile_cosmetics_2026.sql', RACINE));
+Deno.test('11 — aucune dérive entre le catalogue et les migrations 0180 + 0191', async () => {
+  // DEUX fichiers depuis 0191 : l'instantané d'origine, et les objets de
+  // parrainage. Une migration ne se réécrit jamais ; le catalogue, lui, est un
+  // seul tableau. La somme des deux DOIT valoir ce tableau, ni plus ni moins.
+  const sql = (await Deno.readTextFile(new URL('supabase/migrations/0180_profile_cosmetics_2026.sql', RACINE)))
+    + '\n' + (await Deno.readTextFile(new URL('supabase/migrations/0191_referral_cosmetics_2026.sql', RACINE)));
   for (const item of PROFILE_COSMETICS_2026) {
     assert(sql.includes(`'${item.id}'`), `${item.id} : équipable côté client, INCONNU du serveur — l’équipement échouerait`);
   }
@@ -203,7 +212,52 @@ Deno.test('11 — aucune dérive entre le catalogue et la migration 0180', async
   for (const slot of PROFILE_COSMETIC_SLOTS_2026) assert(sql.includes(`'${slot}'`), `emplacement ${slot} absent de 0180`);
 });
 
-Deno.test('12 — l’écran ne conclut jamais seul : il lit storeAvailability2026', async () => {
+Deno.test('12 — les objets de parrainage ne portent NI niveau, NI collection, NI GRYD+', () => {
+  const parrainage = PROFILE_COSMETICS_2026.filter(item => item.obtain.kind === 'referral');
+  // Les DEUX de `REFERRAL_REWARDS_2026` dont le `slot` est un emplacement
+  // cosmétique. Les deux autres sont des TITRES (slot `title`) : aucune maison
+  // de titres ne sait les porter, ils restent hors de ce catalogue (0191).
+  assertEquals(parrainage.map(item => item.id).sort(), ['referral_frame', 'referral_trace']);
+  for (const item of parrainage) {
+    // Une SEULE condition, et elle n'est ni un seuil ni un prix : un octroi.
+    assertEquals(item.obtain.kind, 'referral');
+    assert(isFreeCosmetic2026(item), `${item.id} : un objet de parrainage ne se vend nulle part`);
+    // Ni un niveau, ni GRYD+, ni une collection payée ne l'ouvrent. C'est la
+    // définition d'« exclusif », et c'est `cosmetic_unlocked_2026` qui tranche.
+    const tout = {
+      level: 50, ownedSeasonRewardIds: ['title'],
+      ownedCollectionIds: ['contour', 'relief', 'clubhouse'],
+      grydPlusActive: true, referralRewardIds: [],
+    };
+    assert(!isCosmeticUnlocked2026(item, tout), `${item.id} : ouvert sans parrainage`);
+    assert(isCosmeticUnlocked2026(item, { ...tout, referralRewardIds: [item.id] }));
+    // L'ÉTAT AFFICHÉ n'emprunte JAMAIS le vocabulaire de la vente : « pas encore
+    // en vente » sur un objet qui ne sera jamais vendu serait un mensonge.
+    for (const storeOpen of [true, false]) {
+      for (const storeSaysNotOnSale of [true, false]) {
+        assertEquals(cosmeticState2026({ item, context: CONTEXTE_NEUF, equippedId: null, storeOpen, storeSaysNotOnSale }).kind,
+          'locked_referral', `${item.id} : un objet de parrainage a pris un état commercial`);
+      }
+    }
+    assertEquals(cosmeticState2026({
+      item, context: { ...CONTEXTE_NEUF, referralRewardIds: [item.id] },
+      equippedId: item.id, storeOpen: false, storeSaysNotOnSale: true,
+    }).kind, 'equipped');
+  }
+  // Le rendu est EXCLUSIF : aucune autre famille ne porte l'anneau « relais »,
+  // et aucun autre objet de trace n'a un halo aussi large (L15, la forme dit).
+  const cadre = cosmeticById2026('referral_frame') as CosmeticItem2026;
+  assert(cadre.family === 'avatarFrame' && cadre.ring === 'relay');
+  assertEquals(PROFILE_COSMETICS_2026.filter(item => item.family === 'avatarFrame' && item.ring === 'relay').length, 1);
+  const trace = cosmeticById2026('referral_trace') as CosmeticItem2026;
+  assert(trace.family === 'trace' && trace.blur > 0);
+  assertEquals(PROFILE_COSMETICS_2026.filter(item => item.family === 'trace' && item.blur === trace.blur).length, 1);
+  // Et il reste PEIGNABLE sur la carte, au format que la carte consomme.
+  const peinture = cosmeticTracePaint2026('referral_trace');
+  assert((peinture.lineBlur ?? 0) > 0 && peinture.lineWidth > 0);
+});
+
+Deno.test('13 — l’écran ne conclut jamais seul : il lit storeAvailability2026', async () => {
   const source = await Deno.readTextFile(new URL('apps/mobile/src/features/arsenal/CosmeticsPanel2026.tsx', RACINE));
   assert(source.includes('storeAvailability2026('), 'la capacité de vente n’est plus lue : la phrase redeviendrait une supposition');
   assert(source.includes('storeSaysNotOnSale2026('), 'ADR-014 : la phrase « Pas encore en vente » exige sa garde');
@@ -214,4 +268,10 @@ Deno.test('12 — l’écran ne conclut jamais seul : il lit storeAvailability20
     assert(!sansCommentaires.includes(interdit),
       `« ${interdit} » dans la liste des cosmétiques : ADR-014 interdit tout bouton d’achat tant que la boutique est fermée`);
   }
+  // La possession d'un objet de parrainage est LUE, jamais devinée : sans cette
+  // lecture, l'écran afficherait « Réservé au parrainage » à quelqu'un qui vient
+  // de le gagner — et le serveur, lui, l'aurait accepté.
+  assert(source.includes('useMyReferral2026('), 'les octrois de parrainage ne sont plus lus par l’écran');
+  assert(sansCommentaires.includes('Réservé au parrainage'),
+    'l’état « Réservé au parrainage » a disparu : un objet de parrainage retomberait dans le vocabulaire de la vente');
 });

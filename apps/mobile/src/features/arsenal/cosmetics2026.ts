@@ -68,19 +68,27 @@ export type CosmeticSlot2026 = (typeof PROFILE_COSMETIC_SLOTS_2026)[number];
 export type CosmeticCollectionId2026 = 'contour' | 'relief' | 'clubhouse';
 
 /**
- * COMMENT UN OBJET S'OBTIENT — quatre origines, et pas une cinquième.
+ * COMMENT UN OBJET S'OBTIENT — cinq origines, et pas une sixième.
  *
- * `level` et `season` sont GRATUITES : elles se gagnent en bougeant. `gryd_plus`
- * et `collection` sont COMMERCIALES : elles se paieront le jour où la boutique
- * ouvrira, et jamais avant (ADR-011 : « aucune capacité déjà offerte ne devient
- * payante » — c'est pour ça qu'aucun objet gratuit d'aujourd'hui n'est déplacé
- * vers une origine commerciale ; ils naissent du bon côté et y restent).
+ * `level`, `season` et `referral` sont GRATUITES : elles se gagnent en bougeant,
+ * ou en amenant quelqu'un qui bouge. `gryd_plus` et `collection` sont
+ * COMMERCIALES : elles se paieront le jour où la boutique ouvrira, et jamais
+ * avant (ADR-011 : « aucune capacité déjà offerte ne devient payante » — c'est
+ * pour ça qu'aucun objet gratuit d'aujourd'hui n'est déplacé vers une origine
+ * commerciale ; ils naissent du bon côté et y restent).
+ *
+ * `referral` est la seule origine qu'on ne peut EN AUCUN CAS acheter, ni gagner
+ * en courant seul : elle demande un parrainage abouti des DEUX côtés (deux
+ * sorties réelles), et le serveur la tranche sur une ligne vivante de
+ * `referral_grants_2026` (migrations 0186 et 0191). C'est la demande du
+ * fondateur du 11/09/2026 : « quelque chose à gagner que les autres n'ont pas ».
  */
 export type CosmeticObtain2026 =
   | { readonly kind: 'level'; readonly level: number }
   | { readonly kind: 'season'; readonly rewardId: string }
   | { readonly kind: 'gryd_plus' }
-  | { readonly kind: 'collection'; readonly collectionId: CosmeticCollectionId2026 };
+  | { readonly kind: 'collection'; readonly collectionId: CosmeticCollectionId2026 }
+  | { readonly kind: 'referral' };
 
 /** Un dégradé NOMMÉ : deux tokens, un nom, et zéro hex épars dans les écrans. */
 export interface CosmeticGradient2026 {
@@ -126,7 +134,7 @@ export interface NameColorCosmetic2026 extends CosmeticBase2026 {
  */
 export interface AvatarFrameCosmetic2026 extends CosmeticBase2026 {
   readonly family: 'avatarFrame';
-  readonly ring: 'none' | 'single' | 'double' | 'stitch' | 'pulse' | 'hex';
+  readonly ring: 'none' | 'single' | 'double' | 'stitch' | 'pulse' | 'hex' | 'relay';
   readonly color: string;
   readonly width: number;
 }
@@ -199,12 +207,14 @@ const L = PROFILE_COSMETIC_LEVELS_2026;
 const level = (n: number): CosmeticObtain2026 => ({ kind: 'level', level: n });
 const collection = (id: CosmeticCollectionId2026): CosmeticObtain2026 => ({ kind: 'collection', collectionId: id });
 const PLUS: CosmeticObtain2026 = { kind: 'gryd_plus' };
+/** Un parrainage abouti, et rien d'autre. Aucun niveau, aucun euro n'y mène. */
+const REFERRAL: CosmeticObtain2026 = { kind: 'referral' };
 const PERMANENT = true as const;
 
 /**
  * ═══ LE CATALOGUE ═══════════════════════════════════════════════════════════
  *
- * TRENTE-QUATRE objets, SEPT familles, et une règle tenue partout : chaque
+ * TRENTE-SIX objets, SEPT familles, et une règle tenue partout : chaque
  * famille commence par un objet LIVRÉ AVEC LE COMPTE (niveau 1), qui décrit
  * l'apparence actuelle de l'app. Ce n'est pas un remplissage — sans lui,
  * « retirer » un cosmétique n'aurait aucun objet vers lequel revenir, et
@@ -241,6 +251,11 @@ export const PROFILE_COSMETICS_2026: readonly CosmeticItem2026[] = [
     name: { fr: 'Pulsation', en: 'Pulse' }, ring: 'pulse', color: colors.chartreuse, width: 3 },
   { id: 'frame_hexagone', family: 'avatarFrame', permanent: PERMANENT, obtain: collection('relief'),
     name: { fr: 'Hexagone néon', en: 'Neon hexagon' }, ring: 'hex', color: colors.chartreuse, width: 3 },
+  // Le RELAIS : deux liserés chartreuse et le POINT DE JONCTION où le témoin
+  // passe d'une main à l'autre. Aucun autre cadre n'a de point : la forme dit
+  // « à deux », pas « plus fort » (L15, et §16.2 : ça ne donne rien).
+  { id: 'referral_frame', family: 'avatarFrame', permanent: PERMANENT, obtain: REFERRAL,
+    name: { fr: 'Relais', en: 'Relay' }, ring: 'relay', color: colors.chartreuse, width: 2 },
 
   // ─── (c) BANNIÈRES DE PROFIL ─────────────────────────────────────────────
   { id: 'banner_carbone', family: 'banner', permanent: PERMANENT, obtain: level(L.included),
@@ -270,6 +285,12 @@ export const PROFILE_COSMETICS_2026: readonly CosmeticItem2026[] = [
     name: { fr: 'Néon', en: 'Neon' }, color: colors.chartreuse, width: 4, blur: 3 },
   { id: 'trace_relief', family: 'trace', permanent: PERMANENT, obtain: collection('relief'),
     name: { fr: 'Relief', en: 'Relief' }, color: colors.blanc, width: 5, blur: 2 },
+  // Le RELAIS : un trait FIN dans un halo LARGE, la traînée d'un témoin qu'on
+  // se passe. Pas de pointillé : voir l'avertissement de `TraceCosmetic2026` —
+  // sur la carte, le pointillé dit déjà une affiliation de crew, et un motif
+  // décoratif qui imite une information de jeu est interdit (L15).
+  { id: 'referral_trace', family: 'trace', permanent: PERMANENT, obtain: REFERRAL,
+    name: { fr: 'Relais', en: 'Relay' }, color: colors.chartreuse, width: 3, blur: 6 },
 
   // ─── (e) STYLE DU PIN « MOI » ────────────────────────────────────────────
   { id: 'pin_goutte', family: 'pin', permanent: PERMANENT, obtain: level(L.included),
@@ -334,9 +355,14 @@ export function equippedCosmetic2026(family: CosmeticSlot2026, equippedId: strin
   return item && item.family === family ? item : defaultCosmetic2026(family);
 }
 
-/** Origine gratuite ? `level` et `season` se gagnent ; les deux autres se paient. */
+/**
+ * Origine gratuite ? `level`, `season` et `referral` se GAGNENT ; les deux
+ * autres se paieront. Un objet de parrainage n'est vendu nulle part, et ne le
+ * sera jamais : le mettre du côté commercial autoriserait un jour un écran à
+ * lui coller « Pas encore en vente », ce qui serait faux.
+ */
 export function isFreeCosmetic2026(item: CosmeticItem2026): boolean {
-  return item.obtain.kind === 'level' || item.obtain.kind === 'season';
+  return item.obtain.kind === 'level' || item.obtain.kind === 'season' || item.obtain.kind === 'referral';
 }
 
 /**
@@ -354,6 +380,13 @@ export interface CosmeticUnlockContext2026 {
   readonly ownedCollectionIds: readonly string[];
   /** GRYD+ actif à l'instant de la lecture (`has_gryd_plus_access_2026`). */
   readonly grydPlusActive: boolean;
+  /**
+   * `rewardId` des octrois de parrainage VIVANTS (`my_referral_2026().rewards`,
+   * qui filtre déjà `revoked_at is null`). Vide tant qu'aucun parrainage n'a
+   * abouti — et vide aussi quand la lecture n'a pas abouti : on n'invente pas
+   * une possession qu'on n'a pas lue, le serveur retranchera de toute façon.
+   */
+  readonly referralRewardIds: readonly string[];
 }
 
 export function isCosmeticUnlocked2026(item: CosmeticItem2026, context: CosmeticUnlockContext2026): boolean {
@@ -362,6 +395,7 @@ export function isCosmeticUnlocked2026(item: CosmeticItem2026, context: Cosmetic
     case 'season': return context.ownedSeasonRewardIds.includes(item.obtain.rewardId);
     case 'collection': return context.ownedCollectionIds.includes(item.obtain.collectionId);
     case 'gryd_plus': return context.grydPlusActive;
+    case 'referral': return context.referralRewardIds.includes(item.id);
   }
 }
 
@@ -401,6 +435,8 @@ export type CosmeticState2026 =
   | { readonly kind: 'available' }
   | { readonly kind: 'locked_level'; readonly level: number }
   | { readonly kind: 'locked_season'; readonly rewardId: string }
+  /** Réservé au parrainage. Ni un « bientôt », ni un prix : une condition. */
+  | { readonly kind: 'locked_referral' }
   | { readonly kind: 'not_on_sale' }
   | { readonly kind: 'store_unknown' }
   | { readonly kind: 'on_sale' };
@@ -418,6 +454,9 @@ export function cosmeticState2026(input: {
   if (unlocked) return { kind: 'available' };
   if (item.obtain.kind === 'level') return { kind: 'locked_level', level: item.obtain.level };
   if (item.obtain.kind === 'season') return { kind: 'locked_season', rewardId: item.obtain.rewardId };
+  // AVANT la couture commerciale, et c'est tout l'enjeu : un objet de
+  // parrainage n'est pas « pas encore en vente », il n'est pas à vendre.
+  if (item.obtain.kind === 'referral') return { kind: 'locked_referral' };
   const commercial = cosmeticCommercialStatus2026({
     owned: false, storeOpen: input.storeOpen, storeSaysNotOnSale: input.storeSaysNotOnSale,
   });
@@ -488,7 +527,7 @@ export function cosmeticRingPaint2026(equippedId: string | null | undefined): Co
     stroke: item.color,
     strokeWidth: item.width,
     dash: item.ring === 'stitch' ? [3, 3] : null,
-    outerRing: item.ring === 'double' || item.ring === 'hex' || item.ring === 'pulse',
+    outerRing: item.ring === 'double' || item.ring === 'hex' || item.ring === 'pulse' || item.ring === 'relay',
   };
 }
 

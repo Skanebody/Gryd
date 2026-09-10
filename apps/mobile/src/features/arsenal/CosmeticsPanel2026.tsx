@@ -6,11 +6,11 @@
  * permanence ; les objets déjà détenus portent Équiper ; les objets gagnables
  * indiquent une condition vérifiable ». Donc :
  *  · le RENDU est un aperçu réel (pas une icône générique) ;
- *  · le STATUT est l'un des sept états de `cosmeticState2026`, jamais un
+ *  · le STATUT est l'un des huit états de `cosmeticState2026`, jamais un
  *    « bientôt » ;
  *  · l'OBTENTION est vérifiable : « Débloqué au niveau 8 » se contrôle sur
  *    l'écran de progression ;
- *  · la PERMANENCE est dite une fois par famille, pas trente-quatre fois.
+ *  · la PERMANENCE est dite une fois par famille, pas trente-six fois.
  * Et il n'y a NI compteur d'objets restants, NI pastille rouge, NI faux stock.
  *
  * ─── AUCUN BOUTON D'ACHAT ICI, ET C'EST STRUCTUREL (ADR-014) ────────────────
@@ -24,6 +24,15 @@
  * « Pas encore en vente » n'est affiché QUE quand c'est VRAI. Déconnecté, en
  * cours de lecture, sur le web ou après un échec de lecture, on ne sait rien de
  * la vente — on dit la RAISON, on ne conclut pas.
+ *
+ * ─── ET CE QUI N'EST PAS À VENDRE N'ENTRE PAS DANS CE RAISONNEMENT ──────────
+ * Les objets de PARRAINAGE (origine `referral`, migration 0191) ne sont vendus
+ * nulle part et ne le seront pas : `cosmeticState2026` les coupe AVANT la
+ * couture commerciale et rend `locked_referral`, dont la phrase est « Réservé
+ * au parrainage ». Leur possession est LUE (`useMyReferral2026`, la même
+ * lecture que `/parrainage`, qui filtre déjà les octrois révoqués) : sans
+ * cette lecture, l'écran afficherait la condition à quelqu'un qui vient de la
+ * remplir, et le serveur, lui, l'aurait accepté.
  *
  * ─── LE PIÈGE ADR-011 QUE CE FICHIER ÉVITE ──────────────────────────────────
  * `useGrydPlusAccess().active` est VRAI en pré-vente (les outils GRYD+ sont
@@ -41,6 +50,7 @@ import { purchasesCapability, storeAvailability2026, storeSaysNotOnSale2026, use
 import type { PremiumOffer, PremiumStatus, StoreClosedReason2026 } from '../premium';
 import { useCommercialCollections2026 } from '../premium/useCommercialCollections2026';
 import { useProfileProgress } from '../refonte/ProfileProgress';
+import { useMyReferral2026 } from '../referral/useMyReferral2026';
 import { ProfileButton, useRefonteCopy } from '../refonte/ProfilePrimitives';
 import { useSession } from '../../lib/session';
 import { haptics } from '../../lib/haptics';
@@ -49,7 +59,8 @@ import {
   COSMETIC_FAMILY_LABELS_2026, COSMETIC_FAMILY_WHERE_2026, CosmeticPreview2026,
 } from './CosmeticArt2026';
 import {
-  cosmeticState2026, cosmeticsOfFamily2026, defaultCosmetic2026,
+  PROFILE_COSMETICS_2026, cosmeticState2026, cosmeticsOfFamily2026, defaultCosmetic2026,
+  isCosmeticUnlocked2026,
   type CosmeticItem2026, type CosmeticSlot2026, type CosmeticUnlockContext2026,
 } from './cosmetics2026';
 import { equipCosmetic2026, useMyCosmetics2026, type CosmeticEquipResult2026 } from './useMyCosmetics2026';
@@ -64,6 +75,10 @@ export function CosmeticsPanel2026() {
   const collections = useCommercialCollections2026();
   const access = useGrydPlusAccess();
   const mine = useMyCosmetics2026();
+  // La CINQUIÈME source d'obtention (0191) : les octrois de parrainage. C'est
+  // la même lecture que `/parrainage`, et elle filtre déjà les octrois révoqués
+  // côté serveur (`my_referral_2026` : `revoked_at is null`).
+  const referral = useMyReferral2026();
   const [busySlot, setBusySlot] = useState<CosmeticSlot2026 | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -114,7 +129,20 @@ export function CosmeticsPanel2026() {
     ownedCollectionIds: collections.rows.filter(row => row.owned).map(row => row.id),
     // `active` seul serait faux : il est VRAI en pré-vente. Voir l'en-tête.
     grydPlusActive: access.status === 'active',
-  }), [progress.data, collections.rows, access.status]);
+    // Seuls les octrois de la COLLECTION exclusive s'équipent : le boost d'XP
+    // et le crédit GRYD+ voyagent dans le même journal et ne se portent pas.
+    referralRewardIds: (referral.data?.rewards ?? [])
+      .filter(reward => reward.kind === 'collection').map(reward => reward.rewardId),
+  }), [progress.data, collections.rows, access.status, referral.data]);
+
+  /**
+   * La phrase qui explique « Réservé au parrainage » ne s'imprime que s'il
+   * RESTE un objet à gagner. La dire à quelqu'un qui a déjà les deux serait lui
+   * décrire une condition qu'il a remplie, au passé, sous des objets qu'il
+   * porte — le même défaut qu'un « 0 » nu, dans l'autre sens.
+   */
+  const parrainageAGagner = useMemo(() => PROFILE_COSMETICS_2026.some(
+    item => item.obtain.kind === 'referral' && !isCosmeticUnlocked2026(item, context)), [context]);
 
   async function equip(slot: CosmeticSlot2026, item: CosmeticItem2026): Promise<void> {
     if (busySlot) return;
@@ -189,7 +217,13 @@ export function CosmeticsPanel2026() {
                 accessibilityLabel={copy('Voir les collections', 'View collections')}
                 onPress={() => router.push('/arsenal')}
                 style={local.equipAction}
-              ><Text style={local.equipText}>{copy('Voir', 'View')}</Text></Pressable> : <View style={local.spacer} />}
+              ><Text style={local.equipText}>{copy('Voir', 'View')}</Text></Pressable>
+                : state.kind === 'locked_referral' ? <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={copy('Voir le parrainage', 'View referral')}
+                  onPress={() => router.push('/parrainage')}
+                  style={local.equipAction}
+                ><Text style={local.equipText}>{copy('Voir', 'View')}</Text></Pressable> : <View style={local.spacer} />}
             </View>;
           })}
         </ScrollView>
@@ -202,6 +236,9 @@ export function CosmeticsPanel2026() {
     {notOnSale ? <Text style={local.footer}>{copy(
       'Les objets marqués « Pas encore en vente » ne sont vendus nulle part aujourd’hui, et aucune date n’est promise.',
       'Objects marked “Not on sale yet” are sold nowhere today, and no date is promised.')}</Text> : null}
+    {parrainageAGagner ? <Text style={local.footer}>{copy(
+      'Les objets marqués « Réservé au parrainage » ne s’achètent nulle part et aucun niveau ne les donne. Ils arrivent quand la personne que tu as parrainée et toi avez chacun fait une sortie.',
+      'Objects marked “Referral only” are sold nowhere and no level grants them. They arrive once you and the person you referred have each been out.')}</Text> : null}
     {notice ? <Text accessibilityRole="alert" style={local.notice}>{notice}</Text> : null}
     <View style={local.action}>
       <ProfileButton tone="light" secondary label={copy('Voir mon profil', 'View my profile')}
@@ -219,6 +256,10 @@ function COSMETIC_STATE_LABEL_2026(state: ReturnType<typeof cosmeticState2026>, 
     case 'available': return copy('Obtenu · permanent', 'Earned · permanent');
     case 'locked_level': return copy(`Débloqué au niveau ${state.level}`, `Unlocked at level ${state.level}`);
     case 'locked_season': return copy('Gagné avec le titre de saison', 'Earned with the season title');
+    // Ni « pas encore en vente », ni « bientôt » : cet objet EXISTE, il n'est
+    // simplement à vendre nulle part. La condition est vérifiable sur
+    // `/parrainage`, où l'état de chaque parrainage est écrit.
+    case 'locked_referral': return copy('Réservé au parrainage', 'Referral only');
     case 'not_on_sale': return copy('Pas encore en vente', 'Not on sale yet');
     case 'on_sale': return copy('Dans une collection', 'In a collection');
     case 'store_unknown': return copy('Disponibilité inconnue ici', 'Availability unknown here');

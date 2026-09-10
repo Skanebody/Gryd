@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { fonts, refonteColors as c, SEASON_REWARDS_2026 } from '@klaim/shared';
 import { useArsenalInventory, itemByKey, type ArsenalCatalogItem } from '../arsenal';
 import { arsenalName, arsenalDescription } from '../arsenal/copy';
@@ -48,7 +48,16 @@ function CollectionContents() {
   const [showLegacy, setShowLegacy] = useState(false);
   // Trois segments depuis le lot « personnalisation » : les objets gagnés, la
   // personnalisation du profil, et les collections (où l'achat vit déjà).
-  const [segment, setSegment] = useState<'owned' | 'cosmetics' | 'collections'>('owned');
+  //
+  // `?segment=` ouvre directement le bon onglet. Une seule porte s'en sert :
+  // `/parrainage`, qui dit « Voir dans ma collection » à propos d'un cosmétique
+  // et doit donc atterrir sur « Personnalisation ». Sans ce paramètre, le bouton
+  // déposait sur « Mes objets », où l'objet promis n'apparaît pas : une porte
+  // qui ne mène pas à ce qu'elle nomme est un bouton mort. Une valeur inconnue
+  // retombe sur l'onglet par défaut, jamais sur un écran vide.
+  const entree = useLocalSearchParams<{ segment?: string }>();
+  const [segment, setSegment] = useState<'owned' | 'cosmetics' | 'collections'>(
+    entree.segment === 'cosmetics' || entree.segment === 'collections' ? entree.segment : 'owned');
   const [selectedId, setSelectedId] = useState<string | null>(null); const [legacyItem, setLegacyItem] = useState<ArsenalCatalogItem | null>(null);
   const [busy, setBusy] = useState(false); const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => { screen('arsenal'); }, []);

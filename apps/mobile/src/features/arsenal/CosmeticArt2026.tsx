@@ -14,8 +14,8 @@
  *
  * ─── L15 : LA COULEUR NE PORTE JAMAIS SEULE ─────────────────────────────────
  * Chaque cadre a une FORME distincte (liseré, double, couture pointillée,
- * pulsation, hexagone), chaque bannière un MOTIF (trame, hachures, courbes), et
- * chaque pin une silhouette. Deux joueurs qui ne distinguent pas la chartreuse
+ * pulsation, hexagone, relais à point de jonction), chaque bannière un MOTIF
+ * (trame, hachures, courbes), et chaque pin une silhouette. Deux joueurs qui ne distinguent pas la chartreuse
  * de l'ivoire distinguent un hexagone d'une goutte. Les aperçus portent en plus
  * le NOM de l'objet, en toutes lettres, dans la liste.
  *
@@ -26,7 +26,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
-import Svg, { Defs, G, Line, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import type { ReactNode } from 'react';
 import { colors, fonts, refonteColors as c, withAlpha } from '@klaim/shared';
 import { useReduceMotion } from '../../ui/game/anim';
@@ -141,7 +141,10 @@ export function CosmeticFrame2026({ item, size, children, label }: {
   </View>;
 }
 
-/** Les cinq anneaux, en SVG pur. `stitch` porte un pointillé, jamais une teinte seule. */
+/**
+ * Les six anneaux, en SVG pur. `stitch` porte un pointillé, jamais une teinte
+ * seule ; `relay` porte un POINT, et il est le seul.
+ */
 function CosmeticRingArt2026({ frame, box }: { frame: AvatarFrameCosmetic2026; box: number }) {
   const half = frame.width / 2;
   const radius = Math.round(box * 0.28);
@@ -163,12 +166,26 @@ function CosmeticRingArt2026({ frame, box }: { frame: AvatarFrameCosmetic2026; b
         INDISTINGUABLE de « Liseré » sur la capture du 10/09. Une famille dont
         deux objets se ressemblent n'offre pas deux choix, elle en offre un.
         Le trait passe à 1,5 px, l'opacité à 70 %, et l'écart double. */}
-    {frame.ring === 'double' ? <Rect
+    {frame.ring === 'double' || frame.ring === 'relay' ? <Rect
       x={inset + frame.width + 4} y={inset + frame.width + 4}
       width={box - (inset + frame.width + 4) * 2} height={box - (inset + frame.width + 4) * 2}
       rx={Math.max(0, radius - frame.width - 4)} ry={Math.max(0, radius - frame.width - 4)}
       fill="none" stroke={withAlpha(frame.color, 0.7)} strokeWidth={1.5}
     /> : null}
+    {/* LE POINT DE JONCTION du « Relais » : le témoin qui passe d'une main à
+        l'autre. Il se pose dans le COULOIR entre les deux liserés, en haut au
+        centre : son halo de fond coupe les deux traits, et la bille chartreuse
+        occupe la coupure. C'est la seule chose qui distingue ce cadre du
+        « Double liseré » quand on ne voit pas la couleur — exactement ce que
+        L15 demande d'une forme.
+
+        Le centre est le MILIEU du couloir, jamais le trait lui-même : un
+        disque centré SUR le liseré extérieur (à `inset`, soit 1,5 px du bord)
+        sortirait de la boîte SVG et rendrait une demi-bille tronquée. */}
+    {frame.ring === 'relay' ? <>
+      <Circle cx={box / 2} cy={inset + (frame.width + 4) / 2} r={frame.width * 1.5 + 1} fill={colors.noir} />
+      <Circle cx={box / 2} cy={inset + (frame.width + 4) / 2} r={frame.width * 1.5} fill={frame.color} />
+    </> : null}
     {frame.ring === 'pulse' ? <Rect
       x={0.5} y={0.5} width={box - 1} height={box - 1}
       rx={radius + frame.width} ry={radius + frame.width}
@@ -302,8 +319,16 @@ export function CosmeticPreview2026({ item, size = 72 }: { item: CosmeticItem202
     case 'trace':
       return <View style={[styles.preview, { width: size, height: size }]}>
         <Svg width={size} height={size}>
+          {/* LE HALO SUIT `blur`, PAS L'ÉPAISSEUR. Il valait `width × 3`, ce
+              qui rendait le halo PROPORTIONNEL au trait : « Néon » (4 px, halo
+              3) et « Relais » (3 px, halo 6) sortaient alors deux dessins de
+              même allure, à l'échelle près. Or c'est exactement l'inverse que
+              ces deux objets décrivent, et c'est `line-blur` que la carte
+              applique en pixels AUTOUR du trait. La formule le dit :
+              trait + 2 × halo. « Relais » devient un fil fin dans une aura
+              large, distinct au premier coup d'œil (L15). */}
           {item.blur > 0 ? <Path d={TRACE_PATH(size)} fill="none" stroke={withAlpha(item.color, 0.28)}
-            strokeWidth={item.width * 3} strokeLinecap="round" strokeLinejoin="round" /> : null}
+            strokeWidth={item.width + item.blur * 2} strokeLinecap="round" strokeLinejoin="round" /> : null}
           <Path d={TRACE_PATH(size)} fill="none" stroke={item.color}
             strokeWidth={item.width} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>

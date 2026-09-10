@@ -4,7 +4,7 @@
 qu'utilisent d'autres applications, que l'on peut faire payer in-app, qui ne seraient que du code
 et qui ne coûtent rien ? Si oui, mets-les en place. »
 
-**Réponse courte** : oui, sept familles, trente-quatre objets, zéro asset. Tout est du SVG, des
+**Réponse courte** : oui, sept familles, trente-six objets, zéro asset. Tout est du SVG, des
 dégradés de tokens, de la typographie déjà chargée et une animation. Rien n'est acheté à un
 illustrateur, rien n'est téléchargé, rien ne pèse au-delà du code livré.
 
@@ -61,7 +61,15 @@ Instantané serveur gelé : `supabase/migrations/0180_profile_cosmetics_2026.sql
 Seuils de niveau : `PROFILE_COSMETIC_LEVELS_2026` dans `packages/shared/src/game-rules.ts`.
 
 Légende d'obtention : **N** = niveau permanent · **S** = objet de saison · **+** = GRYD+ ·
-**C** = collection permanente (contour / relief / clubhouse).
+**C** = collection permanente (contour / relief / clubhouse) · **P** = parrainage abouti.
+
+**La cinquième source d'obtention, `referral` (11/09/2026, migration 0191).** Le lot parrainage
+(0184-0186) octroie une collection **exclusive** dans `referral_grants_2026` ; 0191 la fait entrer
+ici. C'est la seule origine qu'on **ne peut ni acheter, ni atteindre en courant seul** : elle demande
+un parrainage abouti des deux côtés (deux sorties réelles, validées serveur). Elle est **gratuite**
+et n'est vendue nulle part : un objet **P** n'affiche donc jamais « Pas encore en vente », mais
+« Réservé au parrainage ». Un octroi **révoqué** (sortie rejetée ou gelée par l'anti-triche) retire
+l'objet du profil : c'est la seule exception à §7.5, et elle est écrite dans 0191.
 
 ### (a) Couleur du nom — 5 objets
 | Objet | Rendu | Obtention |
@@ -81,6 +89,7 @@ Légende d'obtention : **N** = niveau permanent · **S** = objet de saison · **
 | Couture | pointillé chartreuse | N14 |
 | Pulsation | anneau chartreuse qui respire (coupé si « réduire les animations ») | **+** |
 | Hexagone néon | hexagone chartreuse + halo | **C** relief |
+| Relais | double liseré chartreuse + **point de jonction** (le témoin qui passe) | **P** parrainage |
 
 ### (c) Bannière de profil — 5 objets
 | Objet | Rendu | Obtention |
@@ -102,6 +111,7 @@ risque de vie privée pour un objet décoratif.
 | Trait large | chartreuse, 5 px | N8 |
 | Néon | chartreuse + halo (`line-blur`) | **+** |
 | Relief | blanc épais + halo léger | **C** relief |
+| Relais | trait fin chartreuse dans un **halo large** (la traînée du témoin) | **P** parrainage |
 
 **Aucun pointillé, délibérément** : la carte emploie déjà le pointillé pour dire une **affiliation de
 crew** (`terr-owner-member`). Un pointillé décoratif ferait lire une information de jeu là où il n'y
@@ -135,8 +145,14 @@ jamais la position affichée.
 | Contour | capitales display + contour | N8 |
 | Gravé | capitales chartreuse + contour | **C** clubhouse |
 
-**Total : 34 objets, dont 22 gratuits.** Chaque famille a au moins deux objets gratuits gagnés en
+**Total : 36 objets, dont 24 gratuits.** Chaque famille a au moins deux objets gratuits gagnés en
 bougeant, et au moins un objet commercial. Un test refuse la moindre exception.
+
+**Les deux titres de parrainage n'entrent PAS ici.** `referral_title_parrain` et
+`referral_title_filleul` sont des **titres** (des mots sous le nom), pas des cosmétiques : la maison
+des titres de saison (0121) exige une saison publiée, celle des titres de niveau (0144) un palier
+libre dans un instantané gelé, et `titleBadge` n'est que la **typographie** du titre équipé. Ils
+restent des octrois lus sur `/parrainage`, qui le dit. Détail dans 0191, note « LES DEUX TITRES ».
 
 ---
 

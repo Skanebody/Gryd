@@ -73,8 +73,8 @@ touchée dans `ingest_run` (un autre lot y travaillait le même jour).
 
 | Récompense | Parrain | Filleul | Table | Exclusivité |
 |---|---|---|---|---|
-| Cadre « Parrainage » (`referral_frame`) | ✔ | ✔ | `referral_grants_2026` | Absent de `level_reward_templates_2026`, de `season_reward_templates_2026` et du catalogue `items` |
-| Trace « Parrainage » (`referral_trace`) | ✔ | ✔ | idem | idem |
+| Cadre « Relais » (`referral_frame`) | ✔ | ✔ | `referral_grants_2026` | Absent de `level_reward_templates_2026`, de `season_reward_templates_2026` et du catalogue `items` |
+| Trace « Relais » (`referral_trace`) | ✔ | ✔ | idem | idem |
 | Titre « Parrain » (`referral_title_parrain`) | ✔ | — | idem | idem |
 | Titre « Filleul » (`referral_title_filleul`) | — | ✔ | idem | idem |
 | Boost d'XP ×1,5 · 7 jours | ✔ | ✔ | `referral_grants_2026` (`kind='xp_boost'`) | Aucun SKU, ne s'empile pas |
@@ -83,6 +83,30 @@ touchée dans `ingest_run` (un autre lot y travaillait le même jour).
 Le parrain **plafonné** (au-delà de `REFERRAL_MAX_ACTIVE_PER_SEASON` parrainages récompensés
 dans la saison) ne reçoit rien de tout cela ; **le filleul, lui, reçoit sa part entière**, et
 n'est pas notifié à la place du parrain qui n'a rien eu.
+
+### Les objets sont RÉELS depuis le 11/09/2026 (migration 0191)
+
+Le cadre et la trace ne sont plus des noms : ils sont **au catalogue cosmétique**
+(`apps/mobile/src/features/arsenal/cosmetics2026.ts`, origine `referral`), **dessinés**
+(`CosmeticArt2026`, 100 % SVG, zéro asset) et **équipables** par `equip_cosmetic_2026`, qui
+re-vérifie l'octroi côté serveur.
+
+| Objet | Ce qu'on voit | Où | Comment on l'obtient |
+|---|---|---|---|
+| Cadre « Relais » | double liseré chartreuse + **point de jonction** | autour de l'avatar, sur mon profil **et sur celui que les autres voient** (0181) | un parrainage abouti, et rien d'autre |
+| Trace « Relais » | trait fin chartreuse dans un **halo large** | ma trace et mon terrain, sur la carte (privé, comme toutes les traces) | idem |
+
+`/parrainage` en peint l'**aperçu réel** et porte « Voir dans ma collection » vers
+`/arsenal?segment=cosmetics`, où l'objet s'équipe. La liste des cosmétiques dit **« Réservé au
+parrainage »** — jamais « Pas encore en vente » : ces objets ne sont vendus nulle part, et ne le
+seront pas.
+
+**Un octroi révoqué cesse d'être porté.** Quand une sortie devient `rejected` / `flagged` ou que
+l'anti-triche regèle l'évidence, 0186 révoque le lien, les octrois et le crédit ; 0191 ajoute le
+dernier maillon qui manquait, un déclencheur qui **retire l'objet du profil** — mais seulement si
+plus **aucun** octroi vivant ne le justifie (deux parrainages donnent deux lignes). Sans lui, le
+cadre serait resté peint après une révocation, et l'app aurait dit « cette personne a parrainé »
+d'un parrainage annulé.
 
 ### Ce que le boost touche, et rien d'autre
 
@@ -189,7 +213,7 @@ fois, même si l'attribution est rejouée.
 | **Aucun lien web** (`https://gryd.run/r/…`) | `apps/web` n'a pas de route `/r/`, et l'arbitrage de domaine (O10) n'est pas rendu. Un message qui SORT de l'app ne peut pas porter une adresse morte. `buildReferralWebLink` est écrit et testé pour le jour où le domaine répondra ; le parsing accepte déjà les deux hôtes en ENTRÉE. |
 | **Le crédit GRYD+ ne démarre pas à l'octroi** | ADR-016 : la boutique ne vend rien et les outils sont ouverts à tous. Trente jours contre une porte déjà ouverte valent zéro jour. Ils sont banqués et démarrent par `start_referral_gryd_plus_credits_2026()`, **qui n'a aucun appelant aujourd'hui** — c'est une action d'opérateur du jour J, écrite plutôt que cachée. |
 | **Le message de partage ne mentionne pas GRYD+** | Promettre une boutique fermée à quelqu'un qui n'a même pas l'app serait une promesse au-delà du code. |
-| **Aucun aperçu des quatre cosmétiques** | Leur art vit dans `src/features/arsenal/cosmetics2026.ts`, qu'un autre lot construit. L'écran les NOMME et le dit. |
+| **Les DEUX TITRES ne s'équipent pas** | `referral_title_parrain` et `referral_title_filleul` sont des **titres**. Les deux maisons de titres les refusent : celle de saison (0121) est clé sur une saison PUBLIÉE, et aucune ne l'est en production ; celle de niveau (0144) est clé sur un palier `level`/`min_xp` UNIQUE d'un instantané gelé. `titleBadge` (0180) n'est pas un titre mais sa TYPOGRAPHIE : y ranger « Parrain » n'afficherait aucun mot sans titre équipé, et écraserait le titre gagné dans le cas contraire. Les deux titres restent donc des octrois **lus sur `/parrainage`**, qui le dit (`objetTitresIci`). |
 | **`sync_gryd_plus_access_2026` n'existe pas** | Le nom circule dans un commentaire de `features/premium/access2026.ts:26` ; aucune fonction SQL ni Edge ne le porte. La fonction qui décide réellement est `has_gryd_plus_access_2026` (0120), et c'est elle qui a été étendue. |
 | **`get_gryd_plus_access_2026` n'est PAS touchée** | Elle alimente le mot « Abonnement actif ». Un crédit de parrainage n'est pas un abonnement : y répondre `active: true` ferait mentir l'app à quelqu'un qui n'a jamais payé. |
 | **Pas de détection d'appareil partagé** | Aucune empreinte d'appareil n'est collectée, et deux colocataires existent. |
@@ -207,4 +231,12 @@ fois, même si l'attribution est rejouée.
 - `apps/mobile/src/features/referral/referralCouture.test.ts` — 14 tests de couture : les deux
   RPC autorisées et rien d'autre, aucune écriture directe, aucun nombre magique, aucun texte
   qui promette un classement, le message de partage sans adresse morte.
+- `supabase/tests/referral_cosmetics_2026.pglite.test.mjs` — **11 tests** sur la lignée complète
+  0119 → 0186 → 0191, dont l'**étape 0** (« deux parrainages aboutis, et AUCUN objet portable » :
+  les octrois existent, `equip_cosmetic_2026` répond `unknown_cosmetic`). Le parrainage n'y est pas
+  simulé : code, saisie, deux sorties réelles, attribution, puis révocation par le vrai déclencheur
+  `runs.status`.
+- `apps/mobile/src/features/arsenal/cosmetics2026.test.ts` — 13 tests, dont la **non-dérive**
+  catalogue ↔ 0180 + 0191 et « les objets de parrainage ne portent ni niveau, ni collection, ni
+  GRYD+ ».
 - `node scripts/audit-routes.mjs` — vert, `/r/[code]` en `ENTRY_ROUTES` avec sa raison écrite.

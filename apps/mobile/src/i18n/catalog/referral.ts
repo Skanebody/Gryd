@@ -269,12 +269,35 @@ export const C = defineCatalog({
     de: 'Nicht im Shop, nie über ein Level.',
     pt: 'Não está na loja, nunca é dado por um nível.',
   },
-  objetPasEncorePeint: {
-    fr: 'Ces objets sont à toi. Leur dessin arrive dans une prochaine version.',
-    en: 'These items are yours. Their artwork lands in a coming version.',
-    es: 'Estos objetos son tuyos. Su diseño llega en una próxima versión.',
-    de: 'Diese Objekte gehören dir. Ihre Grafik kommt in einer nächsten Version.',
-    pt: 'Estes objetos são seus. O desenho chega em uma próxima versão.',
+  /**
+   * Les DEUX TITRES ne sont pas des cosmétiques de profil : aucune des deux
+   * maisons de titres du dépôt (saison 0121, niveau 0144) ne sait les porter
+   * sans qu'on lui invente une saison ou un palier (migration 0191, note « LES
+   * DEUX TITRES »). Ils sont à toi, ils sont écrits ici, et l'écran ne promet
+   * PAS un emplacement de profil qui n'existe pas.
+   */
+  objetTitresIci: {
+    fr: 'Les deux titres sont à toi. Aucun emplacement du profil ne sait encore les afficher : ils se lisent ici.',
+    en: 'Both titles are yours. No profile slot can show them yet: they are listed here.',
+    es: 'Los dos títulos son tuyos. Ningún espacio del perfil puede mostrarlos aún: se leen aquí.',
+    de: 'Beide Titel gehören dir. Noch kein Profilplatz kann sie zeigen – sie stehen hier.',
+    pt: 'Os dois títulos são seus. Nenhum espaço do perfil sabe exibi-los ainda: eles se leem aqui.',
+  },
+  /** La porte vers `/arsenal`, segment Personnalisation, où l'objet s'ÉQUIPE. */
+  actionCollection: {
+    fr: 'Voir dans ma collection',
+    en: 'View in my collection',
+    es: 'Ver en mi colección',
+    de: 'In meiner Sammlung ansehen',
+    pt: 'Ver na minha coleção',
+  },
+  /** Ce que le cadre et la trace font, une fois équipés. Vérifiable, pas vague. */
+  objetPorte: {
+    fr: 'À équiper dans ta collection. Le cadre se voit sur ton profil, la trace sur ta carte.',
+    en: 'Equip it from your collection. The frame shows on your profile, the trace on your map.',
+    es: 'Equípalo desde tu colección. El marco se ve en tu perfil, el trazo en tu mapa.',
+    de: 'In deiner Sammlung ausrüstbar. Der Rahmen zeigt sich im Profil, die Spur auf deiner Karte.',
+    pt: 'Equipe na sua coleção. A moldura aparece no seu perfil, o traço no seu mapa.',
   },
   objetBoost: {
     fr: 'Boost d’XP ×{x}',
