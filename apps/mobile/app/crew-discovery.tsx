@@ -45,6 +45,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import {
+  ACTIVITIES,
+  CREW_TAG_KEYS,
   colors,
   elevation,
   fonts,
@@ -53,8 +55,9 @@ import {
   radii,
   sizes,
   spacing,
+  type Activity,
 } from '@klaim/shared';
-import { C, CREW_PROFILE_E } from '../src/i18n/catalog/crew';
+import { C, CREW_PROFILE_E, CREW_TAG_E } from '../src/i18n/catalog/crew';
 import { C as CityC } from '../src/i18n/catalog/city';
 import { useT } from '../src/i18n/store';
 import { EVENTS, track } from '../src/lib/analytics';
@@ -75,11 +78,20 @@ import {
   type DiscoveryFilter,
 } from '../src/features/crew/discovery';
 import { useCrewDiscovery } from '../src/features/crew/discoveryData';
-import { G } from '../src/i18n/catalog/crewGestion';
+import { CREW_ACTIVITY_E, G } from '../src/i18n/catalog/crewGestion';
+import { useCrewDiscovery2026 } from '../src/features/crew/management/crewManagementData';
 import {
-  NO_DISCOVERY_FILTERS,
-  useCrewDiscovery2026,
-} from '../src/features/crew/management/crewManagementData';
+  CREW_SIZE_BANDS_2026,
+  CREW_SIZE_MEDIUM_MAX_2026,
+  CREW_SIZE_SMALL_MAX_2026,
+  CREW_TAG_FILTER_MAX_2026,
+  NO_DISCOVERY_FILTER_STATE_2026,
+  canAddDiscoveryTag2026,
+  discoveryFiltersActive2026,
+  toggleDiscoveryTag2026,
+  type CrewSizeBand2026,
+  type DiscoveryFilterState2026,
+} from '../src/features/crew/management/crewDiscoveryFilters2026';
 
 /** Un jour en millisecondes — unité de TEMPS, pas une constante de jeu. */
 const DAY_MS = 86_400_000;
@@ -93,18 +105,37 @@ const DAY_MS = 86_400_000;
  */
 type ReqFilter = 'all' | 'none' | 'any' | 'eligible';
 
+/** Tranche de taille, plus son absence. `all` n'est pas un intervalle. */
+type SizeChoice = 'all' | CrewSizeBand2026;
+/** Discipline, plus son absence. */
+type ActivityChoice = 'all' | Activity;
+
 export default function CrewDiscoveryRoute() {
   const t = useT();
   const { session } = useSession();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<DiscoveryFilter>('all');
-  const [reqFilter, setReqFilter] = useState<ReqFilter>('all');
   /**
    * Ville CHOISIE à la main. `null` = « laisse le serveur prendre la mienne »
    * (`users.city_id`). On ne pré-remplit RIEN : si le serveur ne connaît pas ma
    * ville, il le DIT (`no_city`) et l'écran demande — il ne devine pas Paris.
    */
   const [cityId, setCityId] = useState<string | null>(null);
+  /**
+   * ─── 11/09/2026 · LES QUATRE FILTRES QUI MANQUAIENT (LOT Q4, §2.7) ────────
+   * `crew_discovery_2026` accepte NEUF paramètres depuis Q3 ; l'écran en
+   * envoyait DEUX et laissait `p_activity`, `p_min_members`, `p_max_members`,
+   * `p_tags` et `p_active_only` à `null` en dur. La moitié de la migration
+   * était déployée et morte. L'état vit maintenant dans un objet unique, et sa
+   * traduction en charge utile est PURE et testée
+   * (`crewDiscoveryFilters2026.ts`) : le serveur REFUSE une valeur hors
+   * catalogue au lieu de la rogner, donc une charge fausse ne se verrait qu'à
+   * l'exécution, sur une liste vide sans explication.
+   */
+  const [f, setF] = useState<DiscoveryFilterState2026>(NO_DISCOVERY_FILTER_STATE_2026);
+  /** Le panneau est REPLIÉ par défaut : la décision de l'écran est la LISTE. */
+  const [panelOpen, setPanelOpen] = useState(false);
+  const reqFilter: ReqFilter = f.requirements ?? 'all';
 
   const { loading, failed, refusal, page, reload } = useCrewDiscovery({ cityId, query });
   /** Vocabulaire de refus FERMÉ (discovery.ts) : plus aucun motif ne traverse. */
@@ -128,7 +159,7 @@ export default function CrewDiscoveryRoute() {
    * contrôle qui ne pourrait rien filtrer serait un bouton mort. L'écran dit
    * alors pourquoi, au lieu de laisser un manque inexpliqué.
    */
-  const annot = useCrewDiscovery2026({ ...NO_DISCOVERY_FILTERS, cityId, query });
+  const annot = useCrewDiscovery2026({ ...f, cityId, query });
   const conditions = useMemo(() => {
     const byId = new Map<string, { hasRequirements: boolean; eligible: boolean }>();
     for (const r of annot.data?.rows ?? []) {
@@ -137,6 +168,24 @@ export default function CrewDiscoveryRoute() {
     return byId;
   }, [annot.data]);
   const conditionsReadable = annot.data !== null;
+  /**
+   * ⚠ DEPUIS LE LOT Q4, L'ANNOTATION FILTRE AUSSI. Les quatre critères de §2.7
+   * (discipline, taille, étiquettes, activité) n'existent QUE dans 0190 : c'est
+   * donc sa réponse qui décide quelles lignes de 0152 restent. Un crew que
+   * l'annotation ne connaît pas est ÉCARTÉ, jamais gardé « au cas où » — le
+   * garder affirmerait qu'il coche des cases qu'on n'a pas pu vérifier.
+   *
+   * Corollaire : quand AUCUN filtre §2.7 n'est actif, l'annotation ne retire
+   * rien. Une panne de 0190 ne doit pas vider une recherche qui n'a rien
+   * demandé à 0190.
+   */
+  const serverFiltering = discoveryFiltersActive2026(f);
+  const activeFilterCount =
+    (f.activity !== null ? 1 : 0) +
+    (f.requirements !== null ? 1 : 0) +
+    (f.size !== null ? 1 : 0) +
+    (f.activeOnly ? 1 : 0) +
+    f.tags.length;
 
   const crews = useMemo(() => {
     if (!page) return [] as readonly DiscoveryCrew[];
@@ -152,18 +201,12 @@ export default function CrewDiscoveryRoute() {
       viewerActivity: null,
     });
     const base = applyFilter(ranked, filter, { viewerInCrew: page.viewerInCrew });
-    if (reqFilter === 'all') return base;
-    // Un crew que l'annotation ne connaît pas est ÉCARTÉ des trois filtres de
-    // conditions plutôt que rangé au hasard : le garder dirait quelque chose de
-    // ses exigences, et on ne sait rien d'elles.
-    return base.filter((c) => {
-      const info = conditions.get(c.id);
-      if (!info) return false;
-      if (reqFilter === 'none') return !info.hasRequirements;
-      if (reqFilter === 'any') return info.hasRequirements;
-      return info.eligible;
-    });
-  }, [page, filter, reqFilter, conditions]);
+    if (!serverFiltering) return base;
+    // Un crew que l'annotation ne connaît pas est ÉCARTÉ des filtres serveur
+    // plutôt que rangé au hasard : le garder dirait quelque chose de ses
+    // exigences ou de sa discipline, et on ne sait rien d'elles.
+    return base.filter((c) => conditions.has(c.id));
+  }, [page, filter, serverFiltering, conditions]);
 
   /**
    * ══ L'EVENT §8, ÉMIS SUR L'ÉTAT RÉELLEMENT ATTEINT ═══════════════════════
@@ -190,7 +233,7 @@ export default function CrewDiscoveryRoute() {
           ? null // lecture en cours : rien à dire encore.
           : crews.length > 0
             ? 'list'
-            : query.trim().length > 0 || filter !== 'all'
+            : query.trim().length > 0 || filter !== 'all' || serverFiltering
               ? 'empty_search'
               : 'empty';
 
@@ -317,26 +360,170 @@ export default function CrewDiscoveryRoute() {
       />
 
       {/*
-        LES CONDITIONS D'ENTRÉE (§2.7). Peint SEULEMENT si le serveur a répondu :
-        un segment « je suis éligible » qui ne filtrerait rien serait un bouton
-        mort, et le pire de tous — il laisserait croire qu'aucun crew ne veut de
-        vous. Quand la lecture n'aboutit pas, l'écran le DIT.
+        LES FILTRES DE §2.7 (lot Q4). Peints SEULEMENT si `crew_discovery_2026`
+        a répondu : un segment « je suis éligible » qui ne filtrerait rien
+        serait un bouton mort, et le pire de tous — il laisserait croire
+        qu'aucun crew ne veut de vous. Quand la lecture n'aboutit pas, l'écran
+        le DIT, et aucun contrôle n'apparaît.
+
+        REPLIÉS par défaut : cet écran a UNE décision, choisir un crew (§A), et
+        un formulaire de six contrôles au-dessus de la liste la repousserait
+        hors de l'écran à l'ouverture. La ligne de tête porte le compte des
+        filtres actifs — jamais un « 0 filtre », qui n'apprend rien.
       */}
       {conditionsReadable ? (
-        <Segmented
-          scrollable
-          style={styles.filters}
-          tone="surface"
-          accessibilityLabel={t(G.filterRequirements)}
-          value={reqFilter}
-          onChange={(id: ReqFilter) => setReqFilter(id)}
-          options={[
-            { id: 'all', label: t(G.filterAny) },
-            { id: 'none', label: t(G.filterReqNone) },
-            { id: 'any', label: t(G.filterReqAny) },
-            { id: 'eligible', label: t(G.filterReqEligible) },
-          ]}
-        />
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: panelOpen }}
+            aria-expanded={panelOpen}
+            onPress={() => setPanelOpen((v) => !v)}
+            style={({ pressed }) => [styles.panelHead, pressed && styles.dim]}
+          >
+            <Text style={styles.panelTitle}>
+              {activeFilterCount > 0
+                ? t(G.filterPanelCount, { n: activeFilterCount })
+                : t(G.filterPanel)}
+            </Text>
+            {/* La famille d'icônes n'a pas de « moins » : on dit donc le geste
+                réel de chaque état (ouvrir / refermer), jamais un signe
+                approchant. Le nom accessible, lui, vient de `aria-expanded`. */}
+            <Icon name={panelOpen ? 'fermer' : 'plus'} size={iconSizes.sm} color={colors.gris} />
+          </Pressable>
+
+          {panelOpen ? (
+            <View style={styles.panel}>
+              {/* DISCIPLINE — `holds_run` / `holds_bike` : ce que des membres
+                  TIENNENT vraiment, jamais une déclaration d'intention. */}
+              <Text style={styles.label}>{t(G.filterActivity)}</Text>
+              <Segmented
+                scrollable
+                tone="surface"
+                accessibilityLabel={t(G.filterActivity)}
+                value={(f.activity ?? 'all') as ActivityChoice}
+                onChange={(id: ActivityChoice) =>
+                  setF((p) => ({ ...p, activity: id === 'all' ? null : id }))
+                }
+                options={[
+                  { id: 'all' as ActivityChoice, label: t(G.filterAny) },
+                  ...ACTIVITIES.map((a) => ({
+                    id: a as ActivityChoice,
+                    label: t(CREW_ACTIVITY_E[a]),
+                  })),
+                ]}
+              />
+
+              {/* TAILLE — les bornes viennent du CODE (dérivées de
+                  CREW_MAX_MEMBERS), jamais du texte traduit. */}
+              <Text style={styles.label}>{t(G.filterSize)}</Text>
+              <Segmented
+                scrollable
+                tone="surface"
+                accessibilityLabel={t(G.filterSize)}
+                value={(f.size ?? 'all') as SizeChoice}
+                onChange={(id: SizeChoice) =>
+                  setF((p) => ({ ...p, size: id === 'all' ? null : id }))
+                }
+                options={[
+                  { id: 'all' as SizeChoice, label: t(G.filterAny) },
+                  ...CREW_SIZE_BANDS_2026.map((band) => ({
+                    id: band as SizeChoice,
+                    label:
+                      band === 'small'
+                        ? t(G.filterSizeSmall, { n: CREW_SIZE_SMALL_MAX_2026 })
+                        : band === 'medium'
+                          ? t(G.filterSizeMedium, {
+                              min: CREW_SIZE_SMALL_MAX_2026 + 1,
+                              max: CREW_SIZE_MEDIUM_MAX_2026,
+                            })
+                          : t(G.filterSizeLarge, { n: CREW_SIZE_MEDIUM_MAX_2026 + 1 }),
+                  })),
+                ]}
+              />
+
+              {/* CONDITIONS D'ENTRÉE — inchangé, c'est le filtre le plus utile. */}
+              <Text style={styles.label}>{t(G.filterRequirements)}</Text>
+              <Segmented
+                scrollable
+                tone="surface"
+                accessibilityLabel={t(G.filterRequirements)}
+                value={reqFilter}
+                onChange={(id: ReqFilter) =>
+                  setF((p) => ({ ...p, requirements: id === 'all' ? null : id }))
+                }
+                options={[
+                  { id: 'all', label: t(G.filterAny) },
+                  { id: 'none', label: t(G.filterReqNone) },
+                  { id: 'any', label: t(G.filterReqAny) },
+                  { id: 'eligible', label: t(G.filterReqEligible) },
+                ]}
+              />
+
+              {/* ACTIVITÉ RÉCENTE — une case, et ce qu'elle veut dire EN CLAIR :
+                  « actif » n'est pas un jugement, c'est une sortie à venir ou
+                  du terrain pris ces 14 jours (0190). */}
+              <Text style={styles.label}>{t(G.filterActiveOnly)}</Text>
+              <Segmented
+                tone="surface"
+                accessibilityLabel={t(G.filterActiveOnly)}
+                value={f.activeOnly ? 'on' : 'off'}
+                onChange={(id: 'on' | 'off') => setF((p) => ({ ...p, activeOnly: id === 'on' }))}
+                options={[
+                  { id: 'off' as const, label: t(G.filterAny) },
+                  { id: 'on' as const, label: t(G.filterOn) },
+                ]}
+              />
+              <Text style={styles.hint}>{t(G.filterActiveOnlyHelp)}</Text>
+
+              {/* ÉTIQUETTES — au plus trois, et le plafond est dit AVANT qu'on
+                  le heurte : un choix qui ne répond pas se lit comme une panne. */}
+              <Text style={styles.label}>{t(G.filterTags)}</Text>
+              <Text style={styles.hint}>
+                {t(G.filterTagsCap, { n: CREW_TAG_FILTER_MAX_2026 })}
+              </Text>
+              <View style={styles.tags}>
+                {CREW_TAG_KEYS.map((tag) => {
+                  const on = f.tags.includes(tag);
+                  const possible = canAddDiscoveryTag2026(f.tags, tag);
+                  return (
+                    <Pressable
+                      key={tag}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: on, disabled: !possible }}
+                      aria-checked={on}
+                      aria-disabled={!possible}
+                      disabled={!possible}
+                      onPress={() => setF((p) => ({ ...p, tags: toggleDiscoveryTag2026(p.tags, tag) }))}
+                      style={({ pressed }) => [
+                        styles.tag,
+                        on && styles.tagOn,
+                        !possible && styles.tagOff,
+                        pressed && styles.dim,
+                      ]}
+                    >
+                      {/* L15 : l'état coché se lit AUSSI sans la couleur, par le
+                          contour et par le libellé annoncé « coché ». */}
+                      <Text style={[styles.tagText, on && styles.tagTextOn]}>
+                        {t(CREW_TAG_E[tag])}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {activeFilterCount > 0 ? (
+                <View style={styles.resetRow}>
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    label={t(G.filterPanelReset)}
+                    onPress={() => setF({ ...NO_DISCOVERY_FILTER_STATE_2026, cityId, query })}
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </>
       ) : annot.failed ? (
         <Text style={styles.body}>{t(G.publicRulesUnread)}</Text>
       ) : null}
@@ -359,10 +546,16 @@ export default function CrewDiscoveryRoute() {
         </View>
       ) : null}
 
-      {/* LU ET VIDE — une affirmation VRAIE, distincte de l'échec ci-dessus. */}
+      {/* LU ET VIDE — une affirmation VRAIE, distincte de l'échec ci-dessus.
+          TROIS vides, pas un : « aucun crew ici » est un fait sur la ville,
+          « rien pour cette recherche » un fait sur les mots tapés, et « rien
+          ne coche tout ça » une conséquence de ce qu'on vient de cocher. Le
+          dernier se répare en retirant un filtre, les deux autres non. */}
       {page && crews.length === 0 ? (
         <View style={styles.block}>
-          {query.trim().length > 0 || filter !== 'all' ? (
+          {serverFiltering ? (
+            <Text style={styles.body}>{t(G.filterEmpty)}</Text>
+          ) : query.trim().length > 0 || filter !== 'all' ? (
             <Text style={styles.body}>{t(C.dEmptySearch)}</Text>
           ) : (
             <>
@@ -522,6 +715,52 @@ const styles = StyleSheet.create({
     minHeight: sizes.touchTarget,
   },
   filters: { marginTop: spacing.md },
+
+  // ── Le panneau de filtres (§2.7) ──────────────────────────────────────────
+  // À PLAT : StackScreen fournit déjà le contenant, une Card ici ferait
+  // card-in-card (§A). Le filet du haut suffit à détacher le bloc.
+  panelHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: sizes.touchTarget,
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  panelTitle: { color: colors.blanc, fontSize: fontSizes.sm, fontWeight: '600' },
+  panel: {
+    gap: spacing.xs,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.grisLigne,
+  },
+  label: {
+    color: colors.gris,
+    fontSize: fontSizes.xs,
+    letterSpacing: 1,
+    marginTop: spacing.sm,
+  },
+  hint: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: fontSizes.xs * 1.6 },
+  resetRow: { marginTop: spacing.sm, alignItems: 'flex-start' },
+  dim: { opacity: 0.6 },
+
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs },
+  tag: {
+    minHeight: sizes.touchTarget,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.control,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    backgroundColor: elevation.raised,
+  },
+  // L15 : coché = un CONTOUR net en plus de la couleur, jamais la couleur seule.
+  tagOn: { borderColor: colors.chartreuse, borderWidth: 2 },
+  // Plafond atteint : la pastille reste LISIBLE, elle ne disparaît pas — sinon
+  // le catalogue changerait sous les yeux à chaque coche.
+  tagOff: { opacity: 0.4 },
+  tagText: { color: colors.gris, fontSize: fontSizes.sm },
+  tagTextOn: { color: colors.blanc, fontWeight: '600' },
 
   // Liste à PLAT : jamais une card par crew (card-in-card serait garanti dès
   // qu'on ajouterait une section autour — §A).

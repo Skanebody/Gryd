@@ -311,6 +311,50 @@ Deno.test('dissolution : APRÈS le geste, aucune porte vers la création', () =>
   );
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ⑧ bis · ON LÈVE UN AVERTISSEMENT PRÉCIS (LOT Q4, 11/09/2026)
+//
+// ÉTAPE 0 — LE DÉFAUT EXISTAIT (app/crew-gestion.tsx, commit 685e769) :
+//
+//   <Text>{t(G.boardWarningsCount, { n: row.warnings.length })}</Text>
+//   <Pressable … onPress={() => onResolve(row.warnings[0]!.id)}>
+//     <Text>{t(G.warnResolveCta)}</Text>
+//
+// Un SEUL bouton, qui levait toujours le plus RÉCENT, sous un compteur disant
+// « 3 avertissements en cours ». Deux des trois étaient inatteignables, et le
+// libellé promettait « Lever CET avertissement » sans jamais dire lequel.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Deno.test('gestion : un bouton par avertissement, chacun nommant le sien', () => {
+  const code = codeSeul(lire(GESTION));
+  assert(code.includes('row.warnings.map('), 'les avertissements ne sont pas listés');
+  assert(
+    !/row\.warnings\[0\]/.test(code),
+    'la levée vise encore le premier avertissement, quel qu’il soit',
+  );
+  assert(code.includes('onResolve(w.id)'), 'la levée ne porte pas l’identifiant de la ligne');
+  // Chaque ligne DIT ce qu'elle lève : sans ça, trois boutons identiques.
+  assert(code.includes('CREW_WARNING_KIND_E[w.kind]'), 'la ligne ne nomme pas l’avertissement');
+  assert(code.includes('dayText(w.issuedAtMs'), 'la ligne ne date pas l’avertissement');
+});
+
+Deno.test('gestion : VoiceOver distingue les trois boutons d’une même ligne', () => {
+  const code = codeSeul(lire(GESTION));
+  // « Lever » seul, lu trois fois de suite, ne distingue rien : le nom
+  // accessible porte le QUOI et le QUI.
+  assert(
+    /accessibilityLabel=\{`\$\{t\(G\.warnResolveCta\)\} · \$\{kind\} · \$\{row\.pseudo\}`\}/.test(code),
+    'le nom accessible du bouton de levée ne nomme ni l’avertissement ni la personne',
+  );
+});
+
+Deno.test('gestion : la levée ne prétend jamais effacer (§6.3)', () => {
+  // « Avertissement levé. La trace reste dans le journal. » — levé n'est pas
+  // effacé, et l'écran le dit au lieu de laisser croire à une suppression.
+  const catalogue = lire('../../../i18n/catalog/crewGestion.ts');
+  assert(/La trace reste dans le journal/.test(catalogue), 'la levée promet un effacement');
+});
+
 Deno.test('gestion : deux retours DISTINCTS, jamais la même phrase à deux endroits', () => {
   // Un seul état afficherait le retour d'une levée d'avertissement SOUS le
   // champ d'invitation, loin du geste qui l'a produit, et deux fois.
@@ -414,4 +458,59 @@ Deno.test('découverte : un seul CTA chartreuse, et zéro compteur inventé', ()
   const source = lire(DECOUVERTE);
   const primaires = codeSeul(source).split('variant="primary"').length - 1;
   assertEquals(primaires, 0, 'la découverte peint un second bouton primaire');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⑪ bis · LES QUATRE FILTRES DE §2.7 QUI MANQUAIENT (LOT Q4, 11/09/2026)
+//
+// ÉTAPE 0 — LE DÉFAUT EXISTAIT (crew-discovery.tsx, commit 685e769) :
+//
+//   const annot = useCrewDiscovery2026({ ...NO_DISCOVERY_FILTERS, cityId, query });
+//
+// et, dans `crewManagementData.ts`, `p_min_members: null, p_max_members: null,
+// p_tags: null` écrits EN DUR. Cinq des neuf paramètres de
+// `crew_discovery_2026` ne pouvaient donc jamais varier : discipline, taille
+// (deux bornes), étiquettes, activité récente. La migration Q3 était déployée
+// en production et à moitié morte.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Deno.test('découverte : les quatre filtres manquants de §2.7 sont peints', () => {
+  const code = codeSeul(lire(DECOUVERTE));
+  assert(code.includes('G.filterActivity'), 'aucun filtre de discipline');
+  assert(code.includes('G.filterSize'), 'aucun filtre de taille');
+  assert(code.includes('G.filterTags'), 'aucun filtre d’étiquettes');
+  assert(code.includes('G.filterActiveOnly'), 'aucun filtre d’activité récente');
+  // Et la charge utile passe par le module PUR, jamais reconstruite dans le JSX.
+  assert(
+    !/p_min_members|p_max_members|p_tags/.test(code),
+    'la charge utile est reconstruite dans l’écran au lieu du module testé',
+  );
+});
+
+Deno.test('découverte : les filtres §2.7 ne sont peints QUE si 0190 a répondu', () => {
+  // Un « je suis éligible » qui ne filtrerait rien serait le pire des boutons
+  // morts : il laisserait croire qu'aucun crew ne veut de vous.
+  const code = codeSeul(lire(DECOUVERTE));
+  assert(code.includes('conditionsReadable ?'), 'les filtres sont peints sans garde');
+  assert(code.includes('annot.failed ?'), 'l’échec de la lecture n’est pas dit');
+});
+
+Deno.test('découverte : « rien ne coche tout ça » est DISTINCT de « aucun crew ici »', () => {
+  const code = codeSeul(lire(DECOUVERTE));
+  // Le premier se répare en retirant un filtre, le second est un fait sur la
+  // ville. Les confondre ferait croire qu'une commune est vide.
+  assert(code.includes('G.filterEmpty'), 'le vide dû aux filtres n’a pas sa phrase');
+  assert(code.includes('C.dEmptyTitle'), 'le vide de la ville a disparu');
+  const vide = code.indexOf('serverFiltering ?');
+  assert(vide > 0, 'le vide n’est pas conditionné aux filtres serveur');
+});
+
+Deno.test('découverte : une panne de 0190 ne vide pas une recherche qui ne lui demandait rien', () => {
+  const code = codeSeul(lire(DECOUVERTE));
+  // Le retrait de lignes est conditionné à `serverFiltering` : sans filtre
+  // §2.7 actif, l'annotation n'écarte AUCUN crew de la liste de 0152.
+  assert(
+    code.includes('if (!serverFiltering) return base;'),
+    'l’annotation filtre la liste même quand personne n’a demandé de filtre',
+  );
 });

@@ -54,6 +54,7 @@ import {
   CREW_BOARD_FILTER_E,
   CREW_BOARD_SORT_E,
   CREW_STANDING_E,
+  CREW_WARNING_KIND_E,
   G,
 } from '../src/i18n/catalog/crewGestion';
 import { C, CREW_ROLE_E } from '../src/i18n/catalog/crew';
@@ -445,25 +446,64 @@ function MemberRow({
           {t(G.boardSeniority, { n: num(row.seniorityDays) })}
         </Text>
         <Text style={[styles.standing, tone]}>{t(CREW_STANDING_E[row.standing])}</Text>
+        {/*
+          ── 11/09/2026 (lot Q4) · ON LÈVE UN AVERTISSEMENT PRÉCIS ────────────
+          ÉTAPE 0, le défaut mot pour mot :
+
+            <Text>{t(G.boardWarningsCount, { n: row.warnings.length })}</Text>
+            <Pressable … onPress={() => onResolve(row.warnings[0]!.id)}>
+              <Text>{t(G.warnResolveCta)}</Text>
+
+          Un SEUL bouton, qui levait le plus RÉCENT, sous un compteur disant
+          « 3 avertissements en cours ». Le libellé promettait « Lever cet
+          avertissement » sans jamais dire lequel, et deux des trois restaient
+          inatteignables : un capitaine qui voulait annuler l'avertissement
+          d'avant-hier levait celui d'hier, sans s'en apercevoir. Le
+          justificatif d'alors (« un bouton par avertissement ferait une pile
+          de gestes identiques ») décrivait le vrai risque, et la sortie n'est
+          pas de choisir à la place de quelqu'un : c'est que chaque ligne dise
+          CE QU'ELLE lève. Elles ne sont plus identiques.
+
+          La trace RESTE dans le journal : levé n'est pas effacé (§6.3).
+        */}
         {row.warnings.length > 0 ? (
-          <>
+          <View style={styles.warnings}>
             <Text style={styles.meta}>{t(G.boardWarningsCount, { n: row.warnings.length })}</Text>
-            {/* Lever le PLUS RÉCENT : le serveur les rend triés par date
-                décroissante. Un bouton par avertissement ferait une pile de
-                gestes identiques sur une ligne de liste. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${t(G.warnResolveCta)} ${row.pseudo}`}
-              onPress={() => {
-                haptics.light();
-                onResolve(row.warnings[0]!.id);
-              }}
-              hitSlop={8}
-              style={({ pressed }) => [styles.inlineAction, pressed && styles.dim]}
-            >
-              <Text style={styles.inlineActionText}>{t(G.warnResolveCta)}</Text>
-            </Pressable>
-          </>
+            {row.warnings.map((w) => {
+              const issued = dayText(w.issuedAtMs, locale);
+              const kind = t(CREW_WARNING_KIND_E[w.kind]);
+              return (
+                <View key={w.id} style={styles.warnRow}>
+                  <View style={styles.warnBody}>
+                    <Text style={styles.meta}>
+                      {kind}
+                      {issued ? ` · ${issued}` : ''}
+                      {' · '}
+                      {t(w.issuedBy === 'officer' ? G.warnByOfficer : G.warnByServer)}
+                    </Text>
+                    {/* La note n'est PAS tronquée : elle dit pourquoi
+                        l'avertissement existe, et on décide dessus. */}
+                    {w.note ? <Text style={styles.meta}>{w.note}</Text> : null}
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    /* Le nom accessible porte le QUOI et le QUI : « Lever »
+                       seul, lu par VoiceOver dans une liste de trois, ne
+                       distinguerait rien. */
+                    accessibilityLabel={`${t(G.warnResolveCta)} · ${kind} · ${row.pseudo}`}
+                    onPress={() => {
+                      haptics.light();
+                      onResolve(w.id);
+                    }}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.inlineAction, pressed && styles.dim]}
+                  >
+                    <Text style={styles.inlineActionText}>{t(G.warnResolveShort)}</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
         ) : null}
         {/* La date de retrait n'apparaît QUE si le serveur l'a rendue : sans
             retrait armé, il n'y a pas de risque, donc rien à annoncer. */}
@@ -559,6 +599,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowActionGlyph: { color: colors.gris, fontSize: fontSizes.lg },
+  // La liste des avertissements : une ligne par avertissement, à plat. Aucune
+  // card ici — la ligne de membre en est déjà une (§A, jamais de card-in-card).
+  warnings: { gap: spacing.xxs, marginTop: spacing.xxs },
+  warnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: sizes.touchTarget,
+  },
+  warnBody: { flex: 1, gap: spacing.xxs },
   inlineAction: { minHeight: sizes.touchTarget, justifyContent: 'center' },
   inlineActionText: { color: colors.blanc, fontSize: fontSizes.sm, textDecorationLine: 'underline' },
 

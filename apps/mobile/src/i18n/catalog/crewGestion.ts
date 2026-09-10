@@ -858,6 +858,35 @@ export const G = defineCatalog({
     de: 'Verwarnung aufheben',
     pt: 'Remover esta advertência',
   },
+  /**
+   * Libellé COURT du bouton d'une LIGNE d'avertissement (lot Q4, 11/09/2026).
+   * `warnResolveCta` (« Lever cet avertissement ») reste le nom accessible et
+   * le libellé de la feuille d'actions ; répété trois fois dans une liste, il
+   * fabriquait une colonne de phrases identiques. Ici, c'est la ligne qui dit
+   * LEQUEL des avertissements le bouton lève.
+   */
+  warnResolveShort: {
+    fr: 'Lever',
+    en: 'Clear',
+    es: 'Levantar',
+    de: 'Aufheben',
+    pt: 'Remover',
+  },
+  /** Qui a posé l'avertissement : le job, ou un officier. Jamais un pseudo (§6.3). */
+  warnByServer: {
+    fr: 'Automatique',
+    en: 'Automatic',
+    es: 'Automática',
+    de: 'Automatisch',
+    pt: 'Automática',
+  },
+  warnByOfficer: {
+    fr: 'Posé par un officier',
+    en: 'Issued by an officer',
+    es: 'Puesta por un oficial',
+    de: 'Von einem Offizier gesetzt',
+    pt: 'Registrada por um oficial',
+  },
   warnResolved: {
     fr: 'Avertissement levé. La trace reste dans le journal.',
     en: 'Warning cleared. The trace stays in the log.',
@@ -1136,6 +1165,101 @@ export const G = defineCatalog({
     es: 'Condiciones de entrada',
     de: 'Eintrittsbedingungen',
     pt: 'Condições de entrada',
+  },
+
+  // ── Le panneau de filtres (lot Q4, 11/09/2026) ───────────────────────────
+  // Replié par défaut : la LISTE est la décision de l'écran, pas le formulaire.
+  filterPanel: {
+    fr: 'Filtres',
+    en: 'Filters',
+    es: 'Filtros',
+    de: 'Filter',
+    pt: 'Filtros',
+  },
+  /** Le compte n'apparaît QUE s'il y a des filtres actifs : jamais « 0 filtre ». */
+  filterPanelCount: {
+    fr: 'Filtres · {n} actifs',
+    en: 'Filters · {n} active',
+    es: 'Filtros · {n} activos',
+    de: 'Filter · {n} aktiv',
+    pt: 'Filtros · {n} ativos',
+  },
+  filterPanelReset: {
+    fr: 'Tout effacer',
+    en: 'Clear all',
+    es: 'Borrar todo',
+    de: 'Alles löschen',
+    pt: 'Limpar tudo',
+  },
+  filterSize: {
+    fr: 'Taille',
+    en: 'Size',
+    es: 'Tamaño',
+    de: 'Größe',
+    pt: 'Tamanho',
+  },
+  /** Les bornes viennent du code (dérivées de CREW_MAX_MEMBERS), jamais du texte. */
+  filterSizeSmall: {
+    fr: 'Jusqu’à {n}',
+    en: 'Up to {n}',
+    es: 'Hasta {n}',
+    de: 'Bis {n}',
+    pt: 'Até {n}',
+  },
+  filterSizeMedium: {
+    fr: '{min} à {max}',
+    en: '{min} to {max}',
+    es: '{min} a {max}',
+    de: '{min} bis {max}',
+    pt: '{min} a {max}',
+  },
+  filterSizeLarge: {
+    fr: '{n} et plus',
+    en: '{n} and more',
+    es: '{n} y más',
+    de: '{n} und mehr',
+    pt: '{n} ou mais',
+  },
+  filterTags: {
+    fr: 'Étiquettes',
+    en: 'Tags',
+    es: 'Etiquetas',
+    de: 'Merkmale',
+    pt: 'Etiquetas',
+  },
+  /** Le plafond est dit AVANT qu'on le heurte : un choix qui ne répond pas se lit comme une panne. */
+  filterTagsCap: {
+    fr: '{n} au maximum. Un crew doit porter toutes celles que tu coches.',
+    en: '{n} at most. A crew must carry every one you tick.',
+    es: '{n} como máximo. Un crew debe llevar todas las que marques.',
+    de: 'Höchstens {n}. Eine Crew muss alle tragen, die du ankreuzt.',
+    pt: 'No máximo {n}. Um crew precisa ter todas as que você marcar.',
+  },
+  /** Ce que « actif » veut dire côté serveur, dit en clair (0190). */
+  filterActiveOnlyHelp: {
+    fr: 'Une sortie à venir, ou du terrain pris ces 14 derniers jours.',
+    en: 'An upcoming outing, or terrain taken in the last 14 days.',
+    es: 'Una salida próxima, o terreno tomado en los últimos 14 días.',
+    de: 'Eine bevorstehende Ausfahrt oder in den letzten 14 Tagen erobertes Gelände.',
+    pt: 'Uma saída marcada, ou terreno tomado nos últimos 14 dias.',
+  },
+  filterOn: {
+    fr: 'Oui',
+    en: 'Yes',
+    es: 'Sí',
+    de: 'Ja',
+    pt: 'Sim',
+  },
+  /**
+   * Le filtre a vidé la liste. DISTINCT de « aucun crew ici » : le premier est
+   * une conséquence de ce qu'on vient de cocher, le second un fait sur la ville.
+   */
+  filterEmpty: {
+    fr: 'Aucun crew ne coche tout ça. Retire un filtre pour en voir plus.',
+    en: 'No crew matches all of that. Remove a filter to see more.',
+    es: 'Ningún crew cumple todo eso. Quita un filtro para ver más.',
+    de: 'Keine Crew erfüllt all das. Nimm einen Filter weg, um mehr zu sehen.',
+    pt: 'Nenhum crew atende a tudo isso. Tire um filtro para ver mais.',
   },
 
   // ══ DEMANDES REÇUES : le mot du candidat ═════════════════════════════════

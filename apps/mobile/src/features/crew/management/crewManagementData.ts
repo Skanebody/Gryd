@@ -49,6 +49,10 @@ import {
   type MyStanding2026,
 } from './crewBoard2026';
 import {
+  discoveryPayload2026,
+  type DiscoveryFilterState2026,
+} from './crewDiscoveryFilters2026';
+import {
   badRulesDetail,
   parseCrewRules,
   parseEligibility,
@@ -247,26 +251,12 @@ export function useCrewDecisions(limit = 50): ReadState<readonly Decision2026[]>
 }
 
 // ─── Découverte à filtres (`crew_discovery_2026`, 0190) ─────────────────────
-
-/** Les filtres de §2.7. `null` partout = « ce que je verrais sans rien demander ». */
-export interface DiscoveryFilters2026 {
-  cityId: string | null;
-  query: string;
-  activity: 'run' | 'bike' | null;
-  recruitment: 'open' | 'on_request' | 'invite_only' | null;
-  /** `none` · `any` · `eligible`. `eligible` est le filtre le plus utile (§2.7). */
-  requirements: 'none' | 'any' | 'eligible' | null;
-  activeOnly: boolean;
-}
-
-export const NO_DISCOVERY_FILTERS: DiscoveryFilters2026 = {
-  cityId: null,
-  query: '',
-  activity: null,
-  recruitment: null,
-  requirements: null,
-  activeOnly: false,
-};
+//
+// ⚠ 11/09/2026 (lot Q4) : `DiscoveryFilters2026` (six champs, dont quatre
+// jamais envoyés) est remplacé par `DiscoveryFilterState2026`, PUR et testé
+// (`crewDiscoveryFilters2026.ts`). Les quatre paramètres de 0190 qui restaient
+// à `null` en dur — discipline, taille, étiquettes, activité récente — sont
+// désormais construits là-bas, et l'écran les peint.
 
 export interface DiscoveryRow2026 {
   readonly id: string;
@@ -343,22 +333,13 @@ export function parseDiscovery2026(raw: unknown): DiscoveryPage2026 | null {
   };
 }
 
-export function useCrewDiscovery2026(f: DiscoveryFilters2026): ReadState<DiscoveryPage2026> {
+export function useCrewDiscovery2026(f: DiscoveryFilterState2026): ReadState<DiscoveryPage2026> {
+  // La charge utile est construite AILLEURS, et testée : le serveur refuse une
+  // valeur hors catalogue au lieu de la rogner, donc une charge fausse ne se
+  // verrait qu'à l'exécution, sur un écran vide sans explication.
   return useRpcRead(
     'crew_discovery_2026',
-    {
-      p_city_id: f.cityId,
-      // Chaîne vide → `null` : une recherche vide n'est pas la recherche de la
-      // chaîne vide.
-      p_query: f.query.trim().length > 0 ? f.query.trim() : null,
-      p_activity: f.activity,
-      p_recruitment: f.recruitment,
-      p_min_members: null,
-      p_max_members: null,
-      p_requirements: f.requirements,
-      p_active_only: f.activeOnly,
-      p_tags: null,
-    },
+    { ...discoveryPayload2026(f) },
     parseDiscovery2026,
   );
 }

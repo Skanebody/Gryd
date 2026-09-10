@@ -1116,3 +1116,145 @@ erreur de page, état « pas connecté » honnête partout.
 | Filtres §2.7 non peints : discipline, taille, étiquettes, activité récente | 0,5 j |
 | Lever un avertissement PRÉCIS quand un membre en a plusieurs | 0,25 j |
 | Notifications : peindre `warning_issued` / `removed` / `dissolved` dans le centre d'activité (§6.6) | 1 j |
+
+---
+
+## 8. Livré (Q4, mobile) — écrit après les écrans, pas avant
+
+**Date : 11/09/2026.** Deux des six restes du §7.6 sont levés, et le QR de crew
+demandé par le fondateur le même soir est enfin lisible par un appareil.
+
+### 8.1 Le QR de crew a une adresse, et un œil pour le lire
+
+L'affiche d'invitation était un **mode** de la page Crew (`mode === 'invite'`) :
+aucune adresse à ouvrir, aucun retour système, invisible pour
+`scripts/audit-routes.mjs`. Elle devient la route **`/crew-invitation`**
+(`src/features/crew/CrewInvitationScreen2026.tsx`) : blason, nom exact,
+effectif, QR, lien, « Partager le lien », « Copier », quatre états distincts
+(hors ligne · lecture · aucun crew · échec). Les **quatre** affordances
+« Inviter » de la page du crew poussent la MÊME route.
+
+Le QR encode `gryd://c/<CODE>`, comme le lien partagé et par la même
+expression : `app.json` ne déclare aucun domaine universel (décision d'infra,
+O10) et `apps/web` n'a pas de route `/c/[code]`, donc un `https://` ouvrirait
+une 404. Garde : `crew/crewInviteLink2026.test.ts` (5 tests, il devient rouge le
+jour où le domaine existe et dit quoi rebrancher).
+
+**Personne ne pouvait LIRE ce QR.** iOS n'ouvre pas un schéma privé depuis l'app
+Appareil photo, et le domaine des universal links n'est pas acheté : le carton
+était imprimable, pas scannable. `expo-camera@~16.0.18` entre au build, et
+`/qr` gagne son onglet **Scanner** (`src/features/scan/`) :
+
+- `scanCapability2026` (pur, 9 tests) lit le **binaire** — config embarquée
+  (`Constants.expoConfig.plugins`) **et** module natif requis paresseusement.
+  Web : aucun onglet. Build antérieur au plugin : l'onglet dit qu'un nouveau
+  build est nécessaire. Jamais un bouton mort ;
+- `parseScannedCode2026` (pur, 16 tests) : QR de crew → `/c/<CODE>`, QR de
+  profil → `/profil-rival/<handle>`, jeton 0090 → « cette version ne sait pas
+  encore le lire » (c'est un lien GRYD, pas un code étranger), tout le reste →
+  « ce code n'est pas un code GRYD ». Une chaîne **nue** n'est jamais un code de
+  crew : le QR d'un ticket de parking n'est pas une invitation ;
+- permission demandée **au geste**, jamais au montage ; refus définitif →
+  `Linking.openSettings()` ; `barcodeTypes: ['qr']` et rien d'autre ; aucune
+  image écrite, aucun octet envoyé (le manifeste de confidentialité n'a donc
+  pas une ligne de plus).
+
+`NSCameraUsageDescription` devient **une seule phrase**, écrite à l'identique
+aux deux plugins qui la déclarent (`expo-image-picker` et `expo-camera`) : le
+dernier gagne à la génération, et deux formulations auraient rendu la chaîne
+installée dépendante de l'ordre du tableau `plugins`.
+
+**Aucun bouton « Révoquer et regénérer » n'est peint**, et c'est le seul point
+où ce lot dit non à sa propre commande. `crews.code` (0002) est **permanent** :
+aucune migration ne le fait tourner. L'objet révocable existe bien — le jeton
+daté de 0090 — mais **aucun écran ne le consomme** : ni route `/i/[token]`, ni
+appel à `redeem_crew_invite` dans tout `apps/mobile`. Le peindre reviendrait
+soit à ne rien révoquer, soit à émettre un lien que l'app ne sait pas ouvrir.
+L'affiche dit donc ce qui est vrai avant qu'on donne le code : il est celui de
+tout le crew, il ne change pas et ne s'annule pas. **Question ouverte pour le
+fondateur en §8.4.**
+
+### 8.2 Les filtres de §2.7 (reste n°3 du §7.6) — levé
+
+`crew_discovery_2026` accepte neuf paramètres depuis Q2 ; l'écran en envoyait
+deux et laissait `p_activity`, `p_min_members`, `p_max_members`, `p_tags` et
+`p_active_only` à `null` **en dur**. La migration était déployée et à moitié
+morte. `crewDiscoveryFilters2026.ts` (pur, 12 tests) construit la charge utile ;
+`/crew-discovery` peint un panneau **replié par défaut** (la décision de l'écran
+reste la liste) portant le compte des filtres actifs :
+
+| Filtre | Source | Choix |
+|---|---|---|
+| Discipline | `holds_run` / `holds_bike` | peu importe · course · vélo |
+| Taille | `member_count` | peu importe · trois tranches **dérivées de `CREW_MAX_MEMBERS`** (1/5, 1/2) |
+| Conditions | `crew_rules_2026.requirements` | inchangé, dont « je suis éligible » |
+| Activité | `next_outing_at` / `last_capture` | peu importe · actifs récemment |
+| Étiquettes | `crews.tags` (`CREW_TAGS`) | jusqu'à 3, plafond **dit avant d'être heurté** |
+
+Les bornes de taille ne sont **pas** dans `game-rules.ts` : aucune mécanique ne
+les lit, ce sont des tranches d'affichage (même arbitrage que
+`INVITE_EXPIRING_SOON_HOURS`). Elles se dérivent de la seule constante réelle,
+donc elles suivront si un crew peut compter 100 personnes.
+
+Deux garanties : un filtre actif fait retirer des lignes de la liste de 0152, un
+filtre **inactif** n'en retire aucune (une panne de 0190 ne vide pas une
+recherche qui ne lui demandait rien) ; et « rien ne coche tout ça » est une
+phrase **distincte** de « aucun crew ici ».
+
+### 8.3 Lever un avertissement PRÉCIS (reste n°4 du §7.6) — levé
+
+L'écran affichait « 3 avertissements en cours » sous **un** bouton qui levait
+toujours le plus récent : deux des trois étaient inatteignables, et le libellé
+promettait « Lever cet avertissement » sans jamais dire lequel. Chaque
+avertissement a maintenant sa ligne (nature, date, auteur `automatique` ou
+`officier`, note non tronquée) et **son** bouton, dont le nom accessible porte
+le QUOI et le QUI. La trace reste dans le journal : levé n'est pas effacé.
+
+**Bonus, même famille.** La porte « Gérer mon crew » de la page du crew porte
+désormais le nombre d'alertes — candidatures en attente + membres à risque,
+comptés depuis `crew_join_requests` et `crew_member_board_2026`. Le compteur
+**disparaît à zéro** (jamais une pastille permanente), et une lecture qui n'a
+pas abouti ne compte pour rien : `crewAlerts2026.ts` sépare « zéro » de « je ne
+sais pas ». Les deux lectures vivent dans un composant monté **seulement** pour
+qui a la permission, donc aucun membre simple n'envoie ces RPC.
+
+### 8.4 Ce que Q4 prouve, et ce qu'il ne prouve PAS
+
+**Prouvé.** `npm run gate` vert. `node scripts/audit-routes.mjs` vert :
+`/crew-invitation` entre, `/profil-rival/[handle]` **sort de `KNOWN_ORPHANS`**
+(le QR de profil lui donne enfin une porte réelle, et une exemption fausse est
+pire qu'une orpheline). 49 tests neufs : 37 purs (parsing de QR, capacité du
+binaire, charge utile des filtres, compte d'alertes) et 12 de couture
+(invitation à un tap, scanner gardé par capacité, QR et lien portant le même
+jeton, un bouton par avertissement).
+
+**NON prouvé, et il faut le dire.**
+1. **La caméra n'a jamais été ouverte.** `expo-camera` est un module natif : le
+   build installé sur l'iPhone du fondateur (31cdde4e) ne l'embarque pas. Tant
+   qu'un nouveau build EAS n'est pas fait, l'onglet Scanner rend l'état
+   « nouveau build nécessaire » — l'état est juste, mais le viseur, le décodage
+   d'un vrai QR et la feuille de permission iOS n'ont été vus par personne.
+2. **Aucun QR de crew n'a été scanné de bout en bout** : il faudrait deux
+   appareils, un crew réel et un code réel. La base a 3 comptes et 0 donnée de
+   jeu.
+3. **Les filtres §2.7 n'ont jamais filtré** quoi que ce soit, faute de crews.
+4. **Le compteur d'alertes n'a jamais compté** : aucune candidature n'existe.
+5. **Le gate `ux-gate` reste à passer** sur `/crew-invitation` et sur l'onglet
+   Scanner, en rendu authentifié.
+
+**Question ouverte, une seule (§8.1).** Faut-il câbler le jeton d'invitation de
+0090 — route `/i/[token]`, `peek_crew_invite` (qui montrerait enfin le NOM du
+crew avant l'adhésion), `redeem_crew_invite`, création/révocation gatées sur
+`CREW_PERMISSIONS.invite` ? C'est le seul chemin par lequel « Révoquer et
+regénérer » peut exister sans mentir, et il ouvrirait aussi une invitation
+**datée**. C'est un lot à part entière, pas une finition.
+
+### 8.5 Ce qui reste du §7.6
+
+| Reste | État |
+|---|---|
+| Pousser 0188-0190 puis `npm run verify:rls` et vérifier `cron.job` | inchangé |
+| Recette authentifiée des neuf écrans + gate `ux-gate` | inchangé, + `/crew-invitation` et l'onglet Scanner |
+| Filtres §2.7 non peints | **levé (§8.2)** |
+| Lever un avertissement PRÉCIS | **levé (§8.3)** |
+| Notifications `warning_issued` / `removed` / `dissolved` | inchangé (lot notifications) |
