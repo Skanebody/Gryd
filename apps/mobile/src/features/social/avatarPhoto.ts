@@ -54,26 +54,73 @@ export const AVATAR_KIND = 'avatar' as const;
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
- * Côté maximal visé pour l'image envoyée.
+ * Côté le plus long de l'image ENVOYÉE, en pixels.
  *
- * ⚠️ CE QUE CE NOMBRE EST, ET CE QU'IL N'EST PAS. C'est un BUDGET, pas une
- * garantie : `expo-image-picker` ne sait pas redimensionner (aucune option de
- * taille dans `ImagePickerOptions`, vérifié dans le paquet installé ~16.0.6),
- * et `expo-image-manipulator` n'est PAS une dépendance de ce dépôt. L'ajouter
- * serait un module natif de plus, absent du binaire que le fondateur a sur son
- * iPhone : le bouton marcherait ici et pas chez lui. On ne promet donc pas un
- * redimensionnement qu'on ne fait pas. Ce qui est RÉELLEMENT appliqué :
- *   · recadrage CARRÉ (`allowsEditing` + `aspect [1,1]`) — l'avatar est clippé
- *     en hexagone, une image 16:9 rognerait le visage sans prévenir ;
- *   · compression JPEG (`quality`) par le sélecteur lui-même ;
- *   · refus NOMMÉ au-delà de `AVATAR_MAX_BYTES`, jamais un échec muet.
- * Le jour où un redimensionnement natif entre au dépôt, c'est cette constante
- * qu'il lira. En attendant elle sert de repère documenté, et rien d'autre.
+ * ─── CE NOMBRE EST APPLIQUÉ DEPUIS LE 10/09/2026 (lot 9) ────────────────────
+ * Il ne l'était pas. L'en-tête précédent l'annonçait honnêtement comme « un
+ * BUDGET, pas une garantie » : `expo-image-picker` ne sait pas redimensionner
+ * (aucune option de taille dans `ImagePickerOptions`, ~16.0.6) et
+ * `expo-image-manipulator` n'était pas une dépendance. Une photo d'iPhone
+ * partait donc en 3024 × 3024 pour être affichée dans un hexagone de 48 pt.
+ * `expo-image-manipulator@~13.0.6` (compatible SDK 52, aucun config plugin,
+ * aucune permission) est maintenant au dépôt, et `prepareAvatarForUpload2026`
+ * l'applique AVANT l'envoi.
+ *
+ * ⚠️ LA CAPACITÉ SE DÉRIVE DU BINAIRE, comme pour l'appareil photo. Le module
+ * est NATIF : il est absent du build que le fondateur a déjà sur son iPhone.
+ * Dans ce cas on n'invente rien et on ne casse rien — la photo part telle
+ * quelle, et le plafond de `AVATAR_MAX_BYTES` reste la garde qui refuse, avec
+ * un motif nommé, tout ce qui dépasse. Le redimensionnement arrivera avec le
+ * prochain build EAS ; d'ici là le comportement est EXACTEMENT celui d'avant.
+ *
+ * Ce qui est appliqué dans les deux cas : recadrage CARRÉ (`allowsEditing` +
+ * `aspect [1,1]`, l'avatar est clippé en hexagone et une image 16:9 rognerait
+ * le visage sans prévenir) et refus NOMMÉ au-delà de `AVATAR_MAX_BYTES`.
  */
 export const AVATAR_MAX_EDGE_PX = 1024;
 
-/** Compression demandée au sélecteur (0 = petit, 1 = maximum). */
+/**
+ * Compression JPEG (0 = petit, 1 = maximum). Une seule valeur pour les DEUX
+ * étages : ce que le sélecteur produit (`quality`) et ce que le
+ * redimensionneur ré-encode (`compress`). Deux nombres différents ici
+ * signifieraient qu'une photo est compressée deux fois à deux niveaux.
+ */
 export const AVATAR_JPEG_QUALITY = 0.7;
+
+/** Format d'envoi. Le bucket accepte jpg/png/webp ; on n'en sert qu'un. */
+export const AVATAR_SAVE_FORMAT = 'jpeg' as const;
+
+/**
+ * Ce qu'on demande au redimensionneur, ou `null` quand il n'y a RIEN à faire.
+ *
+ * On contraint le côté le PLUS LONG et on laisse l'autre suivre le ratio : le
+ * sélecteur impose déjà un carré, mais `allowsEditing` peut être contourné
+ * selon la plateforme, et contraindre la largeur d'une image portrait ne
+ * plafonnerait pas sa hauteur.
+ */
+export type AvatarResizeTarget2026 = { readonly width: number } | { readonly height: number } | null;
+
+/**
+ * Verdict PUR : faut-il redimensionner, et sur quel côté ?
+ *
+ * DEUX REFUS DE REDIMENSIONNER, tous deux volontaires :
+ *  · l'image tient déjà sous le plafond → on ne la ré-échantillonne pas pour
+ *    rien (chaque passe coûte de la netteté) ;
+ *  · ses dimensions sont inconnues → on ne peut pas savoir quel côté est le
+ *    plus long, et demander `{ width: 1024 }` à l'aveugle AGRANDIRAIT une
+ *    petite photo. Le plafond d'octets reste la garde dans ce cas.
+ */
+export function avatarResizeTarget2026(
+  width: number | null | undefined,
+  height: number | null | undefined,
+  maxEdge: number = AVATAR_MAX_EDGE_PX,
+): AvatarResizeTarget2026 {
+  const w = typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : null;
+  const h = typeof height === 'number' && Number.isFinite(height) && height > 0 ? height : null;
+  if (w === null || h === null) return null;
+  if (Math.max(w, h) <= maxEdge) return null;
+  return w >= h ? { width: maxEdge } : { height: maxEdge };
+}
 
 /**
  * MIROIR EXACT de la policy `social_media_insert_2026` (0124:97) :
@@ -290,12 +337,107 @@ function pickerOptions(): Record<string, unknown> {
   };
 }
 
-function firstAsset(result: PickerResult): PickAvatarResult {
+// ─── REDIMENSIONNEMENT : module natif, chargé paresseusement ────────────────
+
+/** La part de `expo-image-manipulator` qu'on utilise, et rien de plus. */
+interface ManipulatorSaved {
+  uri: string;
+}
+interface ManipulatorImage {
+  saveAsync(options: { compress?: number; format?: string }): Promise<ManipulatorSaved>;
+}
+interface ManipulatorContext {
+  resize(size: { width?: number | null; height?: number | null }): ManipulatorContext;
+  renderAsync(): Promise<ManipulatorImage>;
+}
+interface ManipulatorModule {
+  ImageManipulator: { manipulate(uri: string): ManipulatorContext };
+}
+
+function loadManipulator(): ManipulatorModule | null {
+  try {
+    // require paresseux, MÊME PATRON que `loadPicker` : le module est natif, et
+    // un binaire construit avant son arrivée au dépôt (celui que le fondateur a
+    // sur son iPhone) ne l'a pas. `requireNativeModule` jette alors ici, au
+    // moment du geste, au lieu de casser le bundle au chargement de l'écran.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-image-manipulator') as ManipulatorModule;
+  } catch {
+    return null;
+  }
+}
+
+/** Taille RÉELLE du fichier produit, ou `null` si on ne peut pas la lire. */
+async function fileBytes(uri: string): Promise<number | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const FileSystem = require('expo-file-system') as {
+      getInfoAsync(uri: string, options?: { size?: boolean }): Promise<{ exists: boolean; size?: number }>;
+    };
+    const info = await FileSystem.getInfoAsync(uri, { size: true });
+    return info.exists && typeof info.size === 'number' && info.size > 0 ? info.size : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ce qui sort de la préparation. `resized: false` n'est PAS un échec : c'est
+ * soit une image déjà sous le plafond, soit un binaire sans le module natif.
+ */
+export interface AvatarPrepared2026 {
+  readonly uri: string;
+  readonly bytes: number | null;
+  readonly resized: boolean;
+}
+
+/**
+ * Redimensionne à `AVATAR_MAX_EDGE_PX` sur le côté le plus long et ré-encode en
+ * JPEG à `AVATAR_JPEG_QUALITY`, AVANT tout envoi.
+ *
+ * ⚠️ `bytes` EST RELU SUR LE FICHIER PRODUIT. La taille rendue par le sélecteur
+ * décrit l'ORIGINAL ; la garder après un ré-encodage ferait refuser (ou passer)
+ * une photo sur la taille d'une autre. Illisible ⇒ `null`, et l'écran laisse
+ * alors le bucket trancher plutôt que d'inventer un verdict.
+ *
+ * Aucune branche ne jette : un module absent, une URI que le natif refuse ou un
+ * système de fichiers verrouillé rendent l'original tel quel. Le plafond de
+ * `AVATAR_MAX_BYTES` reste la garde dans tous ces cas.
+ */
+export async function prepareAvatarForUpload2026(asset: {
+  uri: string;
+  bytes: number | null;
+  width?: number | null;
+  height?: number | null;
+}): Promise<AvatarPrepared2026> {
+  const target = avatarResizeTarget2026(asset.width, asset.height);
+  const manipulator = loadManipulator();
+  if (!manipulator) return { uri: asset.uri, bytes: asset.bytes, resized: false };
+  try {
+    const context = manipulator.ImageManipulator.manipulate(asset.uri);
+    const rendered = await (target === null ? context : context.resize(target)).renderAsync();
+    const saved = await rendered.saveAsync({
+      compress: AVATAR_JPEG_QUALITY,
+      format: AVATAR_SAVE_FORMAT,
+    });
+    return { uri: saved.uri, bytes: await fileBytes(saved.uri), resized: target !== null };
+  } catch {
+    return { uri: asset.uri, bytes: asset.bytes, resized: false };
+  }
+}
+
+async function firstAsset(result: PickerResult): Promise<PickAvatarResult> {
   if (result.canceled) return { kind: 'canceled' };
   const asset = result.assets?.[0];
   if (!asset || typeof asset.uri !== 'string' || asset.uri.length === 0) return { kind: 'canceled' };
   const bytes = typeof asset.fileSize === 'number' && asset.fileSize > 0 ? asset.fileSize : null;
-  return { kind: 'picked', uri: asset.uri, bytes };
+  const prepared = await prepareAvatarForUpload2026({
+    uri: asset.uri,
+    bytes,
+    width: asset.width,
+    height: asset.height,
+  });
+  return { kind: 'picked', uri: prepared.uri, bytes: prepared.bytes };
 }
 
 /**
@@ -308,7 +450,7 @@ export async function pickAvatarPhoto(): Promise<PickAvatarResult> {
   if (!picker) return { kind: 'unavailable' };
   const permission = await picker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) return { kind: 'denied', canAskAgain: permission.canAskAgain };
-  return firstAsset(await picker.launchImageLibraryAsync(pickerOptions()));
+  return await firstAsset(await picker.launchImageLibraryAsync(pickerOptions()));
 }
 
 /**
@@ -322,7 +464,7 @@ export async function captureAvatarPhoto(): Promise<PickAvatarResult> {
   if (!picker) return { kind: 'unavailable' };
   const permission = await picker.requestCameraPermissionsAsync();
   if (!permission.granted) return { kind: 'denied', canAskAgain: permission.canAskAgain };
-  return firstAsset(await picker.launchCameraAsync(pickerOptions()));
+  return await firstAsset(await picker.launchCameraAsync(pickerOptions()));
 }
 
 /**

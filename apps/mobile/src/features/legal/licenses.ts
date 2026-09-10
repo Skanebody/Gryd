@@ -83,6 +83,9 @@ export const BUNDLED_LICENSES: Readonly<Record<string, string>> = {
   'expo-document-picker': 'MIT',
   'expo-file-system': 'MIT',
   'expo-haptics': 'MIT',
+  // Ajouté le 10/09/2026 (lot 9) : la photo de profil est redimensionnée à
+  // 1024 px et ré-encodée en JPEG AVANT l'envoi (`social/avatarPhoto.ts`).
+  'expo-image-manipulator': 'MIT',
   'expo-image-picker': 'MIT',
   'expo-linking': 'MIT',
   'expo-localization': 'MIT',

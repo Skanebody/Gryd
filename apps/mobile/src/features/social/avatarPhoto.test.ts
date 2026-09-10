@@ -29,10 +29,13 @@ import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.t
 import {
   AVATAR_EXTENSIONS,
   AVATAR_MAX_BYTES,
+  AVATAR_MAX_EDGE_PX,
   AVATAR_PATH_PATTERN_2026,
+  AVATAR_SAVE_FORMAT,
   IMAGE_PICKER_PLUGIN,
   SOCIAL_MEDIA_PATH_PATTERN_2026,
   avatarPathAccepted,
+  avatarResizeTarget2026,
   avatarStoragePath,
   avatarUploadRefusal,
   cameraAvatarCapability,
@@ -262,5 +265,162 @@ Deno.test('couture — l’envoi n’a lieu QU’UNE fois par photo', () => {
   assert(
     /patch\(\{\s*avatarPath\s*:\s*path\s*,\s*avatarUri\s*:\s*signed/.test(CODE_EDIT),
     'le brouillon ne porte plus le couple (chemin, URI signée) après l’envoi',
+  );
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// D4 · LE REDIMENSIONNEMENT ÉTAIT DOCUMENTÉ, PAS APPLIQUÉ (lot 9, 10/09/2026)
+//
+// ÉTAPE 0, mot pour mot, dans l'en-tête de `AVATAR_MAX_EDGE_PX` :
+//
+//   « C'est un BUDGET, pas une garantie : `expo-image-picker` ne sait pas
+//     redimensionner […] et `expo-image-manipulator` n'est PAS une dépendance
+//     de ce dépôt. […] Le jour où un redimensionnement natif entre au dépôt,
+//     c'est cette constante qu'il lira. En attendant elle sert de repère
+//     documenté, et rien d'autre. »
+//
+// La constante existait, personne ne la lisait, et une photo d'iPhone partait
+// en 3024 × 3024 pour un hexagone de 48 pt. Un build EAS était prévu : le
+// module natif pouvait enfin entrer. Ces règles prouvent qu'il est là, qu'il
+// est appelé avec 1024 et en JPEG, et qu'un binaire qui ne l'a PAS envoie
+// quand même — sous le plafond d'octets, comme avant.
+// ════════════════════════════════════════════════════════════════════════════
+
+const AVATAR_PHOTO_SRC = codeSeul(
+  await Deno.readTextFile(new URL('./avatarPhoto.ts', import.meta.url)),
+);
+const MOBILE_PACKAGE = JSON.parse(
+  await Deno.readTextFile(new URL('../../../package.json', import.meta.url)),
+) as { dependencies?: Record<string, string> };
+const ROOT_LOCK = JSON.parse(
+  await Deno.readTextFile(new URL('../../../../../package-lock.json', import.meta.url)),
+) as { packages?: Record<string, { version?: string }> };
+
+Deno.test('étape 0 — le module de redimensionnement est RÉELLEMENT au dépôt', () => {
+  const declared = MOBILE_PACKAGE.dependencies?.['expo-image-manipulator'];
+  assert(
+    typeof declared === 'string' && declared.length > 0,
+    'expo-image-manipulator n’est pas déclaré : la constante redeviendrait « un repère, et rien d’autre »',
+  );
+  // Un package.json sans lock ne prouve rien : c'est le lock qui décide de ce
+  // qui part dans le binaire EAS.
+  const locked = ROOT_LOCK.packages?.['node_modules/expo-image-manipulator']?.version;
+  assert(
+    typeof locked === 'string' && locked.length > 0,
+    'package-lock.json ne fige aucune version : l’installation n’est pas reproductible',
+  );
+  // SDK 52 → expo-image-manipulator 13.x (résolu par `npx expo install`).
+  assertEquals(locked.split('.')[0], '13', `version incompatible SDK 52 : ${locked}`);
+});
+
+Deno.test('le côté le plus long est ramené à 1024, et c’est bien LE plus long', () => {
+  assertEquals(AVATAR_MAX_EDGE_PX, 1024);
+  // Carré d'iPhone : la largeur porte la contrainte, la hauteur suit le ratio.
+  assertEquals(avatarResizeTarget2026(3024, 3024), { width: 1024 });
+  // Paysage : c'est la largeur qui dépasse.
+  assertEquals(avatarResizeTarget2026(4032, 3024), { width: 1024 });
+  // PORTRAIT : contraindre la largeur ne plafonnerait PAS la hauteur — une
+  // image 1000 × 4000 resterait à 4000 px de haut. C'est le défaut exact que
+  // « resize({ width })» seul aurait laissé passer.
+  assertEquals(avatarResizeTarget2026(1000, 4000), { height: 1024 });
+});
+
+Deno.test('on ne ré-échantillonne jamais pour rien, et on n’agrandit jamais', () => {
+  // Déjà sous le plafond : chaque passe coûte de la netteté.
+  assertEquals(avatarResizeTarget2026(800, 600), null);
+  // Exactement au plafond : ce n'est pas « au-dessus ».
+  assertEquals(avatarResizeTarget2026(1024, 1024), null);
+  // Dimensions inconnues : demander 1024 à l'aveugle AGRANDIRAIT une petite
+  // photo. Le plafond d'octets reste la garde dans ce cas.
+  assertEquals(avatarResizeTarget2026(undefined, undefined), null);
+  assertEquals(avatarResizeTarget2026(1200, null), null);
+  assertEquals(avatarResizeTarget2026(0, 0), null);
+  assertEquals(avatarResizeTarget2026(Number.NaN, 4000), null);
+});
+
+Deno.test('couture — la préparation est appelée avec 1024 et en JPEG, avant l’envoi', () => {
+  // MUTATION VISÉE : « redimensionnement retiré ». Enlever `.resize(target)`,
+  // le format JPEG ou la qualité rend chacune de ces trois lignes rouge.
+  assert(
+    /\.resize\(target\)/.test(AVATAR_PHOTO_SRC),
+    'plus aucun redimensionnement n’est demandé au module natif',
+  );
+  assert(
+    /avatarResizeTarget2026\(asset\.width,\s*asset\.height\)/.test(AVATAR_PHOTO_SRC),
+    'la cible n’est plus calculée depuis les dimensions de la photo choisie',
+  );
+  assert(
+    /compress:\s*AVATAR_JPEG_QUALITY/.test(AVATAR_PHOTO_SRC)
+      && /format:\s*AVATAR_SAVE_FORMAT/.test(AVATAR_PHOTO_SRC),
+    'le fichier produit n’est plus ré-encodé en JPEG à la qualité nommée',
+  );
+  assertEquals(AVATAR_SAVE_FORMAT, 'jpeg');
+  // Et la constante n'est pas recopiée en dur ailleurs. `AVATAR_MAX_BYTES` est
+  // écarté : son `5 * 1024 * 1024` parle d'octets, pas de pixels.
+  const pixels = AVATAR_PHOTO_SRC.split('\n')
+    .filter((ligne) => !ligne.includes('AVATAR_MAX_BYTES ='))
+    .join('\n');
+  assertEquals(
+    (pixels.match(/\b1024\b/g) ?? []).length,
+    1,
+    'un 1024 en dur double la constante : les deux finiront par diverger',
+  );
+});
+
+Deno.test('couture — les DEUX portes (photothèque, appareil photo) passent par elle', () => {
+  assert(
+    /const prepared = await prepareAvatarForUpload2026\(/.test(AVATAR_PHOTO_SRC),
+    'firstAsset n’attend plus la préparation : la photo partirait telle quelle',
+  );
+  assert(
+    /uri: prepared\.uri/.test(AVATAR_PHOTO_SRC) && /bytes: prepared\.bytes/.test(AVATAR_PHOTO_SRC),
+    'le résultat rendu à l’écran n’est pas celui du fichier préparé',
+  );
+  // `firstAsset` est devenue asynchrone : un `return firstAsset(…)` sans await
+  // rendrait une Promise là où l'écran attend un verdict.
+  assertEquals(
+    (AVATAR_PHOTO_SRC.match(/return await firstAsset\(/g) ?? []).length,
+    2,
+    'les deux portes ne passent pas toutes les deux par la préparation',
+  );
+});
+
+Deno.test('couture — un binaire sans le module natif envoie quand même', () => {
+  // La capacité se DÉRIVE du build, comme pour la caméra : le fondateur a déjà
+  // un iPhone avec un binaire d'AVANT ce paquet. `require` paresseux + retour
+  // de l'original : rien ne casse, rien n'est promis.
+  assert(
+    /require\('expo-image-manipulator'\)/.test(AVATAR_PHOTO_SRC),
+    'le module n’est plus chargé paresseusement : un import en tête casserait le bundle',
+  );
+  assert(
+    /if \(!manipulator\) return \{ uri: asset\.uri, bytes: asset\.bytes, resized: false \};/
+      .test(AVATAR_PHOTO_SRC),
+    'sans le module, la préparation ne rend plus la photo d’origine : le geste échouerait',
+  );
+  assert(
+    /catch \{\s*return \{ uri: asset\.uri, bytes: asset\.bytes, resized: false \};/
+      .test(AVATAR_PHOTO_SRC),
+    'une erreur native fait échouer le choix de photo au lieu d’envoyer l’original',
+  );
+});
+
+Deno.test('couture — la taille jugée est celle du fichier ENVOYÉ, pas de l’original', () => {
+  // Après un ré-encodage, `fileSize` du sélecteur décrit une AUTRE image.
+  // Garder ce nombre ferait refuser (ou passer) une photo sur la taille d'une
+  // autre — c'est-à-dire mentir au joueur sur la raison du refus.
+  assert(
+    /bytes: await fileBytes\(saved\.uri\)/.test(AVATAR_PHOTO_SRC),
+    'la taille du fichier produit n’est plus relue : le refus porterait sur l’original',
+  );
+  // Illisible ⇒ `null`, et l'écran laisse le bucket trancher (`bytes===null`
+  // saute le pré-refus dans profil-edit.tsx) : jamais un verdict inventé.
+  assert(
+    /getInfoAsync\(uri, \{ size: true \}\)/.test(AVATAR_PHOTO_SRC),
+    'la taille réelle n’est plus demandée au système de fichiers',
+  );
+  assert(
+    /const refusal=bytes===null\?null:avatarUploadRefusal\(\{bytes\}\)/.test(CODE_EDIT),
+    'l’écran a changé de règle de refus : le couple taille/verdict n’est plus celui testé ici',
   );
 });
