@@ -169,6 +169,17 @@ const KNOWN_ORPHANS = new Map([
       'client mail qui rouvre l’app dessus. Elle figure aussi dans ' +
       '`ENTRY_ROUTES` : l’app peut s’y ouvrir.',
   ],
+  [
+    '/r/[code]',
+    'atterrissage d’un lien de PARRAINAGE (`gryd://r/CODE`, migrations ' +
+      '0184-0186). Aucun écran ne doit y mener, et il ne faut pas en ' +
+      'fabriquer un : le seul émetteur légitime est le message de partage de ' +
+      'quelqu’un d’AUTRE (`src/features/referral/referral2026.ts#' +
+      'buildReferralDeepLink`, appelé par `/parrainage` et par le bloc social ' +
+      'du Profil). Un lien interne vers `/r/<mon propre code>` serait un ' +
+      'auto-parrainage, que le serveur refuse (`self_referral`). Elle figure ' +
+      'aussi dans `ENTRY_ROUTES` : l’app peut s’y ouvrir.',
+  ],
 
   // ─── ORPHELINES DE LA FUSION DU 09/09/2026 (ADR-012) ──────────────────────
   // Ces huit écrans avaient une porte AVANT la fusion. Le cahier a remplacé la
@@ -497,6 +508,13 @@ const orphans = [...routes.keys()].filter((r) => (inbound.get(r)?.size ?? 0) ===
  *  · `/c/[code]` — `app/_layout.tsx:344` : l'app LANCÉE par un QR d'invitation
  *    (`gryd://c/CODE`) s'ouvre dessus, depuis le layout racine, avant toute
  *    route (`getInitialURL`).
+ *  · `/r/[code]` — l'app OUVERTE par un lien de parrainage (`gryd://r/CODE`,
+ *    migrations 0184-0186). expo-router route ce chemin tout seul ; aucun écran
+ *    ne DOIT y mener, et il ne faut surtout pas en fabriquer un : le seul
+ *    émetteur légitime est le message de partage de quelqu'un d'AUTRE
+ *    (`src/features/referral/referral2026.ts#buildReferralDeepLink`). La reprise
+ *    après inscription vit dans le layout racine
+ *    (`startPendingReferralWatcher`, app/_layout.tsx), pas dans cet écran.
  *  · `/callback` — le lien magique rouvre l'app dessus
  *    (`emailRedirectTo: 'gryd://callback'`, src/lib/auth.ts:264).
  *
@@ -504,7 +522,7 @@ const orphans = [...routes.keys()].filter((r) => (inbound.get(r)?.size ?? 0) ===
  * par `app/(tabs)/index.tsx`, `(tabs)` étant un groupe sans segment d'URL. Le
  * créer ferait deux fichiers pour le même chemin (docblock de `app/_layout.tsx`).
  */
-const ENTRY_ROUTES = ['/', '/onboarding', '/course-live', '/c/[code]', '/callback'];
+const ENTRY_ROUTES = ['/', '/onboarding', '/course-live', '/c/[code]', '/r/[code]', '/callback'];
 
 /**
  * Ce qui DOIT rester atteignable, sous peine de refus App Store ou d'infraction.

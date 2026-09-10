@@ -12,6 +12,12 @@
 /** Familles de routes dynamiques : préfixe (slash final) → patron rédigé. */
 const DYNAMIC_ROUTES: ReadonlyArray<{ readonly prefix: string; readonly pattern: string }> = [
   { prefix: '/c/', pattern: '/c/[code]' }, // invitation crew (code)
+  // E-parrainage (11/09/2026) — le segment est le code de parrainage d'un
+  // TIERS (`referral_codes_2026`, migration 0184). Laissé en clair dans
+  // `$screen`, il dirait « ce joueur a ouvert le lien d'UNTEL » : le code est
+  // stable à vie et unique par compte, donc c'est un identifiant relationnel,
+  // exactement ce que les deux routes « rival » ci-dessous rédigent déjà.
+  { prefix: '/r/', pattern: '/r/[code]' },
   { prefix: '/parametres/', pattern: '/parametres/[section]' },
   { prefix: '/course/', pattern: '/course/[id]' }, // détail d'une course (id)
   { prefix: '/challenges/', pattern: '/challenges/[id]' }, // détail défi (l'index reste /challenges)

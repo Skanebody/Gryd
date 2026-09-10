@@ -9,8 +9,11 @@ import { useSession } from '../../lib/session';
 import { screen } from '../../lib/analytics';
 import { GrydIcon, GrydMark, CircularAction2026 } from '../../ui/gryd';
 import { useLocale } from '../../i18n/store';
-import { resolve } from '../../i18n/types';
+import { format, resolve } from '../../i18n/types';
 import { C as defisSemaine } from '../../i18n/catalog/defisSemaine';
+import { C as referralCopy } from '../../i18n/catalog/referral';
+import { buildReferralDeepLink } from '../referral/referral2026';
+import { useMyReferral2026 } from '../referral/useMyReferral2026';
 import { useProfileProgress } from './ProfileProgress';
 import { adoptLocalActivities2026, useAdoptableLocalActivities2026, useAdoptionNoticeAcknowledged2026 } from './localActivities';
 import { profileMovementState2026 } from './ProfileMovementState2026';
@@ -121,12 +124,32 @@ function ProfileHomeContents() {
    * ci-dessous n'aura qu'à l'ajouter — c'est pour ça qu'on le calcule.
    */
   const profileLink = ownsHandle ? buildProfileLink(profile.handle) : null;
-  const inviteMessage = copy(
-    `Je suis sur GRYD : mes sorties dessinent mon terrain sur la carte. Mon pseudo est @${profile.handle}. Cherche-le dans Amis quand tu auras l’appli.`,
-    `I’m on GRYD: my activities draw my ground on the map. My handle is @${profile.handle}. Search for it under Friends once you have the app.`,
-  );
+  /**
+   * ─── L'INVITATION PORTE DÉSORMAIS LE PARRAINAGE (11/09/2026) ──────────────
+   * Le code vient du SERVEUR (`my_referral_2026`, migration 0186) et le lien est
+   * construit ICI à partir du schéma d'`app.json` : la base n'écrit jamais une
+   * adresse qu'elle ne peut pas vérifier. Tant que le code n'est pas lu, le
+   * message reste EXACTEMENT celui d'avant — le @pseudo, utilisable
+   * aujourd'hui — parce qu'un message qui SORT de l'app ne peut pas promettre
+   * une récompense que rien ne déclenchera.
+   *
+   * AUCUN LIEN WEB : `apps/web` n'a pas de route `/r/` et l'arbitrage de domaine
+   * (O10) n'est pas rendu. `gryd://r/<code>` fonctionne dès aujourd'hui sur un
+   * appareil où GRYD est installé, et le CODE se saisit à la main partout
+   * ailleurs. Le jour où le domaine répondra, `buildReferralWebLink` est prêt.
+   */
+  const referral = useMyReferral2026();
+  const referralCode = referral.data?.code ?? null;
+  const referralLink = referralCode ? buildReferralDeepLink(referralCode) : null;
+  const canInvite = !!profileLink || referralCode !== null;
+  const inviteMessage = referralCode && referralLink
+    ? format(referralCopy.partageMessage, { code: referralCode, lien: referralLink }, locale)
+    : copy(
+      `Je suis sur GRYD : mes sorties dessinent mon terrain sur la carte. Mon pseudo est @${profile.handle}. Cherche-le dans Amis quand tu auras l’appli.`,
+      `I’m on GRYD: my activities draw my ground on the map. My handle is @${profile.handle}. Search for it under Friends once you have the app.`,
+    );
   function invite() {
-    if (!profileLink) return;
+    if (!canInvite) return;
     setInviteNotice(null);
     void openShareSheet(inviteMessage).then(result => {
       if (result.ok) { void haptics.success(); return; }
@@ -250,19 +273,26 @@ function ProfileHomeContents() {
         regarde déjà qui l'on est. La récompense, non. Aucun compteur, aucun
         palier, aucune promesse de gain : trois gestes, et c'est tout.
 
-        ⚠️ PAS DE « ENTRER UN CODE DE PARRAINAGE ». La table `public.referrals`
-        existe dans le schéma (0002) mais RIEN ne l'écrit : aucune RPC ne
-        transforme un code en lien de parrainage, aucune Edge Function ne pose
-        `activated_at`, et le client ne peut pas lire l'`user_id` d'un tiers
-        pour insérer la ligne. Peindre le champ serait un bouton mort. La
-        proposition chiffrée est dans
-        `docs/product/GRYD_REGLAGES_PROFIL_AUDIT_2026_09.md`, § Parrainage. */}
+        ⚠️ CE PARAGRAPHE A ÉTÉ RÉÉCRIT LE 11/09/2026, ET LA RAISON A CHANGÉ.
+        Il disait « PAS DE ENTRER UN CODE DE PARRAINAGE : peindre le champ
+        serait un bouton mort », et c'était VRAI — `public.referrals` (0002)
+        n'était écrite par rien. Deux faits l'ont rendu faux le même jour :
+         · le fondateur a tranché l'autre sens (« il faut faire comme Tesla, il
+           faut qu'un mec qui parraine ait quelque chose à gagner que les autres
+           n'ont pas ») — dérogation datée, `ADR-017-BROUILLON-PARRAINAGE.md` ;
+         · les migrations 0184-0186 ont posé le code, le lien, l'attribution
+           serveur et ses six refus nommés. Le champ de saisie existe désormais,
+           mais il vit sur `/parrainage` — il ne sert qu'une fois, à l'arrivée,
+           et le Profil n'est pas l'endroit d'un formulaire.
+        Ce bloc garde donc ses trois gestes, et en gagne un quatrième : la porte
+        vers `/parrainage`. Toujours AUCUN compteur de filleuls ici : ce n'est
+        pas un score. */}
     <View style={local.social}>
-      <Pressable accessibilityRole="button" accessibilityState={{ disabled: !profileLink }} aria-disabled={!profileLink}
-        disabled={!profileLink} onPress={invite}
-        style={[local.socialAction, !profileLink && local.socialActionOff]}>
-        <GrydIcon name="share" size={18} color={profileLink ? c.ink : c.muted} />
-        <Text style={[local.socialLabel, !profileLink && local.socialLabelOff]}>{copy('Inviter un ami', 'Invite a friend')}</Text>
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: !canInvite }} aria-disabled={!canInvite}
+        disabled={!canInvite} onPress={invite}
+        style={[local.socialAction, !canInvite && local.socialActionOff]}>
+        <GrydIcon name="share" size={18} color={canInvite ? c.ink : c.muted} />
+        <Text style={[local.socialLabel, !canInvite && local.socialLabelOff]}>{copy('Inviter un ami', 'Invite a friend')}</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => router.push('/amis')} style={local.socialAction}>
         <GrydIcon name="crew" size={18} color={c.ink} />
@@ -272,7 +302,15 @@ function ProfileHomeContents() {
         <GrydIcon name="accountCard" size={18} color={c.ink} />
         <Text style={local.socialLabel}>{copy('Mon code', 'My code')}</Text>
       </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/parrainage')} style={local.socialAction}>
+        <GrydIcon name="collection" size={18} color={c.ink} />
+        <Text style={local.socialLabel}>{resolve(referralCopy.profilLigne, locale)}</Text>
+      </Pressable>
     </View>
+    {/* La phrase qui dit ce que les DEUX gagnent. Elle n'apparaît QUE si le code
+        a été lu : sans lui, l'invitation ne porte pas de parrainage, et promettre
+        une récompense qu'on ne peut pas déclencher serait un mensonge de plus. */}
+    {referralCode ? <Text style={local.meta}>{resolve(referralCopy.profilInviterAide, locale)}</Text> : null}
     {/* Les DEUX raisons d'un partage impossible ne sont pas la même, et elles
         n'appellent pas le même geste : sans compte on en crée un ; avec un
         compte mais sans pseudo choisi, on va l'écrire. Un seul message gris

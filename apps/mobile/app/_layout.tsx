@@ -56,6 +56,7 @@ import {
   rememberPendingInvite,
   startPendingInviteWatcher,
 } from '../src/features/crew/pendingInvite';
+import { startPendingReferralWatcher } from '../src/features/referral/pendingReferral';
 
 /**
  * Réduit un buffer `runStore.StoredRun` à ce que la décision PURE de
@@ -363,10 +364,17 @@ export default function RootLayout() {
     // Reprise de l'invitation mémorisée dès que la session devient valide
     // (inscription différée) — posée ICI, dans un layout toujours monté.
     const stopWatcher = startPendingInviteWatcher();
+    // MÊME BESOIN, AUTRE PARCOURS : `gryd://r/<code>` (parrainage, migrations
+    // 0184-0186). expo-router route DÉJÀ ce chemin tout seul vers `app/r/
+    // [code].tsx`, qui mémorise l'intention ; mais la REPRISE doit vivre là où
+    // la session devient valide, pas dans un écran que la redirection
+    // post-inscription démonte à l'instant précis où elle arrive.
+    const stopReferralWatcher = startPendingReferralWatcher();
     return () => {
       alive = false;
       sub.remove();
       stopWatcher();
+      stopReferralWatcher();
     };
   }, []);
 
