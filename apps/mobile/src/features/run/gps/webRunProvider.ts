@@ -44,15 +44,23 @@ function geolocation(): Geolocation | null {
  * est remplacée par GPS_ACCURACY_MAX_M : le point reste dans la trace mais pèse
  * « faible » dans la jauge de confiance — jamais une fausse certitude. Même
  * traitement que le provider natif (provider.ts `toRawFix`).
+ *
+ * `alt` (LOT R) : `GeolocationCoordinates.altitude` vaut `null` sur la plupart
+ * des machines de bureau (aucun altimètre) et porte une vraie valeur sur un
+ * téléphone. On ne recopie que le FINI : sans ça, l'aperçu localhost écrirait
+ * des altitudes nulles dans la trace et le profil de dénivelé annoncerait un
+ * relief que personne n'a monté.
  */
 function toRawFix(pos: GeolocationPosition): RawFix {
   const accuracy = pos.coords.accuracy;
+  const altitude = pos.coords.altitude;
   return {
     lat: pos.coords.latitude,
     lng: pos.coords.longitude,
     ts: pos.timestamp,
     accuracy: Number.isFinite(accuracy) ? accuracy : GPS_ACCURACY_MAX_M,
     ...(pos.coords.speed !== null && pos.coords.speed >= 0 ? { speed: pos.coords.speed } : {}),
+    ...(typeof altitude === 'number' && Number.isFinite(altitude) ? { alt: altitude } : {}),
   };
 }
 

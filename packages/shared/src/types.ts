@@ -81,6 +81,32 @@ export interface RunPoint {
   t: number;
   /** Précision horizontale en mètres (absente pour HealthKit → considérée bonne). */
   acc?: number;
+  /**
+   * ALTITUDE en mètres au-dessus du niveau de la mer, telle que la plateforme
+   * l'a rendue (`Location.coords.altitude`, `GeolocationCoordinates.altitude`).
+   *
+   * ─── POURQUOI CE CHAMP N'EXISTAIT PAS, ET CE QUE ÇA COÛTAIT ───────────────
+   * `features/journal/metrics.ts` sait calculer un dénivelé cumulé depuis le
+   * lot journal, et son commentaire le disait sans détour : « AUCUNE source de
+   * GRYD ne fournit d'altitude aujourd'hui (`RunPoint` = lat/lng/t/acc) ». Le
+   * profil d'altitude du détail de sortie était donc structurellement mort, et
+   * l'écran de course ne pouvait afficher aucun D+ — la seule mesure que Strava
+   * donne à tout le monde sans capteur supplémentaire. Le téléphone la mesurait
+   * pourtant à chaque relevé ; elle était jetée à la frontière du contrat.
+   *
+   * OPTIONNEL, et c'est structurel : une trace HealthKit/GPX n'en porte pas
+   * toujours, un navigateur rend `null` sans altimètre, et TOUTES les traces
+   * déjà écrites dans `runs.trace_points_2026` en sont dépourvues. Absent =
+   * « pas mesuré », jamais « zéro » : `elevationFrom` rend alors
+   * `available: false` et aucun profil n'est dessiné.
+   *
+   * AUCUN CALCUL DE JEU NE LE LIT. Ni `filterPoints`, ni `computeStats`, ni
+   * `analyzeTrace2026`, ni la capture : le dénivelé ne décide d'aucun claim,
+   * d'aucun point, d'aucun XP (anti-pay-to-win, règle 10 — il ne doit pas
+   * devenir une monnaie). Il VOYAGE simplement jusqu'au serveur, qui le stocke
+   * tel quel dans `trace_points_2026` (colonne `jsonb` — aucune migration).
+   */
+  alt?: number;
 }
 
 /**

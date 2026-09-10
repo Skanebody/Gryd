@@ -75,6 +75,29 @@ export interface RawFix {
   /** Vitesse capteur (m/s) si fournie — informative, JAMAIS source de vérité. */
   speed?: number;
   /**
+   * ALTITUDE (m au-dessus du niveau de la mer) si la plateforme la rend.
+   *
+   * ─── ELLE TRAVERSE LE MOTEUR SANS JAMAIS ÊTRE LUE PAR LUI ─────────────────
+   * Aucune fonction de ce fichier ne la consulte : ni `cleanTrace` (qui juge sur
+   * la précision HORIZONTALE, la vitesse et les sauts), ni `smoothTrace` (qui ne
+   * lisse que lat/lng — l'altitude GPS d'un téléphone est bien plus bruitée que
+   * sa position, et la lisser avec les mêmes poids inventerait un relief), ni
+   * `detectPauses`, ni `totalDistanceM` (la distance de GRYD est PLANE, comme
+   * celle du serveur : la corriger de la pente ici donnerait deux distances pour
+   * une seule sortie). Elle est simplement TRANSPORTÉE — `smoothTrace` et
+   * `decimateForPayload` recopient le fix entier — jusqu'à `rawFixesToRunPoints`,
+   * qui la pose dans `RunPoint.alt`.
+   *
+   * Le dénivelé, lui, se calcule AILLEURS et une seule fois
+   * (`features/journal/metrics.elevationFrom`, hystérésis `ELEVATION_NOISE_M`) :
+   * l'écran de course et le détail de sortie lisent donc le même chiffre.
+   *
+   * Absente = « pas mesurée » (navigateur sans altimètre, HealthKit, GPX plat) —
+   * jamais zéro, qui ferait passer une sortie non mesurée pour une sortie au
+   * niveau de la mer.
+   */
+  alt?: number;
+  /**
    * La plateforme a-t-elle déclaré cette position SIMULÉE ?
    * (`LocationObject.mocked` d'expo-location — ANDROID uniquement.)
    *
@@ -580,10 +603,18 @@ export function signalState(
 
 // ─── Pont vers le contrat ingest_run ─────────────────────────────────────────
 
-/** RawFix/CleanFix → RunPoint (types.ts) : { lat, lng, ts→t, accuracy→acc }.
- * À appeler sur la trace nettoyée + décimée — le serveur reste seul juge. */
+/** RawFix/CleanFix → RunPoint (types.ts) : { lat, lng, ts→t, accuracy→acc, alt }.
+ * À appeler sur la trace nettoyée + décimée — le serveur reste seul juge.
+ *
+ * L'ALTITUDE NE SE FABRIQUE PAS. Elle n'est recopiée que si le relevé en portait
+ * une FINIE : un `null` de navigateur sans altimètre, un `NaN` de capteur en
+ * cours d'accrochage ou une absence pure sortent du même côté — le champ
+ * n'existe pas dans le point envoyé, et le serveur le relira comme « pas
+ * mesurée ». Poser `0` à la place aurait fait passer chaque sortie sans
+ * altimètre pour une sortie parfaitement plate au niveau de la mer. */
 export function rawFixesToRunPoints(fixes: readonly RawFix[]): RunPoint[] {
   return fixes.map((f) => ({ lat: f.lat, lng: f.lng, t: f.ts, acc: f.accuracy,
+    ...(typeof f.alt === 'number' && Number.isFinite(f.alt) ? { alt: f.alt } : {}),
     ...(f.breakBefore || (f as CleanFix).gapBefore ? { breakBefore: true as const } : {}),
   }));
 }

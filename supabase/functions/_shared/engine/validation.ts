@@ -94,6 +94,16 @@ export interface FilterResult {
  * `no_valid_points` — le jeu traiterait un pratiquant honnête en tricheur. Le
  * trou temporel, lui, vaut PAREIL dans les deux disciplines : un OS ne suspend
  * pas une app différemment selon qu'on pédale ou qu'on court.
+ *
+ * ─── L'ALTITUDE (`RunPoint.alt`) TRAVERSE SANS RIEN DÉCIDER ─────────────────
+ * Aucune borne de ce fichier ne la lit, et c'est voulu : la distance de GRYD est
+ * PLANE (haversine), la vitesse s'en déduit, et une correction de pente ici
+ * donnerait une distance serveur différente de celle que l'écran a affichée. Un
+ * point est donc conservé ou rejeté exactement comme avant l'existence du champ,
+ * et les points conservés le sont TELS QUELS — l'altitude arrive intacte à
+ * `runs.trace_points_2026`, où le détail de sortie la relit pour son profil.
+ * Corollaire recherché : une trace ANCIENNE, sans altitude, reste strictement
+ * valide et donne exactement le même verdict qu'hier.
  */
 export function filterPoints(
   points: RunPoint[],

@@ -43,14 +43,24 @@ export const GPS_BACKGROUND_TASK = 'gryd-gps-background';
  * « l'appareil a répondu non » (cf. features/run/motionIntegrity.ts). Recopié
  * tel quel, sans jamais être normalisé en `false` : ce serait affirmer qu'un
  * contrôle a eu lieu là où il n'y en a pas.
+ *
+ * `alt` (LOT R, 11/09/2026) : `coords.altitude` était LU par la plateforme à
+ * chaque relevé et jeté ici même. Conséquence exacte : `RunPoint` n'a jamais
+ * porté d'altitude, `runs.trace_points_2026` non plus, et le profil de dénivelé
+ * du détail de sortie — déjà écrit et testé — ne pouvait rendre que
+ * `available: false`. On le recopie donc, et SEULEMENT s'il est fini : iOS rend
+ * `null` tant que le fix n'a pas d'altitude, et `0` à sa place ferait passer une
+ * sortie non mesurée pour une sortie au niveau de la mer.
  */
 export function toRawFix(loc: Location.LocationObject): RawFix {
+  const altitude = loc.coords.altitude;
   return {
     lat: loc.coords.latitude,
     lng: loc.coords.longitude,
     ts: loc.timestamp,
     accuracy: loc.coords.accuracy ?? GPS_ACCURACY_MAX_M,
     ...(loc.coords.speed !== null && loc.coords.speed >= 0 ? { speed: loc.coords.speed } : {}),
+    ...(typeof altitude === 'number' && Number.isFinite(altitude) ? { alt: altitude } : {}),
     ...(typeof loc.mocked === 'boolean' ? { mocked: loc.mocked } : {}),
   };
 }
