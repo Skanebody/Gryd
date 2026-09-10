@@ -26,6 +26,7 @@ import { SeasonalIdentity2026 } from './SeasonalIdentity2026';
 import { LevelRewardArtwork2026, SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
 import { canRenderSeasonIdentity2026 } from './seasonIdentityModel2026';
 import { ProfileButton, ProfileLink, ProfilePage, ProfileSegments, s, useRefonteCopy } from './ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 const COSMETIC_SECTIONS = new Set(['frames', 'skins_trace', 'templates', 'emblems', 'banners', 'skins_territory']);
 
 export function CollectionScreen() {
@@ -38,7 +39,7 @@ function CollectionContents() {
   const [galleryWidth, setGalleryWidth] = useState(0);
   const tileWidth = Math.max(0, Math.floor((galleryWidth - 12) / 2));
   const objectWidth = Math.min(110, Math.max(1, tileWidth - 24));
-  const copy = useRefonteCopy(); const t = useT(); const locale = useLocale(); const { session, configured } = useSession();
+  const copy = useRefonteCopy(); const t = useT(); const locale = useLocale(); const { session } = useSession();
   const inventory = useArsenalInventory(); const badges = useMyBadges(); const progress = useProfileProgress();
   // §7.5 — les objets gagnés aux défis de la semaine sont possédés, permanents
   // et équipables : les taire ici ferait mentir le compteur d'objets obtenus.
@@ -100,7 +101,7 @@ function CollectionContents() {
       {segment === 'collections' ? <><CommercialCollectionsPanel2026 tone="light" locale={locale==='en'?'en':'fr'}/>{progress.data?<SeasonCollections2026 tone="light" progress={progress.data} reload={progress.reload} locale={locale}/>:null}</> : progress.status === 'loading' ? <View style={local.loading}><ActivityIndicator size="small" color={c.ink} /><Text style={local.meta}>{copy('Lecture de tes objets…', 'Loading your objects…')}</Text></View> : progress.status === 'signed-out' ? <>
         <View style={local.intro}><Text style={local.introTitle}>{copy('Des éditions à garder.', 'Editions to keep.')}</Text><Text style={local.meta}>{copy('Des objets gagnés au fil des sorties, conservés dans ton compte.', 'Objects earned through your activities and kept in your account.')}</Text></View>
         <CataloguePreview locale={locale} />
-        <View style={local.guest}><Text style={local.meta}>{copy('Ces objets sont des aperçus de la collection.', 'These are collection previews.')}</Text>{configured ? <ProfileButton tone="light" label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /> : null}</View>
+        <AccountDoor2026 tone="light" reason={copy('Ces objets sont des aperçus de la collection. Ton compte est ce qui garde les tiens.', 'These are collection previews. Your account is what keeps the ones you earn.')} />
         <ProfileLink tone="light" title={copy('Découvrir les étapes', 'Explore the milestones')} icon="niveau" onPress={() => router.push('/season')} />
       </> : progress.status !== 'ready' ? <View style={local.empty}><Text style={local.meta}>{copy('Tes collections sont indisponibles pour le moment.', 'Your collections are currently unavailable.')}</Text><View style={local.compactAction}><ProfileButton tone="light" label={copy('Réessayer', 'Retry')} secondary onPress={progress.reload} /></View></View> : <>
         <View style={local.inventoryHeader}><View style={local.total}><Text style={local.count}>{owned.count}</Text><Text style={local.meta}>{copy(owned.count === 1 ? 'objet obtenu' : 'objets obtenus', owned.count === 1 ? 'object earned' : 'objects earned')}</Text></View>{equipped.length > 0 ? <Text style={local.meta}>{copy(equipped.length === 1 ? '1 sur le profil' : `${equipped.length} sur le profil`, equipped.length === 1 ? '1 on profile' : `${equipped.length} on profile`)}</Text> : null}</View>

@@ -9,6 +9,7 @@ import { useGrydPlusAccess } from '../premium';
 import { activitiesInPeriod2026, comparisonPeriods2026, summarizeComparison2026 } from '../premium/comparison2026';
 import { useProfileJournal } from './ProfileJournal';
 import { ProfileButton, ProfileLink, ProfilePage, ProfileSegments, s, useRefonteCopy } from './ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 
 export function ProfileComparisonScreen() {
   const copy = useRefonteCopy(); const locale = useLocale(); const access = useGrydPlusAccess();
@@ -44,9 +45,7 @@ export function ProfileComparisonScreen() {
         <Text style={local.introMeta}>{access.status === 'pending' ? copy('Le Store a enregistré ton achat. Les comparaisons s’ouvriront dès que le droit est confirmé.', 'The Store registered your purchase. Comparisons open as soon as access is confirmed.') : copy('Tes droits GRYD+ n’ont pas pu être lus. Ce n’est pas une réponse : on ne sait pas encore.', 'Your GRYD+ access could not be read. That is not an answer: we do not know yet.')}</Text>
         <View style={local.compactAction}><ProfileButton tone="light" label={copy('Revérifier mes droits', 'Recheck access')} onPress={access.reload} /></View></View>
       : access.status === 'signedOut' ? <View style={local.intro}><View style={local.introMark}><GrydIcon name="profile" size={24} color={c.accent} /></View>
-        <Text style={local.introTitle}>{copy('Pas connecté.', 'Not signed in.')}</Text>
-        <Text style={local.introMeta}>{copy('Tes sorties et tes droits s’attachent à un compte. Connecte-toi pour les retrouver.', 'Your activities and your access belong to an account. Sign in to find them.')}</Text>
-        <View style={local.compactAction}><ProfileButton tone="light" label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /></View></View>
+        <AccountDoor2026 tone="light" compact reason={copy('Tes sorties et tes droits s’attachent à un compte.', 'Your activities and your access belong to an account.')} /></View>
         // ── PAS DE PROMESSE D'ACHAT ICI ────────────────────────────────────
         // « Découvrir GRYD+ » envoyait vers une page qui ne pouvait rien
         // vendre : un bouton qui promet un achat impossible. Le lien reste,

@@ -8,6 +8,7 @@ import { screen } from '../../lib/analytics';
 import { useLocale } from '../../i18n/store';
 import { CircularAction2026, GrydIcon } from '../../ui/gryd';
 import { ProfileButton, ProfilePage, useRefonteCopy } from '../refonte/ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 import { socialRpc2026, useSocialEpoch2026, useSocialRead2026 } from '../social/social2026Data';
 import { useRealCrew } from './real';
 import { crewConversationError2026, parseCrewConversation2026, type CrewMessage2026 } from './crewConversation2026';
@@ -32,7 +33,7 @@ function CrewConversationGate() {
   if (loading || (crew.loading && !crew.crew)) return page(<ActivityIndicator color={c.ink} />);
   // 2. PAS CONNECTÉ — le seul geste utile est la connexion. Ne PAS proposer de
   //    rejoindre un crew : il n'y a pas encore de compte pour en être membre.
-  if (!session) return page(<View style={styles.panel}><Text style={styles.title}>{copy('Réservé aux membres du crew', 'Crew members only')}</Text><Text style={styles.body}>{copy('La conversation reste entre les membres. Connecte-toi pour retrouver la tienne.', 'The conversation stays between members. Sign in to find yours.')}</Text><ProfileButton tone="light" label={copy('Connexion', 'Sign in')} onPress={() => router.push('/sign-in')} /></View>);
+  if (!session) return page(<View style={styles.panel}><AccountDoor2026 tone="light" compact reason={copy('La conversation reste entre les membres du crew. Ton compte est ce qui t’y rattache.', 'The conversation stays between crew members. Your account is what connects you to it.')} /></View>);
   // 3. LECTURE ÉCHOUÉE — on n'a rien établi : ni « pas de crew », ni « crew ».
   if (crew.loadFailed) return page(<View style={styles.panel}><Text style={styles.title}>{copy('Crew indisponible', 'Crew unavailable')}</Text><Text style={styles.body}>{copy('Impossible de retrouver ton crew pour le moment.', 'Your crew could not be loaded right now.')}</Text><ProfileButton tone="light" label={copy('Réessayer', 'Retry')} onPress={crew.reload} /></View>);
   // 4. CONNECTÉ, SANS CREW — une affirmation VRAIE, et son geste.

@@ -118,6 +118,35 @@ export const C = defineCatalog({
     de: 'Konto erstellen oder anmelden',
     pt: 'Crie sua conta ou entre',
   },
+  /**
+   * ─── LA PORTE DE COMPTE, PARTOUT (10/09/2026, lot 9) ───────────────────────
+   * `methodsTitle` ci-dessus est le titre de /sign-in. Ces deux entrées sont
+   * les DEUX AUTRES mots de la même porte, et elles vivent ici pour une seule
+   * raison : une douzaine d'écrans peignaient chacun sa propre invitation
+   * (« Connexion », « Me connecter », « Se connecter »), c'est-à-dire un mot
+   * qui ne s'adresse qu'à quelqu'un qui a DÉJÀ un compte. Le composant partagé
+   * `features/account/AccountDoor2026.tsx` les rend, et lui seul : deux
+   * libellés jumeaux dans deux catalogues finissent toujours désaccordés.
+   *
+   * ⚠️ `doorCta` NE REMPLACE PAS `crew.ts → createSignIn` : celui-là titre un
+   * écran de création de crew, et il est déjà juste. Ce qui est interdit, c'est
+   * qu'une porte de COMPTE réutilise un « Se connecter » nu.
+   */
+  doorCta: {
+    fr: 'Créer mon compte',
+    en: 'Create my account',
+    es: 'Crear mi cuenta',
+    de: 'Konto erstellen',
+    pt: 'Criar minha conta',
+  },
+  /** La moitié que le bouton ne dit pas : la même porte connecte les revenants. */
+  doorOrSignIn: {
+    fr: 'ou se connecter',
+    en: 'or sign in',
+    es: 'o iniciar sesión',
+    de: 'oder anmelden',
+    pt: 'ou entrar',
+  },
   guestCta: {
     fr: 'Continuer sans compte',
     en: 'Continue without an account',

@@ -16,7 +16,6 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
 import { fonts, refonteColors as c } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { useLocale } from '../../i18n/store';
@@ -25,6 +24,7 @@ import { C } from '../../i18n/catalog/defisSemaine';
 import { screen } from '../../lib/analytics';
 import { GrydIcon } from '../../ui/gryd';
 import { ProfileButton, ProfilePage, ProfileSection, ProfileSegments, s } from './ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 import { useWeeklyQuests2026 } from './WeeklyQuests2026Data';
 import {
   QUEST_CONDITION_COPY_2026, QUEST_FAMILY_COPY_2026, QUEST_REWARD_KIND_COPY_2026,
@@ -38,7 +38,6 @@ export function WeeklyQuests2026Screen() {
 
 function WeeklyQuests2026Contents() {
   const locale = useLocale();
-  const { configured } = useSession();
   const data = useWeeklyQuests2026();
   const [activity, setActivity] = useState<QuestActivity2026>('run');
   const [notice, setNotice] = useState<string | null>(null);
@@ -112,10 +111,9 @@ function WeeklyQuests2026Contents() {
       options={[{ key: 'run' as const, label: t(C.tabCourse) }, { key: 'bike' as const, label: t(C.tabVelo) }]} />
     {notice ? <Text accessibilityRole="alert" style={[s.body, { marginVertical: 16 }]}>{notice}</Text> : null}
 
-    {data.status === 'signed-out' ? <View style={s.state}>
-      <Text style={s.body}>{t(C.etatDeconnecte)}</Text>
-      {configured ? <ProfileButton label={t(C.actionConnexion)} onPress={() => router.push('/sign-in')} /> : null}
-    </View> : data.status === 'loading' ? <View style={s.state}>
+    {data.status === 'signed-out'
+      ? <AccountDoor2026 reason={t(C.etatDeconnecte)} />
+      : data.status === 'loading' ? <View style={s.state}>
       <ActivityIndicator color={c.darkInk} />
       <Text style={s.meta}>{t(C.etatLecture)}</Text>
     </View> : data.status !== 'ready' || !data.data ? <View style={s.state}>

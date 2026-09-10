@@ -9,6 +9,7 @@ import { screen } from '../src/lib/analytics';
 import { useLocale, useT } from '../src/i18n/store';
 import { C } from '../src/i18n/catalog/badges';
 import { useSession } from '../src/lib/session';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import { useMyBadges, type MyBadges } from '../src/features/badges/myBadges';
 import { BADGES, BADGE_FAMILIES, BADGE_TIER_LABEL, COLLECTION_BADGES, badgeGauge, badgeRewardLabel, isBadgeProgressMeasured, type BadgeDef, type BadgeFamilyId } from '../src/features/badges/catalog';
 import { addToFeatured } from '../src/features/badges/unlockMoment';
@@ -30,7 +31,7 @@ function BadgeAlbum() {
   const copy = (a: string, b: string) => fr ? a : b;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { session, configured } = useSession();
+  const { session } = useSession();
   const badges = useMyBadges();
   const [tab, setTab] = useState<'owned' | 'catalogue'>('owned');
   const [family, setFamily] = useState<BadgeFamilyId | 'all'>('all');
@@ -62,7 +63,7 @@ function BadgeAlbum() {
         <GrydIcon name="collection" size={36} color={c.muted} /><Text style={s.emptyTitle}>{copy('Tes badges restent à toi.', 'Your badges are still yours.')}</Text><Text style={s.body}>{copy('Nous n’avons pas pu les charger. Tu peux réessayer.', 'We could not load them. You can try again.')}</Text><Action label={copy('Réessayer', 'Try again')} onPress={badges.reload} />
       </View> : !personal ? <View style={s.empty}>
         <GrydMark size={32} color={c.muted} /><Text style={s.emptyTitle}>{copy('Ton histoire t’attend.', 'Your story is waiting.')}</Text><Text style={s.body}>{copy('Retrouve ici les badges réellement gagnés avec ton compte.', 'Find the badges you have earned with your account here.')}</Text>
-        {configured && !session ? <Action label={copy('Se connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /> : <Text style={s.body}>{copy('Le compte n’est pas disponible pour le moment.', 'Your account is unavailable right now.')}</Text>}
+        {!session ? <AccountDoor2026 tone="light" reason={copy('Ton compte garde les badges que tu gagnes et te les rend sur tes autres appareils.', 'Your account keeps the badges you earn and restores them on your other devices.')} /> : <Text style={s.body}>{copy('Le compte n’est pas disponible pour le moment.', 'Your account is unavailable right now.')}</Text>}
       </View> : earned.length === 0 ? <View style={s.empty}>
         <GrydMark size={32} color={c.muted} /><Text style={s.emptyTitle}>{copy('Tout commence dehors.', 'It starts outside.')}</Text><Text style={s.body}>{copy('Tes premiers badges apparaîtront ici après leur attribution. Tu n’as rien à rattraper.', 'Your first badges will appear here once awarded. There is nothing to catch up with.')}</Text>
       </View> : null : <>

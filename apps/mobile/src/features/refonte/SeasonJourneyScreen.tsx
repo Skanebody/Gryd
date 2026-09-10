@@ -13,6 +13,7 @@ import { seasonTimelineWindow2026 } from './SeasonPresentation2026';
 import { useProfileProgress } from './ProfileProgress';
 import { SeasonCollections2026 } from './SeasonCollections2026';
 import { ProfileButton, ProfilePage, ProfileSection, ProfileSegments, s, useRefonteCopy } from './ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 import { rewardVariant2026, SeasonRewardArtwork2026 } from './SeasonRewardArtwork2026';
 import { ProgressAchievementMoment2026 } from './ProgressAchievementMoment2026';
 
@@ -22,7 +23,7 @@ export { rewardLabel2026 } from './SeasonRewardLabels2026';
 
 export function SeasonJourneyScreen() {
   const copy = useRefonteCopy(); const locale = useLocale();
-  const { session, configured } = useSession();
+  const { session } = useSession();
   const progress = useProfileProgress();
   const [segment, setSegment] = useState<'season' | 'career'>('season');
   const [showRules, setShowRules] = useState(false);
@@ -72,7 +73,7 @@ export function SeasonJourneyScreen() {
       </View>;
     })}</View>
     {entries.length > timeline.length || showAll ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAll }} aria-expanded={showAll} onPress={() => setShowAll(value => !value)} style={local.disclosure}><Text style={local.linkText}>{showAll ? copy('Réduire les étapes', 'Show fewer milestones') : copy('Toutes les étapes', 'All milestones')}</Text><GrydIcon name={showAll ? 'minus' : 'plus'} size={18} color={c.muted} /></Pressable> : null}
-    {!session && progress.status !== 'loading' ? <View style={local.guest}><Text style={[local.caption, s.flex]}>{copy('Un compte conserve ta progression et tes objets.', 'An account keeps your progress and objects.')}</Text>{configured ? <ProfileButton tone="light" label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /> : null}</View> : null}
+    {!session && progress.status !== 'loading' ? <AccountDoor2026 tone="light" reason={copy('Un compte conserve ta progression et tes objets.', 'An account keeps your progress and objects.')} /> : null}
     {segment === 'season' && progress.data ? <><Pressable accessibilityRole="button" accessibilityState={{ expanded: showCollections }} aria-expanded={showCollections} onPress={() => setShowCollections(value => !value)} style={local.disclosure}><Text style={local.linkText}>{copy('Collections et archives', 'Collections and archives')}</Text><GrydIcon name={showCollections ? 'minus' : 'plus'} size={18} color={c.muted} /></Pressable>{showCollections ? <View style={{ backgroundColor: c.carbon, padding: 18, borderRadius: 24, marginVertical: 12 }}><SeasonCollections2026 progress={progress.data} reload={progress.reload} locale={locale} /></View> : null}</> : null}
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: showRules }} aria-expanded={showRules} onPress={() => setShowRules(value => !value)} style={local.disclosure}><Text style={local.linkText}>{copy('Comment progresser', 'How progress works')}</Text><GrydIcon name={showRules ? 'minus' : 'plus'} size={18} color={c.muted} /></Pressable>
     {showRules ? <View style={local.rulesDetail}><Text style={local.caption}>{copy(`${rules.minimumMovementSecondsPerDay / 60} minutes de mouvement admissible = ${rules.xpPerActiveDay} XP par journée, jusqu’à ${rules.maximumCreditedDaysPerWeek} journées par semaine. Course et vélo font avancer le même parcours.`, `${rules.minimumMovementSecondsPerDay / 60} minutes of eligible movement = ${rules.xpPerActiveDay} XP per day, up to ${rules.maximumCreditedDaysPerWeek} days per week. Runs and rides advance the same journey.`)}</Text><Text style={local.caption}>{copy('Le repos ne retire aucun XP. Une collection commencée peut continuer en archive ; les objets gagnés restent acquis.', 'Rest never takes away XP. Started collections can continue in the archive; earned objects stay yours.')}</Text></View> : null}

@@ -8,6 +8,7 @@ import { EVENTS, screen, track } from '../../lib/analytics';
 import { useLocale } from '../../i18n/store';
 import { resultOwnerEpoch2026, isResultOwnerCurrent2026 } from '../run/resultOwner2026';
 import { ProfileButton, ProfilePage, ProfileSegments, s } from './ProfilePrimitives';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 import { GrydIcon } from '../../ui/gryd';
 import { outingDraft2026, outingForm2026, localDate2026, parseCrewOutings2026, type CrewOuting2026, type CrewOutingDraft2026 } from './crewOutingsModel2026';
 import { crewOutingCalendar2026 } from './crewOutingCalendar2026';
@@ -111,7 +112,7 @@ export default function CrewOutings2026Screen() {
   const dateLabel=(date:string)=>new Date(date).toLocaleString(locale,{weekday:'long',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
   const title=activeEditing==='new'?copy('Proposer une sortie','Plan an outing'):activeEditing?copy('Modifier la sortie','Edit outing'):copy('Sorties du crew','Crew outings');
   return <ProfilePage title={title} back backHref="/crew">
-    {!owner ? <View style={s.state}><Text style={s.body}>{copy('Connecte-toi pour retrouver les sorties de ton crew.','Sign in to see your crew’s outings.')}</Text><View style={local.compact}><ProfileButton label={copy('Me connecter','Sign in')} onPress={()=>router.push('/sign-in')} /></View></View> : activeEditing ? <View style={local.form}>
+    {!owner ? <AccountDoor2026 reason={copy('Les sorties proposées par ton crew sont rattachées à ton compte.','The outings your crew plans are attached to your account.')} /> : activeEditing ? <View style={local.form}>
       <Pressable accessibilityRole="button" disabled={busy} onPress={()=>{setEditing(null);setNotice(null);}} style={local.link}><Text style={s.linkAction}>{copy('Retour aux sorties','Back to outings')}</Text></Pressable>
       <Text style={s.meta}>{copy('Visible par les membres de ton crew. Horaires dans le fuseau de cet appareil.','Visible to your crew members. Times use this device’s time zone.')}</Text>
       <Text style={s.linkTitle}>{copy('Titre','Title')}</Text><TextInput accessibilityLabel={copy('Titre de la sortie','Outing title')} value={draft.title} onChangeText={title=>patch({title})} maxLength={CREW_OUTING_TITLE_MAX} placeholder={copy('Sortie du canal','Canal outing')} placeholderTextColor={c.darkMuted} style={s.input} />

@@ -68,6 +68,7 @@ import {
   usePremium,
 } from '../src/features/premium';
 import { ProfileButton, ProfileLink, ProfilePage, ProfileSection, s, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 
 /** Gestion des abonnements iOS. Apple l'expose à cette adresse et à elle seule. */
 const APPLE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
@@ -98,11 +99,7 @@ export default function AbonnementScreen() {
     <ProfileSection title={copy('Ton statut', 'Your status')} />
     {access.status === 'loading' ? <View style={[s.state, { flexDirection: 'row', alignItems: 'center' }]}>
       <ActivityIndicator color={c.darkInk} /><Text style={s.meta}>{copy('Vérification de tes droits…', 'Checking your access…')}</Text>
-    </View> : access.status === 'signedOut' ? <View style={s.state}>
-      <Text style={s.title}>{copy('Pas connecté', 'Not signed in')}</Text>
-      <Text style={s.body}>{copy('Un abonnement s’attache à un compte. Connecte-toi pour retrouver tes droits et tes achats.', 'A subscription belongs to an account. Sign in to find your access and purchases.')}</Text>
-      {premium.canSignIn ? <ProfileButton label={copy('Me connecter', 'Sign in')} onPress={() => router.push('/sign-in')} /> : null}
-    </View> : access.status === 'unavailable' ? <View style={s.state}>
+    </View> : access.status === 'signedOut' ? <AccountDoor2026 reason={copy('Un abonnement s’attache à un compte, jamais à un téléphone. Tes droits et tes achats se retrouvent avec lui.', 'A subscription belongs to an account, never to a phone. Your access and your purchases come back with it.')} /> : access.status === 'unavailable' ? <View style={s.state}>
       <Text style={s.title}>{copy('Impossible de vérifier', 'Cannot verify')}</Text>
       <Text style={s.body}>{copy('Tes droits n’ont pas pu être lus. Ce n’est pas « aucun abonnement » : on ne sait pas encore.', 'Your access could not be read. This is not “no subscription”: we do not know yet.')}</Text>
       <ProfileButton label={copy('Réessayer', 'Try again')} secondary busy={syncing} onPress={() => {

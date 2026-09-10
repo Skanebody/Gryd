@@ -47,6 +47,7 @@ import { avatarPathAccepted, avatarUploadRefusal, cameraAvatarAvailable, capture
 import { discardAvatarObject2026, signMyAvatarUrl2026 } from '../src/features/social/myAvatar';
 import { classifyAppError } from '../src/ui/appErrorPolicy';
 import { ProfileButton, ProfilePage, ProfileSection, s, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import { GrydIcon } from '../src/ui/gryd';
 
 /** Diamètre de la photo en tête d'écran. Une mesure de composition, pas une règle de jeu. */
@@ -82,7 +83,7 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 }
 
 function Editor(){
- const copy=useRefonteCopy();const {session,configured}=useSession();const account=useMyProfile();const owner=session?.user.id??null;
+ const copy=useRefonteCopy();const {session}=useSession();const account=useMyProfile();const owner=session?.user.id??null;
  const [draft,setDraft]=useState<EditableProfile|null>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState<string|null>(null);
  /** Le chemin que le SERVEUR référence aujourd'hui. Jamais supprimé sans enregistrement. */
  const serverPath=useRef<string|null>(null);
@@ -108,7 +109,7 @@ function Editor(){
   }catch(e){haptics.error();setError(socialError2026(String(e),copy('fr','en')==='en'))}finally{setBusy(false)}
  }
  return <ProfilePage title={copy('Modifier le profil','Edit profile')} back>
- {!session?<><Text style={s.body}>{copy('Connecte-toi pour enregistrer ton identité.','Sign in to save your identity.')}</Text>{configured?<ProfileButton label={copy('Connexion','Sign in')} onPress={()=>router.push('/sign-in')}/>:null}</>:account.loading?<ActivityIndicator color={c.darkInk}/>:account.failed?<><Text style={s.body}>{copy('Le profil est indisponible.','Profile unavailable.')}</Text><ProfileButton label={copy('Réessayer','Retry')} onPress={account.reload}/></>:draft?<>
+ {!session?<AccountDoor2026 reason={copy('Ton nom, ton pseudo et ta photo s’enregistrent sur ton compte, pas sur ce téléphone.','Your name, handle and photo are saved to your account, not to this phone.')}/>:account.loading?<ActivityIndicator color={c.darkInk}/>:account.failed?<><Text style={s.body}>{copy('Le profil est indisponible.','Profile unavailable.')}</Text><ProfileButton label={copy('Réessayer','Retry')} onPress={account.reload}/></>:draft?<>
  <AvatarField owner={owner} draft={draft} patch={patch} copy={copy} onUploaded={path=>{uploaded.current=[...uploaded.current,path]}}/>
  {([{key:'displayName',label:copy('Nom affiché','Display name'),max:40},{key:'handle',label:copy('Pseudo','Handle'),max:20},{key:'bio',label:copy('Bio','Bio'),max:280}] as const).map(field=><View key={field.key} style={styles.field}><Text style={styles.label}>{field.label}</Text><TextInput accessibilityLabel={field.label} value={draft[field.key]} onChangeText={value=>patch({[field.key]:value})} style={[s.input,field.key==='bio'&&styles.bio]} maxLength={field.max} autoCapitalize={field.key==='handle'?'none':'sentences'} autoCorrect={field.key!=='handle'} multiline={field.key==='bio'} placeholderTextColor={c.darkMuted}/></View>)}
  <ProfileSection title={copy('Qui voit ton profil ?','Who sees your profile?')}/>

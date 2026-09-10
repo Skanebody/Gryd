@@ -12,6 +12,7 @@ import { VERIFY_SOURCES } from '../src/features/sources/catalog';
 import { sourceRowKind } from '../src/features/sources/rowView';
 import { C as CSources } from '../src/i18n/catalog/sources';
 import { ProfileButton, ProfilePage, ProfileSegments, ProfileSection, s } from '../src/features/refonte/ProfilePrimitives';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import { GrydIcon } from '../src/ui/gryd';
 import { useMapActivity } from '../src/features/map/mapPref';
 import { useResultOwner2026 } from '../src/features/run/useResultOwner2026';
@@ -73,6 +74,10 @@ function SourcesContent() {
     </View>
     <ProfileSection title={copy('Importer une sortie', 'Import an activity')} />
     <ProfileSegments value={activity} onChange={setActivity} options={[{ key: 'run', label: copy('Course', 'Run') }, { key: 'bike', label: copy('Vélo', 'Ride') }]} />
+    {/* UNE SEULE PORTE, PAS UNE PAR LIGNE. Chaque source connectable peignait
+        son propre « Me connecter pour importer » : quatre boutons identiques
+        pour un seul geste, et aucun ne disait qu'il CRÉE le compte. */}
+    {signedIn ? null : <AccountDoor2026 reason={copy('Un fichier importé est rattaché à toi, pas à ce téléphone. C’est pour ça que l’import demande un compte.', 'An imported file is attached to you, not to this phone. That is why importing needs an account.')} />}
     {VERIFY_SOURCES.filter(source => source.availability === 'connectable').map(source => {
       const snapshot = loadedOwner === owner ? snapshots[source.key] : undefined;
       const kind = snapshot?.status === 'app_only' ? 'app_only' : sourceRowKind({ availability: source.availability, action: source.action, status: snapshot?.status, busy: busyKey === source.key, signedIn });
@@ -82,7 +87,7 @@ function SourcesContent() {
         <View style={local.source}><View style={local.icon}><GrydIcon name="route" size={24} color={c.darkInk} /></View><View style={s.flex}><Text style={local.title}>{source.name}</Text><Text style={s.meta}>{t(source.summary)}</Text></View></View>
         {message ? <Text style={s.meta}>{message}</Text> : null}
         {snapshot?.lastSync ? <Text style={s.meta}>{copy('Dernier import : ', 'Last import: ')}{new Date(snapshot.lastSync).toLocaleString(locale)}</Text> : null}
-        {kind === 'reading' && !failed ? <ActivityIndicator color={c.darkInk} /> : kind === 'needsAccount' ? <View style={local.action}><ProfileButton label={copy('Me connecter pour importer', 'Sign in to import')} onPress={() => router.push('/sign-in')} /></View> : actionable || kind === 'busy' ? <View style={local.action}><ProfileButton label={kind === 'connected' ? copy('Déconnecter', 'Disconnect') : source.action === 'import' ? copy('Choisir un fichier', 'Choose a file') : copy('Connecter', 'Connect')} busy={kind === 'busy'} disabled={busyKey !== null} onPress={() => void act(source.key, kind === 'connected')} /></View> : snapshot?.status === 'app_only' && message ? null : <Text style={s.meta}>{snapshot?.status === 'app_only' ? t(C.chipAppOnly) : copy('Indisponible pour le moment.', 'Currently unavailable.')}</Text>}
+        {kind === 'reading' && !failed ? <ActivityIndicator color={c.darkInk} /> : kind === 'needsAccount' ? <Text style={s.meta}>{copy('L’import demande un compte.', 'Importing needs an account.')}</Text> : actionable || kind === 'busy' ? <View style={local.action}><ProfileButton label={kind === 'connected' ? copy('Déconnecter', 'Disconnect') : source.action === 'import' ? copy('Choisir un fichier', 'Choose a file') : copy('Connecter', 'Connect')} busy={kind === 'busy'} disabled={busyKey !== null} onPress={() => void act(source.key, kind === 'connected')} /></View> : snapshot?.status === 'app_only' && message ? null : <Text style={s.meta}>{snapshot?.status === 'app_only' ? t(C.chipAppOnly) : copy('Indisponible pour le moment.', 'Currently unavailable.')}</Text>}
       </View>;
     })}
     {failed ? <View style={local.action}><Text accessibilityRole="alert" style={s.body}>{copy('Impossible de lire les sources.', 'Unable to load sources.')}</Text><ProfileButton label={copy('Réessayer', 'Try again')} secondary onPress={() => setRefresh(n => n + 1)} /></View> : null}
