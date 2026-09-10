@@ -134,6 +134,12 @@ export const PERSONAL_TABLES: readonly PersonalTable[] = [
   { key: 'seasonRewardEquipment2026', table: 'season_reward_equipment_2026', column: 'user_id' },
   { key: 'levelRewardOwnership2026', table: 'level_reward_ownership_2026', column: 'user_id' },
   { key: 'levelRewardEquipment2026', table: 'level_reward_equipment_2026', column: 'user_id' },
+  // `profile_cosmetics_2026` (0180) : ce que le joueur PORTE sur son profil.
+  // Sept lignes au plus, aucune date d'activité, aucune localité — mais ce sont
+  // des choix qu'il a faits, donc ils lui appartiennent et partent dans son
+  // export. La table de MODÈLES (`profile_cosmetic_items_2026`) n'y va pas :
+  // c'est un catalogue, il ne décrit personne.
+  { key: 'profileCosmetics2026', table: 'profile_cosmetics_2026', column: 'user_id' },
 
   // ── 2026 · achats (0120, 0125) ────────────────────────────────────────────
   { key: 'premiumEntitlements2026', table: 'premium_entitlements_2026', column: 'user_id' },

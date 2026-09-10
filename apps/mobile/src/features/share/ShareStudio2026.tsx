@@ -26,6 +26,7 @@ import { ShareExportStage } from './ShareExportStage';
 import { SharePoster2026 } from './SharePoster2026';
 import { STUDIO_COMPOSITIONS, type StudioComposition } from './StudioComposition2026';
 import { useGrydPlusAccess } from '../premium';
+import { PRE_SALE_INCLUDED_COPY_2026 } from '../premium/planCopy2026';
 import { generateRunFilm2026, getRunFilmCompatibility2026, releaseRunFilm2026, type RunFilmCompatibility2026 } from './film/generateRunFilm2026';
 import { RunFilmPreview2026 } from './film/RunFilmPreview2026';
 import { useProfileProgress } from '../refonte/ProfileProgress';
@@ -239,7 +240,7 @@ function ReadyStudio({ run, locale, ownerId }: { run: ShareRunData; locale: 'fr'
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{STUDIO_COMPOSITIONS.map(value => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: composition === value, disabled: busy }} disabled={busy} onPress={() => { setComposition(value); setNotice(null); track(EVENTS.shareTemplateChanged, { template: value }); }} style={[s.composition, composition === value && { borderColor: c.darkInk, backgroundColor: c.darkSurfaceMuted }]}>
           <Text style={s.link}>{compositionNames[value]}</Text>{value !== 'classic' ? <Text style={s.plus}>+</Text> : null}
         </Pressable>)}</ScrollView>
-        {paidComposition ? <Text style={[s.small, { marginTop: 9 }]}>{access.active ? copy('Composition incluse avec GRYD+', 'Composition included with GRYD+') : copy('Aperçu libre · Export avec GRYD+', 'Free preview · Export with GRYD+')}</Text> : null}
+        {paidComposition ? <Text style={[s.small, { marginTop: 9 }]}>{access.reason === 'pre_sale_open' ? copy(PRE_SALE_INCLUDED_COPY_2026.fr, PRE_SALE_INCLUDED_COPY_2026.en) : access.active ? copy('Composition incluse avec GRYD+', 'Composition included with GRYD+') : copy('Aperçu libre · Export avec GRYD+', 'Free preview · Export with GRYD+')}</Text> : null}
       </View> : null}
         <View style={s.previewMeta}><Text style={s.small}>{family === 'film' ? copy('Image finale · MP4 · 8 s', 'Final frame · MP4 · 8 sec') : family === 'sticker' ? copy('PNG · fond transparent', 'PNG · transparent background') : `${formatNames[format]} · ${layout.width} × ${layout.height}`}</Text>
           <Pressable accessibilityRole="button" onPress={() => { setCustomize(true); track(EVENTS.shareCustomizeOpened, { tab: 'composition' }); }} disabled={busy} style={s.formatButton}><GrydIcon name="settings" size={16} color={c.darkInk} /><Text style={s.link}>Format</Text></Pressable>

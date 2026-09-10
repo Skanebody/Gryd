@@ -6285,3 +6285,82 @@ export const LIVE_LAP_MIN_DURATION_S = 5;
  * (anti-pay-to-win, règle 10 — le dénivelé n'est pas une monnaie).
  */
 export const ELEVATION_SMOOTH_WINDOW_S = 20;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COSMÉTIQUES 2026 — CE QU'ON PEUT CHANGER SUR SON PROFIL, ET À QUEL PRIX
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// DEMANDE FONDATEUR (10/09/2026) : « Est-ce qu'il y a d'autres moyens de
+// personnalisation de profil qu'utilisent d'autres applications, que l'on peut
+// faire payer in-app, qui ne seraient que du code et qui ne coûtent rien ? »
+//
+// ─── CE QUE CE BLOC POSE, ET CE QU'IL NE POSE PAS ──────────────────────────
+// Il pose les SEUILS DE NIVEAU des cosmétiques GRATUITS, et rien d'autre. Le
+// catalogue lui-même (identifiants, noms, dégradés, formes) vit dans
+// `apps/mobile/src/features/arsenal/cosmetics2026.ts` : ce sont des choix de
+// RENDU, pas des règles de jeu, et les mettre ici obligerait `packages/engine`
+// et les fonctions Edge à embarquer une table de couleurs.
+//
+// Les seuils, eux, SONT une règle : ils décident quand un objet devient
+// disponible, la migration 0180 en fige la traduction en XP (via
+// `xpForLevel2026`), et `supabase/tests/profile_cosmetics_2026.pglite.test.mjs`
+// refuse tout écart entre les deux. Un seuil recopié à la main dans une requête
+// serait exactement le nombre magique qu'ADR-003 interdit.
+//
+// ─── POURQUOI UNE ÉCHELLE NOMMÉE, ET PAS SIX NOMBRES ───────────────────────
+// `PROFILE_COSMETIC_LEVELS_2026.regular` se relit ; `4` ne se relit pas. Les
+// noms disent l'INTENTION du palier (ce que le joueur a déjà vécu quand il
+// l'atteint), et le jour où le fondateur veut décaler toute l'échelle, il
+// change six nombres à un seul endroit.
+//
+// ─── ANTI PAY-TO-WIN : CE BLOC NE PEUT PAS EN SORTIR ───────────────────────
+// Aucune de ces constantes n'entre dans un calcul de capture, d'XP, de points
+// de défi ou de classement. Un cosmétique change ce qu'on MONTRE, jamais ce
+// qu'on GAGNE (§16.2, `COMMERCIAL_PROPOSAL_2026` : multiplicateurs à 1). Le
+// test `cosmetics2026.test.ts` interdit tout champ numérique de bonus dans le
+// catalogue, et il rougirait si quelqu'un y glissait un « +5 % ».
+
+/**
+ * Les SIX paliers d'ouverture des cosmétiques gratuits, en NIVEAUX permanents
+ * (`levelForXp2026`). Les niveaux, et pas les XP : c'est le nombre que le
+ * joueur voit sur son profil, donc le seul qu'on puisse lui annoncer sans le
+ * faire compter. La conversion en XP est faite une fois, par `xpForLevel2026`.
+ *
+ * `included` vaut 1 : le niveau de départ de tout compte. Ce n'est pas une
+ * condition déguisée, c'est l'objet LIVRÉ AVEC LE COMPTE — celui qui décrit
+ * l'apparence actuelle de l'app. Sans lui, « équiper » n'aurait pas de retour
+ * en arrière, et retirer un cosmétique ressemblerait à une panne.
+ */
+export const PROFILE_COSMETIC_LEVELS_2026 = {
+  /** Livré avec le compte. L'apparence par défaut est un objet comme un autre. */
+  included: 1,
+  /** Première journée active créditée (100 XP) : la première sortie qui compte. */
+  firstLoop: 2,
+  /** Quelques semaines de sorties régulières. */
+  regular: 4,
+  /** L'habitude est prise. */
+  established: 8,
+  /** Une saison entière derrière soi. */
+  seasoned: 14,
+  /** Le long terme, sans plafond éditorial au-dessus. */
+  veteran: 25,
+} as const;
+
+/**
+ * Les SEPT emplacements d'identité. Un objet par emplacement, jamais deux :
+ * la clé primaire `(user_id, slot)` de `profile_cosmetics_2026` (migration
+ * 0180) le rend structurellement impossible, comme 0144 le fait déjà pour le
+ * cadre et le titre.
+ *
+ * Cette liste est la RÉFÉRENCE du `check(slot in (…))` de la migration ; le
+ * test PGlite compare les deux et refuse un emplacement ajouté d'un seul côté.
+ *
+ * G22 (« pas de sept rangs différents au-dessus du nom ») n'est PAS contredit :
+ * sept emplacements ne font pas sept rangs. Un rang classe ; ces objets ne
+ * classent rien, ne se comparent pas entre joueurs, et le profil n'en montre
+ * jamais plus d'un par zone (le nom porte sa couleur, l'avatar son cadre, la
+ * bannière son motif, le titre son badge).
+ */
+export const PROFILE_COSMETIC_SLOTS_2026 = [
+  'nameColor', 'avatarFrame', 'banner', 'trace', 'pin', 'titleBadge', 'cardTheme',
+] as const;
