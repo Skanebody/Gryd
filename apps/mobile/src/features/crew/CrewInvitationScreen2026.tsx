@@ -11,7 +11,7 @@
  *
  * ═══ CE QUE LE QR ENCODE : `gryd://c/<CODE>`, ET SÛREMENT PAS UN HTTPS ══════
  * Décision du 10/09/2026, conservée mot pour mot (elle est gardée par
- * `refonte/crewInviteLink2026.test.ts`) : `app.json` ne déclare NI
+ * `crew/crewInviteLink2026.test.ts`) : `app.json` ne déclare NI
  * `ios.associatedDomains` NI d'`intentFilters` autoVerify, et `apps/web` n'a
  * pas de route `/c/[code]`. Un `https://gryd.run/c/…` ouvrirait donc une 404
  * dans Safari, au moment le plus fragile du produit, celui où on amène
@@ -56,6 +56,7 @@ import { EVENTS, fonts, refonteColors as c } from '@klaim/shared';
 import { GrydMark } from '../../ui/gryd';
 import { CrewCrest } from '../../ui/game/CrewCrest';
 import { useSession } from '../../lib/session';
+import { AccountDoor2026 } from '../account/AccountDoor2026';
 import { screen, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
 import {
@@ -78,7 +79,7 @@ export function CrewInvitationScreen2026() {
   /** Le QR reste carré et lisible même sur un petit écran ; jamais plus grand
    *  que ce qu'un iPhone SE peut afficher sans faire défiler l'affiche. */
   const qrSize = Math.max(80, Math.min(208, width - 144));
-  const { configured, loading: sessionLoading } = useSession();
+  const { configured, session, loading: sessionLoading } = useSession();
   const crew = useRealCrew();
   const [code, setCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -178,7 +179,31 @@ export function CrewInvitationScreen2026() {
     );
   }
 
-  // ── ② LECTURE EN COURS : une phrase, jamais un squelette de QR ────────────
+  // ── ② PAS DE COMPTE : un crew se rejoint avec un compte, et on le DIT ─────
+  //
+  //   ÉTAPE 0 (11/09/2026, relevé en preview headless) : sans cette branche,
+  //   un visiteur arrivé par lien profond lisait « Aucun crew à faire
+  //   rejoindre. Crée le tien, ou rejoins-en un » — vrai sur le fond, et faux
+  //   sur la cause : ce n'est pas qu'il n'a pas de crew, c'est qu'il n'a pas
+  //   de compte, et les deux gestes proposés l'auraient renvoyé sur la même
+  //   porte de connexion, un écran plus loin. Les deux écrans voisins
+  //   (`/crew-discovery`, `/crew-gestion`) distinguent déjà cet état.
+  if (!session && !sessionLoading) {
+    return shell(
+      <View style={s.state}>
+        <AccountDoor2026
+          tone="light"
+          reason={copy(
+            'Une invitation ouvre la porte d’un crew. Il faut un compte pour la franchir.',
+            'An invitation opens a crew’s door. You need an account to walk through it.',
+          )}
+          analyticsId="crew_invitation_sign_in"
+        />
+      </View>,
+    );
+  }
+
+  // ── ③ LECTURE EN COURS : une phrase, jamais un squelette de QR ────────────
   if (sessionLoading || crew.loading || (crew.ready && loading && !failed)) {
     return shell(
       <View style={s.state}>
@@ -188,7 +213,7 @@ export function CrewInvitationScreen2026() {
     );
   }
 
-  // ── ③ PAS DE CREW : l'invitation n'a pas d'objet, et on le dit ────────────
+  // ── ④ PAS DE CREW : l'invitation n'a pas d'objet, et on le dit ────────────
   if (!crew.crew) {
     return shell(
       <View style={s.state}>
@@ -208,7 +233,7 @@ export function CrewInvitationScreen2026() {
     );
   }
 
-  // ── ④ ÉCHEC DE LECTURE : distinct du vide, avec la seule action utile ─────
+  // ── ⑤ ÉCHEC DE LECTURE : distinct du vide, avec la seule action utile ─────
   if (failed || !code) {
     return shell(
       <View style={s.state}>
@@ -228,7 +253,7 @@ export function CrewInvitationScreen2026() {
     );
   }
 
-  // ── ⑤ L'AFFICHE ──────────────────────────────────────────────────────────
+  // ── ⑥ L'AFFICHE ──────────────────────────────────────────────────────────
   const link = buildInviteDeepLink(code);
 
   return shell(

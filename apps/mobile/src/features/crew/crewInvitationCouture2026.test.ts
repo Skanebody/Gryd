@@ -125,13 +125,27 @@ Deno.test('invitation : AUCUN bouton « révoquer », parce qu’aucune RPC ne r
   );
 });
 
-Deno.test('invitation : quatre états distincts, et aucun ne se confond', () => {
+Deno.test('invitation : cinq états distincts, et aucun ne se confond', () => {
   const code = codeSeul(lire(AFFICHE));
   // Sans backend, un « Réessayer » tournerait dans le vide.
   assert(code.includes('if (!configured)'), 'l’état hors ligne n’est pas séparé');
+  /*
+   * ÉTAPE 0 (11/09/2026, relevé en preview headless) : sans cette branche,
+   * un visiteur arrivé par lien profond lisait « Aucun crew à faire rejoindre.
+   * Crée le tien, ou rejoins-en un » — vrai sur le fond, faux sur la cause, et
+   * les deux gestes proposés le renvoyaient sur la même porte de connexion un
+   * écran plus loin.
+   */
+  assert(
+    code.includes('if (!session && !sessionLoading)'),
+    '« pas de compte » est confondu avec « pas de crew »',
+  );
   assert(code.includes('if (!crew.crew)'), '« aucun crew » n’est pas séparé de l’échec');
   assert(code.includes('if (failed || !code)'), 'l’échec de lecture n’est pas séparé du vide');
   assert(/crew\.loading/.test(code), 'la lecture en cours n’est pas séparée');
+  // La porte de compte est la MÊME que partout ailleurs : sept portes fondues
+  // en une (lot 11), on n'en rouvre pas une huitième à la main.
+  assert(code.includes('AccountDoor2026'), 'une porte de compte locale a été recréée');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
