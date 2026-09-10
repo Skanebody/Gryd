@@ -60,6 +60,7 @@ import {
   useDuelInbox,
   type SocialOutcome,
 } from '../src/features/social/socialGraphData';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import { C } from '../src/i18n/catalog/social';
 import { useT } from '../src/i18n/store';
 import { duelLine, socialRefusalText } from '../src/features/social/socialLabels';
@@ -67,8 +68,7 @@ import { duelLine, socialRefusalText } from '../src/features/social/socialLabels
 export default function DefisScreen() {
   const t = useT();
   const toast = useToast();
-  const { data: inbox, loading, failed, unsupported, signedOut, configured, reload } =
-    useDuelInbox();
+  const { data: inbox, loading, failed, unsupported, signedOut, reload } = useDuelInbox();
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -132,29 +132,17 @@ export default function DefisScreen() {
       {loading ? <Text style={styles.stateInline}>{t(C.duelsReading)}</Text> : null}
 
       {/* ① pas connecté — et ①bis : pas de backend du tout.
-             Le CTA « Se connecter » ne se peint que s'il MÈNE quelque part :
-             sans backend, `/sign-in` redirige aussitôt sur la carte, donc le
-             bouton serait mort (corrigé le 28/07/2026, comme dans `/amis`). */}
+             ÉTAPE 0 (10/09/2026) : cet écran peignait « Se connecter », un mot
+             qui n'ouvre rien à qui n'a PAS de compte, et le bouton disparaissait
+             sans un mot quand `configured` valait faux. La porte partagée dit
+             qu'elle CRÉE le compte, et sans serveur elle se DIT fermée au lieu
+             de s'effacer (L8/L14/L19). La raison, elle, reste d'ici. */}
       {!loading && signedOut ? (
-        <Card style={styles.stateCard}>
-          <Text style={styles.stateTitle}>
-            {t(configured ? C.signedOutTitle : C.noBackendTitle)}
-          </Text>
-          <Text style={styles.stateBody}>
-            {t(configured ? C.signedOutBody : C.noBackendBody)}
-          </Text>
-          {configured ? (
-            <View style={styles.stateAction}>
-              <Button
-                variant="ghost"
-                size="md"
-                label={t(C.signIn)}
-                onPress={() => router.push('/sign-in')}
-                analyticsId="defis_sign_in"
-              />
-            </View>
-          ) : null}
-        </Card>
+        <AccountDoor2026
+          family="ui"
+          reason={t(C.signedOutBody)}
+          analyticsId="defis_sign_in"
+        />
       ) : null}
 
       {/* ③ je n'ai pas pu lire — ça ne dit rien sur ses défis. */}

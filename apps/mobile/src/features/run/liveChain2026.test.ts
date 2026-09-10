@@ -437,8 +437,19 @@ Deno.test('portes : aucune invitation à se connecter sans backend pour l’hono
     assert(at > 0, `${path} : la porte doit exister`);
     assert(screen.slice(0, at).includes('configured'), `${path} : et être gardée par \`configured\``);
   }
+  // LOT 10 (10/09/2026) — LA RÈGLE A CHANGÉ POUR `/challenges`, ET DANS LE BON
+  // SENS. Garder la porte par `configured` la faisait DISPARAÎTRE sans backend :
+  // l'écran ne proposait plus rien ET n'expliquait rien, le repli muet
+  // qu'interdisent L8/L14/L19. Cet écran ne peint donc plus AUCUNE porte à lui :
+  // `AccountDoor2026` la porte pour lui, et sans serveur elle se DIT fermée
+  // (« Serveur non configuré sur ce build ») au lieu de s'effacer. La règle
+  // complète vit dans `features/account/accountDoorButtons2026.test.ts`.
   const challenges = code('../../../app/challenges/index.tsx');
-  assert(challenges.includes('configured'), 'les défis aussi');
+  assert(
+    !challenges.includes("router.push('/sign-in')"),
+    'les défis repeignent une porte locale : elle redisparaîtrait sans backend',
+  );
+  assert(challenges.includes('<AccountDoor2026'), 'les défis n’ont plus de porte du tout');
 });
 
 

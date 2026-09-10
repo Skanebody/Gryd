@@ -103,6 +103,7 @@ import { screen } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { supabase } from '../src/lib/supabase';
 import { useSession } from '../src/lib/session';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import {
   cancelAccountDeletion,
   fetchDeletionStatus,
@@ -535,20 +536,11 @@ export default function ConfidentialiteScreen() {
       {audience.read.status === 'loading' ? (
         <Text style={styles.stateInline}>{t(C.audienceReading)}</Text>
       ) : audience.read.status === 'signed-out' ? (
-        <View style={styles.stateCard}>
-          <Text style={styles.stateTitle}>{t(C.audienceSignedOutTitle)}</Text>
-          <Text style={styles.stateBody}>{t(C.audienceSignedOutBody)}</Text>
-          {configured ? (
-            <View style={styles.actionGap}>
-              <Button
-                variant="ghost"
-                size="md"
-                label={t(C.identitySignInLabel)}
-                onPress={() => router.push('/sign-in')}
-              />
-            </View>
-          ) : null}
-        </View>
+        /* ÉTAPE 0 (10/09/2026) : « Se connecter », derrière un `configured ?
+           … : null`. Le mot n'ouvrait rien à qui n'a pas de compte, et sur un
+           build sans serveur la porte s'effaçait en silence. La porte partagée
+           nomme la création et, sans serveur, dit qu'elle est fermée. */
+        <AccountDoor2026 family="ui" reason={t(C.audienceSignedOutBody)} />
       ) : audience.read.status === 'failed' ? (
         <View style={styles.stateCard}>
           <Text style={styles.stateTitle}>{t(C.audienceFailedTitle)}</Text>
@@ -862,22 +854,13 @@ export default function ConfidentialiteScreen() {
         <Text style={styles.stateInline}>{t(C.deletionReading)}</Text>
       ) : !signedIn ? (
         /* ① PAS CONNECTÉ — on le dit AVANT le tap, et on ne peint aucun bouton
-           qui échouerait. Sans backend, proposer une connexion serait un
-           deuxième mensonge : le CTA n'apparaît que si elle est possible. */
-        <View style={styles.stateCard}>
-          <Text style={styles.stateTitle}>{t(C.rgpdSignedOutTitle)}</Text>
-          <Text style={styles.stateBody}>{t(C.rgpdSignedOutBody)}</Text>
-          {configured ? (
-            <View style={styles.actionGap}>
-              <Button
-                variant="ghost"
-                size="md"
-                label={t(C.identitySignInLabel)}
-                onPress={() => router.push('/sign-in')}
-              />
-            </View>
-          ) : null}
-        </View>
+           qui échouerait : sans compte, le serveur n'a RIEN enregistré, il n'y
+           a donc pas de fichier à rendre. C'est la raison portée par la porte.
+           ÉTAPE 0 (10/09/2026) : elle disait « Se connecter » et disparaissait
+           sans backend. La seconde porte de cet écran est à 300 lignes de la
+           première (audience) : on ne les voit jamais ensemble, la loi L2 ne
+           voit donc pas deux CTA concurrents. */
+        <AccountDoor2026 family="ui" reason={t(C.rgpdSignedOutBody)} />
       ) : (
         <>
           <DisclosureCard

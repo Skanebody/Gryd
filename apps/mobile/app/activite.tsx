@@ -69,13 +69,13 @@ import {
   type IconName,
 } from '@klaim/shared';
 import { screen, track } from '../src/lib/analytics';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { Icon } from '../src/ui/Icon';
 import { ListRow } from '../src/ui/ListRow';
 import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
-import { useSession } from '../src/lib/session';
 import {
   buildActivityFeed,
   relativeAge,
@@ -143,7 +143,6 @@ function StateCard({
 export default function ActiviteScreen() {
   const t = useT();
   const { status, events, reload } = useActivityEvents();
-  const { configured } = useSession();
 
   useEffect(() => {
     screen('activite');
@@ -240,22 +239,16 @@ export default function ActiviteScreen() {
       {/* ── 1. On ne sait pas encore : une LIGNE grise, pas un spinner plein. ── */}
       {status === 'loading' ? <Text style={styles.stateInline}>{t(C.loadingLine)}</Text> : null}
 
-      {/* ── 2. Pas de compte : l'activité vit dessus. CTA seulement s'il mène
-             quelque part — sans backend, une phrase le remplace. ── */}
+      {/* ── 2. Pas de compte : l'activité vit dessus. ──
+             ÉTAPE 0 (10/09/2026) : le CTA disait « Se connecter » et il
+             disparaissait sans backend, ne laissant qu'un corps de texte. La
+             porte partagée nomme la CRÉATION du compte et, sans serveur, dit
+             pourquoi aucun compte ne peut naître ici (L8/L14/L19). */}
       {status === 'signed-out' ? (
-        <StateCard
-          {...(configured ? {} : { title: t(C.noBackendTitle) })}
-          body={configured ? t(C.signedOutBody) : t(C.noBackendBody)}
-          {...(configured
-            ? {
-                cta: {
-                  label: t(C.signInCta),
-                  a11y: t(C.a11ySignIn),
-                  analyticsId: 'activite_sign_in',
-                  onPress: () => router.push('/sign-in'),
-                },
-              }
-            : {})}
+        <AccountDoor2026
+          family="ui"
+          reason={t(C.signedOutBody)}
+          analyticsId="activite_sign_in"
         />
       ) : null}
 

@@ -3321,12 +3321,18 @@ export const C = defineCatalog({
     de: 'Du wirst Kapitän. Danach bleibt alles änderbar, außer dem Emblem.',
     pt: 'Você será o capitão. Tudo continua editável depois, menos o emblema.',
   },
+  /**
+   * LA RAISON, PAS L'ORDRE (lot 10, 10/09/2026) : « Connecte-toi pour créer ton
+   * crew » excluait exactement le joueur que l'écran veut inscrire. Le titre et
+   * le bouton viennent de `AccountDoor2026` ; il ne reste ici que ce qu'un
+   * compte porte pour un crew.
+   */
   createSignedOut: {
-    fr: 'Connecte-toi pour créer ton crew.',
-    en: 'Sign in to create your crew.',
-    es: 'Inicia sesión para crear tu crew.',
-    de: 'Melde dich an, um dein Crew zu gründen.',
-    pt: 'Entre para criar o seu crew.',
+    fr: 'Fonder un crew demande un compte : c’est lui qui portera son nom, sa ville et ses membres.',
+    en: 'Founding a crew needs an account: it carries the name, the city and the members.',
+    es: 'Fundar un crew requiere una cuenta: ella lleva el nombre, la ciudad y los miembros.',
+    de: 'Ein Crew zu gründen braucht ein Konto: Es trägt den Namen, die Stadt und die Mitglieder.',
+    pt: 'Fundar um crew exige uma conta: é ela que leva o nome, a cidade e os membros.',
   },
   createSignIn: {
     fr: 'Créer mon compte',

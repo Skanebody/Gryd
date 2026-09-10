@@ -98,6 +98,7 @@ import { useT } from '../../src/i18n/store';
 import type { Entry } from '../../src/i18n/types';
 import { EVENTS, screen, track } from '../../src/lib/analytics';
 import { useSession } from '../../src/lib/session';
+import { AccountDoor2026 } from '../../src/features/account/AccountDoor2026';
 import { Button } from '../../src/ui/Button';
 import { Icon } from '../../src/ui/Icon';
 import { StackScreen } from '../../src/ui/StackScreen';
@@ -305,23 +306,26 @@ export default function InviteLandingScreen() {
   }
 
   // ① Pas connecté — l'invitation est déjà mémorisée, on l'annonce.
+  //
+  //   ÉTAPE 0 (10/09/2026) : le bouton disait « Se connecter » (`rlSignIn`,
+  //   partagé avec les deux écrans de session EXPIRÉE, où ce mot est juste), et
+  //   il disparaissait sans backend. Ici, le visiteur arrive d'un lien : c'est
+  //   le plus probable des joueurs SANS compte. La porte partagée nomme donc sa
+  //   création, et le titre local disparaît — elle porte le sien.
+  //
+  //   LA RAISON, elle, reste locale ET conditionnelle : « on garde cette
+  //   invitation, dès que ton compte existe tu entres dans le crew » serait une
+  //   promesse invérifiable sur un build sans serveur, où aucun compte ne peut
+  //   naître. Le code, lui, reste affiché : c'est le seul fait de cet écran.
   if (!ready) {
     return (
       <Shell {...shell}>
-        <Text style={styles.title}>{t(C.cInviteSignedOutTitle)}</Text>
         <CodePlate code={code} />
-        <Text style={styles.body}>
-          {configured ? t(C.cInviteSignedOutBody) : t(C.rlSignedOutBody)}
-        </Text>
-        {configured ? (
-          <View style={styles.cta}>
-            <Button
-              label={t(C.rlSignIn)}
-              analyticsId="crew_invite_sign_in"
-              onPress={() => router.push('/sign-in')}
-            />
-          </View>
-        ) : null}
+        <AccountDoor2026
+          family="ui"
+          reason={t(configured ? C.cInviteSignedOutBody : C.rlSignedOutBody)}
+          analyticsId="crew_invite_sign_in"
+        />
       </Shell>
     );
   }

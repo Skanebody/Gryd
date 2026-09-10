@@ -75,6 +75,7 @@ import { useT } from '../src/i18n/store';
 import { screen, track } from '../src/lib/analytics';
 import { haptics } from '../src/lib/haptics';
 import { useSession } from '../src/lib/session';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
 import { CrewCrest } from '../src/ui/game/CrewCrest';
@@ -177,13 +178,15 @@ function CrewCreate() {
   }
 
   // ── Pas connecté ───────────────────────────────────────────────────────────
+  //   ÉTAPE 0 (10/09/2026) : le bouton disait déjà « Créer mon compte »
+  //   (`createSignIn`, f4996f3), mais la porte restait LOCALE et la phrase
+  //   au-dessus ordonnait « Connecte-toi pour créer ton crew ». Une porte
+  //   dupliquée finit toujours par diverger de l'originale : celle-ci passe
+  //   par le composant partagé, et sa raison dit ce que le compte porte ICI.
   if (!session && !sessionLoading) {
     return (
       <StackScreen title={t(C.createTitle)} backHref="/(tabs)/crew">
-        <View style={styles.block}>
-          <Text style={styles.body}>{t(C.createSignedOut)}</Text>
-          <Button label={t(C.createSignIn)} onPress={() => router.push('/sign-in')} />
-        </View>
+        <AccountDoor2026 family="ui" reason={t(C.createSignedOut)} />
       </StackScreen>
     );
   }

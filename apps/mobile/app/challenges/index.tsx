@@ -65,7 +65,6 @@ import {
   typography,
 } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
-import { Button } from '../../src/ui/Button';
 import { Card, IconPlate } from '../../src/ui/Card';
 import { Icon } from '../../src/ui/Icon';
 import { ProgressBar } from '../../src/ui/ProgressBar';
@@ -82,9 +81,9 @@ import {
   CHALLENGE_TYPE_LABELS,
   challengeUnitLabel,
 } from '../../src/features/motivation/labels';
+import { AccountDoor2026 } from '../../src/features/account/AccountDoor2026';
 import { C } from '../../src/i18n/catalog/motivation';
 import { useT } from '../../src/i18n/store';
-import { useSession } from '../../src/lib/session';
 
 /** Icône de tête par type. Seul `solo` est servi aujourd'hui (cf. en-tête). */
 const TYPE_ICON = { solo: 'aujourdhui', crew: 'crew', rivalry: 'cible' } as const;
@@ -147,45 +146,30 @@ function Row({ c }: { c: ChallengeCard }) {
 /**
  * État vide — une seule carte, une seule raison, une seule action au maximum
  * (§A). Les trois raisons ne se ressemblent pas et ne se remplacent pas :
- *   · pas de compte  → on invite à se connecter (Button ghost : le CTA
- *     chartreuse de l'app reste le départ de course) ;
+ *   · pas de compte  → la porte de compte partagée, qui nomme sa CRÉATION ;
  *   · serveur injoignable → on l'explique, on ne propose rien à tenter ici ;
  *   · aucun défi actif → on le dit comme un fait sur le jeu, sans reprocher au
  *     joueur une absence qui n'est pas la sienne.
+ *
+ * ÉTAPE 0 (10/09/2026) : la première raison peignait « Se connecter » derrière
+ * un `signedOut && configured`. Le mot n'ouvrait rien à qui n'a pas de compte,
+ * et le bouton s'effaçait sans un mot sur un build sans serveur. Le CTA de la
+ * porte est chartreuse, comme sur les treize écrans du lot 9 : cet écran est
+ * poussé (aucune capsule GO à l'écran), il n'entre donc en concurrence avec
+ * rien (L2).
  */
 function EmptyState({ reason }: { reason: Exclude<ChallengesEmptyReason, 'none'> }) {
   const t = useT();
-  // `configured` = un backend existe. Sans lui, `/sign-in` renvoie à la carte :
-  // proposer « Se connecter » serait un bouton mort. Même garde que
-  // `historique.tsx` et `activite.tsx`, qui la portaient déjà.
-  const { configured } = useSession();
-  const signedOut = reason === 'signedOut';
   const noneActive = reason === 'noneActive';
-  const title = noneActive
-    ? CHALLENGES_NONE_ACTIVE_TITLE
-    : signedOut
-      ? C.challengesEmptySignedOutTitle
-      : C.challengesEmptyOfflineTitle;
-  const body = noneActive
-    ? CHALLENGES_NONE_ACTIVE_BODY
-    : signedOut
-      ? C.challengesEmptySignedOutBody
-      : C.challengesEmptyOfflineBody;
+  if (reason === 'signedOut') {
+    return <AccountDoor2026 family="ui" reason={t(C.challengesEmptySignedOutBody)} analyticsId="challenges_sign_in" />;
+  }
+  const title = noneActive ? CHALLENGES_NONE_ACTIVE_TITLE : C.challengesEmptyOfflineTitle;
+  const body = noneActive ? CHALLENGES_NONE_ACTIVE_BODY : C.challengesEmptyOfflineBody;
   return (
     <Card style={styles.stateCard}>
       <Text style={styles.stateTitle}>{t(title)}</Text>
       <Text style={styles.stateBody}>{t(body)}</Text>
-      {signedOut && configured ? (
-        <View style={styles.stateAction}>
-          <Button
-            variant="ghost"
-            size="md"
-            label={t(C.todaySignIn)}
-            onPress={() => router.push('/sign-in')}
-            analyticsId="challenges_sign_in"
-          />
-        </View>
-      ) : null}
     </Card>
   );
 }
@@ -260,5 +244,4 @@ const styles = StyleSheet.create({
   stateCard: { marginTop: spacing.sm, gap: spacing.xs },
   stateTitle: { ...typography.cardTitle, color: colors.blanc },
   stateBody: { ...typography.body, color: colors.gris },
-  stateAction: { marginTop: spacing.sm },
 });

@@ -190,12 +190,19 @@ export const C = defineCatalog({
     de: 'Deine Challenges kommen mit deinem Konto.',
     pt: 'Seus desafios vêm com sua conta.',
   },
+  /**
+   * LA RAISON, PAS L'ORDRE (lot 10, 10/09/2026) : « Connecte-toi pour suivre ta
+   * progression » s'adressait à qui a déjà un compte. La porte partagée
+   * (`AccountDoor2026`) nomme la création juste au-dessous ; cette phrase ne
+   * garde que le fait. Elle sert AUSSI `/challenges/[id]`, qui n'a pas de
+   * porte : elle doit donc rester vraie sans bouton derrière.
+   */
   challengesEmptySignedOutBody: {
-    fr: 'Connecte-toi pour suivre ta progression sur les défis GRYD, sortie après sortie.',
-    en: 'Sign in to track your progress on GRYD challenges, run after run.',
-    es: 'Inicia sesión para seguir tu progreso en los desafíos GRYD, salida tras salida.',
-    de: 'Melde dich an, um deinen Fortschritt bei den GRYD-Challenges Lauf für Lauf zu verfolgen.',
-    pt: 'Entre para acompanhar seu progresso nos desafios GRYD, corrida após corrida.',
+    fr: 'Ta progression sur les défis GRYD est gardée par ton compte, sortie après sortie.',
+    en: 'Your account keeps your progress on GRYD challenges, run after run.',
+    es: 'Tu cuenta guarda tu progreso en los desafíos GRYD, salida tras salida.',
+    de: 'Dein Konto bewahrt deinen Fortschritt bei den GRYD-Challenges, Lauf für Lauf.',
+    pt: 'Sua conta guarda seu progresso nos desafios GRYD, corrida após corrida.',
   },
   challengesEmptyOfflineTitle: {
     fr: 'Défis indisponibles.',

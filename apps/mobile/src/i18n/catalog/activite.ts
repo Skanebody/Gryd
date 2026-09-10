@@ -163,12 +163,19 @@ export const C = defineCatalog({
   },
   retry: { fr: 'Réessayer', en: 'Try again', es: 'Reintentar', de: 'Erneut versuchen', pt: 'Tentar de novo' },
 
+  /**
+   * LA RAISON, PAS L'ORDRE (lot 10, 10/09/2026). Cette phrase disait
+   * « Connecte-toi pour la suivre ici » : un impératif qui suppose un compte
+   * DÉJÀ créé, alors que la porte au-dessous en crée un. Le titre et le bouton
+   * appartiennent maintenant à `AccountDoor2026` ; il ne reste ici que ce que
+   * le compte débloque SUR CET ÉCRAN.
+   */
   signedOutBody: {
-    fr: 'Ton activité est liée à ton compte. Connecte-toi pour la suivre ici.',
-    en: 'Your activity lives on your account. Sign in to follow it here.',
-    es: 'Tu actividad está vinculada a tu cuenta. Inicia sesión para seguirla aquí.',
-    de: 'Deine Aktivität hängt an deinem Konto. Melde dich an, um sie hier zu verfolgen.',
-    pt: 'Sua atividade está ligada à sua conta. Entre para acompanhá-la aqui.',
+    fr: 'Ton activité est liée à ton compte : elle se remplit ici dès qu’il existe.',
+    en: 'Your activity lives on your account: it fills up here as soon as you have one.',
+    es: 'Tu actividad está vinculada a tu cuenta: aparece aquí en cuanto tengas una.',
+    de: 'Deine Aktivität hängt an deinem Konto: Sie erscheint hier, sobald du eines hast.',
+    pt: 'Sua atividade está ligada à sua conta: ela aparece aqui assim que você tiver uma.',
   },
   signInCta: { fr: 'Se connecter', en: 'Sign in', es: 'Iniciar sesión', de: 'Anmelden', pt: 'Entrar' },
   a11ySignIn: {
