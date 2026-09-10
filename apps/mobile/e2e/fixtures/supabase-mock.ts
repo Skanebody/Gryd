@@ -243,6 +243,11 @@ function rpcFixture(name: string, body: Record<string, unknown>, user: MockUser)
     // Personne n'est moderateur dans le harnais (0187 : habilitation nominative).
     case 'am_i_moderator_2026':
       return false;
+    // Boite de reception (0192) : un compte neuf n a rien recu, le compteur vaut zero.
+    case 'unread_notifications_count_2026':
+      return 0;
+    case 'my_notifications_2026':
+      return [];
     default:
       return undefined;
   }
