@@ -124,10 +124,17 @@ export type AvatarRefusal = 'media_too_large' | 'invalid_media' | null;
  * Une image est-elle envoyable ? On refuse TÔT et avec un motif, plutôt que de
  * laisser le bucket répondre par un 4xx que l'écran traduirait en « l'action
  * n'a pas abouti » — la phrase qui n'apprend rien.
+ *
+ * `extension` est OPTIONNELLE parce que l'écran ne la connaît pas au moment où
+ * il pose la question : le sélecteur rend une taille (`fileSize`) et une URI,
+ * l'extension réelle se déduit des OCTETS plus tard
+ * (`stripSocialImageMetadata2026`). Absente, on ne juge que la taille — on ne
+ * refuse jamais sur une supposition.
  */
-export function avatarUploadRefusal(file: { bytes: number; extension: string }): AvatarRefusal {
+export function avatarUploadRefusal(file: { bytes: number; extension?: string }): AvatarRefusal {
   if (!Number.isFinite(file.bytes) || file.bytes <= 0) return 'invalid_media';
   if (file.bytes > AVATAR_MAX_BYTES) return 'media_too_large';
+  if (file.extension === undefined) return null;
   return (AVATAR_EXTENSIONS as readonly string[]).includes(file.extension) ? null : 'invalid_media';
 }
 

@@ -43,7 +43,7 @@ import { fonts, refonteColors as c } from '@klaim/shared';
 import { useMyProfile, type EditableProfile } from '../src/features/social/profileStore';
 import { useSocialEpoch2026, uploadSocialImage2026 } from '../src/features/social/social2026Data';
 import { socialError2026 } from '../src/features/social/social2026Model';
-import { avatarPathAccepted, cameraAvatarAvailable, captureAvatarPhoto, pickAvatarPhoto } from '../src/features/social/avatarPhoto';
+import { avatarPathAccepted, avatarUploadRefusal, cameraAvatarAvailable, captureAvatarPhoto, pickAvatarPhoto } from '../src/features/social/avatarPhoto';
 import { discardAvatarObject2026, signMyAvatarUrl2026 } from '../src/features/social/myAvatar';
 import { classifyAppError } from '../src/ui/appErrorPolicy';
 import { ProfileButton, ProfilePage, ProfileSection, s, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
@@ -65,7 +65,10 @@ type PhotoState =
  | { kind: 'idle' }
  | { kind: 'sending' }
  | { kind: 'ready' }
- | { kind: 'failed'; message: string }
+ /** `retryUri` = la photo à renvoyer. `null` quand l'échec vient du sélecteur
+  *  lui-même : il n'y a alors RIEN à renvoyer, et « Réessayer l'envoi » serait
+  *  un bouton mort. L'écran ne le peint pas dans ce cas. */
+ | { kind: 'failed'; message: string; retryUri: string | null }
  | { kind: 'denied'; canAskAgain: boolean; source: PhotoSource }
  | { kind: 'unavailable'; source: PhotoSource };
 
@@ -128,23 +131,29 @@ function AvatarField({owner,draft,patch,copy,onUploaded}:{
  const [state,setState]=useState<PhotoState>({kind:'idle'});
  /** Aperçu LOCAL : la photo s'affiche à l'instant du choix, avant tout réseau. */
  const [preview,setPreview]=useState<string|null>(null);
- /** La source du dernier choix, gardée pour que « Réessayer » réessaie VRAIMENT. */
- const pending=useRef<string|null>(null);
  const alive=useRef(true);useEffect(()=>()=>{alive.current=false},[]);
  // La caméra n'est proposée que si CE binaire la déclare (sans
  // NSCameraUsageDescription, iOS ne « refuse » pas : il tue l'app).
  const cameraCapability=cameraAvatarAvailable();
  const shown=preview??(draft.avatarUri||null);
 
- async function send(uri:string){
-  if(!owner)return;
-  pending.current=uri;setState({kind:'sending'});
+ /** `uri` nul = rien à envoyer : le geste est sans objet, on ne fait rien. */
+ async function send(uri:string|null,bytes:number|null){
+  if(!owner||!uri)return;
+  // Refus AVANT le réseau, quand le sélecteur a donné la taille : lire 8 Mo en
+  // mémoire pour se les faire refuser par le bucket coûte une attente inutile,
+  // et le motif serait noyé dans un échec d'envoi générique. `retryUri` reste
+  // nul : renvoyer la MÊME photo trop lourde ne marchera pas davantage, c'est
+  // une autre photo qu'il faut — le message le dit.
+  const refusal=bytes===null?null:avatarUploadRefusal({bytes});
+  if(refusal){haptics.error();setState({kind:'failed',message:socialError2026(refusal,en),retryUri:null});return;}
+  setState({kind:'sending'});
   try{
    const path=await withTimeout(uploadSocialImage2026(owner,uri,'avatar'),UPLOAD_TIMEOUT_MS);
    // Garde-fou : le chemin doit satisfaire la MÊME regex que la policy 0124.
    // S'il ne la satisfait pas, le profil ne pourra pas le référencer — mieux
    // vaut le dire ici que laisser « Enregistrer » échouer sans expliquer.
-   if(!avatarPathAccepted(path)){if(alive.current)setState({kind:'failed',message:socialError2026('invalid_media',en)});return;}
+   if(!avatarPathAccepted(path)){if(alive.current)setState({kind:'failed',message:socialError2026('invalid_media',en),retryUri:null});return;}
    onUploaded(path);
    const signed=await signMyAvatarUrl2026(path);
    if(!alive.current)return;
@@ -154,7 +163,7 @@ function AvatarField({owner,draft,patch,copy,onUploaded}:{
    setState({kind:'ready'});haptics.success();
   }catch(e){
    if(!alive.current)return;
-   haptics.error();setState({kind:'failed',message:uploadFailureMessage(e,en)});
+   haptics.error();setState({kind:'failed',message:uploadFailureMessage(e,en),retryUri:uri});
   }
  }
 
@@ -167,18 +176,20 @@ function AvatarField({owner,draft,patch,copy,onUploaded}:{
    if(result.kind==='canceled')return;
    if(result.kind==='denied'){setState({kind:'denied',canAskAgain:result.canAskAgain,source});return;}
    if(result.kind==='unavailable'){setState({kind:'unavailable',source});return;}
-   setPreview(result.uri);await send(result.uri);
-  }catch(e){if(alive.current)setState({kind:'failed',message:uploadFailureMessage(e,en)});}
+   setPreview(result.uri);await send(result.uri,result.bytes);
+  }catch(e){if(alive.current)setState({kind:'failed',message:uploadFailureMessage(e,en),retryUri:null});}
  }
 
  function remove(){
-  haptics.light();setPreview(null);pending.current=null;
+  haptics.light();setPreview(null);
   // On n'efface rien dans le bucket ici : tant que l'enregistrement n'a pas eu
   // lieu, le serveur référence encore cette photo. Le ménage suit la sauvegarde.
   patch({avatarUri:'',avatarPath:null});setState({kind:'idle'});
  }
 
  const sending=state.kind==='sending';
+ /** La photo qu'un « Réessayer » renverrait. `null` = pas de bouton du tout. */
+ const retryUri=state.kind==='failed'?state.retryUri:null;
  return <View style={styles.photoBlock}>
   <ProfileSection title={copy('Photo de profil','Profile photo')}/>
   <View style={styles.photoRow}>
@@ -187,7 +198,7 @@ function AvatarField({owner,draft,patch,copy,onUploaded}:{
     {sending?<View style={styles.portraitVeil}><ActivityIndicator color={c.darkInk}/></View>:null}
    </View>
    <View style={s.flex}>
-    <Text style={styles.photoLead}>{shown?copy('Ta photo est en place.','Your photo is set.'):copy('Aucune photo pour l’instant. Ton avatar affiche ton initiale.','No photo yet. Your avatar shows your initial.')}</Text>
+    <Text style={styles.photoLead}>{state.kind==='failed'?copy('Cette photo n’est pas encore envoyée.','This photo is not uploaded yet.'):shown?copy('Ta photo est en place.','Your photo is set.'):copy('Aucune photo pour l’instant. Ton avatar affiche ton initiale.','No photo yet. Your avatar shows your initial.')}</Text>
     {/* L’anti-honte n’a de sens que face au VIDE : répéter « facultatif » à quelqu’un
         qui vient d’en mettre une reviendrait à le pousser à la retirer. */}
     {shown?null:<Text style={s.meta}>{copy('Rester derrière ton pseudo est un choix entier, pas un profil incomplet.','Staying behind your handle is a full choice, not an incomplete profile.')}</Text>}
@@ -211,7 +222,7 @@ function AvatarField({owner,draft,patch,copy,onUploaded}:{
   :state.kind==='ready'?<View style={styles.photoState} accessibilityLiveRegion="polite"><Text style={s.meta}>{copy('Photo envoyée. Touche Enregistrer pour l’appliquer à ton profil.','Photo uploaded. Tap Save to apply it to your profile.')}</Text></View>
   :state.kind==='failed'?<View style={styles.photoState} accessibilityLiveRegion="polite">
     <Text accessibilityRole="alert" style={s.body}>{state.message}</Text>
-    <Pressable style={styles.action} accessibilityRole="button" onPress={()=>{const uri=pending.current;if(uri)void send(uri);}}><Text style={styles.link}>{copy('Réessayer l’envoi','Try sending again')}</Text></Pressable>
+    {retryUri?<Pressable style={styles.action} accessibilityRole="button" onPress={()=>{void send(retryUri,null)}}><Text style={styles.link}>{copy('Réessayer l’envoi','Try sending again')}</Text></Pressable>:null}
    </View>
   :state.kind==='denied'?<View style={styles.photoState} accessibilityLiveRegion="polite">
     <Text accessibilityRole="alert" style={s.body}>{deniedMessage(state.source,state.canAskAgain,copy)}</Text>
@@ -245,6 +256,13 @@ function uploadFailureMessage(error:unknown,en:boolean):string {
  const raw=String(error);
  if(raw.includes('upload_timeout'))return en?'Sending took too long. Check your connection, then try again.':'L’envoi a pris trop de temps. Vérifie ta connexion, puis réessaie.';
  if(classifyAppError(error)==='network')return en?'Your photo did not leave the device: GRYD cannot reach the server. Check your connection, then try again.':'Ta photo n’est pas partie : GRYD ne joint pas le serveur. Vérifie ta connexion, puis réessaie.';
+ // `uploadSocialImage2026` nomme `invalid_media` TOUTE panne d'envoi : supabase-js
+ // REND l'erreur de transport au lieu de la lever, et `social2026Data` ne la lit
+ // pas avant de jeter son propre motif. Une coupure de réseau arrive donc ici
+ // sous le nom de la photo. Répondre « cette image ne peut pas être utilisée »
+ // serait une ACCUSATION NON FONDÉE — le client sait seulement que l'envoi n'a
+ // pas abouti. On dit ça, avec les deux gestes qui le réparent, dans l'ordre.
+ if(raw.includes('invalid_media'))return en?'The upload did not complete. Check your connection, then try again. If it keeps failing, pick another photo.':'L’envoi n’a pas abouti. Vérifie ta connexion, puis réessaie. Si ça recommence, choisis une autre photo.';
  return socialError2026(raw,en);
 }
 

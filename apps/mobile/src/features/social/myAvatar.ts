@@ -1,9 +1,9 @@
 /**
  * GRYD — MA PHOTO DE PROFIL, telle qu'un autre écran peut l'afficher.
  *
- * Écrit pour le marqueur de position sur la carte (lot 2), qui a besoin d'UNE
- * chose : « ai-je une photo, et sous quelle URL ? ». Le reste du profil ne le
- * regarde pas.
+ * Écrit pour le marqueur de position sur la carte, qui a besoin d'UNE chose :
+ * « ai-je une photo, et sous quelle URL ? ». Le reste du profil ne le regarde
+ * pas, et ce module n'expose rien d'autre.
  *
  * ─── POURQUOI UNE URL SIGNÉE, ET PAS UNE URL PUBLIQUE ───────────────────────
  * Le bucket `social-2026` est créé avec `public = false` (0124:96). Il n'existe
@@ -12,30 +12,34 @@
  * authentifié et bornée dans le temps — ce que fait déjà `profileStore`
  * (`createSignedUrl(path, 120)`), avec un rafraîchissement toutes les 90 s.
  *
- * ─── POURQUOI CE MODULE NE SIGNE RIEN LUI-MÊME ──────────────────────────────
- * Une seconde chaîne de signature, ce serait une seconde vérité : deux TTL, deux
- * horloges, et le jour où l'une expire l'écran A montre un visage que l'écran B
- * a perdu. `useMyAvatarUri` LIT donc `useMyProfile()` — la source qui connaît
- * déjà `avatarPath`, la session et l'époque de propriétaire.
+ * ─── POURQUOI CE MODULE NE SIGNE PAS LA LECTURE LUI-MÊME ────────────────────
+ * Une seconde chaîne de signature, ce serait une seconde vérité : deux TTL,
+ * deux horloges, et le jour où l'une expire l'écran A montre un visage que
+ * l'écran B a perdu. `useMyAvatarUri` LIT donc `useMyProfile()` — la source qui
+ * connaît déjà `avatarPath`, la session et l'époque de propriétaire.
  *
  * ─── LE CACHE MÉMOIRE, ET CE QU'IL PROTÈGE EXACTEMENT ───────────────────────
  * `useMyProfile` repasse par `loading: true` à chaque rechargement (toutes les
  * 90 s, et à chaque retour d'écran). Sans mémoire, le marqueur de la carte
  * CLIGNOTERAIT : photo → repli initiale → photo. Le cache retient donc la
  * DERNIÈRE URL connue, et il est :
- *   · scopé au PROPRIÉTAIRE et à l'ÉPOQUE (`resultOwner2026`) — un changement de
- *     compte le vide, sinon on afficherait le visage de quelqu'un d'autre ;
- *   · vidé dès que le profil dit « plus de photo » (retrait explicite) ;
+ *   · scopé au PROPRIÉTAIRE et à l'ÉPOQUE (`resultOwner2026`) — un changement
+ *     de compte le vide, sinon on afficherait le visage de quelqu'un d'autre ;
+ *   · vidé dès qu'une lecture ABOUTIE dit « plus de photo » (retrait explicite) ;
  *   · en MÉMOIRE seulement : rien n'est écrit sur le disque, une URL signée est
  *     un jeton d'accès et n'a rien à faire dans un stockage persistant.
  * Il ne fabrique jamais une photo : sans compte, ou avant toute lecture réussie,
  * la valeur est `null` — l'appelant peint alors son repli (initiale), pas un
  * rond gris qui ferait croire à un chargement sans fin.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useSession } from '../../lib/session';
-import { isResultOwnerCurrent2026, resultOwnerEpoch2026 } from '../run/resultOwner2026';
+import {
+  isResultOwnerCurrent2026,
+  resultOwnerEpoch2026,
+  subscribeResultOwner2026,
+} from '../run/resultOwner2026';
 import { useMyProfile } from './profileStore';
 
 /**
@@ -48,9 +52,11 @@ const SIGNED_URL_TTL_S = 120;
 /** Dernière URL connue, strictement scopée au couple (propriétaire, époque). */
 let remembered: { owner: string; epoch: number; url: string } | null = null;
 
-/** Vide la mémoire — appelé au changement de compte et au retrait de la photo. */
-export function forgetMyAvatarUri(): void {
-  remembered = null;
+/** Ce que la mémoire garde POUR CE compte-ci, ou `null`. Pure lecture. */
+function rememberedFor(owner: string | null, epoch: number): string | null {
+  return remembered && remembered.owner === owner && remembered.epoch === epoch
+    ? remembered.url
+    : null;
 }
 
 /**
@@ -61,22 +67,36 @@ export function forgetMyAvatarUri(): void {
 export function useMyAvatarUri(): string | null {
   const { session } = useSession();
   const owner = session?.user.id ?? null;
-  const epoch = resultOwnerEpoch2026();
+  const epoch = useSyncExternalStore(
+    subscribeResultOwner2026,
+    resultOwnerEpoch2026,
+    resultOwnerEpoch2026,
+  );
   const { profile, loading, failed } = useMyProfile();
+  const [uri, setUri] = useState<string | null>(() => rememberedFor(owner, epoch));
 
-  const fresh = !loading && !failed && owner !== null ? profile.avatarUri.trim() : '';
-
-  // Le compte a changé : la mémoire de l'ancien n'a plus le droit d'exister.
-  if (remembered && (remembered.owner !== owner || remembered.epoch !== epoch)) remembered = null;
-
-  if (owner !== null && !loading && !failed) {
+  // L'écriture du cache vit dans un effet, jamais dans le rendu : muter un état
+  // de module pendant un rendu casse la promesse d'idempotence de React.
+  useEffect(() => {
+    if (owner === null) {
+      remembered = null;
+      setUri(null);
+      return;
+    }
+    if (remembered && (remembered.owner !== owner || remembered.epoch !== epoch)) remembered = null;
+    if (loading || failed) {
+      // Lecture en cours ou en échec : on ne CHANGE rien d'avis, on garde ce
+      // qu'on savait. Un échec de rechargement n'efface pas un visage déjà lu.
+      setUri(rememberedFor(owner, epoch));
+      return;
+    }
     // Lecture ABOUTIE : elle fait foi, y compris quand elle dit « aucune photo ».
+    const fresh = profile.avatarUri.trim();
     remembered = fresh.length > 0 ? { owner, epoch, url: fresh } : null;
-  }
+    setUri(fresh.length > 0 ? fresh : null);
+  }, [owner, epoch, loading, failed, profile.avatarUri]);
 
-  return remembered && remembered.owner === owner && remembered.epoch === epoch
-    ? remembered.url
-    : null;
+  return uri;
 }
 
 /**
@@ -122,43 +142,11 @@ export async function discardAvatarObject2026(ownerId: string, path: string): Pr
   // On n'efface QUE sous son propre préfixe. La policy le redit côté serveur ;
   // le vérifier ici évite d'envoyer une requête qu'on sait refusée.
   if (path.split('/')[0] !== ownerId) return false;
-  const epoch = resultOwnerEpoch2026();
-  if (!isResultOwnerCurrent2026(ownerId, epoch)) return false;
+  if (!isResultOwnerCurrent2026(ownerId, resultOwnerEpoch2026())) return false;
   try {
     const result = await supabase.storage.from('social-2026').remove([path]);
     return !result.error;
   } catch {
     return false;
   }
-}
-
-/**
- * Retient un chemin d'objet à effacer QUAND l'écran se démonte sans l'avoir
- * confirmé. Sert au cas exact suivant : le joueur choisit une photo (envoyée),
- * puis quitte l'édition sans enregistrer — l'objet est dans le bucket, le profil
- * ne le référence pas. Le laisser serait un fichier orphelin de plus à chaque
- * hésitation.
- */
-export function useDiscardOnUnmount(ownerId: string | null): {
-  arm: (path: string | null) => void;
-  disarm: () => void;
-} {
-  const armed = useRef<string | null>(null);
-  const owner = useRef<string | null>(ownerId);
-  owner.current = ownerId;
-  useEffect(() => {
-    return () => {
-      const path = armed.current;
-      const uid = owner.current;
-      if (path && uid) void discardAvatarObject2026(uid, path);
-    };
-  }, []);
-  return {
-    arm: (path: string | null) => {
-      armed.current = path;
-    },
-    disarm: () => {
-      armed.current = null;
-    },
-  };
 }

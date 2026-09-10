@@ -118,6 +118,10 @@ Deno.test('taille et extension : refus NOMMÉ avant tout envoi', () => {
   assertEquals(avatarUploadRefusal({ bytes: Number.NaN, extension: 'jpg' }), 'invalid_media');
   assertEquals(avatarUploadRefusal({ bytes: 10, extension: 'gif' }), 'invalid_media');
   assertEquals(avatarUploadRefusal({ bytes: 10, extension: 'heic' }), 'invalid_media');
+  // Sans extension (ce que l'écran sait au moment du choix), seule la TAILLE est
+  // jugée : on ne refuse pas une photo sur une supposition d'extension.
+  assertEquals(avatarUploadRefusal({ bytes: 10 }), null);
+  assertEquals(avatarUploadRefusal({ bytes: AVATAR_MAX_BYTES + 1 }), 'media_too_large');
   // Les extensions annoncées sont exactement celles du bucket.
   for (const extension of AVATAR_EXTENSIONS) {
     assert(MIGRATION_0124.includes(extension), `le bucket n’accepte plus « ${extension} »`);
@@ -195,8 +199,15 @@ Deno.test('couture — aucun bouton mort, aucun spinner sans fin, aucun refus mu
   );
   // Permission bloquée : la seule porte restante est ouverte pour de vrai.
   assert(CODE_EDIT.includes('Linking.openSettings'), 'plus aucune issue quand la permission est bloquée');
-  // Échec : un motif ET un réessai, jamais un silence.
-  assert(/Réessayer/.test(CODE_EDIT), 'plus de réessai après un échec d’envoi');
+  // Échec : un motif ET un réessai, jamais un silence. Mais le réessai n'est
+  // peint QUE s'il y a une photo à renvoyer : un échec venu du sélecteur
+  // lui-même n'en laisse aucune, et le bouton serait mort.
+  assert(/Réessayer l’envoi/.test(CODE_EDIT), 'plus de réessai après un échec d’envoi');
+  assert(
+    /const retryUri=state\.kind==='failed'\?state\.retryUri:null/.test(CODE_EDIT)
+      && /\{retryUri\?<Pressable/.test(CODE_EDIT),
+    'le réessai n’est plus conditionné à l’existence d’une photo à renvoyer',
+  );
 });
 
 Deno.test('couture — la photo remplacée ne reste pas dans le bucket', () => {
@@ -206,6 +217,38 @@ Deno.test('couture — la photo remplacée ne reste pas dans le bucket', () => {
   );
   // Le chemin déposé est vérifié contre la MÊME regex que la policy.
   assert(CODE_EDIT.includes('avatarPathAccepted'), 'le chemin déposé n’est plus vérifié côté client');
+});
+
+Deno.test('couture — la photo trop lourde est refusée AVANT le réseau', () => {
+  // Sans cela, une photo de 8 Mo était lue en entier en mémoire puis refusée par
+  // `uploadSocialImage2026` — attente inutile, et le motif `media_too_large` se
+  // perdait dans un échec d'envoi générique.
+  assert(
+    /avatarUploadRefusal\(\{bytes\}\)/.test(CODE_EDIT),
+    'la règle de taille n’est plus appliquée par l’écran : elle ne protège personne',
+  );
+  // Et on ne propose pas de « Réessayer » une photo que sa taille condamne.
+  assert(
+    /if\(refusal\)\{haptics\.error\(\);setState\(\{kind:'failed'[^}]*retryUri:null\}\)/.test(CODE_EDIT),
+    'un refus de taille propose un réessai qui ne peut pas aboutir',
+  );
+});
+
+Deno.test('couture — un échec d’envoi n’accuse jamais la photo à tort', () => {
+  // `uploadSocialImage2026` (social2026Data.ts) jette `invalid_media` pour TOUTE
+  // panne d'envoi, coupure réseau comprise : supabase-js rend l'erreur de
+  // transport, elle n'est pas relue. Traduire ce motif par « cette image ne peut
+  // pas être utilisée » ferait chercher une autre photo à quelqu'un dont seul le
+  // réseau a lâché. L'écran doit donc l'intercepter avant `socialError2026`.
+  assert(
+    /raw\.includes\('invalid_media'\)/.test(CODE_EDIT),
+    'l’écran retraduit à nouveau une panne d’envoi en « photo invalide »',
+  );
+  // Et le chapeau ne peut pas annoncer une photo « en place » après un échec.
+  assert(
+    /state\.kind==='failed'\?copy\('Cette photo n’est pas encore envoyée/.test(CODE_EDIT),
+    'le chapeau affirme « en place » alors que l’envoi a échoué',
+  );
 });
 
 Deno.test('couture — l’envoi n’a lieu QU’UNE fois par photo', () => {
