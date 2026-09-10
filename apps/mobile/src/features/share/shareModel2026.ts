@@ -11,6 +11,36 @@ export type ShareTheme2026 = 'dark' | 'light';
 
 interface ShareFactsInput2026 {
   card: { activity: 'run' | 'bike'; distanceKm: string; clockLabel: string; paceLabel: string };
+  /**
+   * QUAND. Horodatage ISO du DÉPART, tel que l'archive locale l'a écrit
+   * (`LocalActivity2026.startedAt`). Absent ou illisible ⇒ aucune date sur
+   * l'affiche : une sortie sans date connue n'en reçoit pas une inventée.
+   * Seuls le JOUR, le MOIS et l'ANNÉE en sortent — jamais l'heure. Publier
+   * « 07:12 » à côté d'un tracé, c'est publier une habitude, et une habitude se
+   * suit aussi bien qu'une adresse.
+   */
+  startedAt?: string | null;
+  /**
+   * OÙ, AU GROS GRAIN. Nom de commune, et UNIQUEMENT s'il est déjà connu de
+   * l'app sans nouvel appel : ce champ ne doit jamais déclencher un géocodage
+   * inverse du point de départ. Aucun appelant ne le remplit au 10/09/2026 (la
+   * commune n'est pas attachée à une sortie) — voir docs/product/
+   * GRYD_PARTAGE_2026_09.md. Le champ existe pour que le jour où elle l'est,
+   * ce soit une ligne d'appelant et pas une refonte.
+   */
+  place?: string | null;
+  /**
+   * DÉNIVELÉ POSITIF (m), MESURÉ — jamais estimé, jamais dérivé de la distance.
+   * Il vient de `elevationFrom` (features/journal/metrics.ts), qui rend
+   * `available: false` tant que la trace ne porte pas d'altitude et applique
+   * une hystérésis anti-bruit : le GPS d'un téléphone oscille de plusieurs
+   * mètres à l'arrêt, et sans ce seuil une sortie plate afficherait un relief
+   * imaginaire. `RunPoint.alt` n'existe que depuis le 10/09/2026 (commit
+   * 43ea6dc) : les sorties ARCHIVÉES avant cette date n'en portent pas, et leur
+   * affiche n'a donc pas de ligne « dénivelé » — c'est le comportement voulu,
+   * un zéro y ferait passer une côte pour du plat.
+   */
+  elevationGainM?: number | null;
   territory2026?: {
     /**
      * Le vocabulaire du serveur s'enrichit (`rejected` est arrivé avec
@@ -52,8 +82,24 @@ export function buildShareFacts2026(input: ShareFactsInput2026, locale: 'fr' | '
   const duration = input.card.clockLabel || null;
   const metrics = [distance, duration, rate].filter((value): value is string => value !== null);
   const gainLabel = gain === null ? null : `+${gain} ${fr ? 'de terrain' : 'of terrain'}`;
+  // JOUR / MOIS / ANNÉE, sans heure (voir `startedAt`). Une date illisible ne
+  // produit rien : `Date.parse` d'une chaîne vide vaut NaN, et on s'arrête là.
+  const parsed = input.startedAt ? Date.parse(input.startedAt) : NaN;
+  const date = Number.isFinite(parsed)
+    ? new Intl.DateTimeFormat(fr ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(parsed))
+    : null;
+  const place = input.place?.trim() || null;
+  // Le dénivelé n'est une ligne que s'il est MESURÉ et non nul. Un `0` ici
+  // signifie « la trace ne monte pas d'après une altitude qu'on n'a pas » : on
+  // se tait plutôt que d'annoncer une sortie plate qu'on n'a pas mesurée.
+  const climb = input.elevationGainM;
+  const elevation = typeof climb === 'number' && Number.isFinite(climb) && climb > 0
+    ? `${new Intl.NumberFormat(fr ? 'fr-FR' : 'en-GB', { maximumFractionDigits: 0 }).format(climb)} m`
+    : null;
   return {
-    sport, headline, distance, duration, rate, rateLabel, gain, gainLabel,
+    sport, headline, distance, duration, rate, rateLabel, gain, gainLabel, date, place, elevation,
+    /** Ligne discrète de contexte : « Rouen · 10 sept. 2026 ». Vide = absente. */
+    context: [place, date].filter((value): value is string => value !== null).join(' · ') || null,
     caption: [sport, ...metrics, gainLabel, 'GRYD'].filter(Boolean).join(' · '),
   };
 }

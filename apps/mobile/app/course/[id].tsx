@@ -124,7 +124,9 @@ import { RunAnalysisBlocks2026 } from '../../src/features/journal/RunAnalysisBlo
 import { TraceMap2026 } from '../../src/features/journal/TraceMap2026';
 import { decimateForDisplay, traceSegments } from '../../src/features/journal/traceRead';
 import { DETAIL_MAP_HEIGHT, TRACE_DISPLAY_MAX_POINTS } from '../../src/features/journal/display';
-import { setShareRun, shareCardFromResult } from '../../src/features/share/shareRun';
+import { setShareRun, shareCardFromResult, type ShareRunData } from '../../src/features/share/shareRun';
+import { QuickShareSheet2026 } from '../../src/features/share/QuickShareSheet2026';
+import { elevationFrom } from '../../src/features/journal/metrics';
 import { UNJUDGED_VERDICT } from '../../src/features/share/narrative';
 import { useResultOwner2026 } from '../../src/features/run/useResultOwner2026';
 import { formatClock, formatKm2, formatRate } from '../../src/features/journal/format';
@@ -216,6 +218,8 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
   // Largeur MESURÉE : la carte et la courbe sont des SVG, ils ne se cadrent pas
   // sans elle. Tant qu'elle vaut 0, ils ne peignent rien (pas un cadre vide).
   const [width, setWidth] = useState(0);
+  /** La sortie ARMÉE dont la feuille de partage est ouverte. `null` = fermée. */
+  const [sharing, setSharing] = useState<ShareRunData | null>(null);
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
   // Le propriétaire courant du résultat : c'est LUI qui autorise l'armement du
   // studio de partage (`setShareRun` refuse tout autre compte, et le refus
@@ -328,6 +332,13 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
   // ── LA TRACE : décimée pour le dessin, jamais déplacée ────────────────────
   const points = decimateForDisplay(run.trace.points, TRACE_DISPLAY_MAX_POINTS);
   const hasTrace = run.trace.source !== 'none' && points.length >= 2;
+  /**
+   * LE RELIEF, sur les points COMPLETS et non décimés : décimer avant de
+   * mesurer un dénivelé raboterait les sommets et rendrait chaque côte plus
+   * plate qu'elle ne l'était. `available: false` (aucune altitude en base, cas
+   * de toutes les sorties d'avant `RunPoint.alt`) ⇒ aucune ligne sur l'affiche.
+   */
+  const elevation = elevationFrom(run.trace.points, run.activity);
 
   /**
    * PARTAGER UNE SORTIE ARCHIVÉE. Le studio lit ce qui vient d'être armé
@@ -344,13 +355,12 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
    * capture. Sans ça, le studio proposerait une affiche de victoire pour une
    * boucle refusée — le bug que `narrative.ts` a été écrit pour fermer.
    */
-  const share = () => {
+  const armShare = (): ShareRunData | null => {
     // La session n'a pas fini de se résoudre : on n'arme rien plutôt que
     // d'armer sous un propriétaire inconnu (le studio refuserait de toute
     // façon, mais silencieusement — et un tap sans effet est un bouton mort).
-    if (ownerId === undefined) return;
-    const armed = setShareRun(
-      {
+    if (ownerId === undefined) return null;
+    const data: ShareRunData = {
         card: shareCardFromResult({
           activity: run.activity,
           distanceKm: formatKm2(run.km, decimalSeparator()) ?? '',
@@ -372,17 +382,29 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
           : {}),
         intention: null,
         mode: 'conquete',
+        // Le CONTEXTE de l'affiche : la date de DÉPART lue en base (seuls
+        // jour/mois/année en sortiront, jamais l'heure), et le dénivelé s'il a
+        // été réellement mesuré sur cette trace. Aucune commune : elle n'est
+        // pas attachée à une sortie, et géocoder le point de départ pour
+        // décorer une image contredirait le masquage des extrémités.
+        startedAt: Number.isFinite(run.startedAtMs) ? new Date(run.startedAtMs).toISOString() : null,
+        elevationGainM: elevation.available ? elevation.gainM : null,
         verdict: {
           ...UNJUDGED_VERDICT,
           judged: true,
           credited: receipt2026?.status === 'published' && (gain2026 ?? 0) > 0,
           loopClosed: receipt2026?.status === 'published',
         },
-      },
-      { ownerId, clientRunId: run.id },
-    );
-    if (armed) router.push('/partage');
+      };
+    return setShareRun(data, { ownerId, clientRunId: run.id }) ? data : null;
   };
+  /**
+   * LE GESTE COURT (10/09/2026). Comme sur le Résultat : la feuille s'ouvre
+   * ICI, avec l'affiche déjà rendue, au lieu de pousser l'écran Studio. Le
+   * Studio reste derrière « Plus d'options » et lit la même sortie armée.
+   */
+  const share = () => { const armed = armShare(); if (armed) setSharing(armed); };
+  const openStudio = () => { setSharing(null); router.push('/partage'); };
 
   return (
     <View onLayout={onLayout}>
@@ -528,6 +550,10 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
       ) : hasTrace ? null : (
         <Text style={styles.footnote}>{t(JC.shareNoTrace)}</Text>
       )}
+      {/* LA FEUILLE COURTE, montée seulement quand une sortie est armée. */}
+      {sharing ? (
+        <QuickShareSheet2026 run={sharing} visible onClose={() => setSharing(null)} onOpenStudio={openStudio} />
+      ) : null}
     </View>
   );
 }

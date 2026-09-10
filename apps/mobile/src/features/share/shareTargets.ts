@@ -33,17 +33,21 @@
  * « package visibility » filtre `resolveActivity`, donc `canOpenURL` sur un
  * schéma tiers renvoie `false` sans un bloc `<queries>` dans le manifeste.
  *
- * ÉTAT RÉEL AU 27/07/2026, RELU DANS `apps/mobile/app.json` :
- *   · `expo.ios.infoPlist` ne contient QUE `UIBackgroundModes` — aucun
- *     `LSApplicationQueriesSchemes` ;
+ * ÉTAT RÉEL AU 10/09/2026, RELU DANS `apps/mobile/app.json` :
+ *   · `expo.ios.infoPlist.LSApplicationQueriesSchemes` déclare désormais
+ *     `instagram-stories` et `instagram` (décision fondateur du 10/09/2026 :
+ *     « partager sur les réseaux facilement »). La sonde iOS peut donc enfin
+ *     MESURER — avant, son `false` ne voulait rien dire ;
  *   · `expo.android` ne porte aucune déclaration de visibilité de paquets (et
  *     ne le peut pas : `queries` n'existe pas dans le schéma de config Expo,
  *     vérifié dans node_modules/@expo/config-types/build/ExpoConfig.d.ts — il
  *     faudrait un config plugin `withAndroidManifest`).
- * ⇒ `DECLARED_QUERIES` vaut `[]` des deux côtés, donc AUCUNE cible native
- * nommée n'est peinte aujourd'hui. Ce n'est pas un choix esthétique : c'est la
- * seule sortie honnête. `shareTargets.test.ts` relit `app.json` et casse le
- * jour où les deux divergent, dans un sens comme dans l'autre.
+ * ⇒ Aucune cible native n'est peinte pour autant, et le motif a CHANGÉ de
+ * nature : ce n'est plus « on ne peut pas savoir » (`probe_not_declared`) mais
+ * « on ne peut pas livrer » (`no_payload_bridge`, voir la section suivante).
+ * La nuance compte, parce qu'elle nomme ce qu'il reste à faire.
+ * `shareTargets.test.ts` relit `app.json` et casse le jour où la liste et
+ * `DECLARED_QUERIES.ios` divergent, dans un sens comme dans l'autre.
  *
  * ═══ LE SECOND PIÈGE, PLUS DISCRET : SAVOIR N'EST PAS POUVOIR ═══════════════
  * Déclarer le schéma et constater l'app installée ne suffit pas : encore
@@ -264,8 +268,15 @@ export interface ResolveShareTargetsInput {
  * divergence.
  */
 export const DECLARED_QUERIES: Readonly<Record<SharePlatform, readonly string[]>> = {
-  /** `expo.ios.infoPlist.LSApplicationQueriesSchemes` — absent. */
-  ios: [],
+  /**
+   * `expo.ios.infoPlist.LSApplicationQueriesSchemes` — DÉCLARÉ depuis le
+   * 10/09/2026 (décision fondateur, voir `_note_lsapplicationqueriesschemes_
+   * 2026_09_10` dans app.json). La sonde iOS peut désormais MESURER si
+   * Instagram est installé ; elle ne peut toujours pas lui remettre l'image,
+   * faute de pont (`ios_instagram_pasteboard`). Déclarer et pouvoir sont deux
+   * choses, et c'est exactement ce que ce module sépare.
+   */
+  ios: ['instagram-stories', 'instagram'],
   /** `<queries>` du manifeste Android — impossible depuis app.json (config plugin requis). */
   android: [],
   /** Sans objet : un navigateur ne sonde pas les schémas natifs. */

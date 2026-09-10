@@ -24,6 +24,20 @@ export interface ShareRunData {
   traceSegments?: readonly (readonly LatLngPoint[])[];
   /** Valeurs projetées dans les cards — celles de l'écran Résultat. */
   card: ShareDemoData;
+  /**
+   * CONTEXTE DE L'AFFICHE — lu tel quel par `buildShareFacts2026`, jamais
+   * calculé ici. Trois champs, trois règles :
+   *   · `startedAt`      ISO du départ (`LocalActivity2026.startedAt`). Seuls
+   *                      jour/mois/année en sortent, jamais l'heure ;
+   *   · `place`          commune, SEULEMENT si l'app la connaît déjà sans appel
+   *                      réseau (aucun géocodage inverse pour une image) ;
+   *   · `elevationGainM` dénivelé MESURÉ. Aucune source d'altitude n'existe au
+   *                      10/09/2026 : il reste donc vide, et l'affiche se tait.
+   * Tous facultatifs : un appelant qui les ignore obtient l'affiche d'avant.
+   */
+  startedAt?: string | null;
+  place?: string | null;
+  elevationGainM?: number | null;
   /** Intention client (teinte le TITRE de l'écran — jamais l'histoire ni l'attribution). */
   intention: RunIntention | null;
   /** Mode de la course (social_run = stats seules, aucune capture à montrer). */

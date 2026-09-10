@@ -11,18 +11,23 @@ import { getFinishedActivity2026, resolveResultActivity2026 } from '../run/finis
 import { useResultOwner2026 } from '../run/useResultOwner2026';
 import { isResultOwnerCurrent2026 } from '../run/resultOwner2026';
 import { liveRateDisplay } from '../run/gps/liveRate';
-import { setShareRun, shareCardFromResult } from '../share/shareRun';
+import { setShareRun, shareCardFromResult, type ShareRunData } from '../share/shareRun';
+import { QuickShareSheet2026 } from '../share/QuickShareSheet2026';
 import { UNJUDGED_VERDICT } from '../share/narrative';
 import { useLocalActivities2026 } from './localActivities';
 import { GrydIcon } from '../../ui/gryd';
 import { TranslucentBackdrop2026 } from '../../ui/gryd/TranslucentBackdrop2026';
 import { SocialPublicationAction2026 } from '../social/SocialPublicationAction2026';
+import { CrewCrest } from '../../ui/game/CrewCrest';
+import { crewEmblemSeed, isCrewEmblem } from '../crew/crewEmblem';
+import { crewRunImpactLine2026 } from '../crew/crewRunImpact2026';
+import { useCrewRunImpact2026 } from '../crew/crewRunImpactData2026';
 import { captureAreaLabel2026, captureAreaParts2026, captureExplanation2026, remainingCaptureArea2026, type CaptureReceipt2026, type RunReceipt2026 } from './captureReceipt2026';
 import { RealMap, type RealMapBounds, type RealMapGeoJSONLayer } from '../../ui/game/RealMap';
 import { VerifiedRunProgressMoment2026 } from './ProgressAchievementMoment2026';
 import { RunAnalysisBlocks2026 } from '../journal/RunAnalysisBlocks2026';
 import { parseTracePoints2026 } from '../journal/traceRead';
-import type { JournalPoint } from '../journal/metrics';
+import { elevationFrom, type JournalPoint } from '../journal/metrics';
 
 type ResultParams2026 = { dist?: string; dur?: string; activity?: string; queued?: string; localId?: string };
 const clock = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n) % 60).padStart(2, '0')}`;
@@ -38,6 +43,8 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
   const [refreshed, setRefreshed] = useState<{ clientRunId: string; result: IngestRunResponse } | null>(null);
   const result = refreshed && local && refreshed.clientRunId === local.clientRunId ? refreshed.result : local?.result ?? null;
   const [details, setDetails] = useState(false);
+  /** La sortie ARMÉE dont la feuille courte est ouverte. `null` = fermée. */
+  const [sharing, setSharing] = useState<ShareRunData | null>(null);
   // 'unavailable' : il n'y a PAS de lecture en cours et il n'y en aura pas —
   // pas de backend, pas de session, ou cette sortie n'appartient pas au compte
   // connecté. Sans cet état, l'écran affichait « Vérification du terrain… »
@@ -89,6 +96,13 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
     if (timed.length >= 2) return timed;
     return segments.flat();
   }, [local?.uploadPayload, segments]);
+  /**
+   * LE RELIEF DE CETTE SORTIE, s'il a été mesuré. `elevationFrom` rend
+   * `available: false` dès que la trace ne porte pas d'altitude — c'est le cas
+   * de toutes les sorties archivées avant `RunPoint.alt` (10/09/2026). L'affiche
+   * de partage n'invente alors aucune ligne de dénivelé.
+   */
+  const elevation = useMemo(() => elevationFrom(analysisPoints, activity), [analysisPoints, activity]);
   const map = useMemo(() => {
     const points = segments.flat();
     if (points.length === 0) return null;
@@ -134,11 +148,32 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
   /** La sortie est chez le serveur, sous ce compte, et n'attend plus son envoi. */
   const serverHeld = canShare && !!result?.runId && local?.pending !== true && typeof ownerId === 'string' && session?.user.id === ownerId && isResultOwnerCurrent2026(ownerId, ownerEpoch);
   const canPublish = serverHeld;
+  /*
+   * POUR TON CREW (cahier §13.4, migration 0182). Trois faits SERVEUR, aucun
+   * calcul : le crew actuel, la capture publiée ou non, le partage volontaire,
+   * et la journée comptée dans un défi en cours.
+   *
+   * ⚠️ AUCUNE SURFACE DE CREW N'EST AFFICHÉE ICI, et ce n'est pas un oubli :
+   * 0126 pose que le titre territorial est INDIVIDUEL. Le « combien » de cette
+   * sortie est juste au-dessus (`capture_result_2026`) ; le redire au nom du
+   * crew fabriquerait une propriété collective qui n'existe pas.
+   *
+   * La lecture ne part QUE si la sortie est chez le serveur sous ce compte :
+   * une sortie invitée ou en attente d'envoi n'a rien à demander (et le
+   * demander quand même serait un aller-retour au pire moment).
+   */
+  const { impact: crewImpact } = useCrewRunImpact2026(serverHeld && result?.runId ? result.runId : null);
   /** Sortie enregistrée SANS COMPTE : rien n'est capturé, et on le dit (§9.2). */
   const guestRecording = ownerId === null && evidence !== null;
-  const share = () => {
-    if (!canShare || !local || ownerId === undefined || !isResultOwnerCurrent2026(ownerId, ownerEpoch)) return;
-    const armed = setShareRun({
+  /**
+   * ARMER LA SORTIE À PARTAGER. Rend la donnée armée, ou `null` si l'armement a
+   * été refusé (propriétaire changé, sortie d'un autre compte) — auquel cas
+   * aucune feuille ne s'ouvre : on n'affiche jamais l'affiche de quelqu'un
+   * d'autre.
+   */
+  const armShare = (): ShareRunData | null => {
+    if (!canShare || !local || ownerId === undefined || !isResultOwnerCurrent2026(ownerId, ownerEpoch)) return null;
+    const data: ShareRunData = {
       card: shareCardFromResult({ activity, distanceKm: km, clockLabel: clock(duration!), paceLabel: rate.measured ? rate.value : '', trace: segments.flat(),
         surfaceValue: capturePublished ? gainParts?.value ?? '' : '', surfaceUnit: capturePublished ? gainParts?.unit ?? '' : '', verified: false }),
       // Le reçu tel que le serveur l'a rendu : `territory` est la MÊME valeur,
@@ -146,13 +181,28 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
       // connaît pas encore (captureReceipt2026). La carte de partage, elle,
       // consomme le contrat partagé.
       traceSegments: segments, territory2026: result?.territory2026, intention: null, mode: 'conquete',
+      // Le CONTEXTE de l'affiche : la date du départ telle que l'archive locale
+      // l'a écrite, et le dénivelé s'il a été RÉELLEMENT mesuré (`available`).
+      // Aucune commune : l'app ne la connaît pas pour une sortie, et un
+      // géocodage inverse du point de départ pour décorer une image serait
+      // exactement ce que le masquage des extrémités cherche à éviter.
+      startedAt: local.startedAt ?? null,
+      elevationGainM: elevation.available ? elevation.gainM : null,
       // « Crédité » veut dire : le terrain a RÉELLEMENT changé de mains, donc la
       // capture est publiée. `result.status === 'valid'` le disait de toute
       // sortie ingérée — une affiche de victoire pour une boucle refusée.
       verdict: { ...UNJUDGED_VERDICT, judged: !!result, credited: capturePublished, loopClosed: result?.loopClosed === true },
-    }, { ownerId, clientRunId: local.clientRunId });
-    if (armed) router.push('/partage');
+    };
+    return setShareRun(data, { ownerId, clientRunId: local.clientRunId }) ? data : null;
   };
+  /**
+   * LE GESTE COURT (10/09/2026, demande fondateur « partager facilement »). Le
+   * bouton n'emmène plus sur l'écran Studio : il ouvre la feuille ici même,
+   * avec l'affiche déjà rendue. Le Studio reste entier, derrière « Plus
+   * d'options », et lit la MÊME sortie armée.
+   */
+  const share = () => { const armed = armShare(); if (armed) setSharing(armed); };
+  const openStudio = () => { setSharing(null); router.push('/partage'); };
   return <View style={s.root}><ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 16 }} showsVerticalScrollIndicator={false}>
     <View style={[s.hero, { height: Math.max(260, Math.min(440, height * 0.5)) }]}>
       {map ? <RealMap key={local?.clientRunId} bounds={map.bounds} geojsonLayers={map.layers} basemap="dark" style={StyleSheet.absoluteFill} markers={[{ id: 'result-start', ...map.first, children: <View style={s.startPoint} /> }]} /> : <View style={s.emptyTrace}><GrydIcon name="route" size={26} color={c.darkMuted} /><Text style={s.emptyText}>{params.localId && loading ? text('Lecture de la sortie…', 'Loading outing…') : text('La trace n’est pas disponible sur cet appareil.', 'The route is not available on this device.')}</Text></View>}
@@ -202,6 +252,22 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
       <Pressable accessibilityRole="button" style={s.journal} onPress={() => router.replace('/(tabs)/profil')}><Text style={s.detailsLabel}>{text('Journal', 'Journal')}</Text><GrydIcon name="chevronRight" size={16} color={c.muted} /></Pressable>
       {canShare && <Pressable accessibilityRole="button" onPress={share} style={s.primary}><GrydIcon name="share" size={18} color={c.ink} /><Text style={s.primaryText}>{text('Partager', 'Share')}</Text></Pressable>}
     </View>
+    {/* CE QUE CETTE SORTIE A APPORTÉ AU CREW. Le bloc n'existe que si le
+        serveur a répondu ET que ce compte a un crew : « je n'ai pas pu lire »
+        et « tu n'as pas de crew » ne se peignent ni l'un ni l'autre en une
+        carte vide sur un écran de fin de course. */}
+    {crewImpact.kind === 'ready' && <View style={s.crewBlock}>
+      <View style={s.crewHead}>
+        {isCrewEmblem(crewImpact.facts.crewEmblem) ? <CrewCrest seed={crewEmblemSeed(crewImpact.facts.crewEmblem)} name={crewImpact.facts.crewName} size="s" /> : <GrydIcon name="crew" size={20} color={c.ink} />}
+        <Text style={[s.impactTitle, { flex: 1, marginBottom: 0 }]}>{text('Pour ton crew', 'For your crew')}</Text>
+      </View>
+      <Text style={s.body}>{crewRunImpactLine2026(crewImpact.facts, fr)}</Text>
+      {crewImpact.facts.sharedWithCrew && <Text style={s.body}>{text('Elle est déjà dans le fil du crew.', 'It is already in the crew feed.')}</Text>}
+      <Pressable accessibilityRole="button" style={s.detailsButton} onPress={() => router.push('/(tabs)/crew')}>
+        <Text style={s.detailsLabel}>{crewImpact.facts.crewName}</Text>
+        <GrydIcon name="chevronRight" size={16} color={c.muted} />
+      </Pressable>
+    </View>}
     {canPublish && result && <SocialPublicationAction2026 runId={result.runId} activity={activity} surface="light" />}
     {evidence && <Pressable accessibilityRole="button" style={s.detailsButton} onPress={() => setDetails(value => !value)} accessibilityState={{ expanded: details }} aria-expanded={details}><Text style={s.detailsLabel}>{details ? text('Fermer les détails', 'Close details') : text('Détails de la sortie', 'Outing details')}</Text><GrydIcon name={details ? 'minus' : 'plus'} size={18} color={c.ink} /></Pressable>}
     {details && <View style={s.details}>
@@ -210,7 +276,11 @@ function OwnedRunResult({ params, ownerId, ownerEpoch }: { params: ResultParams2
       <Pressable accessibilityRole="button" style={s.detailsButton} onPress={() => router.push('/support')}><Text style={s.detailsLabel}>{text('Demander de l’aide pour cette sortie', 'Get help with this outing')} →</Text></Pressable>
     </View>}
     </View>
-  </ScrollView></View>;
+  </ScrollView>
+  {/* LA FEUILLE COURTE — montée seulement quand une sortie est ARMÉE, pour que
+      son étage d'export hors écran n'existe pas en permanence sous l'écran. */}
+  {sharing && <QuickShareSheet2026 run={sharing} visible onClose={() => setSharing(null)} onOpenStudio={openStudio} />}
+  </View>;
 }
 function Metric({ value, label }: { value: string; label: string }) { return <View style={s.metric}><Text style={s.metricValue}>{value}</Text><Text style={s.metricLabel}>{label}</Text></View>; }
 function Detail({ label, value }: { label: string; value: string }) { return <View style={s.detailRow}><Text style={[s.body, s.detailLabel]}>{label}</Text><Text style={[s.detailsLabel, s.detailValue]}>{value}</Text></View>; }
@@ -219,6 +289,7 @@ const s = StyleSheet.create({
   hero: { backgroundColor: c.carbon, overflow: 'hidden' }, header: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }, titlePlate: { minHeight: 44, borderRadius: 14, justifyContent: 'center', backgroundColor: 'transparent', paddingHorizontal: 14 }, title: { fontFamily: fonts.displayMedium, fontSize: 22, lineHeight: 27, letterSpacing: -0.5, color: c.darkInk }, close: { height: 44, width: 44, borderRadius: 22, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center' }, startPoint: { width: 13, height: 13, borderRadius: 7, backgroundColor: c.surface, borderWidth: 3, borderColor: c.carbon }, heroFooter: { position: 'absolute', bottom: 28, left: 20, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'transparent', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 }, heroMark: { fontFamily: fonts.text, fontSize: 12, color: c.darkInk }, emptyTrace: { flex: 1, paddingHorizontal: 42, justifyContent: 'center', alignItems: 'center', gap: 12 }, emptyText: { fontFamily: fonts.text, fontSize: 13, lineHeight: 20, textAlign: 'center', color: c.darkMuted },
   metrics: { flexDirection: 'row', paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: c.border, gap: 12 }, metric: { flex: 1, gap: 5 }, metricValue: { fontFamily: fonts.displayMedium, fontSize: 27, lineHeight: 33, letterSpacing: -0.5, color: c.ink, fontVariant: ['tabular-nums'] }, metricLabel: { color: c.muted, fontFamily: fonts.text, fontSize: 12, lineHeight: 17 }, impact: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingTop: 18, paddingBottom: 16 }, impactTitle: { fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, color: c.ink, marginBottom: 5 }, body: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted }, progress: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 13, marginBottom: 16 },
   currentTerrain: { paddingBottom: 18, borderTopWidth: 1, borderTopColor: c.border },
+  crewBlock: { paddingTop: 14, paddingBottom: 4, gap: 6, borderTopWidth: 1, borderTopColor: c.border }, crewHead: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 32 },
   analysis: { paddingTop: 20, paddingBottom: 4 },
   guest: { paddingTop: 18, gap: 6, borderBottomWidth: 1, borderBottomColor: c.border, paddingBottom: 6 },
   actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 16, paddingBottom: 16 }, primary: { minHeight: 44, backgroundColor: c.accent, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 17, paddingVertical: 12 }, primaryText: { color: c.ink, fontFamily: fonts.textMedium, fontSize: 14 }, journal: { minHeight: 44, flexDirection: 'row', gap: 6, alignItems: 'center' }, detailsButton: { minHeight: 48, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: c.border }, detailsLabel: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink, flexShrink: 1 }, details: { paddingTop: 10 }, detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, paddingVertical: 12 }, detailLabel: { flex: 1 }, detailValue: { maxWidth: '50%', textAlign: 'right' },

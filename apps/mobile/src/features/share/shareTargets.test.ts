@@ -350,7 +350,17 @@ Deno.test('DECLARED_QUERIES.android : rien ne peut être déclaré depuis app.js
   assertEquals(DECLARED_QUERIES.android, []);
 });
 
-Deno.test('avec le manifeste RÉEL, aucune cible native n’est peinte — c’est l’état du dépôt', () => {
+Deno.test('avec le dépôt RÉEL (manifeste + ponts embarqués), aucune cible native n’est peinte', () => {
+  // ─── CE QUE CE TEST MESURE A CHANGÉ DE NATURE LE 10/09/2026 ───────────────
+  // Avant, il suffisait que le manifeste ne déclare RIEN : la sonde iOS était
+  // aveugle, donc `probe_not_declared` écartait Instagram quoi qu'il arrive.
+  // `app.json` déclare désormais `instagram-stories` et `instagram` (décision
+  // fondateur « partager sur les réseaux facilement »), et c'est un progrès :
+  // la sonde MESURE enfin. Ce qui empêche encore de peindre le bouton n'est
+  // plus l'ignorance, c'est l'incapacité de LIVRER — aucun pont n'est embarqué.
+  // D'où `bridges: []`, qui est l'état vrai du binaire, et non plus la liste
+  // des ponts hypothétiques : le test dit ce que l'app FAIT, pas ce qu'elle
+  // ferait si on lui prêtait des capacités qu'elle n'a pas.
   for (const platform of PLATFORMS) {
     for (const media of SHARE_MEDIA_KINDS) {
       // Pas de `declaredQueries` : on prend le défaut, c'est-à-dire app.json.
@@ -359,17 +369,43 @@ Deno.test('avec le manifeste RÉEL, aucune cible native n’est peinte — c’e
         media,
         text: 'GRYD',
         probes: ALL_PROBES_TRUE,
-        bridges: ALL_BRIDGES,
+        bridges: [],
         iosSourceApplication: '1234567890',
       });
       for (const native of NATIVE_TARGETS) {
         assert(
           !ids(res).includes(native),
-          `${platform} + ${media} : « ${native} » peint alors que le manifeste ne déclare rien`,
+          `${platform} + ${media} : « ${native} » peint alors qu'aucun pont ne peut lui remettre le média`,
         );
       }
     }
   }
+});
+
+Deno.test('le SEUL verrou qui reste sur Instagram iOS est le pont, et il est nommé', () => {
+  // ÉTAPE 0 DE CE TEST : sans lui, celui d'au-dessus resterait vert le jour où
+  // quelqu'un retirerait la déclaration d'`app.json` — pour la mauvaise raison.
+  // Ici on montre que la déclaration FAIT quelque chose : avec un pont (et lui
+  // seul en plus), Instagram iOS devient peignable. C'est la preuve que le
+  // travail restant est un pont natif, pas une ligne de manifeste.
+  const withoutBridge = resolveShareTargets({
+    platform: 'ios', media: 'story_image', text: 'GRYD',
+    probes: ALL_PROBES_TRUE, bridges: [], iosSourceApplication: '1234567890',
+  });
+  assert(!ids(withoutBridge).includes('instagram'), 'sans pont, Instagram ne doit pas être peint');
+  assertEquals(
+    withoutBridge.omitted.find((entry) => entry.id === 'instagram')?.reason,
+    'no_payload_bridge',
+    'la raison doit nommer le pont manquant, pas la sonde : le schéma EST déclaré depuis le 10/09/2026',
+  );
+  const withBridge = resolveShareTargets({
+    platform: 'ios', media: 'story_image', text: 'GRYD',
+    probes: ALL_PROBES_TRUE, bridges: ['ios_instagram_pasteboard'], iosSourceApplication: '1234567890',
+  });
+  assert(
+    ids(withBridge).includes('instagram'),
+    'avec le pont, la déclaration du schéma doit suffire — sinon la ligne ajoutée à app.json ne sert à rien',
+  );
 });
 
 // ─── 7. PURETÉ ET DÉTERMINISME ──────────────────────────────────────────────
