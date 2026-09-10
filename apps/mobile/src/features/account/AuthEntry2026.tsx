@@ -1,6 +1,31 @@
 /**
  * GRYD — G02 « Connexion et création de compte ». La porte de compte du cahier.
  *
+ * ─── LE DÉFAUT DU FONDATEUR (10/09/2026) : LA PORTE NE DISAIT PAS QU'ELLE CRÉE ─
+ * « je ne suis pas connecté, l'application s'ouvre sur la carte, on me dit de me
+ * connecter mais je n'ai aucun moyen de créer mon compte. » Il avait raison, et
+ * rien n'était cassé : cet écran CRÉE le compte depuis toujours
+ * (`shouldCreateUser: true` dans `requestEmailOtp`), il ne le disait nulle part.
+ * Kicker « CONNEXION », titre « Retrouve ton terrain », trois boutons
+ * « Continuer avec… » : pas une occurrence du verbe « créer ». Deviner qu'un
+ * lien par e-mail ouvre un compte n'est pas un geste de joueur, c'est un savoir
+ * de développeur.
+ *
+ * DEUX CHOSES CHANGENT ICI, ET AUCUNE N'EST DÉCORATIVE :
+ *  1. LE TITRE nomme les deux gestes (`methodsTitle` → « Crée ton compte ou
+ *     connecte-toi ») et le corps s'adresse d'abord à celui qui n'a pas de
+ *     compte. La porte Apple reste la PREMIÈRE proposition sur iOS.
+ *  2. SOUS LA PORTE E-MAIL, une phrase dit ce qu'elle fait vraiment, et c'est
+ *     la MÊME entrée de catalogue que rend `/email` à l'écran suivant.
+ *
+ * ─── ET LA PORTE NE PEUT PLUS S'ÉVAPORER ────────────────────────────────────
+ * `if (session || !configured) return <Redirect href="/" />;` renvoyait à la
+ * carte, SANS UN MOT, tout build sans Supabase configuré : taper « Créer mon
+ * compte » ramenait à la carte, exactement comme un bouton qui rate. Une porte
+ * qui ne peut pas s'ouvrir se dit fermée et se dit POURQUOI (`noBackendTitle` +
+ * `errorNoBackend`). La redirection ne vaut plus que pour une session ouverte,
+ * où il n'y a plus rien à faire ici.
+ *
  * ─── QUATRE DÉFAUTS CORRIGÉS LE 10/09/2026 ──────────────────────────────────
  *
  * 1. LE REFUS D'ÂGE ÉTAIT CONTOURNABLE, ET IL S'EFFAÇAIT AU REDÉMARRAGE.
@@ -54,6 +79,7 @@ import { TranslucentControl2026 } from '../../ui/gryd/Surface2026';
 import { authFailureVoice2026, type AuthFailureVoice2026 } from './authFailure2026';
 import {
   APPLE_PLATFORM,
+  EMAIL_DELIVERY,
   GOOGLE_CAPABLE,
   isAppleAuthAvailable,
   signInWithApple,
@@ -141,7 +167,9 @@ export function AuthEntry2026({ renderAppleButton }: AuthEntry2026Props) {
   }, [finish, onboarding.ageConfirmed, onboardingStatus, pending]);
 
   if (loading) return <View style={styles.root} />;
-  if (session || !configured) return <Redirect href="/" />;
+  // ⚠️ `!configured` A ÉTÉ RETIRÉ DE CETTE LIGNE (10/09/2026) : il renvoyait à la
+  // carte sans rien dire. Il est rendu comme un ÉTAT, plus bas.
+  if (session) return <Redirect href="/" />;
 
   // ⚠️ LE REFUS EST LU, PAS DEVINÉ. Tant que le stockage n'a pas répondu
   // (`reading`), le panneau ne peint NI les méthodes NI le mur : peindre les
@@ -241,6 +269,21 @@ export function AuthEntry2026({ renderAppleButton }: AuthEntry2026Props) {
                 analyticsId="signin_age_not_me"
               />
             </>
+          ) : !configured ? (
+            /* NI ÉCHEC NI SILENCE : ce build n'a pas d'adresse de serveur, aucun
+               compte ne peut y être créé, et l'écran le dit avant qu'on tape.
+               La seule sortie mène là où l'app fonctionne encore. */
+            <>
+              <Text accessibilityRole="header" style={styles.panelTitle}>{t(C.noBackendTitle)}</Text>
+              <Text style={styles.panelNote}>{t(C.errorNoBackend)}</Text>
+              <Button
+                label={t(C.noBackendBackCta)}
+                onPress={() => router.replace('/')}
+                variant="ghost"
+                size="md"
+                analyticsId="signin_no_backend_back"
+              />
+            </>
           ) : pending ? (
             <>
               <Text accessibilityRole="header" style={styles.panelTitle}>{t(AGE.title)}</Text>
@@ -279,6 +322,15 @@ export function AuthEntry2026({ renderAppleButton }: AuthEntry2026Props) {
                 loading={busy}
                 analyticsId="signin_email_door"
               />
+              {/* CE QUE LA PORTE FAIT, SOUS LA PORTE. Même entrée de catalogue
+                  que le sous-titre de `/email` : le joueur relit mot pour mot ce
+                  qu'il vient de lire, au lieu d'une paraphrase qui le fait
+                  douter d'avoir changé de sujet. La cadence RÉELLEMENT servie
+                  décide (lien ou code) — promettre un code non envoyé était la
+                  panne d'origine. */}
+              <Text style={styles.doorNote}>
+                {t(EMAIL_DELIVERY === 'code' ? C.otpCreatesOrSignsIn : C.otpCreatesOrSignsInLink)}
+              </Text>
               {failureCopy ? <Text accessibilityRole="alert" style={styles.error}>
                 {t(failureCopy)}
               </Text> : null}
@@ -322,6 +374,7 @@ const styles = StyleSheet.create({
   // hauteur d'un bouton, comme ce qui la remplacera.
   reading: { minHeight: APPLE_BUTTON_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   appleReserve: { alignSelf: 'stretch', height: APPLE_BUTTON_HEIGHT },
+  doorNote: { marginTop: -4, color: colors.gris, fontFamily: fonts.text, fontSize: 12, lineHeight: 18 },
   error: { color: colors.blanc, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19 },
   guestBlock: { marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.grisLigne, gap: 9 },
   guestNote: { color: colors.gris, fontFamily: fonts.text, fontSize: 12, lineHeight: 18, textAlign: 'center' },

@@ -15,7 +15,17 @@ import { defineCatalog } from '../types';
 export const C = defineCatalog({
   // ─── Sign-in : entête ──────────────────────────────────────────────────────
   /**
-   * ⚠️ CET ÉCRAN A CHANGÉ DE MÉTIER (21/07/2026). Il était l'écran PROMESSE,
+   * ⚠️ ET IL A CHANGÉ DE MÉTIER UNE SECONDE FOIS (10/09/2026). Le fondateur a
+   * installé le build sur son iPhone : « je ne suis pas connecté, on me dit de
+   * me connecter mais je n'ai aucun moyen de créer mon compte ». Il avait
+   * raison, et la preuve tenait dans ce catalogue : le mot « créer » n'y
+   * apparaissait NULLE PART pour cet écran. Kicker « CONNEXION », titre
+   * « Retrouve ton terrain », boutons « Continuer avec… » : chaque texte
+   * s'adressait à quelqu'un qui a DÉJÀ un compte. Or la même porte crée le
+   * compte (`shouldCreateUser: true`) : l'écran faisait le travail sans jamais
+   * le dire. Le titre le dit maintenant, en premier, et en toutes lettres.
+   *
+   * ⚠️ CET ÉCRAN AVAIT DÉJÀ CHANGÉ DE MÉTIER (21/07/2026). Il était l'écran PROMESSE,
    * première chose vue du produit : kicker « SAISON 0 · PARIS & LILLE », titre
    * d'accroche « Cours pour ton crew. Conquiers ta ville. », sous-titre qui
    * vendait la mécanique. Depuis que l'onboarding porte la promesse (hook) et
@@ -29,12 +39,17 @@ export const C = defineCatalog({
    * déjà des zones, un crew ou un historique — `subtitle` décrit ce que fait un
    * compte, jamais ce que ce joueur-là possède (« l'app ne ment jamais »).
    */
+  /**
+   * « CONNEXION » (jusqu'au 10/09/2026) fermait la porte avant de l'ouvrir :
+   * le premier mot de l'écran excluait celui qui n'a pas encore de compte.
+   * Le kicker nomme donc le SUJET, et le titre dit les deux gestes.
+   */
   kicker: {
-    fr: 'CONNEXION',
-    en: 'SIGN IN',
-    es: 'INICIAR SESIÓN',
-    de: 'ANMELDEN',
-    pt: 'ENTRAR',
+    fr: 'TON COMPTE',
+    en: 'YOUR ACCOUNT',
+    es: 'TU CUENTA',
+    de: 'DEIN KONTO',
+    pt: 'SUA CONTA',
   },
   title: {
     fr: 'Connecte-toi.',
@@ -43,12 +58,20 @@ export const C = defineCatalog({
     de: 'Melde dich an.',
     pt: 'Entre.',
   },
+  /**
+   * LE CORPS DIT LA CRÉATION AVANT LA VALEUR. La phrase précédente décrivait ce
+   * qu'un compte FAIT, jamais qu'on pouvait en obtenir un ici : un joueur sans
+   * compte lisait une promesse qui ne s'adressait pas à lui. La première
+   * proposition lui est adressée ; la seconde reste vraie pour les deux
+   * arrivants (elle décrit le compte, jamais ce que ce joueur-là possède).
+   * « sorties » et non « courses » : la même porte sert le vélo.
+   */
   subtitle: {
-    fr: 'Ton compte relie tes courses, tes zones et ton crew à tous tes appareils.',
-    en: 'Your account links your runs, your zones and your crew across all your devices.',
-    es: 'Tu cuenta conecta tus carreras, tus zonas y tu crew en todos tus dispositivos.',
-    de: 'Dein Konto verbindet deine Läufe, deine Zonen und deine Crew auf allen Geräten.',
-    pt: 'Sua conta conecta suas corridas, suas zonas e seu crew em todos os seus aparelhos.',
+    fr: 'Pas encore de compte ? Il se crée ici, en un geste. Ton compte relie tes sorties, tes zones et ton crew sur tous tes appareils.',
+    en: 'No account yet? You create it right here, in one move. Your account links your activities, your zones and your crew across all your devices.',
+    es: '¿Aún no tienes cuenta? Se crea aquí, en un gesto. Tu cuenta conecta tus actividades, tus zonas y tu crew en todos tus dispositivos.',
+    de: 'Noch kein Konto? Du legst es hier an, in einem Schritt. Dein Konto verbindet deine Aktivitäten, deine Zonen und deine Crew auf allen Geräten.',
+    pt: 'Ainda sem conta? Ela é criada aqui, em um gesto. Sua conta conecta suas atividades, suas zonas e seu crew em todos os seus aparelhos.',
   },
   /**
    * LA SORTIE (21/07/2026). « J'ai déjà un compte » marque l'onboarding fait
@@ -82,12 +105,18 @@ export const C = defineCatalog({
     de: 'Weiter mit E-Mail',
     pt: 'Continuar com e-mail',
   },
+  /**
+   * LE SEUL TITRE DE L'ÉCRAN (L12), et la seule phrase que le joueur lit à coup
+   * sûr. « Retrouve ton terrain » (jusqu'au 10/09/2026) supposait un terrain
+   * déjà pris : littéralement, l'écran ne parlait qu'aux revenants. Les deux
+   * gestes sont maintenant nommés, dans l'ordre où ils manquaient.
+   */
   methodsTitle: {
-    fr: 'Retrouve ton terrain',
-    en: 'Return to your ground',
-    es: 'Vuelve a tu terreno',
-    de: 'Zurück in dein Revier',
-    pt: 'Volte ao seu território',
+    fr: 'Crée ton compte ou connecte-toi',
+    en: 'Create your account or sign in',
+    es: 'Crea tu cuenta o inicia sesión',
+    de: 'Konto erstellen oder anmelden',
+    pt: 'Crie sua conta ou entre',
   },
   guestCta: {
     fr: 'Continuer sans compte',
@@ -168,22 +197,29 @@ export const C = defineCatalog({
    * un compte »). `requestEmailOtp` envoie `shouldCreateUser: true` : la même
    * adresse connecte un compte existant et en crée un sinon. Le taire laissait
    * le joueur deviner s'il était sur la bonne porte — on l'écrit, une fois,
-   * juste au-dessus du champ. Même phrase que l'étape compte de l'onboarding.
+   * juste sous la porte e-mail.
+   *
+   * ⚠️ L'ORDRE DES DEUX PROPOSITIONS A ÉTÉ INVERSÉ LE 10/09/2026. La phrase
+   * commençait par « il te connecte si ton compte existe » : celui qui n'a pas
+   * de compte lisait une condition qui ne le concernait pas et s'arrêtait là.
+   * La création vient donc en premier — c'est le fait qui manquait à l'écran.
+   * Cette entrée est la SOURCE UNIQUE : `/sign-in` et `/email` la rendent
+   * toutes les deux, mot pour mot (une phrase recopiée finit désaccordée).
    */
   otpCreatesOrSignsIn: {
-    fr: 'Un code à 6 chiffres : il te connecte si ton compte existe, il le crée sinon.',
-    en: 'A 6-digit code: it signs you in if your account exists, and creates it if not.',
-    es: 'Un código de 6 dígitos: te conecta si tu cuenta existe, y la crea si no.',
-    de: 'Ein 6-stelliger Code: Er meldet dich an, wenn dein Konto existiert — sonst legt er es an.',
-    pt: 'Um código de 6 dígitos: ele conecta você se a conta existir, e a cria se não.',
+    fr: 'Un code par e-mail crée ton compte s’il n’existe pas, sinon il te connecte.',
+    en: 'An email code creates your account if it doesn’t exist, otherwise it signs you in.',
+    es: 'Un código por e-mail crea tu cuenta si no existe; si ya existe, te conecta.',
+    de: 'Ein Code per E-Mail legt dein Konto an, wenn es noch nicht existiert. Sonst meldet er dich an.',
+    pt: 'Um código por e-mail cria sua conta se ela não existir. Caso contrário, conecta você.',
   },
   /** Variante LIEN — promettre un code non envoyé était la panne d'origine. */
   otpCreatesOrSignsInLink: {
-    fr: 'Un lien de connexion : il te connecte si ton compte existe, il le crée sinon.',
-    en: 'A sign-in link: it signs you in if your account exists, and creates it if not.',
-    es: 'Un enlace de acceso: te conecta si tu cuenta existe, y la crea si no.',
-    de: 'Ein Anmeldelink: Er meldet dich an, wenn dein Konto existiert — sonst legt er es an.',
-    pt: 'Um link de acesso: ele conecta você se a conta existir, e a cria se não.',
+    fr: 'Un lien par e-mail crée ton compte s’il n’existe pas, sinon il te connecte.',
+    en: 'An email link creates your account if it doesn’t exist, otherwise it signs you in.',
+    es: 'Un enlace por e-mail crea tu cuenta si no existe; si ya existe, te conecta.',
+    de: 'Ein Link per E-Mail legt dein Konto an, wenn es noch nicht existiert. Sonst meldet er dich an.',
+    pt: 'Um link por e-mail cria sua conta se ela não existir. Caso contrário, conecta você.',
   },
   otpSent: {
     fr: 'Code envoyé à {email}',
@@ -270,7 +306,30 @@ export const C = defineCatalog({
     de: 'Sign in with Apple wird auf diesem Gerät nicht angeboten. Nimm eine E-Mail.',
     pt: 'O Sign in with Apple não é oferecido neste aparelho. Continue com um e-mail.',
   },
-  /** O1 : aucun backend. Ne devrait pas atteindre cet écran — mais s'il y arrive, il le dit. */
+  /**
+   * ⚠️ CE N'EST PLUS UN ÉCHEC, C'EST UN ÉTAT D'ÉCRAN (10/09/2026). Jusque-là,
+   * `/sign-in` faisait `<Redirect href="/" />` quand Supabase n'était pas
+   * configuré : le joueur tapait « Créer mon compte » et se retrouvait sur la
+   * carte, sans un mot, comme si le bouton avait raté. Une porte qui ne peut
+   * pas s'ouvrir se DIT fermée ; elle ne s'évapore pas (constitution : aucun
+   * bouton mort, 4 états distincts).
+   */
+  noBackendTitle: {
+    fr: 'Serveur non configuré sur ce build',
+    en: 'Server not configured in this build',
+    es: 'Servidor no configurado en esta versión',
+    de: 'Server in diesem Build nicht eingerichtet',
+    pt: 'Servidor não configurado nesta versão',
+  },
+  /** La seule sortie de cet état : rien à réessayer, le build n'a pas d'adresse. */
+  noBackendBackCta: {
+    fr: 'Revenir à la carte',
+    en: 'Back to the map',
+    es: 'Volver al mapa',
+    de: 'Zurück zur Karte',
+    pt: 'Voltar ao mapa',
+  },
+  /** O1 : aucun backend. Sert de CORPS à l'état ci-dessus, et d'échec ailleurs. */
   errorNoBackend: {
     fr: 'Le serveur n’est pas configuré sur cette version. Aucun compte ne peut être créé ici.',
     en: 'The server isn’t configured in this build. No account can be created here.',

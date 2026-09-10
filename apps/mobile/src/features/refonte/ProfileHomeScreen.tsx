@@ -98,6 +98,28 @@ function ProfileHomeContents() {
     adoptable.count === 1 ? '1 sortie enregistrée sans compte peut être rattachée. Elle restera privée.' : `${adoptable.count} sorties enregistrées sans compte peuvent être rattachées. Elles resteront privées.`,
     adoptable.count === 1 ? '1 activity recorded without an account can be linked. It will remain private.' : `${adoptable.count} activities recorded without an account can be linked. They will remain private.`);
   return <ProfilePage tone="light" title={copy('Profil', 'Profile')} right={<CircularAction2026 icon="settings" label={copy('Réglages', 'Settings')} onPress={() => router.push('/parametres')} tooltipPlacement="bottom" />}>
+    {/* ─── LA PORTE DE COMPTE (10/09/2026) ─────────────────────────────────
+        Le fondateur, build en main : « on me dit de me connecter mais je n'ai
+        aucun moyen de créer mon compte ». Ici, la seule porte était un lien de
+        13 pt collé à droite de l'avatar, libellé « Connexion » : un mot qui ne
+        s'adresse qu'à ceux qui ont déjà un compte, à l'endroit exact où l'œil
+        cherche une icône. Elle devient le PREMIER bloc de l'écran invité, sans
+        scroll, en chartreuse pleine largeur, et son verbe est « Créer ».
+        Elle ne ment pas pour autant : le même bouton connecte celui qui a déjà
+        un compte, et le sous-titre le dit.
+        ⚠️ `sessionLoading` garde le bloc : peindre « Créer mon compte » pendant
+        la restauration de session le montrerait à quelqu'un de connecté. */}
+    {!session && !sessionLoading ? <View style={local.gate}>
+      <Text style={local.gateTitle}>{copy('Crée ton compte ou connecte-toi', 'Create your account or sign in')}</Text>
+      <Text style={local.meta}>{copy('Sans compte, tes sorties ne vivent que sur ce téléphone. Un compte les relie à tes zones, à ton crew et à tes autres appareils.', 'Without an account, your activities only live on this phone. An account links them to your zones, your crew and your other devices.')}</Text>
+      {/* Sans serveur configuré sur ce build, la porte NE DISPARAÎT PAS : elle
+          dit pourquoi elle ne s'ouvre pas. Un bouton qui mènerait à un écran
+          incapable de créer quoi que ce soit serait un bouton mort. */}
+      {configured ? <>
+        <ProfileButton tone="light" label={copy('Créer mon compte', 'Create my account')} onPress={() => router.push('/sign-in')} />
+        <Text style={local.gateNote}>{copy('ou se connecter', 'or sign in')}</Text>
+      </> : <Text style={local.meta}>{copy('Serveur non configuré sur ce build : aucun compte ne peut être créé ici.', 'Server not configured in this build: no account can be created here.')}</Text>}
+    </View> : null}
     {offerAdoption ? <View style={local.adoption} accessibilityLiveRegion="polite">
       <Text style={local.sectionTitle}>{copy('Tes sorties d’avant la connexion', 'Your activities from before sign-in')}</Text>
       <Text style={local.meta}>{adoptableCopy}</Text>
@@ -115,7 +137,10 @@ function ProfileHomeContents() {
         <Text style={local.meta}>{session ? profile.city || copy('Course et vélo', 'Run and ride') : copy('Sur cet appareil', 'On this device')}</Text>
         {equippedTitle ? <Text style={local.identityTitle}>{titleCollection ?? equippedTitle.label}</Text> : equippedLevelTitle ? <Text style={local.identityTitle}>{rewardLabel2026(equippedLevelTitle.rewardId, equippedLevelTitle.label, locale)}</Text> : null}
       </View>
-      {session ? <CircularAction2026 icon="chevronRight" label={copy('Modifier le profil', 'Edit profile')} onPress={() => router.push('/profil-edit')} /> : configured ? <Pressable accessibilityRole="button" onPress={() => router.push('/sign-in')} style={local.signIn}><Text style={local.actionText}>{copy('Connexion', 'Sign in')}</Text><GrydIcon name="arrowUpRight" size={16} color={c.ink} /></Pressable> : null}
+      {/* Plus de « Connexion » ici : la porte est le bloc du dessus, et deux
+          portes pour un même geste en font une de trop. « Invité · Sur cet
+          appareil » reste, parce que c'est l'état RÉEL de ce profil. */}
+      {session ? <CircularAction2026 icon="chevronRight" label={copy('Modifier le profil', 'Edit profile')} onPress={() => router.push('/profil-edit')} /> : null}
     </View>
     {session ? <View style={local.identityLinks}>
       <Pressable accessibilityRole="button" onPress={() => router.push('/season')} style={local.identityLink}><Text style={local.meta}>{career ? copy(`Niveau ${career.level}`, `Level ${career.level}`) : copy('Progression', 'Progress')}</Text>{career ? <Text style={local.meta}>{career.xp.toLocaleString(locale)} XP</Text> : null}<GrydIcon name="chevronRight" size={14} color={c.muted} /></Pressable>
@@ -194,8 +219,11 @@ function MovementPhoto2026({ label }: { label: string }) {
 }
 
 const local = StyleSheet.create({
+  gate: { gap: 10, padding: 16, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 },
+  gateTitle: { fontFamily: fonts.displayMedium, fontSize: 20, lineHeight: 26, letterSpacing: -0.5, color: c.ink },
+  gateNote: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted, textAlign: 'center' },
   identity: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: 16, borderRadius: 24, backgroundColor: c.surface, marginBottom: 12 }, identityArt: { backgroundColor: c.carbon, borderRadius: 16 }, identityCopy: { flex: 1, minWidth: 90, gap: 4 }, avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.darkSurface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: 44, height: 44 }, initials: { fontFamily: fonts.displayMedium, fontSize: 18, color: c.darkInk }, name: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.ink, letterSpacing: -0.4 }, identityTitle: { fontFamily: fonts.text, fontSize: 12, lineHeight: 17, color: c.muted },
-  meta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted }, body: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.ink }, actionText: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink }, iconAction: { width: 44, minHeight: 44, borderRadius: 22, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }, signIn: { minHeight: 44, flexShrink: 0, marginLeft: 'auto', flexDirection: 'row', gap: 4, alignItems: 'center' }, identityLinks: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, paddingHorizontal: 8, marginBottom: 12 }, identityLink: { minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  meta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted }, body: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.ink }, actionText: { fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.ink }, iconAction: { width: 44, minHeight: 44, borderRadius: 22, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }, identityLinks: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, paddingHorizontal: 8, marginBottom: 12 }, identityLink: { minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center' },
   hero: { backgroundColor: c.carbon, borderRadius: 24, overflow: 'hidden', marginBottom: 12 }, heroImage: { position: 'absolute', width: '100%', resizeMode: 'cover' }, heroCopy: { padding: 16, gap: 8 }, heroEyebrow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, heroMeta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted }, heroTitle: { fontFamily: fonts.displayMedium, fontSize: 20, lineHeight: 26, letterSpacing: -.5, color: c.darkInk }, heroValue: { fontFamily: fonts.displayMedium, fontSize: 28, lineHeight: 34, color: c.darkInk, fontVariant: ['tabular-nums'] }, heroUnit: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20 }, heroCta: { minHeight: 44, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4 }, heroCtaText: { fontFamily: fonts.textSemi, fontSize: 13, lineHeight: 19, color: c.ink }, heroLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, marginTop: 2 }, heroLinkText: { flex: 1, fontFamily: fonts.textMedium, fontSize: 13, lineHeight: 19, color: c.darkInk }, heroState: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   journalHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 8, marginBottom: 12, gap: 8 }, sectionTitle: { fontFamily: fonts.displayMedium, fontSize: 17, lineHeight: 23, color: c.ink }, sports: { marginLeft: 'auto', flexDirection: 'row', gap: 4, backgroundColor: c.surface, borderRadius: 24, padding: 3 }, sport: { minHeight: 44, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 22 }, sportSelected: { backgroundColor: c.carbon }, sportTextSelected: { color: c.darkInk }, selectedText: { color: c.ink, fontFamily: fonts.textSemi },
   calendar: { flexDirection: 'row', paddingVertical: 8, backgroundColor: c.surface, borderRadius: 24, marginBottom: 12 }, day: { flex: 1, alignItems: 'center', paddingVertical: 9, gap: 6, minHeight: 68, borderRadius: 20 }, daySelected: { backgroundColor: c.carbon }, dayName: { fontFamily: fonts.text, fontSize: 12, color: c.muted }, dayNumber: { fontFamily: fonts.displayMedium, fontSize: 17, color: c.ink }, dayTextSelected: { color: c.darkInk }, dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'transparent' }, activeDot: { backgroundColor: c.ink, borderWidth: 1, borderColor: c.accent },

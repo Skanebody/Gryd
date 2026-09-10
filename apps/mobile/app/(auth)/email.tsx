@@ -50,9 +50,19 @@ export default function EmailAuthScreen() {
   }, [step]);
 
   if (loading) return <View style={styles.root} />;
-  if (session || !configured) return <Redirect href="/" />;
+  if (session) return <Redirect href="/" />;
+  // ⚠️ VERS LA PORTE, PAS VERS LA CARTE (10/09/2026). Un build sans Supabase
+  // renvoyait ici à `/` sans un mot : qui ouvre `/email` par lien profond
+  // atterrissait sur la carte comme si son geste avait raté. `/sign-in` rend
+  // maintenant l'état honnête « Serveur non configuré sur ce build », qui dit
+  // POURQUOI aucun compte ne peut être créé.
+  if (!configured) return <Redirect href="/sign-in" />;
 
-  const deliveryCopy = EMAIL_DELIVERY === 'code' ? AuthC.otpCreatesOrSignsIn : C.whatHappens;
+  // LA MÊME PHRASE QU'À L'ÉCRAN PRÉCÉDENT, mot pour mot : c'est la même entrée
+  // de catalogue (`catalog/auth.ts`), plus un jumeau à tenir accordé. Elle dit
+  // la CRÉATION d'abord — l'ordre inverse laissait le nouveau venu penser que
+  // cette porte ne le concernait pas.
+  const deliveryCopy = EMAIL_DELIVERY === 'code' ? AuthC.otpCreatesOrSignsIn : AuthC.otpCreatesOrSignsInLink;
 
   const request = async () => {
     if (inFlight.current) return;
@@ -257,6 +267,10 @@ export default function EmailAuthScreen() {
             {!reading && !declined && step === 'sent' ? <>
               <Text style={styles.panelTitle}>{t(C.sentBody, { email })}</Text>
               <Text style={styles.note}>{t(C.sentHint)}</Text>
+              {/* ÉCRITE DEPUIS JUILLET, RENDUE NULLE PART. Le spam est la
+                  première cause de « le lien ne marche pas » : la phrase
+                  existait dans le catalogue et aucun écran ne la peignait. */}
+              <Text style={styles.note}>{t(C.sentSpamHint)}</Text>
               {/* L'ACCUSÉ DE RENVOI. Sans lui, « Renvoyer le lien » ne changeait
                   RIEN à l'écran : même titre, même adresse, même panneau — et le
                   joueur retapait le bouton jusqu'à se faire limiter. */}

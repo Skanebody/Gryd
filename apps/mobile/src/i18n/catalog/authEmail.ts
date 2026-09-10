@@ -27,7 +27,14 @@
  * (`error*`), le lien a rendu son verdict (`expired*`, `errorLinkInvalid`).
  * AUCUNE phrase n'affirme que le compte existe, ni qu'il est nouveau : l'écran
  * ne le sait pas, et `requestEmailOtp` envoie `shouldCreateUser: true` — la même
- * adresse connecte OU crée. `whatHappens` le dit, une fois, sans deviner.
+ * adresse connecte OU crée.
+ *
+ * ⚠️ CETTE PHRASE-LÀ N'EST PLUS ICI (10/09/2026). `whatHappens` disait la même
+ * chose que `catalog/auth.ts` → `otpCreatesOrSignsInLink`, dans deux fichiers,
+ * pour deux écrans que le joueur enchaîne en un tap. Le fondateur demande une
+ * phrase IDENTIQUE de `/sign-in` à `/email` : deux entrées jumelles ne le
+ * garantissent pas, elles le promettent jusqu'au premier retouchage. L'entrée
+ * a donc été SUPPRIMÉE et les deux écrans lisent la même clé de `auth.ts`.
  */
 import { defineCatalog } from '../types';
 
@@ -95,20 +102,6 @@ export const C = defineCatalog({
     de: 'du@email.de',
     pt: 'voce@email.com',
   },
-  /**
-   * Ce que le lien fait VRAIMENT. La même adresse connecte un compte existant
-   * et en crée un sinon (`shouldCreateUser: true`) : le taire laisserait le
-   * joueur deviner s'il est sur la bonne porte. Aucune de ces phrases n'affirme
-   * qu'il a déjà un compte — l'écran ne le sait pas.
-   */
-  whatHappens: {
-    fr: 'Un lien de connexion : il te connecte si ton compte existe, il le crée sinon.',
-    en: 'A sign-in link: it signs you in if your account exists, and creates it if not.',
-    es: 'Un enlace de acceso: te conecta si tu cuenta existe, y la crea si no.',
-    de: 'Ein Anmeldelink: Er meldet dich an, wenn dein Konto existiert — sonst legt er es an.',
-    pt: 'Um link de acesso: ele conecta você se a conta existir, e a cria se não.',
-  },
-
   // ─── Le CTA (unique, §A4) ──────────────────────────────────────────────────
   /** Spec E07 : `RECEVOIR LE LIEN`. Court dans les 5 langues — jamais tronqué. */
   cta: {
@@ -143,13 +136,20 @@ export const C = defineCatalog({
     de: 'Schau in {email} nach.',
     pt: 'Confira em {email}.',
   },
-  /** Les deux limites réelles du lien Supabase : appareil et durée de vie. */
+  /**
+   * OÙ TAPER, puis les deux limites réelles du lien Supabase (appareil, durée
+   * de vie). « Ouvre-le depuis cet appareil » désignait un « le » dont le seul
+   * antécédent était le titre, deux lignes plus haut : celui qui attend un code
+   * à recopier cherchait un champ qui n'existe pas. On nomme l'e-mail, puis le
+   * geste. Rien n'est dit du CONTENU de l'e-mail que l'app n'envoie pas
+   * elle-même (aucun libellé de bouton inventé ici).
+   */
   sentHint: {
-    fr: 'Ouvre-le depuis cet appareil : il te connecte directement. Il expire dans l’heure et ne sert qu’une fois.',
-    en: 'Open it on this device: it signs you in directly. It expires within the hour and works once.',
-    es: 'Ábrelo desde este dispositivo: te conecta directamente. Caduca en una hora y solo sirve una vez.',
-    de: 'Öffne ihn auf diesem Gerät: Er meldet dich direkt an. Er läuft in einer Stunde ab und gilt einmal.',
-    pt: 'Abra no mesmo aparelho: ele conecta você direto. Expira em uma hora e serve uma vez só.',
+    fr: 'Ouvre l’e-mail sur cet appareil, puis tape le lien qu’il contient : il te connecte directement. Il expire dans l’heure et ne sert qu’une fois.',
+    en: 'Open the email on this device, then tap the link inside: it signs you in directly. It expires within the hour and works once.',
+    es: 'Abre el e-mail en este dispositivo y toca el enlace que contiene: te conecta directamente. Caduca en una hora y solo sirve una vez.',
+    de: 'Öffne die E-Mail auf diesem Gerät und tippe den enthaltenen Link an: Er meldet dich direkt an. Er läuft in einer Stunde ab und gilt einmal.',
+    pt: 'Abra o e-mail neste aparelho e toque no link que ele contém: ele conecta você direto. Expira em uma hora e serve uma vez só.',
   },
   /** Le spam est la première cause d'« il ne marche pas » — on le dit d'avance. */
   sentSpamHint: {

@@ -142,13 +142,18 @@ export const FR = {
 
   // src/features/refonte/ProfileHomeScreen.tsx
   profileTitle: 'Profil',
-  profileSignIn: 'Connexion',
+  /** ⚠️ CE N'EST PLUS UN LIEN, C'EST LE CTA PRIMAIRE DU PROFIL INVITÉ
+   *  (10/09/2026) : « Connexion » ne s'adressait qu'à ceux qui ont déjà un
+   *  compte. Le libellé a changé, et la nature de l'élément aussi : un
+   *  `getByText().click()` échouerait maintenant, le texte du bouton portant
+   *  `pointerEvents="none"`. Les specs le résolvent par RÔLE. */
+  profileSignIn: 'Créer mon compte',
   profileGuest: 'Invité',
   profileOnThisDevice: 'Sur cet appareil',
 
   // src/i18n/catalog/auth.ts
-  authKicker: 'CONNEXION',
-  authMethodsTitle: 'Retrouve ton terrain',
+  authKicker: 'TON COMPTE',
+  authMethodsTitle: 'Crée ton compte ou connecte-toi',
   authEmailDoor: 'Continuer avec un e-mail',
   authGuest: 'Continuer sans compte',
   ageNotMe: 'Ce n’est pas moi',
@@ -183,7 +188,7 @@ export const FR = {
   linkSentTitle: 'Lien envoyé',
   /** Gabarit du catalogue — voir `linkSentBody()` pour la phrase remplie. */
   linkSentBody: 'Regarde dans {email}.',
-  linkSentHint: 'Ouvre-le depuis cet appareil : il te connecte directement. Il expire dans l’heure et ne sert qu’une fois.',
+  linkSentHint: 'Ouvre l’e-mail sur cet appareil, puis tape le lien qu’il contient : il te connecte directement. Il expire dans l’heure et ne sert qu’une fois.',
   linkResendCta: 'Renvoyer le lien',
   linkResendDone: 'Nouveau lien envoyé. Le précédent ne marche plus.',
   linkChangeEmail: 'Changer d’adresse',

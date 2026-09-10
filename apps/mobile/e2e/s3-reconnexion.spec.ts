@@ -59,12 +59,12 @@ test.describe('S3 — reconnexion', () => {
     await expect(page.getByText(FR.settingsSignOutFailed)).toHaveCount(0);
 
     // Retour au profil, invite : la porte de compte est peinte a nouveau.
-    await expect(page.getByText(FR.profileSignIn, { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: FR.profileSignIn, exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(FR.profileGuest, { exact: true })).toBeVisible();
     await expect(page.getByText(EXPECTED_NAME, { exact: true })).toHaveCount(0);
 
     // Et elle mene quelque part.
-    await page.getByText(FR.profileSignIn, { exact: true }).click();
+    await page.getByRole('button', { name: FR.profileSignIn, exact: true }).click();
     await expect(page).toHaveURL(/\/sign-in/, { timeout: 20_000 });
     await expect(page.getByText(FR.authMethodsTitle)).toBeVisible();
   });
@@ -75,7 +75,7 @@ test.describe('S3 — reconnexion', () => {
     await seedStorage(page, returningMember());
     await page.goto('/parametres');
     await page.getByRole('button', { name: FR.settingsSignOut }).click();
-    await expect(page.getByText(FR.profileSignIn, { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: FR.profileSignIn, exact: true })).toBeVisible({ timeout: 30_000 });
 
     await page.goto('/sign-in');
     await expect(page.getByText(FR.authMethodsTitle)).toBeVisible({ timeout: 20_000 });
