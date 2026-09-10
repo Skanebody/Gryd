@@ -36,7 +36,7 @@
  * · Corps en FRANÇAIS dans les cinq langues (`fr5()`), cf. legal.ts.
  */
 import { useEffect } from 'react';
-import { C, LEGAL_ENTITY, LEGAL_LAST_UPDATED } from '../../src/i18n/catalog/legal';
+import { C, LEGAL_ENTITY, LEGAL_OFFER_LAST_UPDATED } from '../../src/i18n/catalog/legal';
 import { useT } from '../../src/i18n/store';
 import { screen } from '../../src/lib/analytics';
 import { LegalDoc, type LegalSection } from '../../src/ui/LegalDoc';
@@ -89,7 +89,7 @@ export default function CgvScreen() {
       title={t(C.cgvTitle)}
       icon="boutique"
       kicker={t(C.cgvKicker)}
-      updatedLabel={t(C.legalUpdated, { date: LEGAL_LAST_UPDATED })}
+      updatedLabel={t(C.legalUpdated, { date: LEGAL_OFFER_LAST_UPDATED })}
       notice={t(C.legalReference)}
       intro={t(C.cgvStatusIntro)}
       numbered

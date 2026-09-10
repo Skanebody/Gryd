@@ -159,6 +159,25 @@ export const LEGAL_HOSTING = {
 export const LEGAL_LAST_UPDATED = '27/07/2026';
 
 /**
+ * DATE PROPRE AUX DEUX DOCUMENTS QUI PORTENT L’OFFRE (CGV et CGU).
+ *
+ * ─── POURQUOI LA « SEULE VÉRITÉ » CI-DESSUS SE SCINDE ICI ──────────────────
+ * Une date d’entrée en vigueur est un FAIT PAR DOCUMENT, pas un numéro de
+ * version du dépôt. Le 10/09/2026, les CGV et les CGU ont été corrigées au
+ * fond : l’offre s’appelle GRYD+ et non « GRYD Club », les collections
+ * permanentes remplacent le Founder Pack et le Starter Pack, la monnaie de
+ * style n’existe pas, et le droit s’ouvre après CONFIRMATION et non « après
+ * le paiement ». La politique de confidentialité et les licences, elles, n’ont
+ * pas bougé.
+ *
+ * Repousser leur date aussi aurait déclaré une révision qui n’a pas eu lieu —
+ * exactement le mensonge que la constante d’origine cherchait à éviter en
+ * refusant une date automatique. Deux documents ont changé : deux documents
+ * changent de date.
+ */
+export const LEGAL_OFFER_LAST_UPDATED = '10/09/2026';
+
+/**
  * TEXTE DE RÉFÉRENCE FRANÇAISE, identique dans les cinq langues.
  *
  * POURQUOI PAS UNE VRAIE TRADUCTION PAR LANGUE : le corps des documents légaux
@@ -477,10 +496,10 @@ export const C = defineCatalog({
     'Le jeu est gratuit et complet. Le territoire ne s’achète jamais : tout ce qui compte au classement — zones, points, victoire — se gagne en courant ou en roulant. Aucun paiement ne donne le moindre avantage de jeu.',
   ),
   cguAboBody2: fr5(
-    'GRYD ne propose qu’un seul abonnement, GRYD Club (bonus permanents de confort, d’information en lecture seule, de cosmétique et de statut), aux côtés d’achats ponctuels purement cosmétiques (Founder Pack, Starter Pack, cosmétiques). Aucune de ces offres n’apporte de territoire, de points, de victoire ni de protection : les objets qui touchent au jeu — bouclier, gel de série, information tactique — ne sont vendus dans aucune monnaie et ne sont inclus dans aucun abonnement.',
+    'GRYD ne propose qu’un seul abonnement, GRYD+ (analyses privées avancées et outils de composition), aux côtés de collections permanentes vendues à l’unité, purement visuelles. Aucune de ces offres n’apporte de territoire, de points ni de victoire. Tout ce qui décide le jeu (la capture d’un terrain, sa reprise, l’XP, les points de défi et le classement) est strictement identique pour un abonné et pour un joueur gratuit, et n’est vendu dans aucune monnaie. GRYD ne met aucune monnaie virtuelle en vente.',
   ),
   cguAboBody3: fr5(
-    'Les achats dans l’application sont traités par Apple (App Store) ou Google (Google Play) : facturation, renouvellement et remboursements suivent les règles de la plateforme. Les abonnements se renouvellent automatiquement jusqu’à leur annulation, que tu gères depuis les réglages de ton compte Apple ou Google. L’annulation prend effet à la fin de la période en cours ; tu conserves tes cosmétiques acquis, jamais tes zones (elles restent à toi tant que tu cours). Les Conditions Générales de Vente précisent prix, paiement et rétractation.',
+    'Les achats dans l’application sont traités par Apple (App Store) ou Google (Google Play) : facturation, renouvellement et remboursements suivent les règles de la plateforme. Les abonnements se renouvellent automatiquement jusqu’à leur annulation, que tu gères depuis les réglages de ton compte Apple ou Google. L’annulation prend effet à la fin de la période en cours. Une résiliation, un remboursement ou un arrêt de paiement n’efface jamais un terrain, une progression ni un objet déjà obtenu : ils ne dépendent pas de l’abonnement. Les Conditions Générales de Vente précisent prix, paiement et rétractation.',
   ),
   cguRespHeading: fr5('SÉCURITÉ & RESPONSABILITÉ'),
   /**
@@ -791,13 +810,13 @@ export const C = defineCatalog({
    * était la moins visible des trois.
    */
   cgvOffresAbonnement: fr5(
-    '· Abonnement (unique) — GRYD Club, mensuel ou annuel : bonus permanents de confort, d’information en lecture seule et de statut (stats avancées, historique complet, filtres de classement, templates de partage). Il ne comprend ni bouclier, ni gel de série, ni information tactique, ni protection de zone, ni avantage territorial d’aucune sorte.',
+    '· Abonnement (unique) : GRYD+, mensuel ou annuel. Il ouvre des analyses privées avancées (comparer deux sorties ou deux périodes), les outils de composition Studio et des variantes artistiques de saison. Il ne comprend aucun avantage de jeu : ni capture supplémentaire, ni protection, ni information tactique, ni accélérateur d’XP ou de points de défi.',
   ),
   cgvOffresPonctuels: fr5(
-    '· Achats ponctuels — Founder Pack (à vie, édition limitée), Starter Pack et packs cosmétiques. Ils ne contiennent que du cosmétique, du statut et de la monnaie de style.',
+    '· Achats uniques : les collections permanentes. Elles ne contiennent que des objets visuels et de statut, restent acquises définitivement et ne sont pas incluses dans GRYD+. Aucune monnaie virtuelle n’est vendue et aucune offre à vie n’est proposée.',
   ),
   cgvOffresJamaisVendus: fr5(
-    '· Ne sont vendus dans AUCUNE monnaie et ne sont inclus dans aucune offre : les objets qui touchent au jeu — bouclier de zone, gel de série, information tactique sur une zone, alerte d’attaque anticipée. Aucun paiement ne les procure, directement ou indirectement.',
+    '· Ne sont vendus dans AUCUNE monnaie et ne sont inclus dans aucune offre : tout ce qui décide le jeu. La capture d’un terrain, sa reprise, l’XP, les points de défi et le classement sont strictement identiques pour un abonné et pour un joueur gratuit. Aucun paiement ne les modifie, directement ou indirectement.',
   ),
   /**
    * LE FAIT QUI PRIME — rendu en CHAPEAU du document, pas en 3ᵉ position d'une
@@ -819,7 +838,7 @@ export const C = defineCatalog({
     'La souscription s’effectue via les achats intégrés Apple (App Store) ou Google (Google Play). Le paiement, la facturation, le renouvellement et les remboursements sont alors gérés par la plateforme et soumis à ses propres conditions ; les demandes de remboursement se font directement auprès d’Apple ou de Google.',
   ),
   cgvCommandeBody2: fr5(
-    'L’accès aux avantages est activé immédiatement après le paiement. Une confirmation est fournie par la plateforme.',
+    'L’accès aux avantages s’ouvre lorsque la plateforme a confirmé le droit correspondant, et pas avant. Un achat en attente de validation (demande adressée à un parent, authentification bancaire renforcée) n’ouvre aucun droit tant qu’il n’est pas confirmé, et rien n’est facturé s’il ne l’est jamais. La plateforme fournit la confirmation d’achat.',
   ),
   cgvRetractationHeading: fr5('DROIT DE RÉTRACTATION'),
   cgvRetractationBody1: fr5(
@@ -833,10 +852,10 @@ export const C = defineCatalog({
   ),
   cgvDureeHeading: fr5('DURÉE, RECONDUCTION & RÉSILIATION'),
   cgvDureeBody1: fr5(
-    'L’abonnement GRYD Club est souscrit pour la période choisie (mensuelle ou annuelle) et se renouvelle par tacite reconduction pour des périodes identiques, sauf résiliation.',
+    'L’abonnement GRYD+ est souscrit pour la période choisie (mensuelle ou annuelle) et se renouvelle par tacite reconduction pour des périodes identiques, sauf résiliation.',
   ),
   cgvDureeBody2: fr5(
-    'Pour un abonnement souscrit via l’App Store ou Google Play, la gestion et la résiliation s’effectuent depuis les réglages de ton compte Apple ou Google ; la résiliation prend effet à la fin de la période en cours. Le Founder Pack est un achat unique, non reconductible. Aucune période entamée n’est remboursée, sauf disposition légale contraire.',
+    'Pour un abonnement souscrit via l’App Store ou Google Play, la gestion et la résiliation s’effectuent depuis les réglages de ton compte Apple ou Google ; la résiliation prend effet à la fin de la période en cours. Les collections permanentes sont des achats uniques, non reconductibles. Aucune période entamée n’est remboursée, sauf disposition légale contraire. Supprimer ton compte GRYD ne résilie pas la facturation de la plateforme : ce sont deux gestes distincts. Une résiliation n’efface ni un terrain, ni une progression, ni les objets déjà obtenus.',
   ),
   cgvGarantiesHeading: fr5('GARANTIES LÉGALES'),
   cgvGarantiesBody: fr5(

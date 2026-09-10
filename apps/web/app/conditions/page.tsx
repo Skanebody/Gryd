@@ -67,8 +67,16 @@ import styles from '../confidentialite/legal.module.css';
 // document contractuel rouvriraient la divergence qu'on vient de fermer.
 // Aucune vente n'ayant eu lieu, aucune version antérieure ne lie personne :
 // le texte révisé est celui en vigueur.
-const LAST_UPDATED = '26 juillet 2026';
-const EFFECTIVE = '26 juillet 2026';
+// Révision du 10 septembre 2026 — l'offre s'appelle GRYD+ (cahier §16.1, rang 0),
+// les produits uniques sont les collections permanentes, il n'y a ni monnaie
+// virtuelle ni offre à vie, et §5.3 a SUPPRIMÉ le bouclier, le gel de série et
+// le scout : les nommer même pour dire qu'on ne les vend pas décrivait un jeu
+// qui n'existe plus. La clause « tes zones restent à toi tant que tu cours »
+// promettait en outre un decay que le jeu ne fait plus tourner (§16.3 : « Une
+// interruption de paiement n'efface jamais un terrain ni une progression »).
+// Même contrat que apps/mobile (src/i18n/catalog/legal.ts) : jamais divergent.
+const LAST_UPDATED = '10 septembre 2026';
+const EFFECTIVE = '10 septembre 2026';
 
 export const metadata: Metadata = {
   title: 'Conditions d’utilisation — GRYD',
@@ -340,18 +348,15 @@ export default function ConditionsPage() {
           <h2 className={styles.sectionTitle}>Abonnement & achats — statut uniquement</h2>
           <p className={styles.body}>
             Le jeu est <b>gratuit et complet</b>. GRYD ne propose qu&rsquo;<b>un seul
-            abonnement, GRYD Club</b> (bonus permanents de confort sur tes propres
-            données&nbsp;: stats avancées, heatmap personnelle, historique complet, export et
-            templates de partage), aux côtés
-            d&rsquo;<b>achats ponctuels purement cosmétiques</b> (Founder Pack, Starter Pack).
-            Aucune de ces offres n&rsquo;apporte <b>de territoire, de points, de victoire ni de
-            protection</b>.
+            abonnement, GRYD+</b> (analyses privées avancées et outils de composition), aux
+            côtés de <b>collections permanentes</b> vendues à l&rsquo;unité, purement visuelles.
+            Aucune de ces offres n&rsquo;apporte <b>de territoire, de points ni de victoire</b>.
           </p>
           <p className={styles.body}>
-            Les objets qui agissent sur la partie — <b>bouclier de quartier, gel de série,
-            scout, alerte d&rsquo;attaque</b> — <b>ne sont vendus dans aucune monnaie</b> : ni
-            en euros, ni en Éclats, ni dans un pack, ni dans l&rsquo;abonnement. Leurs plafonds
-            sont <b>identiques</b> pour un abonné et un joueur gratuit.
+            <b>Tout ce qui décide le jeu ne se vend dans aucune monnaie</b> : la capture
+            d&rsquo;un terrain, sa reprise, l&rsquo;XP, les points de défi et le classement sont{' '}
+            <b>strictement identiques</b> pour un abonné et pour un joueur gratuit. GRYD ne met{' '}
+            <b>aucune monnaie virtuelle</b> en vente et ne propose <b>aucune offre à vie</b>.
           </p>
           <p className={styles.body}>
             À ce jour, <b>aucune offre payante n&rsquo;est commercialisée</b> : aucun paiement
@@ -369,9 +374,11 @@ export default function ConditionsPage() {
               Tu gères et annules ton abonnement depuis les réglages de ton compte Apple.
             </li>
             <li className={styles.item}>
-              L&rsquo;annulation prend effet à la fin de la période en cours&nbsp;; tu
-              conserves tes cosmétiques acquis, jamais tes zones (elles restent à toi tant
-              que tu cours).
+              L&rsquo;annulation prend effet à la fin de la période en cours. Une résiliation,
+              un remboursement ou un arrêt de paiement <b>n&rsquo;efface jamais un terrain, une
+              progression ni un objet déjà obtenu</b>&nbsp;: ils ne dépendent pas de
+              l&rsquo;abonnement. Seuls les outils d&rsquo;analyse avancée et de composition se
+              ferment à la fin de la période payée.
             </li>
           </ul>
         </section>

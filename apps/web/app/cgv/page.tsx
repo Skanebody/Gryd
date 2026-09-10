@@ -1,7 +1,7 @@
 /**
  * GRYD — Conditions Générales de Vente (CGV). OBLIGATOIRE dès lors qu'un service
- * payant est vendu à des consommateurs (abonnement GRYD Club, Founder Pack,
- * packs cosmétiques) — art. L111-1 et s. du Code de la consommation. Distinct
+ * payant est vendu à des consommateurs (abonnement GRYD+, collections
+ * permanentes) — art. L111-1 et s. du Code de la consommation. Distinct
  * des CGU (/conditions) : les CGV régissent la VENTE (prix, paiement,
  * rétractation, reconduction, médiation).
  *
@@ -40,13 +40,25 @@ import styles from '../confidentialite/legal.module.css';
 // Révision du 23 juillet 2026 — AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : retrait des boucliers, packs d'Éclats et Season Pass de la liste des produits vendus.
 // Aucune vente n'ayant eu lieu, aucune version antérieure ne lie personne :
 // le texte révisé est celui en vigueur.
-const LAST_UPDATED = '23 juillet 2026';
-const EFFECTIVE = '23 juillet 2026';
+//
+// Révision du 10 septembre 2026 — le cahier de septembre (rang 0, ADR-012) a
+// tranché l'offre : elle s'appelle GRYD+, les produits uniques sont les trois
+// collections permanentes, il n'y a NI monnaie virtuelle (« Pas de monnaie
+// virtuelle au lancement », §7.5 ; COMMERCIAL_PROPOSAL_2026.virtualCurrency =
+// false) NI offre à vie (§16.1). Le bouclier, le gel de série et le scout ne
+// sont plus seulement invendables : §5.3 les a SUPPRIMÉS du jeu, et les nommer
+// même pour dire qu'on ne les vend pas décrivait un jeu qui n'existe plus.
+// ⚠️ Ce document est le MÊME contrat que les CGV embarquées dans l'application
+// (apps/mobile/src/i18n/catalog/legal.ts) : les laisser diverger permettrait à
+// un lecteur d'opposer la version qui l'arrange. Toute correction ici se fait
+// des deux côtés, dans le même commit.
+const LAST_UPDATED = '10 septembre 2026';
+const EFFECTIVE = '10 septembre 2026';
 
 export const metadata: Metadata = {
   title: 'Conditions Générales de Vente — GRYD',
   description:
-    'CGV de GRYD : abonnement GRYD Club, Founder Pack et packs cosmétiques — prix, paiement, droit de rétractation, reconduction, résiliation, médiation de la consommation.',
+    'CGV de GRYD : abonnement GRYD+ et collections permanentes — prix, paiement, droit de rétractation, reconduction, résiliation, médiation de la consommation.',
 };
 
 function Todo({ children }: { children: ReactNode }) {
@@ -99,8 +111,8 @@ export default function CgvPage() {
           <p className={styles.kicker}>Conditions Générales de Vente</p>
           <h1 className={styles.heroTitle}>Conditions Générales de Vente</h1>
           <p className={styles.heroSub}>
-            Ces CGV régissent la vente des offres payantes de GRYD (abonnement GRYD Club,
-            Founder Pack et packs cosmétiques) aux consommateurs. Elles complètent les{' '}
+            Ces CGV régissent la vente des offres payantes de GRYD (abonnement GRYD+ et
+            collections permanentes) aux consommateurs. Elles complètent les{' '}
             <Link href="/conditions">conditions d&rsquo;utilisation</Link> (usage du jeu) et la{' '}
             <Link href="/confidentialite">politique de confidentialité</Link>. Le jeu, le
             territoire et la progression restent entièrement gratuits&nbsp;: aucune offre
@@ -180,35 +192,33 @@ export default function CgvPage() {
           <h2 className={styles.sectionTitle}>Offres &amp; prix</h2>
           <p className={styles.body}>
             GRYD est jouable gratuitement dans son intégralité. Les offres payantes portent
-            uniquement sur des éléments de <b>confort et de statut</b> (cosmétiques, templates
-            de partage, badge de soutien)&nbsp;: elles ne donnent ni territoire, ni points, ni
-            victoire.
+            uniquement sur des <b>outils d&rsquo;analyse privée, de composition et des objets
+            visuels</b>&nbsp;: elles ne donnent ni territoire, ni points, ni victoire.
           </p>
           <ul className={styles.list}>
             <li className={styles.item}>
-              <b>Abonnement (unique)</b> — <b>GRYD Club</b>, mensuel ou annuel. Il ouvre des
-              bonus permanents de <b>confort sur tes propres données</b> (stats avancées,
-              heatmap personnelle, historique complet, export et templates de partage). Il ne
-              comprend <b>ni bouclier, ni gel de série, ni information tactique sur les zones
-              ou les adversaires, ni protection, ni avantage territorial</b>, et
-              n&rsquo;augmente aucun plafond de jeu&nbsp;: les limites d&rsquo;usage sont
+              <b>Abonnement (unique)</b>&nbsp;: <b>GRYD+</b>, mensuel ou annuel. Il ouvre des{' '}
+              <b>analyses privées avancées</b> (comparer deux sorties ou deux périodes), les{' '}
+              <b>outils de composition Studio</b> et des <b>variantes artistiques de saison</b>.
+              Il ne comprend <b>aucun avantage de jeu</b>&nbsp;: ni capture supplémentaire, ni
+              protection, ni information tactique, ni accélérateur d&rsquo;XP ou de points de
+              défi, et n&rsquo;augmente aucun plafond&nbsp;: les limites d&rsquo;usage sont
               identiques pour un abonné et un joueur gratuit.
             </li>
             <li className={styles.item}>
-              <b>Achats ponctuels</b> — Founder Pack (à vie, édition limitée) et Starter
-              Pack&nbsp;: des éléments <b>cosmétiques et de statut</b> (skins, cadres, blasons,
-              templates de partage) et une dotation en <b>Éclats</b>, la monnaie du jeu. Les
-              Éclats ne donnent accès qu&rsquo;à des <b>cosmétiques</b>&nbsp;: aucun objet
-              agissant sur la partie ne peut être obtenu contre des Éclats.
+              <b>Achats uniques</b>&nbsp;: les <b>collections permanentes</b>. Elles ne
+              contiennent que des <b>objets visuels et de statut</b>, restent acquises
+              définitivement et ne sont <b>pas incluses dans GRYD+</b>.{' '}
+              <b>Aucune monnaie virtuelle n&rsquo;est vendue</b> et <b>aucune offre à vie</b>{' '}
+              n&rsquo;est proposée.
             </li>
           </ul>
           <p className={styles.body}>
-            <b>Ne sont vendus dans aucune monnaie</b> — ni en euros, ni via une monnaie du jeu,
-            ni dans un pack, ni dans l&rsquo;abonnement&nbsp;: les objets qui agissent sur la
-            partie, à savoir le <b>bouclier de quartier</b>, le <b>gel de série</b>, le{' '}
-            <b>scout</b> et l&rsquo;<b>alerte d&rsquo;attaque</b>. Protéger un territoire, tenir
-            une série ou être prévenu plus tôt sont des <b>avantages de jeu</b>&nbsp;: ils ne
-            s&rsquo;achètent pas et ne peuvent faire l&rsquo;objet d&rsquo;aucune offre payante.
+            <b>Ne sont vendus dans aucune monnaie</b>&nbsp;: ni en euros, ni dans un pack, ni
+            dans l&rsquo;abonnement, <b>tout ce qui décide le jeu</b>. La capture d&rsquo;un
+            terrain, sa reprise, l&rsquo;XP, les points de défi et le classement sont{' '}
+            <b>strictement identiques</b> pour un abonné et pour un joueur gratuit. Aucun
+            paiement ne les modifie, directement ou indirectement.
           </p>
           <p className={styles.body}>
             <b>À la date d&rsquo;entrée en vigueur ci-dessus, aucune de ces offres n&rsquo;est
@@ -248,8 +258,11 @@ export default function CgvPage() {
             </li>
           </ul>
           <p className={styles.body}>
-            La commande est confirmée par un e-mail récapitulatif. L&rsquo;accès aux avantages
-            est activé immédiatement après le paiement.
+            La commande est confirmée par un e-mail récapitulatif. L&rsquo;accès aux avantages{' '}
+            <b>s&rsquo;ouvre lorsque le droit correspondant a été confirmé</b>, et pas avant. Un
+            achat en attente de validation (demande adressée à un parent, authentification
+            bancaire renforcée) n&rsquo;ouvre aucun droit tant qu&rsquo;il n&rsquo;est pas
+            confirmé, et rien n&rsquo;est facturé s&rsquo;il ne l&rsquo;est jamais.
           </p>
         </section>
 
@@ -278,7 +291,7 @@ export default function CgvPage() {
           <p className={styles.sectionNum}>06</p>
           <h2 className={styles.sectionTitle}>Durée, reconduction &amp; résiliation</h2>
           <p className={styles.body}>
-            L&rsquo;abonnement GRYD Club est souscrit pour la période choisie (mensuelle ou
+            L&rsquo;abonnement GRYD+ est souscrit pour la période choisie (mensuelle ou
             annuelle) et se renouvelle par tacite reconduction pour des périodes identiques,
             sauf résiliation.
           </p>
@@ -289,12 +302,19 @@ export default function CgvPage() {
             reconduire. Tu peux résilier à tout moment, y compris en ligne, la résiliation
             prenant effet à la fin de la période en cours&nbsp;; les avantages restent actifs
             jusque-là et aucune période entamée n&rsquo;est remboursée (sauf disposition légale
-            contraire). Le Founder Pack est un achat unique, non reconductible.
+            contraire). Les collections permanentes sont des achats uniques, non reconductibles.
+          </p>
+          <p className={styles.body}>
+            Une résiliation, un remboursement ou un arrêt de paiement <b>n&rsquo;efface jamais
+            un terrain, une progression ni un objet déjà obtenu</b>&nbsp;: ils ne dépendent pas
+            de l&rsquo;abonnement. Seuls les outils d&rsquo;analyse avancée et de composition
+            se ferment à la fin de la période payée.
           </p>
           <p className={styles.note}>
             Pour un abonnement souscrit via l&rsquo;App&nbsp;Store ou Google&nbsp;Play, la
             gestion et la résiliation s&rsquo;effectuent depuis les réglages de ton compte
-            Apple ou Google.
+            Apple ou Google. <b>Supprimer ton compte GRYD ne résilie pas la facturation de la
+            plateforme</b>&nbsp;: ce sont deux gestes distincts.
           </p>
         </section>
 

@@ -51,7 +51,7 @@
  */
 import { useEffect } from 'react';
 import { MIN_AGE_YEARS } from '@klaim/shared';
-import { C, LEGAL_ENTITY, LEGAL_LAST_UPDATED } from '../../src/i18n/catalog/legal';
+import { C, LEGAL_ENTITY, LEGAL_OFFER_LAST_UPDATED } from '../../src/i18n/catalog/legal';
 import { useT } from '../../src/i18n/store';
 import { screen } from '../../src/lib/analytics';
 import { REPORT_REVIEW_HOURS } from '../../src/features/crew/moderation';
@@ -98,7 +98,7 @@ export default function CguScreen() {
       title={t(C.cguTitle)}
       icon="pass"
       kicker={t(C.cguKicker)}
-      updatedLabel={t(C.legalUpdated, { date: LEGAL_LAST_UPDATED })}
+      updatedLabel={t(C.legalUpdated, { date: LEGAL_OFFER_LAST_UPDATED })}
       notice={t(C.legalReference)}
       numbered
       sections={sections}
