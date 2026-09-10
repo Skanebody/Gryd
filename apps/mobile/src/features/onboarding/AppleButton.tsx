@@ -49,7 +49,15 @@ export function OnboardingAppleButton({ onPress }: { onPress: () => void }) {
   if (available !== true) return null;
   return (
     <AppleAuthentication.AppleAuthenticationButton
-      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+      // ⚠️ `SIGN_IN` → `CONTINUE` (10/09/2026, lot 9). `app/(auth)/sign-in.tsx`
+      // était passé à `CONTINUE` sans que ce bouton-ci suive : l'onboarding
+      // affichait donc « Se connecter avec Apple » à quelqu'un qui n'a, par
+      // définition, pas encore de compte, pendant que la porte d'à côté disait
+      // « Continuer avec Apple ». Deux libellés système pour le MÊME geste
+      // (Apple crée le compte au premier passage) : `CONTINUE` est le type
+      // qu'Apple prévoit pour un flux qui crée OU connecte. Aucun texte n'est
+      // écrit ici : ces libellés appartiennent à iOS, qui les traduit.
+      buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
       buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
       cornerRadius={radii.pill}
       style={styles.button}
