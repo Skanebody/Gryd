@@ -237,7 +237,7 @@ function ProfileHomeContents() {
     {inviteNotice ? <Text accessibilityRole="alert" style={local.meta}>{inviteNotice}</Text> : null}
 
     <View style={local.hero}>
-      <MovementPhoto2026 label={copy(brandImagery.movement.fr, brandImagery.movement.en)} />
+      <MovementPhoto2026 label={copy(brandImagery.profileMovement.fr, brandImagery.profileMovement.en)} />
       <View style={local.heroCopy}>
         <View style={local.heroEyebrow}><GrydIcon name="route" size={18} color={c.accent} /><Text style={local.heroMeta}>{copy('Ton mouvement.', 'Your movement.')}</Text></View>
         {movement === 'ready' && progress.data ? <><Text style={local.heroValue}>{progress.data.activeDays}<Text style={local.heroUnit}> {copy(progress.data.activeDays === 1 ? 'jour actif' : 'jours actifs', progress.data.activeDays === 1 ? 'active day' : 'active days')}</Text></Text><Text style={local.heroMeta}>{copy('Depuis tes débuts sur GRYD.', 'Since your first day on GRYD.')}</Text><Pressable accessibilityRole="button" onPress={() => router.push('/season')} style={local.heroLink}><Text style={local.heroLinkText}>{copy('Voir ma progression', 'View my progress')}</Text><GrydIcon name="arrowUpRight" size={20} color={c.darkInk} /></Pressable></>
@@ -311,14 +311,16 @@ function ProfileHomeContents() {
   </ProfilePage>;
 }
 
-/** Keep the original portrait. The upper crop keeps the central runner's entire face visible. */
+/** Keep the original portrait. The upper crop keeps the front row of faces visible. */
 function MovementPhoto2026({ label }: { label: string }) {
   const [width, setWidth] = useState(0);
-  // Original e01-crew.jpg is 1024 × 1536; the runner's face is in the upper third.
+  // The source is a 2:3 photograph pre-cropped for this block (1080 × 1620), so
+  // `cover` never trims it sideways. The window below shows rows 17 % to 46 % of
+  // its height: the crew's front row. Geometry and proof: photoLibrary2026.ts.
   const imageHeight = width ? width * 1.5 : 148;
   const top = -Math.max(0, imageHeight - 148) * 0.24;
   return <View testID="profile-movement-photo" style={{ height: 148, overflow: 'hidden' }} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
-    <Image source={brandImagery.movement.source} accessibilityLabel={label} style={[local.heroImage, { height: imageHeight, top }]} />
+    <Image source={brandImagery.profileMovement.source} accessibilityLabel={label} style={[local.heroImage, { height: imageHeight, top }]} />
   </View>;
 }
 
