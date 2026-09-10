@@ -103,6 +103,14 @@ try {
   await db.query(`insert into public.users(id,pseudo,created_at) values
     ($1,'alpha',now()-interval '200 days'),($2,'beta',now()-interval '1 day'),($3,'gamma',now()-interval '2 days')`,
     [ALPHA, BETA, GAMMA]);
+  // Le test « les DEUX ont été notifiés » ne doit pas dépendre de l'heure à
+  // laquelle il tourne : la notification de parrainage n'est PAS transactionnelle,
+  // donc `claim_notification_2026` la refuse pendant la plage calme par défaut
+  // (21 h → 9 h, 0140). Mesuré le 11/09/2026 : rouge à 21 h 01, vert à 21 h 13
+  // selon l'horloge de la machine. `start = end` = aucune plage calme (0141).
+  await db.query(`insert into public.notification_preferences_2026(user_id,quiet_start_hour,quiet_end_hour)
+    values ($1,9,9),($2,9,9),($3,9,9)
+    on conflict (user_id) do update set quiet_start_hour=9, quiet_end_hour=9`, [ALPHA, BETA, GAMMA]);
   const seasonStart = await one("select ((date_trunc('week',now() at time zone 'Europe/Paris')-interval '2 weeks') at time zone 'Europe/Paris')::text");
   await one('select configure_season_collection_2026($1,$2,$3)', ['fixture_current', 'Collection de test', seasonStart]);
   const day = (offset) => new Date(Date.parse(seasonStart) + offset * 86_400_000 + 12 * 3_600_000).toISOString();
