@@ -65,6 +65,7 @@
     },
     "ios": {
       "bundleIdentifier": "fr.nexus1993.gryd",
+      "appleTeamId": "NXGNDQBUMB",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
