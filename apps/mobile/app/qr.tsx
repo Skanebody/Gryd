@@ -19,16 +19,16 @@
  *    n'est pas dupliquée : deux générateurs de QR crew divergeraient au premier
  *    changement de format de lien.
  *
- * ── LES QUATRE ÉTATS, JAMAIS CONFONDUS ──────────────────────────────────────
+ * ── LES TROIS ÉTATS, JAMAIS CONFONDUS ──────────────────────────────────────
  *   (a) hydratation (session ou profil pas encore lus) → on n'affirme RIEN,
  *       aucun squelette de QR, aucune carte grise ;
- *   (b) pas connecté ET un backend existe → une phrase + « Se connecter », le
- *       seul geste qui change quelque chose ;
- *   (c) aucun @handle qui appartienne vraiment au joueur → on demande le
- *       @handle plutôt que d'imprimer un QR vers @coureur, un pseudo générique
- *       qui n'est à personne ;
- *   (d) prêt → la carte.
- * Il n'y a PAS de cinquième état « échec de chargement » : rien n'est lu au
+ *   (b) aucun @handle qui appartienne vraiment au joueur → la PORTE DE COMPTE
+ *       partagée (`AccountDoor2026`), plutôt qu'un QR vers @coureur, un pseudo
+ *       générique qui n'est à personne. Sans backend elle se dit fermée : elle
+ *       ne s'efface pas, et elle ne renvoie plus vers /profil-edit, qui refuse
+ *       toute saisie sans session (lot 11, 10/09/2026) ;
+ *   (c) prêt → la carte.
+ * Il n'y a PAS de quatrième état « échec de chargement » : rien n'est lu au
  * réseau sur cet écran. Le QR est généré LOCALEMENT (react-native-qrcode-svg
  * est du JS/SVG pur) — il fonctionne en avion, dans un parking, en course.
  *
@@ -41,8 +41,7 @@
  */
 import { useCallback, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { colors, elevation, fonts, fontSizes, iconSizes, radii, sizes, spacing } from '@klaim/shared';
+import { colors, fonts, fontSizes, iconSizes, sizes, spacing } from '@klaim/shared';
 import { StackScreen } from '../src/ui/StackScreen';
 import { Button } from '../src/ui/Button';
 import { Icon } from '../src/ui/Icon';
@@ -52,6 +51,7 @@ import { EVENTS, track } from '../src/lib/analytics';
 import { useSession } from '../src/lib/session';
 import { effectiveInitials, useMyProfile } from '../src/features/social/profileStore';
 import { ProfileQRCard } from '../src/features/social/ProfileQRCard';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import {
   buildProfileLink,
   profileLinkLabel,
@@ -70,9 +70,8 @@ export default function QRScreen() {
   const { session, configured, loading: sessionLoading } = useSession();
   const { profile, editable, loading: profileLoading } = useMyProfile();
 
-  /** Un écran de connexion qui MARCHE existe-t-il ? Sans backend, /sign-in n'a personne au bout. */
+  /** Une session RÉELLE : sans backend, `session` ne peut pas en être une. */
   const signedIn = configured && session !== null;
-  const canSignIn = configured && !session && !sessionLoading;
   /** Tant que ça n'a pas résolu, la moindre valeur affichée serait un défaut, pas un fait. */
   const hydrating = sessionLoading || profileLoading;
 
@@ -149,33 +148,34 @@ export default function QRScreen() {
     );
   }
 
-  // ── (b) et (c) : pas de code à montrer. UN seul CTA, là où il change quelque chose. ─
+  // ── (b) PAS DE CODE À MONTRER, ET UNE SEULE RAISON À CELA ─────────────────
+  // Sans session, `ownsHandle` ne peut être vrai que par un @handle DÉJÀ saisi
+  // (un profil invité hérité) — et il n'y a alors plus rien à demander. Cet
+  // état n'a donc qu'un occupant : quelqu'un sans compte. La porte partagée le
+  // dit, et c'est elle qui porte le titre (lot 11, 10/09/2026).
+  //
+  // ÉTAPE 0 (10/09/2026), deux défauts en un seul bloc :
+  //   · le bouton disait « Se connecter » (`C.signIn`), un mot qui n'ouvre rien
+  //     à qui n'a PAS de compte, alors que /sign-in en crée un ;
+  //   · sans backend, il basculait sur « Choisir mon @handle » vers
+  //     /profil-edit, qui REFUSE toute saisie sans session (`profileStore.save`
+  //     lève `authentication_required`) et rend, lui aussi, cette même porte.
+  //     Le second geste était un détour vers le premier.
   if (!link) {
-    const needsAccount = canSignIn && !ownsHandle;
     return (
       <StackScreen title={t(C.title)} icon="qr">
-        <View style={styles.stateCard}>
-          <Text style={styles.stateTitle}>
-            {t(needsAccount ? C.stateSignedOutTitle : C.stateNoHandleTitle)}
-          </Text>
-          <Text style={styles.stateBody}>
-            {t(needsAccount ? C.stateSignedOutBody : C.stateNoHandleBody)}
-          </Text>
-          <View style={styles.stateCta}>
-            <Button
-              label={t(needsAccount ? C.signIn : C.stateNoHandleCta)}
-              analyticsId={needsAccount ? 'qr_sign_in' : 'qr_pick_handle'}
-              onPress={() => router.push(needsAccount ? '/sign-in' : '/profil-edit')}
-            />
-          </View>
-        </View>
+        <AccountDoor2026
+          family="ui"
+          reason={t(C.stateSignedOutBody)}
+          analyticsId="qr_sign_in"
+        />
         <Text style={styles.footnote}>{t(C.scannerTitle)}</Text>
         <Text style={styles.footnoteBody}>{t(C.scannerBody)}</Text>
       </StackScreen>
     );
   }
 
-  // ── (d) PRÊT ──────────────────────────────────────────────────────────────
+  // ── (c) PRÊT ──────────────────────────────────────────────────────────────
   const city = profile.city.trim();
   const identityLine = city
     ? t(C.handleCity, { handle, city })
@@ -257,23 +257,8 @@ const styles = StyleSheet.create({
 
   loading: { color: colors.gris, fontSize: fontSizes.md, lineHeight: 22, marginTop: spacing.lg },
 
-  // ── États sans code (§A : ce qui manque + UNE action, jamais un trou) ──
-  stateCard: {
-    backgroundColor: elevation.surface,
-    borderRadius: radii.card,
-    padding: spacing.cardPadding,
-    gap: spacing.xs,
-    marginTop: spacing.md,
-  },
-  stateTitle: {
-    color: colors.blanc,
-    fontFamily: fonts.textSemi,
-    fontSize: fontSizes.md,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  stateBody: { color: colors.gris, fontSize: fontSizes.sm, lineHeight: fontSizes.sm * 1.5 },
-  stateCta: { marginTop: spacing.xs },
+  // Les états sans code n'ont plus de card LOCALE : `AccountDoor2026` porte la
+  // sienne (`Card`, surface N1), la même que partout ailleurs dans l'app.
 
   // ── Sous la carte ──
   tagline: {

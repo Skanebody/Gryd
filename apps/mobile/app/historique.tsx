@@ -41,10 +41,13 @@
  * · LECTURE bornée à 200 sorties (`HISTORY_LIMIT`) : au-delà, un vrai « plus
  *   ancien » (pas une troncature silencieuse) — inscrit en suspens.
  *
- * ─── LES CINQ ÉTATS, JAMAIS CONFONDUS ───────────────────────────────────────
+ * ─── LES QUATRE ÉTATS, JAMAIS CONFONDUS ─────────────────────────────────────
  *   · chargement   → on n'affirme RIEN tant qu'on ne sait pas ;
- *   · pas connecté → l'historique vit sur le compte → CTA « Se connecter » ;
- *   · sans backend → il n'y a personne au bout : une phrase, PAS de bouton ;
+ *   · pas connecté → l'historique vit sur le compte → la PORTE DE COMPTE
+ *     partagée (`AccountDoor2026`), qui nomme la création et qui, sans backend,
+ *     se DIT fermée au lieu de s'effacer. C'est elle qui tient l'état « sans
+ *     serveur », cinquième état de cet écran jusqu'au 10/09/2026 : le laisser
+ *     ici en aurait fait une seconde formulation du même fait ;
  *   · échec        → on le dit, et on propose de réessayer ;
  *   · lu, vide     → LÀ, et seulement là, « Lance-toi ! » est vrai.
  *
@@ -69,11 +72,11 @@ import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { SectionLabel } from '../src/ui/SectionLabel';
 import { StackScreen } from '../src/ui/StackScreen';
+import { AccountDoor2026 } from '../src/features/account/AccountDoor2026';
 import { SheetMetrics, type SheetMetric } from '../src/features/map/SheetMetrics';
 import { ActivitySwitch, useActivityLens } from '../src/ui/ActivitySwitch';
 import { startSortieHref } from '../src/ui/activityLens';
 import { formatKm } from '../src/ui/format';
-import { useSession } from '../src/lib/session';
 import { RealRunCard } from '../src/features/history/RealRunCard';
 import { groupRunsByWeek, summarizeHistory, type WeekBucket } from '../src/features/history/historyView';
 import { useMyRunHistory } from '../src/features/history/real';
@@ -136,9 +139,8 @@ export default function HistoriqueScreen() {
   const { activity, setActivity, switchVisible } = useActivityLens('historique');
   // La lecture SUIT la lentille : deux mondes, deux listes, jamais une somme.
   const { status, runs, reload } = useMyRunHistory(activity);
-  // `configured` = un backend existe. Sans lui, proposer « Se connecter » serait
-  // un cul-de-sac : il n'y a personne au bout (le bouton mort de §A).
-  const { configured } = useSession();
+  // La capacité du backend n'est plus lue ICI : `AccountDoor2026` la lit pour
+  // les deux états qu'elle sert (un compte à créer, ou pas de serveur du tout).
   const bike = activity === 'bike';
   // La copie qui NOMME l'effort suit la lentille (jamais un `bike ? … : …` dans
   // le JSX — c'est la forme qui avait laissé passer la moitié de l'écran).
@@ -195,22 +197,21 @@ export default function HistoriqueScreen() {
       {/* ── 1. On ne sait pas encore : une LIGNE grise, pas une card. ── */}
       {status === 'loading' ? <Text style={styles.stateInline}>{t(S.loading)}</Text> : null}
 
-      {/* ── 2. Pas de compte : l'historique vit dessus. Le CTA n'apparaît que
-             s'il mène quelque part — sans backend, une phrase le remplace. ── */}
+      {/* ── 2. Pas de compte : l'historique vit dessus. ──
+             ÉTAPE 0 (10/09/2026) : le CTA disait « Se connecter »
+             (`C.emptySignedOutCta`), un mot qui n'ouvre rien à qui n'a PAS de
+             compte, et sans backend l'écran repeignait de son côté un titre et
+             un corps à lui (`S.noBackendTitle`, `PC.noBackendBody`). La porte
+             partagée nomme la CRÉATION et, sans serveur, dit elle-même pourquoi
+             aucun compte ne peut naître ici (L8/L14/L19) : deux formulations du
+             même fait sur le même écran finissent toujours par diverger.
+             La RAISON, elle, reste d'ici ET suit la lentille : « tes courses »
+             n'est pas « tes sorties vélo ». */}
       {status === 'signed-out' ? (
-        <StateCard
-          {...(configured ? {} : { title: t(S.noBackendTitle) })}
-          body={configured ? t(H.emptySignedOut) : t(PC.noBackendBody)}
-          {...(configured
-            ? {
-                cta: {
-                  label: t(C.emptySignedOutCta),
-                  a11y: t(H.a11ySignIn),
-                  analyticsId: 'historique_sign_in',
-                  onPress: () => router.push('/sign-in'),
-                },
-              }
-            : {})}
+        <AccountDoor2026
+          family="ui"
+          reason={t(H.emptySignedOut)}
+          analyticsId="historique_sign_in"
         />
       ) : null}
 

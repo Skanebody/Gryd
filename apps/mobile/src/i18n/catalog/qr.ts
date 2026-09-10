@@ -169,12 +169,18 @@ export const C = defineCatalog({
     de: 'Dein Code braucht ein Konto',
     pt: 'Seu código precisa de uma conta',
   },
+  /**
+   * RAISON de la porte de compte (lot 11, 10/09/2026), plus un ordre.
+   * ÉTAPE 0 : « … Connecte-toi pour en avoir un. » — la phrase s'adressait à
+   * quelqu'un qui a déjà un compte, sous un bouton qui en CRÉE un. Le titre
+   * vient désormais de `AccountDoor2026` ; il ne reste ici que le fait.
+   */
   stateSignedOutBody: {
-    fr: 'Le code ne transporte qu’une chose : ton @handle. Connecte-toi pour en avoir un.',
-    en: 'The code carries one thing: your @handle. Sign in to get one.',
-    es: 'El código lleva una sola cosa: tu @handle. Inicia sesión para tener uno.',
-    de: 'Der Code trägt nur eins: deinen @Handle. Melde dich an, um einen zu bekommen.',
-    pt: 'O código leva uma coisa só: seu @handle. Entre para ter um.',
+    fr: 'Le code ne transporte qu’une chose : ton @handle. Il arrive avec ton compte.',
+    en: 'The code carries one thing: your @handle. It comes with your account.',
+    es: 'El código lleva una sola cosa: tu @handle. Llega con tu cuenta.',
+    de: 'Der Code trägt nur eins: deinen @Handle. Er kommt mit deinem Konto.',
+    pt: 'O código leva uma coisa só: seu @handle. Ele vem com a sua conta.',
   },
   signIn: {
     fr: 'Se connecter',

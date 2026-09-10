@@ -238,12 +238,18 @@ export const C = defineCatalog({
    * Pas connecté : l'historique vit sur le compte. On n'affiche NI courses
    * fabriquées ni écran blanc — on nomme ce qui manque + 1 CTA (§A).
    */
+  /**
+   * RAISON de la porte de compte (lot 11, 10/09/2026), plus un ordre. ÉTAPE 0 :
+   * « … Connecte-toi pour les retrouver ici. » Le titre vient maintenant de
+   * `AccountDoor2026` (« Crée ton compte ou connecte-toi ») ; cette phrase ne
+   * dit plus que le FAIT, celui qui vaut aussi pour qui n'a pas encore de compte.
+   */
   emptySignedOut: {
-    fr: 'Tes courses sont liées à ton compte. Connecte-toi pour les retrouver ici.',
-    en: 'Your runs live on your account. Sign in to find them here.',
-    es: 'Tus carreras están vinculadas a tu cuenta. Inicia sesión para verlas aquí.',
-    de: 'Deine Läufe hängen an deinem Konto. Melde dich an, um sie hier zu sehen.',
-    pt: 'Suas corridas estão ligadas à sua conta. Entre para encontrá-las aqui.',
+    fr: 'Tes courses sont liées à ton compte. Elles reviennent ici avec lui.',
+    en: 'Your runs live on your account. They come back here with it.',
+    es: 'Tus carreras están vinculadas a tu cuenta. Vuelven aquí con ella.',
+    de: 'Deine Läufe hängen an deinem Konto. Mit ihm sind sie wieder da.',
+    pt: 'Suas corridas estão ligadas à sua conta. Elas voltam aqui com ela.',
   },
   /**
    * Le commutateur E14 et le kicker sont rendus HORS de l'état de lecture : un
@@ -251,11 +257,11 @@ export const C = defineCatalog({
    * La card d'état doit parler du même monde que le titre qui la surplombe.
    */
   emptySignedOutBike: {
-    fr: 'Tes sorties vélo sont liées à ton compte. Connecte-toi pour les retrouver ici.',
-    en: 'Your rides live on your account. Sign in to find them here.',
-    es: 'Tus salidas en bici están vinculadas a tu cuenta. Inicia sesión para verlas aquí.',
-    de: 'Deine Ausfahrten hängen an deinem Konto. Melde dich an, um sie hier zu sehen.',
-    pt: 'Seus pedais estão ligados à sua conta. Entre para encontrá-los aqui.',
+    fr: 'Tes sorties vélo sont liées à ton compte. Elles reviennent ici avec lui.',
+    en: 'Your rides live on your account. They come back here with it.',
+    es: 'Tus salidas en bici están vinculadas a tu cuenta. Vuelven aquí con ella.',
+    de: 'Deine Ausfahrten hängen an deinem Konto. Mit ihm sind sie wieder da.',
+    pt: 'Seus pedais estão ligados à sua conta. Eles voltam aqui com ela.',
   },
   /** CTA COURT et neutre dans les 5 langues : rien à décliner (§A). */
   emptySignedOutCta: {
@@ -408,12 +414,13 @@ export const C = defineCatalog({
     de: 'Deine Aktivität wird geladen…',
     pt: 'Carregando sua saída…',
   },
+  /** RAISON de la porte de compte (lot 11) : un fait, jamais un ordre. */
   detailSignedOutBody: {
-    fr: 'Une sortie est rattachée à ton compte : connecte-toi pour l’ouvrir.',
-    en: 'An activity belongs to your account: sign in to open it.',
-    es: 'Una salida está vinculada a tu cuenta: inicia sesión para abrirla.',
-    de: 'Eine Aktivität gehört zu deinem Konto: Melde dich an, um sie zu öffnen.',
-    pt: 'Uma saída pertence à sua conta: entre para abri-la.',
+    fr: 'Une sortie est rattachée à ton compte : elle s’ouvre avec lui.',
+    en: 'An activity belongs to your account: it opens with it.',
+    es: 'Una salida está vinculada a tu cuenta: se abre con ella.',
+    de: 'Eine Aktivität gehört zu deinem Konto: Mit ihm lässt sie sich öffnen.',
+    pt: 'Uma saída pertence à sua conta: é com ela que abre.',
   },
   detailNoBackendTitle: {
     fr: 'Tes sorties arrivent avec ton compte.',

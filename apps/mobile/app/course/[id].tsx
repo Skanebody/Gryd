@@ -19,8 +19,10 @@
  * ═══ ORDRE DE COMPOSITION ═══════════════════════════════════════════════════
  *   1. `StackScreen` : retour vers l'historique + titre + kicker (le monde de
  *      LA SORTIE, lu dans `runs.activity`) + la date en sous-titre ;
- *   2. l'ÉTAT — un seul à la fois (chargement / pas connecté / sans backend /
- *      échec / pas dans ton historique / lu) ;
+ *   2. l'ÉTAT — un seul à la fois (chargement / pas connecté / échec / pas dans
+ *      ton historique / lu). « Sans backend » n'est plus un état DE CET ÉCRAN
+ *      depuis le 10/09/2026 : la porte de compte partagée le porte, avec les
+ *      mots de /sign-in, pour ne pas en donner deux formulations ;
  *   2bis. LA CARTE : le tracé réel de la sortie (cahier G12 — « la trace devient
  *      l'image principale »), ou l'état honnête qui dit ce qui manque ;
  *   3. le BANDEAU : tuile de type colorée PAR RÔLE + type + impact dominant +
@@ -95,9 +97,9 @@ import { Card } from '../../src/ui/Card';
 import { Icon } from '../../src/ui/Icon';
 import { SectionLabel } from '../../src/ui/SectionLabel';
 import { StackScreen } from '../../src/ui/StackScreen';
+import { AccountDoor2026 } from '../../src/features/account/AccountDoor2026';
 import { StatePill, type GameVisualState } from '../../src/ui/game';
 import { SheetMetrics, type SheetMetric } from '../../src/features/map/SheetMetrics';
-import { useSession } from '../../src/lib/session';
 import { formatIntFor } from '../../src/ui/numberFormat';
 import { fmtDuration, fmtKm, fmtPace } from '../../src/features/history/format';
 import { runColorRole, runStory } from '../../src/features/history/historyView';
@@ -537,9 +539,8 @@ export default function CourseDetailScreen() {
   const locale = useLocale();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { status, run, reload } = useRunDetail(id);
-  // `configured` = un backend existe. Sans lui, proposer « Se connecter »
-  // enverrait dans un cul-de-sac (le bouton mort de §A).
-  const { configured } = useSession();
+  // La capacité du backend n'est plus lue ICI : `AccountDoor2026` la lit pour
+  // les deux états qu'elle sert (un compte à créer, ou pas de serveur du tout).
 
   useEffect(() => {
     // Sans propriété : l'identifiant vient d'une URL externe, et le suivi
@@ -570,21 +571,19 @@ export default function CourseDetailScreen() {
       {/* ── 1. On ne sait pas encore : une LIGNE grise, jamais un spinner. ── */}
       {status === 'loading' ? <Text style={styles.stateInline}>{t(C.detailLoading)}</Text> : null}
 
-      {/* ── 2. Pas de compte : une sortie vit dessus. Le CTA n'apparaît que
-             s'il mène quelque part — sans backend, une phrase le remplace. ── */}
+      {/* ── 2. Pas de compte : une sortie vit dessus. ──
+             ÉTAPE 0 (10/09/2026) : le CTA disait « Se connecter »
+             (`C.emptySignedOutCta`) et, sans backend, l'écran repeignait son
+             propre couple titre + corps. La porte partagée nomme la CRÉATION du
+             compte et tient elle-même l'état « pas de serveur » : une seule
+             voix pour un seul fait (L8/L14/L19). La raison reste d'ici, et
+             reste NEUTRE aux deux mondes — on n'a pas encore lu la discipline
+             de cette sortie, la supposer serait un défaut de plus. */}
       {status === 'signed-out' ? (
-        <StateCard
-          {...(configured ? {} : { title: t(C.detailNoBackendTitle) })}
-          body={configured ? t(C.detailSignedOutBody) : t(PC.noBackendBody)}
-          {...(configured
-            ? {
-                cta: {
-                  label: t(C.emptySignedOutCta),
-                  analyticsId: 'course_detail_sign_in',
-                  onPress: () => router.push('/sign-in'),
-                },
-              }
-            : {})}
+        <AccountDoor2026
+          family="ui"
+          reason={t(C.detailSignedOutBody)}
+          analyticsId="course_detail_sign_in"
         />
       ) : null}
 

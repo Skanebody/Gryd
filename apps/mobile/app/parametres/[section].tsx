@@ -134,6 +134,7 @@ import {
 import { Button } from '../../src/ui/Button';
 import { ListRow } from '../../src/ui/ListRow';
 import { StackScreen } from '../../src/ui/StackScreen';
+import { AccountDoor2026 } from '../../src/features/account/AccountDoor2026';
 
 /**
  * LES SLUGS QUE CE FICHIER REND ENCORE. Ils étaient huit ; cinq ne pouvaient
@@ -404,18 +405,23 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
               null
             ) : signedIn ? (
               <ListRow label={t(C.connectedAs)} value={profile.displayName} />
-            ) : configured ? (
-              <ListRow
-                icon="ami"
-                label={t(C.identitySignInLabel)}
-                sublabel={t(C.identitySignInDetail)}
-                chevron
-                onPress={() => router.push('/sign-in')}
-              />
             ) : (
+              /* PAS CONNECTÉ — le FAIT d'abord (« Non connecté » est une valeur
+                 lue, pas un trou), la porte ensuite.
+                 ÉTAPE 0 (10/09/2026) : la ligne disait « Se connecter »
+                 (`identitySignInLabel`), un mot qui n'ouvre rien à qui n'a PAS
+                 de compte, et sans backend elle était REMPLACÉE par une note
+                 grise — l'écran perdait alors toute mention du compte.
+                 La porte partagée tient les deux cas ; sa RAISON garde la
+                 nuance locale, parce qu'un build sans serveur n'a pas la même
+                 conséquence pour le joueur (rien ne sort de ce téléphone). */
               <>
                 <ListRow label={t(C.connectedAs)} value={t(C.identityNone)} />
-                <Text style={styles.note}>{t(C.identityNoBackend)}</Text>
+                <AccountDoor2026
+                  family="ui"
+                  compact
+                  reason={t(configured ? C.identitySignInDetail : C.identityNoBackend)}
+                />
               </>
             )}
             {/* « E-mail » et « Sécurité » vivaient ici : deux `ListRow` à
@@ -571,17 +577,17 @@ function KnownSection({ id }: { id: SettingsSectionId }) {
                 {/* L'ÉTAT D'ABORD, LE DÉTAIL ENSUITE. L'explication précède les
                     lignes : sans elle, « Sport · Activé » se lirait comme un
                     réglage enregistré alors qu'aucun compte ne le porte. */}
-                <EmptyState
-                  title={t(C.notifSignedOutTitle)}
-                  body={t(C.notifSignedOutBody)}
-                  {...(configured
-                    ? {
-                        cta: {
-                          label: t(C.identitySignInLabel),
-                          onPress: () => router.push('/sign-in'),
-                        },
-                      }
-                    : {})}
+                {/* ÉTAPE 0 (10/09/2026) : « Se connecter », gardé par
+                    `configured ? {cta} : {}`. Sans backend, le titre restait
+                    (« Ces choix appartiennent à ton compte ») et l'action
+                    disparaissait : une phrase qui désigne un compte, au-dessus
+                    du vide où il devrait pouvoir naître. La porte partagée
+                    nomme la création, et sans serveur elle se dit fermée. Le
+                    titre vient d'elle ; le corps reste ici, car c'est lui qui
+                    introduit la matrice en lecture juste dessous. */}
+                <AccountDoor2026
+                  family="ui"
+                  reason={t(C.notifSignedOutBody)}
                 />
                 {/* UN INVITÉ VOIT L'ÉTAT SANS COMPTE : les six catégories, ce
                     qu'elles envoient, et leur valeur PAR DÉFAUT — en LECTURE.
