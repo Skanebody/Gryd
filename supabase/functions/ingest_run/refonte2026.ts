@@ -239,7 +239,19 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
       ...(typeof run.mocked_location_2026 === 'boolean' ? { mockedLocation: run.mocked_location_2026 } : {}) });
     // Legacy segment eligibility excludes slow outings from territorial pace
     // bands. It is not a review signal in September's independent sporting XP.
-    const reviewRequired = requiresReview2026(antiCheat.decision);
+    //
+    // ── UNE VÉRIFICATION HUMAINE NE SE REDEMANDE PAS (migration 0187) ───────
+    // Le moteur est DÉTERMINISTE : sur l'évidence scellée à l'upsert, il rendra
+    // éternellement la même décision `MANUAL_REVIEW`. Sans cette lecture, un
+    // simple renvoi du même `clientRunId` regèlerait, via `stage_capture_2026`,
+    // la face qu'un modérateur vient de dégeler — la décision humaine serait
+    // réversible par accident, et le joueur perdrait deux fois le même terrain.
+    // `runs.anticheat_cleared_2026` est le fait durable écrit par
+    // `resolve_anticheat_review_2026` ; il ne dit pas que la sortie est propre,
+    // il dit qu'une personne l'a déjà jugée. Un refus n'écrit rien ici : la
+    // vérification reste alors demandée, et c'est ce qu'on veut.
+    const reviewRequired = requiresReview2026(antiCheat.decision) &&
+      run.anticheat_cleared_2026 == null;
     // ── §11.3/§11.4 — LA RAISON D'UN GEL EST ÉCRITE QUELQUE PART ────────────
     // `reviewRequired` suffisait à REFUSER la capture (`p_review_required` →
     // `verification_required`, migration 0155) mais n'écrivait RIEN : ni le

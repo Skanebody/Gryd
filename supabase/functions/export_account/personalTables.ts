@@ -198,6 +198,43 @@ export const PERSONAL_TABLES: readonly PersonalTable[] = [
   // seule preuve du budget qu'on lui promet dans les réglages.
   { key: 'notificationPreferences2026', table: 'notification_preferences_2026', column: 'user_id', single: true },
   { key: 'notificationLog2026', table: 'notification_log_2026', column: 'user_id' },
+
+  // ── 2026 · habilitation de modération (0187) ──────────────────────────────
+  // « Vous êtes modérateur depuis telle date, pour tel motif » est une donnée
+  // personnelle du titulaire, et l'une des rares qui décrivent un POUVOIR qu'on
+  // lui a donné : la taire dans une demande d'accès serait le pire endroit où
+  // faire une exception. Le JOURNAL des décisions
+  // (`anticheat_review_journal_2026`) n'est PAS exporté et ne doit pas l'être :
+  // filtré sur `moderator_id`, il livrerait les dossiers d'AUTRES joueurs — la
+  // même faute que « qui t'a bloqué », dans l'autre sens.
+  { key: 'moderatorGrant2026', table: 'moderators_2026', column: 'user_id', single: true },
+
+  // ── 2026 · parrainage (0184, 0185, 0186) ──────────────────────────────────
+  // Le code est une donnée personnelle ordinaire : il DÉSIGNE le compte, et son
+  // titulaire a le droit de le récupérer. Les octrois, le bonus d'XP et le
+  // crédit GRYD+ disent ce que GRYD lui a donné, quand, et pourquoi — c'est
+  // exactement ce qu'une demande d'accès réclame.
+  //
+  // LE LIEN EST FILTRÉ SUR `referee_id`, ET SUR LUI SEUL. C'est le filleul qui
+  // ÉCRIT la ligne (`redeem_referral_code_2026` s'exécute sous son `auth.uid()`)
+  // : c'est donc SA donnée, au même titre que `friendships.requester_id` est
+  // celle du demandeur et jamais celle de l'autre. Le parrain, lui, retrouve ce
+  // que GRYD lui a donné dans `referral_grants_2026` (une ligne par octroi,
+  // avec son `link_id` et son côté) — sans que l'export ne lui livre pour autant
+  // l'identifiant des comptes qu'il a parrainés.
+  // Ni `referrer_id` ni `referee_id` ne sont dans l'`IDENTITY_COLUMNS` du
+  // détecteur : cette ligne est VOLONTAIRE, pas arrachée par un test rouge —
+  // élargir le détecteur aurait élargi la règle pour tout le dépôt.
+  //
+  // `referral_codes_2026` n'est PAS marquée `single` bien qu'elle n'ait qu'une
+  // ligne par compte : la liste des tables `single` est figée par
+  // `personalTables_test.ts`, et une liste d'un élément ne dit rien de faux.
+  { key: 'referralCode2026', table: 'referral_codes_2026', column: 'user_id' },
+  { key: 'referralAsReferee2026', table: 'referral_links_2026', column: 'referee_id' },
+  { key: 'referralGrants2026', table: 'referral_grants_2026', column: 'user_id' },
+  { key: 'referralXpBonus2026', table: 'referral_xp_bonus_2026', column: 'user_id' },
+  { key: 'referralGrydPlusCredits2026', table: 'referral_gryd_plus_credits_2026', column: 'user_id' },
+
   // --- Reprises de l'audit de securite du 10/09 (refonte-2026-09 @ 6e98ecb) : tables du socle
   // legacy portant une colonne d'identite, absentes de la premiere liste. Une purge ou un export
   // qui les tairait rendrait le droit d'acces incomplet sans le dire (RGPD art. 15).

@@ -243,6 +243,7 @@ Deno.test('l’export ne livre JAMAIS les lignes où le joueur est la CIBLE', ()
 Deno.test('les tables à une ligne par compte sont marquées `single`', () => {
   const single = PERSONAL_TABLES.filter((t) => t.single === true).map((t) => t.table).sort();
   assertEquals(single, [
+    'moderators_2026',
     'notification_preferences_2026',
     'progress_accounts_2026',
     'user_profiles',

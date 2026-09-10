@@ -182,6 +182,31 @@ export const NOTIFICATION_RULES_2026 = {
   categories: ['sport', 'crew', 'events', 'results', 'weekly', 'offers'],
   /** Seule catégorie en opt-IN : promotion désactivée par défaut (§14.1). */
   optInCategories: ['offers'],
+  /**
+   * §3.7 — LE PARRAINAGE ABOUTI SE DIT, UNE FOIS, AUX DEUX.
+   *
+   * L'événement : le filleul vient de valider sa première sortie, et les DEUX
+   * récompenses sont posées. C'est la seule sollicitation que le parrainage
+   * produit — ni relance, ni « ton filleul n'a pas encore couru », ni compte à
+   * rebours (§4.2, G24 : on ne met jamais quelqu'un au travail sur le dos d'un
+   * tiers).
+   *
+   * `transactional: false` EST UN CHOIX, pas un oubli. Un laissez-passer
+   * transactionnel saute la plage calme : réveiller quelqu'un à 2 h parce que
+   * son ami a couru serait une sollicitation de rétention déguisée en reçu. La
+   * récompense, elle, est déjà posée en base et attend sur `/parrainage` — le
+   * message ne la porte pas, il l'annonce.
+   *
+   * `eventIdPrefix` + l'identifiant du lien forment l'`event_id` de
+   * `notification_log_2026` : sa contrainte `unique(user_id, event_id)` EST la
+   * garantie qu'un parrainage ne se dit pas deux fois, même si l'attribution
+   * est rejouée.
+   */
+  referralCompleted: {
+    category: 'results',
+    transactional: false,
+    eventIdPrefix: 'referral_completed:',
+  },
 } as const;
 
 /** Hypothèses France TTC ; le prix affiché et facturé vient toujours du Store. */
@@ -1064,16 +1089,104 @@ export const SEASON_RESET_KEEPS = {
 
 // ─── §3.7 Parrainage ─────────────────────────────────────────────────────────
 /**
- * ⚠️ AUCUNE RÉCOMPENSE DE JEU POUR UN PARRAINAGE (cahier de septembre §15.2,
- * rang 0 : « Le parrainage ne donne ni XP ni points ni chance supplémentaire de
- * gagner un prix »). Les constantes `REFERRAL_BOOST_MULTIPLIER = 2` et
- * `REFERRAL_BOOST_DAYS = 7` (un doublement des gains pendant 7 jours) ont été
- * RETIRÉES le 11/09/2026 : aucun code ne les lisait (seule la colonne
- * `referrals.boost_expires_at` de 0002 les cite en commentaire), et un multiplicateur
- * de gain contredit frontalement le rang 0. La seule récompense admise est un
- * objet souvenir aux DEUX joueurs après une première sortie validée de chacun
- * (proposition chiffrée : docs/product/GRYD_REGLAGES_PROFIL_AUDIT_2026_09.md §5).
- * Le plafond ci-dessous est une borne anti-abus, pas une récompense.
+ * ⚠️ DÉROGATION FONDATEUR DU 11/09/2026 — LE PARRAINAGE RÉCOMPENSE LES DEUX.
+ *
+ * Le cahier de septembre §15.2 (rang 0) dit, mot pour mot : « Le parrainage ne
+ * donne ni XP ni points ni chance supplémentaire de gagner un prix ». Le
+ * fondateur a tranché autrement, le 11/09/2026, mot pour mot : « ok oui mais
+ * offre un boost ou autre au moins pour les deux, il faut faire comme Tesla, il
+ * faut qu'un mec qui parraine ait quelque chose à gagner que les autres n'ont
+ * pas ». La dérogation est CONSIGNÉE, datée et bornée dans
+ * `docs/product/ADR-017-BROUILLON-PARRAINAGE.md` ; elle ne vaut QUE pour le
+ * parrainage, et elle ne touche aucune autre boucle.
+ *
+ * ─── CE QUI RESTE INTERDIT, ET QUI N'EST PAS NÉGOCIABLE ─────────────────────
+ *  · AUCUN POINT DE TERRITOIRE, AUCUN POINT DE PERFORMANCE, AUCUN POINT DE DÉFI.
+ *    Les classements (commune, saison, crew — migrations 0160-0164) lisent des
+ *    tables que le parrainage n'écrit JAMAIS. Deux joueurs à effort égal restent
+ *    à égalité au classement, qu'ils aient parrainé ou non.
+ *  · AUCUNE CHANCE SUPPLÉMENTAIRE DE GAGNER UN LOT RÉEL. Le §15.2 visait un
+ *    tirage ; il n'y en a aucun ici, et il ne doit jamais y en avoir.
+ *  · JAMAIS ACHETABLE (règle 10, anti-pay-to-win). Ni la collection, ni le
+ *    boost, ni le crédit ne portent de prix ; aucun SKU ne les délivre.
+ *  · ATTRIBUTION 100 % SERVEUR, après une action RÉELLE des DEUX joueurs (une
+ *    sortie validée chacun). Le client ne s'octroie rien : il lit.
+ *
+ * ─── CE QUE LE BOOST TOUCHE, ET RIEN D'AUTRE ────────────────────────────────
+ * `REFERRAL_XP_BOOST_2026` multiplie l'XP DE PROGRESSION (celle des niveaux,
+ * `progress_accounts_2026.ledger.totalXp`, migration 0119) et elle seule. Il ne
+ * touche NI les points de territoire, NI les points de performance, NI les
+ * défis, NI les paliers de collection de saison (`ledger.collections` reste
+ * intact — un calendrier de saison n'est pas une récompense de recrutement).
+ * C'est la seule lecture d'XP qui ne classe personne (`GRYD_MARQUES_2026_09.md`
+ * : « XP non classant / points classants »).
+ */
+export const REFERRAL_CODE_LENGTH = 6;
+/**
+ * Alphabet SANS AMBIGUÏTÉ : ni `I`/`1`, ni `O`/`0`. Un code se lit à voix haute,
+ * se recopie d'une capture d'écran et se tape sur un clavier de téléphone : les
+ * quatre glyphes que l'œil confond sont retirés. 32 lettres, 6 caractères, soit
+ * 1 073 741 824 codes — assez pour que deviner soit inutile.
+ */
+export const REFERRAL_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+/** Un compte plus vieux que ça ne peut plus SAISIR un code (§5 de l'audit). */
+export const REFERRAL_REDEEM_MAX_ACCOUNT_AGE_DAYS = 7;
+/** Au-delà, la sortie validée n'a plus de rapport avec l'invitation. */
+export const REFERRAL_COMPLETION_WINDOW_DAYS = 30;
+/**
+ * Ce qui fait qu'une sortie COMPTE pour un parrainage. Une boucle fermée n'est
+ * pas exigée : un filleul qui court 1 km en ligne droite a fait une vraie
+ * sortie, et exiger un territoire ferait dépendre la récompense de la
+ * géographie de son quartier. Le statut serveur `valid` et l'éligibilité
+ * sportive (`progress_activity_2026.evidence.eligibility = 'eligible'`) font le
+ * reste : une sortie gelée par l'anti-triche ne vaut rien tant qu'un humain
+ * n'a pas tranché.
+ */
+export const REFERRAL_MIN_VALIDATED_DISTANCE_M = 1_000;
+/**
+ * LE BOOST DEMANDÉ PAR LE FONDATEUR. `multiplier` s'applique au CRÉDIT d'XP de
+ * progression d'une sortie, `days` est la durée de la fenêtre ouverte aux DEUX
+ * joueurs à l'instant de l'octroi. 1,5 et non 2 : un doublement ferait d'un
+ * parrain quelqu'un qui monte deux fois plus vite qu'un joueur qui court autant,
+ * et le niveau est la seule échelle publique du profil.
+ */
+export const REFERRAL_XP_BOOST_2026 = { multiplier: 1.5, days: 7 } as const;
+/**
+ * LA COLLECTION EXCLUSIVE — « l'exclusivité Tesla ». Ces trois objets ne sont
+ * dans AUCUNE boutique, dans AUCUN palier de niveau, dans AUCUNE collection de
+ * saison : le seul chemin est un parrainage abouti. `parrain` et `filleul`
+ * reçoivent chacun le leur, plus le cadre et le style de trace communs.
+ *
+ * ⚠️ CES `id` SONT LA CLÉ SERVEUR (`referral_grants_2026.reward_id`, migration
+ * 0186). Ils doivent être ajoutés au catalogue cosmétique
+ * (`src/features/arsenal/cosmetics2026.ts`) à la fusion — ce lot ne touche pas
+ * `arsenal/**`, et le dit plutôt que de peindre un objet sans art.
+ */
+export const REFERRAL_REWARDS_2026 = [
+  { id: 'referral_frame', slot: 'avatarFrame', side: 'both' },
+  { id: 'referral_trace', slot: 'trace', side: 'both' },
+  { id: 'referral_title_parrain', slot: 'title', side: 'referrer' },
+  { id: 'referral_title_filleul', slot: 'title', side: 'referee' },
+] as const satisfies readonly {
+  id: string;
+  slot: 'avatarFrame' | 'trace' | 'title';
+  side: 'both' | 'referrer' | 'referee';
+}[];
+/**
+ * LE CRÉDIT GRYD+ : 30 jours pour chacun. Il est BANQUÉ, pas consommé le jour
+ * de l'octroi — la boutique ne vend RIEN aujourd'hui (ADR-016, pré-vente : les
+ * outils sont ouverts à tous parce que personne ne PEUT payer), et faire courir
+ * 30 jours contre une porte déjà ouverte reviendrait à ne rien donner. Les
+ * jours démarrent le jour de l'ouverture de la boutique
+ * (`start_referral_gryd_plus_credits_2026`, migration 0185).
+ */
+export const REFERRAL_GRYD_PLUS_CREDIT_DAYS = 30;
+/**
+ * Le plafond de filleuls RÉCOMPENSÉS par saison. Ce n'est pas une récompense,
+ * c'est une borne anti-abus : au-delà, ce n'est plus un cercle d'amis, c'est un
+ * canal d'acquisition, et un canal d'acquisition ne se paie pas en objets
+ * exclusifs. Le 11ᵉ filleul reste un filleul — il garde SA récompense, le
+ * parrain ne reçoit plus la sienne.
  */
 export const REFERRAL_MAX_ACTIVE_PER_SEASON = 5;
 
@@ -5441,6 +5554,26 @@ export const CREW_ACTIVITY_WINDOW_DAYS = 14;
  */
 export const CREW_ACTIVITY_HELP_REQUESTS_HAVE_WRITE_PATH: boolean = false;
 
+/**
+ * Plafond de lignes « nouveaux membres » rendues par `crew_activity_feed`
+ * (migration 0182). Même nature que `CREW_ACTIVITY_CONQUEST_MAX` : un plafond
+ * de LECTURE, appliqué serveur, sur une LISTE que personne ne compte. Le fil
+ * ne dit jamais « 5 arrivées cette semaine » ; il montre des visages récents.
+ *
+ * POURQUOI CETTE LIGNE EXISTE (11/09/2026). §14.2 du cahier fait de
+ * « Demande d'adhésion acceptée » un des événements de crew qui MÉRITENT une
+ * sollicitation, et ADR-013 §5 tranche que le canal principal est le centre
+ * d'activité DANS l'app. Or le fil de crew ne rendait que des annonces et des
+ * captures : quelqu'un pouvait rejoindre un crew sans que personne du crew ne
+ * l'apprenne nulle part. C'est le seul « événement de crew » du cahier dont le
+ * fait était déjà en base (`crew_members.joined_at`) et qui n'était lu par
+ * aucune surface.
+ *
+ * 5 : de quoi accueillir une vague d'arrivées sans noyer les annonces, qui
+ * restent en tête du fil. TUNABLE.
+ */
+export const CREW_ACTIVITY_JOIN_MAX = 5;
+
 // ─── E50 · Statistiques du crew (spec l.1738) ────────────────────────────────
 /**
  * Profondeur de la courbe d'activité du crew, en semaines (spec E50 : « courbe
@@ -6147,7 +6280,6 @@ export const PROFILE_COSMETIC_SLOTS_2026 = [
   'nameColor', 'avatarFrame', 'banner', 'trace', 'pin', 'titleBadge', 'cardTheme',
 ] as const;
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // ÉCRAN DE COURSE 2026 — CE QUE LES CHIFFRES DU BANDEAU LIVE MESURENT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -6287,80 +6419,267 @@ export const LIVE_LAP_MIN_DURATION_S = 5;
 export const ELEVATION_SMOOTH_WINDOW_S = 20;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COSMÉTIQUES 2026 — CE QU'ON PEUT CHANGER SUR SON PROFIL, ET À QUEL PRIX
+// LOT Q2 — GESTION DE CREW : ENTRER, TENIR, AVERTIR, EXCLURE, DISSOUDRE
+// (docs/product/GRYD_GESTION_CREW_2026_09.md · migrations 0188-0190)
 // ═══════════════════════════════════════════════════════════════════════════
-//
-// DEMANDE FONDATEUR (10/09/2026) : « Est-ce qu'il y a d'autres moyens de
-// personnalisation de profil qu'utilisent d'autres applications, que l'on peut
-// faire payer in-app, qui ne seraient que du code et qui ne coûtent rien ? »
-//
-// ─── CE QUE CE BLOC POSE, ET CE QU'IL NE POSE PAS ──────────────────────────
-// Il pose les SEUILS DE NIVEAU des cosmétiques GRATUITS, et rien d'autre. Le
-// catalogue lui-même (identifiants, noms, dégradés, formes) vit dans
-// `apps/mobile/src/features/arsenal/cosmetics2026.ts` : ce sont des choix de
-// RENDU, pas des règles de jeu, et les mettre ici obligerait `packages/engine`
-// et les fonctions Edge à embarquer une table de couleurs.
-//
-// Les seuils, eux, SONT une règle : ils décident quand un objet devient
-// disponible, la migration 0180 en fige la traduction en XP (via
-// `xpForLevel2026`), et `supabase/tests/profile_cosmetics_2026.pglite.test.mjs`
-// refuse tout écart entre les deux. Un seuil recopié à la main dans une requête
-// serait exactement le nombre magique qu'ADR-003 interdit.
-//
-// ─── POURQUOI UNE ÉCHELLE NOMMÉE, ET PAS SIX NOMBRES ───────────────────────
-// `PROFILE_COSMETIC_LEVELS_2026.regular` se relit ; `4` ne se relit pas. Les
-// noms disent l'INTENTION du palier (ce que le joueur a déjà vécu quand il
-// l'atteint), et le jour où le fondateur veut décaler toute l'échelle, il
-// change six nombres à un seul endroit.
-//
-// ─── ANTI PAY-TO-WIN : CE BLOC NE PEUT PAS EN SORTIR ───────────────────────
-// Aucune de ces constantes n'entre dans un calcul de capture, d'XP, de points
-// de défi ou de classement. Un cosmétique change ce qu'on MONTRE, jamais ce
-// qu'on GAGNE (§16.2, `COMMERCIAL_PROPOSAL_2026` : multiplicateurs à 1). Le
-// test `cosmetics2026.test.ts` interdit tout champ numérique de bonus dans le
-// catalogue, et il rougirait si quelqu'un y glissait un « +5 % ».
+/**
+ * ═══ CE QUE CE BLOC AJOUTE, ET CE QU'IL NE TOUCHE PAS ══════════════════════
+ * Il n'existait AUCUNE exigence d'entrée mesurée, AUCUNE charte, AUCUNE règle
+ * appliquée par le serveur et AUCUN avertissement : `crews.description` (0084)
+ * porte des règles que rien n'applique — le trou exact que Clash of Clans a
+ * lui-même (spec §1.3 ③). Ces constantes sont les bornes de ce que 0188-0190
+ * appliquent.
+ *
+ * RIEN ICI N'EST TOUCHÉ : `CREW_PERMISSIONS`, `CO_CAPTAIN_KICKABLE_ROLES`,
+ * `CREW_ROLE_DUTY`, `CREW_SWITCH_COOLDOWN_DAYS`, `NOTIFICATION_RULES_2026`.
+ * Les RPC de 0188-0190 les LISENT, elles ne les redéfinissent pas.
+ *
+ * ⚠ ANTI PAY-TO-WIN (règle 10) : aucune exigence, aucun réglage et aucun rôle
+ * de ce bloc ne s'achète — il n'existe aucun SKU correspondant dans `IAP_SKUS`
+ * ni `ECLAT_PRICES`. Une exigence d'entrée FILTRE une candidature ; elle
+ * n'octroie ni mètre carré, ni point, ni protection.
+ */
+
+/** §2.3 ① — longueur maximale de la charte d'un crew. Miroir SQL : `crew_charter_max_chars()`. */
+export const CREW_CHARTER_MAX_CHARS = 600;
+/** §2.5 — message libre d'une candidature. Même borne que `user_profiles.bio` (0011) élargie au format d'un mot d'entrée. */
+export const CREW_APPLICATION_MESSAGE_MAX = 280;
+/** §2.5 — note facultative accompagnant un motif d'exclusion ou un avertissement. */
+export const CREW_KICK_NOTE_MAX = 200;
+/**
+ * §2.2 — fenêtre glissante de TOUTES les exigences mesurées (distance, journées
+ * actives, discipline). 28 jours = quatre semaines pleines : une personne qui
+ * court le week-end en a toujours quatre, quel que soit le jour où elle
+ * candidate. Une fenêtre de 7 jours ferait dépendre l'entrée du jour du tap.
+ */
+export const CREW_REQUIREMENT_WINDOW_DAYS = 28;
+/**
+ * §2.9 — délai de re-adhésion AU MÊME CREW après une exclusion. DÉCISION 3 du
+ * fondateur (11/09/2026) : 30 jours, et RIEN ailleurs. C'est un écart assumé
+ * avec 0093, qui exempte l'exclu de tout délai pour que l'exclusion ne devienne
+ * pas une arme de blocage : la doctrine est conservée (l'exclu peut rejoindre
+ * n'importe quel AUTRE crew le jour même), on protège seulement le capitaine
+ * contre la re-candidature en boucle.
+ */
+export const CREW_REJOIN_AFTER_KICK_DAYS = 30;
+/** §2.9 — plafond de candidatures par personne et par jour (anti-rafale). */
+export const CREW_JOIN_REQUESTS_PER_DAY_MAX = 5;
+/**
+ * §2.3 garde-fou ③ bis — DÉCISION 4 du fondateur : « un membre n'est jamais
+ * retiré sans avertissement lu ou vieux de N jours ». Un avertissement est
+ * TRANSACTIONNEL (il concerne l'appartenance, pas la rétention), donc il ne
+ * peut pas être écrasé par le budget de §14.1 ; mais un message qui part n'est
+ * pas un message lu. Le retrait automatique exige donc, EN PLUS de son propre
+ * délai, que l'avertissement ait été vu (`crew_my_standing_2026` l'acquitte) ou
+ * qu'il ait au moins ces N jours. TUNABLE.
+ */
+export const CREW_WARNING_GRACE_DAYS = 3;
+/**
+ * Dissolution (décision fondateur du 11/09/2026) — combien de temps le nom d'un
+ * crew archivé reste indisponible avant qu'un autre puisse le reprendre.
+ *
+ * ⚠ CE QUE CETTE CONSTANTE SUPPOSE, ET QU'IL FAUT DIRE : `crews.name` n'a
+ * AUCUNE contrainte d'unicité dans ce schéma (0002 ne pose qu'une borne de
+ * longueur). Avant 0190, le nom d'un crew dissous était donc immédiatement
+ * reprenable — non par choix, mais parce que rien ne l'a jamais réservé. Le
+ * délai ci-dessous est la SEULE réservation qui existe, et elle ne vaut que
+ * pour les crews ARCHIVÉS : deux crews vivants peuvent toujours porter le même
+ * nom. Même ordre de grandeur que `CREW_REJOIN_AFTER_KICK_DAYS` : le temps
+ * qu'un ex-membre cesse de confondre le nouveau crew avec l'ancien.
+ */
+export const CREW_NAME_HOLD_AFTER_ARCHIVE_DAYS = 30;
 
 /**
- * Les SIX paliers d'ouverture des cosmétiques gratuits, en NIVEAUX permanents
- * (`levelForXp2026`). Les niveaux, et pas les XP : c'est le nombre que le
- * joueur voit sur son profil, donc le seul qu'on puisse lui annoncer sans le
- * faire compter. La conversion en XP est faite une fois, par `xpForLevel2026`.
+ * §2.2 — LES CINQ EXIGENCES D'ENTRÉE, toutes nulles par défaut, toutes mesurées
+ * SERVEUR sur des faits, jamais sur un classement.
  *
- * `included` vaut 1 : le niveau de départ de tout compte. Ce n'est pas une
- * condition déguisée, c'est l'objet LIVRÉ AVEC LE COMPTE — celui qui décrit
- * l'apparence actuelle de l'app. Sans lui, « équiper » n'aurait pas de retour
- * en arrière, et retirer un cosmétique ressemblerait à une panne.
+ * TROIS CRITÈRES SONT REFUSÉS, et il faut le dire : l'ALLURE et le CHRONO (le
+ * cahier les exclut de toute comparaison, §6.2/§6.5/§16.1) ; la SÉRIE, parce
+ * qu'elle MULTIPLIE les points de territoire (`STREAK_MULTIPLIER_CAP`) et
+ * qu'exiger un multiplicateur de jeu reviendrait à filtrer sur un avantage ;
+ * la SURFACE TENUE, parce que 0126 pose que le titre territorial est INDIVIDUEL
+ * et 0152 a retiré toute part de crew — y remettre des mètres carrés ferait
+ * revenir le titre collectif que trois migrations refusent.
  */
-export const PROFILE_COSMETIC_LEVELS_2026 = {
-  /** Livré avec le compte. L'apparence par défaut est un objet comme un autre. */
-  included: 1,
-  /** Première journée active créditée (100 XP) : la première sortie qui compte. */
-  firstLoop: 2,
-  /** Quelques semaines de sorties régulières. */
-  regular: 4,
-  /** L'habitude est prise. */
-  established: 8,
-  /** Une saison entière derrière soi. */
-  seasoned: 14,
-  /** Le long terme, sans plafond éditorial au-dessus. */
-  veteran: 25,
-} as const;
-
-/**
- * Les SEPT emplacements d'identité. Un objet par emplacement, jamais deux :
- * la clé primaire `(user_id, slot)` de `profile_cosmetics_2026` (migration
- * 0180) le rend structurellement impossible, comme 0144 le fait déjà pour le
- * cadre et le titre.
- *
- * Cette liste est la RÉFÉRENCE du `check(slot in (…))` de la migration ; le
- * test PGlite compare les deux et refuse un emplacement ajouté d'un seul côté.
- *
- * G22 (« pas de sept rangs différents au-dessus du nom ») n'est PAS contredit :
- * sept emplacements ne font pas sept rangs. Un rang classe ; ces objets ne
- * classent rien, ne se comparent pas entre joueurs, et le profil n'en montre
- * jamais plus d'un par zone (le nom porte sa couleur, l'avatar son cadre, la
- * bannière son motif, le titre son badge).
- */
-export const PROFILE_COSMETIC_SLOTS_2026 = [
-  'nameColor', 'avatarFrame', 'banner', 'trace', 'pin', 'titleBadge', 'cardTheme',
+export const CREW_REQUIREMENT_KEYS = [
+  'min_level', 'min_distance_km_28d', 'min_active_days_28d', 'city_id', 'activity',
 ] as const;
+export type CrewRequirementKey = (typeof CREW_REQUIREMENT_KEYS)[number];
+/** Aucune exigence : l'objet `requirements` vide vaut exactement ceci. */
+export const CREW_REQUIREMENT_DEFAULTS = {
+  min_level: 0,
+  min_distance_km_28d: 0,
+  min_active_days_28d: 0,
+  city_id: null,
+  activity: null,
+} as const satisfies Record<CrewRequirementKey, number | null>;
+
+/**
+ * §2.3 ② — LES QUATRE RÈGLES APPLIQUÉES PAR LE JOB QUOTIDIEN. Zéro veut dire
+ * « règle ÉTEINTE », jamais « seuil de zéro » : une règle éteinte n'avertit
+ * personne et ne retire personne.
+ *
+ * DÉCISION 1 du fondateur : le retrait automatique EXISTE, ÉTEINT par défaut,
+ * avec ses trois garde-fous — ① `auto_remove_after_days > 0` exige
+ * `max_inactivity_days > 0` (un retrait sans avertissement préalable n'existe
+ * pas) ; ② il ne vise jamais un `founder` ni un `co_captain` (un crew ne se
+ * décapite pas tout seul) ; ③ un avertissement se LÈVE dès que le fait cesse,
+ * et l'horloge du retrait repart de zéro.
+ */
+export const CREW_ENFORCEMENT_KEYS = [
+  'min_weekly_outings', 'min_challenge_days', 'max_inactivity_days', 'auto_remove_after_days',
+] as const;
+export type CrewEnforcementKey = (typeof CREW_ENFORCEMENT_KEYS)[number];
+export const CREW_ENFORCEMENT_DEFAULTS = {
+  min_weekly_outings: 0,
+  min_challenge_days: 0,
+  max_inactivity_days: 0,
+  auto_remove_after_days: 0,
+} as const satisfies Record<CrewEnforcementKey, number>;
+/**
+ * Plafond de `min_challenge_days` : un défi de crew dure
+ * `CHALLENGE_RULES_2026.durationDays` jours, on ne peut pas en exiger plus que
+ * ce qu'il contient. RÉFÉRENCÉ, jamais recopié.
+ */
+export const CREW_MIN_CHALLENGE_DAYS_MAX = CHALLENGE_RULES_2026.durationDays;
+
+/**
+ * §2.5 — CATALOGUE FERMÉ des motifs d'exclusion. L'exclusion sans motif est la
+ * blessure du modèle Clash (§1.3 ⑤) : chez GRYD elle est impossible. `other`
+ * exige la note, sans quoi le motif ne dit rien.
+ */
+export const CREW_KICK_REASONS = [
+  'inactivity', 'rules', 'challenge', 'behaviour', 'fit', 'other',
+] as const;
+export type CrewKickReason = (typeof CREW_KICK_REASONS)[number];
+/** Le seul motif qui rend la note OBLIGATOIRE. */
+export const CREW_KICK_REASON_REQUIRING_NOTE: CrewKickReason = 'other';
+
+/** §2.3 — natures d'avertissement. `manual` porte son auteur ; les trois autres viennent du job. */
+export const CREW_WARNING_KINDS = [
+  'inactivity', 'weekly_outings', 'challenge', 'manual',
+] as const;
+export type CrewWarningKind = (typeof CREW_WARNING_KINDS)[number];
+
+/** §2.4 — tris et filtres du tableau de suivi. Catalogues FERMÉS : le serveur refuse tout autre mot. */
+export const CREW_BOARD_SORTS = ['last_run', 'distance_28d', 'seniority', 'role'] as const;
+export type CrewBoardSort = (typeof CREW_BOARD_SORTS)[number];
+export const CREW_BOARD_SORT_DEFAULT: CrewBoardSort = 'last_run';
+export const CREW_BOARD_FILTERS = ['at_risk', 'warned', 'never_ran', 'officers'] as const;
+export type CrewBoardFilter = (typeof CREW_BOARD_FILTERS)[number];
+/**
+ * §2.4 — LE LITTÉRAL QUI N'EST NI `null` NI `0`. DÉCISION 2 du fondateur : le
+ * capitaine voit les mesures d'un membre au profil fermé UNIQUEMENT si une
+ * règle ACTIVE du crew les utilise. Sinon la cellule vaut ceci — jamais un
+ * tiret, jamais un zéro, qui affirmeraient que la personne n'a pas couru (L8).
+ */
+export const CREW_MEASURE_NOT_SHARED = 'not_shared';
+/**
+ * §2.4 — état d'un membre au regard des règles. `rule_off` n'est pas « conforme »
+ * : sans règle active il n'y a rien à respecter, et l'écrire « conforme » ferait
+ * croire à un contrôle qui n'a pas lieu.
+ */
+export const CREW_STANDING_STATES = ['rule_off', 'compliant', 'warned', 'at_risk'] as const;
+export type CrewStandingState = (typeof CREW_STANDING_STATES)[number];
+
+/**
+ * §2.6 — L'ENTRAIDE, DÉCISION 5 du fondateur : deux compteurs, jamais classés.
+ *
+ * Le compteur don/reçu de Clash mesure un TRANSFERT. GRYD n'a rien à
+ * transférer, et la règle 10 interdit qu'il ait un jour quelque chose à
+ * transférer : mes kilomètres ne deviennent pas les tiens. Les RÉACTIONS (0153)
+ * et les ENCOURAGEMENTS sont écartés pour une autre raison — ils ne coûtent
+ * rien, donc leur compteur mesure la disponibilité du pouce et devient une
+ * ferme. Restent deux faits déjà en base, qui coûtent du temps réel : VENIR
+ * (`crew_event_rsvps` honorés) et ORGANISER (`crew_events.created_by`).
+ */
+export const CREW_MUTUAL_AID_MEASURES = ['outings_joined', 'outings_created'] as const;
+export type CrewMutualAidMeasure = (typeof CREW_MUTUAL_AID_MEASURES)[number];
+
+/**
+ * §3.4 — CATALOGUE FERMÉ DES ÉVÉNEMENTS DE NOTIFICATION DE CREW.
+ *
+ * ⚠ AUCUNE VALEUR DE `NOTIFICATION_RULES_2026` N'EST MODIFIÉE. Ce catalogue vit
+ * À CÔTÉ d'elle et s'y rattache : toutes ces notifications portent la catégorie
+ * `crew`, qui est déjà l'une des six de §14.1 et déjà réglable par le joueur
+ * (0140). Aucune ne contient de promotion, aucune ne nomme un tiers dans un
+ * contexte négatif, aucune n'utilise un niveau d'interruption critique.
+ *
+ * ⚠ IL NE DÉCLARE QUE CE QUE 0188-0190 ÉCRIVENT VRAIMENT. `application_accepted`,
+ * `application_declined` et `member_joined` figurent dans la spec (§3.4) mais
+ * leur producteur serait `crew_decide_join_request` (0083), que ce lot ne
+ * remplace pas : les déclarer ici ferait promettre au catalogue plus que le code
+ * ne tient. Les arrivées sont, elles, déjà servies par `crew_joins_2026` (0182).
+ *
+ * `transactional` SUIT LA DÉCISION 4 : ce qui touche à l'APPARTENANCE
+ * (avertissement, retrait imminent, retrait, dissolution) sort du budget de
+ * §14.1 et arrive toujours ; ce qui relève de la vie du groupe (une demande à
+ * traiter, une charte modifiée) reste dans le budget. Transactionnel ne veut PAS
+ * dire « en push » : le canal est le centre d'activité DANS l'app (ADR-013
+ * tension n° 1, l'entitlement APNs est retiré).
+ *
+ * `priority` est l'échelle P0-P6 de `docs/product/GRYD_notifications_logic.md`
+ * §2, portée par `notifications.priority` (0006). Les faits d'APPARTENANCE
+ * valent P1, au même rang que l'offensive de crew.
+ *
+ * LES TEXTES NE SONT PAS ICI, ET C'EST VOLONTAIRE : le serveur écrit un
+ * ÉVÉNEMENT et ses paramètres (`crewId`, `crewName`, `reason`, `deadline`),
+ * jamais une phrase. La copie vit dans le catalogue typé du mobile
+ * (`apps/mobile/src/i18n/catalog`, `Entry = Record<Locale, string>` : les cinq
+ * langues sont imposées PAR LE TYPE, lot Q3). Écrire du français en base
+ * l'aurait figé en une seule langue et aurait violé L18.
+ */
+export const CREW_NOTIFICATION_EVENTS_2026 = {
+  /** Aux officiers : une candidature attend une réponse. */
+  application_received: {
+    category: 'crew', transactional: false, priority: 3,
+    eventIdPrefix: 'crew_application_received:',
+  },
+  /** Aux membres : la charte a changé. Personne n'est exclu pour autant (§2.3 ①). */
+  charter_updated: {
+    category: 'crew', transactional: false, priority: 4,
+    eventIdPrefix: 'crew_charter_updated:',
+  },
+  /** Au membre visé, et à lui seul : un avertissement existe. Jamais au fil (§2.10 ②). */
+  warning_issued: {
+    category: 'crew', transactional: true, priority: 2,
+    eventIdPrefix: 'crew_warning_issued:',
+  },
+  /** Au membre visé : sans une sortie avant telle date, il quittera le crew. */
+  removal_imminent: {
+    category: 'crew', transactional: true, priority: 1,
+    eventIdPrefix: 'crew_removal_imminent:',
+  },
+  /** À l'exclu : le motif, jamais le nom de qui a décidé (le journal interne le garde). */
+  removed: {
+    category: 'crew', transactional: true, priority: 1,
+    eventIdPrefix: 'crew_removed:',
+  },
+  /** À chaque membre d'un crew dissous. Neutre : un fait, pas un jugement. */
+  dissolved: {
+    category: 'crew', transactional: true, priority: 1,
+    eventIdPrefix: 'crew_dissolved:',
+  },
+} as const;
+export type CrewNotificationEvent2026 = keyof typeof CREW_NOTIFICATION_EVENTS_2026;
+export const CREW_NOTIFICATION_EVENT_KEYS_2026 =
+  Object.keys(CREW_NOTIFICATION_EVENTS_2026) as readonly CrewNotificationEvent2026[];
+
+/**
+ * Dissolution — les refus NOMMÉS de `crew_dissolve_2026`, décidés serveur.
+ *
+ * `active_challenge` EST UN REFUS, PAS UN ARCHIVAGE DIFFÉRÉ, et c'est la
+ * décision à documenter : le cahier §G20 pose qu'« un défi a un résultat » et
+ * qu'« un nul est un vrai résultat ». Dissoudre pendant un défi en cours
+ * priverait de leur résultat les joueurs des DEUX crews — dont un crew tiers
+ * qui n'a rien décidé et n'a aucun recours. L'alternative
+ * `archived_after_challenge` (armer la dissolution pour la clôture) aurait créé
+ * une bombe à retardement invisible pour les membres, qui continueraient à
+ * courir pour un crew déjà condamné. Le capitaine attend donc la fin du défi :
+ * au plus `CHALLENGE_RULES_2026.durationDays` jours, et la réponse le DIT en
+ * rendant la date de clôture.
+ */
+export const CREW_DISSOLVE_REFUSALS = [
+  'signed_out', 'no_crew', 'not_founder', 'active_challenge', 'already_archived',
+] as const;
+export type CrewDissolveRefusal = (typeof CREW_DISSOLVE_REFUSALS)[number];

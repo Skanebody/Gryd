@@ -53,6 +53,8 @@ import { signOut } from '../src/lib/auth';
 import { useSession } from '../src/lib/session';
 import { screen } from '../src/lib/analytics';
 import { ProfileButton, ProfileLink, ProfilePage, ProfileSection, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
+import { useIsModerator2026 } from '../src/features/moderation/useIsModerator2026';
+import { C as CModeration } from '../src/i18n/catalog/moderation';
 import { C as CParcours } from '../src/i18n/catalog/parcours';
 import { useT } from '../src/i18n/store';
 import { SETTINGS_GLYPHS } from '../src/ui/gryd/glyphs';
@@ -62,6 +64,10 @@ export default function SettingsScreen() {
   const copy = useRefonteCopy();
   const t = useT();
   const { session } = useSession();
+  // AUCUN drapeau local : le serveur seul sait qui modère (0187). `null` tant
+  // qu'il n'a pas répondu, et un refus vaut `false` — une ligne peinte « au cas
+  // où » ouvrirait un écran qui refuserait ensuite, c'est-à-dire un bouton mort.
+  const estModerateur = useIsModerator2026();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutFailed, setSignOutFailed] = useState(false);
   useEffect(() => { screen('parametres'); }, []);
@@ -107,6 +113,21 @@ export default function SettingsScreen() {
     <TranslucentControl2026 tone="light" style={local.group}>
     <ProfileLink tone="light" title={copy('Sources et appareils', 'Sources and devices')} subtitle={copy('Ce qui alimente tes sorties', 'What feeds your activities')} grydIcon={SETTINGS_GLYPHS.sourcesDevices} onPress={() => router.push('/sources')} />
     </TranslucentControl2026>
+
+    {/* MODÉRATION — le groupe n'existe QUE pour une habilitation RÉELLE
+        (`am_i_moderator_2026()`, migration 0187). Il n'est pas grisé, pas
+        « bientôt », pas caché derrière un drapeau de build : il n'est pas peint.
+        Un joueur ordinaire ne doit pas apprendre qu'une file de modération
+        existe, et un modérateur ne doit pas avoir à connaître une URL par
+        cœur — ADR-015, chantier n° 1. `=== true` et non un test de vérité : le
+        hook rend `null` tant que le serveur n'a pas répondu, et un `null` peint
+        serait une ligne posée sur une supposition. */}
+    {estModerateur === true ? <>
+    <ProfileSection tone="light" title={t(CModeration.settingsGroup)} />
+    <TranslucentControl2026 tone="light" style={local.group}>
+    <ProfileLink tone="light" title={t(CModeration.settingsRow)} subtitle={t(CModeration.settingsRowDetail)} grydIcon="flag" onPress={() => router.push('/moderation')} />
+    </TranslucentControl2026>
+    </> : null}
 
     <ProfileSection tone="light" title={copy('Aide', 'Help')} />
     <TranslucentControl2026 tone="light" style={local.group}>
