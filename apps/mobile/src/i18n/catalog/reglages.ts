@@ -56,19 +56,36 @@ export const C = defineCatalog({
     de: 'Die ganze App wechselt sofort. Standardmäßig folgt GRYD deiner Handysprache.',
     pt: 'Todo o app muda na hora. Por padrão, o GRYD segue o idioma do seu telefone.',
   },
-  langueDetail: {
-    fr: 'Français, English, Español…',
-    en: 'English, Français, Español…',
-    es: 'Español, English, Français…',
-    de: 'Deutsch, English, Français…',
-    pt: 'Português, English, Français…',
-  },
+  /*
+   * `langueDetail` (« Français, English, Español… ») A ÉTÉ SUPPRIMÉE le
+   * 10/09/2026, pour DEUX raisons qui se rejoignent. Elle promettait cinq
+   * langues alors que le sélecteur n'en propose plus que deux (le domaine
+   * « refonte » n'écrit pas ses textes dans un catalogue et ne connaît que
+   * fr/en — `useRefonteCopy`). Et surtout plus rien ne la peignait : son
+   * dernier lecteur était le catalogue `SETTINGS_GROUPS`, retiré le même jour ;
+   * `app/parametres.tsx` écrit sa ligne « Langue » sans sous-titre. Corriger un
+   * texte que personne n'affiche aurait fait une vraie phrase pour un écran
+   * imaginaire. Si une ligne de réglages redevient bavarde, elle repartira du
+   * fait vrai : deux langues, et `langueOnlyTwo` dit pourquoi.
+   */
   langueSelected: {
     fr: 'Langue actuelle',
     en: 'Current language',
     es: 'Idioma actual',
     de: 'Aktuelle Sprache',
     pt: 'Idioma atual',
+  },
+  /**
+   * L'ABSENCE, DITE. Sans cette phrase, une liste à deux lignes se lit
+   * « GRYD ne parle que deux langues » — alors que le vrai fait est
+   * « GRYD ne parle complètement que deux langues, pour l'instant ».
+   */
+  langueOnlyTwo: {
+    fr: 'GRYD ne propose que les langues qu’il parle jusqu’au bout. L’espagnol, l’allemand et le portugais sont écrits dans une partie de l’app seulement : les proposer te ferait lire du français sans prévenir. Ils reviendront ici quand tout l’écran sera traduit.',
+    en: 'GRYD only offers the languages it speaks all the way through. Spanish, German and Portuguese are written in part of the app only: offering them would have you reading French without warning. They will come back here once every screen is translated.',
+    es: 'GRYD solo ofrece los idiomas que habla de principio a fin. El español, el alemán y el portugués están escritos solo en parte de la app: ofrecerlos te haría leer francés sin avisar. Volverán aquí cuando todas las pantallas estén traducidas.',
+    de: 'GRYD bietet nur Sprachen an, die es durchgängig spricht. Spanisch, Deutsch und Portugiesisch sind nur in einem Teil der App geschrieben: sie anzubieten hieße, dich ohne Vorwarnung Französisch lesen zu lassen. Sie kehren zurück, sobald jeder Bildschirm übersetzt ist.',
+    pt: 'O GRYD só oferece os idiomas que fala até o fim. Espanhol, alemão e português estão escritos apenas em parte do app: oferecê-los faria você ler francês sem aviso. Eles voltam aqui quando todas as telas estiverem traduzidas.',
   },
   // ── Partagé (boutons d'Alert, actions récurrentes) ──
   compris: {
@@ -948,20 +965,26 @@ export const C = defineCatalog({
    *    retire `aps-environment` de chaque build iOS, aucun `google-services.json`
    *    n'existe pour Android, et aucune clé APNs n'a été déposée ;
    *  · les notifications LOCALES, elles, MARCHENT (`localReminder.ts`,
-   *    `resultReadyNotice.ts`) mais aucun écran ne les déclenche encore :
-   *    `RendezvousOptIn` n'est monté nulle part et `notifyResultReady` n'a pas
-   *    encore d'appelant sur le chemin du résultat.
-   * Écrire « GRYD peut t'envoyer le résultat de ta sortie » serait donc une
-   * promesse au-delà du code. On dit ce qui est, et on dit que le choix est
-   * quand même enregistré — parce que c'est vrai, et c'est ce qui rend le
-   * réglage utile aujourd'hui plutôt que décoratif.
+   *    `resultReadyNotice.ts`).
+   *
+   * ⚠ MISE À JOUR DU 10/09/2026 — CETTE NOTE DISAIT « AUCUNE NOTIFICATION ».
+   * C'était vrai tant que `notifyResultReady` n'avait pas d'appelant. Le chemin
+   * du résultat en a désormais un et un seul (`features/run/resultNotice2026.ts`,
+   * appelé par `uploadOrQueue` quand `ingest_run` a répondu) : la première ligne
+   * de la matrice §14.2 PART RÉELLEMENT depuis ce téléphone. Laisser « aucune
+   * notification » aurait fait mentir l'écran dans l'autre sens — un joueur qui
+   * vient d'en recevoir une lirait qu'il n'en reçoit pas.
+   *
+   * Le reste de la matrice, lui, n'a toujours aucun déclencheur (`RendezvousOptIn`
+   * n'est monté nulle part), et le push DISTANT reste impossible. La note dit donc
+   * les trois faits séparément, sans en promettre un quatrième.
    */
   notifLocalOnlyNote: {
-    fr: 'Aujourd’hui, GRYD ne t’envoie encore aucune notification : l’envoi à distance demande une configuration que nous n’avons pas, et les rappels posés par ce téléphone ne sont branchés à aucun écran. Tes choix sont enregistrés avec ton compte et seront respectés dès le premier message.',
-    en: 'Today GRYD doesn’t send you any notification yet: remote delivery needs a setup we don’t have, and the reminders this phone can set aren’t wired to any screen. Your choices are saved with your account and will be respected from the very first message.',
-    es: 'Hoy GRYD todavía no te envía ninguna notificación: el envío a distancia necesita una configuración que no tenemos, y los recordatorios que este teléfono puede crear no están conectados a ninguna pantalla. Tus elecciones se guardan con tu cuenta y se respetarán desde el primer mensaje.',
-    de: 'Heute sendet dir GRYD noch gar keine Mitteilung: Der Fernversand braucht eine Einrichtung, die wir nicht haben, und die Erinnerungen, die dieses Handy stellen kann, hängen an keinem Bildschirm. Deine Auswahl wird bei deinem Konto gespeichert und ab der allerersten Nachricht beachtet.',
-    pt: 'Hoje o GRYD ainda não te envia nenhuma notificação: o envio a distância precisa de uma configuração que não temos, e os lembretes que este telefone pode criar não estão ligados a nenhuma tela. Suas opções ficam guardadas na sua conta e serão respeitadas desde a primeira mensagem.',
+    fr: 'Depuis ce téléphone, GRYD te prévient quand ton résultat est prêt. C’est le seul message branché pour l’instant : l’envoi à distance demande une configuration que nous n’avons pas, et les autres messages n’ont encore aucun déclencheur. Tes choix sont enregistrés avec ton compte et sont respectés dès le premier message.',
+    en: 'From this phone, GRYD lets you know when your result is ready. That’s the only message wired so far: remote delivery needs a setup we don’t have, and the other messages have no trigger yet. Your choices are saved with your account and are respected from the very first message.',
+    es: 'Desde este teléfono, GRYD te avisa cuando tu resultado está listo. Es el único mensaje conectado por ahora: el envío a distancia necesita una configuración que no tenemos, y los demás mensajes aún no tienen nada que los active. Tus elecciones se guardan con tu cuenta y se respetan desde el primer mensaje.',
+    de: 'Von diesem Handy aus meldet GRYD dir, wenn dein Ergebnis da ist. Das ist bisher die einzige angeschlossene Mitteilung: Der Fernversand braucht eine Einrichtung, die wir nicht haben, und die übrigen Mitteilungen haben noch keinen Auslöser. Deine Auswahl wird bei deinem Konto gespeichert und ab der allerersten Nachricht beachtet.',
+    pt: 'Deste telefone, o GRYD te avisa quando seu resultado está pronto. É a única mensagem ligada por enquanto: o envio a distância precisa de uma configuração que não temos, e as outras mensagens ainda não têm nada que as acione. Suas opções ficam guardadas na sua conta e são respeitadas desde a primeira mensagem.',
   },
   notifSaving: {
     fr: 'Enregistrement de ton choix…',
