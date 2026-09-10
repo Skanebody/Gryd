@@ -1,32 +1,28 @@
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { fonts, PROGRESSION_RULES_2026 as rules, refonteColors as c } from '@klaim/shared';
-import { screen } from '../src/lib/analytics';
-import { Icon } from '../src/ui/Icon';
-import { ProfileLink, ProfilePage, s, useRefonteCopy } from '../src/features/refonte/ProfilePrimitives';
+/**
+ * GRYD — `/faq` : route de COMPATIBILITÉ.
+ *
+ * Les questions fréquentes sont devenues le chapitre 08 du guide
+ * « Comment ça marche » (retour fondateur du 10/09/2026 : une seule surface
+ * d'explication, pas trois). Ce fichier reste pour les chemins écrits AVANT
+ * ce chantier — lien profond, notification, capture d'écran d'un testeur —
+ * et les emmène à l'endroit exact où vit désormais la réponse.
+ *
+ * Sa porte entrante est `/calcul-zones`, qui garde son lien « Questions
+ * fréquentes » : la route n'est donc pas orpheline pour `scripts/audit-routes.mjs`.
+ *
+ * ⚠️ LA DESTINATION EST NOMMÉE À PART, ET CE N'EST PAS UN DÉTAIL DE STYLE.
+ * L'extracteur de liens de l'audit (`LINK_RE`, scripts/audit-routes.mjs) n'admet
+ * pas `?` ni `=` dans un chemin : un `href="/comment-ca-marche?chapitre=faq"`
+ * écrit d'un seul tenant ne serait vu par lui comme AUCUN lien, et cette route
+ * serait déclarée cul-de-sac (mesuré le 10/09/2026 — l'audit sortait en erreur).
+ * La constante rend la destination lisible pour l'audit comme pour un humain.
+ */
+import { Redirect } from 'expo-router';
 
-export default function FaqScreen() {
-  const copy = useRefonteCopy();
-  const [open, setOpen] = useState<number | null>(null);
-  useEffect(() => { screen('faq_calculs'); }, []);
-  const questions = [
-    { q: copy('Une sortie sans boucle compte-t-elle ?', 'Does an outing without a loop count?'), a: copy('Oui. Elle conserve sa trace, sa distance et sa durée dans le journal. Une journée admissible peut donner des XP sans capturer de terrain. Il n’y a pas de ligne artificielle pour transformer un trajet ouvert en zone.', 'Yes. Its route, distance and duration stay in your journal. An eligible day can earn XP without capturing terrain. No artificial line turns an open route into an area.') },
-    { q: copy('Comment gagner du terrain ?', 'How do I gain terrain?'), a: copy('En parcourant une boucle continue et admissible. Le serveur vérifie la trace et attribue la zone dans la discipline de la sortie. La partie déjà possédée n’est pas comptée comme du terrain nouveau.', 'Complete a continuous, eligible loop. The server checks the route and assigns its area in the activity’s sport. Terrain already owned is not counted as new.') },
-    { q: copy('Que se passe-t-il si quelqu’un reprend ma zone ?', 'What if someone retakes my area?'), a: copy('La boucle la plus récente peut reprendre la partie qu’elle recouvre. Tu conserves ta sortie, ton empreinte personnelle et tes XP. Tu peux reprendre le terrain par une nouvelle boucle, quand tu en as envie.', 'The newest loop can retake the part it overlaps. You keep your activity, personal footprint and XP. You can retake the terrain with a new loop whenever you feel like it.') },
-    { q: copy('La course et le vélo se mélangent-ils ?', 'Are runs and rides combined?'), a: copy('Un compte, un journal et un niveau personnel. Les deux sports gardent des cartes de possession et des compétitions séparées. Choisis ta discipline avant de partir.', 'One account, one journal and one personal level. Each sport has a separate ownership map and competition. Choose your sport before starting.') },
-    { q: copy('Comment les XP fonctionnent-ils ?', 'How does XP work?'), a: copy(`Une journée contenant au moins ${rules.minimumMovementSecondsPerDay / 60} minutes de mouvement admissible vaut ${rules.xpPerActiveDay} XP. Les ${rules.maximumCreditedDaysPerWeek} premières journées admissibles de la semaine rapportent des XP, toutes disciplines confondues. Une même minute n’est jamais comptée deux fois.`, `A day with at least ${rules.minimumMovementSecondsPerDay / 60} minutes of eligible movement earns ${rules.xpPerActiveDay} XP. The first ${rules.maximumCreditedDaysPerWeek} eligible days of the week earn XP across both sports. The same minute is never counted twice.`) },
-    { q: copy('Est-ce que le repos fait perdre quelque chose ?', 'Does rest cost me anything?'), a: copy('Le repos ne retire aucun XP, niveau, souvenir ni objet gagné. Il n’y a pas de série quotidienne à préserver. Le terrain partagé peut changer de propriétaire ; ton histoire personnelle reste.', 'Rest never removes XP, levels, memories or earned objects. There is no daily streak to protect. Shared terrain may change owner; your personal story stays.') },
-    { q: copy('Faut-il rejoindre un crew ?', 'Do I need to join a crew?'), a: copy('Non. Tu peux explorer, enregistrer et progresser seul. Un crew permet de retrouver des proches et d’organiser de vraies sorties. Les nouveaux défis en équipe restent facultatifs et ne sont pas encore ouverts.', 'No. You can explore, record and progress on your own. A crew helps you meet people and organise real outings. New team challenges remain optional and are not open yet.') },
-    { q: copy('Faut-il payer pour jouer ?', 'Do I need to pay to play?'), a: copy('Le sport, la capture, le crew et la progression sont gratuits. Aucun achat n’augmente la capture, les XP ou les points de défi. Les offres disponibles indiquent leurs droits réels et leur prix avant tout paiement.', 'Sport, capture, crews and progression are free. No purchase increases capture, XP or challenge points. Available offers show their actual access and price before payment.') },
-    { q: copy('Que signifie « synchronisation en attente » ?', 'What does “sync pending” mean?'), a: copy('La sortie est conservée sur cet appareil et attend sa transmission. Aucun terrain ou XP n’est annoncé avant confirmation serveur. Garde l’app installée et reconnecte-toi pour terminer la synchronisation.', 'The activity is saved on this device and awaits transmission. No terrain or XP is announced before server confirmation. Keep the app installed and reconnect to finish syncing.') },
-    { q: copy('Mes lieux privés sont-ils publics ?', 'Are my private places public?'), a: copy('Les paramètres de confidentialité déterminent ce qui est partagé. Une boucle exposant une zone protégée reste privée par défaut et ne modifie pas le terrain public. Contrôle le rendu avant chaque partage.', 'Privacy settings determine what is shared. A loop exposing a protected area stays private by default and does not change public terrain. Check the preview before sharing.') },
-  ];
-  return <ProfilePage title={copy('Questions fréquentes', 'Frequently asked questions')} back>
-    <Text style={s.kicker}>{copy('Tout simplement', 'Keep it simple')}</Text><Text style={[s.title, { marginTop: 12, marginBottom: 24 }]}>{copy('On t’explique.', 'Let’s explain.')}</Text>
-    {questions.map((item, index) => <View key={item.q} style={local.item}><Pressable accessibilityRole="button" accessibilityState={{ expanded: open === index }} onPress={() => setOpen(open === index ? null : index)} style={local.question}><Text style={local.questionText}>{item.q}</Text><Icon name={open === index ? 'fermer' : 'plus'} size={20} color={c.forest} /></Pressable>{open === index ? <Text style={[s.body, { paddingBottom: 22 }]}>{item.a}</Text> : null}</View>)}
-    <ProfileLink title={copy('Comprendre les boucles', 'Understanding loops')} icon="boucle_fermee" onPress={() => router.push('/calcul-zones')} />
-    <ProfileLink title={copy('Aide & signalement', 'Help & reporting')} icon="aide" onPress={() => router.push('/support')} />
-  </ProfilePage>;
+/** Le guide, et le chapitre où la FAQ vit désormais. */
+const GUIDE = '/comment-ca-marche';
+const CHAPTER = 'chapitre=faq';
+
+export default function FaqCompatibilityRoute() {
+  return <Redirect href={`${GUIDE}?${CHAPTER}`} />;
 }
-const local = StyleSheet.create({ item: { borderBottomWidth: 1, borderBottomColor: c.border }, question: { flexDirection: 'row', alignItems: 'center', paddingVertical: 22, gap: 20, minHeight: 64 }, questionText: { flex: 1, fontFamily: fonts.textSemi, color: c.ink, fontSize: 16, lineHeight: 23 } });

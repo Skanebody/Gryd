@@ -42,9 +42,12 @@ export default function SettingsScreen() {
     <ProfileSection tone="light" title={copy('Aide et informations', 'Help and information')} />
     <TranslucentControl2026 tone="light" style={local.group}>
     <ProfileLink tone="light" title={copy('Langue', 'Language')} grydIcon={SETTINGS_GLYPHS.language} onPress={() => router.push('/langue')} />
-    <ProfileLink tone="light" title={copy('Comment ça marche', 'How it works')} grydIcon={SETTINGS_GLYPHS.howItWorks} onPress={() => router.push('/calcul-zones')} />
-    <ProfileLink tone="light" title={copy('Revoir la découverte', 'Replay the introduction')} grydIcon={SETTINGS_GLYPHS.replayDiscovery} onPress={() => router.push('/onboarding?replay=1')} />
-    <ProfileLink tone="light" title={copy('Questions fréquentes', 'Frequently asked questions')} grydIcon={SETTINGS_GLYPHS.faq} onPress={() => router.push('/faq')} />
+    {/* « Revoir la découverte » ne disait pas ce qu'on allait revoir (retour
+        fondateur, 10/09/2026). L'entrée a disparu d'ici : le guide la reprend
+        sous un libellé qui nomme sa destination, « Revoir l'écran d'accueil »,
+        au bas de son chapitre Questions (features/help/HelpGuide2026.tsx). */}
+    <ProfileLink tone="light" title={copy('Comment ça marche', 'How it works')} subtitle={copy('Le guide interactif', 'The interactive guide')} grydIcon={SETTINGS_GLYPHS.howItWorks} onPress={() => router.push('/comment-ca-marche')} />
+    <ProfileLink tone="light" title={copy('Questions fréquentes', 'Frequently asked questions')} grydIcon={SETTINGS_GLYPHS.faq} onPress={() => router.push('/comment-ca-marche?chapitre=faq')} />
     <ProfileLink tone="light" title={copy('Aide & signalement', 'Help & reporting')} grydIcon={SETTINGS_GLYPHS.support} onPress={() => router.push('/support')} />
     <ProfileLink tone="light" title={copy('À propos & mentions légales', 'About & legal notice')} grydIcon={SETTINGS_GLYPHS.about} onPress={() => router.push('/a-propos')} />
     <ProfileLink tone="light" title={copy('Conditions d’utilisation', 'Terms of use')} grydIcon={SETTINGS_GLYPHS.terms} onPress={() => router.push('/legal/cgu')} />

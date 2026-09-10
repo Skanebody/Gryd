@@ -94,14 +94,19 @@ Deno.test('MUTATION : les anciennes phrases ne survivent nulle part dans le cata
 });
 
 Deno.test('la FAQ RÉELLEMENT affichée ne promet ni contestation ni bouclier', async () => {
-  // `app/faq.tsx` est la seule FAQ atteignable (Réglages → Aide → Questions
-  // fréquentes). Elle écrit ses textes en clair : c'est là que le mensonge
-  // coûterait vraiment, et rien ne la relie au catalogue corrigé au-dessus.
-  const faq = await read('../../../app/faq.tsx');
+  // ⚠️ LE CHEMIN A CHANGÉ LE 10/09/2026, ET LA RÈGLE N'A PAS BOUGÉ.
+  // Cette assertion lisait `app/faq.tsx`, « la seule FAQ atteignable ». Le lot
+  // « Comment ça marche » a réuni les trois surfaces d'explication en un seul
+  // guide : `app/faq.tsx` n'est plus qu'une redirection de compatibilité vers
+  // `/comment-ca-marche?chapitre=faq`, et le texte VIVANT des questions est
+  // désormais `features/help/helpFaq2026.ts`. Le test suit le texte, pas le
+  // fichier — sinon il continuerait de valider une redirection de trois lignes
+  // et déclarerait vert un mensonge écrit ailleurs.
+  const faq = await read('../../features/help/helpFaq2026.ts');
   for (const promesse of ['contester', 'contest the', 'bouclier', 'shield']) {
     assert(
       !new RegExp(promesse, 'i').test(faq),
-      `app/faq.tsx parle de « ${promesse} » : §5.3 ne connaît ni l’un ni l’autre`,
+      `helpFaq2026.ts parle de « ${promesse} » : §5.3 ne connaît ni l’un ni l’autre`,
     );
   }
   // Et elle dit, elle, ce qui est vrai : une nouvelle boucle reprend le terrain.
