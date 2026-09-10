@@ -35,6 +35,9 @@ const SERVER: PrivacyAudience = {
   profileVisibility: 'crew',
   mapSharing: 'simplified',
   discreetMode: false,
+  // 0195 : la conservation des tracés voyage dans la MÊME charge utile, mais
+  // elle ne gouverne aucune exposition — d'où sa tolérance à part (plus bas).
+  traceRetention: 'keep',
   hasProfile: true,
 };
 
@@ -60,9 +63,16 @@ Deno.test('une charge utile complète est lue telle quelle', () => {
       profileVisibility: 'public',
       mapSharing: 'none',
       discreetMode: true,
+      traceRetention: 'days_90',
       updatedAt: '2026-09-10T00:00:00Z',
     }),
-    { profileVisibility: 'public', mapSharing: 'none', discreetMode: true, hasProfile: true },
+    {
+      profileVisibility: 'public',
+      mapSharing: 'none',
+      discreetMode: true,
+      traceRetention: 'days_90',
+      hasProfile: true,
+    },
   );
 });
 
@@ -93,6 +103,35 @@ Deno.test('AUCUN REPLI INVENTÉ : incomplet ou hors domaine → null, jamais un 
   for (const payload of payloads) assertEquals(parsePrivacyAudience(payload), null, String(payload));
 });
 
+Deno.test('la conservation des tracés se DÉGRADE seule, elle ne fait pas tomber la page', () => {
+  // Serveur ANTÉRIEUR à 0195 : la clé n'existe pas. Les trois réglages
+  // d'exposition restent lisibles — les faire tomber priverait le joueur de
+  // réglages qui, eux, ont bien été lus. Et `traceRetention` vaut `null` :
+  // « le serveur n'a pas dit », jamais « tout est conservé ».
+  const older = parsePrivacyAudience({
+    hasProfile: true,
+    profileVisibility: 'crew',
+    mapSharing: 'simplified',
+    discreetMode: false,
+    updatedAt: null,
+  });
+  assertEquals(older?.mapSharing, 'simplified');
+  assertEquals(older?.traceRetention, null);
+
+  // Valeur inconnue : même réponse. Ce qui compte pour l'écran est identique —
+  // le serveur n'a pas dit ce qu'il applique.
+  for (const raw of ['days_30', 'forever', 90, null, {}]) {
+    const audience = parsePrivacyAudience({
+      hasProfile: true,
+      profileVisibility: 'crew',
+      mapSharing: 'simplified',
+      discreetMode: false,
+      traceRetention: raw,
+    });
+    assertEquals(audience?.traceRetention, null, String(raw));
+  }
+});
+
 Deno.test('« Mes territoires portent mon nom » est l’inverse EXACT de discreet_mode', () => {
   assertEquals(nameOnTerritories(SERVER), true);
   assertEquals(nameOnTerritories({ ...SERVER, discreetMode: true }), false);
@@ -109,6 +148,7 @@ Deno.test('changer l’audience ne déplace aucun autre réglage', () => {
     profileVisibility: 'private',
     mapSharing: 'simplified',
     discreetMode: true,
+    traceRetention: 'keep',
     hasProfile: true,
   });
 });

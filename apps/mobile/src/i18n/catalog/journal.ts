@@ -40,13 +40,23 @@ export const C = defineCatalog({
     de: 'Für diese Aktivität ist keine Strecke verfügbar. Ihre Messwerte bleiben erhalten.',
     pt: 'Traçado indisponível para esta saída. As medições continuam salvas.',
   },
-  /** Trace masquée : géométrie seule, extrémités retirées, purge à 90 jours. */
+  /**
+   * Trace masquée : géométrie seule, extrémités retirées.
+   *
+   * ⚠️ CORRIGÉ LE 11/09/2026. Cette phrase se terminait par « et elle s'efface
+   * au bout de 90 jours ». C'était vrai tant que le job `gryd_purge_polylines`
+   * (0102) effaçait `polyline_masked` pour tout le monde. Depuis 0195/0196, la
+   * conservation est un CHOIX du joueur dont le défaut est « tout garder » :
+   * annoncer une échéance de 90 jours à quelqu'un qui n'a rien réglé serait
+   * devenu faux le jour du déploiement. La phrase ne dit plus que ce qui vaut
+   * pour TOUT LE MONDE ; la durée, elle, se règle et se lit dans Confidentialité.
+   */
   traceMasked: {
-    fr: 'Trace protégée : les abords du départ et de l’arrivée sont retirés, et elle s’efface au bout de 90 jours.',
-    en: 'Protected route: the areas around the start and finish are removed, and it is erased after 90 days.',
-    es: 'Trazado protegido: se quitan los alrededores de la salida y la llegada, y se borra a los 90 días.',
-    de: 'Geschützte Strecke: die Bereiche um Start und Ziel werden entfernt, nach 90 Tagen wird sie gelöscht.',
-    pt: 'Traçado protegido: os arredores da partida e da chegada são removidos, e ele é apagado depois de 90 dias.',
+    fr: 'Trace protégée : les abords du départ et de l’arrivée sont retirés.',
+    en: 'Protected route: the areas around the start and finish are removed.',
+    es: 'Trazado protegido: se quitan los alrededores de la salida y la llegada.',
+    de: 'Geschützte Strecke: die Bereiche um Start und Ziel werden entfernt.',
+    pt: 'Traçado protegido: os arredores da partida e da chegada são removidos.',
   },
   /** Trace masquée : pas d'horodatage, donc pas de split ni de courbe. */
   traceMaskedNoTiming: {

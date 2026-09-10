@@ -32,6 +32,8 @@
  * échouerait (`profile_required` côté 0135).
  */
 
+import { parseTraceRetention, type TraceRetentionChoice2026 } from './traceRetention';
+
 /** Audience du profil — mêmes valeurs que le `check` de `user_profiles`. */
 export const PROFILE_VISIBILITY_VALUES = ['public', 'crew', 'friends', 'private'] as const;
 export type ProfileVisibilityValue = (typeof PROFILE_VISIBILITY_VALUES)[number];
@@ -50,6 +52,18 @@ export interface PrivacyAudience {
    * (« Mes territoires portent mon nom ») — voir `nameOnTerritories`.
    */
   readonly discreetMode: boolean;
+  /**
+   * `trace_retention_2026` (0195) : ce que GRYD garde des tracés de tes
+   * sorties — `keep` (défaut : rien n'est jamais effacé), `days_90`,
+   * `days_365`. Ce réglage ne gouverne PAS une exposition : il gouverne ce que
+   * TU gardes.
+   *
+   * ⚠️ `null` N'EST PAS UN DÉFAUT, C'EST UNE IGNORANCE : le serveur n'a pas dit
+   * ce qu'il applique (clé absente d'un serveur antérieur à 0195, ou valeur
+   * inconnue). L'écran affiche alors « on n'a pas pu lire ta préférence » et
+   * ne peint aucun choix sélectionné. Voir `./traceRetention.ts`.
+   */
+  readonly traceRetention: TraceRetentionChoice2026 | null;
   /** Une ligne `user_profiles` existe-t-elle ? (voir docbloc) */
   readonly hasProfile: boolean;
 }
@@ -90,6 +104,17 @@ const isMapSharing = (v: unknown): v is MapSharingValue =>
  * STRICTE À DESSEIN : une valeur inconnue rend `null` (donc `failed` côté
  * écran) au lieu de retomber sur un défaut. Sur la page qui gouverne
  * l'exposition d'une géolocalisation, deviner serait affirmer.
+ *
+ * ═══ L'ASYMÉTRIE DE `traceRetention`, ET POURQUOI ELLE EST JUSTE ════════════
+ * Les trois premiers réglages gouvernent CE QUE LES AUTRES VOIENT : les lire de
+ * travers ferait afficher « tu es masqué » à quelqu'un qui ne l'est pas, donc
+ * toute la lecture bascule en `failed`. `traceRetention` (0195) gouverne CE QUE
+ * TU GARDES : personne n'est exposé si on ne sait pas le lire. On DÉGRADE donc
+ * le champ (`null` → « on n'a pas pu lire ta préférence », dans son seul bloc)
+ * au lieu de faire tomber la page entière — ce qui garde les trois réglages
+ * d'exposition utilisables sur un serveur antérieur à 0195. Ce qui n'est
+ * jamais fait, dans aucun des deux cas : afficher une valeur que le serveur
+ * n'a pas donnée.
  */
 export function parsePrivacyAudience(raw: unknown): PrivacyAudience | null {
   if (raw === null || typeof raw !== 'object') return null;
@@ -102,6 +127,7 @@ export function parsePrivacyAudience(raw: unknown): PrivacyAudience | null {
     profileVisibility: o.profileVisibility,
     mapSharing: o.mapSharing,
     discreetMode: o.discreetMode,
+    traceRetention: parseTraceRetention(o.traceRetention),
     hasProfile: o.hasProfile,
   };
 }

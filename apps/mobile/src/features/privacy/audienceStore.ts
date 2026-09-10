@@ -21,6 +21,11 @@ import {
   type PrivacyAudienceRead,
   type PrivacyAudienceWrite,
 } from './audience';
+import {
+  traceRetentionWriteFailure,
+  type TraceRetentionChoice2026,
+  type TraceRetentionWrite,
+} from './traceRetention';
 
 export interface PrivacyAudienceStore {
   readonly read: PrivacyAudienceRead;
@@ -30,6 +35,17 @@ export interface PrivacyAudienceStore {
   readonly saving: boolean;
   /** Écrit les trois réglages et rend le verdict SERVEUR. */
   readonly save: (next: PrivacyAudience) => Promise<PrivacyAudienceWrite>;
+  /**
+   * Écrit la CONSERVATION DES TRACÉS (0195) et rend le verdict SERVEUR.
+   *
+   * RPC SÉPARÉE, pas un quatrième paramètre de `save_privacy_settings_2026` :
+   * les trois réglages d'audience gouvernent ce que les AUTRES voient, celui-ci
+   * ce que TU gardes. Deux décisions, deux portes — et la signature de 0135
+   * reste intacte pour les clients déjà déployés.
+   */
+  readonly saveTraceRetention: (
+    choice: TraceRetentionChoice2026,
+  ) => Promise<TraceRetentionWrite>;
 }
 
 export function usePrivacyAudience(): PrivacyAudienceStore {
@@ -97,5 +113,31 @@ export function usePrivacyAudience(): PrivacyAudienceStore {
     [configured, userId],
   );
 
-  return { read, reload, saving, save };
+  const saveTraceRetention = useCallback(
+    async (choice: TraceRetentionChoice2026): Promise<TraceRetentionWrite> => {
+      if (!configured || !supabase || userId === null) return { kind: 'signed-out' };
+      setSaving(true);
+      try {
+        const { data, error } = await supabase.rpc('set_trace_retention_2026', {
+          p_choice: choice,
+        });
+        if (owner.current !== userId) return { kind: 'signed-out' };
+        if (error) return traceRetentionWriteFailure(error.message);
+        // Le serveur rend l'état COMPLET des réglages : on le prend en entier
+        // plutôt que de recopier le patch envoyé. Une charge utile illisible
+        // n'écrase donc rien à l'écran — et ne prétend pas non plus avoir écrit.
+        const audience = parsePrivacyAudience(data);
+        if (audience === null || audience.traceRetention === null) return { kind: 'failed' };
+        setRead({ status: 'ready', audience });
+        return { kind: 'saved', choice: audience.traceRetention };
+      } catch (e) {
+        return traceRetentionWriteFailure(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [configured, userId],
+  );
+
+  return { read, reload, saving, save, saveTraceRetention };
 }

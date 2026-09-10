@@ -127,7 +127,14 @@ import {
   type PrivacyAudience,
   type ProfileVisibilityValue,
 } from '../src/features/privacy/audience';
-import { usePrivacyAudience } from '../src/features/privacy/audienceStore';
+import {
+  usePrivacyAudience,
+  type PrivacyAudienceStore,
+} from '../src/features/privacy/audienceStore';
+import {
+  TRACE_RETENTION_ORDER,
+  type TraceRetentionChoice2026,
+} from '../src/features/privacy/traceRetention';
 import { DisclosureCard, Note, SelectPills, SwitchRow } from '../src/features/privacy/ui';
 // Le masquage partagé vient de la MÊME constante que le rendu : la note ne peut
 // donc plus annoncer une distance différente de celle qui est réellement
@@ -163,6 +170,24 @@ const VISIBILITY_ENTRY: Record<ProfileVisibilityValue, Entry> = {
   crew: C.visCrew,
   friends: C.visFriends,
   private: C.visPrivate,
+};
+
+/** Libellés des trois conservations — traduits, dans l'ordre de la constante. */
+const TRACE_RETENTION_ENTRY: Record<TraceRetentionChoice2026, Entry> = {
+  keep: C.traceKeepLabel,
+  days_90: C.traceDays90Label,
+  days_365: C.traceDays365Label,
+};
+
+/**
+ * La CONSÉQUENCE de chaque conservation. Une phrase par valeur : « tout
+ * garder » et « 90 jours » n'engagent pas la même chose, et un message unique
+ * obligerait le joueur à deviner ce que son choix change réellement.
+ */
+const TRACE_RETENTION_CONSEQ: Record<TraceRetentionChoice2026, Entry> = {
+  keep: C.traceKeepConseq,
+  days_90: C.traceDays90Conseq,
+  days_365: C.traceDays365Conseq,
 };
 
 /**
@@ -216,6 +241,10 @@ export default function ConfidentialiteScreen() {
   // Un échec d'écriture n'est jamais silencieux : `audienceError` le dit.
   const audience = usePrivacyAudience();
   const [audienceError, setAudienceError] = useState<Entry | null>(null);
+  /** Échec d'écriture de la CONSERVATION — distinct de celui de l'audience :
+   *  les deux blocs sont à 200 lignes l'un de l'autre et ne partagent pas leur
+   *  verdict, sinon un échec de l'un peindrait un message sous l'autre. */
+  const [traceRetentionError, setTraceRetentionError] = useState<Entry | null>(null);
 
   /** Écrit les trois réglages et n'affiche que le verdict du SERVEUR. */
   const saveAudience = async (next: PrivacyAudience): Promise<void> => {
@@ -701,6 +730,24 @@ export default function ConfidentialiteScreen() {
         </>
       )}
 
+      {/* ═══ TRACÉS DÉTAILLÉS — LA CONSERVATION EST UN CHOIX (0195/0196) ═════
+          Décision du fondateur du 11/09/2026 : « Trace GPS : ce qui est le plus
+          adapté, ou mettre dans les réglages l'option, mais ne pas purger
+          directement. » Avant ce lot, GRYD gardait DEUX formes de la même trace
+          avec deux durées de vie opposées, et cet écran n'en disait rien :
+          `polyline_masked` était effacée à 90 jours pour tout le monde (0101 +
+          0102), `trace_points_2026` ne l'était jamais.
+          LE BLOC NE DÉCLENCHE RIEN À L'AFFICHAGE : il LIT la préférence
+          (`my_privacy_settings_2026`), et seule une pression sur une pastille
+          écrit. Ouvrir une page de confidentialité ne doit jamais effacer une
+          donnée. */}
+      <TraceRetentionBlock
+        audience={audience}
+        onError={setTraceRetentionError}
+        error={traceRetentionError}
+        t={t}
+      />
+
       <SectionLabel style={styles.kicker}>{t(C.secSecurite)}</SectionLabel>
 
       <DisclosureCard
@@ -1051,6 +1098,102 @@ function BoardPresenceRow({
       value={t(presence.kind === 'listed' ? C.boardPresenceInValue : C.boardPresenceOutValue)}
       detail={t(BOARD_DETAIL[presence.kind])}
     />
+  );
+}
+
+/**
+ * TRACÉS DÉTAILLÉS — ce que GRYD garde de tes sorties, et pour combien de temps.
+ *
+ * ═══ CE QUE CE BLOC CORRIGE ════════════════════════════════════════════════
+ * Deux formes de la même trace vivaient en base avec deux durées opposées, et
+ * cet écran n'en disait pas un mot : la trace PROTÉGÉE (`polyline_masked`)
+ * était effacée à 90 jours pour tout le monde (0101 + 0102), pendant que les
+ * points COMPLETS et horodatés (`trace_points_2026`, 0118) ne l'étaient jamais.
+ * Depuis 0195/0196 la conservation est UN choix, il vaut « tout garder » par
+ * défaut, et il gouverne les DEUX formes ensemble.
+ *
+ * ═══ LES QUATRE ÉTATS, ET LE CINQUIÈME QUI N'EN EST PAS UN ═════════════════
+ * Le bloc suit la lecture d'audience : `loading` / `signed-out` / `failed` sont
+ * déjà portés PLUS HAUT dans la page, par la carte d'état de la section
+ * VISIBILITÉ — les répéter ici donnerait deux fois la même phrase pour un seul
+ * fait. Ce bloc ne se peint donc que sur une lecture RÉUSSIE, et il porte son
+ * propre quatrième état : `traceRetention === null`, c'est-à-dire « le serveur
+ * n'a pas dit ce qu'il applique » (serveur antérieur à 0195). On n'y présélectionne
+ * alors AUCUNE pastille : afficher « Tout garder » sans que le serveur l'ait
+ * dit serait le repli inventé que L19 interdit, sur une donnée de localisation.
+ *
+ * AUCUN BOUTON MORT : sans profil, la page a déjà remplacé toute la section par
+ * la porte de création de profil (`profile_required` serait le seul verdict
+ * possible), donc ce bloc n'est même pas monté.
+ */
+function TraceRetentionBlock({
+  audience,
+  error,
+  onError,
+  t,
+}: {
+  audience: PrivacyAudienceStore;
+  error: Entry | null;
+  onError: (e: Entry | null) => void;
+  t: (e: Entry) => string;
+}) {
+  if (audience.read.status !== 'ready' || !audience.read.audience.hasProfile) return null;
+  const current = audience.read.audience.traceRetention;
+
+  /** Écrit et n'affiche que le verdict du SERVEUR. */
+  const choose = async (choice: TraceRetentionChoice2026): Promise<void> => {
+    onError(null);
+    const out = await audience.saveTraceRetention(choice);
+    if (out.kind === 'saved') {
+      haptics.success();
+      return;
+    }
+    // « pas de profil » ne peut pas arriver ici (le bloc n'est pas monté), et
+    // « pas de session » a déjà sa carte plus haut : seul l'échec parle.
+    if (out.kind === 'failed') onError(C.traceRetentionSaveFailed);
+  };
+
+  return (
+    <>
+      <SectionLabel style={styles.kicker}>{t(C.secTracesDetaillees)}</SectionLabel>
+      <Text style={styles.deleteIntro}>{t(C.traceRetentionExplain)}</Text>
+
+      {current === null ? (
+        /* LE SERVEUR N'A PAS DIT. On ne peint aucune pastille sélectionnée et
+           on propose la seule action honnête : relire. */
+        <View style={styles.stateCard}>
+          <Text style={styles.stateTitle}>{t(C.traceRetentionUnknownTitle)}</Text>
+          <Text style={styles.stateBody}>{t(C.traceRetentionUnknownBody)}</Text>
+          <View style={styles.actionGap}>
+            <Button
+              variant="ghost"
+              size="md"
+              label={t(C.audienceRetry)}
+              onPress={audience.reload}
+            />
+          </View>
+        </View>
+      ) : (
+        <>
+          <SelectPills
+            options={TRACE_RETENTION_ORDER.map((v) => ({
+              value: v,
+              label: t(TRACE_RETENTION_ENTRY[v]),
+            }))}
+            value={current}
+            onChange={(v) => {
+              if (audience.saving) return;
+              void choose(v);
+            }}
+          />
+          {/* LA CONSÉQUENCE du choix COURANT, jamais un message unique : « tout
+              garder » et « 90 jours » ne racontent pas la même chose. */}
+          <Note>{t(TRACE_RETENTION_CONSEQ[current])}</Note>
+          <Note>{t(C.traceRetentionScopeNote)}</Note>
+        </>
+      )}
+      {error !== null ? <Note>{t(error)}</Note> : null}
+    </>
   );
 }
 

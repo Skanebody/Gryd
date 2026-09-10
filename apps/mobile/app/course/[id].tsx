@@ -36,7 +36,9 @@
  *      stats seules / refus + motif) ;
  *   7. PARTAGER : la sortie archivée arme le studio de partage, comme le fait
  *      le Résultat — le « partage rétroactif » que cet en-tête annonçait comme
- *      impossible n'attendait que la trace.
+ *      impossible n'attendait que la trace ;
+ *   8. EFFACER LE TRACÉ : l'action secondaire du lot T (0195), tout en bas, et
+ *      seulement s'il y a un tracé à effacer.
  *
  * ═══ AUCUN CHIFFRE FABRIQUÉ, ET LA DISTINCTION QUI COMPTE ══════════════════
  * L'impact vient du payload `celebration` que le SERVEUR a persisté à
@@ -68,12 +70,23 @@
  *   · `runs.trace_points_2026` (migration 0118, écrite par `refonte2026.ts:167`)
  *     — les points COMPLETS, horodatés : c'est ce qui rend possibles les splits,
  *     la courbe d'allure et le temps en mouvement ;
- *   · `runs.polyline_masked` (écrite par `index.ts:3146`, purgée à 90 jours par
- *     la migration 0101) — la géométrie déjà expurgée : une carte, sans temps.
+ *   · `runs.polyline_masked` (écrite par `index.ts:3146`) — la géométrie déjà
+ *     expurgée : une carte, sans temps.
  * L'écran rend donc la carte (SVG, `features/journal/TraceMap2026`) et l'analyse
  * (`RunAnalysisBlocks2026`), et il DIT ce qui manque quand il manque : trace
  * absente, ou trace masquée donc sans split. Rien n'est extrapolé de l'allure
  * moyenne, et aucune boucle décorative n'est dessinée.
+ *
+ * ═══ LA CONSERVATION EST UN CHOIX, ET CET ÉCRAN EN PORTE LE GESTE (11/09) ══
+ * ⚠️ CETTE LIGNE DISAIT « purgée à 90 jours par la migration 0101 ». C'était
+ * vrai pour `polyline_masked` et POUR TOUT LE MONDE, pendant que
+ * `trace_points_2026` n'était purgée par rien : deux formes de la même trace,
+ * deux durées opposées, aucun choix. Décision du fondateur du 11/09/2026 :
+ * « ne pas purger directement ». Depuis 0195/0196, la conservation est une
+ * préférence du joueur (Confidentialité, défaut « tout garder ») qui gouverne
+ * les DEUX formes, et cet écran porte l'autre moitié du contrat : l'effacement
+ * IMMÉDIAT du tracé de CETTE sortie (`delete_run_trace_2026`), qui ne touche ni
+ * ses mesures, ni sa capture, ni un mètre carré de terrain.
  *
  * CONFIDENTIALITÉ, ET LEQUEL DES DEUX CAS S'APPLIQUE : sa propre sortie, vue par
  * lui, sur son écran → AUCUN masquage d'extrémités (les lui cacher à lui-même
@@ -88,7 +101,7 @@
  * `packages/shared/src/events.ts`.
  */
 import { useEffect, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { Alert, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, fontSizes, radii, spacing, typography } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
@@ -124,6 +137,10 @@ import { RunAnalysisBlocks2026 } from '../../src/features/journal/RunAnalysisBlo
 import { TraceMap2026 } from '../../src/features/journal/TraceMap2026';
 import { decimateForDisplay, traceSegments } from '../../src/features/journal/traceRead';
 import { DETAIL_MAP_HEIGHT, TRACE_DISPLAY_MAX_POINTS } from '../../src/features/journal/display';
+// L'EFFACEMENT D'UN TRACÉ passe par la RPC `delete_run_trace_2026` (0195) :
+// elle efface les DEUX formes ensemble, journalise le geste (preuve RGPD) et
+// oppose le plancher anti-triche. Aucun `update` client sur `runs`.
+import { deleteRunTrace } from '../../src/features/privacy/traceDelete';
 import { setShareRun, shareCardFromResult, type ShareRunData } from '../../src/features/share/shareRun';
 import { QuickShareSheet2026 } from '../../src/features/share/QuickShareSheet2026';
 import { elevationFrom } from '../../src/features/journal/metrics';
@@ -212,7 +229,18 @@ function StateCard({
 // LE CORPS « LU »
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
+function DetailBody({
+  run,
+  locale,
+  onTraceDeleted,
+}: {
+  run: RunDetailInput;
+  locale: Locale;
+  /** Relit la sortie après un effacement : l'écran repasse alors par l'état
+   *  honnête qui existe déjà (« Tracé non disponible ») au lieu de garder à
+   *  l'affiche une carte que le serveur n'a plus. */
+  onTraceDeleted: () => void;
+}) {
   const t = useT();
   const D = runDetailCopy(run.activity);
   // Largeur MESURÉE : la carte et la courbe sont des SVG, ils ne se cadrent pas
@@ -406,6 +434,58 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
   const share = () => { const armed = armShare(); if (armed) setSharing(armed); };
   const openStudio = () => { setSharing(null); router.push('/partage'); };
 
+  /**
+   * ─── EFFACER LE TRACÉ DE CETTE SORTIE (0195, 11/09/2026) ──────────────────
+   * La préférence de conservation (Confidentialité) regarde l'AVENIR ; elle ne
+   * répond pas à « je veux que CETTE sortie-là n'ait plus de tracé, maintenant ».
+   *
+   * IRRÉVERSIBLE, DONC CONFIRMÉE, et la confirmation DIT CE QUI RESTE avant de
+   * demander : sans cette phrase, l'action se lirait comme « supprimer la
+   * sortie » et personne n'y toucherait. Les mesures, la capture et le terrain
+   * ne bougent pas — `capture_events_2026` porte sa propre géométrie.
+   *
+   * CHAQUE ISSUE A SA PHRASE. `review-open` n'est PAS un échec : c'est le
+   * plancher anti-triche, et il protège le joueur autant que le jeu — tant que
+   * son dossier est ouvert, le tracé est la preuve de son recours.
+   * `signed-out` tombe volontairement sur la copie d'échec : les deux disent la
+   * même vérité, « rien n'a été tenté, ton tracé est intact ».
+   */
+  const [deletingTrace, setDeletingTrace] = useState(false);
+  const confirmDeleteTrace = async (): Promise<void> => {
+    if (deletingTrace) return;
+    const ok = await new Promise<boolean>((resolve) => {
+      Alert.alert(t(C.traceDeleteConfirmTitle), t(C.traceDeleteConfirmBody), [
+        { text: t(C.traceDeleteCancel), style: 'cancel', onPress: () => resolve(false) },
+        { text: t(C.traceDeleteConfirmCta), style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
+    if (!ok) return;
+    setDeletingTrace(true);
+    try {
+      const outcome = await deleteRunTrace(run.id);
+      if (outcome.kind === 'deleted' || outcome.kind === 'already-empty') {
+        Alert.alert(
+          t(C.traceDeleteDoneTitle),
+          t(outcome.kind === 'deleted' ? C.traceDeleteDoneBody : C.traceDeleteAlreadyBody),
+        );
+        // La feuille de partage armée pointait sur une trace qui n'existe plus.
+        setSharing(null);
+        onTraceDeleted();
+        return;
+      }
+      if (outcome.kind === 'review-open') {
+        Alert.alert(t(C.traceDeleteReviewTitle), t(C.traceDeleteReviewBody));
+        return;
+      }
+      Alert.alert(
+        t(C.traceDeleteFailedTitle),
+        t(outcome.kind === 'not-found' ? C.traceDeleteNotFoundBody : C.traceDeleteFailedBody),
+      );
+    } finally {
+      setDeletingTrace(false);
+    }
+  };
+
   return (
     <View onLayout={onLayout}>
       {/* ── 2bis. LA CARTE : la trace RÉELLE, ou ce qui manque, dit ───────── */}
@@ -550,6 +630,26 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
       ) : hasTrace ? null : (
         <Text style={styles.footnote}>{t(JC.shareNoTrace)}</Text>
       )}
+
+      {/* ── 8. EFFACER LE TRACÉ — action SECONDAIRE, et jamais un bouton mort :
+             sans tracé il n'y a rien à effacer, la ligne disparaît donc au lieu
+             d'échouer (§A). Elle vit sous le partage, en bas, parce qu'on ne met
+             pas une destruction sur le chemin de la lecture. ──────────────── */}
+      {hasTrace ? (
+        <View style={styles.deleteTraceCta}>
+          <Button
+            variant="ghost"
+            size="md"
+            icon="fermer"
+            label={t(C.traceDeleteCta)}
+            accessibilityLabel={t(C.traceDeleteCta)}
+            analyticsId="course_detail_trace_delete"
+            loading={deletingTrace}
+            onPress={() => void confirmDeleteTrace()}
+          />
+        </View>
+      ) : null}
+
       {/* LA FEUILLE COURTE, montée seulement quand une sortie est armée. */}
       {sharing ? (
         <QuickShareSheet2026 run={sharing} visible onClose={() => setSharing(null)} onOpenStudio={openStudio} />
@@ -638,7 +738,9 @@ export default function CourseDetailScreen() {
       ) : null}
 
       {/* ── 5. Lu. ── */}
-      {status === 'ready' && run ? <DetailBody run={run} locale={locale} /> : null}
+      {status === 'ready' && run ? (
+        <DetailBody run={run} locale={locale} onTraceDeleted={reload} />
+      ) : null}
     </StackScreen>
   );
 }
@@ -650,6 +752,9 @@ const styles = StyleSheet.create({
   mapCard: { marginTop: spacing.md, gap: spacing.sm },
   analysis: { marginTop: spacing.xl },
   shareCta: { marginTop: spacing.xl },
+  // L'effacement du tracé est SOUS le partage, et plus espacé : on ne pose pas
+  // une action destructive au ras d'une action ordinaire.
+  deleteTraceCta: { marginTop: spacing.lg },
 
   // ── Bandeau : `Card` fournit surface, rayon et padding (sans contour) ──
   header: { marginTop: spacing.md },

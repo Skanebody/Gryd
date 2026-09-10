@@ -653,6 +653,114 @@ export const C = defineCatalog({
    * (`traceNone`, `traceMasked`, `traceMaskedNoTiming`, `shareNoTrace`).
    */
 
+  // ─── E68 : EFFACER LE TRACÉ DE CETTE SORTIE (0195, 11/09/2026) ────────────
+  //
+  // Une préférence de conservation regarde l'AVENIR (« efface tout au bout de
+  // 90 jours »). Elle ne répond pas à « je veux que CETTE sortie-là n'ait plus
+  // de tracé, maintenant ». D'où cette action, SECONDAIRE : elle vit sous le
+  // partage, en bas de l'écran, et elle est irréversible, donc elle se confirme.
+  //
+  // LA COPIE DIT CE QUI RESTE AVANT DE DEMANDER LA CONFIRMATION. Un joueur qui
+  // efface un tracé doit savoir, au moment du geste, qu'il ne perd ni sa
+  // distance, ni sa durée, ni le terrain pris. Sans cette phrase, l'action se
+  // lirait comme « supprimer la sortie » et personne n'y toucherait.
+  traceDeleteCta: {
+    fr: 'Supprimer le tracé de cette sortie',
+    en: 'Delete this outing’s route',
+    es: 'Eliminar el trazado de esta salida',
+    de: 'Strecke dieser Aktivität löschen',
+    pt: 'Apagar o traçado desta saída',
+  },
+  traceDeleteConfirmTitle: {
+    fr: 'Supprimer ce tracé ?',
+    en: 'Delete this route?',
+    es: '¿Eliminar este trazado?',
+    de: 'Diese Strecke löschen?',
+    pt: 'Apagar este traçado?',
+  },
+  traceDeleteConfirmBody: {
+    fr: 'La carte de cette sortie et ses splits disparaissent définitivement. Sa distance, sa durée, son allure et le terrain pris restent.',
+    en: 'This outing’s map and its splits go for good. Its distance, its time, its pace and the ground taken stay.',
+    es: 'El mapa de esta salida y sus splits desaparecen para siempre. Su distancia, su duración, su ritmo y el terreno tomado se quedan.',
+    de: 'Die Karte dieser Aktivität und ihre Splits verschwinden endgültig. Distanz, Dauer, Tempo und erobertes Gebiet bleiben.',
+    pt: 'O mapa desta saída e seus splits desaparecem para sempre. A distância, a duração, o ritmo e o terreno tomado ficam.',
+  },
+  traceDeleteConfirmCta: {
+    fr: 'Supprimer le tracé',
+    en: 'Delete the route',
+    es: 'Eliminar el trazado',
+    de: 'Strecke löschen',
+    pt: 'Apagar o traçado',
+  },
+  traceDeleteCancel: {
+    fr: 'Annuler',
+    en: 'Cancel',
+    es: 'Cancelar',
+    de: 'Abbrechen',
+    pt: 'Cancelar',
+  },
+  traceDeleteDoneTitle: {
+    fr: 'Tracé supprimé',
+    en: 'Route deleted',
+    es: 'Trazado eliminado',
+    de: 'Strecke gelöscht',
+    pt: 'Traçado apagado',
+  },
+  traceDeleteDoneBody: {
+    fr: 'Il n’en reste rien chez GRYD. Cette sortie garde ses mesures et son terrain.',
+    en: 'Nothing of it is left at GRYD. This outing keeps its measurements and its ground.',
+    es: 'No queda nada de él en GRYD. Esta salida conserva sus mediciones y su terreno.',
+    de: 'Bei GRYD bleibt nichts davon. Diese Aktivität behält ihre Messwerte und ihr Gebiet.',
+    pt: 'Não resta nada dele na GRYD. Esta saída mantém as medições e o terreno.',
+  },
+  /** Idempotence : ni succès à fêter, ni échec. Un fait. */
+  traceDeleteAlreadyBody: {
+    fr: 'Cette sortie n’avait déjà plus de tracé.',
+    en: 'This outing already had no route.',
+    es: 'Esta salida ya no tenía trazado.',
+    de: 'Diese Aktivität hatte bereits keine Strecke mehr.',
+    pt: 'Esta saída não tinha mais traçado.',
+  },
+  /**
+   * LE PLANCHER ANTI-TRICHE, dit du côté du joueur : ce n'est pas « on te
+   * refuse », c'est « on garde ta preuve tant que ton dossier est ouvert ».
+   */
+  traceDeleteReviewTitle: {
+    fr: 'Vérification en cours',
+    en: 'Review in progress',
+    es: 'Verificación en curso',
+    de: 'Prüfung läuft',
+    pt: 'Verificação em curso',
+  },
+  traceDeleteReviewBody: {
+    fr: 'Cette sortie est en cours de vérification : son tracé est la preuve de ton dossier. Tu pourras l’effacer une fois la vérification terminée.',
+    en: 'This outing is under review: its route is the evidence in your case. You’ll be able to erase it once the review is over.',
+    es: 'Esta salida está en verificación: su trazado es la prueba de tu caso. Podrás borrarlo cuando termine la verificación.',
+    de: 'Diese Aktivität wird geprüft: ihre Strecke ist der Beleg in deinem Fall. Nach der Prüfung kannst du sie löschen.',
+    pt: 'Esta saída está em verificação: o traçado é a prova do seu processo. Você poderá apagá-lo quando a verificação terminar.',
+  },
+  traceDeleteFailedTitle: {
+    fr: 'Rien n’a été supprimé',
+    en: 'Nothing was deleted',
+    es: 'No se eliminó nada',
+    de: 'Nichts wurde gelöscht',
+    pt: 'Nada foi apagado',
+  },
+  traceDeleteFailedBody: {
+    fr: 'On n’a pas pu joindre le serveur. Ton tracé est intact ; réessaie plus tard.',
+    en: 'We couldn’t reach the server. Your route is untouched; try again later.',
+    es: 'No pudimos contactar con el servidor. Tu trazado está intacto; inténtalo más tarde.',
+    de: 'Der Server war nicht erreichbar. Deine Strecke ist unberührt; versuch es später erneut.',
+    pt: 'Não conseguimos falar com o servidor. Seu traçado está intacto; tente mais tarde.',
+  },
+  traceDeleteNotFoundBody: {
+    fr: 'Cette sortie n’est plus dans ton historique.',
+    en: 'This outing is no longer in your history.',
+    es: 'Esta salida ya no está en tu historial.',
+    de: 'Diese Aktivität ist nicht mehr in deinem Verlauf.',
+    pt: 'Esta saída não está mais no seu histórico.',
+  },
+
   // ─── /territoire (cohérent profil : territoire → Gebiet) ───────────────────
   territoryKicker: {
     fr: 'MON TERRITOIRE',

@@ -2554,6 +2554,122 @@ export const C = defineCatalog({
     de: 'SICHERHEIT',
     pt: 'SEGURANÇA',
   },
+  secTracesDetaillees: {
+    fr: 'TRACÉS DÉTAILLÉS',
+    en: 'DETAILED ROUTES',
+    es: 'TRAZADOS DETALLADOS',
+    de: 'DETAILLIERTE STRECKEN',
+    pt: 'TRAÇADOS DETALHADOS',
+  },
+
+  // ── TRACÉS DÉTAILLÉS : la conservation devient un choix (0195/0196) ────────
+  //
+  // Décision du fondateur du 11/09/2026 : « Trace GPS : ce qui est le plus
+  // adapté, ou mettre dans les réglages l'option, mais ne pas purger
+  // directement. » Avant ce lot, le serveur gardait DEUX formes de la même
+  // trace avec deux durées de vie opposées, et personne n'avait son mot à dire :
+  // `polyline_masked` était effacée à 90 jours pour tout le monde, et
+  // `trace_points_2026` ne l'était jamais.
+  //
+  // LA COPIE NE DIT QUE CE QUE LE SERVEUR FAIT. Elle nomme le défaut (« garde »),
+  // les deux durées possibles, et ce qui NE PART PAS : les statistiques et le
+  // terrain. Aucun « bientôt », aucune promesse de chiffrement, aucune durée
+  // écrite en dur qui pourrait dériver de `TRACE_RETENTION_DAYS_2026`.
+  traceRetentionTitle: {
+    fr: 'Conservation des tracés',
+    en: 'Route retention',
+    es: 'Conservación de trazados',
+    de: 'Aufbewahrung der Strecken',
+    pt: 'Conservação dos traçados',
+  },
+  /** La phrase d'accueil du bloc. Elle dit le défaut AVANT les options. */
+  traceRetentionExplain: {
+    fr: 'Par défaut, GRYD garde le tracé de tes sorties pour que tu puisses les revoir. Tu peux choisir de l’effacer automatiquement après 90 jours ou 1 an ; tes statistiques et ton terrain restent.',
+    en: 'By default, GRYD keeps the route of your outings so you can look back at them. You can choose to erase it automatically after 90 days or 1 year; your stats and your ground stay.',
+    es: 'Por defecto, GRYD guarda el trazado de tus salidas para que puedas revisarlas. Puedes elegir borrarlo automáticamente a los 90 días o al año; tus estadísticas y tu terreno se quedan.',
+    de: 'Standardmäßig behält GRYD die Strecke deiner Aktivitäten, damit du sie wiedersehen kannst. Du kannst sie automatisch nach 90 Tagen oder 1 Jahr löschen lassen; deine Werte und dein Gebiet bleiben.',
+    pt: 'Por padrão, a GRYD guarda o traçado das suas saídas para você poder revê-las. Você pode escolher apagá-lo automaticamente após 90 dias ou 1 ano; suas estatísticas e seu terreno ficam.',
+  },
+  traceKeepLabel: {
+    fr: 'Tout garder',
+    en: 'Keep everything',
+    es: 'Guardar todo',
+    de: 'Alles behalten',
+    pt: 'Guardar tudo',
+  },
+  traceDays90Label: {
+    fr: '90 jours',
+    en: '90 days',
+    es: '90 días',
+    de: '90 Tage',
+    pt: '90 dias',
+  },
+  traceDays365Label: {
+    fr: '1 an',
+    en: '1 year',
+    es: '1 año',
+    de: '1 Jahr',
+    pt: '1 ano',
+  },
+  /** La CONSÉQUENCE du choix courant. Une par valeur, jamais un message unique. */
+  traceKeepConseq: {
+    fr: 'Rien n’est effacé. Tes tracés restent tant que la sortie existe.',
+    en: 'Nothing is erased. Your routes stay for as long as the outing exists.',
+    es: 'No se borra nada. Tus trazados permanecen mientras exista la salida.',
+    de: 'Nichts wird gelöscht. Deine Strecken bleiben, solange die Aktivität existiert.',
+    pt: 'Nada é apagado. Seus traçados ficam enquanto a saída existir.',
+  },
+  traceDays90Conseq: {
+    fr: 'Le tracé d’une sortie s’efface 90 jours après son départ. Sa distance, sa durée et le terrain pris restent.',
+    en: 'An outing’s route is erased 90 days after it started. Its distance, its time and the ground taken stay.',
+    es: 'El trazado de una salida se borra 90 días después de su inicio. Su distancia, su duración y el terreno tomado se quedan.',
+    de: 'Die Strecke einer Aktivität wird 90 Tage nach dem Start gelöscht. Distanz, Dauer und erobertes Gebiet bleiben.',
+    pt: 'O traçado de uma saída é apagado 90 dias após a partida. A distância, a duração e o terreno tomado ficam.',
+  },
+  traceDays365Conseq: {
+    fr: 'Le tracé d’une sortie s’efface 1 an après son départ. Sa distance, sa durée et le terrain pris restent.',
+    en: 'An outing’s route is erased 1 year after it started. Its distance, its time and the ground taken stay.',
+    es: 'El trazado de una salida se borra 1 año después de su inicio. Su distancia, su duración y el terreno tomado se quedan.',
+    de: 'Die Strecke einer Aktivität wird 1 Jahr nach dem Start gelöscht. Distanz, Dauer und erobertes Gebiet bleiben.',
+    pt: 'O traçado de uma saída é apagado 1 ano após a partida. A distância, a duração e o terreno tomado ficam.',
+  },
+  /**
+   * L'ÉTENDUE RÉELLE : les deux formes partent ensemble, et le plancher
+   * anti-triche est DIT plutôt que découvert au moment d'un refus.
+   */
+  traceRetentionScopeNote: {
+    fr: 'Le choix vaut pour les deux formes gardées par GRYD : les points détaillés et la trace protégée. Une sortie en cours de vérification garde son tracé jusqu’à la fin du dossier, parce qu’il est la preuve de ton recours.',
+    en: 'The choice applies to both forms GRYD keeps: the detailed points and the protected route. An outing under review keeps its route until the case closes, because it is the evidence of your appeal.',
+    es: 'La elección vale para las dos formas que guarda GRYD: los puntos detallados y el trazado protegido. Una salida en verificación conserva su trazado hasta el cierre del caso, porque es la prueba de tu recurso.',
+    de: 'Die Wahl gilt für beide Formen, die GRYD behält: die detaillierten Punkte und die geschützte Strecke. Eine Aktivität in Prüfung behält ihre Strecke bis zum Abschluss des Falls, denn sie ist der Beleg deines Einspruchs.',
+    pt: 'A escolha vale para as duas formas que a GRYD guarda: os pontos detalhados e o traçado protegido. Uma saída em verificação mantém o traçado até o fim do processo, porque ele é a prova do seu recurso.',
+  },
+  /**
+   * LE QUATRIÈME ÉTAT : le serveur n'a pas dit ce qu'il applique. On n'affiche
+   * alors AUCUN choix sélectionné, et surtout pas « Tout garder » : ce serait
+   * affirmer un réglage que personne n'a confirmé.
+   */
+  traceRetentionUnknownTitle: {
+    fr: 'Conservation inconnue',
+    en: 'Retention unknown',
+    es: 'Conservación desconocida',
+    de: 'Aufbewahrung unbekannt',
+    pt: 'Conservação desconhecida',
+  },
+  traceRetentionUnknownBody: {
+    fr: 'On n’a pas pu lire ta préférence de conservation. Tant qu’on ne l’a pas lue, on ne t’affiche pas de valeur.',
+    en: 'We couldn’t read your retention preference. Until we have, we won’t show you a value.',
+    es: 'No pudimos leer tu preferencia de conservación. Mientras no la leamos, no te mostramos ningún valor.',
+    de: 'Deine Aufbewahrungs-Einstellung konnte nicht gelesen werden. Solange das so ist, zeigen wir dir keinen Wert.',
+    pt: 'Não conseguimos ler sua preferência de conservação. Enquanto não a lermos, não mostramos nenhum valor para você.',
+  },
+  traceRetentionSaveFailed: {
+    fr: 'Ta préférence n’a pas été enregistrée. Rien n’a changé côté serveur.',
+    en: 'Your preference wasn’t saved. Nothing changed on the server.',
+    es: 'Tu preferencia no se guardó. Nada cambió en el servidor.',
+    de: 'Deine Einstellung wurde nicht gespeichert. Auf dem Server hat sich nichts geändert.',
+    pt: 'Sua preferência não foi salva. Nada mudou no servidor.',
+  },
 
   // ── VISIBILITÉ : réglages RÉELS depuis 0135 (10/09/2026) ───────────────────
   //

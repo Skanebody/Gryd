@@ -22,11 +22,29 @@
  * ═══ DEUX SOURCES, ET ELLES NE SE VALENT PAS ════════════════════════════════
  *  · `full`   — `trace_points_2026` : géométrie ET temps. C'est la seule qui
  *    permet des splits, une courbe d'allure, un temps en mouvement.
- *  · `masked` — `polyline_masked` : géométrie SEULE, déjà expurgée, et purgée à
- *    90 jours (`RAW_POLYLINE_RETENTION_DAYS`, migration 0101). Elle donne une
- *    carte, jamais un split : l'écran DIT alors ce qui manque plutôt que
+ *  · `masked` — `polyline_masked` : géométrie SEULE, déjà expurgée. Elle donne
+ *    une carte, jamais un split : l'écran DIT alors ce qui manque plutôt que
  *    d'étaler l'allure moyenne sur des kilomètres jamais chronométrés.
  *  · `none`   — aucune des deux. La sortie garde ses chiffres ; sa trace, non.
+ *
+ * ═══ « NONE » A TROIS CAUSES, ET L'ÉCRAN N'EN INVENTE AUCUNE ════════════════
+ * ⚠️ CORRIGÉ LE 11/09/2026. Ce docbloc affirmait que `polyline_masked` était
+ * « purgée à 90 jours (`RAW_POLYLINE_RETENTION_DAYS`, migration 0101) ». C'était
+ * vrai POUR TOUT LE MONDE jusqu'à ce lot, pendant que `trace_points_2026` ne
+ * l'était jamais : deux formes de la même trace, deux durées opposées, aucun
+ * choix. Depuis 0195/0196 la conservation est une préférence du joueur
+ * (`user_profiles.trace_retention_2026`), dont le DÉFAUT est « tout garder ».
+ * Une trace absente vient donc, aujourd'hui, de l'une de ces trois causes :
+ *   ① la sortie est antérieure à l'écriture des traces (juillet 2026), ou son
+ *     ingestion n'en a pas produit ;
+ *   ② le joueur a CHOISI une conservation (90 jours / 1 an) et le délai est
+ *     passé — `purge_traces_by_retention_2026` a mis les DEUX colonnes à null ;
+ *   ③ le joueur a effacé CE tracé à la main (`delete_run_trace_2026`).
+ * Ce module ne les distingue PAS, et ce n'est pas un manque : rien en base ne
+ * les sépare — le journal d'effacement (`trace_purge_log_2026`) n'est servi à
+ * aucun client. L'écran dit donc ce qui est VRAI dans les trois cas (« Tracé
+ * non disponible pour cette sortie. Ses mesures, elles, sont conservées. »)
+ * plutôt que de deviner laquelle des trois s'applique.
  *
  * ═══ VIE PRIVÉE : LE REGARD DÉCIDE, PAS L'ÉCRAN ═════════════════════════════
  * Ces deux lectures servent au JOUEUR qui regarde SA sortie (la RLS ne rend
