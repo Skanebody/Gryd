@@ -1063,8 +1063,18 @@ export const SEASON_RESET_KEEPS = {
 } as const satisfies Readonly<Record<string, boolean>>;
 
 // ─── §3.7 Parrainage ─────────────────────────────────────────────────────────
-export const REFERRAL_BOOST_MULTIPLIER = 2;
-export const REFERRAL_BOOST_DAYS = 7;
+/**
+ * ⚠️ AUCUNE RÉCOMPENSE DE JEU POUR UN PARRAINAGE (cahier de septembre §15.2,
+ * rang 0 : « Le parrainage ne donne ni XP ni points ni chance supplémentaire de
+ * gagner un prix »). Les constantes `REFERRAL_BOOST_MULTIPLIER = 2` et
+ * `REFERRAL_BOOST_DAYS = 7` (un doublement des gains pendant 7 jours) ont été
+ * RETIRÉES le 11/09/2026 : aucun code ne les lisait (seule la colonne
+ * `referrals.boost_expires_at` de 0002 les cite en commentaire), et un multiplicateur
+ * de gain contredit frontalement le rang 0. La seule récompense admise est un
+ * objet souvenir aux DEUX joueurs après une première sortie validée de chacun
+ * (proposition chiffrée : docs/product/GRYD_REGLAGES_PROFIL_AUDIT_2026_09.md §5).
+ * Le plafond ci-dessous est une borne anti-abus, pas une récompense.
+ */
 export const REFERRAL_MAX_ACTIVE_PER_SEASON = 5;
 
 // ─── Notifications : UNE seule source, `NOTIFICATION_RULES_2026` (§14.1) ─────
