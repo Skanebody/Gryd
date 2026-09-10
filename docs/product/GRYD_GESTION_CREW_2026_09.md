@@ -1008,3 +1008,111 @@ ADR-013 tension n° 1).
 7. **Migrations NON POUSSÉES.** Codex pousse sur le même projet : `supabase
    migration list` avant tout `db push`, et 0188-0190 ne sont réservées que dans
    ce dépôt.
+
+---
+
+## 7. Livré (Q3, mobile) — écrit après les écrans, pas avant
+
+> **Statut** : ce chapitre décrit du code MOBILE écrit, typé et testé. Il est
+> écrit le 11/09/2026, après coup, et ne promet rien au-delà de ce que
+> `npm run gate` rejoue. **Aucun de ces écrans n'a jamais parlé à la base
+> réelle** : 0188-0190 ne sont pas poussées, et la prod a 3 comptes et 0 donnée
+> de jeu. Ce qui est prouvé est dit au §7.5 ; ce qui ne l'est pas aussi.
+
+### 7.1 Les neuf écrans, et ce que chacun appelle
+
+| Écran | Route | RPC | Les quatre états |
+|---|---|---|---|
+| Gérer mon crew | `/crew-gestion` | `crew_member_board_2026` · `crew_resolve_warning_2026` · `crew_invite_by_handle_2026` | pas connecté · squelette 3 lignes · échec + Réessayer · vide (« tu es seul ») **+ `forbidden`, qui n'est PAS un échec** |
+| Règles, exigences et charte | `/crew-regles` | `crew_rules_get_2026` · `crew_rules_set_2026` (+ `crew_member_board_2026` pour la conséquence) | pas connecté · en cours · échec · sans crew |
+| Journal des décisions | `/crew-journal` | `crew_decisions_log_2026` | pas connecté · en cours · échec · vide (« rien décidé ») |
+| Demander à rejoindre | `/crew-rejoindre?crewId=` | `crew_eligibility_2026` · `crew_rules_get_2026` · `crew_apply_2026` | pas connecté · éligible · non éligible **avec la liste chiffrée** · vérification impossible |
+| Ma situation | `/crew-ma-situation` | `crew_my_standing_2026` | pas connecté · en cours · échec · sans crew |
+| Fiche publique (étendue) | `/crew-public?crewId=` | + `crew_rules_get_2026` | inchangés, plus « conditions non lues » |
+| Découverte (étendue) | `/crew-discovery` | + `crew_discovery_2026` (annotation) | inchangés, plus « conditions non lues » |
+| Édition (étendue) | `/crew-edit` | + `crew_dissolve_2026` | + zone dangereuse : repos · confirmation · dissous |
+| Feuille d'actions (étendue) | composant | `crew_warn_member_2026` · `crew_remove_member_2026` | choix · motif · confirmation · résultat |
+
+`sweep_crew_inactivity_2026` n'a **aucun appelant mobile**, et c'est correct :
+elle est `service_role` seule et tourne en `pg_cron`.
+
+### 7.2 Les trois écarts avec §4, tous assumés
+
+| §4 annonçait | Livré | Pourquoi |
+|---|---|---|
+| `/crew-regles` **et** `/crew-charte` | **un seul écran** | `crew_rules_set_2026` fait `coalesce(p_requirements, '{}')`. Un écran de charte qui n'enverrait que son texte remettrait exigences ET règles à zéro EN SILENCE : un capitaine perdrait ses seuils en corrigeant une faute d'orthographe. Un seul brouillon, un seul appel |
+| `/crew-demandes` | **dans `/crew-gestion`** | Le point d'entrée devait disparaître quand la file est vide (§4.1 D). Une route dont la porte s'efface est une route orpheline pour l'audit ; le bloc, lui, se masque tout seul et vit là où l'on décide |
+| Découverte basculée sur `crew_discovery_2026` | **0152 pour la liste, 0190 en annotation** | 0190 ne rend ni `friendsInside` ni `viewerInCrew`. Basculer entièrement aurait supprimé « deux de tes amis sont dedans » pour gagner « je suis éligible ». Les deux réponses se recollent par identifiant, et si l'annotation échoue le filtre n'est pas peint |
+
+### 7.3 Les cinq garanties que le code TIENT, et où elles vivent
+
+1. **Une mesure masquée n'est ni un zéro ni un tiret.** Le type `CrewMeasure`
+   (`crewBoard2026.ts`) n'a que deux formes, et `measureText` est le seul chemin
+   vers un texte. `row.distance28dKm ?? 0` ne compile pas en silence.
+   `lastRunAt` garde ses TROIS cas, dont `null` = « n'a jamais couru ».
+2. **« Il te manque 2 km », jamais « tu n'es pas éligible » tout seul.**
+   `missingLine` (`crewManagementCopy.ts`), testée dans les cinq langues. Sans
+   `have`, la phrase dit l'exigence et n'invente aucun écart.
+3. **Un crew sans charte n'est jamais « périmé ».** `charterStale` le garantit :
+   sans ce garde, tous les crews existants porteraient à vie un bandeau
+   accusant leurs membres de ne pas avoir lu un texte qui n'existe pas.
+4. **Un seul chemin d'exclusion, journalisé.** `removeMember` (0093) n'a plus
+   aucun appelant ; la feuille passe par `crew_remove_member_2026`, avec motif
+   du catalogue fermé, note, et l'aperçu EXACT du message reçu. Le §6.7 ④ est
+   levé côté client.
+5. **Un seul chemin d'entrée.** `requestCrewJoin` est retiré du client : deux
+   façons d'entrer avec des garanties différentes auraient été une porte
+   dérobée sur les exigences que le capitaine venait de régler.
+
+### 7.4 Constantes et copie
+
+Aucune constante n'a été ajoutée : les dix-huit du §6.5 suffisaient. Toutes les
+bornes de l'écran des règles les LISENT (`CREW_MIN_CHALLENGE_DAYS_MAX`,
+`CREW_CHARTER_MAX_CHARS`, `CREW_KICK_NOTE_MAX`, `CREW_REJOIN_AFTER_KICK_DAYS`,
+`CREW_WARNING_GRACE_DAYS`, `CREW_NAME_HOLD_AFTER_ARCHIVE_DAYS`,
+`CREW_BOARD_SORTS` / `_FILTERS`, `CREW_KICK_REASONS` +
+`CREW_KICK_REASON_REQUIRING_NOTE`, `CREW_DISSOLVE_REFUSALS`).
+
+La copie vit dans `apps/mobile/src/i18n/catalog/crewGestion.ts`, `Entry =
+Record<Locale, string>` : les cinq langues sont imposées par le type (ADR-009).
+Français au tutoiement, sans tiret long (`noDashFr2026.test.ts`, global).
+« Crew » reste invariant. Aucun hex en dur, aucun texte en dur.
+
+### 7.5 Ce que Q3 prouve, et ce qu'il ne prouve PAS
+
+**Prouvé.** `npm run gate` vert. 3 252 tests mobile, dont 56 purs neufs
+(lecture défensive, bornes, formulation dans les cinq langues) et 28 de couture
+(chaque RPC a un appelant, aucune table de crew lue en direct, chaque écran
+neuf atteignable). `node scripts/audit-routes.mjs` vert : 65 routes
+atteignables sur 94, aucune orpheline nouvelle, aucun lien mort. Bundle web
+exporté et les huit routes ouvertes en headless (390 × 844, `fr-FR`) : aucune
+erreur de page, état « pas connecté » honnête partout.
+
+**NON prouvé, et il faut le dire.**
+1. **Aucun écran n'a jamais reçu une réponse `ok:true`.** 0188-0190 ne sont pas
+   poussées, et la base réelle a 3 comptes et 0 donnée de jeu. Tout ce qui a été
+   vu à l'écran est l'état « pas connecté ». Les branches « lu », « vide » et
+   « refusé » sont testées par des JSON copiés du §6.3, pas vécues.
+2. **Aucun rendu authentifié**, donc aucune preuve de mise en page réelle :
+   ni un tableau de 50 lignes, ni une charte de 600 caractères, ni un pseudo
+   long. Le gate `ux-gate` reste à passer.
+3. **Le filtre « je suis éligible » n'a jamais filtré**, faute de crew avec
+   exigences.
+4. **La levée d'avertissement ne vise que le plus récent** d'un membre. Avec
+   plusieurs avertissements ouverts, il faut relire entre deux gestes.
+5. **`redeem_crew_invite` (0090) applique encore le cooldown à tous les départs**
+   (§6.7 ⑤) : une invitation par pseudo peut donc arriver chez quelqu'un qui ne
+   pourra pas l'accepter. Le mobile ne peut rien y faire.
+6. **La commune d'une exigence est celle DU CREW, ou rien** : aucun sélecteur
+   de commune arbitraire n'est offert, alors que le serveur en accepterait une
+   autre. C'est un choix, pas un manque.
+
+### 7.6 Ce qui reste, chiffré
+
+| Reste | Effort |
+|---|---|
+| Pousser 0188-0190 puis `npm run verify:rls` et vérifier `cron.job` | 0,5 j |
+| Recette authentifiée des neuf écrans (4 états chacun) + gate `ux-gate` | 1 j |
+| Filtres §2.7 non peints : discipline, taille, étiquettes, activité récente | 0,5 j |
+| Lever un avertissement PRÉCIS quand un membre en a plusieurs | 0,25 j |
+| Notifications : peindre `warning_issued` / `removed` / `dissolved` dans le centre d'activité (§6.6) | 1 j |

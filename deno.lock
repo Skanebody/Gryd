@@ -206,6 +206,7 @@
             "npm:expo-haptics@~14.0.1",
             "npm:expo-image-manipulator@~13.0.6",
             "npm:expo-image-picker@~16.0.6",
+            "npm:expo-keep-awake@~14.0.3",
             "npm:expo-linking@~7.0.5",
             "npm:expo-localization@~16.0.1",
             "npm:expo-location@~18.0.10",
