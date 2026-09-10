@@ -127,8 +127,11 @@ export function ProfileStatsScreen() {
         </View> : null}
       </View> : <View style={local.empty}><Text style={local.sectionTitle}>{copy('La place pour ta prochaine sortie.', 'Room for your next activity.')}</Text><Text style={local.meta}>{copy('Aucune sortie sur cette période.', 'No activities during this period.')}</Text></View>}
 
-      {/* ── ÉVOLUTION 1 : la distance par semaine, sur huit semaines ────────── */}
-      <View style={local.chartSection}>
+      {/* ── ÉVOLUTION 1 : la distance par semaine, sur huit semaines ──────────
+             Le bloc n'apparaît que si au moins une sortie tombe dans la
+             fenêtre : huit barres à zéro sous un compte neuf ne racontent
+             rien, et l'état vide du graphique du dessus le dit déjà. */}
+      {weeks.some(week => week.runs > 0) ? <View style={local.chartSection} onLayout={onLayout}>
         <View style={local.chartHeading}><Text style={local.sectionTitle}>{t(JC.weeklyDistance)}</Text><Text style={local.meta}>km</Text></View>
         <BarChart
           values={weeks.map(week => week.km)}
@@ -143,10 +146,13 @@ export function ProfileStatsScreen() {
           })}
           testID="stats-weekly-bars"
         />
-      </View>
+      </View> : null}
 
-      {/* ── ÉVOLUTION 2 : l'allure (ou la vitesse) moyenne par sortie ───────── */}
-      <View style={local.chartSection}>
+      {/* ── ÉVOLUTION 2 : l'allure (ou la vitesse) moyenne par sortie ─────────
+             Même règle : sans une seule sortie lue, le bloc n'existe pas. Avec
+             une seule sortie MESURÉE, il existe et dit ce qui manque — deux
+             points font une droite, pas une évolution. */}
+      {journal.runs.length > 0 ? <View style={local.chartSection} onLayout={onLayout}>
         <View style={local.chartHeading}><Text style={local.sectionTitle}>{t(sessionCurveTitle(activity))}</Text><Text style={local.meta}>{fastLabel?.unit ?? ''}</Text></View>
         {curve.length >= 2 && fastLabel !== null && slowLabel !== null ? <LineChart
           points={curve}
@@ -164,7 +170,7 @@ export function ProfileStatsScreen() {
           })}
           testID="stats-pace-curve"
         /> : <Text style={local.meta}>{t(JC.notEnoughForCurve)}</Text>}
-      </View>
+      </View> : null}
 
       {days.some(day => day.pending) ? <Text style={local.notice}>{copy('Inclut les mesures locales à synchroniser ; validation serveur en attente.', 'Includes local measurements awaiting sync and server validation.')}</Text> : null}
       {journal.historyStatus !== 'ready' ? <Text style={local.notice}>{copy('Seules les sorties disponibles sur cet appareil sont affichées.', 'Only activities available on this device are shown.')}</Text> : null}
