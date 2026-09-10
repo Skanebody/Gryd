@@ -472,7 +472,9 @@ const orphans = [...routes.keys()].filter((r) => (inbound.get(r)?.size ?? 0) ===
  *    router.push('/course')`. C'est une issue de garde au même titre qu'un
  *    `<Redirect>` : au lancement à FROID avec une course interrompue, l'app
  *    s'ouvre là. ⚠️ Et `/course` est un écran de la QUARANTAINE `(mvp)` — voir
- *    le constat imprimé plus bas : la reprise après crash est la dernière porte
+ *    le constat imprimé plus bas ; la reprise après crash n'est plus une porte
+ *    depuis le 10/09 (app/_layout.tsx pousse '/course-live'), et la phrase ne
+ *    doit plus l'affirmer
  *    qui tienne la ligne MASTER en vie, alors que la Carte de septembre
  *    enregistre sur `/course-live` (MapHome.tsx:147).
  *  · `/c/[code]` — `app/_layout.tsx:344` : l'app LANCÉE par un QR d'invitation
@@ -655,8 +657,8 @@ if (doubleServies.length > 0) {
 if (mvpJoignables.length > 0) {
   console.log(
     `  ⚠ la quarantaine n'est PAS étanche : ${mvpJoignables.join(' · ')} restent atteignables.` +
-      `\n    Porte : app/_layout.tsx:245 rouvre '/course' à la reprise après crash, alors que la` +
-      `\n    Carte du cahier enregistre sur '/course-live' (MapHome.tsx:147). Deux écrans de course.`,
+      `\n    La reprise après crash pousse '/course-live' depuis le 10/09 (liveChain2026.test.ts` +
+      `\n    l'interdit autrement) : cherche la porte restante dans les liens ÉCRITS vers ces routes.`,
   );
 }
 
