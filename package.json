@@ -17,6 +17,8 @@
     "test:sql": "node scripts/run-sql-tests.mjs",
     "gate": "npm run typecheck && npm run sync:rules && npm run audit:migrations && npm run test:packages && npm run test:mobile && npm run test:functions && npm run test:sql",
     "test:e2e": "playwright test",
+    "e2e:parcours:build": "node apps/mobile/e2e/build-dist.mjs",
+    "test:e2e:parcours": "npm run e2e:parcours:build && playwright test -c apps/mobile/e2e/playwright.config.ts",
     "test:e2e:web": "playwright test --project=web",
     "test:e2e:mobile": "playwright test --project=mobile",
     "test:packages": "deno test --allow-read --allow-env packages/",
