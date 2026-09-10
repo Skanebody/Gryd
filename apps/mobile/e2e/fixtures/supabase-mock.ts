@@ -25,13 +25,27 @@
  * arriverait sur une carte pleine de zones prouverait le contraire de ce qu'on
  * cherche.
  *
+ * ═══ LE LIEN MAGIQUE NE SE SIMULE PAS PAR UNE REPONSE, MAIS PAR UN RETOUR ══
+ * L'app ne demande plus de code : `EMAIL_DELIVERY` vaut `'link'` tant qu'aucune
+ * source ne PROUVE que le gabarit e-mail porte `{{ .Token }}` (voir
+ * `emailDelivery2026`, et l'en-tete de `e2e/build-dist.mjs`). Il n'y a donc plus
+ * de `POST /auth/v1/verify` a simuler : ce qu'un joueur fait, c'est OUVRIR un
+ * lien. Le harnais joue ce geste-la — une navigation vers `/callback` avec, dans
+ * le FRAGMENT, ce que GoTrue y met en flux implicite (`magicLinkReturn`) ou
+ * l'erreur qu'il y met quand le lien est mort (`EXPIRED_LINK_RETURN`).
+ *
+ * `/auth/v1/verify` n'est plus servi VOLONTAIREMENT : si un ecran redemandait un
+ * code un jour, sa requete tomberait dans la case « chemin Supabase sans
+ * fixture » et le test le dirait, au lieu de reussir sur un vestige.
+ *
  * ═══ CE QUE LA SESSION SIMULEE EST, ET N'EST PAS ════════════════════════════
- * `POST /auth/v1/verify` rend une session dont l'`access_token` est un JWT de
- * FORME valide mais de SIGNATURE bidon. C'est suffisant et c'est exact : le
- * client `@supabase/auth-js` ne verifie AUCUNE signature — il lit `expires_at`,
- * `refresh_token` et `user` (`_isValidSession`, GoTrueClient.js). Ce jeton ne
- * serait accepte par aucun serveur reel, et c'est tres bien : le harnais prouve
- * le comportement de l'APP une fois connectee, jamais la validite d'un jeton.
+ * L'`access_token` rendu (dans le fragment du retour, par `/auth/v1/user` et par
+ * `/auth/v1/token`) est un JWT de FORME valide mais de SIGNATURE bidon. C'est
+ * suffisant et c'est exact : le client `@supabase/auth-js` ne verifie AUCUNE
+ * signature — `setSession` decode le JWT, lit son `exp`, puis demande l'utilisateur
+ * au serveur (`GET /auth/v1/user`). Ce jeton ne serait accepte par aucun serveur
+ * reel, et c'est tres bien : le harnais prouve le comportement de l'APP une fois
+ * connectee, jamais la validite d'un jeton.
  */
 import type { Page, Route } from '@playwright/test';
 
@@ -62,9 +76,7 @@ export interface MockUser {
 export type SupabaseOutage = 'none' | 'http-503' | 'abort';
 
 export interface MockConfig {
-  /** Le seul code a 6 chiffres accepte par `/auth/v1/verify`. */
-  readonly otpCode: string;
-  /** L'utilisateur rendu par une verification reussie. */
+  /** L'utilisateur que le retour de lien connecte. */
   readonly user: MockUser;
   /** Panne simulee du backend (scenario S4). */
   readonly outage: SupabaseOutage;
@@ -75,9 +87,6 @@ export const DEFAULT_USER: MockUser = {
   id: '00000000-0000-4000-8000-0000000e2e01',
   email: 'parcours.e2e@example.test',
 };
-
-export const GOOD_CODE = '123456';
-export const BAD_CODE = '999999';
 
 /** Base64url sans padding — les trois segments d'un JWT de forme valide. */
 function b64url(value: string): string {
@@ -141,6 +150,41 @@ export function makeSession(user: MockUser = DEFAULT_USER): FakeSession {
     },
   };
 }
+
+/**
+ * LE RETOUR D'UN LIEN VALIDE — flux implicite, tel que GoTrue le rend.
+ *
+ * Le lien de l'e-mail passe par `…/auth/v1/verify?token=…&type=magiclink`, qui
+ * REDIRIGE vers l'app avec la session dans le FRAGMENT (`#access_token=…`).
+ * C'est cette redirection-la que l'app voit ; le harnais la joue directement,
+ * parce que l'etape d'avant se passe dans une boite mail qu'aucun test ne peut
+ * ouvrir. Le fragment ne part jamais au serveur : `callback.tsx` le lit avec
+ * `Linking.useLinkingURL()` (sur le web : `window.location.href`), et
+ * `completeAuthCallback` appelle `setSession` avec les deux jetons.
+ */
+export function magicLinkReturn(user: MockUser = DEFAULT_USER): string {
+  const session = makeSession(user);
+  const fragment = new URLSearchParams({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_in: String(session.expires_in),
+    token_type: session.token_type,
+    type: 'magiclink',
+  });
+  return `/callback#${fragment.toString()}`;
+}
+
+/**
+ * LE RETOUR D'UN LIEN MORT — expire, ou deja servi (ils sont a usage unique).
+ * Parametres copies de GoTrue mot pour mot : c'est `error_description` qui porte
+ * le mot « expired », et c'est lui que `linkVerdictFromParams` lit pour
+ * distinguer « expire » de « incomplet ».
+ */
+export const EXPIRED_LINK_RETURN = `/callback#${new URLSearchParams({
+  error: 'access_denied',
+  error_code: 'otp_expired',
+  error_description: 'Email link is invalid or has expired',
+}).toString()}`;
 
 /** Instantane de propriete VIDE, au contrat que `parseOwnership2026` exige. */
 function emptyOwnership(activity: string): Record<string, unknown> {
@@ -227,7 +271,6 @@ export async function installSupabaseMock(
   page: Page,
   config: Partial<MockConfig> = {},
 ): Promise<SupabaseMock> {
-  const otpCode = config.otpCode ?? GOOD_CODE;
   const user = config.user ?? DEFAULT_USER;
   let outage: SupabaseOutage = config.outage ?? 'none';
 
@@ -265,20 +308,9 @@ export async function installSupabaseMock(
     // ─── GoTrue ────────────────────────────────────────────────────────────
     if (path === '/auth/v1/otp') {
       // GoTrue ne dit JAMAIS si l'adresse existe : la reponse est la meme pour
-      // une inscription et pour un retour. Le mock ne le dit pas non plus.
+      // une inscription et pour un retour. Le mock ne le dit pas non plus. Ce
+      // 200 signifie « le lien est parti », rien de plus — comme en vrai.
       return json(route, 200, { message_id: null });
-    }
-    if (path === '/auth/v1/verify') {
-      const sent = request.postDataJSON() as { token?: string } | null;
-      if (sent?.token !== otpCode) {
-        return json(route, 403, {
-          code: 403,
-          error_code: 'otp_expired',
-          msg: 'Token has expired or is invalid',
-          message: 'Token has expired or is invalid',
-        });
-      }
-      return json(route, 200, makeSession(user));
     }
     if (path === '/auth/v1/token') {
       return json(route, 200, makeSession(user));

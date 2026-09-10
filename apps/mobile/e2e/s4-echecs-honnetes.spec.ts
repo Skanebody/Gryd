@@ -12,8 +12,21 @@
  *   · `abort`     — la requete ne part pas (avion, tunnel) → « quand tu as du reseau » ;
  *   · `http-503`  — le serveur repond, mal → « rien n'a ete enregistre ».
  * Confondre les deux ferait donner au joueur un conseil faux.
+ *
+ * Les deux frappent l'ENVOI DU LIEN : c'est le seul appel reseau que l'ecran
+ * e-mail passe aujourd'hui (`signInWithOtp`), et c'est celui dont le joueur
+ * attend un verdict — l'e-mail part, ou il ne part pas.
  */
-import { expect, test, FR, exploredOnce, returningMember, seedStorage, mapLayersButton } from './fixtures/app';
+import {
+  expect,
+  test,
+  FR,
+  exploredOnce,
+  linkSentBody,
+  returningMember,
+  seedStorage,
+  mapLayersButton,
+} from './fixtures/app';
 import { DEFAULT_USER } from './fixtures/supabase-mock';
 
 async function emailFormAsGuest(page: import('@playwright/test').Page): Promise<void> {
@@ -34,7 +47,7 @@ test.describe('S4 — echecs honnetes', () => {
     supabase.setOutage('abort');
 
     await page.getByLabel(FR.emailLabel).fill(DEFAULT_USER.email);
-    const cta = page.getByRole('button', { name: FR.otpRequestCta });
+    const cta = page.getByRole('button', { name: FR.linkRequestCta });
     await cta.click();
 
     await expect(page.getByText(FR.errorNetwork)).toBeVisible();
@@ -44,14 +57,16 @@ test.describe('S4 — echecs honnetes', () => {
     // `aria-disabled` n'est pas emis quand il vaut false (react-native-web) :
     // on verifie l'absence de « true », pas la presence de « false ».
     await expect(cta).not.toHaveAttribute('aria-disabled', 'true');
-    // Et l'ecran n'a pas prononce de verdict qu'il ne peut pas tenir.
-    await expect(page.getByLabel(FR.otpFieldA11y)).toHaveCount(0);
+    // Et l'ecran n'a pas prononce de verdict qu'il ne peut pas tenir : aucun
+    // « Lien envoye » alors que rien n'est parti.
+    await expect(page.getByText(FR.linkSentTitle)).toHaveCount(0);
+    await expect(page.getByText(linkSentBody(DEFAULT_USER.email))).toHaveCount(0);
     await expect(page).toHaveURL(/\/email/);
 
     // Une fois le reseau revenu, le MEME bouton marche : rien n'est reste coince.
     supabase.setOutage('none');
     await cta.click();
-    await expect(page.getByLabel(FR.otpFieldA11y)).toBeVisible();
+    await expect(page.getByText(linkSentBody(DEFAULT_USER.email))).toBeVisible();
   });
 
   test('serveur en panne (503) : l’echec est dit, et il dit que RIEN n’a ete enregistre', async ({
@@ -62,12 +77,15 @@ test.describe('S4 — echecs honnetes', () => {
     supabase.setOutage('http-503');
 
     await page.getByLabel(FR.emailLabel).fill(DEFAULT_USER.email);
-    const cta = page.getByRole('button', { name: FR.otpRequestCta });
+    const cta = page.getByRole('button', { name: FR.linkRequestCta });
     await cta.click();
 
     await expect(page.getByText(FR.errorUnknown)).toBeVisible();
     await expect(cta).toHaveAttribute('aria-busy', 'false');
-    await expect(page.getByLabel(FR.otpFieldA11y)).toHaveCount(0);
+    await expect(cta).not.toHaveAttribute('aria-disabled', 'true');
+    // Ni « Lien envoye », ni le message de l'AUTRE panne : deux causes, deux phrases.
+    await expect(page.getByText(FR.linkSentTitle)).toHaveCount(0);
+    await expect(page.getByText(FR.errorNetwork)).toHaveCount(0);
   });
 
   test('carte connectee, backend muet : le bandeau DIT l’echec et propose de reessayer', async ({

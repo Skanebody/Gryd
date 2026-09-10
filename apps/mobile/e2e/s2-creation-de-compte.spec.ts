@@ -6,15 +6,22 @@
  * ou un joueur la vit :
  *
  *   carte → porte de compte → /sign-in → e-mail → gate 16+ → adresse refusee
- *   → adresse acceptee → code envoye → cadence de renvoi → code faux → code juste
+ *   → adresse acceptee → LIEN envoye → cadence de renvoi → lien mort → lien bon
  *   → retour sur la carte, connecte → le Profil montre une identite.
+ *
+ * ⚠️ LE PARCOURS TESTE EST CELUI DU LIEN MAGIQUE, PAS D'UN CODE. Ce fichier a
+ * longtemps tape six chiffres dans un champ : c'etait le parcours d'un mode que
+ * l'app REFUSE de servir sans preuve serveur (`emailDelivery2026`, appele avec
+ * un `false` litteral par les deux `lib/auth*` depuis le 10/09/2026). L'ecran
+ * dit « Recevoir le lien », l'e-mail porte un lien, et le retour se fait par
+ * `/callback` — c'est ce que le harnais joue desormais.
  *
  * Le reseau Supabase est entierement simule : aucune adresse reelle n'est
  * sollicitee, aucun quota d'e-mail consomme, aucun compte cree nulle part.
  */
 import type { Page } from '@playwright/test';
-import { expect, test, FR, exploredOnce, seedStorage, mapLayersButton } from './fixtures/app';
-import { BAD_CODE, DEFAULT_USER, GOOD_CODE } from './fixtures/supabase-mock';
+import { expect, test, FR, exploredOnce, linkSentBody, seedStorage, mapLayersButton } from './fixtures/app';
+import { DEFAULT_USER, EXPIRED_LINK_RETURN, magicLinkReturn } from './fixtures/supabase-mock';
 
 /** L'identite visible attendue : le prefixe de l'adresse, jamais un mot invente. */
 const EXPECTED_NAME = DEFAULT_USER.email.split('@')[0] ?? '';
@@ -42,35 +49,19 @@ async function reachEmailForm(page: Page): Promise<void> {
 }
 
 /**
- * Demande le code, puis ABSORBE le gate 16+ s'il est redemande.
+ * Demande le lien, et n'attend rien d'autre que l'etat « envoye ».
  *
- * ⚠️ CE N'EST PAS UN CONFORT DE TEST, C'EST LE CONTOURNEMENT D'UN BUG REEL.
- * Le joueur qui vient de repondre « Oui, j'ai 16 ans ou plus » sur /sign-in se
- * voit reposer LA MEME question sur /email des qu'il valide son adresse. Le
- * parcours reste franchissable (il repond deux fois), et c'est ce que la suite
- * des tests prouve — mais la friction est reelle et le gate legal est double.
- *
- * Le bug est epingle a part, dans le test « le gate 16+ ne se redemande pas »,
- * marque `test.fail()`. On l'absorbe ICI pour que les tests SUIVANTS puissent
- * prouver ce qu'ils ont a prouver (envoi, cadence, code faux, code juste)
- * plutot que de mourir tous les cinq sur la meme cause deja identifiee.
- * Le jour ou le bug est corrige, ce bloc devient un no-op et le test rouge
- * passera au vert — ce qui fera echouer la suite tant que son `test.fail()`
- * n'aura pas ete retire. Rien ne peut donc pourrir en silence.
+ * ⚠️ CE HELPER NE CONTOURNE PLUS RIEN. Il absorbait un gate 16+ redemande sur
+ * /email alors qu'il venait d'etre franchi sur /sign-in — un bug reel, epingle
+ * ici meme. Il est corrige (`src/features/onboarding/store.ts` : etat de module
+ * partage + `useSyncExternalStore`, au lieu d'un instantane prive lu une fois au
+ * montage), le contournement est retire, et le test qui le prouve est plus bas,
+ * VERT. Si la question revenait, ce helper echouerait bruyamment — c'est le but.
  */
-async function requestCode(page: Page, email: string): Promise<void> {
+async function requestLink(page: Page, email: string): Promise<void> {
   await page.getByLabel(FR.emailLabel).fill(email);
-  await page.getByRole('button', { name: FR.otpRequestCta }).click();
-
-  const codeField = page.getByLabel(FR.otpFieldA11y);
-  // Sur /email le bouton de confirmation ne porte PAS d'accessibilityLabel :
-  // son nom accessible est son libelle visible (contrairement a /sign-in).
-  const secondGate = page.getByRole('button', { name: FR.ageConfirm, exact: true });
-  await expect
-    .poll(async () => (await codeField.count()) + (await secondGate.count()), { timeout: 15_000 })
-    .toBeGreaterThan(0);
-  if ((await secondGate.count()) > 0) await secondGate.click();
-  await expect(codeField).toBeVisible();
+  await page.getByRole('button', { name: FR.linkRequestCta }).click();
+  await expect(page.getByText(linkSentBody(email))).toBeVisible();
 }
 
 test.describe('S2 — creation de compte', () => {
@@ -78,11 +69,22 @@ test.describe('S2 — creation de compte', () => {
     page,
   }) => {
     await guestOnMap(page);
-    await mapLayersButton(page).click();
 
+    // Sur la carte elle-meme : ce qui manque a un invite, et pourquoi. Pas un
+    // « 0 terrain » qui aurait l'air d'etre un resultat.
+    await expect(page.getByText(FR.mapGuestNotice)).toBeVisible();
+
+    await mapLayersButton(page).click();
     await expect(page.getByText(FR.mapFindMyTerritories)).toBeVisible();
-    // L'invitation dit CE QU'ELLE COUTE : rien. « L'exploration precede le compte ».
-    await expect(page.getByText(FR.mapNoAccountNeeded)).toBeVisible();
+
+    /**
+     * L'INVITATION DIT CE QU'ELLE COUTE. Elle promettait « Ta premiere sortie
+     * peut se faire sans compte. » — une limite d'essai qui n'existe pas : sans
+     * compte, TOUTES les sorties tournent, elles ne prennent simplement aucun
+     * terrain. La phrase actuelle est la vraie, et un test unitaire
+     * (`features/run/liveChain2026.test.ts`) interdit desormais l'ancienne.
+     */
+    await expect(page.getByText(FR.mapGuestNoTerrain)).toBeVisible();
 
     await page.getByText(FR.mapFindMyTerritories).click();
     await expect(page).toHaveURL(/\/sign-in/, { timeout: 20_000 });
@@ -128,7 +130,6 @@ test.describe('S2 — creation de compte', () => {
     await expect(page.getByRole('button', { name: FR.ageUnder, exact: true })).toHaveCount(0);
     await expect(page).not.toHaveURL(/\/email/);
 
-    // (voir ci-dessous : depuis le 10/09 c'est un mur, par conception.)
     // Depuis le 10/09 (lot compte), le refus est un MUR : aucune sortie vers l'app sous
     // « GRYD n'est pas accessible avant 16 ans » — sinon l'ecran affirmerait un blocage
     // qu'il n'applique pas. La seule commande restante corrige une erreur de tap.
@@ -147,47 +148,40 @@ test.describe('S2 — creation de compte', () => {
     await expect(page).toHaveURL(/\/email/, { timeout: 20_000 });
     await expect(page.getByText(FR.emailTitle)).toBeVisible();
     await expect(page.getByLabel(FR.emailLabel)).toBeVisible();
+    // Et l'ecran promet ce que l'e-mail contient VRAIMENT : un lien.
+    await expect(page.getByText(FR.emailWhatHappens)).toBeVisible();
+    await expect(page.getByRole('button', { name: FR.linkRequestCta })).toBeVisible();
   });
 
   /**
-   * ═══ BUG EPINGLE — LE GATE 16+ EST REDEMANDE ═══════════════════════════════
+   * ═══ REGRESSION GARDEE — LE GATE 16+ SE DEMANDAIT DEUX FOIS ════════════════
    *
-   * CE QUE LE JOUEUR VIT : il repond « Oui, j'ai 16 ans ou plus » sur /sign-in,
-   * arrive sur le formulaire e-mail, tape son adresse, touche « Recevoir un
-   * code » — et l'ecran lui repose EXACTEMENT la meme question. Il doit
-   * declarer son age DEUX FOIS pour creer un compte.
+   * CE QUE LE JOUEUR VIVAIT : il repondait « Oui, j'ai 16 ans ou plus » sur
+   * /sign-in, arrivait sur le formulaire e-mail, tapait son adresse, touchait le
+   * CTA — et l'ecran lui reposait EXACTEMENT la meme question. Il declarait son
+   * age DEUX FOIS pour creer un compte.
    *
-   * POURQUOI. `useOnboardingState` (src/features/onboarding/store.ts:167) donne
-   * a chaque appelant un instantane PRIVE, lu une seule fois au montage, sans
-   * magasin partage ni relecture. `AuthEntry2026.confirmAge`
-   * (src/features/account/AuthEntry2026.tsx:106) ecrit la reponse SANS
-   * l'attendre (`void update(...)`, ligne 111) puis navigue dans le meme tick
-   * (ligne 112) : /email se monte et lit le disque AVANT que l'ecriture n'y
-   * soit. Le disque, lui, est correct — verifie : deux secondes plus tard il
-   * porte bien `ageConfirmed: true`, alors que l'ecran continue de croire le
-   * contraire. `email.tsx:100` tranche donc sur un instantane perime.
+   * LA CAUSE, ET LE CORRECTIF. `useOnboardingState` donnait a chaque appelant un
+   * instantane PRIVE, lu une seule fois au montage, sans magasin partage ni
+   * relecture ; la porte de compte ecrivait `ageConfirmed: true` sans l'attendre
+   * puis naviguait dans le meme tick, et /email lisait le disque AVANT que
+   * l'ecriture n'y soit. L'etat vit desormais au NIVEAU DU MODULE
+   * (`src/features/onboarding/store.ts`) : une lecture par processus, des
+   * decisions de session qui priment sur le disque, et chaque instance abonnee
+   * par `useSyncExternalStore` — un `update()` est visible par l'ecran suivant
+   * avant meme sa persistance.
    *
-   * CORRECTIF PROPOSE (hors perimetre de ce harnais, qui ne touche pas la
-   * logique des ecrans) : donner a `useOnboardingState` un etat de module
-   * partage + un jeu d'abonnes, exactement comme `writePatch` est deja au
-   * niveau module — une ecriture par un consommateur reveille tous les autres.
-   * `await`er l'ecriture avant de naviguer marcherait aussi, mais contredirait
-   * la doctrine du store (« Navigation never waits for disk »).
-   *
-   * Ce test decrit le comportement ATTENDU. Il est marque `test.fail()` : le
-   * jour ou le bug est corrige, il passera, Playwright signalera « expected to
-   * fail but passed », et il faudra retirer la marque. Un bug epingle ne peut
-   * donc pas se refermer en silence.
+   * Ce test etait epingle ROUGE. Il est VERT. Il reste ici comme garde : c'est
+   * un defaut qui ne se voit pas sur une machine rapide, et qui reviendrait sans
+   * bruit le jour ou quelqu'un re-privatiserait cet etat.
    */
   test('le gate 16+ ne se redemande PAS apres avoir ete franchi', async ({ page }) => {
     await reachEmailForm(page);
     await page.getByLabel(FR.emailLabel).fill(DEFAULT_USER.email);
-    await page.getByRole('button', { name: FR.otpRequestCta }).click();
+    await page.getByRole('button', { name: FR.linkRequestCta }).click();
 
-    // Une seule declaration d'age suffit : l'ecran suivant doit envoyer le code.
-    // Delai court ASSUME : le comportement attendu est immediat, et un test
-    // epingle ne doit pas faire payer sa propre attente a toute la suite.
-    await expect(page.getByLabel(FR.otpFieldA11y)).toBeVisible();
+    // Une seule declaration d'age suffit : l'ecran suivant est l'etat « envoye ».
+    await expect(page.getByText(linkSentBody(DEFAULT_USER.email))).toBeVisible();
     await expect(page.getByText(FR.ageTitle)).toHaveCount(0);
   });
 
@@ -198,23 +192,30 @@ test.describe('S2 — creation de compte', () => {
     await reachEmailForm(page);
 
     await page.getByLabel(FR.emailLabel).fill('parcours.e2e@example');
-    await page.getByRole('button', { name: FR.otpRequestCta }).click();
+    await page.getByRole('button', { name: FR.linkRequestCta }).click();
 
     await expect(page.getByText(FR.errorInvalidEmail)).toBeVisible();
     // Le refus est LOCAL : on ne fait pas croire a un verdict serveur.
     expect(supabase.countOf('POST /auth/v1/otp')).toBe(0);
+    // Et surtout : aucun « lien envoye » alors que rien n'est parti.
+    await expect(page.getByText(FR.linkSentTitle)).toHaveCount(0);
   });
 
-  test('adresse valide → code envoye, et le renvoi respecte la cadence serveur', async ({
+  test('adresse valide → lien envoye, et le renvoi respecte la cadence serveur', async ({
     page,
     supabase,
   }) => {
     await reachEmailForm(page);
-    await requestCode(page, DEFAULT_USER.email);
+    await requestLink(page, DEFAULT_USER.email);
 
-    // Etat « envoye » : l'ecran nomme l'adresse a laquelle il a ecrit.
-    await expect(page.getByText(`${FR.otpSentPrefix} ${DEFAULT_USER.email}`)).toBeVisible();
+    // Etat « envoye » : l'ecran nomme l'adresse a laquelle il a ecrit, et dit
+    // les DEUX limites reelles du lien (cet appareil, une heure, une fois).
+    await expect(page.getByText(FR.linkSentTitle)).toBeVisible();
+    await expect(page.getByText(FR.linkSentHint)).toBeVisible();
     expect(supabase.countOf('POST /auth/v1/otp')).toBe(1);
+
+    // Une adresse mal tapee n'enferme pas : la sortie de l'etat « envoye » existe.
+    await expect(page.getByRole('button', { name: FR.linkChangeEmail })).toBeVisible();
 
     // CADENCE : le renvoi n'est pas peint arme alors qu'il serait refuse. Le
     // bouton porte son compte a rebours et se declare desactive.
@@ -227,46 +228,71 @@ test.describe('S2 — creation de compte', () => {
     expect(supabase.countOf('POST /auth/v1/otp')).toBe(1);
   });
 
-  test('code faux : erreur lisible, et le bouton de validation reste vivant', async ({ page }) => {
-    await reachEmailForm(page);
-    await requestCode(page, DEFAULT_USER.email);
+  test('lien expire : l’ecran le DIT, et il rouvre le champ', async ({ page, supabase }) => {
+    await seedStorage(page, exploredOnce());
+    // Le lien de l'e-mail a ete ouvert trop tard, ou une seconde fois : GoTrue
+    // redirige vers l'app avec son refus dans le fragment, pas avec une session.
+    await page.goto(EXPIRED_LINK_RETURN);
 
-    await page.getByLabel(FR.otpFieldA11y).fill(BAD_CODE);
-    await page.getByRole('button', { name: FR.otpVerifyCta }).click();
+    await expect(page.getByText(FR.linkExpiredTitle)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(FR.linkExpiredBody)).toBeVisible();
 
-    await expect(page.getByText(FR.signInFailed)).toBeVisible();
-    // On reste sur l'ecran, avec de quoi reessayer : aucun cul-de-sac.
-    await expect(page).toHaveURL(/\/email/);
-    const verify = page.getByRole('button', { name: FR.otpVerifyCta });
-    await expect(verify).toBeVisible();
-    // react-native-web N'EMET PAS `aria-disabled` quand il vaut false : exiger
-    // la chaine « false » testerait le moteur de rendu, pas l'ecran. Ce qui
-    // compte est qu'il ne se declare PAS desactive.
-    await expect(verify).not.toHaveAttribute('aria-disabled', 'true');
+    /**
+     * ⚠️ LE FOND DU TEST : CE N'EST PAS LE MESSAGE DU VOISIN. Avant le 10/09,
+     * un seul booleen couvrait QUATRE faits — lien expire, lien tronque, panne
+     * reseau, aucun retour — et tous disaient « Demande un nouveau lien ».
+     * Conseiller ca a quelqu'un dont le reseau est coupe lui fait bruler son
+     * quota d'envoi pour un lien qui, lui, est encore bon.
+     */
+    await expect(page.getByText(FR.callbackNetwork)).toHaveCount(0);
+    await expect(page.getByText(FR.callbackNoReturn)).toHaveCount(0);
+    await expect(page.getByText(FR.callbackFailed)).toHaveCount(0);
+    await expect(page.getByText(FR.linkInvalid)).toHaveCount(0);
+
+    // Le refus est LU dans l'URL : rien n'a ete echange avec le serveur, et
+    // surtout aucune session n'a ete affirmee.
+    expect(supabase.countOf('GET /auth/v1/user')).toBe(0);
+
+    // Et ce n'est pas un cul-de-sac : la sortie rouvre le champ.
+    await page.getByRole('button', { name: FR.linkExpiredCta }).click();
+    await expect(page).toHaveURL(/\/email/, { timeout: 20_000 });
+    await expect(page.getByLabel(FR.emailLabel)).toBeVisible();
   });
 
-  test('code juste → session, retour a la carte, et le Profil montre une IDENTITE', async ({
+  test('lien valide → session, retour a la carte, et le Profil montre une IDENTITE', async ({
     page,
+    supabase,
   }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
 
     await reachEmailForm(page);
-    await requestCode(page, DEFAULT_USER.email);
+    await requestLink(page, DEFAULT_USER.email);
 
-    await page.getByLabel(FR.otpFieldA11y).fill(GOOD_CODE);
-    await page.getByRole('button', { name: FR.otpVerifyCta }).click();
+    // OUVRIR LE LIEN. L'e-mail est hors d'atteinte d'un test ; ce qui arrive a
+    // l'app, lui, est connu : GoTrue redirige vers `/callback` avec la session
+    // dans le fragment (flux implicite). C'est ce retour-la qu'on joue.
+    await page.goto(magicLinkReturn());
 
-    // La session prend, et l'ecran de connexion se retire de lui-meme.
-    await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/, { timeout: 20_000 });
+    // LA SESSION NE SORT PAS DE NULLE PART : `setSession` decode le jeton du
+    // fragment puis va DEMANDER l'utilisateur au serveur. Sans cet appel, une
+    // session « prise » ne prouverait qu'un etat local qu'on aurait pose
+    // soi-meme — et le compteur a zero du test « lien expire » ne prouverait
+    // rien non plus, faute d'un cas ou il monte.
+    await expect
+      .poll(() => supabase.countOf('GET /auth/v1/user'), { timeout: 20_000 })
+      .toBeGreaterThan(0);
+
+    // La session prend, et l'ecran de retour se retire de lui-meme.
+    await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/, { timeout: 30_000 });
     await expect(mapLayersButton(page)).toBeVisible({ timeout: 20_000 });
 
     // Le profil connecte : une identite REELLE (le prefixe de l'adresse),
     // jamais « Invite », et jamais le « … » de l'hydratation fige.
     //
-    // ⚠️ ON Y VA PAR LA BARRE, PAS PAR `goto('/profil')`. La meme URL sert DEUX
-    // ecrans selon la facon dont on y arrive (voir le test epingle « /profil en
-    // lien profond » dans s3). Naviguer par l'URL testerait le legacy.
+    // ⚠️ ON Y VA PAR LA BARRE, PAS PAR `goto('/profil')` : c'est le geste du
+    // joueur, et la meme URL a deja servi DEUX ecrans dans ce depot (voir le
+    // test de collision de routes dans s3).
     await page.getByRole('tab', { name: FR.navProfil }).click();
 
     // L'IDENTITE est l'assertion, pas le titre de l'ecran : c'est elle que le

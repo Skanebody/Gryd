@@ -10,11 +10,22 @@
  * dans le filet ne peut plus atteindre la production, et le motif du mock
  * (`*.supabase.co`) continue de matcher.
  *
- * `EXPO_PUBLIC_EMAIL_AUTH_MODE=code` : le parcours teste est l'OTP PAR CODE
- * (saisie a 6 chiffres dans l'onglet ouvert). C'est le mode que le fondateur
- * activera quand les gabarits Supabase porteront `{{ .Token }}`
- * (docs/product/GRYD_AUTH_2026_IMPLEMENTATION.md). Le defaut du depot reste
- * `link`, et ce harnais ne le change nulle part ailleurs.
+ * ═══ LE PARCOURS TESTE EST LE LIEN MAGIQUE, PARCE QUE C'EST LE PRODUIT ═════
+ * Cet export posait `EXPO_PUBLIC_EMAIL_AUTH_MODE=code` et le harnais tapait un
+ * code a six chiffres. Depuis le 10/09/2026 l'app REFUSE ce mode sans preuve
+ * serveur : `emailDelivery2026(raw, otpTemplateProven)` (features/account/
+ * authCallback2026.ts) exige un second argument que PERSONNE ne sait mettre a
+ * `true` — le gabarit e-mail est global au projet Supabase, il porte un LIEN, et
+ * l'API de gestion refuse de le changer sur le plan heberge avec l'expediteur
+ * par defaut. Les deux appelants (`lib/auth.ts`, `lib/auth.web.ts`) passent un
+ * `false` litteral. Poser la variable ne changeait donc plus RIEN a l'ecran :
+ * elle decrivait un parcours que le produit ne sert pas.
+ *
+ * On ne la pose plus. Le defaut du depot est `link`, l'ecran demande « Recevoir
+ * le lien », et le harnais joue le retour du lien (`/callback#access_token=…`)
+ * — c'est-a-dire exactement ce qu'un joueur vit aujourd'hui. Le jour ou un SMTP
+ * personnalise et un gabarit `{{ .Token }}` existeront, c'est la PREUVE serveur
+ * qui basculera `EMAIL_DELIVERY`, pas cette ligne d'environnement.
  *
  * PostHog et RevenueCat sont neutralises (cle vide) : leur client n'est meme
  * pas construit, donc aucun evenement de test ne pollue le funnel du pilote.
@@ -34,7 +45,6 @@ const result = spawnSync(
       ...process.env,
       EXPO_PUBLIC_SUPABASE_URL: 'https://e2e-mock.supabase.co',
       EXPO_PUBLIC_SUPABASE_ANON_KEY: 'e2e-anon-key-not-a-real-secret',
-      EXPO_PUBLIC_EMAIL_AUTH_MODE: 'code',
       EXPO_PUBLIC_POSTHOG_KEY: '',
       EXPO_PUBLIC_POSTHOG_HOST: '',
       EXPO_PUBLIC_REVENUECAT_IOS_KEY: '',

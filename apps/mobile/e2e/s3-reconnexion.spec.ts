@@ -8,8 +8,17 @@
  * qui reverrait l'onboarding a chaque lancement serait une regression muette,
  * invisible en test unitaire.
  */
-import { expect, test, FR, exploredOnce, returningMember, seedStorage, mapLayersButton } from './fixtures/app';
-import { DEFAULT_USER, GOOD_CODE } from './fixtures/supabase-mock';
+import {
+  expect,
+  test,
+  FR,
+  exploredOnce,
+  linkSentBody,
+  returningMember,
+  seedStorage,
+  mapLayersButton,
+} from './fixtures/app';
+import { DEFAULT_USER, magicLinkReturn } from './fixtures/supabase-mock';
 
 const EXPECTED_NAME = DEFAULT_USER.email.split('@')[0] ?? '';
 
@@ -26,8 +35,7 @@ test.describe('S3 — reconnexion', () => {
     await expect(page.getByText(FR.onboardingTitle)).toHaveCount(0);
 
     // Et l'app se sait connectee : le profil montre l'identite du compte.
-    // Par la barre basse — `goto('/profil')` sert un AUTRE ecran (test epingle
-    // en fin de fichier).
+    // Par la barre basse — le geste du joueur.
     await page.getByRole('tab', { name: FR.navProfil }).click();
     await expect(page.getByText(EXPECTED_NAME, { exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(FR.profileGuest, { exact: true })).toHaveCount(0);
@@ -61,7 +69,7 @@ test.describe('S3 — reconnexion', () => {
     await expect(page.getByText(FR.authMethodsTitle)).toBeVisible();
   });
 
-  test('reconnexion : l’age deja declare n’est pas redemande, et la session revient', async ({
+  test('reconnexion : l’age deja declare n’est pas redemande, et la session revient par le LIEN', async ({
     page,
   }) => {
     await seedStorage(page, returningMember());
@@ -79,48 +87,35 @@ test.describe('S3 — reconnexion', () => {
     await expect(page.getByText(FR.ageTitle)).toHaveCount(0);
 
     await page.getByLabel(FR.emailLabel).fill(DEFAULT_USER.email);
-    await page.getByRole('button', { name: FR.otpRequestCta }).click();
-    await expect(page.getByLabel(FR.otpFieldA11y)).toBeVisible();
-    await page.getByLabel(FR.otpFieldA11y).fill(GOOD_CODE);
-    await page.getByRole('button', { name: FR.otpVerifyCta }).click();
+    await page.getByRole('button', { name: FR.linkRequestCta }).click();
+    await expect(page.getByText(linkSentBody(DEFAULT_USER.email))).toBeVisible();
 
-    await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/, { timeout: 20_000 });
+    // Le lien ouvert : la session revient, et la carte avec elle.
+    await page.goto(magicLinkReturn());
+    await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/, { timeout: 30_000 });
     await expect(mapLayersButton(page)).toBeVisible({ timeout: 20_000 });
   });
 });
 
 /**
- * ═══ BUG EPINGLE — UNE URL, DEUX ECRANS ════════════════════════════════════
+ * ═══ ANCIEN BUG EPINGLE — UNE URL, DEUX ECRANS (tranche) ═══════════════════
  *
- * CE QUE LE JOUEUR VIT : il ouvre son Profil par la barre basse et voit
+ * CE QUE LE JOUEUR VIVAIT : il ouvrait son Profil par la barre basse et voyait
  * l'ecran du cahier de septembre (« Profil · Invite · Sur cet appareil ·
- * Connexion »). Il rafraichit la page, ou rouvre le meme lien plus tard — et
- * il tombe sur un ECRAN COMPLETEMENT DIFFERENT : « Toi · Sans compte, GRYD ne
- * sait pas encore ce qui est a toi · Se connecter », qui est
- * `app/(mvp)/profil.tsx`, la ligne MASTER mise EN QUARANTAINE par ADR-001 et
- * remplacee par ADR-012.
+ * Connexion »). Il rafraichissait la page — et tombait sur un ECRAN
+ * COMPLETEMENT DIFFERENT : « Toi · Se connecter », `app/(mvp)/profil.tsx`, la
+ * ligne MASTER mise EN QUARANTAINE par ADR-001 et remplacee par ADR-012.
  *
- * POURQUOI. Deux fichiers servent le meme chemin : `app/(tabs)/profil.tsx` et
- * `app/(mvp)/profil.tsx` (les parentheses d'un groupe expo-router ne comptent
- * pas dans l'URL). La navigation INTERNE resout dans le navigateur d'onglets et
- * rend le cahier ; le chargement A FROID d'une URL resout dans l'arbre de
- * linking et rend le legacy.
+ * POURQUOI. Deux fichiers servaient le meme chemin (les parentheses d'un groupe
+ * expo-router ne comptent pas dans l'URL) : la navigation INTERNE resolvait dans
+ * le navigateur d'onglets et rendait le cahier, le chargement A FROID d'une URL
+ * resolvait dans l'arbre de linking et rendait le legacy. Lequel gagnait etait
+ * un detail d'implementation, pas une decision.
  *
- * `scripts/audit-routes.mjs` voit deja la collision de FICHIERS et l'ecrit
- * (« servie(s) AUSSI hors quarantaine : /profil — conflit de routes
- * expo-router »), mais il ajoute « le script ne seme l'arbre qu'avec celui du
- * cahier » : il SUPPOSE que le cahier gagne. A l'execution, sur le bundle web
- * exporte, c'est le legacy qui gagne. La quarantaine n'est donc pas etanche par
- * le lien profond — ce que l'audit dit deja par ailleurs de /carte, /course,
- * /prete, /resultat.
- *
- * CORRECTIF PROPOSE (hors perimetre de ce harnais) : trancher la collision a la
- * source — retirer `app/(mvp)/profil.tsx` de l'arbre servi, ou lui donner un
- * chemin qui lui soit propre. Tant que deux fichiers repondent a `/profil`,
- * lequel gagne est un detail d'implementation d'expo-router, pas une decision.
- *
- * Marque `test.fail()` : le jour ou la collision est tranchee, ce test passera
- * et Playwright exigera qu'on retire la marque.
+ * La collision est tranchee A LA SOURCE : le fichier legacy porte desormais un
+ * chemin qui lui est propre (`app/(mvp)/profil-mvp.tsx`), et `/profil` n'a plus
+ * qu'un seul fichier. Ce test reste comme GARDE — la quarantaine n'est etanche
+ * que tant que personne ne repose un second fichier sur ce chemin.
  */
 test.describe('S3 (suite) — collision de routes', () => {
   test('/profil en lien profond sert le MEME ecran que la barre basse', async ({ page }) => {
@@ -129,8 +124,9 @@ test.describe('S3 (suite) — collision de routes', () => {
     await seedStorage(page, exploredOnce());
     await page.goto('/profil');
 
-    // Delai court ASSUME (meme raison que le test epingle de s2).
-    await expect(page.getByText(FR.profileOnThisDevice, { exact: true })).toBeVisible();
+    await expect(page.getByText(FR.profileOnThisDevice, { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText(FR.legacyProfileTitle, { exact: true })).toHaveCount(0);
   });
 });

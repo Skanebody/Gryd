@@ -87,7 +87,16 @@ export function returningMember(user: MockUser = DEFAULT_USER): Record<string, s
   };
 }
 
-/** Les phrases exactes que le joueur lit. Miroir des catalogues i18n. */
+/**
+ * Les phrases exactes que le joueur lit. Miroir des catalogues i18n.
+ *
+ * ⚠️ LE PARCOURS E-MAIL EST CELUI DU LIEN MAGIQUE. Les constantes `otp*` ont
+ * disparu de ce bloc avec le code a six chiffres : `EMAIL_DELIVERY` vaut
+ * `'link'` tant qu'aucune source ne prouve que le gabarit e-mail porte
+ * `{{ .Token }}` (`emailDelivery2026`, appele avec un `false` litteral par les
+ * deux `lib/auth*`). Une constante qui decrirait encore l'ecran a code ferait
+ * passer le harnais a cote du produit — c'est exactement ce qui est arrive.
+ */
 export const FR = {
   // src/features/onboarding/Discovery2026Screen.tsx
   onboardingTitle: 'La ville est ton terrain.',
@@ -100,16 +109,27 @@ export const FR = {
   mapLayers: 'Couches',
   mapRun: 'Courir',
   mapFindMe: 'Me recentrer',
+
+  // src/features/refonte/MapHome.tsx — la porte de compte de la feuille Couches
   mapFindMyTerritories: 'Retrouver mes terrains',
-  mapNoAccountNeeded: 'Ta première sortie peut se faire sans compte.',
+  /**
+   * CE QUE COUTE L'ABSENCE DE COMPTE, DIT SANS FAUSSE LIMITE. La carte promettait
+   * « Ta première sortie peut se faire sans compte. » — un essai gratuit qui
+   * n'existe pas : sans compte, TOUTES les sorties tournent, elles ne prennent
+   * simplement aucun terrain. `features/run/liveChain2026.test.ts` interdit
+   * desormais l'ancienne phrase ; celle-ci est la vraie.
+   */
+  mapGuestNoTerrain: 'Sans compte, tes sorties restent sur cet appareil et ne prennent aucun terrain.',
+  /** Bandeau de la carte elle-meme, invite : ce qui manque, et pourquoi. */
+  mapGuestNotice: 'Connecte-toi pour voir les terrains de ton compte.',
 
   // src/features/nav/tabs.ts — les trois destinations de la barre basse
   navProfil: 'Profil',
 
   /**
-   * Ecran LEGACY `app/(mvp)/profil.tsx`, en quarantaine (ADR-001/ADR-012).
-   * Sa copie sert de temoin : si elle apparait, c'est qu'un lien profond a
-   * servi la ligne MASTER a la place du cahier de septembre.
+   * Ecran LEGACY de la ligne MASTER, en quarantaine (ADR-001/ADR-012). Sa copie
+   * sert de temoin : si elle apparait sur `/profil`, c'est qu'un lien profond a
+   * servi le legacy a la place du cahier de septembre.
    */
   legacyProfileTitle: 'Toi',
 
@@ -134,12 +154,6 @@ export const FR = {
   ageNotMe: 'Ce n’est pas moi',
   authTerms: 'Conditions',
   authGoogle: 'Continuer avec Google',
-  otpRequestCta: 'Recevoir un code',
-  otpVerifyCta: 'Valider le code',
-  otpResendCta: 'Renvoyer le code',
-  otpFieldA11y: 'Code reçu par e-mail',
-  otpSentPrefix: 'Code envoyé à',
-  signInFailed: 'La connexion a échoué. Réessaie — ta course ne se perdra jamais pour ça.',
   ageAccountOnly: 'Cette vérification protège la création du compte. Tu peux toujours courir sans compte.',
 
   // src/i18n/catalog/onboarding.ts (gate 16+)
@@ -154,17 +168,58 @@ export const FR = {
   ageBlockedTitle: 'Reviens à 16 ans.',
   ageBlockedTagline: 'GRYD n’est pas accessible avant 16 ans. On garde ta ville au chaud pour toi.',
 
-  // src/i18n/catalog/authEmail.ts
+  // ─── src/i18n/catalog/authEmail.ts — l'ecran /email ────────────────────────
   emailKicker: 'PAR E-MAIL',
   emailTitle: 'Ton adresse e-mail',
   emailLabel: 'Adresse e-mail',
   emailBack: 'Retour',
   emailBackA11y: 'Revenir aux autres façons de se connecter',
+  /** Ce que le lien FAIT — il connecte OU cree, et l'ecran ne devine pas lequel. */
+  emailWhatHappens: 'Un lien de connexion : il te connecte si ton compte existe, il le crée sinon.',
+  /** Le CTA unique de l'ecran. C'est un LIEN qui part, pas un code. */
+  linkRequestCta: 'Recevoir le lien',
+
+  // Etat « envoye »
+  linkSentTitle: 'Lien envoyé',
+  /** Gabarit du catalogue — voir `linkSentBody()` pour la phrase remplie. */
+  linkSentBody: 'Regarde dans {email}.',
+  linkSentHint: 'Ouvre-le depuis cet appareil : il te connecte directement. Il expire dans l’heure et ne sert qu’une fois.',
+  linkResendCta: 'Renvoyer le lien',
+  linkResendDone: 'Nouveau lien envoyé. Le précédent ne marche plus.',
+  linkChangeEmail: 'Changer d’adresse',
+  resendCountdownPrefix: 'Renvoyer dans',
+
+  // Refus d'envoi
   errorInvalidEmail: 'Cette adresse n’a pas le bon format. Vérifie le @ et ce qui suit.',
+  errorRateLimited: 'Trop de demandes d’affilée. Attends une minute avant de réessayer.',
   errorNetwork: 'Envoi impossible — réessaie quand tu as du réseau.',
   errorUnknown: 'L’envoi a échoué. Réessaie — rien n’a été enregistré.',
-  resendCountdownPrefix: 'Renvoyer dans',
+
+  /**
+   * ─── LES CINQ VERDICTS DE `/callback` ─────────────────────────────────────
+   * `authCallbackVerdict2026` (src/features/account/authCallback2026.ts) rend
+   * cinq verdicts, et l'ecran leur donne CINQ phrases : c'est le correctif du
+   * 10/09 (« quatre faits, une seule phrase » avant lui). Les cinq sont ici
+   * pour qu'un test puisse verifier qu'on ne lit PAS celle du voisin — dire
+   * « demande un nouveau lien » a quelqu'un dont le reseau est coupe lui fait
+   * bruler son quota d'envoi pour un lien encore bon.
+   */
+  linkExpiredTitle: 'Ce lien a expiré',
+  linkExpiredBody: 'Les liens ne durent qu’une heure et ne servent qu’une fois. Rien n’est perdu : demandes-en un neuf.',
+  linkExpiredCta: 'DEMANDER UN NOUVEAU LIEN',
+  linkInvalid: 'Ce lien est incomplet. Ouvre-le directement depuis l’e-mail, sans le recopier.',
+  callbackNetwork: 'La connexion au serveur n’a pas abouti. Ton lien reste valable : réessaie quand tu as du réseau.',
+  callbackRetryCta: 'Réessayer',
+  callbackNoReturn: 'Aucun retour de connexion n’est arrivé jusqu’ici. Ouvre le lien depuis ton e-mail, sur cet appareil.',
+  callbackFailed: 'Ce retour de connexion n’est plus valide. Demande un nouveau lien.',
+  callbackChecking: 'Connexion en cours…',
+  callbackVerifying: 'Vérification du lien…',
 } as const;
+
+/** `sentBody` du catalogue avec son `{email}` rempli — la phrase REELLEMENT peinte. */
+export function linkSentBody(email: string): string {
+  return FR.linkSentBody.replace('{email}', email);
+}
 
 /**
  * Le harnais monte le filet reseau AVANT toute navigation, et refuse de laisser
