@@ -92,6 +92,30 @@ export function runStory(e: RunImpactInput): RunStory {
   return { type: 'unknown' };
 }
 
+/**
+ * LE MONDE DES SURFACES (10/09/2026). `runStory` ne connaît que les CELLULES du
+ * monde d'août. Or `ingest_run/refonte2026.ts` écrit `hexes.*` à ZÉRO pour toute
+ * sortie de septembre : une sortie qui avait pris 1 800 m² de terrain se lisait
+ * donc « Course libre » dans l'historique, en gris, sans un chiffre — le détail
+ * de la même sortie l'a corrigé le 10/09 en lisant son reçu, la LIGNE non.
+ *
+ * Cette fonction ferme l'écart, dans le même sens et avec la même règle : un
+ * terrain NOUVEAU publié (`terrainM2 > 0`, cf. `real.publishedTerrainM2`) fait
+ * une CAPTURE. Le nombre de zones vaut alors 0 — il n'a aucun sens dans un monde
+ * de surfaces — et c'est à l'appelant d'afficher la SURFACE à sa place
+ * (`captureAreaLabel2026`), jamais « 0 zone ».
+ *
+ * Sans terrain publié, la décision reste celle d'août, inchangée.
+ */
+export function runStoryWithTerrain(
+  e: RunImpactInput & { terrainM2?: number | null },
+): RunStory {
+  if (typeof e.terrainM2 === 'number' && Number.isFinite(e.terrainM2) && e.terrainM2 > 0) {
+    return { type: 'capture', zones: 0 };
+  }
+  return runStory(e);
+}
+
 /** Le rôle de couleur d'un type — mappé sur un token par le composant. */
 export function runColorRole(type: RunStoryType): RunColorRole {
   switch (type) {
@@ -196,14 +220,20 @@ export interface HistorySummary {
  * ignorée plutôt que de propager un `NaN km` dans le total.
  */
 export function summarizeHistory(
-  entries: readonly (RunImpactInput & { km: number })[],
+  entries: readonly (RunImpactInput & { km: number; terrainM2?: number | null })[],
 ): HistorySummary {
   let km = 0;
   let captures = 0;
   let defenses = 0;
   for (const e of entries) {
     if (Number.isFinite(e.km) && e.km > 0) km += e.km;
-    if (e.captured !== null && e.captured > 0) captures += 1;
+    // Les DEUX mondes comptent : les cellules d'août ET les surfaces de
+    // septembre. Sans la seconde ligne, le bandeau annonçait « 0 capture » à
+    // quelqu'un dont chaque sortie du mois avait pris du terrain — le serveur
+    // de septembre écrit `hexes.*` à zéro (`refonte2026.ts`).
+    const surfaceCapture =
+      typeof e.terrainM2 === 'number' && Number.isFinite(e.terrainM2) && e.terrainM2 > 0;
+    if (surfaceCapture || (e.captured !== null && e.captured > 0)) captures += 1;
     if (e.defended !== null && e.defended > 0) defenses += 1;
   }
   return { runs: entries.length, km, captures, defenses };

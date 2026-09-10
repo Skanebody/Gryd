@@ -164,11 +164,41 @@ Deno.test('effortIsMeasured : seules les mesures strictement positives comptent'
   assertFalse(effortIsMeasured(Number.NaN));
 });
 
-// ─── LE TRACÉ : E68 n'en a aucun, et le test empêche que ça change en douce ──
+// ─── LE TRACÉ : trois régimes, et ils ne se confondent pas ──────────────────
+//
+// ÉTAPE 0 : ce test verrouillait `runTraceState() === 'not-archived'` EN DUR,
+// avec ce commentaire : « si un jour `ingest_run` écrit `polyline_masked`, ce
+// test échoue : c'est exactement ce qu'on veut. La carte de E68 doit alors être
+// écrite EN MÊME TEMPS que l'archivage. » Le serveur écrit les deux colonnes
+// (`index.ts:3146`, `refonte2026.ts:167`) : le chantier du 10/09/2026 livre
+// donc la carte, les splits et la courbe, et le test dit la nouvelle règle.
 
-Deno.test('runTraceState : aucune trace archivée — et la raison est SERVEUR', () => {
-  // Si un jour `ingest_run` écrit `polyline_masked`, ce test échoue : c'est
-  // exactement ce qu'on veut. La carte de E68 doit alors être écrite EN MÊME
-  // TEMPS que l'archivage, pas devinée après.
-  assertEquals(runTraceState(), 'not-archived');
+Deno.test('runTraceState : la trace COMPLÈTE ouvre l’analyse sportive', () => {
+  assertEquals(
+    runTraceState({
+      trace: {
+        source: 'full',
+        points: [
+          { lat: 49.44, lng: 1.1, t: 1_000 },
+          { lat: 49.45, lng: 1.1, t: 2_000 },
+        ],
+      },
+    }),
+    'full',
+  );
+});
+
+Deno.test('runTraceState : une trace MASQUÉE donne une carte, jamais un split', () => {
+  // Elle ne porte aucun horodatage : en tirer une allure par kilomètre serait
+  // exactement le chiffre inventé que tout ce module refuse.
+  assertEquals(
+    runTraceState({
+      trace: { source: 'masked', points: [{ lat: 49.44, lng: 1.1 }, { lat: 49.45, lng: 1.1 }] },
+    }),
+    'masked',
+  );
+});
+
+Deno.test('runTraceState : sans trace, on le DIT — les mesures restent', () => {
+  assertEquals(runTraceState({ trace: { source: 'none', points: [] } }), 'not-archived');
 });

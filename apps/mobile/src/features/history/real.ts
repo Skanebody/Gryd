@@ -53,6 +53,9 @@ import type { IngestRunResponse, RunStatus } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 import { ownSnapshot2026 } from '../refonte/localActivityModel2026';
+// PUR (aucune dépendance de rendu) : lit le reçu territorial du monde de
+// septembre dans le MÊME payload `celebration` que les compteurs de cellules.
+import { territoryFromCelebration2026 } from '../refonte/captureReceipt2026';
 
 /**
  * Fenêtre de lecture. L'écran promet « TOUS tes parcours » : une troncature
@@ -103,6 +106,18 @@ export interface RealRunEntry {
   retaken: number | null;
   /** Zones défendues. `null` = inconnu, jamais 0 par défaut. */
   defended: number | null;
+  /**
+   * LE TERRAIN NOUVEAU de cette sortie, en m² (monde de septembre). Il vient du
+   * MÊME payload `celebration`, dans son reçu `territory2026`, et il n'existe
+   * que si le serveur a PUBLIÉ la capture — un estimé `scheduled` n'est pas un
+   * gain, et un `pending` encore moins.
+   *
+   * `null` couvre trois cas qui ont la même conséquence (rien à annoncer) :
+   * sortie du monde d'août (cellules, pas surfaces), reçu absent, capture non
+   * publiée. Il ne devient JAMAIS « 0 m² » : la ligne n'affiche alors aucune
+   * surface, ce qui est la vérité.
+   */
+  terrainM2: number | null;
 }
 
 /** `runs.status` est contraint en base ; on reste défensif sur la valeur lue. */
@@ -143,6 +158,19 @@ function impactOf(celebration: unknown): {
   return { captured, retaken: stolen, defended };
 }
 
+/**
+ * Le terrain NOUVEAU publié par cette sortie, ou `null`. Volontairement strict :
+ * seule une capture `published` porte un gain acquis (cahier §5.4 — un
+ * `scheduled` est un ESTIMÉ « sous réserve de publication », qu'une ligne de
+ * journal n'a pas la place de nuancer).
+ */
+function publishedTerrainM2(celebration: unknown): number | null {
+  const receipt = territoryFromCelebration2026(celebration);
+  if (receipt === null || receipt.status !== 'published') return null;
+  const gained = receipt.newTerrainM2;
+  return typeof gained === 'number' && Number.isFinite(gained) && gained > 0 ? gained : null;
+}
+
 /** PURE : ligne serveur → entrée d'historique. Testable sans réseau. */
 export function toRealRunEntry(row: RunRow): RealRunEntry {
   const { captured, retaken, defended } = impactOf(row.celebration);
@@ -157,6 +185,7 @@ export function toRealRunEntry(row: RunRow): RealRunEntry {
     captured,
     retaken,
     defended,
+    terrainM2: publishedTerrainM2(row.celebration),
   };
 }
 

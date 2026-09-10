@@ -13,6 +13,7 @@ import {
   groupRunsByWeek,
   runColorRole,
   runStory,
+  runStoryWithTerrain,
   startOfWeekMs,
   summarizeHistory,
 } from './historyView.ts';
@@ -135,4 +136,48 @@ Deno.test("summarizeHistory : un impact null ne compte NI capture NI defense", (
   assertEquals(s.captures, 1); // seule la seconde a captured>0
   assertEquals(s.defenses, 0);
   assertEquals(s.km, 4.0); // le NaN n'a pas pollué le total
+});
+
+// ─── LE MONDE DES SURFACES (10/09/2026) ─────────────────────────────────────
+//
+// ÉTAPE 0 : `ingest_run/refonte2026.ts` écrit `hexes.claimed/stolen/defended` à
+// ZÉRO pour toute sortie de septembre, et met le vrai résultat dans le reçu
+// `territory2026`. `runStory` ne lisant que les cellules, CHAQUE sortie de
+// septembre s'affichait « Course libre » en gris dans l'historique — y compris
+// celles qui avaient pris du terrain — et le bandeau annonçait « 0 capture ».
+
+Deno.test('runStoryWithTerrain : un terrain publié fait une CAPTURE', () => {
+  const story = runStoryWithTerrain({
+    captured: 0,
+    retaken: 0,
+    defended: 0,
+    terrainM2: 1_800,
+  });
+  assertEquals(story.type, 'capture');
+  // Zéro ZONE : dans un monde de surfaces, compter des cellules n'a pas de
+  // sens. C'est l'écran qui affiche la surface (« +1 800 m² »).
+  assertEquals(story.type === 'capture' ? story.zones : -1, 0);
+  assertEquals(runColorRole(story.type), 'me');
+});
+
+Deno.test('runStoryWithTerrain : sans terrain, la décision d’août est intacte', () => {
+  assertEquals(runStoryWithTerrain({ captured: 0, retaken: 0, defended: 0 }).type, 'free');
+  assertEquals(runStoryWithTerrain({ captured: null, retaken: null, defended: null }).type, 'unknown');
+  assertEquals(
+    runStoryWithTerrain({ captured: 4, retaken: 3, defended: 0, terrainM2: null }).type,
+    'reprise',
+  );
+  // Une surface nulle ou négative n'est pas une capture.
+  assertEquals(runStoryWithTerrain({ captured: 0, retaken: 0, defended: 0, terrainM2: 0 }).type, 'free');
+});
+
+Deno.test('summarizeHistory : une capture de septembre compte dans le bandeau', () => {
+  const summary = summarizeHistory([
+    { km: 5.2, captured: 0, retaken: 0, defended: 0, terrainM2: 1_800 },
+    { km: 3.1, captured: 0, retaken: 0, defended: 0, terrainM2: null },
+    { km: 4.0, captured: 2, retaken: 0, defended: 0 },
+  ]);
+  assertEquals(summary.runs, 3);
+  assertEquals(summary.captures, 2);
+  assertEquals(summary.defenses, 0);
 });

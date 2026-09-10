@@ -633,28 +633,18 @@ export const C = defineCatalog({
     pt: 'A GRYD não guardou o motivo desta recusa.',
   },
 
-  // ─── E68 : ce que l'écran NE MONTRE PAS, dit à sa place ───────────────────
   /**
-   * LE TRACÉ. La spec E68 demande « carte · trace protégée » ; GRYD n'archive
-   * AUCUN tracé : `ingest_run` n'écrit jamais `runs.polyline_masked` (il ne
-   * garde qu'un SHA-256, irréversible), et la seule trace côté client meurt au
-   * départ de la sortie suivante. Une polyligne générique serait un FAUX tracé.
+   * ─── E68 : LES DEUX PHRASES QUI ONT ÉTÉ RETIRÉES (10/09/2026) ────────────
+   * `detailTraceNote` (« GRYD ne conserve pas le tracé d'une sortie passée »)
+   * et `detailShareNote` (« le partage rétroactif attend ce tracé ») décrivaient
+   * le serveur de juillet. Il écrit aujourd'hui DEUX formes de trace
+   * (`polyline_masked` — `ingest_run/index.ts:3146` ; `trace_points_2026` —
+   * `refonte2026.ts:167`), le détail les rend, et le partage d'une sortie
+   * archivée fonctionne. Garder ces deux phrases aurait été le mensonge
+   * symétrique de celui qu'elles décrivaient. Ce que l'écran dit désormais
+   * quand il manque VRAIMENT quelque chose vit dans `catalog/journal.ts`
+   * (`traceNone`, `traceMasked`, `traceMaskedNoTiming`, `shareNoTrace`).
    */
-  detailTraceNote: {
-    fr: 'Pas de carte ici : GRYD ne conserve pas le tracé d’une sortie passée. Seule la sortie en cours a le sien.',
-    en: 'No map here: GRYD doesn’t keep the route of a past activity. Only the one in progress has its own.',
-    es: 'Aquí no hay mapa: GRYD no conserva el trazado de una salida pasada. Solo la salida en curso tiene el suyo.',
-    de: 'Keine Karte hier: GRYD speichert die Route einer vergangenen Aktivität nicht. Nur die aktuelle Aktivität hat ihre eigene.',
-    pt: 'Sem mapa aqui: a GRYD não guarda o traçado de uma saída passada. Só a saída em andamento tem o dela.',
-  },
-  /** Le partage rétroactif attend ce tracé — on le dit, on ne peint pas le bouton. */
-  detailShareNote: {
-    fr: 'Le partage rétroactif attend ce tracé : sans lui, la carte de partage n’aurait rien à montrer.',
-    en: 'Sharing after the fact is waiting on that route: without it, the share card would have nothing to show.',
-    es: 'El compartir a posteriori espera ese trazado: sin él, la tarjeta de compartir no tendría nada que mostrar.',
-    de: 'Das nachträgliche Teilen wartet auf diese Route: ohne sie hätte die Share-Karte nichts zu zeigen.',
-    pt: 'O compartilhamento retroativo espera esse traçado: sem ele, o card de compartilhar não teria o que mostrar.',
-  },
 
   // ─── /territoire (cohérent profil : territoire → Gebiet) ───────────────────
   territoryKicker: {

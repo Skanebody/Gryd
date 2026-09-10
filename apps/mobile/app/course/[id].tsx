@@ -21,6 +21,8 @@
  *      LA SORTIE, lu dans `runs.activity`) + la date en sous-titre ;
  *   2. l'ÉTAT — un seul à la fois (chargement / pas connecté / sans backend /
  *      échec / pas dans ton historique / lu) ;
+ *   2bis. LA CARTE : le tracé réel de la sortie (cahier G12 — « la trace devient
+ *      l'image principale »), ou l'état honnête qui dit ce qui manque ;
  *   3. le BANDEAU : tuile de type colorée PAR RÔLE + type + impact dominant +
  *      pastille GRYD Verify. Exactement la grammaire de la ligne d'où l'on
  *      vient (`runStoryUi`, partagé) — l'écran ouvert ne doit pas se lire
@@ -30,8 +32,9 @@
  *      seulement s'il est lisible ;
  *   6. CE QUE GRYD A RETENU : l'explication d'une invalidation (partielle /
  *      stats seules / refus + motif) ;
- *   7. en gris, en bas : ce qui n'existe pas — le tracé, et le partage
- *      rétroactif qui l'attend.
+ *   7. PARTAGER : la sortie archivée arme le studio de partage, comme le fait
+ *      le Résultat — le « partage rétroactif » que cet en-tête annonçait comme
+ *      impossible n'attendait que la trace.
  *
  * ═══ AUCUN CHIFFRE FABRIQUÉ, ET LA DISTINCTION QUI COMPTE ══════════════════
  * L'impact vient du payload `celebration` que le SERVEUR a persisté à
@@ -55,29 +58,35 @@
  * anti-vélo, à vélo c'est la borne anti-véhicule motorisé — servir la mauvaise
  * expliquerait le refus par une règle qui ne s'applique pas).
  *
- * ═══ LE TRACÉ : ÉCART ASSUMÉ, ET C'EST LE SEUL ═════════════════════════════
- * La spec E68 demande « carte · trace protégée ». GRYD N'ARCHIVE AUCUN TRACÉ :
- * `ingest_run` n'écrit jamais `runs.polyline_masked` (il le dit lui-même —
- * `anticheat_wiring.ts:178`) et ne garde qu'un `polyline_hash` SHA-256,
- * irréversible ; côté client, `features/run/finishedTrace.ts` est un singleton
- * MÉMOIRE purgé au départ de la sortie suivante. Aucune carte n'est donc
- * dessinée, et l'écran DIT pourquoi — une polyligne générique serait un FAUX
- * tracé, et un cadre « bientôt » rempli d'un fond de carte serait pire.
+ * ═══ LE TRACÉ, LES SPLITS ET LA COURBE (10/09/2026) ════════════════════════
+ * Cet en-tête a longtemps dit : « GRYD N'ARCHIVE AUCUN TRACÉ ». La phrase citait
+ * `anticheat_wiring.ts:178` — un commentaire du serveur de juillet. Le serveur
+ * d'aujourd'hui garde DEUX formes de trace, et la RLS `runs_select_own` les
+ * rendait déjà lisibles :
+ *   · `runs.trace_points_2026` (migration 0118, écrite par `refonte2026.ts:167`)
+ *     — les points COMPLETS, horodatés : c'est ce qui rend possibles les splits,
+ *     la courbe d'allure et le temps en mouvement ;
+ *   · `runs.polyline_masked` (écrite par `index.ts:3146`, purgée à 90 jours par
+ *     la migration 0101) — la géométrie déjà expurgée : une carte, sans temps.
+ * L'écran rend donc la carte (SVG, `features/journal/TraceMap2026`) et l'analyse
+ * (`RunAnalysisBlocks2026`), et il DIT ce qui manque quand il manque : trace
+ * absente, ou trace masquée donc sans split. Rien n'est extrapolé de l'allure
+ * moyenne, et aucune boucle décorative n'est dessinée.
  *
- * CONFIDENTIALITÉ, ET LEQUEL DES DEUX CAS S'APPLIQUERAIT : sa propre sortie,
- * vue par lui, sur son écran → AUCUN masquage d'extrémités (les lui cacher à
- * lui-même n'ajoute pas un gramme de vie privée et rendrait l'écran moins vrai
- * que la réalité) ; toute sortie SORTANTE → `applySharePrivacy` d'abord, jamais
- * la trace brute. Le raisonnement complet vit sur `runDetail.runTraceState`,
- * avec le test qui échouera le jour où le serveur archivera une trace.
+ * CONFIDENTIALITÉ, ET LEQUEL DES DEUX CAS S'APPLIQUE : sa propre sortie, vue par
+ * lui, sur son écran → AUCUN masquage d'extrémités (les lui cacher à lui-même
+ * n'ajoute pas un gramme de vie privée et rendrait l'écran moins vrai que la
+ * réalité) ; toute sortie SORTANTE → le studio de partage applique
+ * `protectedShareSegments2026` avant la moindre image. La règle est indexée sur
+ * la DESTINATION, jamais sur l'écran (`runDetail.runTraceState`, testé).
  *
  * Analytics : `screen('course_detail')` SANS propriété — l'identifiant vient
  * d'une URL fabriquée par l'extérieur, et le suivi automatique normalise déjà le
  * chemin en `/course/[id]` (`lib/screenName.ts`). Aucun event inventé hors
  * `packages/shared/src/events.ts`.
  */
-import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, fontSizes, radii, spacing, typography } from '@klaim/shared';
 import { screen } from '../../src/lib/analytics';
@@ -109,9 +118,20 @@ import {
   captureExplanation2026,
   territoryFromCelebration2026,
 } from '../../src/features/refonte/captureReceipt2026';
+import { RunAnalysisBlocks2026 } from '../../src/features/journal/RunAnalysisBlocks2026';
+import { TraceMap2026 } from '../../src/features/journal/TraceMap2026';
+import { decimateForDisplay, traceSegments } from '../../src/features/journal/traceRead';
+import { DETAIL_MAP_HEIGHT, TRACE_DISPLAY_MAX_POINTS } from '../../src/features/journal/display';
+import { setShareRun, shareCardFromResult } from '../../src/features/share/shareRun';
+import { UNJUDGED_VERDICT } from '../../src/features/share/narrative';
+import { useResultOwner2026 } from '../../src/features/run/useResultOwner2026';
+import { formatClock, formatKm2, formatRate } from '../../src/features/journal/format';
+import { decimalSeparator } from '../../src/ui/format';
 import { useLocale, useT } from '../../src/i18n/store';
 import type { Entry, Locale } from '../../src/i18n/types';
 import { C, runDetailCopy } from '../../src/i18n/catalog/historique';
+import { C as JC } from '../../src/i18n/catalog/journal';
+import type { IngestRunResponse } from '@klaim/shared';
 import { C as PC } from '../../src/i18n/catalog/performance';
 import { REJECT_REASON_COPY_BY_ACTIVITY } from '../../src/i18n/catalog/result';
 
@@ -191,6 +211,14 @@ function StateCard({
 function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
   const t = useT();
   const D = runDetailCopy(run.activity);
+  // Largeur MESURÉE : la carte et la courbe sont des SVG, ils ne se cadrent pas
+  // sans elle. Tant qu'elle vaut 0, ils ne peignent rien (pas un cadre vide).
+  const [width, setWidth] = useState(0);
+  const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
+  // Le propriétaire courant du résultat : c'est LUI qui autorise l'armement du
+  // studio de partage (`setShareRun` refuse tout autre compte, et le refus
+  // n'est pas silencieux — le bouton n'existe que si l'armement est possible).
+  const { ownerId } = useResultOwner2026();
 
   /**
    * ─── LE MONDE DE SEPTEMBRE SE LIT DANS SON PROPRE REÇU (10/09/2026) ───────
@@ -295,8 +323,86 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
 
   const showImpact = verdictAllowsImpact(verdict);
 
+  // ── LA TRACE : décimée pour le dessin, jamais déplacée ────────────────────
+  const points = decimateForDisplay(run.trace.points, TRACE_DISPLAY_MAX_POINTS);
+  const hasTrace = run.trace.source !== 'none' && points.length >= 2;
+
+  /**
+   * PARTAGER UNE SORTIE ARCHIVÉE. Le studio lit ce qui vient d'être armé
+   * (`getShareRun`) et applique LUI-MÊME la protection de vie privée sur les
+   * segments (`protectedShareSegments2026`) : on lui passe la trace telle
+   * qu'elle est lue, jamais une trace « pré-masquée » deux fois.
+   *
+   * `clientRunId` reçoit l'identifiant SERVEUR de la sortie : ce champ est la
+   * clé de portée de la mémoire de partage (`resultOwner2026`), pas une
+   * revendication d'identité d'enregistrement. Une sortie archivée n'a pas
+   * d'autre identité stable côté client.
+   *
+   * VERDICT : `credited` est vrai UNIQUEMENT si le serveur a publié une
+   * capture. Sans ça, le studio proposerait une affiche de victoire pour une
+   * boucle refusée — le bug que `narrative.ts` a été écrit pour fermer.
+   */
+  const share = () => {
+    // La session n'a pas fini de se résoudre : on n'arme rien plutôt que
+    // d'armer sous un propriétaire inconnu (le studio refuserait de toute
+    // façon, mais silencieusement — et un tap sans effet est un bouton mort).
+    if (ownerId === undefined) return;
+    const armed = setShareRun(
+      {
+        card: shareCardFromResult({
+          activity: run.activity,
+          distanceKm: formatKm2(run.km, decimalSeparator()) ?? '',
+          clockLabel: formatClock(run.durationS) ?? '',
+          paceLabel: formatRate(run.activity, run.paceSPerKm, decimalSeparator())?.value ?? '',
+          surfaceValue: gain2026 !== null && gain2026 > 0 ? area2026(gain2026) ?? '' : '',
+          surfaceUnit: '',
+          trace: points.map((point) => ({ lat: point.lat, lng: point.lng })),
+          verified: false,
+        }),
+        traceSegments: traceSegments(points).map((segment) =>
+          segment.map((point) => ({ lat: point.lat, lng: point.lng })),
+        ),
+        // Le reçu tel que le serveur l'a persisté. Le type partagé ferme le
+        // `status` à ce que ce client connaît ; le reçu, lui, reste ouvert
+        // (`captureReceipt2026`) — d'où la conversion, explicite et unique.
+        ...(receipt2026
+          ? { territory2026: receipt2026 as NonNullable<IngestRunResponse['territory2026']> }
+          : {}),
+        intention: null,
+        mode: 'conquete',
+        verdict: {
+          ...UNJUDGED_VERDICT,
+          judged: true,
+          credited: receipt2026?.status === 'published' && (gain2026 ?? 0) > 0,
+          loopClosed: receipt2026?.status === 'published',
+        },
+      },
+      { ownerId, clientRunId: run.id },
+    );
+    if (armed) router.push('/partage');
+  };
+
   return (
-    <>
+    <View onLayout={onLayout}>
+      {/* ── 2bis. LA CARTE : la trace RÉELLE, ou ce qui manque, dit ───────── */}
+      {hasTrace ? (
+        <Card style={styles.mapCard}>
+          <TraceMap2026
+            points={points}
+            width={Math.max(0, width - spacing.cardPadding * 2)}
+            height={DETAIL_MAP_HEIGHT}
+            tone="dark"
+            showStart={run.trace.source === 'full'}
+            testID="course-detail-trace"
+          />
+          {run.trace.source === 'masked' ? (
+            <Text style={styles.note}>{t(JC.traceMasked)}</Text>
+          ) : null}
+        </Card>
+      ) : (
+        <Text style={styles.footnote}>{t(JC.traceNone)}</Text>
+      )}
+
       {/* ── 3. BANDEAU : la même grammaire que la ligne tapée ─────────────── */}
       <Card style={styles.header}>
         <View style={styles.headerRow}>
@@ -330,6 +436,20 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
           <SectionLabel style={styles.sectionLabel}>{t(C.detailEffortLabel)}</SectionLabel>
           <SheetMetrics metrics={effort} testID="course-detail-effort" />
         </>
+      ) : null}
+
+      {/* ── 4bis. L'ANALYSE SPORTIVE : splits, courbe, altitude si elle existe.
+             Le même composant que le Résultat — une seule grammaire. ─────── */}
+      {hasTrace ? (
+        <View style={styles.analysis}>
+          <RunAnalysisBlocks2026
+            activity={run.activity}
+            points={run.trace.points}
+            traceSource={run.trace.source}
+            tone="dark"
+            testID="course-detail-analysis"
+          />
+        </View>
       ) : null}
 
       {/* ── 5. IMPACT TERRITORIAL — jamais sous une sortie refusée ou gelée :
@@ -390,10 +510,24 @@ function DetailBody({ run, locale }: { run: RunDetailInput; locale: Locale }) {
         </>
       ) : null}
 
-      {/* ── 7. CE QUI N'EXISTE PAS, DIT À SA PLACE : en bas, en gris ─────── */}
-      <Text style={styles.footnote}>{t(C.detailTraceNote)}</Text>
-      <Text style={styles.footnote}>{t(C.detailShareNote)}</Text>
-    </>
+      {/* ── 7. PARTAGER — le CTA n'apparaît QUE s'il mène quelque part : sans
+             trace, le studio n'aurait aucune image à composer (§A, aucun
+             bouton mort), et la phrase le dit à sa place. ────────────────── */}
+      {hasTrace && ownerId !== undefined ? (
+        <View style={styles.shareCta}>
+          <Button
+            label={t(JC.shareCta)}
+            accessibilityLabel={t(JC.shareCta)}
+            analyticsId="course_detail_share"
+            icon="partage"
+            size="md"
+            onPress={share}
+          />
+        </View>
+      ) : hasTrace ? null : (
+        <Text style={styles.footnote}>{t(JC.shareNoTrace)}</Text>
+      )}
+    </View>
   );
 }
 
@@ -487,6 +621,11 @@ export default function CourseDetailScreen() {
 
 const styles = StyleSheet.create({
   sectionLabel: { marginTop: spacing.xl, marginBottom: spacing.sm },
+
+  // ── La carte : `Card` fournit la surface, le SVG occupe sa largeur utile ──
+  mapCard: { marginTop: spacing.md, gap: spacing.sm },
+  analysis: { marginTop: spacing.xl },
+  shareCta: { marginTop: spacing.xl },
 
   // ── Bandeau : `Card` fournit surface, rayon et padding (sans contour) ──
   header: { marginTop: spacing.md },

@@ -73,7 +73,8 @@ import type { Entry } from '../../i18n/types';
 import type { Locale } from '../../i18n/types';
 import { C } from '../../i18n/catalog/historique';
 import { fmtDuration, fmtKm, fmtPace } from './format';
-import { runColorRole, runStory } from './historyView';
+import { runColorRole, runStoryWithTerrain } from './historyView';
+import { captureAreaLabel2026 } from '../refonte/captureReceipt2026';
 import { TYPE_ICON, TYPE_LABEL, impactText, roleToken } from './runStoryUi';
 import type { RealRunEntry } from './real';
 
@@ -122,7 +123,10 @@ export const RealRunCard = memo(function RealRunCard({ entry }: { entry: RealRun
   const pill = verifyPill(entry);
   const when = formatWhen(entry.startedAtMs, locale);
   const distance = fmtKm(entry.km);
-  const story = runStory(entry);
+  // La ligne lit LES DEUX mondes : les cellules d'août, et les surfaces de
+  // septembre (`terrainM2`, reçu serveur publié). Sans ça, toute sortie de
+  // septembre se lisait « Course libre » — voir `runStoryWithTerrain`.
+  const story = runStoryWithTerrain(entry);
   const role = runColorRole(story.type);
   const roleColor = roleToken(role);
 
@@ -130,8 +134,12 @@ export const RealRunCard = memo(function RealRunCard({ entry }: { entry: RealRun
    * L'IMPACT DOMINANT en toutes lettres. `null` pour `free`/`unknown` : le TYPE
    * (« Course libre » / « Sortie ») porte alors seul le message, sans un chiffre
    * qui n'existe pas.
+   *
+   * Dans le monde des surfaces, l'impact est une SURFACE : « +1 800 m² ».
+   * `impactText` compterait des zones, et il n'y en a aucune à compter.
    */
-  const impact = impactText(story, t);
+  const surface = captureAreaLabel2026(entry.terrainM2, locale === 'fr');
+  const impact = surface !== null ? `+${surface}` : impactText(story, t);
 
   /**
    * Effort : durée · allure, par FILTRAGE puis `join(' · ')`. Un segment sans

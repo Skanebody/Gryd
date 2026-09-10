@@ -34,6 +34,8 @@
  * effacés à l'exécution.
  */
 import type { Activity, IngestRunResponse, RejectReason, RunStatus } from '@klaim/shared';
+// `import type` : le module reste PUR (aucun import de valeur, cf. ci-dessus).
+import type { RunTrace } from '../journal/traceRead';
 
 /**
  * UNE sortie archivée, telle que la lecture la normalise (jamais de snake_case
@@ -58,6 +60,16 @@ export interface RunDetailInput {
   xpAwarded: number | null;
   /** Payload `IngestRunResponse` persisté par `ingest_run` — ou n'importe quoi. */
   celebration: unknown;
+  /**
+   * LA TRACE, telle que le serveur la garde (10/09/2026). Deux colonnes, deux
+   * qualités — `features/journal/traceRead.ts` tranche laquelle est lisible :
+   *   · `runs.trace_points_2026` (migration 0118) : points complets, avec
+   *     horodatage. C'est ce qui rend possibles les splits et la courbe ;
+   *   · `runs.polyline_masked` : géométrie déjà expurgée, purgée à 90 jours.
+   * Absente des deux ⇒ `source: 'none'`, et l'écran le DIT au lieu de dessiner
+   * une boucle décorative.
+   */
+  trace: RunTrace;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -255,41 +267,45 @@ export function runAwards(input: Pick<RunDetailInput, 'pointsAwarded' | 'xpAward
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
- * LA SPEC E68 DEMANDE « carte · trace protégée ». GRYD N'ARCHIVE AUCUN TRACÉ.
+ * LA SPEC E68 DEMANDE « carte · trace protégée ». LE SERVEUR EN GARDE DEUX.
  *
- * Ce n'est pas un oubli de câblage, c'est une propriété du serveur, vérifiée :
- * la colonne `runs.polyline_masked` existe (0002_schema.sql:107) mais
- * `ingest_run` ne l'écrit JAMAIS — le dit lui-même en toutes lettres
- * (`ingest_run/anticheat_wiring.ts:178` : « `polyline_masked` n'est jamais écrit
- * par `ingest_run` »), et la ligne insérée (`index.ts`, `baseRow`) ne porte que
- * `polyline_hash`, un SHA-256 de forme canonique, irréversible par construction.
- * Côté client, la seule trace qui survit à une sortie est
- * `features/run/finishedTrace.ts` — un singleton MÉMOIRE, purgé au départ de la
- * sortie suivante, sans identifiant de course. Aucun chemin ne rend donc le
- * tracé d'une sortie PASSÉE.
+ * ─── CE QUI A CHANGÉ, ET QUAND (10/09/2026) ─────────────────────────────────
+ * Cette fonction rendait `'not-archived'` EN DUR, avec un long commentaire qui
+ * expliquait que « `ingest_run` n'écrit JAMAIS `polyline_masked` » en citant un
+ * commentaire d'`anticheat_wiring.ts:178`. La citation était exacte ; elle
+ * décrivait le serveur d'avant le chantier de la trace. Depuis :
+ *   · `ingest_run/index.ts:3146` écrit `polyline_masked` (masquage appliqué
+ *     AVANT l'écriture, `tracePersist.ts`), avec une purge à 90 jours
+ *     (migration 0101) ;
+ *   · `ingest_run/refonte2026.ts:167` écrit `trace_points_2026` : les points
+ *     complets, horodatés (migration 0118).
+ * Le test qui verrouillait `'not-archived'` disait lui-même : « si un jour
+ * `ingest_run` écrit `polyline_masked`, ce test échoue : c'est exactement ce
+ * qu'on veut. La carte de E68 doit alors être écrite EN MÊME TEMPS que
+ * l'archivage. » C'est ce chantier — la carte, les splits et la courbe arrivent
+ * avec la lecture.
  *
- * CONSÉQUENCE, ET C'EST LA SEULE HONNÊTE : l'écran ne dessine pas de carte et
- * DIT pourquoi. Une polyligne générique, une boucle décorative ou un cadre
- * « bientôt » rempli d'un fond de carte seraient tous des affirmations sur le
- * terrain du joueur.
- *
- * ─── LA CONFIDENTIALITÉ QUI S'APPLIQUERAIT, LE JOUR OÙ IL Y AURA UN TRACÉ ───
- * Les deux cas de la doctrine de partage ne se confondent pas :
- *   · SA PROPRE sortie, vue PAR LUI, sur SON écran → AUCUN masquage. Masquer
- *     ses propres extrémités à soi-même n'ajoute pas un gramme de vie privée
- *     (il connaît son domicile) et rendrait le détail moins vrai que la
- *     réalité. C'est déjà la doctrine écrite de `finishedTrace.ts` pour l'écran
- *     de résultat, et E68 est le même regard, plus tard ;
+ * ─── LA CONFIDENTIALITÉ, INCHANGÉE ──────────────────────────────────────────
+ *   · SA PROPRE sortie, vue PAR LUI, sur SON écran → AUCUN masquage
+ *     supplémentaire. Masquer ses propres extrémités à soi-même n'ajoute pas un
+ *     gramme de vie privée (il connaît son domicile) et rendrait le détail
+ *     moins vrai que la réalité. C'est déjà la doctrine de `finishedTrace.ts` ;
  *   · TOUTE sortie SORTANTE (export, image, lien, capture partagée) →
  *     `features/share/sharePrivacy.applySharePrivacy` d'abord, jamais la trace
- *     brute, dont le départ et l'arrivée trahissent le domicile.
- * `runTraceState` renvoie donc `'not-archived'` aujourd'hui, sans exception ;
- * le jour où le serveur archivera une trace, ce sera ici — et le masquage
- * restera indexé sur la DESTINATION (écran vs partage), pas sur l'écran.
+ *     brute. La règle reste indexée sur la DESTINATION, pas sur l'écran.
  */
-export type RunTraceState = 'not-archived';
+export type RunTraceState = 'full' | 'masked' | 'not-archived';
 
-export function runTraceState(): RunTraceState {
+/**
+ * Ce que l'écran a le droit de dessiner pour CETTE sortie :
+ *   · `'full'`        — carte + splits + courbe (la trace porte le temps) ;
+ *   · `'masked'`      — carte seule, et l'écran dit pourquoi il n'y a ni split
+ *                       ni courbe (aucun horodatage dans une trace masquée) ;
+ *   · `'not-archived'`— rien à dessiner : les mesures restent, la trace non.
+ */
+export function runTraceState(run: Pick<RunDetailInput, 'trace'>): RunTraceState {
+  if (run.trace.source === 'full') return 'full';
+  if (run.trace.source === 'masked') return 'masked';
   return 'not-archived';
 }
 

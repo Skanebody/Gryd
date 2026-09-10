@@ -45,15 +45,29 @@ import type { RunStatus } from '@klaim/shared';
 import { useSession } from '../../lib/session';
 import { supabase } from '../../lib/supabase';
 import type { RunDetailInput } from './runDetail';
+import { runTraceFrom } from '../journal/traceRead';
 
 /**
  * Colonnes réellement lues — SOURCE UNIQUE de ce select, et surensemble EXACT
- * de celles de la liste. `polyline_masked` n'y est PAS : `ingest_run` ne l'écrit
- * jamais (cf. `runDetail.ts` → `runTraceState`), et demander une colonne qu'on
- * ne saurait pas rendre laisserait croire qu'une carte est à un cheveu.
+ * de celles de la liste.
+ *
+ * ─── LES DEUX COLONNES DE TRACE (10/09/2026) ────────────────────────────────
+ * Ce commentaire disait : « `polyline_masked` n'y est PAS : `ingest_run` ne
+ * l'écrit jamais ». C'était vrai du serveur de juillet. Aujourd'hui :
+ *   · `ingest_run/index.ts:3146` écrit `polyline_masked` (trace expurgée,
+ *     purgée à 90 jours par la migration 0101) ;
+ *   · `ingest_run/refonte2026.ts:167` écrit `trace_points_2026` — les points
+ *     complets et horodatés, colonne de la migration 0118. C'est la SEULE
+ *     source qui permette des splits et une courbe d'allure.
+ * La policy `runs_select_own` couvre la ligne entière : aucun droit nouveau, et
+ * la lecture reste bornée à SES sorties par la RLS ET par le `.eq('user_id')`.
+ *
+ * Coût assumé : une sortie de deux heures à 1 Hz ramène quelques milliers de
+ * points. C'est une lecture d'UNE ligne, à l'ouverture d'UN détail — pas la
+ * liste. Le rendu, lui, décime (`features/journal/traceRead.decimateForDisplay`).
  */
 const DETAIL_COLUMNS =
-  'id, started_at, activity, distance_m, duration_s, avg_pace_s_km, status, reject_reason, points_awarded, xp_awarded, celebration';
+  'id, started_at, activity, distance_m, duration_s, avg_pace_s_km, status, reject_reason, points_awarded, xp_awarded, celebration, polyline_masked, trace_points_2026';
 
 interface DetailRow {
   id: string;
@@ -67,6 +81,8 @@ interface DetailRow {
   points_awarded: number | null;
   xp_awarded: number | null;
   celebration: unknown;
+  polyline_masked: string | null;
+  trace_points_2026: unknown;
 }
 
 /** `runs.status` est contraint en base ; on reste défensif sur la valeur lue. */
@@ -101,6 +117,13 @@ export function toRunDetailInput(row: DetailRow): RunDetailInput {
     pointsAwarded: row.points_awarded,
     xpAwarded: row.xp_awarded,
     celebration: row.celebration,
+    // La meilleure des deux traces, ou aucune. `runTraceFrom` est PUR et
+    // défensif : un payload d'une forme inattendue rend « pas de trace »,
+    // jamais une géométrie approximative.
+    trace: runTraceFrom({
+      tracePoints2026: row.trace_points_2026,
+      polylineMasked: row.polyline_masked,
+    }),
   };
 }
 
