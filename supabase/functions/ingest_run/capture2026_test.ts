@@ -220,3 +220,39 @@ Deno.test('2026: every engine refusal carries a stable id AND the numbers behind
     assert(CAPTURE_REASON_TEXT_2026[rejection.code].length>0,'chaque identifiant a sa formulation de cahier');
   }
 });
+
+// ─── R2S-7a : le gain existe dès l'arrivée, étiqueté pour ce qu'il est ──────
+// Le CONTRAT n'a de valeur que s'il décrit la seule fonction qui le produit :
+// ces tests relient l'en-tête de la réponse, le type partagé et la migration
+// 0158. Si l'un des trois dérive, le lot client lit un mensonge.
+Deno.test('2026: `provisional` a exactement trois régimes, et 0158 les produit',async()=>{
+  const sql=await Deno.readTextFile(new URL('../../migrations/0158_capture_provisional_gain_2026.sql',import.meta.url));
+  // Régime 1 — estimé : SEULES les faces encore publiables portent un chiffre.
+  assert(sql.includes("'provisional',not settled and staged is not null"),
+    'provisional ne peut être vrai que sur une capture non réglée qui a des faces programmées');
+  assert(sql.includes("where run_id=p_run_id and status='scheduled'"),
+    'une face pending, rejected ou private ne prendra aucun terrain : aucune estimation');
+  // Régime 2 — acquis : le rejeu reprend la main sur les QUATRE surfaces.
+  for(const field of ['newTerrainM2','neutralTakenM2','takenFromOthersM2','alreadyOwnedM2']) {
+    assert(new RegExp(`'${field}',case when settled then`).test(sql),
+      `${field} doit repasser aux chiffres du rejeu dès la publication`);
+  }
+  // Régime 3 — rien à annoncer : aucun `coalesce(...,0)` ne vient peindre un
+  // zéro sur une absence de terrain (L8/L14). Seul `loopAreaM2` a un défaut,
+  // parce qu'une boucle mesurée à 0 m² EST une information.
+  const receipt=sql.slice(sql.indexOf("select jsonb_build_object('ruleset'"));
+  for(const field of ['newTerrainM2','neutralTakenM2','takenFromOthersM2','alreadyOwnedM2']) {
+    assert(!new RegExp(`'${field}',coalesce`).test(receipt),`${field} ne doit jamais être replié sur 0`);
+  }
+});
+Deno.test('2026: les trois régimes sont ÉCRITS là où le client les lit',async()=>{
+  const header=(await Deno.readTextFile(new URL('./refonte2026.ts',import.meta.url))).split('*/')[0]!;
+  const types=await Deno.readTextFile(new URL('../_shared/types.ts',import.meta.url));
+  const contract=types.slice(types.indexOf('CONTRAT DE CAPTURE'),types.indexOf('territory2026?:'));
+  for(const doc of [header,contract]) {
+    assert(/scheduled/.test(doc),'le régime « estimé » nomme le statut qui le déclenche');
+    assert(/n.est PAS zéro|n.est pas zéro/i.test(doc),'`null` ne se peint jamais « 0 km² »');
+  }
+  assert(contract.includes('provisional === true')&&contract.includes('provisional === false'),
+    'le type partagé énumère les régimes, pas seulement le champ');
+});

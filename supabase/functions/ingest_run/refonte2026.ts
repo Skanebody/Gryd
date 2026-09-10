@@ -17,8 +17,13 @@
  *             result_pending). Registre complet : _shared/engine/capture2026.ts.
  *   reasonDetail = les NOMBRES qui expliquent le refus (missingLengthM,
  *             observedAccuracyM, driftS…). Un motif nu ne se raconte pas.
- *   provisional  = true tant que la capture n'est pas publiée : les surfaces
- *             sont un ESTIMÉ contre la possession actuelle, pas un acquis.
+ *   provisional  = true SEULEMENT quand la capture est `scheduled` : les quatre
+ *             surfaces sont alors un ESTIMÉ §5.4 contre la possession de
+ *             l'instant (0158), pas un acquis — une boucle concurrente publiée
+ *             avant la nôtre peut encore en reprendre une part.
+ *             false + nombres = chiffres du rejeu, acquis (`published`).
+ *             false + null    = rien à annoncer (`pending`, `rejected`,
+ *             `private`, `no_loop`) ; `null` n'est PAS zéro.
  *   loopAreaM2 / newTerrainM2 / neutralTakenM2 / takenFromOthersM2 /
  *   alreadyOwnedM2 suivent §5.4 : on ne somme jamais des polygones qui se
  *   recouvrent comme s'ils étaient du terrain neuf.

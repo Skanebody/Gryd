@@ -210,7 +210,19 @@ export interface IngestRunResponse {
    *  · `no_loop`    aucune boucle admissible : la sortie sportive reste entière.
    * `reason` est un identifiant STABLE ; `reasonDetail` porte les nombres qui
    * l'expliquent au joueur (mètres manquants, précision observée, dérive).
-   * `provisional` : les surfaces sont un estimé AVANT publication, pas un acquis.
+   *
+   * LES QUATRE SURFACES (`newTerrainM2`, `neutralTakenM2`, `takenFromOthersM2`,
+   * `alreadyOwnedM2`) ont TROIS régimes, et `provisional` dit lequel :
+   *  · `provisional === true`  — statut `scheduled` : ce sont des ESTIMÉS §5.4,
+   *    mesurés contre la possession de l'instant. Une boucle concurrente publiée
+   *    avant la nôtre peut encore en reprendre une part. À écrire « environ… ,
+   *    sous réserve de publication » ; jamais un gain sec, jamais un partage ;
+   *  · `provisional === false` avec des nombres — statut `published` (ou une
+   *    capture retirée) : ce sont les chiffres du rejeu de possession, acquis ;
+   *  · `provisional === false` avec `null` — `pending`, `rejected`, `private` ou
+   *    `no_loop` : il n'y a AUCUN terrain à annoncer. `null` n'est pas zéro et ne
+   *    se peint jamais « 0 km² » (L8/L14) : c'est `reason` qui parle.
+   * `loopAreaM2` reste la surface de la boucle et ne dépend d'aucune publication.
    */
   territory2026?: {
     ruleset: string;
