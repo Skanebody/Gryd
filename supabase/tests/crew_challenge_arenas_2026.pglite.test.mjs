@@ -125,6 +125,11 @@ try {
     // rendrait des bandes bien plus larges qu'elle, et cela doit se dire.
     assert.ok(/footprint_wider_than_commune/.test(body), 'une emprise plus large que la commune doit être annoncée');
     assert.ok(/'footprintName',footprint_name/.test(body), 'le territoire réellement découpé doit être nommé');
+    // Sans contour administratif, `area` est un DISQUE de rayon de recherche :
+    // y couper les secteurs donnerait à chacun un bord en arc de cercle inventé.
+    // Le rayon borne la recherche de possessions, il ne dessine jamais.
+    assert.ok(/case when \$1::jsonb is null then ST_Buffer\(h\.g::geography,\$6\)::geometry/.test(body),
+      'sans emprise réelle, un secteur ne doit pas être coupé sur le disque de recherche');
   });
   await test('0151 : retirer une arène la sort du catalogue, la journalise, et ne se rejoue pas', async () => {
     await db.query("insert into challenge_arenas_2026(id,title,activity,time_zone,sectors,access_source,reviewed_at) values('rouen-run-v1','Rouen','run','Europe/Paris',$1,'Revue de terrain',now())", [JSON.stringify(sectors)]);

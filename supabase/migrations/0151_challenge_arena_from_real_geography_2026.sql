@@ -102,7 +102,8 @@ begin
   if commune_name is null then raise exception 'unknown_commune'; end if;
 
   -- Emprise : le contour administratif RÉEL s'il existe, sinon rien. Le rayon
-  -- ne sert qu'à borner la RECHERCHE de possessions, jamais à dessiner.
+  -- ne sert qu'à borner la RECHERCHE de possessions, jamais à dessiner : quand
+  -- il n'y a pas de contour, aucun secteur n'est coupé sur le disque.
   execute $q$ select ST_AsGeoJSON(z.g)::jsonb,z.city_id,z.name from
     (select ST_SetSRID(ST_GeomFromGeoJSON(geojson),4326) g,city_id,name from public.city_zones) z
     where ST_IsValid(z.g) and ST_Contains(z.g,ST_SetSRID(ST_MakePoint($1,$2),4326)) order by ST_Area(z.g) limit 1 $q$
@@ -126,7 +127,15 @@ begin
       owned as (select o.geometry g from public.ownership_2026 o,area where o.activity=$5 and ST_Intersects(o.geometry,area.g)),
       clustered as (select g,ST_ClusterKMeans(ST_Centroid(g),%s) over () k from owned),
       hulls as (select k,count(*)::integer n,ST_ConvexHull(ST_Collect(g)) g from clustered group by k),
-      grown as (select h.n,ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_Intersection(ST_Buffer(h.g::geography,$6)::geometry,area.g)),3)) g
+      -- Le découpage sur l'emprise n'a lieu QUE si l'emprise est réelle. Sans
+      -- contour administratif, `area` est un disque de rayon de recherche
+      -- autour du centre communal : y couper les secteurs donnerait à chacun un
+      -- bord en ARC DE CERCLE inventé. Le contour du secteur reste alors
+      -- entièrement dérivé de ce que des gens ont couru — enveloppe convexe
+      -- des possessions, élargie du seuil de trace — et rien d'autre.
+      grown as (select h.n,ST_Multi(ST_CollectionExtract(ST_MakeValid(
+          case when $1::jsonb is null then ST_Buffer(h.g::geography,$6)::geometry
+            else ST_Intersection(ST_Buffer(h.g::geography,$6)::geometry,area.g) end),3)) g
         from hulls h,area)
       select jsonb_agg(jsonb_build_object('possessions',n,'geometry',ST_AsGeoJSON(g)::jsonb) order by ST_XMin(g),ST_YMin(g))
       from grown where not ST_IsEmpty(g) $q$,r.sectors::integer)
