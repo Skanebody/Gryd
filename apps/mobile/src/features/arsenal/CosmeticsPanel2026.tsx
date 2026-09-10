@@ -38,7 +38,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { router } from 'expo-router';
 import { PROFILE_COSMETIC_SLOTS_2026, careerProgress2026, fonts, refonteColors as c } from '@klaim/shared';
 import { purchasesCapability, storeAvailability2026, storeSaysNotOnSale2026, useGrydPlusAccess } from '../premium';
-import type { PremiumOffer, PremiumStatus } from '../premium';
+import type { PremiumOffer, PremiumStatus, StoreClosedReason2026 } from '../premium';
 import { useCommercialCollections2026 } from '../premium/useCommercialCollections2026';
 import { useProfileProgress } from '../refonte/ProfileProgress';
 import { ProfileButton, useRefonteCopy } from '../refonte/ProfilePrimitives';
@@ -142,6 +142,11 @@ export function CosmeticsPanel2026() {
     {!session ? <Text style={local.meta}>{copy(
       'Sans compte, ces objets sont des aperçus : c’est ton compte qui garde ce que tu équipes.',
       'Without an account these are previews: your account is what keeps what you equip.')}</Text> : null}
+    {/* ADR-014 : quand la boutique est fermée pour une raison qui NE CONCLUT
+        RIEN sur la vente (lecture en cours, pas de compte, plateforme sans
+        achat intégré, échec de lecture), on dit LA RAISON — une fois, en tête —
+        au lieu de laisser trente-quatre tuiles répéter « on ne sait pas ». */}
+    {!store.open && !notOnSale ? <Text style={local.meta}>{STORE_UNKNOWN_REASON_2026(store.reason, copy)}</Text> : null}
     {session && mine.status === 'unavailable' ? <View style={local.warning}>
       <Text style={local.meta}>{copy(
         'Ta personnalisation n’a pas pu être lue. Ton profil garde son apparence actuelle.',
@@ -217,6 +222,31 @@ function COSMETIC_STATE_LABEL_2026(state: ReturnType<typeof cosmeticState2026>, 
     case 'not_on_sale': return copy('Pas encore en vente', 'Not on sale yet');
     case 'on_sale': return copy('Dans une collection', 'In a collection');
     case 'store_unknown': return copy('Disponibilité inconnue ici', 'Availability unknown here');
+  }
+}
+
+/**
+ * Les CINQ raisons qui ne concluent rien sur la vente. Aucune ne dit « pas
+ * encore en vente » : on ne sait pas, et le dire est la seule chose vraie.
+ * `notConfigured` et `nothingOnSale` n'y sont pas — ce sont les deux seules qui
+ * autorisent l'affirmation, et `storeSaysNotOnSale2026` s'en charge.
+ */
+function STORE_UNKNOWN_REASON_2026(reason: StoreClosedReason2026, copy: Copy): string {
+  switch (reason) {
+    case 'checking': return copy('Lecture de la boutique en cours.', 'Checking the store.');
+    case 'signedOut': return copy(
+      'Connecte-toi pour savoir ce qui est en vente.',
+      'Sign in to see what is on sale.');
+    case 'platform': return copy(
+      'Les achats intégrés n’existent pas sur cet appareil : la vente ne peut pas être lue ici.',
+      'In-app purchases do not exist on this device: sales cannot be checked here.');
+    case 'readFailed': return copy(
+      'La boutique n’a pas pu être lue. On ne sait pas ce qui est en vente.',
+      'The store could not be read. We do not know what is on sale.');
+    case 'noConfirmedPrice': return copy(
+      'Aucun prix confirmé par la boutique : rien n’est proposé à l’achat.',
+      'No price confirmed by the store: nothing is offered for sale.');
+    default: return copy('Pas encore en vente.', 'Not on sale yet.');
   }
 }
 

@@ -62,9 +62,15 @@ export function CosmeticName2026({ item, text, size, weight = '600', style, numb
   if (item.family !== 'nameColor' || item.ink.kind === 'solid') {
     const color = item.family === 'nameColor' && item.ink.kind === 'solid' ? item.ink.color : c.darkInk;
     // La couleur du cosmétique passe APRÈS le style reçu : l'appelant fournit la
-    // typographie (police, taille, interlignage), l'objet équipé fournit
-    // l'encre. L'ordre inverse laissait un `color` d'écran écraser le cadeau.
-    return <Text numberOfLines={numberOfLines} style={[style, { color }]}>{text}</Text>;
+    // typographie (police, interlignage), l'objet équipé fournit l'encre.
+    // L'ordre inverse laissait un `color` d'écran écraser le cadeau.
+    //
+    // `fontSize` est posé ici, et pas laissé au style : le DÉGRADÉ, lui, est un
+    // texte SVG qui n'obéit qu'à sa prop. Sans cette ligne, un aplat et un
+    // dégradé du même objet ne rendaient pas à la même taille — constaté à
+    // l'écran le 10/09 sur la liste des aperçus (« Ivoire » en 14, « Aurore »
+    // en 21). Une famille de cosmétiques doit se comparer à taille égale.
+    return <Text numberOfLines={numberOfLines} style={[style, { fontSize: size, color }]}>{text}</Text>;
   }
   const gradient = item.ink.gradient;
   const gradientId = `cosmetic-name-${gradient.id}`;
@@ -153,11 +159,15 @@ function CosmeticRingArt2026({ frame, box }: { frame: AvatarFrameCosmetic2026; b
       rx={radius} ry={radius} fill="none" stroke={frame.color} strokeWidth={frame.width}
       {...(frame.ring === 'stitch' ? { strokeDasharray: [3, 3] } : {})}
     />
+    {/* Le second anneau était à 1 px et 45 % : à 64 pt, « Double liseré » était
+        INDISTINGUABLE de « Liseré » sur la capture du 10/09. Une famille dont
+        deux objets se ressemblent n'offre pas deux choix, elle en offre un.
+        Le trait passe à 1,5 px, l'opacité à 70 %, et l'écart double. */}
     {frame.ring === 'double' ? <Rect
-      x={inset + frame.width + 2} y={inset + frame.width + 2}
-      width={box - (inset + frame.width + 2) * 2} height={box - (inset + frame.width + 2) * 2}
-      rx={Math.max(0, radius - frame.width - 2)} ry={Math.max(0, radius - frame.width - 2)}
-      fill="none" stroke={withAlpha(frame.color, 0.45)} strokeWidth={1}
+      x={inset + frame.width + 4} y={inset + frame.width + 4}
+      width={box - (inset + frame.width + 4) * 2} height={box - (inset + frame.width + 4) * 2}
+      rx={Math.max(0, radius - frame.width - 4)} ry={Math.max(0, radius - frame.width - 4)}
+      fill="none" stroke={withAlpha(frame.color, 0.7)} strokeWidth={1.5}
     /> : null}
     {frame.ring === 'pulse' ? <Rect
       x={0.5} y={0.5} width={box - 1} height={box - 1}
