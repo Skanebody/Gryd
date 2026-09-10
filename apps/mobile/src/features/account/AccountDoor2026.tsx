@@ -39,15 +39,40 @@
  * .status === 'signed-out'`…) et sait, lui, distinguer « pas connecté » de
  * « lecture en cours ». Une seconde garde ici peindrait la porte pendant la
  * restauration de session, c'est-à-dire à quelqu'un de déjà connecté.
+ *
+ * ─── SEPT AUTRES PORTES, DANS L'AUTRE FAMILLE (lot 10, 10/09/2026) ──────────
+ * Les treize écrans ci-dessus vivent tous dans `ProfilePrimitives` (échelle
+ * `refonteColors`, fond clair possible). Sept portes restaient en dehors, dans
+ * la famille `ui/Button` + `Card` + `StackScreen` (échelle `colors.*`, carbone) :
+ *
+ *   app/defis.tsx · app/activite.tsx · app/challenges/index.tsx
+ *   app/c/[code].tsx · app/crew-create.tsx · app/confidentialite.tsx (×2)
+ *
+ * Leur donner la porte du lot 9 telle quelle aurait peint du texte quasi blanc
+ * de l'échelle claire sur du carbone, et un bouton d'une autre famille au
+ * milieu de leurs `Button` : le mot aurait été là, et l'écran aurait eu deux
+ * grammaires. `family` choisit donc les PRIMITIVES, jamais les MOTS — le texte
+ * est écrit une seule fois, plus haut dans ce fichier, et les deux rendus le
+ * partagent. Deux libellés jumeaux finissent toujours par diverger.
  */
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { fonts, refonteColors as c } from '@klaim/shared';
+import { colors, fonts, refonteColors as c, spacing, typography } from '@klaim/shared';
 import { C } from '../../i18n/catalog/auth';
 import { useT } from '../../i18n/store';
+import { EVENTS, track } from '../../lib/analytics';
 import { haptics } from '../../lib/haptics';
+import { Button } from '../../ui/Button';
+import { Card } from '../../ui/Card';
 import { ProfileButton, type ProfileTone } from '../refonte/ProfilePrimitives';
 import { useSession } from '../../lib/session';
+
+/**
+ * La famille de primitives de l'écran d'accueil, PAS un thème de plus :
+ *  - `profile` : `ProfilePrimitives` (échelle `refonteColors`, `tone` clair/sombre) ;
+ *  - `ui` : `ui/Button` + `Card` (échelle `colors.*`, surface N1 `elevation.surface`).
+ */
+export type AccountDoorFamily = 'profile' | 'ui';
 
 export interface AccountDoor2026Props {
   /**
@@ -68,29 +93,73 @@ export interface AccountDoor2026Props {
    * quasi noir sur du carbone quasi noir dans la moitié des écrans : le mot
    * serait là, et personne ne le lirait. `ProfilePrimitives` fait déjà ce
    * partage, on ne s'en invente pas un second.
+   * Sans objet pour `family="ui"` : cette famille n'a qu'une échelle, sombre.
    */
   tone?: ProfileTone;
+  /**
+   * LES PRIMITIVES DE L'ÉCRAN D'ACCUEIL, pas un thème. Défaut `profile` : les
+   * treize écrans du lot 9 ne changent pas d'un pixel.
+   */
+  family?: AccountDoorFamily;
+  /**
+   * §26 friction — l'id STABLE que l'écran d'avant émettait déjà sur SON bouton
+   * (`defis_sign_in`, `activite_sign_in`…). Sans lui, réunir sept portes en une
+   * aurait fondu sept entonnoirs en un seul, et personne n'aurait pu dire d'OÙ
+   * un compte naît. Il est émis ici, pour les DEUX familles : `ProfileButton`
+   * n'a pas de crochet d'analytics, et le poser sur le seul `ui/Button` aurait
+   * rendu la mesure dépendante de la primitive.
+   */
+  analyticsId?: string;
 }
 
-export function AccountDoor2026({ reason, compact = false, tone = 'dark' }: AccountDoor2026Props) {
+export function AccountDoor2026({
+  reason,
+  compact = false,
+  tone = 'dark',
+  family = 'profile',
+  analyticsId,
+}: AccountDoor2026Props) {
   const t = useT();
   const { configured } = useSession();
-  const light = tone === 'light';
-  const open = () => { haptics.light(); router.push('/sign-in'); };
-  return <View style={[s.door, light && s.doorLight, compact && s.compact]}>
-    <Text accessibilityRole="header" style={[s.title, light && s.titleLight, compact && s.titleCompact]}>
+  const ui = family === 'ui';
+  const light = !ui && tone === 'light';
+  const open = () => {
+    haptics.light();
+    if (analyticsId !== undefined) track(EVENTS.ctaTapped, { cta: analyticsId });
+    router.push('/sign-in');
+  };
+  /* LE CONTENU EST ÉCRIT UNE FOIS. Les deux familles ne se partagent pas les
+     textes « à peu près » : c'est le MÊME arbre, avec d'autres primitives et
+     d'autres tokens. Un second bloc JSX aurait rouvert la porte du lot 9.
+     Le libellé du bouton passe par une variable pour la même raison : les deux
+     primitives de bouton ne prennent pas les mêmes props, mais elles doivent
+     peindre le MÊME mot. */
+  const cta = t(C.doorCta);
+  const contenu = <>
+    <Text accessibilityRole="header" style={[s.title, light && s.titleLight, compact && s.titleCompact, ui && u.title, ui && compact && u.titleCompact]}>
       {t(C.methodsTitle)}
     </Text>
-    {reason ? <Text style={[s.body, light && s.bodyLight]}>{reason}</Text> : null}
+    {reason ? <Text style={[s.body, light && s.bodyLight, ui && u.body]}>{reason}</Text> : null}
     {/* Un bouton qui mènerait à un écran incapable de créer quoi que ce soit
         serait un bouton mort : sans serveur, la porte se DIT fermée. */}
     {configured ? <>
-      <ProfileButton tone={tone} label={t(C.doorCta)} onPress={open} />
-      <Text style={[s.note, light && s.bodyLight]}>{t(C.doorOrSignIn)}</Text>
-    </> : <Text style={[s.body, light && s.bodyLight]}>
+      {ui
+        ? <View style={u.action}><Button size="md" label={cta} onPress={open} /></View>
+        : <ProfileButton tone={tone} label={cta} onPress={open} />}
+      <Text style={[s.note, light && s.bodyLight, ui && u.note]}>{t(C.doorOrSignIn)}</Text>
+    </> : <Text style={[s.body, light && s.bodyLight, ui && u.body]}>
       {t(C.noBackendTitle)}. {t(C.errorNoBackend)}
     </Text>}
-  </View>;
+  </>;
+  if (ui) {
+    /* `Card` = la surface N1 du dépôt (elevation.surface + radii.card), celle
+       que ces écrans peignaient déjà à la main autour de leur porte. En
+       `compact`, aucune surface : la porte s'insère dans une pile existante. */
+    return compact
+      ? <View style={u.compact}>{contenu}</View>
+      : <Card style={u.card}>{contenu}</Card>;
+  }
+  return <View style={[s.door, light && s.doorLight, compact && s.compact]}>{contenu}</View>;
 }
 
 const s = StyleSheet.create({
@@ -106,4 +175,20 @@ const s = StyleSheet.create({
   body: { fontFamily: fonts.text, fontSize: 13, lineHeight: 19, color: c.darkMuted },
   bodyLight: { color: c.muted },
   note: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.darkMuted, textAlign: 'center' },
+});
+
+/**
+ * FAMILLE `ui` — les mêmes rôles, pris dans l'échelle `colors.*` et les rôles
+ * typographiques du dépôt (R3 titre de card, R4 corps, R4-méta pour la note).
+ * Aucun hex : la source est `design-tokens.ts` (ADR-008).
+ */
+const u = StyleSheet.create({
+  // `Card` porte déjà son padding et son rayon : ici, l'espace intérieur.
+  card: { gap: spacing.xs, marginVertical: spacing.sm },
+  compact: { alignSelf: 'stretch', gap: spacing.xs, marginVertical: spacing.xs },
+  title: { ...typography.cardTitle, color: colors.blanc },
+  titleCompact: { ...typography.itemTitle },
+  body: { ...typography.body, color: colors.gris },
+  action: { marginTop: spacing.xs },
+  note: { ...typography.meta, color: colors.gris, textAlign: 'center' },
 });
