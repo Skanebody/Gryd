@@ -131,6 +131,7 @@ export const FR = {
   authMethodsTitle: 'Retrouve ton terrain',
   authEmailDoor: 'Continuer avec un e-mail',
   authGuest: 'Continuer sans compte',
+  ageNotMe: 'Ce n’est pas moi',
   authTerms: 'Conditions',
   authGoogle: 'Continuer avec Google',
   otpRequestCta: 'Recevoir un code',

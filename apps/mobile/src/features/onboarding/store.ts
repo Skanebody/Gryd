@@ -45,7 +45,7 @@
  * d'ACCÈS à /sign-in — c'est ce qui rendait la connexion inatteignable dès que
  * le stockage n'était pas persistant.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Entry } from '../../i18n/types';
 import { rememberOnboardingCompletion2026 } from './sessionCompletion2026';
@@ -138,96 +138,93 @@ const writePatch = createOnboardingPatchQueue2026(readState, async state => {
 });
 
 export interface OnboardingStore {
-  /**
-   * État courant. ⚠ À lire AVEC `status` : sous `unavailable`, les champs que
-   * cette session n'a pas posés sont des DÉFAUTS, pas des réponses.
-   */
   state: OnboardingState;
-  /**
-   * ⚠️ PAS de `loading: boolean` ici, volontairement. Un booléen force le
-   * lecteur à ranger `unavailable` avec `ready` (« pas en train de charger,
-   * donc c'est une réponse ») — c'est exactement la confusion qui a produit un
-   * gate légal tranché sur des DÉFAUTS. Trois états, trois branches.
-   */
   status: OnboardingStorageStatus;
-  /**
-   * Une écriture a échoué (ou n'a jamais abouti) : ce que le joueur vient de
-   * décider ne survivra pas à la fermeture de l'app. Se DIT — voir
-   * STORAGE_UNAVAILABLE_NOTICE.
-   */
   persistenceFailed: boolean;
-  /** Patch partiel + persistance. La promesse résout après la tentative d'écriture. */
   update: (patch: Partial<OnboardingState>) => Promise<boolean>;
 }
 
 /**
- * Hook d'accès à l'avancement d'onboarding. Charge en asynchrone, persiste
- * chaque patch. PURE côté rendu : aucune requête réseau.
+ * ─── UN SEUL ÉTAT, PARTAGÉ PAR TOUTES LES INSTANCES (11/09/2026) ─────────────
+ *
+ * Jusqu'ici chaque appel de `useOnboardingState()` portait SON instantané :
+ * lu une fois au montage, jamais relu, jamais prévenu des décisions prises
+ * ailleurs. La conséquence, prouvée par le harnais E2E (S2 « le gate 16+ ne se
+ * redemande PAS ») : la porte de compte écrivait `ageConfirmed: true` puis
+ * poussait `/email` dans le même tick ; l'écran e-mail montait, LISAIT le
+ * disque avant que la file d'écriture n'ait atterri, et redemandait l'âge.
+ * Déterministe sur une machine chargée, invisible sur une machine rapide —
+ * exactement le genre de défaut qu'une preuve manuelle ne voit jamais.
+ *
+ * Désormais l'état vit au niveau du module : une lecture unique par processus,
+ * des décisions de session qui priment toujours sur le disque, et chaque
+ * instance abonnée par `useSyncExternalStore`. Un `update()` est visible par
+ * l'écran suivant AVANT sa persistance, qui reste asynchrone et dite
+ * (`persistenceFailed`). `refreshOnboardingState()` relit le disque pour les
+ * rares chemins qui l'écrivent sans passer par ici.
+ */
+interface Snapshot {
+  readonly state: OnboardingState;
+  readonly status: OnboardingStorageStatus;
+  readonly persistenceFailed: boolean;
+}
+
+let snapshot: Snapshot = { state: DEFAULT_ONBOARDING_STATE, status: 'reading', persistenceFailed: false };
+let decided: Partial<OnboardingState> = {};
+let reading: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+
+function publish(next: Partial<Snapshot>): void {
+  snapshot = { ...snapshot, ...next };
+  for (const listener of listeners) listener();
+}
+
+function startReading(): Promise<void> {
+  if (reading) return reading;
+  reading = readState().then((outcome) => {
+    if (!outcome.ok) {
+      // On ne sait pas lire : on ne fabrique pas de réponse. L'état garde ce que
+      // la session a décidé (et rien d'autre), `status` le dit.
+      publish({ status: 'unavailable' });
+      return;
+    }
+    // La lecture ne fournit que le FOND : les décisions de la session gagnent.
+    publish({ state: { ...outcome.state, ...decided }, status: 'ready' });
+  });
+  return reading;
+}
+
+/** Relit le disque (après une écriture faite hors de ce magasin). */
+export async function refreshOnboardingState(): Promise<void> {
+  reading = null;
+  await startReading();
+}
+
+/** Applique un patch : visible immédiatement partout, persisté ensuite. */
+export async function updateOnboardingState(patch: Partial<OnboardingState>): Promise<boolean> {
+  if (typeof patch.onboardingDone === 'boolean') rememberOnboardingCompletion2026(patch.onboardingDone);
+  decided = { ...decided, ...patch };
+  publish({ state: { ...snapshot.state, ...patch } });
+  const persisted = await writePatch(patch);
+  if (!persisted) publish({ persistenceFailed: true });
+  return persisted;
+}
+
+const subscribe = (listener: () => void): (() => void) => {
+  listeners.add(listener);
+  void startReading();
+  return () => {
+    listeners.delete(listener);
+  };
+};
+const getSnapshot = (): Snapshot => snapshot;
+
+/**
+ * Hook d'accès à l'avancement d'onboarding. Charge en asynchrone (une fois par
+ * processus), persiste chaque patch. PURE côté rendu : aucune requête réseau.
  */
 export function useOnboardingState(): OnboardingStore {
-  const [state, setState] = useState<OnboardingState>(DEFAULT_ONBOARDING_STATE);
-  const [status, setStatus] = useState<OnboardingStorageStatus>('reading');
-  const [persistenceFailed, setPersistenceFailed] = useState(false);
-
-  // Miroir synchrone de l'état courant : la persistance NE DÉPEND JAMAIS du
-  // timing de l'updater setState. Une sortie de flow enchaîne update() puis
-  // router.replace() (démontage immédiat) : l'updater fonctionnel serait alors
-  // abandonné. La persistance ne reçoit désormais que le patch explicite.
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  /**
-   * ⚠ LA COURSE QUI ANNULAIT LE GATE (corrigée le 21/07/2026). La lecture
-   * initiale écrasait `stateRef.current` SANS GARDE. Si le joueur répondait à
-   * une question avant que la promesse ne résolve — quelques dizaines de ms, et
-   * c'est exactement la fenêtre d'un tap sur un écran déjà peint — la lecture
-   * atterrissait APRÈS et remettait la valeur du disque : la réponse était
-   * silencieusement annulée, y compris une déclaration d'âge.
-   *
-   * On mémorise donc ce que CE MONTAGE a décidé. La lecture ne fournit plus que
-   * le FOND : les décisions de la session gagnent toujours. La file relit
-   * séparément le disque avant chaque patch ; elle n’écrit jamais ces défauts
-   * sur un état encore inconnu.
-   */
-  const decidedRef = useRef<Partial<OnboardingState>>({});
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    void readState().then((outcome) => {
-      if (!mountedRef.current) return;
-      if (!outcome.ok) {
-        // On ne sait pas lire : on ne fabrique pas de réponse. `state` garde ce
-        // que la session a décidé (et rien d'autre), `status` le dit.
-        setStatus('unavailable');
-        return;
-      }
-      const decided = decidedRef.current;
-      const merged: OnboardingState = { ...outcome.state, ...decided };
-      stateRef.current = merged;
-      setState(merged);
-      setStatus('ready');
-
-    });
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const update = useCallback(async (patch: Partial<OnboardingState>) => {
-    if (typeof patch.onboardingDone === 'boolean') rememberOnboardingCompletion2026(patch.onboardingDone);
-    // Décision de session : elle prime sur la lecture, même si celle-ci arrive
-    // après (voir decidedRef ci-dessus).
-    decidedRef.current = { ...decidedRef.current, ...patch };
-    // Fusion synchrone depuis la ref (jamais depuis l'updater async de setState)
-    // pour que des update() enchaînés dans le même tick composent bien.
-    const next: OnboardingState = { ...stateRef.current, ...patch };
-    stateRef.current = next;
-    setState(next);
-    const persisted = await writePatch(patch);
-    if (mountedRef.current && !persisted) setPersistenceFailed(true);
-    return persisted;
-  }, []);
-
-  return { state, status, persistenceFailed, update };
+  const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const update = useCallback(updateOnboardingState, []);
+  return { state: current.state, status: current.status, persistenceFailed: current.persistenceFailed, update };
 }

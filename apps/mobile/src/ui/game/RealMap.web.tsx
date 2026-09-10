@@ -842,6 +842,17 @@ interface MarkerEntry {
   el: HTMLDivElement;
 }
 
+/**
+ * Miroir de `RealMap.tsx#realMapAvailable` (11/09/2026). Sur le web la carte est
+ * du JavaScript pur (maplibre-gl) : aucun module natif a charger, elle est
+ * toujours disponible. Sans ce miroir, `MapHome` appelait une fonction absente
+ * de la variante web et l'ecran de carte tombait dans le garde-fou d'erreur
+ * (`TypeError: realMapAvailable is not a function`), prouve par le harnais E2E.
+ */
+export function realMapAvailable(): boolean {
+  return true;
+}
+
 export const RealMap = forwardRef<RealMapRef, RealMapProps>(function RealMap(
   {
     camera,

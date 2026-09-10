@@ -124,17 +124,13 @@ test.describe('S3 — reconnexion', () => {
  */
 test.describe('S3 (suite) — collision de routes', () => {
   test('/profil en lien profond sert le MEME ecran que la barre basse', async ({ page }) => {
-    test.fail(true, '/profil en lien profond sert app/(mvp)/profil.tsx (legacy en quarantaine)');
-
     // Invite : le Profil du cahier dit « Invite · Sur cet appareil », le legacy
     // dit « Toi ». Deux copies incompatibles — impossible de les confondre.
     await seedStorage(page, exploredOnce());
     await page.goto('/profil');
 
     // Delai court ASSUME (meme raison que le test epingle de s2).
-    await expect(page.getByText(FR.profileOnThisDevice, { exact: true })).toBeVisible({
-      timeout: 6_000,
-    });
+    await expect(page.getByText(FR.profileOnThisDevice, { exact: true })).toBeVisible();
     await expect(page.getByText(FR.legacyProfileTitle, { exact: true })).toHaveCount(0);
   });
 });

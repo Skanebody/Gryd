@@ -128,8 +128,12 @@ test.describe('S2 — creation de compte', () => {
     await expect(page.getByRole('button', { name: FR.ageUnder, exact: true })).toHaveCount(0);
     await expect(page).not.toHaveURL(/\/email/);
 
-    // Ce n'est pas un mur : courir sans compte reste possible, comme annonce.
-    await expect(page.getByRole('button', { name: FR.authGuest }).first()).toBeVisible();
+    // (voir ci-dessous : depuis le 10/09 c'est un mur, par conception.)
+    // Depuis le 10/09 (lot compte), le refus est un MUR : aucune sortie vers l'app sous
+    // « GRYD n'est pas accessible avant 16 ans » — sinon l'ecran affirmerait un blocage
+    // qu'il n'applique pas. La seule commande restante corrige une erreur de tap.
+    await expect(page.getByRole('button', { name: FR.authGuest })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: FR.ageNotMe })).toBeVisible();
   });
 
   test('gate 16+ : l’acceptation ouvre le formulaire e-mail', async ({ page }) => {
@@ -176,8 +180,6 @@ test.describe('S2 — creation de compte', () => {
    * donc pas se refermer en silence.
    */
   test('le gate 16+ ne se redemande PAS apres avoir ete franchi', async ({ page }) => {
-    test.fail(true, 'gate 16+ redemande sur /email — instantane perime de useOnboardingState');
-
     await reachEmailForm(page);
     await page.getByLabel(FR.emailLabel).fill(DEFAULT_USER.email);
     await page.getByRole('button', { name: FR.otpRequestCta }).click();
@@ -185,7 +187,7 @@ test.describe('S2 — creation de compte', () => {
     // Une seule declaration d'age suffit : l'ecran suivant doit envoyer le code.
     // Delai court ASSUME : le comportement attendu est immediat, et un test
     // epingle ne doit pas faire payer sa propre attente a toute la suite.
-    await expect(page.getByLabel(FR.otpFieldA11y)).toBeVisible({ timeout: 4_000 });
+    await expect(page.getByLabel(FR.otpFieldA11y)).toBeVisible();
     await expect(page.getByText(FR.ageTitle)).toHaveCount(0);
   });
 
