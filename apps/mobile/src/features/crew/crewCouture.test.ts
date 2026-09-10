@@ -304,3 +304,66 @@ Deno.test('crew : un rôle NON LU se dit, il ne se devine pas', () => {
     'un rôle non lu retombe sur « membre » : c’est une affirmation inventée',
   );
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⑥ NOMMER UN RÔLE EST UN CHOIX, PAS UNE ÉCHELLE À GRAVIR
+//
+// ÉTAPE 0 — LE DÉFAUT EXISTAIT. `PlayerModerationSheet.tsx` (9d1b9e7) ne
+// peignait que le geste d'UN CRAN :
+//   {roleActions.includes('promote') && upRole !== null ? <Button …
+//        onPress={() => startRoleAction({ key: 'promote', role: upRole })} …
+// `upRole` vient de `nextRoleUp`, qui rend « le prochain rôle VERS LE HAUT ».
+// Nommer un modérateur (`co_captain`) à partir d'un `rookie` demandait donc
+// CINQ promotions successives — cinq appels serveur, cinq relectures du
+// roster —, alors qu'`assignableRolesFor` existait, était testé, et que son
+// propre docblock annonçait « une liste FERMÉE » que personne n'affichait.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FEUILLE = './PlayerModerationSheet.tsx';
+
+Deno.test('rôles : la feuille propose la liste FERMÉE des rôles attribuables', () => {
+  const code = codeSeul(lire(FEUILLE));
+  assert(
+    code.includes('assignableRolesFor(crew.actorRole, crew.targetRole)'),
+    'la feuille ne lit plus la liste des rôles attribuables : on repart à ' +
+      'l’échelle d’un cran, cinq taps pour nommer un modérateur',
+  );
+  assert(code.includes("setStep('role')"), 'la porte vers le choix de rôle a disparu');
+  assert(code.includes("step === 'role'"), 'l’étape de choix de rôle n’est plus rendue');
+});
+
+Deno.test('rôles : chaque rôle proposé dit son DEVOIR, pas seulement son rang', () => {
+  const code = codeSeul(lire(FEUILLE));
+  assert(code.includes('dutyOf(role)'), 'le devoir du cahier §13.3 n’accompagne plus le rang');
+  assert(code.includes('CREW_DUTY_HELP_E[duty]'), 'le devoir n’est plus expliqué');
+});
+
+Deno.test('rôles : un SAUT de rôle se confirme, dans les deux sens', () => {
+  const code = codeSeul(lire(FEUILLE));
+  // Depuis la liste, on passe TOUJOURS par `confirm` : `startRoleAction`
+  // (qui part direct sur une promotion, non sensible) n'est pas appelé ici.
+  const bloc = code.slice(code.indexOf("step === 'role'"), code.indexOf("step === 'reason'"));
+  assert(bloc.length > 200, 'le bloc de choix de rôle est introuvable');
+  assert(bloc.includes("setStep('confirm')"), 'un rôle choisi part sans confirmation');
+  assert(
+    !bloc.includes('startRoleAction('),
+    'la liste de rôles court-circuite la confirmation : nommer un modérateur ' +
+      'confie le pouvoir d’exclure, ça ne part pas au premier tap',
+  );
+  // Et la confirmation a enfin sa copie de PROMOTION : sans elle, nommer
+  // quelqu'un affichait le texte « Rétrograder … ».
+  assert(
+    code.includes('C.maPromoteConfirmTitle'),
+    'la confirmation d’une promotion réutilise la copie de rétrogradation',
+  );
+});
+
+Deno.test('rôles : la liste ne s’ajoute que si elle OUVRE quelque chose', () => {
+  const code = codeSeul(lire(FEUILLE));
+  assert(
+    /showRoleList\s*=\s*assignable\.length\s*>\s*2/.test(code),
+    'le bouton « Choisir un rôle » se peint même quand promouvoir et ' +
+      'rétrograder atteignent déjà tous les barreaux : une porte de plus vers ' +
+      'la même chose',
+  );
+});

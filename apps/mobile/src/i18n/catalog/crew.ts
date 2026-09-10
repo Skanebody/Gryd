@@ -5532,6 +5532,59 @@ export const C = defineCatalog({
     de: 'Diese Person verliert die Verwaltungsaktionen ihrer Rolle. Revier, Punkte und Platz im Crew bleiben unverändert.',
     pt: 'Essa pessoa perde as ações de gestão do cargo. O território, os pontos e o lugar dela no crew não mudam.',
   },
+  /**
+   * L'ÉCHELLE A SEPT BARREAUX, LE CAHIER EN NOMME QUATRE.
+   *
+   * La feuille ne proposait qu'un geste d'UN CRAN (`nextRoleUp`/`nextRoleDown`).
+   * Conséquence mesurée : nommer un modérateur (co_captain) à partir d'un
+   * rookie demandait CINQ promotions, donc cinq allers-retours serveur et cinq
+   * relectures du roster. Le cahier §13.3, lui, demande de « gérer les rôles »
+   * comme un choix, pas comme une montée d'escalier. `assignableRolesFor` (dont
+   * le docblock prévoyait déjà « une liste FERMÉE ») rend exactement les
+   * barreaux que MON rôle autorise ; cet écran les montre.
+   */
+  maChooseRole: {
+    fr: 'Choisir un rôle',
+    en: 'Choose a role',
+    es: 'Elegir un rol',
+    de: 'Rolle wählen',
+    pt: 'Escolher um cargo',
+  },
+  maChooseRoleTitle: {
+    fr: 'Quel rôle pour {name} ?',
+    en: 'Which role for {name}?',
+    es: '¿Qué rol para {name}?',
+    de: 'Welche Rolle für {name}?',
+    pt: 'Qual cargo para {name}?',
+  },
+  /** Le rôle ACTUEL, dit pour que le choix se fasse en connaissance de cause. */
+  maChooseRoleCurrent: {
+    fr: 'Aujourd’hui : {role}.',
+    en: 'Today: {role}.',
+    es: 'Hoy: {role}.',
+    de: 'Aktuell: {role}.',
+    pt: 'Hoje: {role}.',
+  },
+  /**
+   * UN SAUT DE RÔLE SE CONFIRME, MÊME VERS LE HAUT. `CREW_MEMBER_ACTIONS` dit
+   * `promote` non sensible, et c'est vrai d'une montée d'un cran. Sauter
+   * directement à modérateur, c'est confier à quelqu'un le pouvoir d'exclure :
+   * ça se lit avant de partir.
+   */
+  maPromoteConfirmTitle: {
+    fr: 'Nommer {name} {role} ?',
+    en: 'Make {name} {role}?',
+    es: '¿Nombrar a {name} {role}?',
+    de: '{name} zu {role} machen?',
+    pt: 'Nomear {name} {role}?',
+  },
+  maPromoteConfirmBody: {
+    fr: 'Cette personne gagne les actions de gestion de ce rôle. Son territoire, ses points et sa place dans le crew ne changent pas.',
+    en: 'They gain the management actions tied to that role. Their territory, points and place in the crew don’t change.',
+    es: 'Esa persona gana las acciones de gestión de ese rol. Su territorio, sus puntos y su lugar en el crew no cambian.',
+    de: 'Diese Person erhält die Verwaltungsaktionen dieser Rolle. Revier, Punkte und Platz im Crew bleiben unverändert.',
+    pt: 'Essa pessoa ganha as ações de gestão desse cargo. O território, os pontos e o lugar dela no crew não mudam.',
+  },
   maRemoveConfirmTitle: {
     fr: 'Retirer {name} du crew ?',
     en: 'Remove {name} from the crew?',

@@ -46,7 +46,7 @@ import {
   withAlpha,
   type CrewRole,
 } from '@klaim/shared';
-import { C, CREW_ROLE_E } from '../../i18n/catalog/crew';
+import { C, CREW_DUTY_HELP_E, CREW_ROLE_E } from '../../i18n/catalog/crew';
 import { C as CReg } from '../../i18n/catalog/reglages';
 import { useT } from '../../i18n/store';
 import { useSession } from '../../lib/session';
@@ -67,7 +67,7 @@ import {
   memberReportInput,
   moderationActionsFor,
 } from './blocklist';
-import { nextRoleDown, nextRoleUp, roleActionsFor } from './memberRoles';
+import { assignableRolesFor, dutyOf, isCrewRole, nextRoleDown, nextRoleUp, roleActionsFor, roleRank } from './memberRoles';
 import {
   removeMember,
   setMemberRole,
@@ -166,7 +166,7 @@ export function PlayerActionsButton({ name, onPress }: { name: string; onPress: 
  * enregistré, et on le dit — l'étape n'existait pas avant le 28/07/2026, ce qui
  * obligeait l'écran à afficher « Signalement envoyé » dans les deux cas.
  */
-type SheetStep = 'choice' | 'reason' | 'sent' | 'reportFailed' | 'confirm' | 'result';
+type SheetStep = 'choice' | 'role' | 'reason' | 'sent' | 'reportFailed' | 'confirm' | 'result';
 
 /**
  * E47 — LE CONTEXTE DE CREW, OPTIONNEL PAR CONSTRUCTION.
@@ -292,6 +292,37 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
   const downRole = crew ? nextRoleDown(crew.actorRole, crew.targetRole) : null;
 
   /**
+   * TOUS les barreaux que MON rôle m'autorise à attribuer, du plus haut au plus
+   * bas — la « liste FERMÉE » que le docblock d'`assignableRolesFor` annonçait
+   * et que cette feuille n'offrait pas.
+   *
+   * ─── LE DÉFAUT QUE ÇA CORRIGE ────────────────────────────────────────────
+   * Seuls `nextRoleUp` / `nextRoleDown` étaient peints : UN cran à la fois.
+   * Nommer un modérateur (co_captain) à partir d'un rookie demandait donc CINQ
+   * promotions successives, chacune avec son aller-retour serveur et sa
+   * relecture de roster. Le cahier §13.3 confie au capitaine la gestion des
+   * rôles ; une échelle à gravir n'est pas une gestion.
+   *
+   * Aucune borne n'est ajoutée ici : la liste vient telle quelle du module pur,
+   * miroir de 0093, et le serveur rejuge tout.
+   */
+  const assignable = useMemo(
+    () =>
+      crew
+        ? assignableRolesFor(crew.actorRole, crew.targetRole).sort(
+            (a, b) => roleRank(b) - roleRank(a),
+          )
+        : [],
+    [crew],
+  );
+  /*
+   * Le bouton ne s'ajoute que s'il OUVRE quelque chose : avec deux barreaux au
+   * plus, « promouvoir » et « rétrograder » les atteignent déjà tous les deux,
+   * et une troisième porte vers la même chose serait du bruit.
+   */
+  const showRoleList = assignable.length > 2;
+
+  /**
    * Lance un geste : direct s'il n'est pas sensible (`promote`), via l'étape de
    * confirmation sinon. La sensibilité vient de `CREW_MEMBER_ACTIONS`
    * (game-rules) — jamais d'un `if` écrit à la main ici, sans quoi ajouter une
@@ -407,6 +438,15 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
                   onPress={() => startRoleAction({ key: 'demote', role: downRole })}
                 />
               ) : null}
+              {showRoleList ? (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="crest"
+                  label={t(C.maChooseRole)}
+                  onPress={() => setStep('role')}
+                />
+              ) : null}
               {roleActions.includes('remove') ? (
                 <Button
                   variant="ghost"
@@ -475,6 +515,65 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
                   <Text style={styles.stateBody}>{t(CReg.reportSignedOutBody)}</Text>
                 </View>
               )}
+            </>
+          ) : null}
+
+          {/* ── LE CHOIX DU RÔLE — une liste FERMÉE, jamais un champ libre ──
+              Chaque ligne dit le RANG (le mot que la base stocke) et, dessous,
+              le DEVOIR du cahier §13.3 : « Co-Capitaine » ne veut rien dire
+              tant qu'on ne lit pas « traite les signalements et les accès ».
+              Le rôle actuel n'y figure pas — `assignableRolesFor` l'exclut :
+              le réappliquer ne ferait rien (0093 est idempotente) et
+              ressemblerait pourtant à un geste. */}
+          {step === 'role' && crew ? (
+            <>
+              <View style={styles.stateCard}>
+                <Text style={styles.stateTitle}>
+                  {t(C.maChooseRoleTitle, { name: pseudo ?? '' })}
+                </Text>
+                {isCrewRole(crew.targetRole) ? (
+                  <Text style={styles.stateBody}>
+                    {t(C.maChooseRoleCurrent, { role: t(CREW_ROLE_E[crew.targetRole]) })}
+                  </Text>
+                ) : null}
+              </View>
+              {/* LA LISTE S'ENROULE. La feuille est plafonnée à 80 % de la
+                  hauteur d'écran ; un fondateur agissant sur un rookie a CINQ
+                  barreaux à proposer, chacun avec sa phrase de devoir. Sans
+                  défilement, les derniers rôles seraient coupés par le bord —
+                  et sur un petit téléphone, le bouton « Annuler » avec eux. */}
+              <ScrollView style={styles.roleList} contentContainerStyle={styles.roleListInner}>
+              {assignable.map((role) => {
+                const duty = dutyOf(role);
+                return (
+                  <View key={role}>
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      icon="crest"
+                      label={t(CREW_ROLE_E[role])}
+                      disabled={busy}
+                      onPress={() => {
+                        /*
+                          UN SAUT SE CONFIRME, DANS LES DEUX SENS. `promote` est
+                          « non sensible » dans CREW_MEMBER_ACTIONS, et ça reste
+                          vrai d'une montée d'un cran ; passer quelqu'un
+                          directement modérateur, c'est lui confier le pouvoir
+                          d'exclure. On ne part donc pas au premier tap.
+                        */
+                        setPending({
+                          key: roleRank(role) > roleRank(crew.targetRole) ? 'promote' : 'demote',
+                          role,
+                        });
+                        setStep('confirm');
+                      }}
+                    />
+                    {duty ? <Text style={styles.note}>{t(CREW_DUTY_HELP_E[duty])}</Text> : null}
+                  </View>
+                );
+              })}
+              </ScrollView>
+              <Text style={styles.note}>{t(C.maPromoteNote)}</Text>
             </>
           ) : null}
 
@@ -561,17 +660,23 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
                     ? t(C.maRemoveConfirmTitle, { name: pseudo ?? '' })
                     : pending.key === 'transfer_lead'
                       ? t(C.maTransferConfirmTitle, { name: pseudo ?? '' })
-                      : t(C.maDemoteConfirmTitle, {
-                          name: pseudo ?? '',
-                          role: t(CREW_ROLE_E[pending.role]),
-                        })}
+                      : t(
+                          pending.key === 'promote'
+                            ? C.maPromoteConfirmTitle
+                            : C.maDemoteConfirmTitle,
+                          { name: pseudo ?? '', role: t(CREW_ROLE_E[pending.role]) },
+                        )}
                 </Text>
                 <Text style={styles.stateBody}>
                   {pending.key === 'remove'
                     ? t(C.maRemoveConfirmBody)
                     : pending.key === 'transfer_lead'
                       ? t(C.maTransferConfirmBody)
-                      : t(C.maDemoteConfirmBody)}
+                      : t(
+                          pending.key === 'promote'
+                            ? C.maPromoteConfirmBody
+                            : C.maDemoteConfirmBody,
+                        )}
                 </Text>
               </View>
               <Button
@@ -625,8 +730,18 @@ export function PlayerModerationSheet({ pseudo, onClose, crew }: PlayerModeratio
             // gestes — il ne ferme pas la feuille. Reculer d'un pas ne doit pas
             // coûter de rouvrir la ligne, sans quoi on confirme par lassitude.
             onPress={() => {
+              // Depuis une CONFIRMATION venue de la liste de rôles, on revient à
+              // la LISTE — pas au début : reculer d'un pas ne doit jamais faire
+              // reculer de deux, sinon choisir un autre rôle coûte de tout
+              // rouvrir.
               if (step === 'confirm') {
+                const backToList =
+                  showRoleList && (pending?.key === 'promote' || pending?.key === 'demote');
                 setPending(null);
+                setStep(backToList ? 'role' : 'choice');
+                return;
+              }
+              if (step === 'role') {
                 setStep('choice');
                 return;
               }
@@ -690,6 +805,8 @@ const styles = StyleSheet.create({
   miniLabel: { ...typography.kicker, color: colors.gris },
 
   // ── Motifs : une colonne (les libellés ne sont jamais coupés, §A.9) ──
+  roleList: { maxHeight: 300 },
+  roleListInner: { gap: spacing.sm },
   reasons: { maxHeight: 260 },
   reasonsInner: { gap: spacing.xs },
   reason: {

@@ -63,6 +63,7 @@ import {
   colors,
   fontSizes,
   fonts,
+  gameColors,
   radii,
   sizes,
   spacing,
@@ -305,7 +306,19 @@ function CrewCreate() {
                   pressed && styles.pressed,
                 ]}
               >
-                <CrewCrest seed={crewEmblemSeed(value)} name={cleanName || '?'} size="m" />
+                {/* QUOTA D'ACCENT (8-10 %, ADR-008) ET LISIBILITÉ DU CHOIX.
+                    `CrewCrest` teinte en chartreuse par défaut — « ceci est MON
+                    crew ». Douze aperçus chartreuse d'un coup noieraient l'accent
+                    de la page ET le choix lui-même. Seul l'emblème RETENU porte
+                    la teinte de possession ; les autres prennent le blanc que le
+                    composant réserve déjà aux crews tiers. La sélection se lit
+                    donc trois fois : teinte, bordure, état d'accessibilité. */}
+                <CrewCrest
+                  seed={crewEmblemSeed(value)}
+                  name={cleanName || '?'}
+                  size="m"
+                  tint={selected ? gameColors.crew : colors.blanc}
+                />
               </Pressable>
             );
           })}
