@@ -6635,6 +6635,17 @@ export const CREW_NOTIFICATION_EVENTS_2026 = {
     category: 'crew', transactional: false, priority: 3,
     eventIdPrefix: 'crew_application_received:',
   },
+  /**
+   * À la personne invitée par son pseudo (§2.5 « Ajouter »). Le payload porte le
+   * JETON d'invitation de 0090 — donc l'acceptation passe par
+   * `redeem_crew_invite`, qui existe et qui est testée : aucune porte neuve, et
+   * surtout aucun bouton mort. Une invitation OUTREPASSE les exigences d'entrée
+   * (leçon ② de Clash : sans porte humaine, le seuil devient un mur).
+   */
+  invited: {
+    category: 'crew', transactional: false, priority: 2,
+    eventIdPrefix: 'crew_invited:',
+  },
   /** Aux membres : la charte a changé. Personne n'est exclu pour autant (§2.3 ①). */
   charter_updated: {
     category: 'crew', transactional: false, priority: 4,
