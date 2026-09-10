@@ -17,12 +17,19 @@
  * lisent et écrivent EXACTEMENT ces trois colonnes.
  *
  * ═══ `hasProfile`, ET POURQUOI CE N'EST PAS UN DÉTAIL ═══════════════════════
- * Une ligne `user_profiles` n'existe qu'à partir du moment où le joueur a
- * enregistré un profil (handle obligatoire). Tant qu'elle n'existe pas :
- * 0126 fait `coalesce(discreet_mode, true)` → discret, et `get_ownership_2026`
- * exige la ligne → rien n'est publié. L'état « sans profil » est donc le plus
- * FERMÉ qui soit, pas une ignorance. L'écran le dit et conduit à la création du
- * profil au lieu de peindre un interrupteur qui échouerait.
+ * ⚠️ CORRIGÉ LE 10/09/2026. Ce docbloc affirmait qu'une ligne `user_profiles`
+ * « n'existe qu'à partir du moment où le joueur a enregistré un profil ». C'est
+ * FAUX depuis la migration `0154` : `handle_new_user()` provisionne la ligne de
+ * profil À L'INSCRIPTION, avec les défauts de 0011 (`profile_visibility='crew'`,
+ * `map_sharing='simplified'`, `discreet_mode=false`), et 0154 rattrape même les
+ * comptes créés avant elle. Un compte normal a donc TOUJOURS `hasProfile`.
+ * Le cas `false` n'a pas disparu pour autant, et c'est pourquoi il reste nommé :
+ * il reste possible si la ligne a été supprimée à la main, ou si le trigger n'a
+ * pas tourné. Dans cet état, 0126 fait `coalesce(discreet_mode, true)` → discret,
+ * et `get_ownership_2026` exige la ligne → rien n'est publié : l'état « sans
+ * profil » est le plus FERMÉ qui soit, pas une ignorance. L'écran le dit et
+ * conduit à la création du profil au lieu de peindre un interrupteur qui
+ * échouerait (`profile_required` côté 0135).
  */
 
 /** Audience du profil — mêmes valeurs que le `check` de `user_profiles`. */
@@ -133,4 +140,49 @@ export function privacyWriteFailure(message: string): PrivacyAudienceWrite {
   return message.includes('profile_required')
     ? { kind: 'profile-required' }
     : { kind: 'failed' };
+}
+
+/**
+ * ═══ LE CLASSEMENT DE COMMUNE EXISTE DEPUIS LE 10/09/2026 ═══════════════════
+ *
+ * L'écran de confidentialité portait, jusqu'au 10/09, une ligne « Apparaître
+ * dans les classements » sans effet ; elle a été RETIRÉE le matin même au motif
+ * — vrai à cet instant — qu'aucun classement n'existait. Les migrations 0160 à
+ * 0164 (lot L, ADR-013 §2.1) en ont publié un le jour même : « Ta commune,
+ * cette semaine ».
+ *
+ * Ce classement lit EXACTEMENT les colonnes que cet écran gouverne déjà :
+ *   · `board_eligible_events_2026` (0161) exige `map_sharing <> 'none'` et
+ *     `not coalesce(discreet_mode, true)` — un profil discret est exclu
+ *     ENTIÈREMENT du tableau, pas seulement de son nom ;
+ *   · `read_leaderboard_2026` (0164) nomme les lignes avec
+ *     `territory_owner_identity_2026` (0126), donc via `profile_visibility` :
+ *     c'est le MÊME arbitre que la carte.
+ *
+ * D'où cette fonction, et surtout ce qu'elle N'EST PAS : un onzième réglage.
+ * La présence au classement n'est pas une décision de plus à prendre, c'est la
+ * CONSÉQUENCE de deux réglages déjà pris. On la DÉRIVE et on l'affiche comme un
+ * fait ; un interrupteur séparé serait soit un doublon, soit une contradiction.
+ *
+ * ORDRE DES MOTIFS, ET IL EST DÉLIBÉRÉ : `map_sharing = 'none'` d'abord, parce
+ * que c'est l'exclusion la plus large (rien de toi n'est sur la carte, donc
+ * rien n'est classé) et que cet écran ne l'expose PAS — la taire ferait croire
+ * que l'interrupteur du nom suffit à revenir dans le tableau.
+ */
+export type CommuneBoardPresence =
+  /** Classable : la ligne peut exister, nommée selon `profileVisibility`. */
+  | { readonly kind: 'listed'; readonly namedFor: ProfileVisibilityValue }
+  /** `map_sharing = 'none'` : rien n'est publié, donc rien n'est classé. */
+  | { readonly kind: 'hidden-by-map' }
+  /** `discreet_mode` : le tableau ne compte pas la personne du tout. */
+  | { readonly kind: 'hidden-by-discretion' }
+  /** Aucune ligne de profil : le serveur n'a rien à lire (fail-closed 0161). */
+  | { readonly kind: 'hidden-by-no-profile' };
+
+/** Suis-je classable dans « Ta commune, cette semaine » ? (dérivé, jamais réglé) */
+export function communeBoardPresence(audience: PrivacyAudience): CommuneBoardPresence {
+  if (!audience.hasProfile) return { kind: 'hidden-by-no-profile' };
+  if (audience.mapSharing === 'none') return { kind: 'hidden-by-map' };
+  if (audience.discreetMode) return { kind: 'hidden-by-discretion' };
+  return { kind: 'listed', namedFor: audience.profileVisibility };
 }

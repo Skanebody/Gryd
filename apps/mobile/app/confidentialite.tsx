@@ -58,9 +58,14 @@
  * · « Blocage & signalement » et « Mes données » restent sur CE scroll au lieu de
  *   deux pages poussées : ouvrir deux routes sort du périmètre de fichiers de ce
  *   lot. La page passe de neuf cards à trois, ce qui traite la cause.
- * · Les préférences restent LOCALES (AsyncStorage) : il n'existe aucune colonne
- *   ni RPC de confidentialité côté serveur (O1). L'écran le DIT plutôt que de
- *   laisser croire qu'un réglage suit le compte.
+ * · ⚠️ PÉRIMÉ, ET CORRIGÉ LE 10/09/2026. Cette ligne disait « les préférences
+ *   restent LOCALES (AsyncStorage) : il n'existe aucune colonne ni RPC de
+ *   confidentialité côté serveur (O1) ». Les colonnes existaient depuis 0011 et
+ *   0126 les lisait déjà ; depuis 0135, `my_privacy_settings_2026()` /
+ *   `save_privacy_settings_2026()` les lisent et les écrivent, et l'écran passe
+ *   par elles. Reste local le seul réglage qui n'a pas de miroir serveur : le
+ *   masquage départ/arrivée (`prefs.maskEndpoints`). Les endroits protégés, eux,
+ *   vivent dans `privacy_zones` depuis le 28/07.
  * · La confirmation de suppression reste un écran plein — 1 écran / 1 décision.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -113,9 +118,11 @@ import { SectionLabel } from '../src/ui/SectionLabel';
 import { usePrivacyPrefs } from '../src/features/privacy/store';
 import {
   PROFILE_VISIBILITY_VALUES,
+  communeBoardPresence,
   nameOnTerritories,
   withNameOnTerritories,
   withProfileVisibility,
+  type CommuneBoardPresence,
   type PrivacyAudience,
   type ProfileVisibilityValue,
 } from '../src/features/privacy/audience';
@@ -155,6 +162,18 @@ const VISIBILITY_ENTRY: Record<ProfileVisibilityValue, Entry> = {
   crew: C.visCrew,
   friends: C.visFriends,
   private: C.visPrivate,
+};
+
+/**
+ * Le MOTIF de la présence (ou de l'absence) au classement de commune. Un motif
+ * par cas, jamais un message unique : « je n'y figure pas » sans dire pourquoi
+ * laisserait le joueur chercher un réglage qui n'existe pas.
+ */
+const BOARD_DETAIL: Record<CommuneBoardPresence['kind'], Entry> = {
+  listed: C.boardPresenceListedDetail,
+  'hidden-by-discretion': C.boardPresenceDiscretionDetail,
+  'hidden-by-map': C.boardPresenceMapDetail,
+  'hidden-by-no-profile': C.boardPresenceNoProfileDetail,
 };
 
 /** Sections dépliables (une seule ouverte à la fois, aucune par défaut). */
@@ -602,6 +621,18 @@ export default function ConfidentialiteScreen() {
             }}
           />
           <Note>{t(C.territoryNameGovernNote)}</Note>
+
+          {/* LE CLASSEMENT DE COMMUNE (0160-0164, ADR-013 §2.1) — UN FAIT, PAS
+              UN RÉGLAGE. La ligne « Apparaître dans les classements » avait été
+              retirée ce matin au motif qu'aucun classement n'existait ; le lot L
+              en a ouvert un le soir même, et il lit EXACTEMENT les deux réglages
+              ci-dessus (`map_sharing`, `discreet_mode` — 0161). Remettre un
+              interrupteur serait un doublon ou une contradiction : on DÉRIVE
+              donc la présence (`communeBoardPresence`) et on l'affiche comme un
+              fait, motif compris. « Je n'y figure pas » sans le POURQUOI serait
+              un état muet — et le motif `map_sharing` ne se lève pas ici. */}
+          <BoardPresenceRow audience={audience.read.audience} t={t} />
+
           {audienceError !== null ? <Note>{t(audienceError)}</Note> : null}
         </>
       )}
@@ -1010,6 +1041,33 @@ function FactRow({
         <Text style={styles.pendingValue}>{value}</Text>
       </View>
     </View>
+  );
+}
+
+/**
+ * « Classement de ma commune » — LIGNE DÉRIVÉE des réglages du dessus.
+ *
+ * Aucun état propre, aucune lecture réseau : la présence au classement est une
+ * CONSÉQUENCE de `map_sharing` et de `discreet_mode`, que le serveur applique
+ * déjà (0161). L'écran ne fait que la rendre lisible — et nomme le motif quand
+ * la réponse est « non », parce que les deux motifs ne se lèvent pas au même
+ * endroit (l'un est l'interrupteur juste au-dessus, l'autre vient du profil).
+ */
+function BoardPresenceRow({
+  audience,
+  t,
+}: {
+  audience: PrivacyAudience;
+  t: (e: Entry) => string;
+}) {
+  const presence = communeBoardPresence(audience);
+  return (
+    <FactRow
+      icon="classement"
+      title={t(C.boardPresenceTitle)}
+      value={t(presence.kind === 'listed' ? C.boardPresenceInValue : C.boardPresenceOutValue)}
+      detail={t(BOARD_DETAIL[presence.kind])}
+    />
   );
 }
 

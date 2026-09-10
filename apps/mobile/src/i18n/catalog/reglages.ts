@@ -1225,15 +1225,21 @@ export const C = defineCatalog({
    * joueur … ni profil public, ni fil d’activité ». C’était FAUX depuis le
    * backend 2026 : 0126 inscrit le nom et le crew du propriétaire sur les
    * territoires de la carte, 0124 ouvre le profil, le fil et les commentaires
-   * du crew, 0127 la conversation du crew. Ce sous-titre nomme donc les TROIS
-   * expositions réelles, et dit lesquelles les réglages ci-dessous gouvernent.
+   * du crew, 0127 la conversation du crew, et 0160-0164 classent la commune.
+   * Ce sous-titre nomme donc les QUATRE expositions réelles, et dit lesquelles
+   * les réglages ci-dessous gouvernent.
+   * ⚠️ LA QUATRIÈME EST ARRIVÉE LE SOIR MÊME : la v4 en annonçait trois, écrite
+   * quelques heures avant que le lot L ne publie « Ta commune, cette semaine »
+   * (0160-0164). Un classement est une exposition de plein droit — un nom, un
+   * rang, une surface, lus par les autres habitants de la commune — et la taire
+   * en aurait fait une surprise.
    */
   privSubtitle: {
-    fr: 'Trois choses peuvent te rendre visible : ton nom et ton crew inscrits sur les territoires que tu tiens, ton profil ouvert à d’autres joueurs, et ce que tu publies toi-même dans le fil et la conversation de ton crew. Les réglages ci-dessous gouvernent les deux premières — la troisième ne part que si tu publies.',
-    en: 'Three things can make you visible: your name and crew shown on the territories you hold, your profile opened to other players, and whatever you publish yourself in your crew feed and conversation. The settings below govern the first two — the third only leaves if you publish.',
-    es: 'Tres cosas pueden hacerte visible: tu nombre y tu crew inscritos en los territorios que mantienes, tu perfil abierto a otros jugadores, y lo que publicas tú mismo en el muro y la conversación de tu crew. Los ajustes de abajo gobiernan los dos primeros — el tercero solo sale si publicas.',
-    de: 'Drei Dinge können dich sichtbar machen: dein Name und deine Crew auf den Gebieten, die du hältst, dein für andere Spieler geöffnetes Profil, und was du selbst im Feed und in der Unterhaltung deiner Crew veröffentlichst. Die Einstellungen unten steuern die ersten beiden — das Dritte geht nur weg, wenn du es veröffentlichst.',
-    pt: 'Três coisas podem te tornar visível: seu nome e seu crew inscritos nos territórios que você mantém, seu perfil aberto a outros jogadores, e o que você mesmo publica no feed e na conversa do seu crew. Os ajustes abaixo governam os dois primeiros — o terceiro só sai se você publicar.',
+    fr: 'Quatre choses peuvent te rendre visible : ton nom et ton crew inscrits sur les territoires que tu tiens, ton profil ouvert à d’autres joueurs, ton rang dans le classement de ta commune, et ce que tu publies toi-même dans le fil et la conversation de ton crew. Les réglages ci-dessous gouvernent les trois premières — la quatrième ne part que si tu publies.',
+    en: 'Four things can make you visible: your name and crew shown on the territories you hold, your profile opened to other players, your rank in your commune’s leaderboard, and whatever you publish yourself in your crew feed and conversation. The settings below govern the first three — the fourth only leaves if you publish.',
+    es: 'Cuatro cosas pueden hacerte visible: tu nombre y tu crew inscritos en los territorios que mantienes, tu perfil abierto a otros jugadores, tu puesto en la clasificación de tu municipio, y lo que publicas tú mismo en el muro y la conversación de tu crew. Los ajustes de abajo gobiernan los tres primeros — el cuarto solo sale si publicas.',
+    de: 'Vier Dinge können dich sichtbar machen: dein Name und deine Crew auf den Gebieten, die du hältst, dein für andere Spieler geöffnetes Profil, dein Rang in der Rangliste deiner Gemeinde, und was du selbst im Feed und in der Unterhaltung deiner Crew veröffentlichst. Die Einstellungen unten steuern die ersten drei — das Vierte geht nur weg, wenn du es veröffentlichst.',
+    pt: 'Quatro coisas podem te tornar visível: seu nome e seu crew inscritos nos territórios que você mantém, seu perfil aberto a outros jogadores, sua posição na classificação do seu município, e o que você mesmo publica no feed e na conversa do seu crew. Os ajustes abaixo governam os três primeiros — o quarto só sai se você publicar.',
   },
   // ── Libellés de visibilité du profil (ex-`features/privacy/labels.ts`, FR en
   //    dur : c'était la valeur affichée dans l'en-tête de la card) ──
@@ -1274,11 +1280,11 @@ export const C = defineCatalog({
    * ce choix sur le COMPTE et non sur le téléphone.
    */
   visScopeNote: {
-    fr: 'Ce choix part sur ton compte : le serveur l’applique et il te suit sur tous tes appareils. Il décide qui peut ouvrir ton profil, et qui voit ton nom sur les territoires que tu tiens.',
-    en: 'This choice goes to your account: the server enforces it and it follows you on every device. It decides who can open your profile, and who sees your name on the territories you hold.',
-    es: 'Esta elección va a tu cuenta: el servidor la aplica y te acompaña en todos tus dispositivos. Decide quién puede abrir tu perfil y quién ve tu nombre en los territorios que mantienes.',
-    de: 'Diese Wahl geht an dein Konto: Der Server setzt sie durch und sie gilt auf allen deinen Geräten. Sie entscheidet, wer dein Profil öffnen kann und wer deinen Namen auf den Gebieten sieht, die du hältst.',
-    pt: 'Esta escolha vai para a sua conta: o servidor a aplica e ela segue você em todos os aparelhos. Ela decide quem pode abrir o seu perfil e quem vê o seu nome nos territórios que você mantém.',
+    fr: 'Ce choix part sur ton compte : le serveur l’applique et il te suit sur tous tes appareils. Il décide qui peut ouvrir ton profil, qui voit ton nom sur les territoires que tu tiens, et qui voit ton nom dans le classement de ta commune — c’est le même arbitre pour les trois.',
+    en: 'This choice goes to your account: the server enforces it and it follows you on every device. It decides who can open your profile, who sees your name on the territories you hold, and who sees your name in your commune’s leaderboard — one and the same rule for all three.',
+    es: 'Esta elección va a tu cuenta: el servidor la aplica y te acompaña en todos tus dispositivos. Decide quién puede abrir tu perfil, quién ve tu nombre en los territorios que mantienes y quién ve tu nombre en la clasificación de tu municipio: es la misma regla para los tres.',
+    de: 'Diese Wahl geht an dein Konto: Der Server setzt sie durch und sie gilt auf allen deinen Geräten. Sie entscheidet, wer dein Profil öffnen kann, wer deinen Namen auf den Gebieten sieht, die du hältst, und wer deinen Namen in der Rangliste deiner Gemeinde sieht — dieselbe Regel für alle drei.',
+    pt: 'Esta escolha vai para a sua conta: o servidor a aplica e ela segue você em todos os aparelhos. Ela decide quem pode abrir o seu perfil, quem vê o seu nome nos territórios que você mantém e quem vê o seu nome na classificação do seu município — é a mesma regra para os três.',
   },
   /** Ce que « masquer départ & arrivée » fait EXACTEMENT, avec la vraie valeur. */
   maskScopeNote: {
@@ -2505,10 +2511,17 @@ export const C = defineCatalog({
   // écrit `user_profiles.discreet_mode` (inversé), la colonne que 0126 lit pour
   // décider si le nom et le crew du propriétaire s'affichent sur la carte.
   //
-  // « Apparaître dans les classements » A ÉTÉ RETIRÉ, libellé compris : aucun
-  // classement n'existe dans le produit 2026. Peindre « Bientôt » sur un
-  // réglage dont l'objet n'existe pas, c'est promettre une fonctionnalité par
-  // un écran de confidentialité.
+  // « Apparaître dans les classements » a été retiré en tant qu'INTERRUPTEUR, et
+  // ne reviendra pas sous cette forme : il n'y a rien à régler de plus.
+  // ⚠️ SON MOTIF, LUI, A EXPIRÉ LE JOUR MÊME. Il disait « aucun classement
+  // n'existe dans le produit 2026 » ; les migrations 0160-0164 en ont ouvert un
+  // le 10/09 au soir (« Ta commune, cette semaine »), et il lit EXACTEMENT les
+  // deux colonnes de cette section : `map_sharing <> 'none'` et
+  // `not coalesce(discreet_mode, true)` (0161), puis nomme ses lignes avec
+  // `territory_owner_identity_2026` (0126, via `profile_visibility`).
+  // La présence au classement est donc affichée comme un FAIT DÉRIVÉ
+  // (`communeBoardPresence`, features/privacy/audience.ts), jamais comme un
+  // onzième réglage : une décision déjà prise ne se redemande pas.
   territoryNameTitle: {
     fr: 'Mes territoires portent mon nom',
     en: 'My territories carry my name',
@@ -2537,11 +2550,68 @@ export const C = defineCatalog({
   /** Ce que l'interrupteur du nom gouverne EXACTEMENT (colonne `discreet_mode`,
    *  lue par `territory_owner_identity_2026`). */
   territoryNameGovernNote: {
-    fr: 'Quand il est fermé, la carte affiche les territoires que tu tiens sans ton nom ni ton crew, pour tout le monde.',
-    en: 'When it is off, the map shows the territories you hold without your name or your crew, for everyone.',
-    es: 'Cuando está cerrado, el mapa muestra los territorios que mantienes sin tu nombre ni tu crew, para todo el mundo.',
-    de: 'Wenn er aus ist, zeigt die Karte die Gebiete, die du hältst, ohne deinen Namen und ohne deine Crew — für alle.',
-    pt: 'Quando está desligado, o mapa mostra os territórios que você mantém sem seu nome nem seu crew, para todo mundo.',
+    fr: 'Quand il est fermé, la carte affiche les territoires que tu tiens sans ton nom ni ton crew, pour tout le monde — et tu sors entièrement du classement de ta commune : pas seulement ton nom, ta ligne.',
+    en: 'When it is off, the map shows the territories you hold without your name or your crew, for everyone — and you leave your commune’s leaderboard entirely: not just your name, your whole row.',
+    es: 'Cuando está cerrado, el mapa muestra los territorios que mantienes sin tu nombre ni tu crew, para todo el mundo, y sales por completo de la clasificación de tu municipio: no solo tu nombre, tu línea entera.',
+    de: 'Wenn er aus ist, zeigt die Karte die Gebiete, die du hältst, ohne deinen Namen und ohne deine Crew — für alle. Und du verschwindest ganz aus der Rangliste deiner Gemeinde: nicht nur dein Name, deine ganze Zeile.',
+    pt: 'Quando está desligado, o mapa mostra os territórios que você mantém sem seu nome nem seu crew, para todo mundo — e você sai inteiramente da classificação do seu município: não só o seu nome, a sua linha.',
+  },
+
+  // ── VISIBILITÉ : LE CLASSEMENT DE COMMUNE, AFFICHÉ COMME UN FAIT ──────────
+  //
+  // Une LIGNE D'INFORMATION, pas un interrupteur : sa valeur est dérivée des
+  // deux réglages ci-dessus (`communeBoardPresence`). Chaque motif d'absence a
+  // sa phrase — « je n'y figure pas » sans dire POURQUOI serait un état muet, et
+  // le motif `map_sharing` ne se lève pas depuis cet écran : le taire ferait
+  // croire qu'un tap sur l'interrupteur du nom suffit à revenir.
+  boardPresenceTitle: {
+    fr: 'Classement de ma commune',
+    en: 'My commune’s leaderboard',
+    es: 'Clasificación de mi municipio',
+    de: 'Rangliste meiner Gemeinde',
+    pt: 'Classificação do meu município',
+  },
+  boardPresenceInValue: {
+    fr: 'Je peux y figurer',
+    en: 'I can appear',
+    es: 'Puedo aparecer',
+    de: 'Ich kann erscheinen',
+    pt: 'Posso aparecer',
+  },
+  boardPresenceOutValue: {
+    fr: 'Je n’y figure pas',
+    en: 'I don’t appear',
+    es: 'No aparezco',
+    de: 'Ich erscheine nicht',
+    pt: 'Não apareço',
+  },
+  boardPresenceListedDetail: {
+    fr: 'Le terrain que tu prends dans la semaine peut y être classé, une fois publié. Ton nom n’y apparaît que pour ceux que « Profil visible par » autorise.',
+    en: 'The ground you take during the week can be ranked there, once published. Your name only shows to those “Profile visible to” allows.',
+    es: 'El terreno que tomas en la semana puede clasificarse ahí, una vez publicado. Tu nombre solo aparece para quienes «Perfil visible para» autoriza.',
+    de: 'Der Boden, den du in der Woche nimmst, kann dort gewertet werden, sobald er veröffentlicht ist. Dein Name erscheint nur für die, die „Profil sichtbar für“ zulässt.',
+    pt: 'O terreno que você toma na semana pode ser classificado ali, depois de publicado. Seu nome só aparece para quem «Perfil visível para» autoriza.',
+  },
+  boardPresenceDiscretionDetail: {
+    fr: 'Parce que tes territoires ne portent pas ton nom : le classement retire la ligne entière, pas seulement le nom. Rouvre l’interrupteur ci-dessus pour y revenir.',
+    en: 'Because your territories don’t carry your name: the leaderboard drops the whole row, not just the name. Turn the switch above back on to return.',
+    es: 'Porque tus territorios no llevan tu nombre: la clasificación quita la línea entera, no solo el nombre. Vuelve a activar el interruptor de arriba para volver.',
+    de: 'Weil deine Gebiete deinen Namen nicht tragen: Die Rangliste entfernt die ganze Zeile, nicht nur den Namen. Schalte oben wieder ein, um zurückzukehren.',
+    pt: 'Porque seus territórios não levam seu nome: a classificação tira a linha inteira, não só o nome. Ligue de novo o interruptor acima para voltar.',
+  },
+  boardPresenceMapDetail: {
+    fr: 'Parce que ton compte ne publie aucun territoire sur la carte. Ce réglage-là ne se change pas ici : il vient de ton profil.',
+    en: 'Because your account publishes no territory on the map. That setting isn’t changed here: it comes from your profile.',
+    es: 'Porque tu cuenta no publica ningún territorio en el mapa. Ese ajuste no se cambia aquí: viene de tu perfil.',
+    de: 'Weil dein Konto kein Gebiet auf der Karte veröffentlicht. Diese Einstellung wird nicht hier geändert: Sie kommt aus deinem Profil.',
+    pt: 'Porque sua conta não publica nenhum território no mapa. Esse ajuste não se muda aqui: ele vem do seu perfil.',
+  },
+  boardPresenceNoProfileDetail: {
+    fr: 'Sans profil enregistré, le serveur n’a rien à lire : aucune ligne ne peut être classée.',
+    en: 'With no saved profile, the server has nothing to read: no row can be ranked.',
+    es: 'Sin perfil guardado, el servidor no tiene nada que leer: ninguna línea puede clasificarse.',
+    de: 'Ohne gespeichertes Profil hat der Server nichts zu lesen: Keine Zeile kann gewertet werden.',
+    pt: 'Sem perfil salvo, o servidor não tem o que ler: nenhuma linha pode ser classificada.',
   },
 
   // ── VISIBILITÉ : les QUATRE états de la lecture serveur (0135) ─────────────
