@@ -341,4 +341,22 @@ export const PERSONAL_TABLES: readonly PersonalTable[] = [
     column: 'created_by',
     columns: ['id', 'crew_id', 'created_at', 'expires_at', 'revoked_at', 'uses', 'last_used_at'],
   },
+
+  // ── 2026 · tracés GPS (0195-0196) ─────────────────────────────────────────
+  // LES TRACÉS EUX-MÊMES SORTENT DÉJÀ : `runs` est exportée sans projection,
+  // donc `trace_points_2026` (les points complets et horodatés) et
+  // `polyline_masked` (la géométrie expurgée) partent avec la sortie. Rien à
+  // ajouter pour eux — vérifié plutôt que supposé.
+  //
+  // Ce qui manquait, c'est la PREUVE DE L'EFFACEMENT. Quand le joueur efface le
+  // tracé d'une sortie (`delete_run_trace_2026`), 0195 journalise le geste : ce
+  // sont ses données, et c'est ce qui lui permet de vérifier que son droit à
+  // l'effacement (art. 17) a bien été exécuté, sur quelle sortie et quand.
+  //
+  // ⚠️ LES LIGNES DU JOB N'EN SORTENT PAS, ET CE N'EST PAS UN OUBLI : elles
+  // portent `user_id is null` (un agrégat par passage, sans identité), donc le
+  // filtre `.eq('user_id', moi)` ne les rend jamais. Le job n'écrit
+  // VOLONTAIREMENT aucune ligne par sortie purgée — ce serait recréer un index
+  // de « qui a couru quel jour » au moment même où l'on efface la trace.
+  { key: 'traceDeletions2026', table: 'trace_purge_log_2026', column: 'user_id' },
 ];
