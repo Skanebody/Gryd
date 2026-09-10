@@ -79,8 +79,16 @@ export function SeasonJourneyScreen() {
   </ProfilePage>;
 }
 
+/**
+ * Décor pur. `aria-hidden` et RIEN d'autre : react-native-svg étale ses props
+ * sur le <svg> du web sans filtre, et `createDOMProps` (react-native-web) ne
+ * connaît ni `accessible`, ni `accessibilityElementsHidden`, ni
+ * `importantForAccessibility` — les trois deviendraient des attributs DOM
+ * inventés, exactement l'avertissement qu'on est venu retirer ici. Sur natif,
+ * un SVG sans libellé n'est pas un élément d'accessibilité : rien ne régresse.
+ */
 function SeasonContours() {
-  return <View pointerEvents="none" style={local.contours}><Svg width={145} height={145} viewBox="0 0 145 145" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{Array.from({length: 7}, (_, i) => <Path key={i} d={`M ${22+i*10} -12 C ${-45+i*10} 72, ${170+i*5} 44, ${75+i*8} 160`} fill="none" stroke={colors.blanc14} strokeWidth={1} />)}</Svg></View>;
+  return <View pointerEvents="none" style={local.contours}><Svg width={145} height={145} viewBox="0 0 145 145" aria-hidden>{Array.from({length: 7}, (_, i) => <Path key={i} d={`M ${22+i*10} -12 C ${-45+i*10} 72, ${170+i*5} 44, ${75+i*8} 160`} fill="none" stroke={colors.blanc14} strokeWidth={1} />)}</Svg></View>;
 }
 const local = StyleSheet.create({
   overview: { backgroundColor: c.carbon, borderRadius: 24, padding: 16, marginTop: 12, marginBottom: 12, minHeight: 148, justifyContent: 'center', gap: 10, overflow: 'hidden' },

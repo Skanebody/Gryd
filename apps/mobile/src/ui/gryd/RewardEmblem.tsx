@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { Platform } from 'react-native';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop, Text } from 'react-native-svg';
 import { EMBLEM_ARTWORK, rewardEmblemMark, type RewardVariant } from './emblems';
 import { grydGraphicColors as c } from './palette';
@@ -30,7 +31,16 @@ const LEFT_WING = 'M57 47C43 34 25 31 10 38c9 4 16 9 21 16-8-2-16-1-24 2 12 5 20
 const RIGHT_WING = 'M103 47c14-13 32-16 47-9-9 4-16 9-21 16 8-2 16-1 24 2-12 5-20 11-27 20l-24-8Z';
 const SHIELD = 'M80 29c18 0 32 8 37 17v35c0 25-16 43-37 55-21-12-37-30-37-55V46c5-9 19-17 37-17Z';
 
-/** A numbered urban-sport medal: machined metal, enamel shield and family engraving. */
+/**
+ * A numbered urban-sport medal: machined metal, enamel shield and family engraving.
+ *
+ * Même garde que `GrydMark` et `GrydIcon` (10/09/2026) : `accessible` n'est
+ * traduit par aucun `createDOMProps`, et react-native-svg l'étale tel quel sur
+ * le `<svg>` du DOM — le navigateur répond « Received `false` for a non-boolean
+ * attribute ». Sur natif la prop reste ce qui fait de l'emblème UN élément
+ * annoncé lorsqu'il porte un libellé ; sans libellé, c'est un décor, et le web
+ * l'apprend par `aria-hidden` plutôt que de le deviner.
+ */
 export function RewardEmblem({
   variant,
   size = 128,
@@ -59,10 +69,11 @@ export function RewardEmblem({
     width={size}
     height={size}
     viewBox="0 0 160 160"
-    accessible={!!accessibilityLabel}
+    accessible={Platform.OS === 'web' ? undefined : !!accessibilityLabel}
     accessibilityRole={accessibilityLabel ? 'image' : undefined}
     accessibilityLabel={accessibilityLabel}
     aria-label={accessibilityLabel}
+    aria-hidden={accessibilityLabel ? undefined : true}
   >
     <Defs>
       <LinearGradient id={metal} x1="10%" y1="4%" x2="88%" y2="100%">

@@ -20,7 +20,15 @@ export function DiscoveryLoop2026({fr}:{fr:boolean}) {
   return <View style={s.root}>
     <View style={s.header}><Text style={s.example}>{fr?'EXEMPLE INTERACTIF':'INTERACTIVE EXAMPLE'}</Text><Pressable accessibilityRole="button" accessibilityLabel={fr?'Rejouer la boucle d’exemple':'Replay the example loop'} onPress={replay} style={s.replay}><GrydIcon name="route" size={18} color={c.darkInk} /><Text style={s.replayText}>{fr?'Rejouer':'Replay'}</Text></Pressable></View>
     <Pressable accessibilityRole="button" accessibilityLabel={action} accessibilityHint={fr?'Ce dessin ne capture aucun terrain réel.':'This illustration does not capture any real terrain.'} accessibilityState={{disabled:attempt.phase==='close'}} aria-disabled={attempt.phase==='close'} disabled={attempt.phase==='close'} onPress={close} style={s.board}>
-      <Svg accessible={false} width="100%" height={210} viewBox="0 0 320 210">
+      {/* `aria-hidden` SEUL, et c'est mesuré : react-native-svg étale ses props
+          telles quelles sur le <svg> du web (`web/utils/prepare.js`), et le
+          `createDOMProps` de react-native-web n'intercepte NI `accessible`, NI
+          `accessibilityElementsHidden`, NI `importantForAccessibility`. Les
+          trois deviennent des attributs DOM inventés — c'est ce qui produisait
+          « Received `false` for a non-boolean attribute `accessible` ».
+          Rien ne se perd : sur natif, c'est ce Pressable qui porte le libellé,
+          l'état et le regroupement ; le dessin n'a jamais été annoncé. */}
+      <Svg aria-hidden width="100%" height={210} viewBox="0 0 320 210">
         <G stroke={c.darkSurfaceMuted} strokeWidth={1}><Path d="M20 31H300M8 75H312M8 122H312M20 172H300M46 8V202M101 8V202M160 8V202M215 8V202M274 8V202" /></G>
         <G fill={c.darkSurface} opacity={.75}><Rect x={110} y={84} width={39} height={28} rx={4}/><Rect x={169} y={84} width={35} height={28} rx={4}/><Rect x={110} y={131} width={39} height={30} rx={4}/></G>
         <Path d={DISCOVERY_LOOP_PATH_2026} fill={c.accent} fillOpacity={frame.fill*.2} />
