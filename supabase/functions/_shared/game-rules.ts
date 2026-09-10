@@ -5894,3 +5894,81 @@ export function mapFeatureVisible(
 //   fonctionnalité qui n'existe pas — la faute exacte que la constitution
 //   nomme « une doc ne promet jamais au-delà du code ».
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANTI-TRICHE 2026 — LES BORNES DE PLAUSIBILITÉ DES SIGNAUX DE `scoreRun`
+// (cahier de septembre §18.4 « Antitriche proportionnée »).
+//
+// ─── CE QUE CETTE SECTION AJOUTE, ET CE QU'ELLE N'AJOUTE PAS ────────────────
+// Elle ajoute TROIS nombres, et trois seulement. Tout le reste des nouveaux
+// signaux se lit dans `ACTIVITY_RULES` — c'est-à-dire dans les bornes que le
+// produit avait DÉJÀ posées et déjà justifiées :
+//   · la borne « ce n'est plus cette discipline » est `avgPaceMinSKm`, dont le
+//     commentaire d'origine dit littéralement « borne basse anti-vélo »
+//     (21,2 km/h en course, 60 km/h à vélo) ;
+//   · le plafond point à point reste `pointMaxSpeedKmh` (25 / 80 km/h) ;
+//   · la frontière « pédestre / non pédestre » reste l'UNIQUE
+//     `STEP_COHERENCE_MIN_STEPS_PER_M` du moteur (engine/validation.ts).
+// Inventer un quatrième seuil « vitesse de vélo » aurait créé une deuxième
+// vérité sur la même question, et c'est exactement ce que la constitution
+// interdit.
+//
+// ─── DETTE DÉCLARÉE (héritée du lot 9, NON RÉSORBÉE ICI) ────────────────────
+// `packages/engine/src/anticheat.ts` porte encore ses propres seuils de
+// DÉCISION (`ANTICHEAT_REVIEW_AT`, `ANTICHEAT_REJECT_AT`, poids…), déclarés
+// localement parce que game-rules.ts était hors du périmètre de ce lot-là.
+// Les remonter ici est un déplacement pur, sans changement de comportement,
+// et il n'a PAS été fait dans ce lot : le faire au même moment qu'un
+// changement de comportement rendrait la revue de l'un impossible à distinguer
+// de l'autre. C'est écrit, pas oublié.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Durée (s) de la FENÊTRE GLISSANTE sur laquelle une vitesse « soutenue » se
+ * mesure.
+ *
+ * POURQUOI UNE FENÊTRE, ET POURQUOI 5 MINUTES. Le moteur savait déjà lire deux
+ * choses : la vitesse d'UN tronçon (plafonnée par `pointMaxSpeedKmh`) et
+ * l'allure moyenne de TOUTE la sortie. Entre les deux, il ne voyait rien — et
+ * c'est là que tient un vélo déclaré « course » : 24 km/h pendant six minutes
+ * ne dépasse aucun plafond point à point, et une demi-heure de trot derrière
+ * suffit à ramener la moyenne d'ensemble dans les clous.
+ *
+ * 5 minutes est le compromis assumé. Plus court, une pointe réelle (une
+ * descente, un sprint de fin, un bus qu'on rattrape) remplirait la fenêtre.
+ * Plus long, une portion motorisée courte se diluerait de nouveau. À cette
+ * durée, la borne basse de la discipline garde son sens : un effort de 5 min
+ * au-dessus de `avgPaceMinSKm` est déjà du niveau mondial en course à pied.
+ * Une trace plus COURTE que cette fenêtre rend le signal INDISPONIBLE — jamais
+ * « propre » : on ne juge pas ce qu'on n'a pas pu mesurer.
+ */
+export const ANTICHEAT_SUSTAINED_WINDOW_S = 300;
+
+/**
+ * Nombre MINIMAL de points portant une précision (`acc`) pour que la dispersion
+ * de cette précision veuille dire quelque chose. Sous ce nombre, le signal est
+ * INDISPONIBLE : sur vingt relevés, un récepteur réel peut très bien rendre
+ * deux fois la même valeur, et en tirer « c'est un simulateur » serait accuser
+ * un joueur sur du bruit.
+ */
+export const ANTICHEAT_ACCURACY_MIN_POINTS = 60;
+
+/**
+ * Coefficient de variation MINIMAL de la précision horizontale d'un vrai
+ * récepteur GNSS.
+ *
+ * CE QUE CE NOMBRE DÉCRIT. Une puce GNSS réévalue sa précision à chaque relevé :
+ * satellites qui entrent et sortent, immeubles, feuillage, position du
+ * téléphone. Sur plusieurs centaines de points, sa dispersion relative est de
+ * l'ordre de la dizaine de pour cent. Une application qui FABRIQUE des positions
+ * n'a rien à réévaluer : elle écrit la même précision partout, et sa dispersion
+ * est nulle. 5 % est délibérément placé très bas — dix fois sous ce qu'un
+ * récepteur réel produit — pour que seul l'artificiel franc le déclenche.
+ *
+ * ⚠️ CE QUE CE NOMBRE NE DIT PAS. Il ne dit pas « ce joueur triche ». Une
+ * précision figée peut aussi venir d'un appareil qui n'en fournit pas et dont
+ * l'app substitue une valeur par défaut. C'est pour cela que le signal
+ * correspondant n'est ni décisif ni suffisant à lui seul à refuser une sortie :
+ * il ouvre une revue, il ne condamne pas.
+ */
+export const ANTICHEAT_HUMAN_MIN_ACCURACY_CV = 0.05;

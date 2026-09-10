@@ -68,7 +68,14 @@
  * Tant que ce n'est pas fait, ce module est la SEULE source de ces valeurs —
  * il ne doit pas en exister une seconde copie ailleurs.
  */
-import { type Activity, activityRules, DEFAULT_ACTIVITY } from '../game-rules.ts';
+import {
+  type Activity,
+  activityRules,
+  ANTICHEAT_ACCURACY_MIN_POINTS,
+  ANTICHEAT_HUMAN_MIN_ACCURACY_CV,
+  ANTICHEAT_SUSTAINED_WINDOW_S,
+  DEFAULT_ACTIVITY,
+} from '../game-rules.ts';
 import type { RunPoint, RunSource } from '../types.ts';
 import {
   claimableSegments,
@@ -77,6 +84,7 @@ import {
   haversineM,
   stepCoherence,
   MOTION_TRUST_NEUTRAL,
+  STEP_COHERENCE_MIN_STEPS_PER_M,
 } from './validation.ts';
 
 // Constantes physiques / d'unités — pas des règles de jeu.
@@ -151,7 +159,30 @@ export type AntiCheatSignalId =
   /** Trace déjà enregistrée (empreintes antérieures INJECTÉES par l'appelant). */
   | 'duplicate_trace'
   /** Points horodatés dans le futur au-delà de la tolérance d'horloge. */
-  | 'future_timestamps';
+  | 'future_timestamps'
+  /**
+   * 2026 — Vitesse SOUTENUE sur une fenêtre glissante, au-dessus de la borne
+   * basse de la discipline. Comble le trou entre le plafond point à point (qui
+   * ne voit qu'un relevé) et l'allure moyenne (que trente minutes de trot
+   * suffisent à ramener dans les clous).
+   */
+  | 'sustained_speed_window'
+  /**
+   * 2026 — La discipline DÉCLARÉE ne correspond pas à ce qui a été mesuré :
+   * une « course à pied » tenue au-dessus de la borne anti-vélo du produit,
+   * SANS aucune cadence pédestre. Deux faits, pas un.
+   */
+  | 'discipline_mismatch'
+  /**
+   * 2026 — La précision horizontale ne varie pas : signature d'une trace
+   * fabriquée (un vrai récepteur réévalue sa précision à chaque relevé).
+   */
+  | 'accuracy_uniformity'
+  /**
+   * 2026 — L'appareil lui-même déclare une position simulée (`mocked` d'Android).
+   * Indisponible sur iOS, qui ne rend pas cette information.
+   */
+  | 'mocked_location';
 
 interface SignalSpec {
   /** Poids dans la moyenne pondérée. */
@@ -205,6 +236,43 @@ export const ANTICHEAT_SIGNAL_SPECS: Readonly<Record<AntiCheatSignalId, SignalSp
   // Bruité : un tunnel, un canyon urbain, un téléphone en poche en produisent.
   acceleration: { weight: 2, decisive: false, soloEscalates: false },
   gps_accuracy: { weight: 1, decisive: false, soloEscalates: false },
+
+  // ── 2026 ──────────────────────────────────────────────────────────────────
+  /**
+   * Le contraire d'un signal bruité : une moyenne sur cinq minutes est la
+   * mesure la plus robuste de tout le tableau. `soloEscalates` est donc vrai —
+   * mais lu au seuil COMMUN (`ANTICHEAT_STRONG_SEVERITY`), ce qui ne le fait
+   * jouer seul qu'au-dessus de ~24 km/h en course et ~76 km/h à vélo, deux
+   * vitesses qu'aucun corps humain ne tient cinq minutes. NON décisif : un
+   * refus automatique sur une vitesse, sans autre preuve, punirait un jour un
+   * capteur qui a dérapé.
+   */
+  sustained_speed_window: { weight: 3, decisive: false, soloEscalates: true },
+  /**
+   * DEUX faits indépendants doivent tenir en même temps (vitesse soutenue de
+   * vélo ET absence de foulée) : c'est ce qui le rend fort seul. Non décisif —
+   * un téléphone dans une poussette produit lui aussi zéro pas, et il faut
+   * qu'un humain puisse le dire.
+   */
+  discipline_mismatch: { weight: 3, decisive: false, soloEscalates: true },
+  /**
+   * ⚠️ `soloEscalates: false`, ET C'EST LE CŒUR DE CE SIGNAL. Une précision
+   * rigoureusement constante veut dire « cette série ne porte aucune
+   * information » — ce qui est vrai d'un simulateur ET d'un appareil qui ne
+   * mesure pas vraiment sa précision. La trace ne permet PAS de les distinguer,
+   * donc ce signal ne peut pas trancher seul sans condamner un jour un vieil
+   * Android honnête. Il CONVERGE : avec une vitesse trop lisse
+   * (`trace_regularity`), c'est la signature d'une trace fabriquée ; tout seul,
+   * ce n'est qu'une bizarrerie de capteur.
+   */
+  accuracy_uniformity: { weight: 2, decisive: false, soloEscalates: false },
+  /**
+   * L'OS affirme que la position vient d'un fournisseur simulé. C'est franc,
+   * mais ce n'est PAS décisif : les options développeur s'activent pour des
+   * raisons légitimes, et un refus automatique sur ce seul drapeau condamnerait
+   * sans recours. Revue.
+   */
+  mocked_location: { weight: 3, decisive: false, soloEscalates: true },
 };
 
 /**
@@ -234,7 +302,7 @@ export const ANTICHEAT_SIGNALS_NOT_COLLECTED: readonly {
   {
     signal: 'baromètre / altitude',
     reason:
-      '`RunPoint` ne porte que lat/lng/t/acc — aucune altitude, donc aucun dénivelé ni pression exploitables.',
+      '`RunPoint` ne porte que lat/lng/t/acc — aucune altitude, donc aucun dénivelé ni pression exploitables. C’est une lacune COÛTEUSE contre les traces fabriquées : une altitude rigoureusement plate, ou qui ne suit pas le relief réel, est l’une des signatures les plus franches d’un simulateur. La combler demande un champ de plus dans `RunPoint`, dans le payload et dans la persistance — hors de ce lot, inscrit dans la feuille de route.',
   },
   {
     signal: 'altérations de fichier',
@@ -242,9 +310,9 @@ export const ANTICHEAT_SIGNALS_NOT_COLLECTED: readonly {
       'Aucun import de fichier (GPX/FIT/TCX) n’existe côté serveur : il n’y a pas de fichier à contrôler. `RunSource` catalogue bien `gpx`, mais aucune route d’import ne l’alimente aujourd’hui.',
   },
   {
-    signal: 'appareil compromis (root/jailbreak)',
+    signal: 'appareil compromis (root/jailbreak), attestation d’intégrité',
     reason:
-      'Non collecté. Une attestation d’intégrité d’appareil est un traitement à part entière (base légale, information, conservation) : elle n’est ni implémentée ni documentée, donc elle n’est pas devinée.',
+      'Non collecté. Une attestation d’appareil (App Attest côté Apple, Play Integrity côté Google) est un traitement à part entière — base légale, information, conservation — et elle n’est ni implémentée ni documentée, donc elle n’est pas devinée. Le drapeau `mocked_location` couvre un cas VOISIN mais bien plus étroit : Android dit qu’une position vient d’un fournisseur simulé. Il ne dit rien d’un appareil rooté, et iOS ne le dit pas du tout.',
   },
   {
     signal: 'pauses',
@@ -283,6 +351,23 @@ export interface AntiCheatInput {
   readonly activity?: Activity;
   /** Podomètre, optionnel : absent ⇒ le signal est indisponible, pas défavorable. */
   readonly stepCount?: number;
+  /**
+   * L'appareil a-t-il déclaré une position SIMULÉE ? (`LocationObject.mocked`
+   * d'expo-location — Android uniquement ; iOS ne rend pas cette information.)
+   *
+   * TROIS ÉTATS, ET LA DIFFÉRENCE COMPTE :
+   *  · `undefined` ⇒ la plateforme n'a rien dit → signal INDISPONIBLE. C'est le
+   *    cas normal sur iOS, et il ne doit ni blanchir ni accuser ;
+   *  · `false`     ⇒ l'appareil a RÉPONDU « non » → signal disponible, sévérité
+   *    nulle. Une réponse négative est une information, pas une absence ;
+   *  · `true`      ⇒ position simulée déclarée par l'OS.
+   *
+   * ⚠️ Ce drapeau vient du CLIENT, donc un binaire modifié peut mentir en
+   * l'omettant. Il n'est pas une preuve d'intégrité — c'est un signal de plus,
+   * gratuit, qui attrape l'usage d'une app de simulation par quelqu'un qui n'a
+   * pas recompilé GRYD.
+   */
+  readonly mockedLocation?: boolean;
   /** Origine, enregistrée et rendue — jamais scorée. */
   readonly source?: RunSource;
   /** Horloge INJECTÉE (epoch ms). Le moteur ne lit jamais `Date.now()`. */
@@ -348,6 +433,85 @@ function legsOf(points: readonly RunPoint[]): Leg[] {
     legs.push({ dtS, distM, speedMs: distM / dtS });
   }
   return legs;
+}
+
+/**
+ * 2026 — VITESSE MAXIMALE SOUTENUE sur une fenêtre glissante de `windowS`
+ * secondes, en km/h. `null` quand aucune portion CONTINUE n'atteint la durée de
+ * la fenêtre : on ne juge pas ce qu'on n'a pas mesuré.
+ *
+ * ─── POURQUOI « CONTINUE » EST UNE CONDITION, ET COMMENT ELLE SE DÉFINIT ────
+ * Une fenêtre qui enjamberait une discontinuité mesurerait une vitesse qui n'a
+ * jamais existé. La contiguïté se rompt donc exactement là où le reste du
+ * moteur la rompt déjà (`filterPoints`) : rupture DÉCLARÉE (`breakBefore`),
+ * horodatage dupliqué ou désordonné, silence au-delà de `pointMaxGapS`, saut
+ * au-delà de `pointMaxJumpM`. Aucun nouveau critère n'est inventé.
+ *
+ * ─── CE QUE LA FENÊTRE NE FILTRE PAS, ET POURQUOI ───────────────────────────
+ * Elle ne retire PAS les tronçons plus rapides que `pointMaxSpeedKmh`. Les
+ * retirer serait tentant (ce sont des points que `filterPoints` jette) mais
+ * produirait l'effet inverse de celui recherché : un trajet en voiture, dont
+ * TOUS les tronçons dépassent le plafond, ne laisserait plus aucune portion
+ * continue et rendrait le signal INDISPONIBLE — c'est-à-dire muet exactement
+ * sur le cas le plus grave. Un vrai saut de satellite, lui, casse la contiguïté
+ * par sa DISTANCE et sort donc bien de la mesure.
+ *
+ * PURE : aucun tri en place (`points` n'est pas muté), aucune horloge.
+ */
+export function sustainedWindowKmh(
+  points: readonly RunPoint[],
+  activity: Activity = DEFAULT_ACTIVITY,
+  windowS: number = ANTICHEAT_SUSTAINED_WINDOW_S,
+): number | null {
+  const rules = activityRules(activity);
+  const sorted = [...points].sort((a, b) => a.t - b.t);
+  let best: number | null = null;
+
+  /** Temps et distance CUMULÉS depuis le début de la portion continue en cours. */
+  let times: number[] = [];
+  let dists: number[] = [];
+
+  const measure = () => {
+    if (times.length < 2) return;
+    let i = 0;
+    for (let j = 1; j < times.length; j++) {
+      // On garde la PLUS COURTE fenêtre d'au moins `windowS` finissant en j :
+      // c'est elle qui porte la vitesse la plus élevée de toutes les fenêtres
+      // finissant là (allonger une fenêtre ne peut que diluer une pointe).
+      while (i + 1 <= j && times[j]! - times[i + 1]! >= windowS) i++;
+      const dtS = times[j]! - times[i]!;
+      if (dtS < windowS) continue;
+      const kmh = ((dists[j]! - dists[i]!) / dtS) * KMH_PER_M_S;
+      if (best === null || kmh > best) best = kmh;
+    }
+  };
+
+  let previousPoint: RunPoint | null = null;
+  for (const point of sorted) {
+    if (previousPoint === null) {
+      times = [0];
+      dists = [0];
+      previousPoint = point;
+      continue;
+    }
+    const dtS = (point.t - previousPoint.t) / MS_PER_S;
+    const distM = haversineM(previousPoint, point);
+    const broken = point.breakBefore === true ||
+      dtS <= 0 ||
+      dtS > rules.pointMaxGapS ||
+      distM > rules.pointMaxJumpM;
+    if (broken) {
+      measure();
+      times = [0];
+      dists = [0];
+    } else {
+      times.push(times[times.length - 1]! + dtS);
+      dists.push(dists[dists.length - 1]! + distM);
+    }
+    previousPoint = point;
+  }
+  measure();
+  return best;
 }
 
 /**
@@ -636,6 +800,165 @@ export function scoreRun(input: AntiCheatInput): AntiCheatReport {
         futurePoints: future,
         totalPoints: points.length,
         toleranceMs: ANTICHEAT_CLOCK_SKEW_TOLERANCE_MS,
+      }),
+    );
+  }
+
+  // ── 10. Vitesse SOUTENUE sur fenêtre glissante (2026) ─────────────────────
+  // Le trou que ce signal ferme : entre le plafond POINT À POINT (qui ne voit
+  // qu'un relevé isolé) et l'allure MOYENNE (que trente minutes de trot
+  // ramènent dans les clous), un vélo déclaré « course » tenait vingt minutes à
+  // 24 km/h sans qu'aucun signal ne bouge.
+  //
+  // La borne basse n'est PAS un nombre neuf : c'est `avgPaceMinSKm`, la borne
+  // que le produit appelle lui-même « anti-vélo » (21,2 km/h en course,
+  // 60 km/h à vélo). Le pipeline historique REFUSAIT une sortie dont l'allure
+  // MOYENNE la franchissait (`pace_too_fast`). L'appliquer à une fenêtre de
+  // cinq minutes est donc strictement PLUS DOUX que la règle d'origine — et
+  // c'est ce qui la rend défendable après le cahier §18.4, qui interdit de
+  // punir « un ultra » ou « une descente rapide » sur un seuil générique.
+  const windowKmh = sustainedWindowKmh(points, activity);
+  const disciplineBoundKmh = rules.avgPaceMinSKm > 0
+    ? 3600 / rules.avgPaceMinSKm
+    : rules.pointMaxSpeedKmh;
+  if (windowKmh === null) {
+    signals.push(
+      NA(
+        'sustained_speed_window',
+        `Aucune portion continue de ${ANTICHEAT_SUSTAINED_WINDOW_S} s : une vitesse soutenue n’y est pas mesurable.`,
+      ),
+    );
+  } else {
+    // Sévérité 0 à la borne de la discipline, 1 à son plafond point à point.
+    const span = Math.max(Number.EPSILON, rules.pointMaxSpeedKmh - disciplineBoundKmh);
+    signals.push(
+      SIG('sustained_speed_window', (windowKmh - disciplineBoundKmh) / span, {
+        windowKmh,
+        windowS: ANTICHEAT_SUSTAINED_WINDOW_S,
+        disciplineBoundKmh,
+        limitKmh: rules.pointMaxSpeedKmh,
+      }),
+    );
+  }
+
+  // ── 11. Discipline déclarée (2026) ────────────────────────────────────────
+  // « Ce n'est pas de la course à pied » demande DEUX faits qui tiennent
+  // ensemble : une vitesse que seul un engin soutient, ET l'absence de foulée.
+  // Un seul des deux ne suffit pas, et c'est la raison même de ce signal :
+  //  · vite tout seul  → c'est peut-être un très bon coureur ;
+  //  · zéro pas seul   → c'est peut-être un téléphone dans une poussette
+  //                      (`step_coherence` le dit déjà, avec son propre poids).
+  // L'inverse — un vélo LENT, avec des pas — n'est PAS traité : pédaler
+  // doucement en comptant des pas n'avantage personne, et en faire un soupçon
+  // reviendrait à accuser quelqu'un de marcher (cahier §8.3).
+  const stepsPerM = input.stepCount !== undefined && stats.distanceM > 0
+    ? Math.max(0, input.stepCount) / stats.distanceM
+    : null;
+  if (activity !== 'run') {
+    signals.push(
+      NA(
+        'discipline_mismatch',
+        'Le motif ne vise que la course à pied DÉCLARÉE : une sortie vélo lente avec des pas n’avantage personne.',
+      ),
+    );
+  } else if (windowKmh === null) {
+    signals.push(
+      NA(
+        'discipline_mismatch',
+        `Aucune portion continue de ${ANTICHEAT_SUSTAINED_WINDOW_S} s : la vitesse soutenue, moitié du motif, manque.`,
+      ),
+    );
+  } else if (stepsPerM === null) {
+    signals.push(
+      NA(
+        'discipline_mismatch',
+        'Aucun podomètre transmis : l’absence de cadence, moitié du motif, ne se déduit pas d’un silence.',
+      ),
+    );
+  } else if (stats.distanceM < rules.minDistanceM) {
+    signals.push(
+      NA(
+        'discipline_mismatch',
+        'Distance sous le minimum de la discipline : le ratio pas/mètre n’y est pas fiable.',
+      ),
+    );
+  } else {
+    const ridden = windowKmh > disciplineBoundKmh;
+    const noStride = stepsPerM < STEP_COHERENCE_MIN_STEPS_PER_M;
+    signals.push(
+      SIG('discipline_mismatch', ridden && noStride ? 1 : 0, {
+        windowKmh,
+        disciplineBoundKmh,
+        stepsPerM,
+        pedestrianFloorStepsPerM: STEP_COHERENCE_MIN_STEPS_PER_M,
+      }),
+    );
+  }
+
+  // ── 12. Uniformité de la précision (2026) ─────────────────────────────────
+  // Une puce GNSS réévalue sa précision à chaque relevé (satellites qui entrent
+  // et sortent, immeubles, feuillage) : sa dispersion relative se compte en
+  // dizaines de pour cent. Une application qui FABRIQUE des positions n'a rien
+  // à réévaluer et écrit la même valeur partout. Ce signal survit à la
+  // décimation client (elle conserve les points d'origine, précision comprise),
+  // contrairement à la régularité des HORODATAGES — voir le docblock du module.
+  const accuracies = points
+    .map((p) => p.acc)
+    .filter((a): a is number => a !== undefined && Number.isFinite(a));
+  if (accuracies.length < ANTICHEAT_ACCURACY_MIN_POINTS) {
+    signals.push(
+      NA(
+        'accuracy_uniformity',
+        `Moins de ${ANTICHEAT_ACCURACY_MIN_POINTS} points portent une précision : sa dispersion ne veut encore rien dire.`,
+      ),
+    );
+  } else if (accuracies.every((a) => a === rules.pointMaxAccuracyM)) {
+    // CARVE-OUT DOCUMENTÉ, PAS UNE CLÉMENCE. Le client SUBSTITUE
+    // `pointMaxAccuracyM` quand l'appareil ne rend aucune précision
+    // (apps/mobile/src/mvp/run/gpsProvider.ts, `toRawFix`). Une série
+    // entièrement égale à cette valeur n'est donc pas une précision figée :
+    // c'est une précision ABSENTE, déguisée en nombre par une valeur par
+    // défaut. La compter comme « uniforme » condamnerait systématiquement les
+    // appareils qui n'en fournissent pas — un biais matériel, pas une triche.
+    signals.push(
+      NA(
+        'accuracy_uniformity',
+        'Toutes les précisions valent la borne par défaut du client : c’est une précision ABSENTE substituée, pas une précision mesurée.',
+      ),
+    );
+  } else {
+    const mean = accuracies.reduce((s, v) => s + v, 0) / accuracies.length;
+    if (mean <= 0) {
+      signals.push(
+        NA('accuracy_uniformity', 'Précision moyenne nulle : aucune dispersion à mesurer.'),
+      );
+    } else {
+      const variance = accuracies.reduce((s, v) => s + (v - mean) ** 2, 0) / accuracies.length;
+      const cv = Math.sqrt(variance) / mean;
+      signals.push(
+        SIG('accuracy_uniformity', 1 - cv / ANTICHEAT_HUMAN_MIN_ACCURACY_CV, {
+          accuracyCv: cv,
+          humanMinCv: ANTICHEAT_HUMAN_MIN_ACCURACY_CV,
+          measuredPoints: accuracies.length,
+        }),
+      );
+    }
+  }
+
+  // ── 13. Position simulée déclarée par l'appareil (2026) ───────────────────
+  // TROIS états, et la différence compte : rien dit (iOS) ⇒ indisponible ;
+  // « non » ⇒ disponible et négatif ; « oui » ⇒ franc. Voir `AntiCheatInput`.
+  if (input.mockedLocation === undefined) {
+    signals.push(
+      NA(
+        'mocked_location',
+        'L’appareil n’a rendu aucun drapeau de position simulée (iOS ne fournit pas cette information).',
+      ),
+    );
+  } else {
+    signals.push(
+      SIG('mocked_location', input.mockedLocation ? 1 : 0, {
+        declaredMocked: input.mockedLocation ? 1 : 0,
       }),
     );
   }

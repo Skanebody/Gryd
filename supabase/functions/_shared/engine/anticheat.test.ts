@@ -113,18 +113,40 @@ interface TraceOptions {
   t0?: number;
 }
 
+/**
+ * ⚠️ LA PRÉCISION PAR DÉFAUT VARIE, ET CE N'EST PAS UN DÉTAIL DE FIXTURE
+ * (corrigé le 10/09/2026, lot anti-triche 2026).
+ *
+ * Elle valait `8` — la MÊME valeur sur les 1 201 points d'une trace « propre ».
+ * Aucune puce GNSS ne fait ça : elle réévalue sa précision à chaque relevé
+ * (satellites qui entrent et sortent, immeubles, feuillage). La fixture
+ * décrivait donc, sans le vouloir, la signature exacte d'une trace FABRIQUÉE —
+ * et le jour où un signal a enfin regardé la précision comme une série
+ * (`accuracy_uniformity`), quatre tests de « course propre » ont viré au rouge.
+ *
+ * Le défaut était dans la fixture, pas dans le signal : on ne peut pas prouver
+ * qu'« une course propre ne déclenche rien » avec une trace qui n'est pas
+ * propre. La précision est donc tirée du MÊME générateur à graine fixe (tout
+ * reste reproductible à l'octet près) dans une plage réaliste, et les tests qui
+ * veulent une précision PRÉCISE continuent de la passer explicitement.
+ */
 function trace(o: TraceOptions = {}): RunPoint[] {
   const paceSKm = o.paceSKm ?? 300;
   const durationS = o.durationS ?? 1200;
   const stepS = o.stepS ?? 1;
   const jitter = o.jitter ?? 0.3;
-  const acc = o.acc === undefined && 'acc' in o ? undefined : (o.acc ?? 8);
+  const accFixe = o.acc === undefined && 'acc' in o ? undefined : o.acc;
   const rnd = lcg(o.seed ?? 42);
   const v = 1000 / paceSKm;
   const pts: RunPoint[] = [];
   let x = o.x0 ?? 0;
   const t0 = o.t0 ?? T0;
   for (let s = 0; s <= durationS; s += stepS) {
+    // 4 à 12 m : la plage ordinaire d'un téléphone en extérieur, sous
+    // POINT_MAX_ACCURACY_M (25) — aucun point n'est rejeté pour sa précision.
+    const acc = accFixe === undefined && !('acc' in o)
+      ? Math.round((4 + rnd() * 8) * 10) / 10
+      : accFixe;
     pts.push(pointEst(x, t0 + s * 1000, acc));
     x += v * stepS * (1 + (rnd() * 2 - 1) * jitter);
   }
