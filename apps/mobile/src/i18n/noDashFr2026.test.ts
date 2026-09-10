@@ -66,37 +66,7 @@ const RACINE = new URL('../../', import.meta.url);
  * balayées : inutile de les lister, ce test ne les atteint pas.
  */
 export const EXCLUDED_PATHS_UNTIL_2026_09_11: readonly string[] = [
-  // Aide, FAQ et « comment ça marche »
-  'src/features/help/',
-  'app/faq.tsx',
-  'app/comment-ca-marche.tsx',
-  'app/calcul-zones.tsx',
-  'src/i18n/catalog/faq',
-  // Réglages
-  'app/parametres',
-  // Profil, résultat, historique, performance, journal
-  'src/features/refonte/ProfileHomeScreen.tsx',
-  'src/features/refonte/ProfileStatsScreen.tsx',
-  'src/features/run/',
-  'app/course/',
-  'app/course-result.tsx',
-  'app/historique.tsx',
-  'app/performance.tsx',
-  'src/features/history/',
-  'src/features/performance/',
-  'src/features/journal/',
-  'src/ui/charts/',
-  'src/i18n/catalog/historique',
-  'src/i18n/catalog/result',
-  'src/i18n/catalog/performance',
-  // Compte, social, badges, amis
-  'src/features/onboarding/AppleButton.tsx',
-  'app/badges.tsx',
-  'app/amis.tsx',
-  'app/crew-feed.tsx',
-  'src/features/account/AccountDoor',
-  'src/features/social/avatarPhoto.ts',
-  'app/profil-edit.tsx',
+  // Vidée le 11/09/2026 : tous les lots ont atterri, le test est global.
 ];
 
 /**

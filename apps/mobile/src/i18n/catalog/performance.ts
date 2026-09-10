@@ -422,7 +422,7 @@ export const C = defineCatalog({
   },
   /** Conclusion quand l'impact territorial de la période est LISIBLE. */
   volumeBestDayCaptures: {
-    fr: '{day} est ton meilleur jour — {n} de tes {total} captures y ont eu lieu.',
+    fr: '{day} est ton meilleur jour : {n} de tes {total} captures y ont eu lieu.',
     en: '{day} is your best day — {n} of your {total} captures happened then.',
     es: '{day} es tu mejor día: {n} de tus {total} capturas ocurrieron ahí.',
     de: '{day} ist dein bester Tag – {n} deiner {total} Eroberungen fielen darauf.',
@@ -430,7 +430,7 @@ export const C = defineCatalog({
   },
   /** Repli quand un payload de capture est illisible : on parle de COURSES. */
   volumeBestDayRuns: {
-    fr: '{day} est ton meilleur jour — {n} de tes {total} courses y ont eu lieu.',
+    fr: '{day} est ton meilleur jour : {n} de tes {total} courses y ont eu lieu.',
     en: '{day} is your best day — {n} of your {total} runs happened then.',
     es: '{day} es tu mejor día: {n} de tus {total} carreras ocurrieron ahí.',
     de: '{day} ist dein bester Tag – {n} deiner {total} Läufe fielen darauf.',
@@ -438,7 +438,7 @@ export const C = defineCatalog({
   },
   /** Le MÊME repli, compté en sorties vélo (la conclusion du bloc 1 en Bike). */
   volumeBestDayRunsBike: {
-    fr: '{day} est ton meilleur jour — {n} de tes {total} sorties y ont eu lieu.',
+    fr: '{day} est ton meilleur jour : {n} de tes {total} sorties y ont eu lieu.',
     en: '{day} is your best day — {n} of your {total} rides happened then.',
     es: '{day} es tu mejor día: {n} de tus {total} salidas ocurrieron ahí.',
     de: '{day} ist dein bester Tag – {n} deiner {total} Ausfahrten fielen darauf.',
@@ -751,7 +751,7 @@ export const C = defineCatalog({
   },
   premiumCta: { fr: 'Premium', en: 'Premium', es: 'Premium', de: 'Premium', pt: 'Premium' },
   premiumA11y: {
-    fr: 'Analytics territoriales détaillées — Premium',
+    fr: 'Analytics territoriales détaillées (Premium)',
     en: 'Detailed territory analytics — Premium',
     es: 'Analítica territorial detallada — Premium',
     de: 'Detaillierte Gebiets-Analytics – Premium',
@@ -768,7 +768,7 @@ export const C = defineCatalog({
    */
   premiumSoon: { fr: 'Bientôt', en: 'Soon', es: 'Pronto', de: 'Bald', pt: 'Em breve' },
   premiumSoonA11y: {
-    fr: 'Analytics territoriales détaillées — bientôt',
+    fr: 'Analytics territoriales détaillées (bientôt)',
     en: 'Detailed territory analytics — soon',
     es: 'Analítica territorial detallada — pronto',
     de: 'Detaillierte Gebiets-Analytics – bald',

@@ -54,7 +54,7 @@ import type { Entry } from '../types';
 export const C = defineCatalog({
   // ── AMENDEMENT-41 : LE RELAIS ─────────────────────────────────────────────
   coCapturedNote: {
-    fr: '{n} zones courues à plusieurs — payées selon ton rang d’arrivée',
+    fr: '{n} zones courues à plusieurs, payées selon ton rang d’arrivée',
     en: '{n} zones run together — paid by your finishing rank',
     es: '{n} zonas corridas en grupo — pagadas según tu puesto',
     de: '{n} Zonen gemeinsam gelaufen — bezahlt nach deinem Rang',
@@ -62,7 +62,7 @@ export const C = defineCatalog({
   },
   /** LE RELAIS à vélo : même règle (1/rang), autre verbe — on ne « court » pas. */
   coCapturedNoteBike: {
-    fr: '{n} zones roulées à plusieurs — payées selon ton rang d’arrivée',
+    fr: '{n} zones roulées à plusieurs, payées selon ton rang d’arrivée',
     en: '{n} zones ridden together — paid by your finishing rank',
     es: '{n} zonas rodadas en grupo — pagadas según tu puesto',
     de: '{n} Zonen gemeinsam gefahren — bezahlt nach deinem Rang',
@@ -72,14 +72,14 @@ export const C = defineCatalog({
   // l'union carte (2/3) : les zones du coureur sont chartreuse chez ses
   // coéquipiers. Deux entrées (1 / n) : l'interpolation ne conjugue pas.
   crewImpactOne: {
-    fr: 'Capturées pour ton crew — ton coéquipier les voit sur sa carte',
+    fr: 'Capturées pour ton crew : ton coéquipier les voit sur sa carte',
     en: 'Captured for your crew — your teammate sees them on their map',
     es: 'Capturadas para tu crew — tu compañero las ve en su mapa',
     de: 'Für deine Crew erobert — dein Teamkollege sieht sie auf seiner Karte',
     pt: 'Capturadas para o seu crew — seu colega as vê no mapa dele',
   },
   crewImpactMany: {
-    fr: 'Capturées pour ton crew — {n} coéquipiers les voient sur leur carte',
+    fr: 'Capturées pour ton crew : {n} coéquipiers les voient sur leur carte',
     en: 'Captured for your crew — {n} teammates see them on their maps',
     es: 'Capturadas para tu crew — {n} compañeros las ven en sus mapas',
     de: 'Für deine Crew erobert — {n} Teamkollegen sehen sie auf ihren Karten',
@@ -552,7 +552,7 @@ export const C = defineCatalog({
     pt: 'Loop quase fechado · Faltam {m} m',
   },
   noZones: {
-    fr: 'Aucune zone capturée — ferme une boucle pour prendre la zone.',
+    fr: 'Aucune zone capturée. Ferme une boucle pour prendre la zone.',
     en: 'No zones captured — close a loop to take the zone.',
     es: 'Ninguna zona capturada: cierra un bucle para tomar la zona.',
     de: 'Keine Zone erobert — schließ eine Schleife, um die Zone zu holen.',
@@ -750,21 +750,21 @@ export const C = defineCatalog({
     pt: 'Desafiar {crew}',
   },
   privateNote: {
-    fr: "Course privée — rien n'apparaît sur la carte ni dans le feed.",
+    fr: "Course privée : rien n'apparaît sur la carte ni dans le feed.",
     en: 'Private run — nothing shows on the map or in the feed.',
     es: 'Carrera privada: nada aparece en el mapa ni en el feed.',
     de: 'Privater Lauf — nichts erscheint auf der Karte oder im Feed.',
     pt: 'Corrida privada — nada aparece no mapa nem no feed.',
   },
   privateNoteBike: {
-    fr: "Sortie privée — rien n'apparaît sur la carte ni dans le feed.",
+    fr: "Sortie privée : rien n'apparaît sur la carte ni dans le feed.",
     en: 'Private ride — nothing shows on the map or in the feed.',
     es: 'Salida privada: nada aparece en el mapa ni en el feed.',
     de: 'Private Fahrt — nichts erscheint auf der Karte oder im Feed.',
     pt: 'Pedalada privada — nada aparece no mapa nem no feed.',
   },
   socialNote: {
-    fr: 'Social Run — stats et badges comptent, aucune capture.',
+    fr: 'Social Run : stats et badges comptent, aucune capture.',
     en: 'Social Run — stats and badges count, no capture.',
     es: 'Social Run: stats y badges cuentan, sin captura.',
     de: 'Social Run — Stats und Badges zählen, keine Eroberung.',
@@ -2102,7 +2102,7 @@ export const C = defineCatalog({
     pt: 'PRÉVIA DE FORMATO',
   },
   fpIntro: {
-    fr: 'Voici la mise en page des cartes GRYD : le cadre, la hiérarchie, la place de chaque élément. Chaque emplacement porte son nom — aucune valeur n’est affichée, parce qu’aucune course ne les a produites.',
+    fr: 'Voici la mise en page des cartes GRYD : le cadre, la hiérarchie, la place de chaque élément. Chaque emplacement porte son nom. Aucune valeur n’est affichée, parce qu’aucune course ne les a produites.',
     en: 'This is the layout of GRYD cards: the frame, the hierarchy, where each element sits. Every slot is named — no values are shown, because no run produced any.',
     es: 'Esta es la maquetación de las tarjetas GRYD: el marco, la jerarquía, el lugar de cada elemento. Cada espacio lleva su nombre — no se muestra ningún valor, porque ninguna carrera los ha producido.',
     de: 'So ist das Layout der GRYD-Karten aufgebaut: Rahmen, Hierarchie, Platz jedes Elements. Jeder Platzhalter trägt seinen Namen — es werden keine Werte gezeigt, denn kein Lauf hat welche erzeugt.',
@@ -2244,7 +2244,7 @@ export const C = defineCatalog({
     pt: 'Nenhuma corrida para exibir',
   },
   noResultBody: {
-    fr: 'Cet écran montre le résultat d’une course enregistrée. Aucune n’est arrivée jusqu’ici — on ne va pas t’en inventer une.',
+    fr: 'Cet écran montre le résultat d’une course enregistrée. Aucune n’est arrivée jusqu’ici, et on ne va pas t’en inventer une.',
     en: 'This screen shows the result of a recorded run. None made it here — and we won’t invent one for you.',
     es: 'Esta pantalla muestra el resultado de una carrera registrada. Ninguna llegó hasta aquí, y no vamos a inventarte una.',
     de: 'Dieser Bildschirm zeigt das Ergebnis eines aufgezeichneten Laufs. Hier ist keiner angekommen — und wir erfinden dir keinen.',
@@ -2264,7 +2264,7 @@ export const C = defineCatalog({
     pt: 'Nenhuma pedalada para exibir',
   },
   noResultBodyBike: {
-    fr: 'Cet écran montre le résultat d’une sortie enregistrée. Aucune n’est arrivée jusqu’ici — on ne va pas t’en inventer une.',
+    fr: 'Cet écran montre le résultat d’une sortie enregistrée. Aucune n’est arrivée jusqu’ici, et on ne va pas t’en inventer une.',
     en: 'This screen shows the result of a recorded ride. None made it here — and we won’t invent one for you.',
     es: 'Esta pantalla muestra el resultado de una salida registrada. Ninguna llegó hasta aquí, y no vamos a inventarte una.',
     de: 'Dieser Bildschirm zeigt das Ergebnis einer aufgezeichneten Fahrt. Hier ist keine angekommen — und wir erfinden dir keine.',
@@ -2447,7 +2447,7 @@ export const REJECT_REASON_COPY: Record<RejectReason, Entry> = {
     pt: 'Ritmo lento demais para validar uma corrida.',
   },
   too_far: {
-    fr: 'Points GPS trop éloignés — trace peu fiable.',
+    fr: 'Points GPS trop éloignés : trace peu fiable.',
     en: 'GPS points too far apart — unreliable trace.',
     es: 'Puntos GPS demasiado separados — traza poco fiable.',
     de: 'GPS-Punkte zu weit auseinander — Spur unzuverlässig.',

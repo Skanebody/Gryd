@@ -325,7 +325,7 @@ export const C = defineCatalog({
   },
   /** Effort d'une course, pour le lecteur d'écran (la ligne est visuelle). */
   a11yRunEffort: {
-    fr: 'Course du {when} — {effort}',
+    fr: 'Course du {when} · {effort}',
     en: 'Run on {when} — {effort}',
     es: 'Carrera del {when} — {effort}',
     de: 'Lauf vom {when} — {effort}',
@@ -341,7 +341,7 @@ export const C = defineCatalog({
    * discipline de la ligne. Inscrit en suspens plutôt que corrigé de force.
    */
   a11yRunEffortBike: {
-    fr: 'Sortie vélo du {when} — {effort}',
+    fr: 'Sortie vélo du {when} · {effort}',
     en: 'Ride on {when} — {effort}',
     es: 'Salida en bici del {when} — {effort}',
     de: 'Ausfahrt vom {when} — {effort}',
@@ -965,7 +965,7 @@ export const C = defineCatalog({
   },
   /** VoiceOver d'une ligne complète (type, impact, effort, date) — neutre. */
   a11yRunLine: {
-    fr: '{type} — {impact} · {effort} · {when}',
+    fr: '{type} · {impact} · {effort} · {when}',
     en: '{type} — {impact} · {effort} · {when}',
     es: '{type} — {impact} · {effort} · {when}',
     de: '{type} — {impact} · {effort} · {when}',
