@@ -60,7 +60,7 @@ import {
   useRefonteCopy,
 } from '../../src/features/refonte/ProfilePrimitives';
 import { GrydIcon } from '../../src/ui/gryd';
-import { SETTINGS_GLYPHS } from '../../src/ui/gryd/glyphs';
+import { SETTINGS_GLYPHS, type GrydIconName } from '../../src/ui/gryd/glyphs';
 import { cardState, type PermissionCardState } from '../../src/features/setup/permissionCards';
 import {
   devicePermissionTone,
@@ -90,6 +90,9 @@ interface RowSource {
   id: RowId;
   probe: DevicePermissionProbe | null;
   supported?: () => Promise<boolean>;
+  /** Un dessin PAR autorisation : quatre cadenas identiques ne distinguent
+   *  rien, et cette page ne parle que de distinctions (L15). */
+  icon: GrydIconName;
 }
 
 /** Capturé une fois : TypeScript ne peut pas savoir qu'un module ne change pas. */
@@ -98,13 +101,14 @@ const MOTION = MOTION_SENSOR;
 const OPEN_SETTINGS = OPEN_APP_SETTINGS;
 
 const SOURCES: readonly RowSource[] = [
-  { id: 'location', probe: LOCATION_PERMISSION },
-  { id: 'photos', probe: PHOTOS_PERMISSION },
-  { id: 'camera', probe: CAMERA_PERMISSION },
+  { id: 'location', probe: LOCATION_PERMISSION, icon: 'location' },
+  { id: 'photos', probe: PHOTOS_PERMISSION, icon: 'photo' },
+  { id: 'camera', probe: CAMERA_PERMISSION, icon: 'camera' },
   {
     id: 'motion',
     probe: MOTION ? () => MOTION.check() : null,
     supported: MOTION ? () => MOTION.supported() : undefined,
+    icon: 'run',
   },
 ];
 
@@ -187,9 +191,10 @@ export default function DevicePermissionsScreen() {
         const state = states[source.id];
         const tone = state ? devicePermissionTone(state) : 'reading';
         const label = labels[source.id];
-        return <View key={source.id} style={local.row}>
+        const last = source.id === SOURCES[SOURCES.length - 1]?.id;
+        return <View key={source.id} style={[local.row, last && local.rowLast]}>
           <View style={local.rowHead}>
-            <GrydIcon name={SETTINGS_GLYPHS.devicePermissions} size={20} color={c.ink} />
+            <GrydIcon name={source.icon} size={20} color={c.ink} />
             <Text style={local.rowTitle}>{label.title}</Text>
             <StateBadge tone={tone} copy={copy} />
           </View>
@@ -256,6 +261,9 @@ const local = StyleSheet.create({
   intro: { fontFamily: fonts.text, fontSize: 14, lineHeight: 20, color: c.muted, paddingTop: 8, paddingBottom: 2 },
   group: { borderRadius: 24, backgroundColor: c.surface, paddingHorizontal: 18, paddingVertical: 4 },
   row: { paddingVertical: 14, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border },
+  // La dernière ligne n'a rien à séparer : un filet contre le bord de la carte
+  // se lit comme une ligne coupée.
+  rowLast: { borderBottomWidth: 0 },
   rowHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, minHeight: 28 },
   rowTitle: { flex: 1, minWidth: 90, fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, color: c.ink },
   meta: { fontFamily: fonts.text, fontSize: 12, lineHeight: 18, color: c.muted },
