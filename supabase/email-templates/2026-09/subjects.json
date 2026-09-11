@@ -1,8 +1,8 @@
 {
-  "confirmation": "Bienvenue sur GRYD : confirme ton inscription",
-  "magic_link": "Ton lien pour ouvrir GRYD",
-  "recovery": "Ton lien pour retrouver ton compte GRYD",
-  "email_change": "Confirme ta nouvelle adresse GRYD",
-  "invite": "Tu es invité sur GRYD",
-  "reauthentication": "Ton code de vérification GRYD"
+  "confirmation": "Bienvenue sur Gryd : confirme ton inscription",
+  "magic_link": "Ton lien pour entrer sur Gryd",
+  "recovery": "Ton lien pour retrouver ton compte Gryd",
+  "email_change": "Confirme ta nouvelle adresse Gryd",
+  "invite": "Tu es invité sur Gryd",
+  "reauthentication": "Ton code de vérification Gryd"
 }
