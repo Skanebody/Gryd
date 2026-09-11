@@ -15,8 +15,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Icon } from '../components/ui/Icon';
 import { CONTACT_EMAIL, POSTAL_CONTACT } from '../../lib/legal';
+import { SiteFooter, SiteHeader } from '../../components/ui';
 import styles from '../confidentialite/legal.module.css';
 
 const LAST_UPDATED = '26 juillet 2026';
@@ -32,8 +32,12 @@ function Todo({ children }: { children: ReactNode }) {
   return (
     <b
       style={{
-        background: 'rgba(194,255,35,.14)',
-        color: '#C2FF23',
+        // Le chartreuse passe par le JETON, jamais par un hex tapé (ADR-008) :
+        // celui qui était écrit ici (#C2FF23) n'était même plus la couleur de la
+        // charte (#B4FF0D). Un champ à compléter doit se voir ; il n'a pas à
+        // inventer une seconde marque au passage.
+        background: 'var(--gryd-accent-soft)',
+        color: 'var(--gryd-accent)',
         padding: '1px 6px',
         borderRadius: '4px',
         fontWeight: 700,
@@ -57,21 +61,10 @@ const TOC = [
 
 export default function MentionsLegalesPage() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <div className={styles.topbar}>
-          <Link href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <polygon points="12,1.5 21,6.75 21,17.25 12,22.5 3,17.25 3,6.75" fill="var(--ch)" />
-            </svg>
-            <span>GRYD</span>
-          </Link>
-          <Link href="/" className={styles.back}>
-            <Icon name="chevron" size={14} />
-            Retour
-          </Link>
-        </div>
+    <>
+      <SiteHeader />
 
+      <main id="contenu" className={styles.main}>
         <header className={styles.hero}>
           <p className={styles.kicker}>Mentions légales</p>
           <h1 className={styles.heroTitle}>Mentions légales</h1>
@@ -230,14 +223,9 @@ export default function MentionsLegalesPage() {
           </p>
         </section>
 
-        <div className={styles.legalFoot}>
-          <Link href="/confidentialite">Confidentialité</Link>
-          <Link href="/conditions">Conditions</Link>
-          <Link href="/cgv">CGV</Link>
-          <Link href="/">Retour à l&rsquo;accueil</Link>
-          <span>SASU Nexus 1993</span>
-        </div>
       </main>
-    </div>
+
+      <SiteFooter />
+    </>
   );
 }

@@ -55,10 +55,10 @@
  */
 
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
 import { POSTAL_CONTACT } from '../../lib/legal';
+import { SiteFooter, SiteHeader } from '../../components/ui';
 import styles from './legal.module.css';
 
 /** Dernière mise à jour — à faire évoluer à chaque changement de fond. */
@@ -98,25 +98,10 @@ const TOC = [
 
 export default function ConfidentialitePage() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        {/* Barre de retour minimale (page autonome). */}
-        <div className={styles.topbar}>
-          <Link href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <polygon
-                points="12,1.5 21,6.75 21,17.25 12,22.5 3,17.25 3,6.75"
-                fill="var(--ch)"
-              />
-            </svg>
-            <span>GRYD</span>
-          </Link>
-          <Link href="/" className={styles.back}>
-            <Icon name="chevron" size={14} />
-            Retour
-          </Link>
-        </div>
+    <>
+      <SiteHeader />
 
+      <main id="contenu" className={styles.main}>
         {/* ── En-tête ─────────────────────────────────────────────────── */}
         <header className={styles.hero}>
           <p className={styles.kicker}>Confidentialité</p>
@@ -684,14 +669,9 @@ export default function ConfidentialitePage() {
         </section>
 
         {/* ── Pied de page légal ─────────────────────────────────────── */}
-        <div className={styles.legalFoot}>
-          <Link href="/conditions">Conditions d&rsquo;utilisation</Link>
-          <Link href="/cgv">CGV</Link>
-          <Link href="/mentions-legales">Mentions légales</Link>
-          <Link href="/">Retour à l&rsquo;accueil</Link>
-          <span>SASU Nexus 1993</span>
-        </div>
       </main>
-    </div>
+
+      <SiteFooter />
+    </>
   );
 }

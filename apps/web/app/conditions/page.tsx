@@ -58,6 +58,7 @@ import Link from 'next/link';
 import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
 import { POSTAL_CONTACT } from '../../lib/legal';
+import { SiteFooter, SiteHeader } from '../../components/ui';
 import styles from '../confidentialite/legal.module.css';
 
 // Révision du 26 juillet 2026 — le vélo est une discipline réelle (objet, règles
@@ -99,24 +100,10 @@ const TOC = [
 
 export default function ConditionsPage() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <div className={styles.topbar}>
-          <Link href="/" className={styles.brand} aria-label="Retour à l'accueil GRYD">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <polygon
-                points="12,1.5 21,6.75 21,17.25 12,22.5 3,17.25 3,6.75"
-                fill="var(--ch)"
-              />
-            </svg>
-            <span>GRYD</span>
-          </Link>
-          <Link href="/" className={styles.back}>
-            <Icon name="chevron" size={14} />
-            Retour
-          </Link>
-        </div>
+    <>
+      <SiteHeader />
 
+      <main id="contenu" className={styles.main}>
         {/* ── En-tête ─────────────────────────────────────────────────── */}
         <header className={styles.hero}>
           <p className={styles.kicker}>Conditions</p>
@@ -448,14 +435,9 @@ export default function ConditionsPage() {
           </p>
         </section>
 
-        <div className={styles.legalFoot}>
-          <Link href="/confidentialite">Politique de confidentialité</Link>
-          <Link href="/cgv">CGV</Link>
-          <Link href="/mentions-legales">Mentions légales</Link>
-          <Link href="/">Retour à l&rsquo;accueil</Link>
-          <span>SASU Nexus 1993</span>
-        </div>
       </main>
-    </div>
+
+      <SiteFooter />
+    </>
   );
 }

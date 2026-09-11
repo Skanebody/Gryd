@@ -1,72 +1,43 @@
 /*
- * GRYD — pages légales (/confidentialite + /conditions).
- * Charte ADDENDUM-DESIGN §C : noir/blanc/chartreuse #C2FF23 (spec §3.2), dark-first,
- * JAMAIS de chartreuse sur fond clair. Tokens de globals.css uniquement.
- * §A : lecture linéaire, textes non tronqués (jamais « … »), pas de card-dans-card,
- * un seul accent chartreuse par écran (le fil de la barre latérale de sommaire).
- * Partagé par les deux routes légales (conditions importe ce module).
+ * GRYD — LA MISE EN PAGE DES QUATRE DOCUMENTS LÉGAUX (repris par le lot W3).
+ *
+ * Partagé par /confidentialite/, /conditions/, /cgv/ et /mentions-legales/.
+ *
+ * ⚠️ LE TEXTE DE CES PAGES NE CHANGE PAS D'UN MOT. Corrigé au fond le 11/09
+ * (ADR-014) et contractuel : retrait de « GRYD Club », du « Founder Pack à
+ * vie » et de la « monnaie de style », activation après confirmation,
+ * suppression de compte distincte de la résiliation, médiateur, L215-1,
+ * L221-28, registre NEXUS 1993. Ce lot n'a touché QUE la mise en page.
+ *
+ * CE QUI A CHANGÉ LE 12/09/2026 (lot W3) :
+ *  · les pages portent l'EN-TÊTE et le PIED du site (`SiteHeader` /
+ *    `SiteFooter`), au lieu d'une barre de retour et d'une rangée de liens
+ *    maison : quatre documents qui se lient entre eux valent mieux quand ils le
+ *    font par le même pied que le reste du site ;
+ *  · toutes les couleurs et toutes les familles passent par les JETONS de
+ *    `globals.css` (`--gryd-*`), et plus par les alias de l'ancien site
+ *    (`--fond`, `--ch`, `--gris`…) que le lot W2 avait laissés en survie ;
+ *  · le chartreuse ne sert plus qu'en TRAIT et en REPÈRE, jamais en petit
+ *    texte : c'est la règle de contraste de la charte, et elle vaut aussi ici.
+ *
+ * Aucune ombre, un filet par séparation, le rayon de carte du reste du site.
  */
 
 /* ── Squelette de page ───────────────────────────────────────────────────── */
-.page {
-  min-height: 100vh;
-  background: var(--fond);
-  color: var(--blanc);
-}
 
+/* La colonne de lecture d'un document long. Les marges latérales sont celles
+   du site (`--gryd-gutter`) : le texte s'aligne ainsi sur l'en-tête et le pied,
+   au lieu de flotter à deux pixels près. */
 .main {
   max-width: 820px;
   margin: 0 auto;
-  padding: 24px 24px 96px;
-}
-
-@media (max-width: 640px) {
-  .main {
-    padding: 20px 18px 72px;
-  }
-}
-
-/* Barre de retour minimale (page autonome, hors nav landing). */
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 0 8px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  text-decoration: none;
-  color: var(--blanc);
-  font-family: var(--disp);
-  font-weight: 500;
-  letter-spacing: -0.01em;
-}
-
-.back {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--gris);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: color 200ms ease-out;
-}
-
-.back:hover {
-  color: var(--blanc);
+  padding: var(--s-6) var(--gryd-gutter) var(--s-10);
 }
 
 /* ── En-tête ─────────────────────────────────────────────────────────────── */
 .hero {
   padding: 48px 0 24px;
-  border-bottom: 1px solid var(--ligne);
+  border-bottom: 1px solid var(--gryd-hairline);
 }
 
 @media (max-width: 640px) {
@@ -75,17 +46,22 @@
   }
 }
 
+/* Le repère de page et le numéro de section sont chartreuse, comme le `kicker`
+   du reste du site (`components/ui/Section.module.css`) : même rôle, même
+   couleur. Sur carbone, le chartreuse tient 16,3:1 — la charte ne l'interdit
+   que sur fond clair. */
 .kicker {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.2em;
+  font-family: var(--gryd-mono);
+  font-size: var(--t-kicker);
+  font-weight: 500;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--gris);
+  color: var(--gryd-accent);
   margin-bottom: 16px;
 }
 
 .heroTitle {
-  font-family: var(--disp);
+  font-family: var(--gryd-display);
   font-weight: 500;
   font-size: clamp(30px, 5vw, 46px);
   line-height: 1.06;
@@ -93,7 +69,7 @@
 }
 
 .heroSub {
-  color: var(--gris);
+  color: var(--gryd-muted);
   font-size: 16px;
   line-height: 1.6;
   margin-top: 16px;
@@ -105,37 +81,41 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 20px;
-  font-family: var(--mono);
+  font-family: var(--gryd-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
-  color: var(--gris);
+  color: var(--gryd-muted);
 }
 
 .dateRow b {
-  color: var(--blanc);
+  color: var(--gryd-ink);
   font-weight: inherit;
 }
 
-/* ── Bandeau promesse (accent chartreuse unique de la page) ──────────────── */
+/* ── Bandeau d'état ─────────────────────────────────────────────────────────
+   Même grammaire que le `Callout` du site, et pour la même raison : un encart
+   d'état n'est ni une action ni une alerte, c'est un FAIT. Il se distingue par
+   sa surface et par un filet à gauche, pas par une couleur d'humeur. Il était
+   chartreuse ; le chartreuse désigne l'action, et il n'y en a aucune ici. */
 .pledge {
   margin-top: 28px;
-  background: var(--ch14);
-  border: 1px solid var(--ch40);
-  border-left: 3px solid var(--ch);
-  border-radius: var(--radius-card);
-  padding: 20px 24px;
+  background: var(--gryd-surface);
+  border: 1px solid var(--gryd-hairline);
+  border-left: 3px solid var(--gryd-ink);
+  border-radius: var(--r-card);
+  padding: var(--s-5) var(--s-6);
 }
 
 .pledgeTitle {
-  font-family: var(--disp);
+  font-family: var(--gryd-display);
   font-weight: 500;
   font-size: 16px;
-  color: var(--blanc);
+  color: var(--gryd-ink);
   margin-bottom: 8px;
 }
 
 .pledgeBody {
-  color: var(--blanc);
+  color: var(--gryd-ink);
   font-size: 14.5px;
   line-height: 1.6;
 }
@@ -164,7 +144,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 10px;
-  color: var(--gris);
+  color: var(--gryd-muted);
   text-decoration: none;
   font-size: 13.5px;
   line-height: 1.5;
@@ -172,13 +152,13 @@
 }
 
 .tocLink:hover {
-  color: var(--blanc);
+  color: var(--gryd-ink);
 }
 
 .tocNum {
-  font-family: var(--mono);
+  font-family: var(--gryd-mono);
   font-size: 11px;
-  color: var(--ch);
+  color: var(--gryd-accent);
   min-width: 1.6em;
 }
 
@@ -189,16 +169,17 @@
 }
 
 .sectionNum {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--gryd-mono);
+  font-size: var(--t-kicker);
+  font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--gris);
+  color: var(--gryd-accent);
   margin-bottom: 10px;
 }
 
 .sectionTitle {
-  font-family: var(--disp);
+  font-family: var(--gryd-display);
   font-weight: 500;
   font-size: clamp(20px, 3vw, 26px);
   line-height: 1.14;
@@ -206,7 +187,7 @@
 }
 
 .body {
-  color: var(--gris);
+  color: var(--gryd-muted);
   font-size: 15px;
   line-height: 1.68;
   margin-top: 14px;
@@ -217,18 +198,18 @@
 }
 
 .body b {
-  color: var(--blanc);
+  color: var(--gryd-ink);
   font-weight: 600;
 }
 
 .body a {
-  color: var(--blanc);
+  color: var(--gryd-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .body a:hover {
-  color: var(--ch);
+  color: var(--gryd-accent);
 }
 
 /* Charte : chartreuse interdite sur fond clair — ce lien reste sur fond sombre,
@@ -247,7 +228,7 @@
 .item {
   position: relative;
   padding-left: 20px;
-  color: var(--gris);
+  color: var(--gryd-muted);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -260,11 +241,11 @@
   width: 6px;
   height: 6px;
   border-radius: 2px;
-  background: var(--ch);
+  background: var(--gryd-accent);
 }
 
 .item b {
-  color: var(--blanc);
+  color: var(--gryd-ink);
   font-weight: 600;
 }
 
@@ -272,8 +253,8 @@
 .tableWrap {
   margin-top: 16px;
   overflow-x: auto;
-  border: 1px solid var(--ligne);
-  border-radius: var(--radius-card);
+  border: 1px solid var(--gryd-hairline);
+  border-radius: var(--r-card);
 }
 
 .table {
@@ -287,27 +268,27 @@
 .table td {
   text-align: left;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--ligne);
+  border-bottom: 1px solid var(--gryd-hairline);
   vertical-align: top;
   line-height: 1.5;
 }
 
 .table th {
-  font-family: var(--mono);
+  font-family: var(--gryd-mono);
   font-size: 10.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--gris);
+  color: var(--gryd-muted);
   font-weight: 400;
-  background: color-mix(in srgb, var(--carbone) 60%, transparent);
+  background: color-mix(in srgb, var(--gryd-surface) 60%, transparent);
 }
 
 .table td {
-  color: var(--gris);
+  color: var(--gryd-muted);
 }
 
 .table td b {
-  color: var(--blanc);
+  color: var(--gryd-ink);
   font-weight: 600;
 }
 
@@ -321,11 +302,11 @@
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  background: color-mix(in srgb, var(--carbone) 60%, transparent);
-  border: 1px solid var(--ligne);
-  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--gryd-surface) 60%, transparent);
+  border: 1px solid var(--gryd-hairline);
+  border-radius: var(--r-card);
   padding: 14px 18px;
-  color: var(--gris);
+  color: var(--gryd-muted);
   font-size: 13.5px;
   line-height: 1.6;
 }
@@ -333,32 +314,11 @@
 .note svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: var(--gris);
+  color: var(--gryd-muted);
 }
 
 .note b {
-  color: var(--blanc);
+  color: var(--gryd-ink);
   font-weight: 600;
 }
 
-/* ── Pied de page légal ──────────────────────────────────────────────────── */
-.legalFoot {
-  margin-top: 56px;
-  padding-top: 24px;
-  border-top: 1px solid var(--ligne);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
-  color: var(--gris);
-  font-size: 12.5px;
-}
-
-.legalFoot a {
-  color: var(--gris);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.legalFoot a:hover {
-  color: var(--blanc);
-}

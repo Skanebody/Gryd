@@ -88,12 +88,22 @@
   /* Cible tactile minimale (charte : 44 points). */
   --tap: 44px;
 
-  /* ─── ALIAS DE COMPATIBILITÉ ──────────────────────────────────────────────
-     Les pages que ce lot NE TOUCHE PAS (les quatre pages légales, /abonnement/,
-     /admin/) lisent encore les variables de l'ancien site. Les supprimer les
-     rendrait illisibles avant que le lot pages ne les reprenne : elles sont donc
-     redirigées sur les jetons ci-dessus. Ce bloc a vocation à disparaître quand
-     le lot W3 aura repris ces pages, et rien de neuf ne doit s'en servir. */
+  /* ─── ALIAS DE COMPATIBILITÉ, CE QU'IL EN RESTE (lot W3, 12/09/2026) ───────
+     Ce bloc existait pour les pages que le lot W2 n'avait pas reprises : les
+     quatre pages légales, /abonnement/ et /admin/. Le lot W3 a repris les
+     légales (elles lisent désormais les jetons `--gryd-*`) et remplacé
+     /abonnement/ par une redirection. Les onze alias qui ne servaient plus qu'à
+     elles ont été SUPPRIMÉS : `--eau`, `--ennemi*`, `--rival*`, `--or*`,
+     `--txt`, `--serif` — des couleurs « de conflit » d'un jeu qui n'existe plus.
+
+     Les quatorze qui restent ont DEUX consommateurs, et aucun des deux
+     n'appartenait au lot W3 :
+       · `/admin/`   — l'outil du fondateur, volontairement laissé tel quel, et
+                       exclu du site public par le script de déploiement ;
+       · `/callback/`— l'arrivée du lien de connexion, neuve du 12/09 et couverte
+                       par ses propres tests : on ne la repeint pas en passant.
+     Le jour où ces deux surfaces passent aux jetons, ce bloc disparaît entier.
+     Rien de neuf ne doit s'en servir. */
   --fond: var(--gryd-carbon);
   --noir: var(--gryd-carbon);
   --carbone: var(--gryd-surface);
@@ -104,18 +114,7 @@
   --ch: var(--gryd-accent);
   --ch14: var(--gryd-accent-soft);
   --ch40: var(--gryd-accent-line);
-  --eau: var(--gryd-surface);
-  --ennemi: var(--gryd-ink);
-  --ennemi-14: var(--gryd-hairline-soft);
-  --ennemi-40: var(--gryd-hairline-soft);
-  --rival: var(--gryd-muted);
-  --rival-14: var(--gryd-hairline-soft);
-  --rival-40: var(--gryd-hairline-soft);
-  --or: var(--gryd-ink);
-  --or-14: var(--gryd-hairline-soft);
   --disp: var(--gryd-display);
-  --txt: var(--gryd-text);
-  --serif: Georgia, 'Times New Roman', serif;
   --mono: var(--gryd-mono);
   --radius-card: var(--r-card);
   --radius-pill: var(--r-pill);
