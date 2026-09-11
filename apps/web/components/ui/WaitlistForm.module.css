@@ -26,10 +26,17 @@
   color: var(--gryd-muted);
 }
 
+/* La LIMITE du champ, et pourquoi elle n'est pas un filet de décor.
+   Verdict `ux-gate` du 12/09 : le filet était `--gryd-surface-high` (#292929)
+   sur du carbone, soit 1,36:1, quand WCAG 2.1 SC 1.4.11 exige 3:1 pour la
+   limite d'un composant d'interface. Le seul formulaire du site n'était donc
+   identifiable que par son libellé. `--gryd-muted` (#A3A3A3) tient 7,8:1 : le
+   champ SE VOIT, sans devenir pour autant une action (le chartreuse, lui, reste
+   au bouton). */
 .input {
   min-height: 50px;
   padding: 0 var(--s-4);
-  border: 1px solid var(--gryd-surface-high);
+  border: 1px solid var(--gryd-muted);
   border-radius: var(--r-small);
   background: var(--gryd-surface);
   color: var(--gryd-ink);

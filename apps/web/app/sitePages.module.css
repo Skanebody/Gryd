@@ -180,6 +180,28 @@
   max-width: 46rem;
 }
 
+/* ── UNE RANGÉE DENSE DE CHIFFRES (L12) ─────────────────────────────────────
+   Verdict `ux-gate` du 12/09 : au chapitre « Le crew », SEPT valeurs de même
+   taille, toutes plus grosses que le titre du chapitre, dans une seule hauteur
+   d'écran. « Un chiffre héros par écran » : quand il y en a sept, il n'y en a
+   aucun, et l'œil n'a plus de point d'entrée.
+
+   La rangée ne change pas de composant : elle redéfinit `--t-stat` pour ses
+   enfants, sous `--t-h2`. Le titre reprend la tête, les faits redeviennent des
+   faits. Trois valeurs ou moins gardent la taille pleine : là, le chiffre EST
+   le sujet. */
+.denseFacts {
+  --t-stat: clamp(1.375rem, 1.15rem + 0.9vw, 1.75rem);
+}
+
+/* ── Une planche du guide ────────────────────────────────────────────────────
+   Bornée : le dessin est en 320 × 180, l'étirer sur 1 056 px le rendrait flou
+   de sens autant que de trait. */
+.diagram {
+  max-width: 480px;
+  margin-bottom: var(--s-6);
+}
+
 /* ── Une photographie posée dans une section ────────────────────────────── */
 .media {
   margin-top: var(--s-8);

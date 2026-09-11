@@ -25,6 +25,15 @@
  */
 import { SITE_FACTS, type SiteStat, stat } from './facts2026';
 
+/**
+ * Les planches disponibles. Écrites ICI et pas importées de
+ * `components/ui/Diagram` : ce module est lu par DENO (`npm run test:web`), et
+ * importer un composant y tirerait ses `*.module.css`, que Deno ne sait pas
+ * résoudre. La sécurité de type ne se perd pas pour autant — la page passe cette
+ * valeur à `<Diagram kind={…} />`, donc `tsc` refuse toute planche inexistante.
+ */
+export type GuideDiagram = 'trace' | 'closure' | 'territory';
+
 export interface GuideChapter {
   /** L'ancre publique, sans dièse. Identique à `HELP_CHAPTER_IDS` de l'app. */
   readonly id: string;
@@ -32,6 +41,15 @@ export interface GuideChapter {
   readonly index: string;
   readonly title: string;
   readonly body: string;
+  /**
+   * La planche du chapitre. Ce sont EXACTEMENT les trois dessins du guide de
+   * l'application (`helpArt2026.ts`, mêmes coordonnées) : `trace` pour
+   * « bouger », `closure` pour « boucle » (l'app l'appelle `loop`), `territory`
+   * pour « terrain ». Les quatre chapitres suivants n'en ont pas sur le web :
+   * le système de design n'en porte que trois, et en inventer une quatrième
+   * serait dessiner un écran que personne n'a recetté.
+   */
+  readonly diagram?: GuideDiagram;
   /** Les faits du chapitre, chacun avec la constante dont il sort. */
   readonly facts?: readonly SiteStat[];
   /** La note de bas de chapitre : ce que le chapitre refuse de laisser croire. */
@@ -60,6 +78,7 @@ export const GUIDE_COPY = {
       id: 'bouger',
       index: '01',
       title: 'Tu cours ou tu roules',
+      diagram: 'trace',
       body: 'Choisis ton sport : course à pied ou vélo. Puis appuie sur GO. Le GPS suit ton trajet pendant toute la sortie. Ce trajet, c’est ta trace. À la fin, ta trace rejoint ton journal avec sa distance et sa durée.',
       note: 'Une sortie sans boucle compte quand même. Tu ne perds rien.',
     },
@@ -67,6 +86,7 @@ export const GUIDE_COPY = {
       id: 'boucle',
       index: '02',
       title: 'Tu fermes une boucle',
+      diagram: 'closure',
       body: 'Fermer une boucle, c’est revenir près d’un endroit où tu es déjà passé. Pas besoin de viser juste : une tolérance existe, parce que le GPS bouge un peu. La boucle doit aussi être assez longue. Sinon, tourner autour d’un rond-point suffirait.',
       facts: [
         stat(SITE_FACTS.closureRun, 'd’écart de fermeture, à pied'),
@@ -81,6 +101,7 @@ export const GUIDE_COPY = {
       id: 'terrain',
       index: '03',
       title: 'La boucle devient ton terrain',
+      diagram: 'territory',
       body: 'L’intérieur de ta boucle devient ton terrain sur la carte de ce sport. Tu gagnes seulement la part que tu n’avais pas déjà : deux boucles au même endroit ne comptent pas double. Une boucle plus récente peut reprendre ce terrain ; ta sortie, elle, reste dans ton journal. Course et vélo ont deux cartes séparées.',
       facts: [
         stat(SITE_FACTS.minAreaRun, 'de surface minimale, à pied'),

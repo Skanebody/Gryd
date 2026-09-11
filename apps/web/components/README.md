@@ -270,3 +270,10 @@ servir.
 **Pour ajouter une neuvième page**, la marche de §4 ne change pas ; il s'y ajoute deux gestes :
 écrire sa copie dans `lib/<page>Copy2026.ts`, et l'inscrire dans `SITE_PAGES`
 (`lib/siteCopy2026.ts`) **et** dans `public/sitemap.xml`. Le test refuse l'un sans l'autre.
+
+⚠️ **Un module de `lib/` n'importe JAMAIS de `components/ui/`**, pas même un type. `npm run
+test:web` lit tout `apps/web/lib` avec Deno ; un import de composant y tire ses `*.module.css`,
+que Deno ne sait pas résoudre, et TOUS les tests du site tombent d'un coup sur un message qui
+parle de CSS. Quand une copie a besoin du type d'un composant (la planche d'un chapitre, par
+exemple), elle redéclare l'union en place : `tsc` la revérifie de toute façon au moment où la
+PAGE passe la valeur au composant.

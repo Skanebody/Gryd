@@ -23,7 +23,17 @@
  * `outline`.
  */
 import type { Metadata } from 'next';
-import { Callout, CtaButton, Hero, Section, SiteFooter, SiteHeader, Stat, StatRow } from '../../components/ui';
+import {
+  Callout,
+  CtaButton,
+  Diagram,
+  Hero,
+  Section,
+  SiteFooter,
+  SiteHeader,
+  Stat,
+  StatRow,
+} from '../../components/ui';
 import { GUIDE_COPY } from '../../lib/guideCopy2026';
 import { SITE_PHOTOS } from '../../lib/photos2026';
 import { SITE_ORIGIN } from '../../lib/site2026';
@@ -70,12 +80,26 @@ export default function CommentCaMarchePage() {
             title={chapter.title}
             lead={chapter.body}
           >
+            {/* La planche du chapitre : le MÊME dessin que le guide de
+                l'application, pas une interprétation. Trois chapitres en ont
+                une ; les quatre autres n'en ont pas, et rien n'est inventé pour
+                combler le vide. */}
+            {chapter.diagram ? (
+              <div className={styles.diagram}>
+                <Diagram kind={chapter.diagram} />
+              </div>
+            ) : null}
+
+            {/* Au delà de trois chiffres, la rangée passe en dense : le titre du
+                chapitre doit rester le sujet de l'écran (L12). */}
             {chapter.facts ? (
-              <StatRow>
-                {chapter.facts.map((item) => (
-                  <Stat key={item.rule} value={item.value} label={item.label} rule={item.rule} />
-                ))}
-              </StatRow>
+              <div className={chapter.facts.length > 3 ? styles.denseFacts : undefined}>
+                <StatRow>
+                  {chapter.facts.map((item) => (
+                    <Stat key={item.rule} value={item.value} label={item.label} rule={item.rule} />
+                  ))}
+                </StatRow>
+              </div>
             ) : null}
 
             {/* La note du chapitre : ce que le chapitre refuse de laisser croire.

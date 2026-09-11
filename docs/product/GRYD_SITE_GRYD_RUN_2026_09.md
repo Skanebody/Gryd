@@ -351,3 +351,39 @@ de plus : la règle du cahier §3.10.
 **Non vérifié ici** : le rendu en ligne (rien n'est déployé), le comportement réel d'iOS sur les
 liens universels (il exige un build qui embarque l'entitlement), et l'envoi d'un e-mail aux
 inscrits de la liste d'attente (décision n° 4 du cahier de contenu, toujours ouverte).
+
+### Le verdict `ux-gate`, et ce qu'il a changé
+
+Passé sur les dix-sept écrans, aux deux largeurs. **Quatre réserves corrigées** :
+
+| Réserve | Loi | Correctif |
+|---|---|---|
+| `/comment-ca-marche/` : sept chiffres de même taille, tous plus gros que le titre du chapitre | **L12**, « un chiffre héros par écran » | Au delà de trois faits, la rangée redéfinit `--t-stat` sous `--t-h2` (`.denseFacts`). Le titre reprend la tête. |
+| `/telecharger/` : la limite des deux champs tenait 1,36:1 contre 3:1 exigés | **L15** (WCAG 2.1 SC 1.4.11) | Le filet passe à `--gryd-muted`, 7,8:1. Le seul formulaire du site se voit enfin autrement que par son libellé. |
+| `404.html` : « L'accueil » et l'action collante de l'en-tête avaient le même poids | **L2** | « L'accueil » devient l'action principale : c'est la seule qu'on veuille vraiment depuis une adresse qui n'existe pas. |
+| `/confidentialite/` à 375 px : le tableau RGPD est coupé à 48 %, sans rien pour le dire | « rien de tronqué » | Deux dégradés attachés au CONTENU (`background-attachment: local`) : ils n'apparaissent que du côté où il reste à lire, et disparaissent au bout. |
+
+**Cinq réserves laissées ouvertes, et pourquoi** :
+
+1. **« au 12 septembre 2026 »** sur `/telecharger/` date l'état réel d'un jour qui n'est pas
+   encore passé selon l'horloge de la machine (11/09). La phrase est celle du cahier de contenu
+   §3.8, mot pour mot, et tout le lot W1/W2/W3 est daté du 12/09. **Arbitrage fondateur**, pas
+   une correction de mise en page.
+2. **`/c/`, `/r/`, `/u/` : « Ouvrir Gryd » est chartreuse même sur un écran de bureau**, où
+   `gryd://` ne peut pas résoudre. L'ordre et les libellés viennent du cahier §3.9. Corriger
+   demanderait de déduire la plateforme, donc de renifler l'agent utilisateur : à trancher, pas
+   à improviser.
+3. **`/` : « Télécharger » apparaît deux fois au même poids** (en-tête collant + action
+   secondaire du héros). L'accueil appartient au lot W2 ; le défaut est réel et se corrige en un
+   mot.
+4. **L18, textes en dur** : `SiteHeader`, `SiteFooter` et `Diagram` portent des chaînes
+   françaises écrites dans le composant. Le site est **français seul en v1** (cahier §4.1) et
+   l'anglais est un lot à part : le point reste ouvert, il n'est pas ignoré.
+5. **Pas de désinscription de la liste d'attente sur l'écran qui la remplit** (L17). C'est la
+   décision n° 4 du cahier, déjà ouverte : si personne n'écrit aux inscrits, le formulaire doit
+   disparaître ; s'il reste, il lui faut une sortie.
+
+Le gate a aussi relevé une faute de **procédure** : une capture pleine hauteur d'un document de
+12 000 px ne prouve aucune lisibilité. Des recadrages à hauteur d'écran (375 × 812 et
+1280 × 900) ont été produits pour les cinq pages concernées, et c'est sur eux que les quatre
+correctifs ci-dessus ont été jugés.

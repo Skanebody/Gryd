@@ -139,7 +139,12 @@ export default function NotFound() {
           <h1 className={styles.landingTitle}>{NOT_FOUND_COPY.title}</h1>
           <p className={styles.prose}>{NOT_FOUND_COPY.body}</p>
           <div className={styles.landingActions}>
-            <CtaButton href={NOT_FOUND_COPY.home.href} variant="outline">
+            {/* L'accueil est l'action PRINCIPALE d'une 404 : c'est la seule
+                chose qu'on veuille vraiment faire depuis une adresse qui
+                n'existe pas. En contour, elle avait le poids exact de l'action
+                collante de l'en-tête, et deux actions de même poids n'en font
+                aucune (L2, verdict `ux-gate` du 12/09). */}
+            <CtaButton href={NOT_FOUND_COPY.home.href} variant="primary">
               {NOT_FOUND_COPY.home.label}
             </CtaButton>
             <CtaButton href={NOT_FOUND_COPY.download.href} variant="link">
