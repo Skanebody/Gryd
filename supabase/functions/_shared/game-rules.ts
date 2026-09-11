@@ -6771,6 +6771,24 @@ export const NOTIFICATION_EVENTS_2026 = {
     category: 'results', transactional: true, priority: 1, emoji: '⛔',
     family: 'result', eventIdPrefix: 'result_refused:', deepLink: '/course/{runId}',
   },
+  /**
+   * « SPORT SEULEMENT » (0197) — le joueur a vu à l'arrivée que sa trace
+   * racontait une autre discipline, et a choisi de garder la sienne.
+   *
+   * TRANSACTIONNELLE : c'est l'état d'une chose qu'il vient de faire, pas une
+   * relance. Sans ce message, quelqu'un qui a répondu « garder » sur un écran,
+   * en sueur, ne reverrait la conséquence qu'en rouvrant son journal par
+   * hasard — et la découvrirait comme une sanction.
+   *
+   * ⚠️ N'EST PAS `result_refused`. Rien n'a été refusé : une question a été
+   * posée, une réponse a été donnée, et la sortie est enregistrée. L'emoji est
+   * celui de l'avertissement du catalogue de crew, et il dit la même chose :
+   * « regarde ça ». Un emoji neuf n'ajouterait qu'un signe à apprendre.
+   */
+  run_sport_only: {
+    category: 'results', transactional: true, priority: 2, emoji: '⚠️',
+    family: 'result', eventIdPrefix: 'run_sport_only:', deepLink: '/course/{runId}',
+  },
 
   // ── Récompenses : un objet, jamais un avantage (ADR-013 §4) ───────────────
   /** Défi personnel de la semaine accompli (0165-0168). */

@@ -180,6 +180,25 @@ export const FAITS = {
       es: 'No toma terreno.', de: 'Sie nimmt kein Gebiet.', pt: 'Ela não toma terreno.',
     },
   },
+  /**
+   * « SPORT SEULEMENT » (0197). Le titre dit le CHOIX (« gardée »), pas une
+   * sanction ; le corps dit les deux moitiés de la conséquence dans l'ordre qui
+   * rassure d'abord : ce qui compte, puis ce qui ne compte pas.
+   */
+  run_sport_only: {
+    titre: {
+      fr: 'Sortie gardée en l’état', en: 'Outing kept as declared',
+      es: 'Salida mantenida tal cual', de: 'Aktivität so behalten',
+      pt: 'Atividade mantida assim',
+    },
+    corps: {
+      fr: 'Elle compte pour toi, pas pour le terrain.',
+      en: 'It counts for you, not for ground.',
+      es: 'Cuenta para ti, no para el terreno.',
+      de: 'Sie zählt für dich, nicht für Gebiet.',
+      pt: 'Conta para você, não para terreno.',
+    },
+  },
   weekly_quest_done: {
     titre: {
       fr: 'Défi de la semaine accompli', en: 'Weekly challenge done',

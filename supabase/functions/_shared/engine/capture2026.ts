@@ -98,6 +98,12 @@ export const CAPTURE_SERVER_REASONS_2026 = [
   // Transitoire, et nommé pour ça : la géométrie n'a pas pu être traitée à
   // cette tentative. L'activité est sauvée ; le terrain sera repris au renvoi.
   'result_pending',
+  // 0197 — « SPORT SEULEMENT ». Le seul motif de cette liste qui ne soit ni une
+  // panne, ni une confidentialité, ni un soupçon : c'est une RÉPONSE. À
+  // l'arrivée, la trace racontait une autre discipline, l'écran l'a dit avec
+  // les chiffres mesurés, et le joueur a choisi de garder la sienne. La sortie
+  // compte pour son sport et pour rien du terrain.
+  'discipline_mismatch_kept',
 ] as const;
 export type CaptureServerReason2026 = typeof CAPTURE_SERVER_REASONS_2026[number];
 export type CaptureReason2026 = CaptureRejectCode2026 | CaptureServerReason2026;

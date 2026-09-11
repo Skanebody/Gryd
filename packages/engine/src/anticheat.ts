@@ -385,6 +385,30 @@ export interface AntiCheatInput {
    * indisponible ; `[]` ⇒ signal disponible et négatif (aucun antécédent).
    */
   readonly priorTraceFingerprints?: readonly string[];
+  /**
+   * LE JOUEUR A DÉJÀ RÉPONDU SUR LA DISCIPLINE, À L'ARRIVÉE (12/09/2026).
+   *
+   * ─── POURQUOI UN SIGNAL PEUT S'ÉTEINDRE, ET CE N'EST PAS L'IGNORER ────────
+   * `discipline_mismatch` existe pour attraper une discipline erronée que
+   * PERSONNE n'a déclarée. Quand l'écran de fin a posé la question avec les
+   * chiffres et que le joueur a choisi de garder sa discipline, il n'y a plus
+   * rien à démasquer : la sortie est marquée « sport seulement » et ne prend
+   * AUCUN terrain, AUCUN point de classement, AUCUN avancement de défi ni de
+   * quête (migration 0197). Le motif est donc réglé, à un prix que le joueur
+   * connaissait avant de répondre.
+   *
+   * ─── CE QUE LAISSER LE SIGNAL AURAIT COÛTÉ, CONCRÈTEMENT ─────────────────
+   * Une revue humaine convoquée sur un cas déjà tranché, et surtout une
+   * évidence de progression marquée `review` : la sortie aurait perdu son XP —
+   * c'est-à-dire exactement la chose que la décision fondateur lui garde.
+   *
+   * N'ÉTEINT QUE CE SIGNAL. La position simulée, la trace dupliquée, la vitesse
+   * soutenue, les horodatages futurs continuent de peser. Répondre « garder »
+   * n'achète aucune impunité : ça règle une question, pas toutes.
+   *
+   * Absent ⇒ comportement d'avant ce lot, à la ligne près.
+   */
+  readonly disciplineAnswered?: boolean;
 }
 
 /** §11.3 — les quatre décisions, telles que la spec les nomme. */
@@ -824,7 +848,14 @@ export function scoreRun(input: AntiCheatInput): AntiCheatReport {
     wholeRunStepWindow2026(points, input.stepCount),
     activity,
   );
-  if (activity !== 'run') {
+  if (input.disciplineAnswered === true) {
+    signals.push(
+      NA(
+        'discipline_mismatch',
+        'Le joueur a vu les chiffres à l’arrivée et a choisi de garder sa discipline : la sortie ne prend aucun terrain, le motif est RÉGLÉ — pas ignoré.',
+      ),
+    );
+  } else if (activity !== 'run') {
     signals.push(
       NA(
         'discipline_mismatch',

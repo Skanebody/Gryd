@@ -256,7 +256,13 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
     // 400. On ne replie jamais un « scooter » sur « run » — ce serait décider à
     // la place du joueur puis lui rendre le résultat comme le sien.
     (b.activity === undefined || isActivityShape(b.activity)) &&
-    (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode)));
+    (b.runMode === undefined || (typeof b.runMode === 'string' && RUN_MODES.has(b.runMode as RunMode))) &&
+    // ── LA RÉPONSE DU JOUEUR SUR SA DISCIPLINE (12/09/2026) ─────────────────
+    // Absents = aucune question n'a été posée à l'arrivée, et rien ne change.
+    // Une forme invalide est un 400, jamais un repli : « scooter » ne devient
+    // pas « run », et un `disciplineMismatchKept: 'oui'` ne devient pas `true`.
+    (b.disciplineSwitchedFrom === undefined || isActivityShape(b.disciplineSwitchedFrom)) &&
+    (b.disciplineMismatchKept === undefined || typeof b.disciplineMismatchKept === 'boolean');
 }
 
 interface UserProfile {

@@ -220,6 +220,18 @@ try {
   await db.exec(readFileSync(join(MIGRATIONS, '0192_notification_inbox_2026.sql'), 'utf8'));
   await db.exec(`delete from public.notification_log_2026;`);
 
+  // ─── 0197 : LA LIGNÉE, ET NON UNE RÉÉCRITURE (12/09/2026) ────────────────
+  // 0197 ajoute le fait `run_sport_only` au catalogue par un `create or
+  // replace`. Sans cette ligne, le miroir ci-dessous comparerait le catalogue
+  // TypeScript d'AUJOURD'HUI à la base de 0192 et rougirait pour une raison qui
+  // n'est pas un défaut — c'est exactement ce qui est arrivé le jour où le fait
+  // a été ajouté. Seule la fonction de CATALOGUE est rejouée ici : le reste de
+  // 0197 (la colonne de `runs`, les gardes d'admission, le producteur) a son
+  // propre fichier, `sport_only_runs_2026.pglite.test.mjs`.
+  await db.exec(slice('0197_sport_only_runs_2026.sql',
+    'create or replace function public.notification_kinds_2026()',
+    'create function public.notify_run_sport_only_2026()'));
+
   console.log('\n── LE CATALOGUE ──');
 
   await t('le catalogue SQL est le miroir EXACT de NOTIFICATION_EVENTS_2026', async () => {

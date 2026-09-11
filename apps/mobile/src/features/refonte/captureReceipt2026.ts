@@ -89,6 +89,8 @@ const KNOWN_CAPTURE_REASONS_2026: readonly string[] = [
   'protected_place', 'consent_withdrawn', 'gps_quality_unconfirmed', 'loop_too_small',
   'closure_crosses_known_barrier', 'source_or_clock_unconfirmed', 'verification_required',
   'no_admissible_loop',
+  // 0197 — « sport seulement » : le joueur a répondu à l'arrivée.
+  'discipline_mismatch_kept',
 ];
 
 /** Describes only a server reason. No closed-loop verdict is guessed from the preview. */
@@ -102,6 +104,13 @@ export function captureExplanation2026(receipt: CaptureReceipt2026 | undefined, 
   const known = receipt.reason === undefined || KNOWN_CAPTURE_REASONS_2026.includes(receipt.reason);
   if (known) {
   if (receipt.status === 'scheduled') return { title: t('Boucle validée · publication différée', 'Loop validated · delayed publication'), body: t('Ton terrain partagé changera après le délai de confidentialité. Aucun gain n’est encore annoncé.', 'Shared terrain changes after the privacy delay. No gain is confirmed yet.') };
+  // ── SPORT SEULEMENT : UN CHOIX, ET SURTOUT PAS UN REFUS (0197) ─────────
+  // Placé AVANT tous les autres motifs, comme dans `stage_capture_2026`. Le
+  // titre ne contient ni « refus », ni « vérification », ni « insuffisant » :
+  // rien n'a manqué et rien n'est soupçonné, une question a été posée avec des
+  // chiffres et une réponse a été donnée. Le corps redit le marché tel qu'il a
+  // été présenté au moment du choix, pour que personne ne le redécouvre ici.
+  if (receipt.reason === 'discipline_mismatch_kept') return { title: t('Sport seulement', 'Sport only'), body: t('Tu as gardé ta discipline à l’arrivée. Cette sortie compte pour ton journal, tes kilomètres, tes jours actifs et ton XP, et pour rien du terrain.', 'You kept your sport at the finish. This outing counts for your journal, your kilometres, your active days and your XP, and for no ground.') };
   if (receipt.reason === 'protected_place') return { title: t('Boucle gardée privée', 'Loop kept private'), body: t('Elle touche une zone personnelle protégée. Aucun terrain partagé n’est modifié.', 'It touches a personal protected place. Shared terrain is unchanged.') };
   if (receipt.reason === 'consent_withdrawn') return { title: t('Participation retirée', 'Participation withdrawn'), body: t('Cette sortie ne participe plus à la carte partagée. Elle reste dans ton journal.', 'This activity no longer participates in shared terrain. It stays in your journal.') };
   if (receipt.status === 'private') return { title: t('Sortie privée', 'Private activity'), body: t('La participation à la carte partagée n’est pas autorisée pour cette sortie.', 'Shared terrain participation is not authorised for this activity.') };

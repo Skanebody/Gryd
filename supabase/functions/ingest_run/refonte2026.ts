@@ -129,7 +129,17 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
     request.points.some(p => !Number.isFinite(p.lat) || Math.abs(p.lat) > 90 || !Number.isFinite(p.lng) || Math.abs(p.lng) > 180 ||
       !Number.isFinite(p.t) || Math.abs(p.t) > 8.64e15 || (p.acc !== undefined && (!Number.isFinite(p.acc) || p.acc < 0))) ||
     (request.recordingSessionId !== undefined && !uuid.test(request.recordingSessionId)) ||
-    (request.sharedMapParticipation !== undefined && typeof request.sharedMapParticipation !== 'boolean')) return json({ error: 'invalid_payload' }, 400);
+    (request.sharedMapParticipation !== undefined && typeof request.sharedMapParticipation !== 'boolean') ||
+    // ── LA RÉPONSE DU JOUEUR SUR SA DISCIPLINE (12/09/2026) ──────────────────
+    // Deux champs, rétro-compatibles : ABSENTS = aucune question n'a été posée,
+    // et tout ce qui suit se comporte exactement comme avant ce lot. Une forme
+    // INVALIDE est un 400 et non un repli : replier « scooter » sur « garder »
+    // reviendrait à décider à la place de quelqu'un puis à lui rendre le
+    // résultat comme le sien.
+    (request.disciplineSwitchedFrom !== undefined &&
+      request.disciplineSwitchedFrom !== 'run' && request.disciplineSwitchedFrom !== 'bike') ||
+    (request.disciplineMismatchKept !== undefined &&
+      typeof request.disciplineMismatchKept !== 'boolean')) return json({ error: 'invalid_payload' }, 400);
   const activity = request.activity ?? 'run';
   let runId: string | null = null;
   try {
@@ -181,6 +191,15 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
           ? Math.max(0, Math.round(request.stepCount))
           : null,
         mocked_location_2026: typeof request.mockedLocation === 'boolean' ? request.mockedLocation : null,
+        // ── « SPORT SEULEMENT » : LA RÉPONSE DU JOUEUR, SCELLÉE (0197) ──────
+        // Scellée ICI comme les signaux de capteur, et jamais relue de la
+        // requête ensuite : un renvoi du même `clientRunId` ne doit pas pouvoir
+        // changer ce que la sortie vaut. `null` quand la question n'a pas été
+        // posée — ce n'est pas « il a basculé », c'est « il n'y avait rien à
+        // demander ».
+        sport_only_reason_2026: request.disciplineMismatchKept === true
+          ? 'discipline_mismatch_kept'
+          : null,
         shared_map_consent_2026: request.sharedMapParticipation === true && request.runMode !== 'course_privee',
       }, { onConflict: 'user_id,client_run_id', ignoreDuplicates: true }).select('*').maybeSingle();
       check(saved.error, 'durable activity');
@@ -234,9 +253,42 @@ export async function ingestRefonte2026(db: SupabaseClient, userId: string, body
     //
     // Les entrées viennent de la LIGNE `runs`, pas de la requête : un renvoi ne
     // peut pas changer la décision (cf. le scellement à l'upsert).
+    //
+    // ── §18.4 bis — LE CONTRÔLE DE DISCIPLINE, RECALCULÉ SERVEUR (0197) ─────
+    // `scoreRun` appelle `checkDeclaredDiscipline2026`, la MÊME fonction que
+    // l'écran de fin. Trois cas, et chacun est voulu :
+    //
+    //  1. LE CLIENT A BASCULÉ. `run.activity` est déjà la NOUVELLE discipline
+    //     (elle vient de la requête et est scellée à l'upsert), donc tout ce
+    //     qui suit — `analyzeTrace2026`, les bornes §3.2, `scoreRun`,
+    //     `TERRITORY_RULES_2026[activity].minAreaM2` — la juge avec SES propres
+    //     seuils. Basculer ne dispense de rien : ça change le barème, pas le
+    //     juge. Une trace de course déclarée « vélo » devra tenir la distance
+    //     et la surface minimales du vélo, plus grandes.
+    //
+    //  2. LE CLIENT A GARDÉ. `disciplineAnswered` ÉTEINT le seul signal
+    //     `discipline_mismatch` : la question a été posée avec les chiffres, la
+    //     réponse a été donnée, et son prix est déjà prélevé par 0197 (aucun
+    //     terrain, aucun classement, aucun défi, aucune quête). Convoquer en
+    //     plus une revue humaine marquerait l'évidence de progression en
+    //     `review` et coûterait à la sortie son XP — exactement ce que la
+    //     décision fondateur lui garde. Tous les AUTRES signaux pèsent toujours.
+    //
+    //  3. LE CLIENT N'A RIEN DIT. Comportement d'avant ce lot, à la ligne près :
+    //     si le serveur voit le motif, la sortie part en revue. C'est
+    //     NÉCESSAIRE, parce que le silence du client ne prouve rien — un
+    //     appareil sans podomètre (tout navigateur, tout simulateur, une
+    //     permission « Mouvement et forme » refusée) ne PEUT PAS poser la
+    //     question, et une app modifiée pourrait choisir de ne pas la poser.
+    //     Le serveur, lui, n'a qu'un CUMUL de pas : il est plus indulgent que
+    //     l'écran (cf. `wholeRunStepWindow2026`) et n'attrape que les cas nets.
+    //
+    // Les entrées viennent de la LIGNE, jamais de la requête : le déterminisme
+    // du moteur exige des entrées scellées.
     const antiCheat = scoreRun({ points:sourceVerified?anchoredPoints:points, activity:run.activity, source:run.source, now:Date.parse(run.created_at),
       ...(typeof run.step_count === 'number' ? { stepCount: run.step_count } : {}),
-      ...(typeof run.mocked_location_2026 === 'boolean' ? { mockedLocation: run.mocked_location_2026 } : {}) });
+      ...(typeof run.mocked_location_2026 === 'boolean' ? { mockedLocation: run.mocked_location_2026 } : {}),
+      ...(run.sport_only_reason_2026 ? { disciplineAnswered: true } : {}) });
     // Legacy segment eligibility excludes slow outings from territorial pace
     // bands. It is not a review signal in September's independent sporting XP.
     //
