@@ -22,7 +22,10 @@ import { installFatalErrorGuard } from '../src/ui/fatalErrorGuard';
 installFatalErrorGuard();
 // CAUSE RÉELLE du crash de démarrage iOS (builds 1-3) : le TextDecoder du
 // runtime Expo/Hermes ne connaît pas utf-16le, or h3-js (Emscripten) en crée
-// un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js.
+// un à l'import. Ce polyfill DOIT précéder tout module qui touche h3-js —
+// et ici, c'est TROP TARD depuis le 11/09/2026 : expo-router charge
+// `(tabs)/_layout.tsx` avant ce fichier. Il est posé par `index.js`, avant
+// `expo-router/entry` ; l'import ci-dessous reste (module déjà évalué, inoffensif).
 import '../src/lib/textDecoderUtf16';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, StyleSheet, View } from 'react-native';

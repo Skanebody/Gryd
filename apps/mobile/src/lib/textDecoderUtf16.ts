@@ -17,8 +17,10 @@
  * courtes, la boucle simple suffit) ; TOUT le reste est délégué au décodeur
  * d'origine à l'identique. Aucune dépendance ajoutée.
  *
- * DOIT être importé avant tout module qui touche h3-js → 2ᵉ import de
- * app/_layout.tsx, juste après bootDiagnostics.
+ * DOIT être importé avant tout module qui touche h3-js. Depuis le 11/09/2026 :
+ * dans `index.js`, AVANT `expo-router/entry` (voir l'en-tête de ce fichier) :
+ * expo-router charge `(tabs)/_layout.tsx` avant `app/_layout.tsx`, et ce
+ * layout atteint h3-js ; l'import de `app/_layout.tsx` arrivait trop tard.
  */
 import { Platform } from 'react-native';
 
