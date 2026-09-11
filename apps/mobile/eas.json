@@ -25,6 +25,12 @@
       "env": {
         "GRYD_UNIVERSAL_LINKS": "off"
       }
+    },
+    "preview-sim": {
+      "extends": "preview-nolinks",
+      "ios": {
+        "simulator": true
+      }
     }
   },
   "submit": {
