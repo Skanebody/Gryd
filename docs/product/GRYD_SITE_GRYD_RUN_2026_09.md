@@ -48,8 +48,9 @@ Les quatre pages légales sont liées depuis le pied du site
 l'ancienne landing qui les portait (`app/components/landing/Footer.tsx`) a été supprimé avec
 le reste de la landing morte (lot W3).
 
-⚠️ **Ce tableau décrit ce qui est EN LIGNE.** Les huit pages du lot W3 (§8) sont dans le dépôt
-et passent le gate ; elles ne seront servies qu'au prochain déploiement (lot W4).
+⚠️ **Ce tableau décrit ce qui est EN LIGNE**, et il ne dit pas tout : les huit pages du lot W3
+(§8) sont servies **depuis le 12/09 à 15:21**, par le lot W4 (§10). Ce tableau garde les adresses
+fondatrices ; le §10 porte la liste complète et ses codes.
 
 ---
 
@@ -164,7 +165,7 @@ HTTPS, **sans redirection**, à la racine du domaine (Apple ne le cherche nulle 
   "webcredentials": { "apps": ["NXGNDQBUMB.fr.nexus1993.gryd"] } }
 ```
 
-Les chemins sont le **miroir exact** de `UNIVERSAL_LINK_PATHS` dans
+Les chemins sont le **miroir exact** de `UNIVERSAL_LINK_SEGMENTS` dans
 `apps/mobile/src/lib/links.ts`, et `webcredentials` le miroir de `ios.associatedDomains` dans
 `apps/mobile/app.json` : une divergence casserait la vérification côté Apple.
 
@@ -271,15 +272,21 @@ dans l'`apple-app-site-association`, donc iOS n'a de toute façon aucune redirec
 Le compte GitHub Pages est bien `skanebody`. **Ne pas toucher aux MX, SPF ni DMARC** : ils
 servent la boîte `no-reply@gryd.run` (Infomaniak) et n'ont rien à voir avec Pages.
 
-**État constaté le 12/09/2026 à 12 h 30** : le CNAME `www` est posé et résout bien vers les
-quatre adresses IPv4 de Pages ; l'apex `gryd.run` ne porte que **deux AAAA**
-(`2606:50c0:8000::153`, `2606:50c0:8001::153`) et **aucun A**. Le site répond malgré tout — le
-certificat est émis, le contenu est servi — parce que la résolution tombe sur IPv6.
+**État constaté le 12/09/2026 à 12 h 30** : le CNAME `www` était posé, mais l'apex `gryd.run` ne
+portait que **deux AAAA** et **aucun A** — un réseau sans IPv6 ne trouvait rien du tout.
 
-**Il reste à poser les quatre A sur l'apex.** Ce n'est pas de la redondance de confort : un
-réseau sans IPv6 (beaucoup de réseaux mobiles et d'entreprises) ne trouve aujourd'hui
-**rien du tout** sur `gryd.run`, alors que `www.gryd.run` lui répond. Les deux AAAA restants
-(`8002::153`, `8003::153`) complètent ensuite la redondance.
+**C'est réparé, et vérifié le 12/09 au moment du déploiement du lot W4.** Relevé auprès des
+serveurs faisant autorité (`ns11`/`ns12.infomaniak.ch`), confirmé par `1.1.1.1` et `8.8.8.8` :
+
+| Enregistrement | Valeurs servies |
+|---|---|
+| A `@` | `185.199.108.153`, `109.153`, `110.153`, `111.153` — **les quatre** |
+| AAAA `@` | `2606:50c0:8000::153`, `8001::153`, `8002::153`, `8003::153` — **les quatre** |
+| CNAME `www` | `skanebody.github.io.` |
+
+`curl -4 https://gryd.run/` rend **200** (via `185.199.110.153`) : un réseau sans IPv6 atteint
+désormais le site. `https://www.gryd.run/` rend **301** vers `https://gryd.run/`. Le point DNS
+qui restait ouvert dans la version précédente de ce document est donc **clos**.
 
 ---
 
@@ -359,9 +366,10 @@ build iOS qui embarque l'entitlement, cf. §7) et **la réception d'un vrai e-ma
   `GET /v1/projects/<ref>/config/auth`, elle contient `https://gryd.run/**`, et `site_url` vaut
   `https://gryd.run`. C'est `{{ .SiteURL }}` qui fabrique désormais le lien, donc cette valeur
   compte plus que jamais : la changer déplacerait le lien de tous les e-mails.
-4. ~~**Pages d'atterrissage `/c/*`, `/r/*`, `/u/*`**~~ : **traité par le lot W3** (§8), pas
-   encore déployé. `404.html` fait le routage ; en ligne, ces trois adresses rendent encore le
-   404 tant que le lot W4 n'a pas publié.
+4. ~~**Pages d'atterrissage `/c/*`, `/r/*`, `/u/*`**~~ : **clos**. Bâties par le lot W3 (§8),
+   **publiées par le lot W4** le 12/09 (§10). `404.html` fait le routage : `https://gryd.run/c/TEST`
+   rend l'invitation en ligne. Le statut HTTP reste 404 — c'est la seule forme qu'un export
+   statique sur Pages sache prendre, et ces adresses ne valent que pour une personne précise.
 5. **Le chemin sans clic** (§4) : dépend du gabarit d'e-mail et de `verifyOtp` côté app.
 6. **Le vrai clic dans le vrai courrier.** Que le bouton de l'e-mail ouvre bien cette page, et que
    l'app suive dans la seconde, ne se constate qu'en ouvrant un e-mail réel — **après** la poussée
@@ -373,8 +381,8 @@ build iOS qui embarque l'entitlement, cf. §7) et **la réception d'un vrai e-ma
 
 Lot **W3**, 12/09/2026 : le site refait de zéro à partir de
 `docs/product/GRYD_SITE_CONTENU_2026_09.md` (le contenu fait foi) sur le système de design du
-lot W2 (`apps/web/components/README.md`). **Rien n'est déployé par ce lot** : le déploiement est
-le lot W4.
+lot W2 (`apps/web/components/README.md`). **Rien n'était déployé par ce lot** : le déploiement a
+été fait par le lot W4, le 12/09 à 15:21 (§10).
 
 | Adresse | Sections | Photo | Données structurées | Source |
 |---|---|---|---|---|
@@ -460,3 +468,140 @@ Le gate a aussi relevé une faute de **procédure** : une capture pleine hauteur
 12 000 px ne prouve aucune lisibilité. Des recadrages à hauteur d'écran (375 × 812 et
 1280 × 900) ont été produits pour les cinq pages concernées, et c'est sur eux que les quatre
 correctifs ci-dessus ont été jugés.
+
+---
+
+## 9. QA W4
+
+Recette jouée le 12/09/2026 **avant** le déploiement, puis **rejouée à l'identique en ligne**.
+Le harnais n'est pas dans le dépôt : c'est un instrument de mesure, pas un test de non-régression.
+Ce que le dépôt garde du lot, ce sont les 52 tests de `npm run test:web`, déjà dans le gate.
+
+### Le banc : un serveur qui ment comme GitHub Pages
+
+Servir `apps/web/out` avec un serveur statique ordinaire ne prouve rien : il rend 404 « nu » là où
+Pages rend `404.html`, et c'est précisément ce routage qui fait vivre `/c/*`, `/r/*` et `/u/*`.
+Le banc reproduit donc les quatre règles mesurées sur `gryd.run` : `/chemin/` →
+`<chemin>/index.html`, `/chemin` → 301 vers `/chemin/`, adresse inconnue → `404.html` **avec le
+statut 404**, fichier sans extension → `application/octet-stream`.
+
+### Ce qui a été mesuré, et les nombres
+
+| Vérification | Portée | Résultat |
+|---|---|---|
+| Statut HTTP | 18 écrans × 2 largeurs (375 × 812, 1280 × 900) | 200 partout, **sauf** les quatre écrans servis par `404.html` (`/c/`, `/r/`, `/u/`, adresse inconnue), dont 404 est le statut réel et voulu |
+| Erreurs de console et requêtes en échec | 36 chargements | **zéro** |
+| Débordement horizontal | 36 chargements | **zéro** (`scrollWidth − clientWidth = 0` partout) |
+| `<h1>` visible | 36 chargements | **exactement un** par écran |
+| CTA chartreuse | 36 chargements | **jamais deux dans une même fenêtre**. `/` en porte deux dans le DOCUMENT (« Comment ça marche » à y=374, « Me prévenir » à y=5737 à 375 px) : plus de 5 000 px les séparent, ils ne sont jamais vus ensemble. Le lien d'évitement est chartreuse mais `position: fixed; top: -100px` : il n'est peint qu'au focus clavier |
+| `alt` sur les images | 36 chargements | **zéro image sans `alt`** |
+| `lang` et `meta viewport` | 36 chargements | `lang="fr"` et `width=device-width, initial-scale=1` partout |
+| Liens internes | **22 `href` distincts**, relevés dans les 16 fichiers HTML exportés (pas seulement dans le DOM visité) | **tous 200** |
+| `/abonnement/` | 2 largeurs | `<meta http-equiv="refresh" content="0; url=/gryd-plus/">` dans la source, lien visible en repli, et le navigateur **arrive** bien sur `/gryd-plus/` |
+| `/c/ABC123`, `/r/ABC123`, `/u/pseudo` | 2 largeurs | l'invitation est peinte, le code est affiché, le bouton `gryd://c/ABC123` (resp. `r`, `u`) existe |
+| `/callback/?n=<64 hex>&token_hash=x&type=magiclink` | contre le **vrai** serveur Supabase | « Ce lien a expiré. » — le serveur refuse un haché bidon — et **aucune clé `sb-*`** en `localStorage` (`localStorage` entièrement vide) |
+| `/callback/` sans paramètre | — | « Ce lien est incomplet. » |
+| Tiret long hors pages légales | texte rendu de 13 écrans (les 18 moins les 4 légales et `/abonnement/`, qui arrive sur `/gryd-plus/`) | **zéro** |
+
+### Poids et référencement
+
+- **JavaScript initial de `/` : 115,8 Ko gzip** (les neuf `<script>` de la page, moins
+  `polyfills-*.js` qui porte `noModule` et n'est donc chargé par aucun navigateur moderne).
+  Sous les 150 Ko posés par le lot W2. Avec les polyfills : 154,3 Ko gzip, 493,5 Ko brut.
+- **CSS 7,3 Ko gzip**, **HTML de l'accueil 14,6 Ko gzip**.
+- **Photo du héros : 194,9 Ko** réellement téléchargés aux deux largeurs (la variante `-800`,
+  choisie par le `srcset`). La plus lourde image de l'accueil est celle du crew à 1280 px :
+  353,8 Ko. Les deux sous les 400 Ko.
+- **Aucune requête vers un tiers.** Mesuré sur `/`, `/telecharger/`, `/faq/` et `/callback/` :
+  un seul hôte contacté, celui du site. Les polices sont servies depuis `gryd.run`
+  (`next/font`), PostHog n'est pas chargé par le site statique. Donc pas de bandeau de consentement
+  à inventer.
+- `og:image` = `gryd-og.jpg`, **1200 × 630**, 114 Ko, servie en `image/jpeg`.
+- `robots.txt` et `sitemap.xml` servis à la racine ; le plan compte **12 adresses**, et
+  `siteCopy2026.test.ts` le compare au registre des pages à chaque gate.
+
+### Accessibilité
+
+`axe-core` n'est pas dans `node_modules` : la vérification a été faite à la main, sur les jetons
+et sur le DOM.
+
+| Point | Constat |
+|---|---|
+| Contraste des jetons sur carbone `#0a0a0a` | `--gryd-ink` **18,97:1** · `--gryd-muted` **7,85:1** · `--gryd-accent` **16,26:1** · carbone SUR accent (le bouton) **16,26:1** · sur accent pressé **12,19:1**. Tous au dessus du AA petit texte |
+| `--gryd-steel` (4,42:1, sous le seuil) | **défini et jamais utilisé** hors du bloc `:root` — vérifié par recherche dans `app/` et `components/`. Le commentaire qui le réserve au décor n'est donc contredit nulle part |
+| Focus visible | contour **2 px solide** en `rgb(180, 255, 13)`, et le CSS porte de vraies règles `:focus-visible` |
+| `prefers-reduced-motion` | honoré (règles présentes dans la feuille) |
+| `lang="fr"` | sur les 18 écrans |
+| Cibles tactiles | voir la réserve n° 1 ci-dessous |
+
+### Réserves, non corrigées par ce lot
+
+1. **Les sommaires des quatre pages légales ont des liens de 28 px de haut, espacés de 6 px**
+   (`.tocLink`, `legal.module.css` : `font-size: 13.5px`, `padding: 4px 0`). C'est **au dessus**
+   du minimum WCAG 2.2 AA (SC 2.5.8, 24 × 24 px) et **en dessous** des 44 pt recommandés par
+   Apple. Passer à 44 px allongerait chaque sommaire de treize entrées d'environ 200 px sur
+   mobile : c'est un arbitrage de mise en page sur quatre documents déjà passés au `ux-gate`,
+   pas une correction de W4.
+2. **Six pages de contenu ne portent aucun aplat chartreuse** (`/comment-ca-marche/`, `/crews/`,
+   `/saison/`, `/gryd-plus/`, `/securite-et-vie-privee/`, `/faq/`). La règle « un seul CTA par
+   écran » est tenue ; la question inverse — faut-il **une** action au bas de chaque page de
+   contenu — appartient au cahier de contenu, pas à la recette.
+3. **Les cinq réserves du `ux-gate` de W3** (§8) restent ouvertes telles quelles : la date
+   « au 12 septembre 2026 », le bouton `gryd://` chartreuse sur un écran de bureau, le double
+   « Télécharger » de l'accueil, les textes en dur de `SiteHeader`/`SiteFooter`/`Diagram`, et
+   l'absence de sortie de la liste d'attente.
+
+---
+
+## 10. Mise en ligne du 12/09
+
+**Le site refait de zéro est en ligne.** `bash scripts/deploy-web-ghpages.sh` a poussé
+`gh-pages` ; GitHub a reconstruit en **21 secondes**.
+
+- Commit `gh-pages` : **`41b8acb2b160a2aca0ef59438fee36680588acf1`**, construit à **15:21** (heure
+  de Paris). Le script a vérifié avant de pousser : `CNAME` = `gryd.run`,
+  `apple-app-site-association` présent et JSON valide, `/callback/index.html` présent.
+- `gh api repos/Skanebody/Gryd/pages` : `status: built` · `cname: gryd.run` ·
+  `https_enforced: true` · `build_type: legacy` · source `gh-pages` `/` · certificat **`approved`**
+  pour `gryd.run` **et** `www.gryd.run`, jusqu'au 10/12/2026.
+
+### Ce que le déploiement a changé
+
+Relevé **avant** la poussée : `/faq/`, `/crews/`, `/comment-ca-marche/` répondaient **404**,
+`/c/TEST` aussi. Les huit pages du lot W3 existaient dans le dépôt et n'étaient servies nulle
+part. C'est ce que ce lot répare.
+
+### Preuves en ligne, adresse par adresse
+
+| Adresse | Code | Ce qui a été vu |
+|---|---|---|
+| `https://gryd.run/` | **200** | l'accueil, aux deux largeurs (captures ci-dessous) |
+| `/comment-ca-marche/` `/crews/` `/saison/` `/gryd-plus/` `/securite-et-vie-privee/` `/faq/` `/telecharger/` | **200** (7/7) | les sept pages de contenu du lot W3, servies pour la première fois |
+| `/confidentialite/` `/conditions/` `/cgv/` `/mentions-legales/` | **200** (4/4) | les quatre pages légales, mise en page W3 |
+| `/callback/` | **200** | titre « GRYD : ton compte », `noindex, nofollow` |
+| `/callback?token_hash=…&type=magiclink` | **301** | vers `/callback/?token_hash=…&type=magiclink` — **la query est reconduite** |
+| `/.well-known/apple-app-site-association` | **200**, sans redirection | `application/octet-stream`, **JSON intact** : `NXGNDQBUMB.fr.nexus1993.gryd`, composants `/callback` `/callback/` `/c/*` `/r/*` `/u/*`, `webcredentials` identique |
+| CDN d'Apple (`app-site-association.cdn-apple.com/a/v1/gryd.run`) | **200** | le cache d'Apple a bien le fichier |
+| `/email/gryd-logo-email.png` `/email/gryd-bienvenue-email.jpg` `/email/gryd-lien-email.jpg` | **200** (3/3) | les images des gabarits d'e-mail |
+| `/og/gryd-og.jpg` | **200** | `image/jpeg`, 114 016 octets, 1200 × 630 |
+| `/sitemap.xml` `/robots.txt` | **200** | le plan en ligne compte bien **12** `<loc>` |
+| `/abonnement/` | **200** | sert la redirection : `<meta http-equiv="refresh" content="0; url=/gryd-plus/">` |
+| `/c/TEST` | **404**, contenu présent | « On t'invite dans un crew » — le routeur de `404.html` fonctionne en ligne. `/r/TEST` et `/u/benjamin` de même |
+| `https://www.gryd.run/` | **301** vers `https://gryd.run/` | le sous-domaine `www` retombe sur l'apex |
+| `https://skanebody.github.io/Gryd/` | **301** vers `https://gryd.run/` | l'ancien lien public n'est pas perdu |
+| `curl -4 https://gryd.run/` | **200** | résolu en IPv4 pur (`185.199.110.153`) : le trou DNS du §5 est bouché |
+
+La recette complète du §9 a été **rejouée contre `https://gryd.run`** : mêmes 18 écrans, mêmes
+deux largeurs, **zéro bloquant**, et les quatre mêmes informations sur les cibles tactiles. Le
+`/callback/` en ligne, interrogé avec un nonce de 64 hex et un haché bidon, rend bien
+« Ce lien a expiré. » — c'est le **vrai** serveur qui refuse — **sans laisser une seule clé
+`sb-*`** en `localStorage`.
+
+### Ce que ce lot ne prouve toujours pas
+
+1. **L'ouverture réelle de l'app par un lien universel** : elle exige un build iOS qui embarque
+   l'entitlement `associated-domains` (§7, point 1). Le lot E5 rend ça sans conséquence, il ne le
+   remplace pas.
+2. **Le clic dans un vrai e-mail.** Aucun harnais ne peut le dire : il faut ouvrir un courrier.
+3. **Le rendu sur un vrai iPhone.** Les captures sont faites par un Chromium sans interface, à
+   375 × 812 et 1280 × 900 ; ce n'est pas Safari iOS.
