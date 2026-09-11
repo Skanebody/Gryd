@@ -13,6 +13,12 @@
  * Ce fichier fige les quatre décisions que ce lot ajoute, et leurs revers :
  * la FORME du nonce, l'ADRESSE qui part dans l'e-mail, la LECTURE de ce que la
  * base rend, et le MOMENT où l'écran cesse d'attendre.
+ *
+ * Puis TROIS COUTURES, en fin de fichier : elles relisent la migration 0198
+ * elle-même. Le TTL et la forme du nonce vivent aux deux bouts, et une
+ * divergence ne casserait rien bruyamment — elle ferait seulement attendre
+ * l'écran devant une remise impossible. C'est le genre de panne qu'aucun test
+ * de module ne voit.
  */
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { AUTH_HANDOFF_2026, AUTH_HANDOFF_NONCE_PARAM_2026 } from '@klaim/shared';
@@ -159,4 +165,46 @@ Deno.test('l’URL d’accueil ne porte AUCUN jeton — seulement le type', () =
   for (const secret of ['token', 'refresh', 'access', AUTH_HANDOFF_NONCE_PARAM_2026 + '=']) {
     assertEquals(url.includes(secret), false, `l’URL d’accueil ne doit pas porter « ${secret} »`);
   }
+});
+
+/**
+ * ═══ COUTURE — LE TTL ET LA FORME DU NONCE VIVENT AUX DEUX BOUTS ════════════
+ *
+ * `AUTH_HANDOFF_2026.ttlS` décide combien de temps l'écran accepte d'attendre ;
+ * `0198_auth_handoff_2026.sql` décide combien de temps la remise VIT. Si les
+ * deux divergent, rien ne casse bruyamment : l'app attend une remise déjà morte,
+ * ou abandonne une remise encore vivante — et dans les deux cas le joueur voit
+ * un écran qui n'aboutit pas, sans qu'aucun test ne rougisse. Ce test relit la
+ * migration RÉELLE plutôt qu'une intention.
+ *
+ * Même raisonnement pour la forme du nonce : l'app en produit 64 caractères, la
+ * base en accepte de 64 à 128. Un plancher SQL plus haut que ce que l'app tire
+ * rendrait toute remise impossible, en silence.
+ */
+const MIGRATION_0198 = await Deno.readTextFile(
+  new URL('../../../../../supabase/migrations/0198_auth_handoff_2026.sql', import.meta.url),
+);
+
+Deno.test('couture — la durée de vie de la remise est la MÊME des deux côtés', () => {
+  const match = /now\(\) \+ interval '(\d+) (minutes?|seconds?)'/.exec(MIGRATION_0198);
+  assert(match !== null, '0198 doit poser une échéance explicite');
+  const [, valeur, unite] = match;
+  const secondes = Number(valeur) * (unite.startsWith('minute') ? 60 : 1);
+  assertEquals(secondes, AUTH_HANDOFF_2026.ttlS);
+});
+
+Deno.test('couture — la base accepte exactement ce que l’app produit', () => {
+  const match = /\^\[0-9a-f\]\{(\d+),(\d+)\}\$/.exec(MIGRATION_0198);
+  assert(match !== null, '0198 doit contrôler la forme du nonce');
+  const [, min, max] = match;
+  // Le plancher de la base ne doit JAMAIS dépasser ce que l'app tire.
+  assertEquals(Number(min), HANDOFF_NONCE_LENGTH_2026);
+  assert(Number(max) >= HANDOFF_NONCE_LENGTH_2026);
+});
+
+Deno.test('couture — la purge est ordonnancée, et la table n’est lisible par personne', () => {
+  assert(/enable row level security/.test(MIGRATION_0198), '0198 doit activer la RLS');
+  assertEquals(/create policy/i.test(MIGRATION_0198), false, 'aucune policy : personne ne lit');
+  assert(/revoke all on public\.auth_handoff_2026 from public, anon, authenticated/.test(MIGRATION_0198));
+  assert(/cron\.schedule\(/.test(MIGRATION_0198), 'la purge doit être ordonnancée');
 });

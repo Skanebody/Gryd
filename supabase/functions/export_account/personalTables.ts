@@ -36,6 +36,15 @@
  * · Les tables de RÈGLES (`challenge_rules_2026`, `season_collections_2026`,
  *   `commercial_collections_2026`…) : elles ne portent aucune donnée
  *   personnelle, ce sont les paramètres du jeu.
+ * · `auth_handoff_2026` (0198, lot E5) : le rendez-vous de cinq minutes entre
+ *   la page `gryd.run/callback` et l'app. Elle porte un JETON DE
+ *   RAFRAÎCHISSEMENT — une clé d'accès au compte — effacé dès la première
+ *   réclamation. L'exporter écrirait une clé de session vivante dans un fichier
+ *   téléchargeable : ce serait fabriquer le risque qu'on cherche à éviter. Le
+ *   reste de la ligne (empreinte de nonce, horodatages) n'apprend rien au
+ *   joueur. L'exclusion est DÉCLARÉE ET VÉRIFIÉE dans `personalTables_test.ts`
+ *   (`HORS_EXPORT_2026`) : la table doit s'auto-effacer et ne porter aucun
+ *   contenu, sinon le gate rougit.
  */
 
 /** Une table à copier : sa clé de sortie, sa table, sa colonne d'identité. */

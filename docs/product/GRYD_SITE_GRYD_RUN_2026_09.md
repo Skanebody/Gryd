@@ -60,11 +60,65 @@ n'est jamais envoyé au serveur, il ne peut être lu que par le navigateur. Le t
 `noindex` sont portés par `apps/web/app/callback/layout.tsx` (Next interdit d'exporter
 `metadata` depuis un composant client).
 
-**Elle ne décide rien elle-même.** Le verdict vient de `readAuthCallbackLink2026`
-(`apps/web/lib/authCallbackLink2026.ts`), fonction **pure**, miroir de `parseAuthCallback2026`
-côté mobile, couverte par 18 tests (`npm run test:web`, dans le gate).
+**Elle ne décide rien elle-même.** Le plan vient de `handoffPlan2026`
+(`apps/web/lib/authHandoff2026.ts`, 13 tests) et le verdict de repli de
+`readAuthCallbackLink2026` (`apps/web/lib/authCallbackLink2026.ts`, 18 tests) — deux fonctions
+**pures**, miroirs de `parseAuthCallback2026` côté mobile, jouées par `npm run test:web`,
+dans le gate.
 
-### Les six verdicts, et le septième état
+### La page VALIDE, et rend la session à l'app (lot E5, 12/09/2026)
+
+Décision du fondateur, mot pour mot : « vas juste vers une page qui dit que ça a été bien validé
+mais derrière il faut que le compte fonctionne dans l'application ».
+
+**Ce qui a changé, et pourquoi ça renverse une décision de E4.** E4 interdisait à cette page de
+vérifier le haché : il ne sert qu'une fois, et le consommer ici le rendrait mort pour l'app.
+L'argument était juste, et il reposait sur une hypothèse — que l'app puisse recevoir le lien. Elle
+ne le peut pas : le lien universel exige la capacité Apple « Associated Domains », absente du profil
+de signature (build `fe030292` **ERRORED**). E5 lève l'hypothèse plutôt que la conclusion.
+
+Quand l'adresse porte un **nonce** (`?n=<64 hex>`, écrit par l'app dans sa propre demande de lien) :
+
+1. `verifyOtp({ token_hash, type })` — la page vérifie, et obtient une **vraie session** ;
+2. `auth_handoff_deposit_2026` — elle dépose son `refresh_token` contre `sha256(nonce)`
+   (migration `0198_auth_handoff_2026.sql`). Cinq minutes, un seul usage ;
+3. `signOut({ scope: 'local' })` — **le navigateur ne garde rien**. `persistSession: false` :
+   aucune session n'est écrite sur le disque, aucune ne survit à cet onglet. Le `scope: 'local'` ne
+   révoque **pas** le jeton côté serveur, ce serait détruire ce qu'on vient de déposer pour l'app ;
+4. elle affiche **« C'est validé. »**, et l'app — restée sur « Lien envoyé » — réclame le jeton et
+   se connecte toute seule.
+
+Trois options du client Supabase, et chacune retire quelque chose : `persistSession: false` (rien
+sur le disque), `autoRefreshToken: false` (sinon le SDK pourrait rafraîchir en arrière-plan et
+**invalider** le jeton qu'on vient de déposer — la rotation est active sur le projet),
+`detectSessionInUrl: false` (c'est le code de la page qui lit l'adresse, une fois, au moment choisi).
+
+**L'adresse est nettoyée de l'historique** dès qu'elle a été lue — `history.replaceState` vers
+`/callback` nu, avant même l'appel réseau. Ce que ce nettoyage ne fait pas, et il faut le dire : la
+requête HTTP est déjà partie avec sa query, l'hébergeur a pu la voir. C'est une propriété du lien de
+E4 (le haché y voyage aussi), pas une régression de E5 — et c'est pour ça que la remise vit cinq
+minutes et ne sert qu'une fois.
+
+**Sans nonce, rien ne change.** Un lien parti avant ce lot n'en porte pas : la page ne vérifie alors
+**rien** et rend exactement les six verdicts E4 ci-dessous. Un refus serveur déjà écrit dans l'URL,
+une session dans le fragment, un code PKCE, un `type` inconnu : tous retombent sur E4, sans rien
+consommer.
+
+### Les quatre états de la validation (E5)
+
+| État | Quand | Titre affiché |
+|---|---|---|
+| en cours | l'aller-retour serveur n'a pas répondu | « On valide ton lien. » |
+| validé | vérifié **et** déposé | « C'est validé. » + « Ton compte Gryd est confirmé pour {email}. Retourne dans l'app : tu es connecté. » — et, pour un compte neuf (`type=signup`), « Félicitations, ton compte est créé. » |
+| validé, remise ratée | vérifié, mais le dépôt a échoué | « Ton compte Gryd est confirmé. » + « La connexion automatique n'a pas abouti. Ouvre Gryd et demande un nouveau lien. » |
+| refusé | `verifyOtp` a dit non | « Ce lien a expiré. » ou « Ce lien n'a pas pu être validé. » |
+
+Le demi-succès a sa propre phrase, et ce n'est pas un détail : annoncer « tu es connecté » quand le
+dépôt a échoué serait faux, et tendre un bouton serait pire — le haché est consommé, il ne servira
+plus. On dit ce qui est vrai (le compte est confirmé) et ce qu'il reste à faire (redemander un lien,
+qui connectera).
+
+### Les six verdicts de repli, et le septième état
 
 | Verdict | Ce que le lien contient | Titre affiché | Bouton |
 |---|---|---|---|
@@ -89,8 +143,12 @@ plutôt que déguisé en réussite (L8/L14). Sans JavaScript il ne se résoudrai
    n'existe dans le dépôt. Un bouton « Télécharger » serait un bouton mort (MASTER §12).
 3. **Aucun bouton sur un lien expiré, refusé ou incomplet.** `appUrl` vaut `null` : ouvrir
    l'app ne rattraperait pas ce que le serveur a déjà refusé.
-4. **Aucune journalisation.** Le fragment porte des jetons de session : pas de `console.log`,
-   pas d'analytics, et `noindex, nofollow` pour la même raison.
+4. **Aucune journalisation.** L'adresse porte un haché à usage unique **et** un nonce de remise :
+   pas de `console.log`, pas d'analytics, et `noindex, nofollow` pour la même raison.
+5. **Aucune vérification sans nonce.** La page ne consomme un haché que lorsqu'elle a de quoi le
+   rendre à l'app. Un nonce de forme douteuse, un `type` inconnu, une clé Supabase absente du
+   build : dans les trois cas elle retombe sur E4 sans rien toucher — le haché reste intact, donc
+   le bouton « Ouvrir Gryd » vaut encore quelque chose.
 
 ---
 
@@ -163,10 +221,21 @@ ne passe pas la main à l'app. Or l'e-mail de Supabase pointait sur
 dur, un par gabarit.) L'app lit `?token_hash=` et l'échange elle-même
 (`supabase.auth.verifyOtp`) — voir `GRYD_ONBOARDING_2026_09.md` §2.3 pour la chaîne complète.
 
-**Cette page reste indispensable, et son rôle a changé.** Sans l'app, elle reçoit le haché et
-**ne le vérifie pas** : un `token_hash` ne sert qu'une fois, le consommer ici le rendrait mort
-pour l'app. Elle dit « Ton lien de connexion est prêt. » et tend le bouton
-`gryd://callback?token_hash=…&type=…`.
+**Cette page reste indispensable, et son rôle a changé DEUX FOIS.** En E4, sans l'app, elle
+recevait le haché et **ne le vérifiait pas** : un `token_hash` ne sert qu'une fois, le consommer
+ici l'aurait rendu mort pour l'app. Depuis **E5**, quand le lien porte un nonce (`?n=…`), elle
+**vérifie**, **dépose** la session pour l'app (migration 0198) et se déconnecte localement — c'est
+le chemin normal tant qu'aucun build signé ne porte les `associatedDomains`. Sans nonce, elle garde
+mot pour mot le comportement E4 : « Ton lien de connexion est prêt. » et le bouton
+`gryd://callback?token_hash=…&type=…`. Voir §3 pour le détail.
+
+**Le lot E5 a changé le format du lien une seconde fois** : les gabarits rendent désormais
+`{{ if .RedirectTo }}{{ .RedirectTo }}&token_hash=…{{ else }}{{ .SiteURL }}/callback?token_hash=…{{ end }}`.
+`{{ .RedirectTo }}` porte l'adresse que l'app a demandée, **nonce compris** ; le repli garde la
+forme E4 pour les liens demandés sans redirection. GoTrue conserve la query de cette adresse —
+vérifié le 12/09/2026 (`GET /auth/v1/verify` avec un jeton faux : le `Location` rend
+`https://gryd.run/callback?n=…#error=…`, là où une adresse non autorisée retombe en silence sur
+`https://gryd.run`).
 
 **Vérifié en ligne le 12/09/2026** : `https://gryd.run/callback?token_hash=…&type=magiclink`
 répond 301 vers `/callback/?token_hash=…&type=magiclink` — **GitHub Pages reconduit la query**,
@@ -217,7 +286,7 @@ réseau sans IPv6 (beaucoup de réseaux mobiles et d'entreprises) ne trouve aujo
 ## 6. Redéployer
 
 ```bash
-# 1. Le gate doit être vert (il joue npm run test:web, les 18 tests de /callback).
+# 1. Le gate doit être vert (il joue npm run test:web : 52 tests, dont /callback E4+E5).
 npm run gate
 
 # 2. Export + push gh-pages. Exige apps/web/.env.local (clés NEXT_PUBLIC_*).
@@ -273,11 +342,12 @@ build iOS qui embarque l'entitlement, cf. §7) et **la réception d'un vrai e-ma
 
 ## 7. Ce qui reste ouvert
 
-1. **Le build iOS.** Les entitlements `associated-domains` sont posés **à la compilation** : le
-   binaire installé sur l'iPhone du fondateur ignore tout de `gryd.run`. Tant qu'un nouveau
-   build EAS n'est pas installé, le chemin est « page web + bouton », jamais l'ouverture
-   directe. C'est désormais le **seul** obstacle à l'ouverture sans clic : le lot E4 a retiré
-   l'autre (la chaîne de redirections).
+1. **Le build iOS — et ce n'est plus un bloquant.** Les entitlements `associated-domains` sont
+   posés **à la compilation**, et la capacité Apple correspondante manque au profil de signature
+   (build `fe030292` **ERRORED**). Tant qu'un nouveau build signé n'est pas installé, le lien
+   universel ouvre Safari. **Le lot E5 rend ça sans conséquence** : la page valide, dépose la
+   session contre le nonce, et l'app la réclame seule. Le build reste souhaitable (zéro clic au
+   lieu d'un aller-retour de trois secondes), il n'est plus nécessaire.
 2. **`assetlinks.json`** (voir §4) : au premier build Android.
 
 ### Résolu depuis
@@ -293,6 +363,9 @@ build iOS qui embarque l'entitlement, cf. §7) et **la réception d'un vrai e-ma
    encore déployé. `404.html` fait le routage ; en ligne, ces trois adresses rendent encore le
    404 tant que le lot W4 n'a pas publié.
 5. **Le chemin sans clic** (§4) : dépend du gabarit d'e-mail et de `verifyOtp` côté app.
+6. **Le vrai clic dans le vrai courrier.** Que le bouton de l'e-mail ouvre bien cette page, et que
+   l'app suive dans la seconde, ne se constate qu'en ouvrant un e-mail réel — **après** la poussée
+   de `0198` en production et le redéploiement de `gryd.run`. Aucun harnais ne peut le dire.
 
 ---
 

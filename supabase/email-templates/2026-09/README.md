@@ -232,3 +232,34 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 réception, ni le rendu dans le client mail. Relevé du 12/09/2026, après application des
 gabarits E4 : **HTTP 200** vers la boîte du fondateur (gabarit `magic_link`, le compte
 existait déjà).
+
+**Relevé E5, 12/09/2026** — même appel, avec `options.email_redirect_to =
+https://gryd.run/callback?n=<64 hex>` : **HTTP 200**. Ça prouve deux choses d'un coup :
+GoTrue a remis le message au SMTP, et `magic-link.html` — avec son `{{ if .RedirectTo }}`
+— s'est **rendu sans erreur de gabarit** (une erreur de rendu fait échouer l'envoi, pas
+seulement le message). `confirmation.html` porte la même expression au littéral `type`
+près ; l'analyse de contexte de Go ne dépend pas de ce littéral.
+
+### L'adresse de retour AVEC UNE QUERY est bien acceptée (E5)
+
+Question qui décide tout le lot : GoTrue garde-t-il `?n=<nonce>` dans `{{ .RedirectTo }}` ?
+`utilities.GetReferrer` retombe **en silence** sur la Site URL quand l'adresse n'est pas
+autorisée — un 200 ne prouve donc rien à lui seul. Le test qui tranche n'envoie aucun
+e-mail et n'écrit rien :
+
+```sh
+# Jeton volontairement FAUX : GoTrue refuse, puis redirige — vers redirect_to si
+# l'adresse est autorisée, vers la Site URL sinon. Le `Location` répond.
+curl -sI "https://<ref>.supabase.co/auth/v1/verify?token=faux&type=magiclink\
+&redirect_to=https%3A%2F%2Fgryd.run%2Fcallback%3Fn%3Daaaa…" -H 'apikey: <anon>'
+```
+
+Relevé du 12/09/2026 :
+
+| adresse demandée | `Location` de la 303 |
+|---|---|
+| `https://gryd.run/callback?n=<64 hex>` | `https://gryd.run/callback?n=<64 hex>#error=access_denied&…` — **query conservée** |
+| `https://evil.test/callback` | `https://gryd.run#error=…` — repli silencieux sur la Site URL |
+
+La première ligne est la preuve : le nonce traverse GoTrue intact. La seconde montre que
+le repli existe vraiment, donc que la première n'est pas un hasard.

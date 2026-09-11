@@ -20,7 +20,7 @@ qui la tient.
 | 4 | Gate 16 ans et plus | Posé **avant** la collecte. Le refus est un état terminal persisté ; sa seule issue est « Ce n'est pas moi ». | idem, + `features/onboarding/store.ts` (`ageDeclined`) |
 | 5 | Adresse (`/email`) | Un champ, un CTA « Recevoir le lien », et la phrase qui dit ce que le lien fait vraiment (il crée **ou** connecte). | `app/(auth)/email.tsx` |
 | 6 | « Lien envoyé » | Nomme l'adresse, dit d'ouvrir l'e-mail **sur cet appareil**, dit les deux limites réelles (une heure, une fois), arme le renvoi **daté**, et laisse changer d'adresse. | idem |
-| 7 | L'e-mail → l'app | Le lien est `https://gryd.run/callback?token_hash=…&type=…`, **sans redirection** : iOS le remet à l'app, qui vérifie le haché et ouvre la session. Sans l'app, la page web ne vérifie rien, dit « Ton lien de connexion est prêt. » et propose « Ouvrir GRYD » (`gryd://callback?token_hash=…`). | `src/lib/links.ts`, `supabase/email-templates/2026-09/`, `apps/web/app/callback/` (lots E2/E4) |
+| 7 | L'e-mail → l'app | Le lien est `https://gryd.run/callback?n=<nonce>&token_hash=…&type=…`. **Deux chemins, et les deux marchent.** ① Build signé : iOS remet l'adresse à l'app, qui vérifie le haché — zéro clic. ② Partout ailleurs (Safari, Mac, webmail, Android) : la page **valide**, dit « C'est validé. », dépose la session contre le nonce, et l'app la réclame **toute seule**. | `src/lib/links.ts`, `supabase/email-templates/2026-09/`, `apps/web/app/callback/`, `supabase/migrations/0198_auth_handoff_2026.sql` (lots E2/E4/E5) |
 | 8 | **L'accueil** | Compte NEUF : le G chartreuse, « Félicitations, ton compte GRYD est créé. », **un** bouton « Commencer ». Compte existant : « Bon retour, @pseudo. » et « Continuer ». Lien mort : « Ce lien a expiré » et le champ se rouvre. | `src/features/account/AccountWelcome2026.tsx`, `app/(auth)/callback.tsx` |
 | 9 | Profil (`/setup/profile`) | Pseudo **obligatoire**, disponibilité en direct ; nom affiché ; photo **facultative** ; ville **facultative**. Un seul CTA. | `app/setup/profile.tsx` |
 | 10 | Discipline (`/setup/activity`) | Course ou vélo, et « Plus tard ». Aucune présélection. | `app/setup/activity.tsx` |
@@ -122,6 +122,73 @@ l'utilisateur, depuis une page qu'il regarde déjà.
 `invite`) : aucun chemin de l'app ne les déclenche, et chacun a une raison technique propre de ne pas
 basculer seul — détaillées dans `supabase/email-templates/2026-09/README.md`.
 
+### 2.4 Remise de session (nonce) — la page valide, l'app se connecte seule (E5)
+
+**Décision du fondateur, 12/09/2026, mot pour mot :** « vas juste vers une page qui dit que ça a été
+bien validé mais derrière il faut que le compte fonctionne dans l'application ».
+
+**Ce que 2.3 supposait, et qui n'est pas vrai aujourd'hui.** Le lien universel (étape 2 du tableau
+ci-dessus) exige que le build installé déclare `associatedDomains`, donc que le profil de signature
+porte la capacité Apple **« Associated Domains »**. Il ne la porte pas : le build `fe030292` est
+**ERRORED**. Sur un vrai iPhone, aujourd'hui, le clic ouvre **Safari**. Le raisonnement de 2.3 reste
+juste ; sa prémisse, non. Et un lien ouvert sur un **ordinateur** ou dans un **webmail** ne pouvait,
+de toute façon, jamais atteindre l'app.
+
+**Le renversement.** Ce n'est plus l'app qui doit recevoir le lien : c'est la **page** qui rend la
+session à l'app.
+
+| Étape | Ce qui se passe | Où |
+|---|---|---|
+| 1 | L'app tire un **nonce** de 256 bits et l'écrit dans sa propre demande de lien : `emailRedirectTo: https://gryd.run/callback?n=<64 hex>`. Elle le garde sur l'appareil avec l'adresse visée. | `src/lib/auth.ts` / `auth.web.ts`, `features/account/authHandoff2026.ts` |
+| 2 | Le gabarit rend `{{ .RedirectTo }}` — **cette adresse, nonce compris** — et y accroche `&token_hash=…&type=…`. | `supabase/email-templates/2026-09/` |
+| 3 | Le joueur ouvre le lien. **N'importe où** : iPhone, Mac, webmail, Android. | — |
+| 4 | La page `gryd.run/callback` appelle `verifyOtp({ token_hash, type })` : elle obtient une **vraie session**. | `apps/web/app/callback/page.tsx` |
+| 5 | Elle **dépose** son `refresh_token` contre `sha256(nonce)` : `auth_handoff_deposit_2026`. Cinq minutes de vie, un seul usage. | migration `0198_auth_handoff_2026.sql` |
+| 6 | Elle fait `signOut({ scope: 'local' })` — le navigateur ne garde **rien** — et affiche « C'est validé. » | `apps/web/app/callback/page.tsx` |
+| 7 | L'écran « Lien envoyé », resté ouvert, réclame toutes les **3 s** pendant **10 min** : `auth_handoff_claim_2026`. | `app/(auth)/email.tsx`, `features/account/authHandoffSession2026.ts` |
+| 8 | Le jeton arrive → `refreshSession({ refresh_token })` → session. L'écran devient **l'accueil**, avec le même verdict et le même composant que le lien universel. | `features/account/AccountWelcome2026.tsx` |
+
+**Ce que le nonce protège.** Il est tiré par l'app, et il ne sort d'elle que par l'adresse écrite
+dans **son** e-mail : le détenir prouve qu'on est l'appareil qui a demandé le lien. C'est pourquoi
+`auth_handoff_claim_2026` est ouverte à `anon` — à cet instant précis, l'app n'a aucune session, et
+c'est exactement ce qu'elle vient chercher. Ce qui compense, point par point (chacun a son test) :
+
+- **256 bits** d'entropie : l'énumération n'est pas atténuée, elle est hors de portée ;
+- **usage unique** : la première réclamation marque `consumed_at` **et efface le jeton de la ligne** ;
+- **5 minutes** de vie, puis une purge `pg_cron` toutes les 10 minutes ;
+- **la table n'est lisible par personne** : RLS activée **sans aucune policy**, plus `revoke all` ;
+- **le dépôt exige une session** (`auth.uid()`) : une page qui n'aurait rien vérifié ne peut rien
+  déposer, même en connaissant un nonce ;
+- **aucun rejeu** : une remise consommée ne se re-remplit jamais, et deux comptes ne s'écrasent pas.
+
+**Ce qu'il ne protège pas, et il faut le dire :** quelqu'un qui lit l'e-mail **et** regarde l'écran
+de l'app a déjà tout. C'est le modèle de menace du lien magique lui-même.
+
+**Ce qui est écrit, et ce qui est effacé.** En base : `sha256(nonce)`, le jeton de rafraîchissement,
+l'`user_id`, le `type`, trois horodatages. Jamais le nonce en clair, jamais l'`access_token` (un
+jeton de rafraîchissement suffit à en frapper un neuf). Le jeton disparaît à la première
+réclamation ; la ligne, à la purge suivante. Sur l'appareil : le nonce, l'adresse, l'heure — effacés
+dès que la session est ouverte, ou quand le joueur change d'adresse. Dans le navigateur : **rien**
+(`persistSession: false`, plus un `signOut` local), et l'adresse est retirée de l'historique par
+`history.replaceState` dès qu'elle a été lue.
+
+**Sans nonce, rien ne change.** Un lien parti avant ce lot n'en porte pas : la page ne vérifie alors
+**rien** et se comporte mot pour mot comme en 2.3 (bouton « Ouvrir GRYD »). Le lien universel reste
+supporté ligne pour ligne : le jour où un build signé arrive, le chemin sans clic de 2.3 redevient le
+meilleur, et celui-ci devient le filet.
+
+**Les états de l'écran d'attente, et aucun ne se déguise en un autre.** « Dès que tu as appuyé sur le
+lien, tu seras connecté ici. » pendant l'attente réelle ; rien du tout si aucun nonce n'a pu être
+tiré (on ne promet pas une connexion automatique qu'on ne peut pas tenir) ; « L'attente s'est
+arrêtée ici. » au bout de dix minutes — on **cesse** d'interroger, et on le dit, plutôt que de faire
+tourner un indicateur pour l'éternité ; et l'échec nommé si le jeton arrive sans ouvrir de session.
+
+**« Renvoyer le lien » tire un nouveau nonce.** L'ancien devient inutile, et la boucle relit le
+stockage. « Changer d'adresse » abandonne la remise : le lien parti vers l'ancienne adresse ne doit
+plus pouvoir connecter cet appareil.
+
+---
+
 ---
 
 ---
@@ -176,9 +243,15 @@ qu'il ne pouvait pas finir, au premier écran suivant la création de son compte
 | Apple et le lien e-mail rendent le **même** accueil | idem (tripwire de source) | idem |
 | La ville n'est pas une condition | `features/setup/handle.test.ts` | idem |
 | Aucune route orpheline, aucun lien mort | `scripts/audit-routes.mjs` | `node scripts/audit-routes.mjs` |
-| **Le parcours joué dans un vrai navigateur** : accueil neuf / retour / sans `type` / lien mort, puis pseudo → discipline → carte, et l'identité au Profil | `e2e/s6-accueil-et-profil.spec.ts` (+ S2, S3 mis à jour) | `npm run test:e2e:parcours` — **30 tests** |
+| **Le parcours joué dans un vrai navigateur** : accueil neuf / retour / sans `type` / lien mort, puis pseudo → discipline → carte, et l'identité au Profil | `e2e/s6-accueil-et-profil.spec.ts` (+ S2, S3 mis à jour) | `npm run test:e2e:parcours` — **31 tests** |
 | **L'app échange elle-même le haché** (`POST /auth/v1/verify`) et le refus du serveur est nommé | `e2e/s2-creation-de-compte.spec.ts` (2 scénarios `token_hash`) | idem |
 | L'e-mail part vraiment avec le nouveau gabarit | `POST /auth/v1/otp` (`create_user:false`) → **HTTP 200**, 12/09/2026 | voir `supabase/email-templates/2026-09/README.md` |
+| **La remise de session n'existait pas avant 0198** (étape 0), puis : dépôt → une seule réclamation, deuxième refusée, expirée refusée, nonce inconnu ou malformé refusé, `anon` ne peut pas déposer, pas de rejeu, table illisible, purge idempotente | `supabase/tests/auth_handoff_2026.pglite.test.mjs` — **24 assertions** | `npm run test:sql` |
+| La forme du nonce, l'adresse écrite dans l'e-mail, la lecture de la réclamation, le plafond d'attente | `features/account/authHandoff2026.test.ts` (14 tests) | `npm run test:mobile` |
+| **Sans nonce, la page se comporte exactement comme en E4** ; un nonce ou un `type` douteux ne déclenche **aucune** vérification | `apps/web/lib/authHandoff2026.test.ts` (13 tests) | `npm run test:web` |
+| Le gabarit rend `{{ .RedirectTo }}` avec son repli, et **aucune action ne suit le `{{ end }}`** dans une URL (sinon Go refuse de rendre l'e-mail) | `src/lib/links.test.ts` (couture) | `npm run test:mobile` |
+| **« Lien validé ailleurs » : l'app se connecte SEULE**, sans navigation, sans clic, sans présenter le haché elle-même, et la remise ne sert qu'une fois | `e2e/s2-creation-de-compte.spec.ts` | `npm run test:e2e:parcours` — **31 tests** |
+| GoTrue **conserve la query** de l'adresse de retour (donc le nonce), et retombe en silence sur la Site URL quand elle n'est pas autorisée | `GET /auth/v1/verify` avec un jeton faux, relevé du 12/09/2026 | voir `supabase/email-templates/2026-09/README.md` |
 
 ---
 
@@ -186,17 +259,23 @@ qu'il ne pouvait pas finir, au premier écran suivant la création de son compte
 
 Rien de ce qui suit n'est vérifiable depuis ce dépôt. C'est dit ici plutôt que supposé ailleurs.
 
-1. **Un nouveau build EAS.** Les entitlements `com.apple.developer.associated-domains` sont posés
-   **à la compilation** : le binaire déjà installé sur l'iPhone du fondateur ne sait rien de
-   `gryd.run`. Tant qu'il n'est pas rebâti, le lien universel ouvre Safari — et la page web fait son
-   travail de repli (« Ouvrir GRYD » → `gryd://callback?token_hash=…`), qui marche, lui, dès
-   aujourd'hui. **C'est le seul reste du lot E4** : le format du lien est posé, appliqué et prouvé
-   côté serveur et côté code ; que le système remette l'adresse à l'app se constate sur un iPhone,
-   après un build, et nulle part ailleurs.
-2. **L'`uri_allow_list` du projet Supabase** doit contenir `https://gryd.run/callback` (dashboard →
-   Authentication → URL Configuration). Sans elle, GoTrue **refuse la redirection et retombe sur
-   `SITE_URL`** : le lien partirait, et ramènerait ailleurs. Aucun code client ne peut le vérifier ni
-   le corriger.
+1. **Un nouveau build EAS — mais ce n'est plus un bloquant.** Les entitlements
+   `com.apple.developer.associated-domains` sont posés **à la compilation**, et la capacité Apple
+   correspondante manque au profil de signature (build `fe030292` **ERRORED**). Tant qu'il n'est pas
+   rebâti, le lien universel ouvre Safari. **C'est précisément ce que le lot E5 rend sans
+   conséquence** : la page valide, dépose la session contre le nonce, et l'app la réclame toute
+   seule (§2.4). Le jour où un build signé arrive, le chemin sans clic de §2.3 redevient le meilleur
+   — les deux coexistent, aucun code à retirer.
+1 bis. **Le vrai clic dans le vrai courrier.** Que le bouton de l'e-mail ouvre bien cette page, et
+   que l'app suive dans la seconde, se constate en ouvrant un e-mail réel — après la poussée de
+   `0198` en production et le redéploiement de `gryd.run`. Tout le reste est prouvé ici ; celui-là
+   ne peut l'être que par le fondateur.
+2. **L'`uri_allow_list` du projet Supabase** doit contenir `https://gryd.run/**` (dashboard →
+   Authentication → URL Configuration). Sans elle, GoTrue **retombe en silence sur `SITE_URL`** : le
+   lien partirait, et ramènerait ailleurs — sans le nonce, donc sans remise possible. **Vérifié le
+   12/09/2026** : la liste la contient, et un `GET /auth/v1/verify` avec un jeton faux rend un
+   `Location` qui **conserve la query** (relevé dans le README des gabarits). Le repli existe bien :
+   la même requête vers `https://evil.test/callback` redirige sur `https://gryd.run`.
 3. **Le lien universel réel.** Qu'iOS ouvre vraiment l'app dépend de la vérification de
    `apple-app-site-association` par les serveurs d'Apple, du cache CDN, et du premier lancement de
    l'app. Ça se constate sur un iPhone, pas dans un test.

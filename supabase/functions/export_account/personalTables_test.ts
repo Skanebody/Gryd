@@ -51,6 +51,33 @@ const IDENTITY_COLUMNS = [
 /** La refonte 2026 commence à 0118 (`refonte_2026_polygon_authority`). */
 const REFONTE_FIRST_MIGRATION = 118;
 
+/**
+ * LES TABLES DÉLIBÉRÉMENT HORS EXPORT, ET LA SEULE RAISON QUI VAILLE.
+ *
+ * Une table ne s'échappe de l'export que si elle ne porte AUCUNE donnée à
+ * rendre au joueur — seulement un SECRET technique, à vie très courte, qu'on ne
+ * peut pas écrire dans un fichier téléchargeable sans créer précisément le
+ * risque qu'on cherche à éviter.
+ *
+ * `auth_handoff_2026` (0198, lot E5) : le rendez-vous entre la page
+ * `gryd.run/callback` et l'app. Elle contient un JETON DE RAFRAÎCHISSEMENT —
+ * c'est-à-dire une clé d'accès au compte — pendant AU PLUS cinq minutes, et ce
+ * jeton est effacé dès la première réclamation. L'exporter reviendrait à écrire
+ * une clé de session vivante dans un fichier que le joueur télécharge,
+ * transfère par e-mail et oublie dans ses téléchargements. Le reste de la ligne
+ * — une empreinte de nonce, trois horodatages — ne lui apprendrait rien qu'il ne
+ * sache déjà : il a demandé un lien, il l'a ouvert.
+ *
+ * ⚠️ CETTE LISTE N'EST PAS UNE PORTE DE SORTIE. Chaque entrée est VÉRIFIÉE par
+ * le test « une exclusion se mérite » plus bas : la table doit s'auto-effacer
+ * (`expires_at` + une purge qui la balaie dans sa propre migration), et ne
+ * porter aucune colonne de contenu. Une table qui garderait ses lignes, ou qui
+ * porterait autre chose qu'un secret, ferait rougir le gate.
+ */
+const HORS_EXPORT_2026: ReadonlyMap<string, string> = new Map([
+  ['auth_handoff_2026', 'remise de session : un jeton de 5 minutes, jamais un contenu'],
+]);
+
 /** Les fichiers de migration, triés — une seule lecture du disque. */
 function migrationFiles(): { name: string; sql: string }[] {
   return [...Deno.readDirSync(MIGRATIONS)]
@@ -112,7 +139,9 @@ function tablesOwedToTheRequester(): Map<string, string[]> {
   const declared = declaredTables();
   const written = refonteWrittenTables();
   return new Map(
-    [...declared].filter(([t]) => t.endsWith('_2026') || written.has(t)),
+    [...declared].filter(([t]) =>
+      (t.endsWith('_2026') || written.has(t)) && !HORS_EXPORT_2026.has(t)
+    ),
   );
 }
 
@@ -308,4 +337,84 @@ Deno.test('les tables à une ligne par compte sont marquées `single`', () => {
     'user_stats',
     'users',
   ]);
+});
+
+/**
+ * UNE EXCLUSION SE MÉRITE — sinon `HORS_EXPORT_2026` deviendrait l'endroit où
+ * l'on range ce qu'on n'a pas envie d'exporter.
+ *
+ * Trois conditions, et les trois sont lues dans les MIGRATIONS, jamais
+ * déclarées à la main :
+ *  1. la table existe vraiment, et elle porte bien une colonne d'identité
+ *     (sans quoi l'exclusion ne servirait à rien : elle n'était pas due) ;
+ *  2. elle s'AUTO-EFFACE : une échéance obligatoire, et une purge qui la
+ *     balaie, écrites dans sa propre migration ;
+ *  3. elle ne porte AUCUNE colonne de contenu — rien que le joueur ait écrit,
+ *     dit, tracé ou gagné. Une donnée personnelle qui dure ne s'exclut pas.
+ */
+Deno.test('une exclusion se mérite : éphémère, auto-effacée, et sans contenu', () => {
+  const declared = declaredTables();
+  const files = migrationFiles();
+  /**
+   * Mots qui trahiraient un CONTENU du joueur, jamais un secret technique.
+   * Cherchés dans les NOMS DE COLONNES, jamais dans le corps brut : `text` y est
+   * un TYPE Postgres, et le confondre avec une colonne ferait rougir n'importe
+   * quelle table.
+   */
+  const CONTENU = [
+    'body', 'text', 'message', 'content', 'comment', 'title', 'name', 'handle',
+    'email', 'photo', 'avatar', 'url', 'polyline', 'trace', 'geom', 'geometry',
+    'point', 'score', 'xp', 'distance', 'duration', 'city', 'commune', 'lat', 'lng',
+  ];
+  /** Le NOM de chaque colonne : le premier identifiant de chaque ligne du corps. */
+  const columnNames = (body: string): string[] =>
+    body
+      .split('\n')
+      .map((line) => /^\s{2,}([a-z_][a-z0-9_]*)\s+[a-z]/.exec(line)?.[1] ?? '')
+      .filter((c) => c.length > 0);
+
+  for (const [table, raison] of HORS_EXPORT_2026) {
+    assert(raison.length > 0, `${table} : une exclusion sans raison écrite n'en est pas une`);
+    assert(declared.has(table), `${table} : exclue d'un export… d'une table qui n'existe pas`);
+
+    const source = files.find(({ sql }) =>
+      new RegExp(`create table (?:if not exists )?public\\.${table}\\s*\\(`).test(sql)
+    );
+    assert(source !== undefined, `${table} : aucune migration ne la crée`);
+    const sql = source.sql;
+
+    const block = new RegExp(
+      `create table (?:if not exists )?public\\.${table}\\s*\\(([\\s\\S]*?)\\n\\);`,
+    ).exec(sql);
+    assert(block !== null, `${table} : bloc create table illisible`);
+    const body = block[1];
+
+    // ② Elle s'auto-efface.
+    assert(
+      /expires_at\s+timestamptz\s+not null/.test(body),
+      `${table} : une exclusion exige une échéance OBLIGATOIRE (expires_at not null)`,
+    );
+    assert(
+      new RegExp(`delete from public\\.${table}\\s+where expires_at`).test(sql),
+      `${table} : aucune purge ne la balaie dans sa propre migration`,
+    );
+
+    // ③ Elle ne porte aucun contenu du joueur.
+    const noms = columnNames(body);
+    assert(noms.length > 0, `${table} : aucune colonne lue, le corps est illisible`);
+    /**
+     * ⚠️ `expires_at` CONTIENT « xp ». Une recherche par sous-chaîne pure faisait
+     * donc échouer l'exclusion sur la colonne même qui la justifie. Les mots
+     * courts (≤ 3 lettres : xp, lat, lng, url) sont cherchés comme SEGMENTS de
+     * `snake_case` ; les longs, comme sous-chaînes.
+     */
+    const porte = (nom: string, mot: string): boolean =>
+      mot.length >= 4 ? nom.includes(mot) : nom.split('_').includes(mot);
+    const suspects = noms.filter((nom) => CONTENU.some((mot) => porte(nom, mot)));
+    assertEquals(
+      suspects,
+      [],
+      `${table} : ces colonnes ressemblent à du CONTENU, elles ne s'excluent pas`,
+    );
+  }
 });
