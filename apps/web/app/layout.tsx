@@ -22,8 +22,11 @@
  * tiers et posait des cookies sur un site qui n'a aucune bannière de consentement
  * à proposer. Un site public qui mesure ses visiteurs sans le leur dire n'est
  * pas conforme, et le gabarit d'un site honnête ne peut pas commencer par là.
- * Le fichier `app/components/PostHogProvider.tsx` reste en place : il est
- * encore importé par des pages qui n'appartiennent pas à ce lot.
+ * Le fichier `app/components/PostHogProvider.tsx` reste sur le disque, et plus
+ * rien ne l'importe : `app/components/` n'appartient pas à ce lot, et le
+ * supprimer emporterait avec lui `app/lib/analytics.ts`. Le lot pages le retire
+ * en même temps que le reste de `app/components/landing/`. La dépendance
+ * `posthog-js` reste déclarée ; elle ne charge plus rien.
  *
  * ─── CE QUE CE FICHIER NE FAIT PAS ──────────────────────────────────────────
  *  · Il ne rend NI en-tête NI pied de page. Chaque page les compose elle-même

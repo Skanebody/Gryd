@@ -233,4 +233,5 @@ servir.
   `app/components/`) : à supprimer par le lot pages ou le lot recette, pas à oublier.
 - `app/components/` (ancien) : `ui/Icon.tsx`, `landing/Reveal.tsx` et `landing/ui.module.css` sont
   encore lus par les pages légales et `/abonnement/`. Le reste de `landing/` n'est plus importé par
-  rien depuis la refonte de l'accueil, et part avec ces pages.
+  rien depuis la refonte de l'accueil, `PostHogProvider` et `app/lib/analytics.ts` non plus depuis
+  que le gabarit ne charge plus de script tiers : tout cela part avec ces pages.
