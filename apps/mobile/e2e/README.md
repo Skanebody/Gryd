@@ -25,7 +25,7 @@ npx playwright test -c apps/mobile/e2e/playwright.config.ts s2      # un seul sc
 npx playwright test -c apps/mobile/e2e/playwright.config.ts --ui    # mode inspecteur
 ```
 
-État au 11/09/2026 : **22 tests, tous au vert**, sans aucun `test.fail()` (~15 s sans ré-export,
+État au 12/09/2026 : **28 tests, tous au vert**, sans aucun `test.fail()` (~15 s sans ré-export,
 ~4 min avec). Les deux bugs qui étaient épinglés rouges sont **corrigés** ; leurs tests sont
 restés, verts, comme gardes (voir « Anciens bugs épinglés »).
 
@@ -49,6 +49,7 @@ installé sur cette machine — que **le parcours client tient** :
 | S3 | Reconnexion | Session en mémoire → la carte s'ouvre **directement**, sans redemander la découverte ; déconnexion réelle (passe par le serveur) → la porte de compte se repeint et mène quelque part ; reconnexion sans redemander l'âge, la session revenant **par le lien** ; `/profil` en lien profond sert le même écran que la barre basse |
 | S4 | Échecs honnêtes | Réseau coupé et serveur 503 sur **l'envoi du lien** produisent **deux** messages différents, le bouton se ré-arme (aucun spinner infini), rien ne prétend avoir été envoyé, et la carte connectée annonce « Terrains indisponibles · Réessayer » au lieu d'un vide qui aurait l'air vrai |
 | S5 | Retour sans pile | `/email` ouvert par URL → le retour ramène à la carte ; atteint par la porte de compte → le retour rend `/sign-in`. L'affichage se dérive de la capacité **réelle** |
+| S6 | L'accueil du lien, puis le profil | Le lien qui **crée** un compte dit « Félicitations, ton compte GRYD est créé » et **un** bouton ; celui qui **reconnecte** dit « Bon retour, @… » ; sans `type`, c'est `handle_chosen_2026` qui tranche ; un lien mort ne félicite personne. Puis la chaîne entière : pseudo (disponibilité en direct, photo et ville facultatives) → discipline (ou « Plus tard ») → carte, avec l'identité **choisie** au Profil. Et arriver par le lien inscrit la découverte + l'âge sur l'appareil, donc une reconnexion ne les redemande pas |
 
 C'est déjà beaucoup : la classe de régression la plus fréquente de ce dépôt est un écran qui ne
 monte plus, une copie fausse, ou un bouton qui n'emmène nulle part.
@@ -85,6 +86,32 @@ dirait, au lieu de réussir sur un vestige.
 
 Ce que ça ne prouve pas : que Supabase envoie vraiment l'e-mail, ni que le lien reçu est valide. Le
 harnais prouve **ce que l'app fait du retour**, jamais la chaîne d'envoi.
+
+### Depuis le 12/09/2026, le retour arrive par `https://gryd.run/callback`
+
+`emailRedirectTo` valait `gryd://callback` — un schéma privé, qu'**aucun client mail ne rend
+cliquable**. C'est la panne que le fondateur a vue (« le bouton mène vers rien du tout »). Le lien
+est désormais une URL https réelle, servie par `apps/web`, et l'app l'accepte sous **deux** formes :
+le lien universel (iOS a vérifié `apple-app-site-association`, il ouvre GRYD directement) et le
+schéma (`gryd://callback#…`, le bouton « Ouvrir GRYD » de la page web).
+
+**Ce harnais ne joue ni l'un ni l'autre, et ce n'est pas un oubli.** Le retour est servi sur
+l'**origine locale** (`http://127.0.0.1:<port>/callback#…`) : un navigateur de test ne peut pas
+atterrir sur `https://gryd.run/callback` sans sortir de la machine, ce que le filet réseau interdit
+— à raison. Ce qui EST joué est pourtant l'essentiel : la **forme** que l'app reçoit, une URL
+absolue avec la session dans le fragment, lue par `Linking.useLinkingURL()`. Que l'hôte soit
+`gryd.run` ou `127.0.0.1` ne change rien au code traversé : ni `parseAuthCallback2026` ni
+`callbackType2026` ne regardent l'hôte.
+
+Le reste est prouvé ailleurs, sur les fichiers réellement embarqués :
+
+| Ce qu'il faut savoir | Où c'est prouvé |
+|---|---|
+| `gryd.run` remet bien `/callback`, `/c/*`, `/r/*`, `/u/*` à l'app | `src/lib/links.test.ts` — couture `app.json` ↔ `apple-app-site-association`, et chaque segment a sa route |
+| Les deux formes d'URL sont reconnues | `src/lib/links.test.ts`, `features/account/authCallback2026.test.ts` |
+| Le lien du mail n'est plus écrit en dur | `src/lib/links.test.ts` relit `src/lib/auth.ts` |
+| iOS ouvre réellement l'app | **APPAREIL**, après un nouveau build EAS. Aucun harnais ne peut le dire |
+| `https://gryd.run/callback` est dans l'`uri_allow_list` Supabase | **DASHBOARD**. Invérifiable depuis le client |
 
 ---
 
@@ -197,6 +224,7 @@ e2e/
   s3-reconnexion.spec.ts
   s4-echecs-honnetes.spec.ts
   s5-retour-sans-pile.spec.ts
+  s6-accueil-et-profil.spec.ts
 ```
 
 `apps/mobile/dist/` (l'export) et `test-results/` sont ignorés par git.

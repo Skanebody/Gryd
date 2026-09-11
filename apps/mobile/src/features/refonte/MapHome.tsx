@@ -304,7 +304,17 @@ export default function MapHome() {
             : ownership.loading && ownership.features.length === 0
               ? <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Lecture des terrains…', 'Loading terrain…')}</Text></View>
               : ownership.features.length === 0
-                ? <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Le quartier est à découvrir.', 'This neighbourhood is yours to discover.')}</Text></View>
+                /* LE CONSEIL MANQUANT (12/09/2026, lot onboarding). La phrase
+                   s'arrêtait à « Le quartier est à découvrir. » : vraie, et
+                   muette sur le GESTE. C'est le premier écran qu'un joueur voit
+                   après avoir créé son compte et choisi son pseudo, et il n'y
+                   lisait nulle part ce qui prend du terrain. La seconde phrase
+                   ne prétend PAS qu'il n'a aucun terrain ailleurs — cet écran ne
+                   lit que la vue courante — elle dit ce qui vaut ici : fermer
+                   une boucle prend ce quartier. Jamais un bouton : le départ a
+                   déjà le sien dans la barre basse, et en ajouter un second
+                   ferait deux accents pour une seule action. */
+                ? <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Le quartier est à découvrir · Ferme une boucle pour le prendre', 'This neighbourhood is yours to discover · Close a loop to take it')}</Text></View>
                 : null}
         {choice.failed && !recording ? <Pressable accessibilityRole="button" onPress={() => setSheet('layers')} style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Préférences indisponibles · Réessayer', 'Preferences unavailable · Retry')}</Text></Pressable> : null}
         {(locationState === 'denied' || locationState === 'unavailable') && <Pressable accessibilityRole="button" onPress={() => {
