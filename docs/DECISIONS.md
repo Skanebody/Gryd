@@ -554,3 +554,20 @@ du §15.2 sans rien payer, exactement ce que le cahier décrit.
 
 ### Ce qu’ADR-018 NE fait PAS
 Il n’active pas la push, ne crée pas de rôle de modération de crew au-delà des rôles existants, ne vend aucun cosmétique et ne supprime aucune donnée existante.
+
+## ADR-019 — 2026-09-12 — Mauvaise discipline : le contrôle se fait à l’arrivée, on propose de basculer, et refuser retire la sortie du jeu sans la retirer du joueur
+
+### Le fait, avant toute décision
+La discipline d’une sortie est déclarée par le bouton qui la lance (Courir ou Rouler) et reste figée pendant l’enregistrement. Jusqu’ici, une erreur de discipline n’était traitée que dans un sens et après coup : une course déclarée qui ressemble à du vélo (vitesse soutenue, aucun pas au podomètre) déclenchait le signal anti-triche `discipline_mismatch` et une revue humaine ; le sens inverse (vélo déclaré, personne qui court) n’était pas traité. Aucun message ne s’adressait au joueur. L’écran de course collecte désormais la vitesse lissée et la cadence du podomètre : le motif est mesurable à l’arrivée sans module natif.
+
+### La décision du fondateur, mot pour mot (12/09/2026)
+« je pense que le mieux c'est qu'à la fin si la personne s'est trompé on lui mette le message comme quoi il y a un probleme avec sa course, sil il ne veut pas basculer, on ne comptabilise pas pour certaines choses ».
+
+### Décision
+1. **Pas d’alerte pendant la sortie.** Le contrôle tourne à l’arrivée, avant l’envoi, avec une seule fonction pure partagée par le moteur anti-triche (`disciplineCheck2026`) : course déclarée + vitesse de vélo soutenue + cadence quasi nulle, ou vélo déclaré + cadence de course soutenue + vitesse de marche. Sans podomètre, on ne devine pas.
+2. **Le message dit les chiffres, jamais un soupçon** : « Pendant 5 minutes, tu allais à 24 km/h sans aucun pas. Ça ressemble à du vélo. » Deux issues de même rang : basculer (la sortie part dans la bonne discipline et y est validée avec ses propres seuils) ou garder.
+3. **Garder = sport seulement.** La sortie reste valide et compte pour le joueur (journal, kilomètres, jours actifs, XP de progression) mais ne compte pas pour le jeu : aucun terrain, aucun point de performance ni de territoire, aucun classement, aucun défi de crew, aucune quête hebdomadaire. Le journal et le détail portent un badge « Sport seulement » avec la raison ; une notification le dit en une ligne.
+4. **Le serveur garde son contrôle** avec la même fonction : si le client n’a rien signalé (podomètre absent) et que le serveur voit le motif, la revue humaine reste le chemin (ADR-015).
+
+### Ce qu’ADR-019 NE fait PAS
+Il ne construit pas la reconnaissance d’activité native (Core Motion) et ne rebascule jamais une sortie déjà envoyée : le choix se fait une fois, à l’arrivée.
