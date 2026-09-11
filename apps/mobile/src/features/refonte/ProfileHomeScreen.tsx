@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { supabaseInitError } from '../../lib/supabase';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { careerProgress2026, fonts, refonteColors as c, type Activity } from '@klaim/shared';
@@ -209,7 +210,7 @@ function ProfileHomeContents() {
       {configured ? <>
         <ProfileButton tone="light" label={copy('Créer mon compte', 'Create my account')} onPress={() => router.push('/sign-in')} />
         <Text style={local.gateNote}>{copy('ou se connecter', 'or sign in')}</Text>
-      </> : <Text style={local.meta}>{copy('Serveur non configuré sur ce build : aucun compte ne peut être créé ici.', 'Server not configured in this build: no account can be created here.')}</Text>}
+      </> : <Text style={local.meta}>{supabaseInitError ? copy(`Serveur indisponible sur ce build : ${supabaseInitError}. Aucun compte ne peut être créé ici.`, `Server unavailable on this build: ${supabaseInitError}. No account can be created here.`) : copy('Serveur non configuré sur ce build : aucun compte ne peut être créé ici.', 'Server not configured in this build: no account can be created here.')}</Text>}
     </View> : null}
     {offerAdoption ? <View style={local.adoption} accessibilityLiveRegion="polite">
       <Text style={local.sectionTitle}>{copy('Tes sorties d’avant la connexion', 'Your activities from before sign-in')}</Text>

@@ -207,6 +207,25 @@ export function authCallbackVerdict2026(input: {
 }
 
 /** The dedicated callback consumes its own one-use code. Legacy URLs retain SDK detection. */
+/**
+ * Le chemin courant du navigateur, ou `null` hors web.
+ *
+ * ─── LE BUG (09/09 → 11/09/2026, TOUS les builds natifs sans serveur) ────────
+ * Sur React Native, `window` EXISTE (`global.window = global`, InitializeCore)
+ * mais `window.location` n'existe pas : `window.location.pathname` y jette
+ * « Cannot read property 'pathname' of undefined ». Cette lecture vivait dans
+ * le `createClient` de `lib/supabase.ts`, sous un try/catch qui rend `null` :
+ * le client Supabase n'a donc jamais existé sur iPhone depuis la capture Codex
+ * (`a5b2b0d`), l'app affichait « Serveur non configuré sur ce build », et le
+ * fondateur ne pouvait pas créer de compte. Le web, lui, a une `location` :
+ * aucun test ne rougissait.
+ */
+export function webPathnameForAuthDetect2026(platform: string, win: unknown): string | null {
+  if (platform !== 'web' || typeof win !== 'object' || win === null) return null;
+  const loc = (win as { location?: { pathname?: unknown } }).location;
+  return typeof loc?.pathname === 'string' ? loc.pathname : null;
+}
+
 export function shouldAutoDetectAuth2026(platform: string, pathname: string | null): boolean {
   return platform === 'web' && pathname !== null && !/^\/callback\/?$/.test(pathname);
 }

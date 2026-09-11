@@ -1,5 +1,5 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { AUTH_CALLBACK_URL_WAIT_MS, TOKEN_HASH_FALLBACK_TYPE, authCallbackVerdict2026, emailDelivery2026, parseAuthCallback2026, shouldAutoDetectAuth2026 } from './authCallback2026.ts';
+import { AUTH_CALLBACK_URL_WAIT_MS, TOKEN_HASH_FALLBACK_TYPE, authCallbackVerdict2026, emailDelivery2026, parseAuthCallback2026, shouldAutoDetectAuth2026, webPathnameForAuthDetect2026 } from './authCallback2026.ts';
 import { linkVerdictFromParams } from './emailLink.ts';
 
 Deno.test('un callback dédié ne consomme pas son code deux fois via le SDK et son écran', () => {
@@ -230,4 +230,26 @@ Deno.test('l’écran de retour ne conclut plus sur un premier `url` nul', async
   for (const copy of ['callbackNetwork', 'callbackNoReturn', 'expiredTitle', 'errorLinkInvalid']) {
     assertEquals(src.includes(copy), true, `la copie ${copy} doit être rendue`);
   }
+});
+
+// ─── window SANS location : le cas React Native (bug du 09/09 → 11/09/2026) ─────
+Deno.test("webPathnameForAuthDetect2026 : sur natif, window existe sans location → null, sans jeter", () => {
+  const rnWindow = {} as unknown; // global.window = global, aucune `location`
+  assertEquals(webPathnameForAuthDetect2026('ios', rnWindow), null);
+  assertEquals(webPathnameForAuthDetect2026('android', rnWindow), null);
+  assertEquals(webPathnameForAuthDetect2026('ios', { location: { pathname: '/x' } }), null);
+});
+
+Deno.test('webPathnameForAuthDetect2026 : sur web, le pathname réel ; sans location ou sans window → null', () => {
+  assertEquals(webPathnameForAuthDetect2026('web', { location: { pathname: '/callback' } }), '/callback');
+  assertEquals(webPathnameForAuthDetect2026('web', {}), null);
+  assertEquals(webPathnameForAuthDetect2026('web', null), null);
+  assertEquals(webPathnameForAuthDetect2026('web', undefined), null);
+  assertEquals(webPathnameForAuthDetect2026('web', { location: { pathname: 42 } }), null);
+});
+
+Deno.test('la chaîne complète : natif → jamais de détection automatique ; web hors /callback → détection', () => {
+  assertEquals(shouldAutoDetectAuth2026('ios', webPathnameForAuthDetect2026('ios', {})), false);
+  assertEquals(shouldAutoDetectAuth2026('web', webPathnameForAuthDetect2026('web', { location: { pathname: '/' } })), true);
+  assertEquals(shouldAutoDetectAuth2026('web', webPathnameForAuthDetect2026('web', { location: { pathname: '/callback' } })), false);
 });

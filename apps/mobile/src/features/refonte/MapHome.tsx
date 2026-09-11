@@ -1,6 +1,7 @@
 import Svg, { Line } from 'react-native-svg';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Linking, Platform, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { supabaseInitError } from '../../lib/supabase';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, refonteColors as c, type Activity } from '@klaim/shared';
@@ -268,7 +269,7 @@ export default function MapHome() {
             <Pressable accessibilityRole="button" onPress={() => router.push('/sign-in')} style={({ pressed }) => [s.accountSecondary, pressed && s.pressed]}>
               <Text style={s.accountSecondaryText}>{text('ou me connecter', 'or sign in')}</Text>
             </Pressable>
-          </> : <Text style={s.accountState}>{text('Serveur non configuré sur ce build', 'Server not configured on this build')}</Text>}
+          </> : <Text style={s.accountState}>{supabaseInitError ? text(`Serveur indisponible sur ce build : ${supabaseInitError}`, `Server unavailable on this build: ${supabaseInitError}`) : text('Serveur non configuré sur ce build', 'Server not configured on this build')}</Text>}
         </View>
       </View> : null}
     </View>
@@ -298,7 +299,7 @@ export default function MapHome() {
         {ownership.signedOut
           ? accountDoorOpen ? null : configured
             ? <Pressable accessibilityRole="button" onPress={() => router.push('/sign-in')} style={({ pressed }) => [s.notice, pressed && s.pressed]}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains masqués sans compte · Créer mon compte', 'Terrain hidden without an account · Create my account')}</Text></Pressable>
-            : <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains masqués sans compte · Serveur non configuré sur ce build', 'Terrain hidden without an account · Server not configured on this build')}</Text></View>
+            : <View style={s.notice}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{supabaseInitError ? text(`Terrains masqués sans compte · Serveur indisponible sur ce build : ${supabaseInitError}`, `Terrain hidden without an account · Server unavailable on this build: ${supabaseInitError}`) : text('Terrains masqués sans compte · Serveur non configuré sur ce build', 'Terrain hidden without an account · Server not configured on this build')}</Text></View>
           : ownership.failed
             ? <Pressable accessibilityRole="button" style={s.notice} onPress={ownership.reload}><MapTranslucent2026 tone="dark" radius={16} /><Text style={s.noticeText}>{text('Terrains indisponibles · Réessayer', 'Terrains unavailable · Retry')}</Text></Pressable>
             : ownership.loading && ownership.features.length === 0
