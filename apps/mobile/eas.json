@@ -19,6 +19,12 @@
     "production": {
       "autoIncrement": true,
       "environment": "production"
+    },
+    "preview-nolinks": {
+      "extends": "preview",
+      "env": {
+        "GRYD_UNIVERSAL_LINKS": "off"
+      }
     }
   },
   "submit": {
