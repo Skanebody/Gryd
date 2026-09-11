@@ -599,8 +599,11 @@ export function buildIngestPayload(
     ...(choice?.kind === 'keep'
       ? {
         disciplineMismatchKept: true,
-        // Les chiffres MONTRÉS voyagent avec le refus : un « il n'a pas voulu
+        // Les chiffres MONTRÉS partent avec la réponse : un « il n'a pas voulu
         // basculer » sans preuve chiffrée serait un reproche sans dossier.
+        // ⚠️ Le serveur les VALIDE et ne les STOCKE pas encore (dette déclarée
+        // dans `ingest_run/index.ts`) : la trace et le cumul de pas sont
+        // scellés, donc le contrôle reste rejouable côté serveur.
         // `?? 0` n'invente rien — un verdict `keep` n'existe que sur une
         // évidence complète (le contrôle ne conclut jamais sans ses deux
         // moitiés), et le type d'`IngestRunRequest` exige des nombres.

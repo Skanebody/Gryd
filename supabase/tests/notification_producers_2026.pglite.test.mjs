@@ -97,6 +97,21 @@ const faits = async (user) =>
 const compte = async (user) =>
   Number(await val(`select count(*) from public.notifications where user_id=$1`, [user]));
 
+/**
+ * ATTENDRE QUE L'HORLOGE AVANCE — 12/09/2026, correction d'un vert au hasard.
+ *
+ * `faits()` trie par `created_at, event_id`. Quand deux écritures tombent sur le
+ * MÊME `now()` (PGlite a une horloge à la milliseconde et trois `update`
+ * consécutifs peuvent y tenir), le départage se fait sur `event_id`, qui est
+ * ALPHABÉTIQUE et n'a rien de chronologique : `capture_published:` passait alors
+ * devant `result_ready:` et l'assertion d'ordre échouait. Une fois sur deux.
+ *
+ * Ce n'est pas un défaut du schéma : c'est le test qui affirmait une CHRONOLOGIE
+ * sans en créer une. Trois millisecondes entre deux changements d'état la
+ * rendent réelle, et l'assertion redevient une assertion.
+ */
+const attendreUneMs = () => new Promise((resolve) => setTimeout(resolve, 3));
+
 try {
   // ─── Socle : les colonnes que 0193 LIT, aux noms des migrations réelles ──
   await db.exec(`
@@ -253,9 +268,11 @@ try {
     await db.query(`insert into public.capture_events_2026(run_id,owner_id,status,reason)
                     values ($1,$2,'pending','verification_required')`, [RUN, SOLO]);
     eq(await faits(SOLO), ['result_pending'], 'la sortie part en vérification');
+    await attendreUneMs();
     await db.query(`update public.capture_events_2026 set status='scheduled', reason=null
                     where run_id=$1`, [RUN]);
     eq(await faits(SOLO), ['result_pending', 'result_ready'], 'la vérification est terminée');
+    await attendreUneMs();
     await db.query(`update public.capture_events_2026 set status='published' where run_id=$1`, [RUN]);
     eq(await faits(SOLO), ['result_pending', 'result_ready', 'capture_published'],
       'le terrain est publié');

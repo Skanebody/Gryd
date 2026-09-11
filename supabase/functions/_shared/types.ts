@@ -224,7 +224,15 @@ export interface IngestRunRequest {
    * dispense d'aucune borne §3.2, et garder ne met à l'abri d'aucun signal
    * anti-triche.
    */
-  /** La discipline D'ORIGINE quand le joueur a accepté de basculer. */
+  /**
+   * La discipline D'ORIGINE quand le joueur a accepté de basculer.
+   *
+   * ⚠️ VALIDÉE, PAS PERSISTÉE. Le serveur refuse une valeur hors du vocabulaire
+   * du produit, puis n'en garde rien : la bascule est déjà entièrement visible
+   * dans `runs.activity`, qui porte la NOUVELLE discipline. Ce champ ne sert
+   * donc qu'à dire « ce n'était pas la déclaration du départ » — utile à une
+   * revue future, sans colonne aujourd'hui.
+   */
   disciplineSwitchedFrom?: Activity;
   /**
    * `true` : le joueur a VU le message et a choisi de garder sa discipline.
@@ -236,9 +244,17 @@ export interface IngestRunRequest {
    */
   disciplineMismatchKept?: boolean;
   /**
-   * Les nombres MESURÉS qui ont été montrés au joueur. Ils voyagent avec le
+   * Les nombres MESURÉS qui ont été montrés au joueur. Ils partent avec le
    * choix pour qu'une revue puisse relire ce qui lui a été affirmé — un « il a
    * refusé de basculer » sans les chiffres serait un reproche sans dossier.
+   *
+   * ⚠️ VALIDÉS, PAS PERSISTÉS (dette déclarée, `ingest_run/index.ts`). Aucune
+   * colonne ne les reçoit aujourd'hui. La preuve n'est pas perdue pour autant :
+   * la trace (`runs.trace_points_2026`) et le cumul de pas (`runs.step_count`)
+   * sont SCELLÉS à la première écriture et `checkDeclaredDiscipline2026` est
+   * déterministe — le serveur peut recalculer ce qu'il aurait vu. Ce qui n'est
+   * pas rejouable, c'est l'affichage EXACT : le mobile range son podomètre par
+   * tranches d'une minute, le serveur n'a qu'un total.
    */
   disciplineEvidence?: {
     sustainedKmh: number;

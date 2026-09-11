@@ -76,6 +76,32 @@ Deno.test('ÉTAPE 0 — les deux champs sont VALIDÉS, et un absent ne change ri
   );
 });
 
+Deno.test('l’ÉVIDENCE a une forme, même si aucune colonne ne la reçoit encore', () => {
+  // Un champ accepté sans contrôle est un champ dont le contrat n'existe pas :
+  // le jour où on voudra le lire, on découvrirait qu'il contient n'importe quoi
+  // depuis des mois. La dette (« validée, pas persistée ») est DÉCLARÉE dans la
+  // source, pas découverte en production.
+  assert(
+    INDEX.includes('(b.disciplineEvidence === undefined || isDisciplineEvidenceShape(b.disciplineEvidence))'),
+    'la forme est contrôlée à la porte',
+  );
+  const garde = INDEX.slice(INDEX.indexOf('function isDisciplineEvidenceShape('));
+  for (const champ of ['sustainedKmh', 'stepsPerMin', 'windowS']) {
+    assert(garde.includes(`typeof e.${champ} === 'number'`), `${champ} est un nombre`);
+  }
+  assert(garde.includes('Number.isFinite(e.sustainedKmh)'), 'et un nombre FINI, pas un NaN');
+  assert(
+    INDEX.includes('VALIDÉS, PAS STOCKÉS') || INDEX.includes('ne les STOCKE pas') ||
+      INDEX.includes('ne stocke pas') || INDEX.includes('DETTE DÉCLARÉE'),
+    'la dette est écrite à côté du code qui la porte',
+  );
+  // Et la sortie reste rejouable : les deux entrées du contrôle sont scellées.
+  assert(
+    REFONTE.includes('trace_points_2026: request.points') && REFONTE.includes('step_count:'),
+    'trace et cumul de pas sont scellés à la première écriture',
+  );
+});
+
 // ════════════════════════════════════════════════════════════════════════════
 // 2. LE CHOIX EST SCELLÉ AVEC LA SORTIE, JAMAIS RELU DE LA REQUÊTE
 // ════════════════════════════════════════════════════════════════════════════

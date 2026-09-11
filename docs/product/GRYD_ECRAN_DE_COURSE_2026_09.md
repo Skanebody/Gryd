@@ -172,6 +172,29 @@ en lecture, `src/mvp/run/feedback.ts` (les règles pures de la voix).
 
 ---
 
+## 6 bis. **Livré le 12/09/2026 — la fin de sortie pose une question**
+
+Lot W, décision fondateur du 12/09/2026 : « à la fin, si la personne s'est
+trompée, on lui met le message comme quoi il y a un problème avec sa course ;
+s'il ne veut pas basculer, on ne comptabilise pas pour certaines choses. »
+
+| Ce qui manquait à cet écran | Ce qui est livré |
+|---|---|
+| `finish()` appelait `run.finish()` **sans un mot** : une sortie faite à vélo et déclarée « Course » prenait du terrain, des points de classement et l'avancement d'un défi, et n'avait pour seul filet qu'une **revue anti-triche** — une sanction pour une erreur de bouton | Le contrôle est lu **avant** la clôture (`RealCourseLive.tsx` — `finish()` → `run.disciplineVerdict()`), et une feuille bloquante pose la question avec **les chiffres mesurés** : `DisciplineSheet2026.tsx` |
+| La cadence du podomètre n'existait que sur les **30 dernières secondes** (ligne 7 du tableau, lot R), et le tableau brut est plafonné : les premières minutes d'une sortie d'une heure disparaissaient | Un second rangement, **une tranche par minute sur toute la sortie** (`motionIntegrity.ts` — `openStepWindows2026` / `addStepSample2026` / `sealStepWindows2026`, PURES et testées) |
+| Aucun moyen de corriger une discipline après coup | **Deux issues de même rang, aucune troisième.** Basculer **re-nettoie la trace** aux bornes de la nouvelle discipline ; garder marque la sortie « sport seulement » (migration 0197) |
+
+**Pas d'alerte pendant la course, et c'est structurel** : la discipline est figée
+au départ (`tracker.ts`, `readonly activity`) parce qu'elle fixe les bornes de
+nettoyage §3.2 de chaque relevé. Le contrôle a donc lieu quand la trace est
+complète, là où il est mesurable **et réparable**.
+
+Le détail complet — les seuils, les deux issues, ce qui compte et ce qui ne
+compte pas, la relation avec le signal anti-triche — vit dans
+**`docs/product/GRYD_DISCIPLINE_2026_09.md`**.
+
+---
+
 ## 7. Preuve
 
 | Vérification | Résultat |

@@ -262,7 +262,32 @@ function isIngestRunRequest(body: unknown): body is IngestRunRequest {
     // Une forme invalide est un 400, jamais un repli : « scooter » ne devient
     // pas « run », et un `disciplineMismatchKept: 'oui'` ne devient pas `true`.
     (b.disciplineSwitchedFrom === undefined || isActivityShape(b.disciplineSwitchedFrom)) &&
-    (b.disciplineMismatchKept === undefined || typeof b.disciplineMismatchKept === 'boolean');
+    (b.disciplineMismatchKept === undefined || typeof b.disciplineMismatchKept === 'boolean') &&
+    (b.disciplineEvidence === undefined || isDisciplineEvidenceShape(b.disciplineEvidence));
+}
+
+/**
+ * Les trois nombres MONTRÉS au joueur avant sa réponse.
+ *
+ * ─── POURQUOI LES VALIDER ALORS QUE LE SERVEUR NE LES STOCKE PAS ────────────
+ * Parce qu'un champ accepté sans contrôle est un champ dont le contrat n'existe
+ * pas : le jour où on voudra le lire, on découvrirait qu'il contient n'importe
+ * quoi depuis des mois. Le valider maintenant coûte six lignes et fige la forme.
+ *
+ * ⚠️ DETTE DÉCLARÉE. `runs` ne porte AUCUNE colonne pour ces nombres
+ * aujourd'hui : ils s'arrêtent ici. Ce n'est pas une perte de preuve — la trace
+ * (`trace_points_2026`) et le cumul de pas (`step_count`) sont SCELLÉS avec la
+ * sortie, et `checkDeclaredDiscipline2026` est déterministe : le serveur peut
+ * recalculer ce qu'il aurait vu. Ce qu'on ne peut pas rejouer, c'est l'affichage
+ * exact (le mobile range son podomètre plus finement). Si une revue en a besoin
+ * un jour, c'est une colonne `jsonb` de plus, pas une refonte.
+ */
+function isDisciplineEvidenceShape(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const e = value as Record<string, unknown>;
+  return typeof e.sustainedKmh === 'number' && Number.isFinite(e.sustainedKmh) &&
+    typeof e.stepsPerMin === 'number' && Number.isFinite(e.stepsPerMin) &&
+    typeof e.windowS === 'number' && Number.isFinite(e.windowS);
 }
 
 interface UserProfile {
