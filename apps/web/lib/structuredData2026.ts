@@ -61,6 +61,58 @@ export function organizationJsonLd(): JsonLdValue {
 }
 
 /**
+ * Le bloc `FAQPage`, réservé à `/faq/` (lot W3).
+ *
+ * ⚠️ LES RÉPONSES SONT CELLES DE LA PAGE, AU CARACTÈRE PRÈS. Elles ne sont pas
+ * recopiées ici : la fonction reçoit les MÊMES entrées que l'accordéon, lues
+ * dans `faqCopy2026.ts`. Un `FAQPage` dont les réponses diffèrent de la page est
+ * une pénalité, pas un bonus (cahier §3.10), et le seul moyen sûr de ne pas
+ * diverger est de n'avoir qu'une source.
+ *
+ * `acceptedAnswer` est en `text` brut : aucune de nos réponses ne contient de
+ * balise, et en déclarer une exigerait de l'échapper deux fois.
+ */
+export function faqPageJsonLd(
+  entries: readonly { readonly question: string; readonly answer: string }[],
+): JsonLdValue {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: entries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.question,
+      acceptedAnswer: { '@type': 'Answer', text: entry.answer },
+    })),
+  };
+}
+
+/**
+ * Le bloc `SoftwareApplication`, réservé à `/telecharger/` (lot W3).
+ *
+ * ─── CE QUI EST ABSENT, ET C'EST VOULU (cahier §3.10) ───────────────────────
+ *  · `aggregateRating` et `Review` : aucune note n'existe. En déclarer une
+ *    serait une donnée factice, et une donnée factice DÉCLARÉE À GOOGLE.
+ *  · `downloadUrl` / `installUrl` : aucune fiche App Store n'existe. Une adresse
+ *    inventée serait un lien mort annoncé à un moteur.
+ *  · `softwareVersion` : aucune version n'est publiée.
+ *
+ * `offers` à 0 € dit la seule chose qui soit vraie et vérifiable aujourd'hui :
+ * le jeu est gratuit. `name` est en capitales parce que c'est un IDENTIFIANT de
+ * données structurées, pas de la prose (cahier §4.2).
+ */
+export function softwareApplicationJsonLd(): JsonLdValue {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'GRYD',
+    applicationCategory: 'HealthApplication',
+    operatingSystem: 'iOS',
+    url: `${SITE_ORIGIN}/telecharger/`,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+  };
+}
+
+/**
  * Sérialise un bloc pour un `<script type="application/ld+json">`.
  *
  * `<` est échappé : une chaîne contenant `</script>` fermerait la balise et

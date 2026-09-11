@@ -1,0 +1,25 @@
+# GRYD — robots.txt du site public (lot W3, 12/09/2026).
+#
+# Le site est OUVERT aux moteurs : neuf pages publiques et quatre pages légales,
+# toutes listées dans le plan ci-dessous. Trois adresses en sont tenues à l'écart,
+# et chacune pour une raison qui se dit :
+#   · /callback/   — l'arrivée du lien de connexion. Son fragment porte des
+#                    jetons d'authentification : cette adresse n'a rien à faire
+#                    dans un index, et la page se déclare déjà « noindex ».
+#   · /abonnement/ — une simple redirection vers /gryd-plus/. L'ancienne page
+#                    vendait « GRYD Club » et le « Founder Pack », morts tous les
+#                    deux ; son adresse a circulé, donc elle est servie, mais un
+#                    moteur ne doit pas la proposer.
+#   · /admin/      — l'outil du fondateur. Il n'est même pas publié : le script
+#                    de déploiement l'exclut du site public.
+#
+# Aucun « Crawl-delay » : il n'est honoré ni par Google ni par Bing, et un site
+# statique servi par GitHub Pages n'a pas de charge à protéger.
+
+User-agent: *
+Allow: /
+Disallow: /callback/
+Disallow: /abonnement/
+Disallow: /admin/
+
+Sitemap: https://gryd.run/sitemap.xml
