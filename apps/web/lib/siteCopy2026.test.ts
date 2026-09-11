@@ -25,6 +25,7 @@
  * duplications assumées, trois verrous qui les tiennent.
  */
 import { MIN_AGE_YEARS, SHARE_TRIM_M, TERRITORY_RULES_2026 } from '@klaim/shared';
+import { LEGAL_ENTITY } from './legal.ts';
 import { DEEP_LINK_PAGES, NOT_FOUND_COPY, appDeepLink } from './deepLinkCopy2026.ts';
 import { factValues } from './facts2026.ts';
 import { FAQ_COPY, faqEntries } from './faqCopy2026.ts';
@@ -33,6 +34,7 @@ import { OFFER_COPY } from './offerCopy2026.ts';
 import { PRIVACY_COPY } from './privacyCopy2026.ts';
 import {
   EXCLUDED_FROM_SITEMAP,
+  LEGAL_PAGES,
   LEGAL_PATHS,
   SEO_DESCRIPTION_MAX,
   SEO_TITLE_MAX,
@@ -63,10 +65,15 @@ function assertEquals(actual: unknown, expected: unknown, message?: string): voi
   }
 }
 
-/** Toute la prose du site : les huit pages du plan, plus les pages d'arrivée. */
+/**
+ * Toute la prose du site : les huit pages du plan, les métadonnées des quatre
+ * pages légales (pas leur texte, qui est contractuel : seulement ce qu'un moteur
+ * affiche à leur place), et les pages d'arrivée.
+ */
 function everyString(): string[] {
   return [
     ...SITE_PAGES.flatMap((page) => copyStrings(page.copy)),
+    ...LEGAL_PAGES.flatMap((page) => copyStrings(page.copy)),
     ...copyStrings(DEEP_LINK_PAGES),
     ...copyStrings(NOT_FOUND_COPY),
   ];
@@ -174,6 +181,13 @@ Deno.test('aucun chiffre de jeu n est tapé à la main', () => {
   // constat « Gryd n'est pas encore sur l'App Store ». Elle n'annonce aucune
   // sortie : le cahier §4.5 interdit une date à venir, pas une date passée.
   collect('12 septembre 2026');
+  // Exception 4 — L'IDENTITÉ LÉGALE : « SASU Nexus 1993 » et le siège. Ce ne
+  // sont pas des règles de jeu, et ils ne sont pas tapés dans une page : ils
+  // viennent de `lib/legal.ts`, la copie unique que les quatre documents et le
+  // pied du site lisent déjà. L'exception porte sur les CHIFFRES qu'ils
+  // contiennent, pas sur la phrase.
+  collect(LEGAL_ENTITY.name);
+  collect(LEGAL_ENTITY.address);
 
   for (const value of proseStrings()) {
     for (const digits of value.match(/\d+/g) ?? []) {
@@ -224,7 +238,10 @@ Deno.test('chaque page porte un titre et une description dans les plafonds', () 
   // alors jamais lue. Le cahier §3 compte chaque titre et chaque description au
   // caractère ; ce test vérifie qu'aucune ne dérive après lui.
   const vus = new Set<string>();
-  for (const page of SITE_PAGES) {
+  // Les douze pages indexées, légales comprises : deux de leurs descriptions
+  // faisaient 185 et 206 caractères, donc étaient tronquées en plein milieu dans
+  // un résultat de recherche, et personne ne le voyait.
+  for (const page of [...SITE_PAGES, ...LEGAL_PAGES]) {
     assert(page.path.endsWith('/'), `l adresse ${page.path} n a pas de slash final`);
     assert(page.seo.title.trim().length > 0, `${page.path} sans titre`);
     assert(page.seo.description.trim().length > 0, `${page.path} sans description`);

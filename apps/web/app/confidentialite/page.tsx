@@ -59,6 +59,8 @@ import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
 import { POSTAL_CONTACT } from '../../lib/legal';
 import { SiteFooter, SiteHeader } from '../../components/ui';
+import { LEGAL_SEO } from '../../lib/legalSeo2026';
+import { SITE_ORIGIN } from '../../lib/site2026';
 import styles from './legal.module.css';
 
 /** Dernière mise à jour — à faire évoluer à chaque changement de fond. */
@@ -73,10 +75,17 @@ import styles from './legal.module.css';
 const LAST_UPDATED = '27 juillet 2026';
 const EFFECTIVE = '27 juillet 2026';
 
+/**
+ * Le titre d'onglet et la ligne de résumé viennent de `lib/legalSeo2026.ts`, et
+ * pas du document : ce ne sont pas des clauses, ce sont les deux textes qu'un
+ * moteur affiche À LA PLACE de la page. Sortis d'ici, ils tombent sous le
+ * verrou de la copie du site comme les huit autres pages (pas de tiret long,
+ * « Gryd » en prose, titre et description dans les plafonds d'affichage).
+ */
 export const metadata: Metadata = {
-  title: 'Politique de confidentialité — GRYD',
-  description:
-    'Comment GRYD collecte, utilise et protège tes données : localisation pendant tes sorties (course à pied et vélo), mouvement, compte. Ta position n’est jamais publique, et GRYD ne lit aucune donnée de santé.',
+  title: LEGAL_SEO.confidentialite.title,
+  description: LEGAL_SEO.confidentialite.description,
+  alternates: { canonical: `${SITE_ORIGIN}${LEGAL_SEO.confidentialite.path}` },
 };
 
 /** Sommaire ↔ ancres des sections (ordre de lecture). */

@@ -35,6 +35,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { CONTACT_EMAIL, POSTAL_CONTACT } from '../../lib/legal';
 import { SiteFooter, SiteHeader } from '../../components/ui';
+import { LEGAL_SEO } from '../../lib/legalSeo2026';
+import { SITE_ORIGIN } from '../../lib/site2026';
 import styles from '../confidentialite/legal.module.css';
 
 // Révision du 23 juillet 2026 — AMENDEMENT-40 §2 / AMENDEMENT-45 §2 : retrait des boucliers, packs d'Éclats et Season Pass de la liste des produits vendus.
@@ -55,10 +57,17 @@ import styles from '../confidentialite/legal.module.css';
 const LAST_UPDATED = '10 septembre 2026';
 const EFFECTIVE = '10 septembre 2026';
 
+/**
+ * Le titre d'onglet et la ligne de résumé viennent de `lib/legalSeo2026.ts`, et
+ * pas du document : ce ne sont pas des clauses, ce sont les deux textes qu'un
+ * moteur affiche À LA PLACE de la page. Sortis d'ici, ils tombent sous le
+ * verrou de la copie du site comme les huit autres pages (pas de tiret long,
+ * « Gryd » en prose, titre et description dans les plafonds d'affichage).
+ */
 export const metadata: Metadata = {
-  title: 'Conditions Générales de Vente — GRYD',
-  description:
-    'CGV de GRYD : abonnement GRYD+ et collections permanentes — prix, paiement, droit de rétractation, reconduction, résiliation, médiation de la consommation.',
+  title: LEGAL_SEO.cgv.title,
+  description: LEGAL_SEO.cgv.description,
+  alternates: { canonical: `${SITE_ORIGIN}${LEGAL_SEO.cgv.path}` },
 };
 
 function Todo({ children }: { children: ReactNode }) {

@@ -59,6 +59,8 @@ import { MIN_AGE_YEARS } from '@klaim/shared';
 import { Icon } from '../components/ui/Icon';
 import { POSTAL_CONTACT } from '../../lib/legal';
 import { SiteFooter, SiteHeader } from '../../components/ui';
+import { LEGAL_SEO } from '../../lib/legalSeo2026';
+import { SITE_ORIGIN } from '../../lib/site2026';
 import styles from '../confidentialite/legal.module.css';
 
 // Révision du 26 juillet 2026 — le vélo est une discipline réelle (objet, règles
@@ -79,10 +81,17 @@ import styles from '../confidentialite/legal.module.css';
 const LAST_UPDATED = '10 septembre 2026';
 const EFFECTIVE = '10 septembre 2026';
 
+/**
+ * Le titre d'onglet et la ligne de résumé viennent de `lib/legalSeo2026.ts`, et
+ * pas du document : ce ne sont pas des clauses, ce sont les deux textes qu'un
+ * moteur affiche À LA PLACE de la page. Sortis d'ici, ils tombent sous le
+ * verrou de la copie du site comme les huit autres pages (pas de tiret long,
+ * « Gryd » en prose, titre et description dans les plafonds d'affichage).
+ */
 export const metadata: Metadata = {
-  title: 'Conditions d’utilisation — GRYD',
-  description:
-    'Les règles d’usage de GRYD : compte, règles du jeu dans les deux disciplines (course à pied et vélo), anti-triche, contenu et modération, abonnement statut, responsabilité, résiliation.',
+  title: LEGAL_SEO.conditions.title,
+  description: LEGAL_SEO.conditions.description,
+  alternates: { canonical: `${SITE_ORIGIN}${LEGAL_SEO.conditions.path}` },
 };
 
 const TOC = [

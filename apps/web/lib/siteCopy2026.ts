@@ -22,6 +22,7 @@ import { DOWNLOAD_COPY } from './downloadCopy2026';
 import { FAQ_COPY } from './faqCopy2026';
 import { GUIDE_COPY } from './guideCopy2026';
 import { HOME_COPY } from './homeCopy2026';
+import { LEGAL_SEO_LIST } from './legalSeo2026';
 import { OFFER_COPY } from './offerCopy2026';
 import { PRIVACY_COPY } from './privacyCopy2026';
 import { SAISON_COPY } from './saisonCopy2026';
@@ -60,13 +61,21 @@ export const SITE_PAGES: readonly SitePage[] = [
   { path: '/telecharger/', seo: DOWNLOAD_COPY.seo, copy: DOWNLOAD_COPY, priority: '0.9' },
 ] as const;
 
-/** Les quatre pages légales : indexées, sans copie éditoriale de ce lot. */
-export const LEGAL_PATHS: readonly string[] = [
-  '/confidentialite/',
-  '/conditions/',
-  '/cgv/',
-  '/mentions-legales/',
-] as const;
+/**
+ * LES QUATRE PAGES LÉGALES. Indexées, sans copie éditoriale de ce lot : leur
+ * TEXTE est contractuel et n'a pas bougé. Seules leurs métadonnées de
+ * référencement sont ici, parce qu'elles ne sont pas des clauses mais ce qu'un
+ * moteur affiche à leur place, et qu'elles doivent donc tenir les mêmes règles
+ * que les huit autres pages.
+ */
+export const LEGAL_PAGES: readonly SitePage[] = LEGAL_SEO_LIST.map((page) => ({
+  path: page.path,
+  seo: { title: page.title, description: page.description },
+  copy: { title: page.title, description: page.description },
+  priority: '0.5',
+}));
+
+export const LEGAL_PATHS: readonly string[] = LEGAL_SEO_LIST.map((page) => page.path);
 
 /**
  * LES PAGES QUI NE SONT DANS AUCUN PLAN, ET C'EST VOULU.

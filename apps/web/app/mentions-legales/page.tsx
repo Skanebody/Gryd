@@ -17,14 +17,23 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { CONTACT_EMAIL, POSTAL_CONTACT } from '../../lib/legal';
 import { SiteFooter, SiteHeader } from '../../components/ui';
+import { LEGAL_SEO } from '../../lib/legalSeo2026';
+import { SITE_ORIGIN } from '../../lib/site2026';
 import styles from '../confidentialite/legal.module.css';
 
 const LAST_UPDATED = '26 juillet 2026';
 
+/**
+ * Le titre d'onglet et la ligne de résumé viennent de `lib/legalSeo2026.ts`, et
+ * pas du document : ce ne sont pas des clauses, ce sont les deux textes qu'un
+ * moteur affiche À LA PLACE de la page. Sortis d'ici, ils tombent sous le
+ * verrou de la copie du site comme les huit autres pages (pas de tiret long,
+ * « Gryd » en prose, titre et description dans les plafonds d'affichage).
+ */
 export const metadata: Metadata = {
-  title: 'Mentions légales — GRYD',
-  description:
-    'Mentions légales de GRYD : éditeur (SASU Nexus 1993), directeur de la publication, hébergement, propriété intellectuelle, contact.',
+  title: LEGAL_SEO.mentionsLegales.title,
+  description: LEGAL_SEO.mentionsLegales.description,
+  alternates: { canonical: `${SITE_ORIGIN}${LEGAL_SEO.mentionsLegales.path}` },
 };
 
 /** Emplacement à compléter — visible, impossible à oublier avant publication. */
