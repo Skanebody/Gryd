@@ -16,8 +16,16 @@
  * erreur qui NOMME la cause (en dev) ou dit l'indisponibilité (en prod). Les
  * messages sont ceux de l'ancienne action, relus pour dire quoi faire sans
  * s'excuser (addendum §F).
+ *
+ * ─── LE CLIENT SUPABASE EST CHARGÉ À LA SOUMISSION, PAS AU CHARGEMENT ───────
+ * (12/09/2026, lot W2.) `@supabase/supabase-js` pèse 66 Ko dans le bundle. En
+ * import statique, CHAQUE visiteur de l'accueil le téléchargeait pour un
+ * formulaire que la plupart ne remplissent jamais : 182 Ko de JS au premier
+ * chargement d'une page qui est du texte et deux photos. L'import dynamique le
+ * déplace dans un morceau séparé, demandé seulement quand quelqu'un soumet
+ * VRAIMENT, et APRÈS la validation locale, donc une saisie invalide ne
+ * déclenche toujours aucun appel réseau (garde-fou vérifié par l'E2E du site).
  */
-import { createClient } from '@supabase/supabase-js';
 
 export type WaitlistFormState =
   | { status: 'idle' }
@@ -60,6 +68,7 @@ export async function joinWaitlist(formData: FormData): Promise<WaitlistFormStat
     };
   }
 
+  const { createClient } = await import('@supabase/supabase-js');
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   // Sécurité (0034) : pas d'insert direct sur `waitlist` (fermé au client). La RPC
   // SECURITY DEFINER valide et insère UNE ligne. Elle renvoie 'ok' | 'invalid'.

@@ -1,0 +1,60 @@
+/* Mise en page PROPRE À L'ACCUEIL. Tout ce qui resservirait sur une autre page
+   appartient au système de design (`components/ui/`), pas ici. */
+
+.before {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: var(--s-6);
+}
+
+.after {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+}
+
+.body {
+  color: var(--gryd-muted);
+  font-size: var(--t-lead);
+  line-height: 1.55;
+  max-width: 46ch;
+}
+
+.note {
+  color: var(--gryd-muted);
+  font-size: var(--t-small);
+  line-height: 1.6;
+  max-width: 60ch;
+}
+
+.split {
+  display: grid;
+  gap: var(--s-7);
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+
+.splitText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.waitlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  max-width: 46rem;
+}
+
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--s-10);
+  }
+}
