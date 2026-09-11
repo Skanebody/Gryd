@@ -57,19 +57,20 @@ n'est jamais envoyé au serveur, il ne peut être lu que par le navigateur. Le t
 
 **Elle ne décide rien elle-même.** Le verdict vient de `readAuthCallbackLink2026`
 (`apps/web/lib/authCallbackLink2026.ts`), fonction **pure**, miroir de `parseAuthCallback2026`
-côté mobile, couverte par 14 tests (`npm run test:web`, dans le gate).
+côté mobile, couverte par 18 tests (`npm run test:web`, dans le gate).
 
-### Les cinq verdicts, et le sixième état
+### Les six verdicts, et le septième état
 
 | Verdict | Ce que le lien contient | Titre affiché | Bouton |
 |---|---|---|---|
+| `token_hash` | `?token_hash=…&type=…` (le lien direct, lot E4) — **rien n'est vérifié** | « Ton lien de connexion est prêt. » | oui, `gryd://callback?token_hash=…` |
 | `signup` | jetons + `type=signup` | « Félicitations, ton compte GRYD est créé. » | oui |
 | `return` | jetons (magiclink, recovery, email_change) ou code PKCE | « Bon retour sur GRYD. » | oui |
 | `expired` | `error_code`/`error_description` contenant `expired` | « Ce lien a expiré. » | non |
 | `failed` | une autre erreur serveur | « Ce lien n'a pas pu être validé. » | non |
 | `incomplete` | ni jetons, ni code, ni erreur | « Ce lien est incomplet. » | non |
 
-Le sixième état est **EN COURS** : le HTML statique est produit au build, où `window` n'existe
+Le septième état est **EN COURS** : le HTML statique est produit au build, où `window` n'existe
 pas ; le lien n'est donc lu qu'au montage. Cet instant est nommé (« Lecture de ton lien. »)
 plutôt que déguisé en réussite (L8/L14). Sans JavaScript il ne se résoudrait jamais : un
 `<noscript>` le remplace alors par une phrase vraie.
@@ -137,19 +138,35 @@ octet-stream. S'il fallait un jour `application/json`, il faudrait changer d'hé
   iOS remet ces adresses à l'app. **Sans l'app, elles tombent sur le 404 du site.** C'est une
   dette ouverte (une page d'atterrissage d'invitation), pas un effet de ce lot.
 
-### Le chemin « sans clic » n'est pas encore celui de l'e-mail
+### Le chemin « sans clic » est devenu celui de l'e-mail (lot E4, 12/09/2026)
 
 Un lien universel s'ouvre dans l'app quand l'utilisateur **tape le lien** (Mail, Messages, une
 page web). Il ne s'ouvre **pas** à la fin d'une chaîne de redirections : Safari qui suit un 302
-ne passe pas la main à l'app. Or l'e-mail de Supabase pointe sur
-`https://<projet>.supabase.co/auth/v1/verify?…`, qui redirige ensuite vers `gryd.run/callback`.
-Sur ce chemin, **c'est le bouton « Ouvrir GRYD » qui fait le travail**, et c'est pour ça qu'il
-existe.
+ne passe pas la main à l'app. Or l'e-mail de Supabase pointait sur
+`https://<projet>.supabase.co/auth/v1/verify?…`, qui redirigeait ensuite vers
+`gryd.run/callback`. Sur ce chemin, c'était le bouton « Ouvrir GRYD » qui faisait le travail.
 
-Pour obtenir l'ouverture directe sans clic, il faudrait que le gabarit d'e-mail pointe
-directement sur `https://gryd.run/callback?token_hash={{ .TokenHash }}&type={{ .Type }}` et que
-l'app vérifie elle-même le jeton (`verifyOtp`). C'est un arbitrage des lots e-mail et mobile,
-pas de celui-ci.
+**Le lot E4 a supprimé la redirection.** Les gabarits `confirmation.html` et `magic-link.html`
+écrivent maintenant l'adresse finale eux-mêmes :
+
+```
+{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=signup      (Confirm signup)
+{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=magiclink   (Magic Link)
+```
+
+(`{{ .Type }}` n'existe pas dans les variables de gabarit de Supabase : le type est écrit en
+dur, un par gabarit.) L'app lit `?token_hash=` et l'échange elle-même
+(`supabase.auth.verifyOtp`) — voir `GRYD_ONBOARDING_2026_09.md` §2.3 pour la chaîne complète.
+
+**Cette page reste indispensable, et son rôle a changé.** Sans l'app, elle reçoit le haché et
+**ne le vérifie pas** : un `token_hash` ne sert qu'une fois, le consommer ici le rendrait mort
+pour l'app. Elle dit « Ton lien de connexion est prêt. » et tend le bouton
+`gryd://callback?token_hash=…&type=…`.
+
+**Vérifié en ligne le 12/09/2026** : `https://gryd.run/callback?token_hash=…&type=magiclink`
+répond 301 vers `/callback/?token_hash=…&type=magiclink` — **GitHub Pages reconduit la query**,
+comme il reconduit le fragment. Les deux formes (`/callback` et `/callback/`) sont déclarées
+dans l'`apple-app-site-association`, donc iOS n'a de toute façon aucune redirection à suivre.
 
 ---
 
@@ -195,7 +212,7 @@ réseau sans IPv6 (beaucoup de réseaux mobiles et d'entreprises) ne trouve aujo
 ## 6. Redéployer
 
 ```bash
-# 1. Le gate doit être vert (il joue npm run test:web, les 14 tests de /callback).
+# 1. Le gate doit être vert (il joue npm run test:web, les 18 tests de /callback).
 npm run gate
 
 # 2. Export + push gh-pages. Exige apps/web/.env.local (clés NEXT_PUBLIC_*).
@@ -234,6 +251,7 @@ curl -s https://app-site-association.cdn-apple.com/a/v1/gryd.run    # cache d'Ap
 | `gh api repos/Skanebody/Gryd/pages` | `status: built` · `cname: gryd.run` · `https_enforced: true` · certificat `approved` (gryd.run + www.gryd.run, jusqu'au 10/12/2026) |
 | `https://gryd.run/callback` | 301 vers `https://gryd.run/callback/` (le fragment est reconduit par le navigateur) |
 | `https://gryd.run/callback/` | 200 `text/html` — titre « GRYD : ton compte », `noindex, nofollow` |
+| `?token_hash=…&type=magiclink` | 301 vers `/callback/?token_hash=…&type=magiclink` — **la query est reconduite** (relevé du 12/09/2026, lot E4) |
 | `#…&type=signup` en navigateur réel | « Félicitations, ton compte GRYD est créé. » et bouton `gryd://callback#access_token=…&type=signup` |
 | `#error=…&error_code=otp_expired` | « Ce lien a expiré. » et **aucun bouton** |
 | sans fragment | « Ce lien est incomplet. » |
@@ -253,10 +271,18 @@ build iOS qui embarque l'entitlement, cf. §7) et **la réception d'un vrai e-ma
 1. **Le build iOS.** Les entitlements `associated-domains` sont posés **à la compilation** : le
    binaire installé sur l'iPhone du fondateur ignore tout de `gryd.run`. Tant qu'un nouveau
    build EAS n'est pas installé, le chemin est « page web + bouton », jamais l'ouverture
-   directe.
-2. **L'`uri_allow_list` de Supabase** doit contenir `https://gryd.run/callback`, sinon GoTrue
-   retombe sur `SITE_URL` et le lien ramène ailleurs. Réglage de dashboard, invérifiable depuis
-   le code.
-3. **`assetlinks.json`** (voir §4) : au premier build Android.
+   directe. C'est désormais le **seul** obstacle à l'ouverture sans clic : le lot E4 a retiré
+   l'autre (la chaîne de redirections).
+2. **`assetlinks.json`** (voir §4) : au premier build Android.
+
+### Résolu depuis
+
+- **Point 3 de la version précédente (« obtenir l'ouverture directe sans clic »)** : fait par le
+  lot E4 — le gabarit d'e-mail vise `gryd.run/callback?token_hash=…&type=…`, sans redirection.
+  Voir §4 ci-dessus et `GRYD_ONBOARDING_2026_09.md` §2.3.
+- **L'`uri_allow_list` de Supabase** : relue le 12/09/2026 par
+  `GET /v1/projects/<ref>/config/auth`, elle contient `https://gryd.run/**`, et `site_url` vaut
+  `https://gryd.run`. C'est `{{ .SiteURL }}` qui fabrique désormais le lien, donc cette valeur
+  compte plus que jamais : la changer déplacerait le lien de tous les e-mails.
 4. **Pages d'atterrissage `/c/*`, `/r/*`, `/u/*`** : aujourd'hui un 404 pour qui n'a pas l'app.
 5. **Le chemin sans clic** (§4) : dépend du gabarit d'e-mail et de `verifyOtp` côté app.

@@ -20,7 +20,7 @@ qui la tient.
 | 4 | Gate 16 ans et plus | Posé **avant** la collecte. Le refus est un état terminal persisté ; sa seule issue est « Ce n'est pas moi ». | idem, + `features/onboarding/store.ts` (`ageDeclined`) |
 | 5 | Adresse (`/email`) | Un champ, un CTA « Recevoir le lien », et la phrase qui dit ce que le lien fait vraiment (il crée **ou** connecte). | `app/(auth)/email.tsx` |
 | 6 | « Lien envoyé » | Nomme l'adresse, dit d'ouvrir l'e-mail **sur cet appareil**, dit les deux limites réelles (une heure, une fois), arme le renvoi **daté**, et laisse changer d'adresse. | idem |
-| 7 | L'e-mail → la page web | Le lien est `https://gryd.run/callback`. iOS ouvre l'app directement (lien universel) ; sinon la page web dit « Félicitations » et propose « Ouvrir GRYD » (`gryd://callback#…`). | `src/lib/links.ts`, `apps/web` (lot E2) |
+| 7 | L'e-mail → l'app | Le lien est `https://gryd.run/callback?token_hash=…&type=…`, **sans redirection** : iOS le remet à l'app, qui vérifie le haché et ouvre la session. Sans l'app, la page web ne vérifie rien, dit « Ton lien de connexion est prêt. » et propose « Ouvrir GRYD » (`gryd://callback?token_hash=…`). | `src/lib/links.ts`, `supabase/email-templates/2026-09/`, `apps/web/app/callback/` (lots E2/E4) |
 | 8 | **L'accueil** | Compte NEUF : le G chartreuse, « Félicitations, ton compte GRYD est créé. », **un** bouton « Commencer ». Compte existant : « Bon retour, @pseudo. » et « Continuer ». Lien mort : « Ce lien a expiré » et le champ se rouvre. | `src/features/account/AccountWelcome2026.tsx`, `app/(auth)/callback.tsx` |
 | 9 | Profil (`/setup/profile`) | Pseudo **obligatoire**, disponibilité en direct ; nom affiché ; photo **facultative** ; ville **facultative**. Un seul CTA. | `app/setup/profile.tsx` |
 | 10 | Discipline (`/setup/activity`) | Course ou vélo, et « Plus tard ». Aucune présélection. | `app/setup/activity.tsx` |
@@ -71,6 +71,59 @@ sur trois sources, dans cet ordre de fiabilité :
 Et quand aucune des trois ne répond : `'unknown'` → « Te voilà connecté. », la seule phrase vraie
 dans les deux cas. On ne devine pas.
 
+### 2.3 Lien direct (`token_hash`) — le lien ouvre l'app, sans bouton
+
+**Ce qui restait faux après 2.1.** Le lien menait bien quelque part, mais il y menait en DEUX temps.
+`{{ .ConfirmationURL }}` rend `https://<projet>.supabase.co/auth/v1/verify?token=…&type=magiclink&
+redirect_to=https://gryd.run/callback` : GoTrue vérifie, puis répond **302** vers
+`gryd.run/callback#access_token=…`. Or **iOS ne remet pas un lien universel à l'app au bout d'une
+chaîne de redirections** — Safari qui suit un 302 garde la main (constat du lot E2,
+`GRYD_SITE_GRYD_RUN_2026_09.md` §4). Le joueur voyait donc toujours la page web, et devait appuyer
+sur « Ouvrir GRYD ». Un geste de plus, à l'endroit le plus fragile du produit.
+
+**Le format du lien, maintenant.** Les gabarits écrivent l'adresse finale eux-mêmes :
+
+```
+{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=signup      (Confirm signup)
+{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=magiclink   (Magic Link)
+```
+
+`{{ .SiteURL }}` vaut `https://gryd.run` (sans slash final, relu par
+`GET /v1/projects/<ref>/config/auth`). C'est un **lien universel de première main**.
+
+**Le chemin exact, de l'e-mail à la session.**
+
+| Étape | Ce qui se passe | Où |
+|---|---|---|
+| 1 | Le joueur touche le bouton de l'e-mail. Aucune redirection à suivre. | `supabase/email-templates/2026-09/{confirmation,magic-link}.html` |
+| 2 | iOS reconnaît `/callback` dans l'`apple-app-site-association` de `gryd.run` et **remet l'adresse à l'app**, query comprise. | `apps/web/public/.well-known/…`, `app.json` (`associatedDomains`) |
+| 3 | expo-router route `/callback` sur l'écran de retour, qui lit l'URL **brute** (`Linking.useLinkingURL()` — les paramètres de route ne portent pas le fragment, et les liens d'avant E4 en ont un). | `app/(auth)/callback.tsx` |
+| 4 | `parseAuthCallback2026` rend `{ kind: 'token_hash', tokenHash, type }`. Un `type` absent ou inconnu retombe sur `email`, le type que GoTrue définit comme couvrant `signup` **et** `magiclink` — pas une devinette. | `features/account/authCallback2026.ts` |
+| 5 | `completeAuthCallback` appelle `supabase.auth.verifyOtp({ token_hash, type })` → `POST /auth/v1/verify` → session. | `src/lib/auth.ts` (et `auth.web.ts`) |
+| 6 | Même accueil qu'avant : `welcomeKind2026` lit `type=signup` dans la **query** et dit « Félicitations ». | `features/account/welcome2026.ts` |
+
+**Quand ça rate, l'écran le nomme.** Un haché périmé ou déjà servi fait répondre à GoTrue
+`403 { error_code: 'otp_expired', msg: 'Email link is invalid or has expired' }` ;
+`authCallbackVerdict2026` y lit le mot `expired` et l'écran affiche « Ce lien a expiré » avec la
+sortie qui rouvre le champ (`/email`). Différence de fond avec un lien mort d'AVANT E4 : là, le refus
+était déjà écrit dans l'URL et rien ne partait au serveur ; ici le haché est intact tant qu'on ne
+l'a pas présenté, donc l'app **doit** tenter l'échange. Conclure sans demander serait accuser un lien
+qu'on n'a pas vérifié. Les deux cas ont leur scénario dans le harnais.
+
+**Le repli sans l'app.** `gryd.run/callback` reçoit alors le haché et **ne le vérifie pas**. Trois
+raisons, qui vont toutes dans le même sens : un haché ne sert qu'**une** fois et le consommer ici le
+rendrait mort pour l'app (c'est-à-dire recréer le défaut à un pas de distance) ; il n'existe aucun
+GRYD web dans lequel ouvrir une session ; et c'est autant de surface en moins sur une page qui reçoit
+des jetons. Elle dit donc « Ton lien de connexion est prêt. » et tend le bouton
+`gryd://callback?token_hash=…&type=…` — le seul contexte où un schéma privé marche : un geste de
+l'utilisateur, depuis une page qu'il regarde déjà.
+
+**Les trois gabarits dormants gardent `{{ .ConfirmationURL }}`** (`recovery`, `email_change`,
+`invite`) : aucun chemin de l'app ne les déclenche, et chacun a une raison technique propre de ne pas
+basculer seul — détaillées dans `supabase/email-templates/2026-09/README.md`.
+
+---
+
 ---
 
 ## 3. Deux défauts trouvés en chemin
@@ -113,6 +166,9 @@ qu'il ne pouvait pas finir, au premier écran suivant la création de son compte
 | Le lien du mail est une URL https, écrite une seule fois | `src/lib/links.test.ts` relit `src/lib/auth.ts` | `npm run test:mobile` |
 | `app.json` déclare le domaine, et il couvre les mêmes segments que l'`apple-app-site-association` | `src/lib/links.test.ts` (couture, lit `apps/web`) | idem |
 | Les deux formes d'arrivée sont reconnues, et rien d'autre ne passe | `src/lib/links.test.ts` (`isAuthCallbackUrl`), `authCallback2026.test.ts` | idem |
+| **Le gabarit d'e-mail vise l'app directement** (`?token_hash=…&type=…`), et les trois gabarits dormants n'ont pas basculé en douce | `src/lib/links.test.ts` (couture, relit `supabase/email-templates/2026-09/*.html`) | idem |
+| Un haché est lu dans la query, un haché vide est refusé, un `type` inconnu retombe sur ce que GoTrue couvre | `features/account/authCallback2026.test.ts` | idem |
+| La page web transmet le haché sans le consommer | `apps/web/lib/authCallbackLink2026.test.ts` (18 tests) | `npm run test:web` |
 | Chaque chemin remis par le domaine a une route Expo | `src/lib/links.test.ts` | idem |
 | « Félicitations » ne se dit qu'à un compte neuf | `features/account/welcome2026.test.ts` (11 tests) | idem |
 | Le nom d'Apple propose et n'impose pas | `features/account/providerIdentity2026.test.ts` (7 tests) | idem |
@@ -120,7 +176,9 @@ qu'il ne pouvait pas finir, au premier écran suivant la création de son compte
 | Apple et le lien e-mail rendent le **même** accueil | idem (tripwire de source) | idem |
 | La ville n'est pas une condition | `features/setup/handle.test.ts` | idem |
 | Aucune route orpheline, aucun lien mort | `scripts/audit-routes.mjs` | `node scripts/audit-routes.mjs` |
-| **Le parcours joué dans un vrai navigateur** : accueil neuf / retour / sans `type` / lien mort, puis pseudo → discipline → carte, et l'identité au Profil | `e2e/s6-accueil-et-profil.spec.ts` (+ S2, S3 mis à jour) | `npm run test:e2e:parcours` — **28 tests** |
+| **Le parcours joué dans un vrai navigateur** : accueil neuf / retour / sans `type` / lien mort, puis pseudo → discipline → carte, et l'identité au Profil | `e2e/s6-accueil-et-profil.spec.ts` (+ S2, S3 mis à jour) | `npm run test:e2e:parcours` — **30 tests** |
+| **L'app échange elle-même le haché** (`POST /auth/v1/verify`) et le refus du serveur est nommé | `e2e/s2-creation-de-compte.spec.ts` (2 scénarios `token_hash`) | idem |
+| L'e-mail part vraiment avec le nouveau gabarit | `POST /auth/v1/otp` (`create_user:false`) → **HTTP 200**, 12/09/2026 | voir `supabase/email-templates/2026-09/README.md` |
 
 ---
 
@@ -131,7 +189,10 @@ Rien de ce qui suit n'est vérifiable depuis ce dépôt. C'est dit ici plutôt q
 1. **Un nouveau build EAS.** Les entitlements `com.apple.developer.associated-domains` sont posés
    **à la compilation** : le binaire déjà installé sur l'iPhone du fondateur ne sait rien de
    `gryd.run`. Tant qu'il n'est pas rebâti, le lien universel ouvre Safari — et la page web fait son
-   travail de repli (« Ouvrir GRYD » → `gryd://callback#…`), qui marche, lui, dès aujourd'hui.
+   travail de repli (« Ouvrir GRYD » → `gryd://callback?token_hash=…`), qui marche, lui, dès
+   aujourd'hui. **C'est le seul reste du lot E4** : le format du lien est posé, appliqué et prouvé
+   côté serveur et côté code ; que le système remette l'adresse à l'app se constate sur un iPhone,
+   après un build, et nulle part ailleurs.
 2. **L'`uri_allow_list` du projet Supabase** doit contenir `https://gryd.run/callback` (dashboard →
    Authentication → URL Configuration). Sans elle, GoTrue **refuse la redirection et retombe sur
    `SITE_URL`** : le lien partirait, et ramènerait ailleurs. Aucun code client ne peut le vérifier ni
