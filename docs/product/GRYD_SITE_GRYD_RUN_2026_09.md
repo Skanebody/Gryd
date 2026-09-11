@@ -42,9 +42,14 @@ sait servir depuis un dossier). `https://gryd.run/callback` fonctionne : Pages r
 `/callback/`, et le navigateur **reconduit le fragment** — les jetons ne sont pas perdus. Les
 deux formes sont d'ailleurs déclarées dans le fichier Apple.
 
-Les quatre pages légales sont liées depuis le pied de la landing
-(`apps/web/app/components/landing/Footer.tsx`) : rien à ajouter, c'était déjà fait
-(AMENDEMENT-33 §6).
+Les quatre pages légales sont liées depuis le pied du site
+(`apps/web/components/ui/SiteFooter.tsx`, colonne « légal et contact »), qui lit
+`apps/web/lib/site2026.ts` : une seule liste, donc aucun lien mort possible. Le pied de
+l'ancienne landing qui les portait (`app/components/landing/Footer.tsx`) a été supprimé avec
+le reste de la landing morte (lot W3).
+
+⚠️ **Ce tableau décrit ce qui est EN LIGNE.** Les huit pages du lot W3 (§8) sont dans le dépôt
+et passent le gate ; elles ne seront servies qu'au prochain déploiement (lot W4).
 
 ---
 
@@ -284,5 +289,65 @@ build iOS qui embarque l'entitlement, cf. §7) et **la réception d'un vrai e-ma
   `GET /v1/projects/<ref>/config/auth`, elle contient `https://gryd.run/**`, et `site_url` vaut
   `https://gryd.run`. C'est `{{ .SiteURL }}` qui fabrique désormais le lien, donc cette valeur
   compte plus que jamais : la changer déplacerait le lien de tous les e-mails.
-4. **Pages d'atterrissage `/c/*`, `/r/*`, `/u/*`** : aujourd'hui un 404 pour qui n'a pas l'app.
+4. ~~**Pages d'atterrissage `/c/*`, `/r/*`, `/u/*`**~~ : **traité par le lot W3** (§8), pas
+   encore déployé. `404.html` fait le routage ; en ligne, ces trois adresses rendent encore le
+   404 tant que le lot W4 n'a pas publié.
 5. **Le chemin sans clic** (§4) : dépend du gabarit d'e-mail et de `verifyOtp` côté app.
+
+---
+
+## 8. Pages livrées (W3)
+
+Lot **W3**, 12/09/2026 : le site refait de zéro à partir de
+`docs/product/GRYD_SITE_CONTENU_2026_09.md` (le contenu fait foi) sur le système de design du
+lot W2 (`apps/web/components/README.md`). **Rien n'est déployé par ce lot** : le déploiement est
+le lot W4.
+
+| Adresse | Sections | Photo | Données structurées | Source |
+|---|---|---|---|---|
+| `/comment-ca-marche/` | sommaire + 7 chapitres ancrés `#bouger` `#boucle` `#terrain` `#points` `#crew` `#saison` `#fair-play` | `gryd-coureurs-vue-plongeante-paves` | — | `lib/guideCopy2026.ts` |
+| `/crews/` | rejoindre · créer · gérer · se retrouver · le défi | `gryd-crew-femmes-cercle-selfie-ciel`, `gryd-crew-pause-cafe-terrasse` | — | `lib/crewsCopy2026.ts` |
+| `/saison/` | Saison 0 · ouverture par présence · deux compteurs · classement de commune · défis de la semaine · fair-play | `gryd-foule-place-depart-collectif` | — | `lib/saisonCopy2026.ts` |
+| `/gryd-plus/` | encart « pas en vente » · contenu · jamais · prix prévu · si tu arrêtes | `gryd-materiel-sol-apres-course-medailles` | — | `lib/offerCopy2026.ts` |
+| `/securite-et-vie-privee/` | extrémités coupées · conservation · zones protégées · décision serveur · anti-triche · droits | `gryd-coureur-nuit-pluie-eclairs` | — | `lib/privacyCopy2026.ts` |
+| `/faq/` | 5 groupes, 13 questions (`<details>` natifs) | `gryd-coureuse-lunettes-chartreuse-portrait-groupe` | **`FAQPage`** | `lib/faqCopy2026.ts` |
+| `/telecharger/` | état réel · liste d'attente (RPC `waitlist_join`) · ce qu'il faut savoir | `gryd-duo-traversee-passage-pieton-pluie` | **`SoftwareApplication`** | `lib/downloadCopy2026.ts` |
+| `/confidentialite/` `/conditions/` `/cgv/` `/mentions-legales/` | inchangées au mot près, mise en page seulement | — | aucune | leurs pages |
+| `/abonnement/` | **redirection** vers `/gryd-plus/` (`meta refresh` + lien), `noindex` | — | aucune | `app/abonnement/page.tsx` |
+| `404.html` | routeur `/c/` `/r/` `/u/` + vraie 404, `noindex` | `gryd-groupe-hommes-course-pluie-brique`, `gryd-coureurs-vitesse-file-rue` | aucune | `app/not-found.tsx` + `lib/deepLinkCopy2026.ts` |
+
+Avec `Organization` (déjà sur `/`), le site porte **trois** blocs de données structurées, pas un
+de plus : la règle du cahier §3.10.
+
+### Les trois décisions techniques qui portent le lot
+
+1. **Aucun chiffre n'est écrit dans une page.** `lib/facts2026.ts` est la seule porte par
+   laquelle un nombre entre : il lit `@klaim/shared` et met en forme. Chaque chiffre affiché
+   porte le nom de sa constante en `data-rule` dans le DOM. `lib/siteCopy2026.test.ts` relit
+   **chaque phrase du site** et refuse toute suite de chiffres qui ne vienne pas de cette table
+   — trois exceptions seulement, nommées : les deux bornes de la Saison 0
+   (`lib/season2026.ts`, miroir de `season_collections_2026`), les numéros de chapitre, et la
+   date du constat « pas encore sur l'App Store ».
+2. **`404.html` fait le routage des liens partagés.** Un export statique ne pré-génère pas une
+   page par code inconnu, et Pages n'a ni réécriture ni 301. Le script ne touche que ce que
+   React ne gère pas (un attribut sur `<html>`, deux conteneurs opaques) : un `hidden` basculé
+   sur un nœud rendu par React serait repris à l'hydratation. Sans JavaScript, aucun bouton
+   `gryd://` n'existe, donc aucun bouton mort ; un `<noscript>` dit pourquoi.
+3. **Le plan du site est publié et vérifié.** `public/sitemap.xml` (12 adresses) et
+   `public/robots.txt` ; le test compare le fichier au registre des pages, et refuse une page
+   ajoutée sans entrée, une entrée sans page, ou l'apparition de `/callback/`, `/404.html` ou
+   `/abonnement/` dans le plan.
+
+### Preuve
+
+| Vérification | Résultat |
+|---|---|
+| `npm run test:web` | **39 tests verts** (25 avant le lot ; 14 posés par `siteCopy2026.test.ts`) |
+| `npm run typecheck` | 4/4 |
+| `DRY_RUN=1 bash scripts/deploy-web-ghpages.sh` | export complet, `out/404.html` produit, `CNAME` + `apple-app-site-association` + `/callback/` vérifiés par le script |
+| Captures Playwright, 375 et 1280 px, 17 écrans | aucun débordement horizontal, **jamais deux CTA chartreuse sur un même écran**, un `<h1>` visible par écran, aucune erreur de console (hors le 404 HTTP des trois pages d'arrivée, qui est leur statut réel) |
+| Export servi comme Pages le sert | `/c/A1B2C3` peint l'invitation avec son code et son bouton, `/u/benjamin` affiche `@benjamin`, `/nimportequoi` rend la vraie 404, `/abonnement/` arrive sur `/gryd-plus/` |
+
+**Non vérifié ici** : le rendu en ligne (rien n'est déployé), le comportement réel d'iOS sur les
+liens universels (il exige un build qui embarque l'entitlement), et l'envoi d'un e-mail aux
+inscrits de la liste d'attente (décision n° 4 du cahier de contenu, toujours ouverte).

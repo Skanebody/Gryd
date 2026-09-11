@@ -1,8 +1,13 @@
 # Le système de design du site public (lot W2)
 
 Contrat pour le **lot pages (W3)**. Tout ce qui est ici existe, compile et a été vu en capture à
-375, 768 et 1280 px sur l'export statique. Rien d'autre n'est à construire pour poser les huit
-pages restantes.
+375, 768 et 1280 px sur l'export statique.
+
+✅ **Le lot W3 a posé les huit pages sans ajouter un seul composant** (12/09/2026). Le contrat
+a donc tenu tel quel. Ce qu'il a fallu écrire en plus vit dans `app/` et `lib/`, jamais dans
+`components/` : une feuille de mise en page partagée (`app/sitePages.module.css` : sommaire du
+guide, tableau des prix, colonne de lecture, écrans du routeur `404.html`), et les modules de
+copie et de chiffres (§8).
 
 **Source de contenu** : `docs/product/GRYD_SITE_CONTENU_2026_09.md`. Il fait foi, phrase par
 phrase. Ne jamais écrire une phrase, un chiffre ou une promesse qui ne s'y trouve pas.
@@ -131,20 +136,23 @@ Trois obligations dans cet exemple :
    sont comptés). `alternates.canonical` porte l'URL absolue avec son slash final. Le gabarit
    fournit déjà `metadataBase`, l'image sociale par défaut, `og:locale`, `lang="fr"` et le favicon :
    ne les redéclarer que si la page a sa propre image.
-4. **Les chiffres** : jamais tapés. `import { TERRITORY_RULES_2026 } from '@klaim/shared'`, puis
-   un `Stat` qui cite la constante en `rule`. La table de correspondance complète est au cahier
-   §4.3. Les dates de la Saison 0 sont la seule exception : une copie unique dans
-   `lib/season2026.ts`, à créer par le lot pages.
+4. **Les chiffres** : jamais tapés, et depuis le lot W3 jamais importés à la main non plus.
+   Ils viennent de `lib/facts2026.ts` (`SITE_FACTS` pour un `Stat`, `SITE_COUNTS` pour un nombre
+   nu dans une phrase), qui lit `@klaim/shared` pour tout le site. La table de correspondance
+   complète est au cahier §4.3. Les deux bornes de la Saison 0 sont la seule exception :
+   `lib/season2026.ts`, une copie unique, miroir d'une ligne de production.
 5. **La copie** : la poser en données dans `lib/<page>Copy2026.ts`, sur le modèle de
-   `lib/homeCopy2026.ts`, et la relire avec un test sur le modèle de `lib/homeCopy2026.test.ts`
-   (pas de tiret long, « GRYD » seulement dans `GRYD+`, tutoiement, aucun mot de l'ancien site).
-   `npm run test:web` les exécute ; ils tournent sous Deno, donc **aucun import externe et un
-   `Deno` déclaré localement** (voir l'en-tête du test existant).
-6. **Les données structurées** : **trois blocs sur tout le site, pas un de plus**.
-   `Organization` est déjà posé sur `/`. Restent `FAQPage` sur `/faq/` (les treize questions, texte
-   IDENTIQUE à celui affiché) et `SoftwareApplication` sur `/telecharger/`. Les construire dans
-   `lib/structuredData2026.ts` et les rendre avec `<JsonLd data={…} />`. Interdits partout :
-   `Review`, `AggregateRating`, `BreadcrumbList`, `Event` et `Place` sans réalité derrière.
+   `lib/homeCopy2026.ts`, puis inscrire la page dans `SITE_PAGES` (`lib/siteCopy2026.ts`) :
+   `siteCopy2026.test.ts` la relit alors phrase par phrase (pas de tiret long, « GRYD » seulement
+   dans `GRYD+`, tutoiement, aucun mot de l'ancien site, aucun chiffre étranger aux constantes,
+   titre et description dans les plafonds). `npm run test:web` l'exécute ; il tourne sous Deno,
+   donc **aucun import externe et un `Deno` déclaré localement** (voir l'en-tête du test).
+6. **Les données structurées** : **trois blocs sur tout le site, pas un de plus**, et les trois
+   sont posés : `Organization` sur `/`, `FAQPage` sur `/faq/` (construit depuis les MÊMES entrées
+   que l'accordéon, donc incapable d'en diverger) et `SoftwareApplication` sur `/telecharger/`.
+   Une neuvième page n'en ajoute AUCUN. Ils vivent dans `lib/structuredData2026.ts` et se rendent
+   avec `<JsonLd data={…} />`. Interdits partout : `Review`, `AggregateRating`, `BreadcrumbList`,
+   `Event` et `Place` sans réalité derrière.
 7. **`noindex`** : les trois pages d'arrivée (`/c/`, `/r/`, `/u/`) et `/callback/` portent
    `robots: { index: false, follow: false }`.
 
@@ -219,19 +227,46 @@ servir.
 
 ---
 
-## 7. Ce qu'il reste à faire, et qui n'appartenait pas au lot W2
+## 7. Ce que le lot W3 a fait de cette liste
 
-- Les huit pages du plan (`/comment-ca-marche/`, `/crews/`, `/saison/`, `/gryd-plus/`,
-  `/securite-et-vie-privee/`, `/faq/`, `/telecharger/`, et la mise en page des quatre pages
-  légales dont **le texte ne change pas d'un mot**).
-- `404.html` en routeur pour `/c/`, `/r/`, `/u/` (cahier §2.2) : trois pages `noindex`, sans appel
-  réseau, avec un `<noscript>` qui dit la vérité et renvoie vers `/telecharger/`.
-- `lib/season2026.ts` : la seule copie des deux dates de la Saison 0.
-- **`/abonnement/` n'est dans aucun plan de site.** Elle vend encore « GRYD Club » et le
-  « Founder Pack », que le cahier de contenu déclare morts, et elle reste dans l'export statique
-  donc indexable. Elle n'appartenait pas au lot W2 (qui ne touche ni `app/abonnement/` ni
-  `app/components/`) : à supprimer par le lot pages ou le lot recette, pas à oublier.
-- `app/components/` (ancien) : `ui/Icon.tsx`, `landing/Reveal.tsx` et `landing/ui.module.css` sont
-  encore lus par les pages légales et `/abonnement/`. Le reste de `landing/` n'est plus importé par
-  rien depuis la refonte de l'accueil, `PostHogProvider` et `app/lib/analytics.ts` non plus depuis
-  que le gabarit ne charge plus de script tiers : tout cela part avec ces pages.
+- ✅ **Les huit pages du plan** sont posées (`/comment-ca-marche/`, `/crews/`, `/saison/`,
+  `/gryd-plus/`, `/securite-et-vie-privee/`, `/faq/`, `/telecharger/`, plus la mise en page des
+  quatre pages légales — dont le texte n'a pas bougé d'un mot, ce qui est vérifiable : il manque
+  exactement sept chaînes par page, toutes du mobilier que `SiteHeader` et `SiteFooter` rendent
+  désormais).
+- ✅ **`404.html` fait le routage** de `/c/`, `/r/`, `/u/` (`app/not-found.tsx`), `noindex`, sans
+  appel réseau, avec le `<noscript>` qui dit la vérité. Le script ne touche QUE ce que React ne
+  gère pas : un attribut `data-gryd-link` sur `<html>` et deux conteneurs rendus avec
+  `dangerouslySetInnerHTML`. Un `hidden` basculé sur un nœud rendu par React serait repris à
+  l'hydratation, et le bouton « Ouvrir Gryd » disparaîtrait juste après être apparu.
+- ✅ `lib/season2026.ts` porte la seule copie des deux dates de la Saison 0.
+- ✅ **`/abonnement/` est devenue une redirection** vers `/gryd-plus/` (`meta refresh` + lien
+  visible, puisqu'un export statique n'a pas de 301), `noindex`, et refusée par `robots.txt`. Son
+  adresse a circulé : la supprimer aurait envoyé ces liens sur le 404.
+- ✅ `app/components/landing/`, `HexMap`, `PostHogProvider`, `app/lib/analytics.ts`,
+  `lib/landing.ts`, `lib/pricing.ts` et `lib/waitlist.ts` sont **supprimés** : plus rien ne les
+  importait. ⚠️ `app/components/ui/Icon.tsx` RESTE : deux pages légales l'emploient au milieu de
+  leur texte (les notes d'appui), et ce texte ne se réécrit pas. Le dictionnaire anglais que le
+  cahier §4.1 signalait comme réutilisable (`landing/dictionary.ts`) part avec le reste ; il
+  reste lisible dans l'historique git si le lot anglais le veut.
+- ✅ Le bloc d'**alias de compatibilité** de `globals.css` perd les onze variables qui ne
+  servaient plus qu'à ces pages. Les quatorze restantes ont deux consommateurs nommés dans le
+  commentaire : `/admin/` (garé, exclu du site public) et `/callback/` (neuve, couverte par ses
+  propres tests). Rien de neuf ne doit s'en servir.
+
+---
+
+## 8. Ce que le lot W3 a ajouté, et qu'une neuvième page doit réutiliser
+
+| Module | Ce qu'il porte |
+|---|---|
+| `lib/facts2026.ts` | **La seule porte par laquelle un chiffre entre dans une page.** Il lit `@klaim/shared` et met en forme. `SITE_FACTS` donne une valeur ET sa constante (`rule`, posée en `data-rule` par `Stat`) ; `SITE_COUNTS` donne les mêmes nombres SANS unité, pour les phrases où le cahier écrit l'unité lui-même (« deux équipes de 5 »). `stat(fait, libellé)` habille un fait pour `Stat`. |
+| `lib/season2026.ts` | Les deux bornes de la Saison 0, et rien d'autre. Miroir de `season_collections_2026` en production. |
+| `lib/<page>Copy2026.ts` | Une page, un module, toutes ses phrases. Aucune phrase dans le JSX : sinon elle sort du filet du test. |
+| `lib/siteCopy2026.ts` | Le registre : chaque page, son adresse, son `seo`, sa copie. Une page absente d'ici n'est relue par personne. |
+| `lib/siteCopy2026.test.ts` | Le verrou, 14 tests : aucun tiret long, « GRYD » seulement dans `GRYD+`, aucun mot de l'ancien site, tutoiement, **aucun chiffre tapé à la main**, titres et descriptions dans les plafonds, aucune page orpheline, les ancres du guide relues dans le fichier de l'application, treize questions répondues, la page de l'offre qui ne vend rien, le plan publié comparé au registre. |
+| `app/sitePages.module.css` | La mise en page partagée : colonne de lecture, sommaire d'ancres, tableau des prix, écrans du routeur `404.html`. |
+
+**Pour ajouter une neuvième page**, la marche de §4 ne change pas ; il s'y ajoute deux gestes :
+écrire sa copie dans `lib/<page>Copy2026.ts`, et l'inscrire dans `SITE_PAGES`
+(`lib/siteCopy2026.ts`) **et** dans `public/sitemap.xml`. Le test refuse l'un sans l'autre.
