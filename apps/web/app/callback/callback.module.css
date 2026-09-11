@@ -1,0 +1,122 @@
+/*
+ * GRYD — page d'arrivée du lien de connexion (/callback).
+ * Charte ADDENDUM-DESIGN §C : dark-first, noir / blanc / chartreuse, tokens de
+ * globals.css UNIQUEMENT (aucun hexadécimal en dur ici — ADR-008).
+ * §A : lecture linéaire, un seul accent chartreuse, un seul bouton, aucun texte
+ * tronqué. La page tient en un écran sur un téléphone comme sur un ordinateur.
+ */
+
+.page {
+  min-height: 100vh;
+  /* 100dvh quand le navigateur sait : évite la barre d'URL mobile qui rogne. */
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background: var(--fond);
+  color: var(--blanc);
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--carbone);
+  border: 1px solid var(--ligne);
+  border-radius: var(--radius-card);
+  padding: 32px 28px 30px;
+}
+
+@media (max-width: 420px) {
+  .card {
+    padding: 26px 20px 24px;
+  }
+}
+
+/* ── Marque ──────────────────────────────────────────────────────────────── */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 17px;
+  letter-spacing: 0.14em;
+  color: var(--blanc);
+}
+
+/* ── État « en cours » du premier rendu ──────────────────────────────────── */
+.pending {
+  margin-top: 26px;
+  font-size: 14px;
+  color: var(--gris);
+}
+
+/* ── Verdict ─────────────────────────────────────────────────────────────── */
+.result {
+  margin-top: 26px;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gris);
+}
+
+.title {
+  margin-top: 10px;
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 27px;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+  color: var(--blanc);
+}
+
+@media (max-width: 420px) {
+  .title {
+    font-size: 24px;
+  }
+}
+
+.body {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--blanc);
+}
+
+/* ── L'unique bouton chartreuse ──────────────────────────────────────────── */
+.cta {
+  display: block;
+  margin-top: 24px;
+  padding: 15px 20px;
+  border-radius: var(--radius-pill);
+  background: var(--ch);
+  /* Texte SOMBRE sur chartreuse : l'inverse est interdit (§C.2, contraste 1,2:1). */
+  color: var(--noir);
+  font-family: var(--disp);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  text-align: center;
+  text-decoration: none;
+}
+
+.cta:hover {
+  filter: brightness(1.06);
+}
+
+.cta:focus-visible {
+  outline: 2px solid var(--blanc);
+  outline-offset: 3px;
+}
+
+.note {
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--gris);
+}
