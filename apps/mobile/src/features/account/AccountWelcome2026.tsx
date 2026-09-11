@@ -108,7 +108,11 @@ export function AccountWelcome2026({
       styles.frame,
       { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
     ]}>
-      <GrydMark variant="symbol" size={24} color={colors.chartreuse} />
+      {/* UN SEUL G, ET IL EST GRAND. L'écran portait la petite marque d'entête
+          EN PLUS du G d'accueil : deux fois le même signe à 250 px d'écart, et
+          un vide entre les deux qui faisait croire à un chargement. Ici la
+          marque EST l'accueil — c'est le seul écran du parcours où elle a le
+          droit d'occuper la place. */}
       <View style={styles.hero}>
         <GrydMark variant="symbol" size={HERO_MARK} color={colors.chartreuse} />
       </View>
@@ -142,8 +146,10 @@ export function AccountWelcome2026({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
-  frame: { flex: 1, width: '100%', maxWidth: 540, alignSelf: 'center', justifyContent: 'space-between', paddingHorizontal: 18 },
-  hero: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl },
+  frame: { flex: 1, width: '100%', maxWidth: 540, alignSelf: 'center', paddingHorizontal: 18 },
+  // Le G prend tout l'espace libre au-dessus du panneau : il est optiquement
+  // centré quelle que soit la hauteur du texte d'accueil.
+  hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl },
   panel: { borderRadius: 24, overflow: 'hidden' },
   content: { position: 'relative', zIndex: 1, padding: 18, gap: 12, alignItems: 'stretch' },
   title: { color: colors.blanc, fontFamily: fonts.displayBold, fontSize: 20, lineHeight: 26, textAlign: 'center' },

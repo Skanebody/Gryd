@@ -58,12 +58,22 @@ export const C = defineCatalog({
    * règle (« pas de genre, âge exact ou poids ») ; le dire ici transforme une
    * absence en engagement lisible, au moment précis où l'on demande des données.
    */
+  /**
+   * ⚠️ « TROIS CHOSES » A ÉTÉ RETIRÉ LE 12/09/2026, ET C'EST UNE CORRECTION DE
+   * VÉRITÉ, PAS DE STYLE. L'écran en montre QUATRE depuis que la photo y vit
+   * (photo, nom, pseudo, ville) : le compte était devenu faux, et un chiffre
+   * faux dans la première phrase d'un écran qui demande des données coûte plus
+   * cher qu'il ne rapporte. La phrase garde ce qu'elle avait de précieux — dire
+   * ce qu'on NE demandera PAS — sans annoncer un dénombrement que le JSX
+   * contredit. Aucun compte n'est réintroduit : il redeviendrait faux au
+   * prochain champ.
+   */
   subtitle: {
-    fr: 'Trois choses, et c’est tout. Ni âge, ni genre, ni poids : GRYD n’en a pas besoin.',
-    en: 'Three things, that’s all. No age, gender or weight: GRYD doesn’t need them.',
-    es: 'Tres cosas y ya está. Ni edad, ni género, ni peso: GRYD no los necesita.',
-    de: 'Drei Dinge, mehr nicht. Kein Alter, kein Geschlecht, kein Gewicht: GRYD braucht das nicht.',
-    pt: 'Três coisas, só isso. Nem idade, nem gênero, nem peso: o GRYD não precisa disso.',
+    fr: 'Un pseudo, et ce que tu veux bien ajouter. Ni âge, ni genre, ni poids : GRYD n’en a pas besoin.',
+    en: 'A handle, plus whatever you feel like adding. No age, gender or weight: GRYD doesn’t need them.',
+    es: 'Un alias, y lo que quieras añadir. Ni edad, ni género, ni peso: GRYD no los necesita.',
+    de: 'Ein Kürzel, und was du sonst magst. Kein Alter, kein Geschlecht, kein Gewicht: GRYD braucht das nicht.',
+    pt: 'Um apelido, e o que você quiser acrescentar. Nem idade, nem gênero, nem peso: o GRYD não precisa disso.',
   },
   /** L'aperçu compact du haut — nom accessible du bloc, pas un titre affiché. */
   previewA11y: {
@@ -399,12 +409,19 @@ export const C = defineCatalog({
    * ligne pour que leur absence se lise comme un choix, pas comme un écran
    * inachevé — et pour qu'on ne cherche pas un champ manquant.
    */
+  /**
+   * ⚠️ « PHOTO » A QUITTÉ CETTE LIGNE LE 12/09/2026. Elle disait « photo, bio et
+   * crew : plus tard » à quinze pixels d'un bouton « Ajouter une photo » : deux
+   * affirmations contradictoires dans le même écran, et c'est la note du bas
+   * qui avait tort depuis que la photo se choisit ici. Ce qu'elle garde est ce
+   * qui reste VRAI : bio et crew ne sont demandés nulle part dans ce parcours.
+   */
   optionalNote: {
-    fr: 'Photo, bio et crew : plus tard, si tu veux. Rien ne t’attend là-dessus.',
-    en: 'Photo, bio and crew: later, if you want. Nothing is waiting on those.',
-    es: 'Foto, bio y crew: más tarde, si quieres. Nada depende de eso.',
-    de: 'Foto, Bio und Crew: später, wenn du magst. Daran hängt nichts.',
-    pt: 'Foto, bio e crew: depois, se você quiser. Nada depende disso.',
+    fr: 'Bio et crew : plus tard, si tu veux. Rien ne t’attend là-dessus.',
+    en: 'Bio and crew: later, if you want. Nothing is waiting on those.',
+    es: 'Bio y crew: más tarde, si quieres. Nada depende de eso.',
+    de: 'Bio und Crew: später, wenn du magst. Daran hängt nichts.',
+    pt: 'Bio e crew: depois, se você quiser. Nada depende disso.',
   },
 
   // ─── CTA sticky (unique, §A4) ──────────────────────────────────────────────
