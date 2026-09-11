@@ -50,8 +50,11 @@ import {
 } from 'expo-auth-session';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
+import { AUTH_HANDOFF_2026 } from '@klaim/shared';
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
 import { AUTH_CALLBACK_URL } from './links';
+import { handoffRedirectUrl2026, hexFromBytes2026 } from '../features/account/authHandoff2026';
+import { rememberHandoff2026 } from '../features/account/authHandoffSession2026';
 import { rememberProviderName2026 } from '../features/account/providerIdentity2026';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
@@ -297,9 +300,31 @@ export const EMAIL_DELIVERY: 'link' | 'code' = emailDelivery2026(
   false,
 );
 
+/**
+ * LE TIRAGE DU NONCE DE REMISE (E5, 12/09/2026). NATIF.
+ *
+ * `expo-crypto` est déjà importé par ce fichier (il sert le nonce Apple, plus
+ * haut) et `getRandomBytes` y est un CSPRNG natif. C'est la SEULE chose que ce
+ * fichier ne partage pas avec `auth.web.ts` — tout le reste de la remise vit
+ * dans `features/account/authHandoff*2026.ts`, une seule fois.
+ *
+ * ⚠️ ÉCHEC = PAS DE NONCE, JAMAIS UN NONCE FAIBLE. Si le module natif ne
+ * répond pas, on rend `null` et l'app retombe sur le parcours E4 (la page web
+ * et son bouton « Ouvrir GRYD »). Un repli sur `Math.random()` serait un secret
+ * devinable écrit dans un e-mail : le pire des deux mondes.
+ */
+function drawHandoffNonce2026(): string | null {
+  try {
+    return hexFromBytes2026(Crypto.getRandomBytes(AUTH_HANDOFF_2026.nonceBytes));
+  } catch {
+    return null;
+  }
+}
+
 export async function requestEmailOtp(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   track(EVENTS.signupStarted, { method: 'email_otp' satisfies SignInMethod });
+  const nonce = drawHandoffNonce2026();
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -326,11 +351,23 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
        * reste posé parce qu'il est le repli du jour où un gabarit reviendrait à
        * `{{ .ConfirmationURL }}` : sans lui, ce jour-là, le lien ramènerait sur
        * `SITE_URL` au lieu du retour.
+       *
+       * ⚠️ DEPUIS E5, ELLE PORTE UN NONCE (`?n=…`), ET C'EST CE QUI FAIT
+       * FONCTIONNER LE COMPTE « DERRIÈRE » LA PAGE. Les gabarits rendent
+       * `{{ .RedirectTo }}` — c'est-à-dire CETTE adresse, nonce compris — puis
+       * y accrochent `&token_hash=…&type=…`. La page web vérifie, dépose son
+       * jeton de rafraîchissement contre `sha256(nonce)` (migration 0198), et
+       * l'app vient le réclamer : plus aucun lien universel dans la boucle,
+       * donc plus aucune dépendance au build EAS qu'Apple n'a pas encore signé.
+       * Voir `features/account/authHandoff2026.ts`.
        */
-      emailRedirectTo: AUTH_CALLBACK_URL,
+      emailRedirectTo: handoffRedirectUrl2026(AUTH_CALLBACK_URL, nonce),
     },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  // APRÈS l'acceptation du serveur, jamais avant : mémoriser une remise pour un
+  // courrier qui n'est pas parti ferait attendre l'écran pour rien.
+  if (nonce !== null) await rememberHandoff2026(nonce, email, Date.now());
   return { ok: true };
 }
 

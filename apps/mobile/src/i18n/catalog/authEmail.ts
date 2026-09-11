@@ -159,6 +159,41 @@ export const C = defineCatalog({
     de: 'Nach einer Minute nichts da? Schau auch im Spam-Ordner nach.',
     pt: 'Nada depois de um minuto? Veja também a caixa de spam.',
   },
+  /**
+   * L'ÉTAT « J'ATTENDS TON GESTE » (E5, 12/09/2026).
+   *
+   * Depuis ce lot, l'écran ne se contente plus d'avoir envoyé : il INTERROGE
+   * le serveur toutes les trois secondes pour savoir si le lien a été ouvert
+   * ailleurs (`AUTH_HANDOFF_2026`). Cette phrase dit ce qui va se passer, au
+   * présent du joueur — sans promettre que le lien a été reçu (l'app ne le
+   * sait pas), ni qu'il a été ouvert (elle le saurait, elle le dirait).
+   *
+   * Elle remplace un silence : avant, quelqu'un qui ouvrait le lien sur son
+   * ORDINATEUR voyait une page féliciter, revenait sur son téléphone, et
+   * retrouvait le même écran d'attente. Rien ne lui disait que l'app allait
+   * suivre toute seule.
+   */
+  sentWaiting: {
+    fr: 'Dès que tu as appuyé sur le lien, tu seras connecté ici.',
+    en: 'As soon as you tap the link, you will be signed in here.',
+    es: 'En cuanto toques el enlace, quedarás conectado aquí.',
+    de: 'Sobald du auf den Link tippst, bist du hier angemeldet.',
+    pt: 'Assim que você tocar no link, ficará conectado aqui.',
+  },
+  /**
+   * LE PLAFOND DE PATIENCE EST ATTEINT (`AUTH_HANDOFF_2026.pollForMs`). On ARRÊTE
+   * d'interroger, et on le DIT : un indicateur qui tourne pour l'éternité est
+   * exactement le mensonge que la constitution interdit (L14). La sortie est
+   * nommée, et elle est à portée de doigt (le bouton « Renvoyer » est juste
+   * dessous).
+   */
+  sentWaitingStopped: {
+    fr: 'L’attente s’est arrêtée ici. Renvoie-toi un lien quand tu veux reprendre.',
+    en: 'We stopped waiting here. Send yourself a new link whenever you want to pick it up.',
+    es: 'Dejamos de esperar aquí. Reenvíate un enlace cuando quieras retomarlo.',
+    de: 'Wir warten hier nicht mehr. Schick dir einen neuen Link, wenn du weitermachen willst.',
+    pt: 'Paramos de esperar aqui. Reenvie um link quando quiser retomar.',
+  },
   /** Sortie de l'état « envoyé » : corriger une adresse mal tapée. */
   sentChangeEmail: {
     fr: 'Changer d’adresse',

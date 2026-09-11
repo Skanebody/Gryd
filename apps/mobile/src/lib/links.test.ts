@@ -76,16 +76,44 @@ Deno.test('la regex d’un lien web se construit depuis la liste d’hôtes, jam
 
 // ─── 3. COUTURE — ce que les fichiers embarqués disent VRAIMENT ──────────────
 
+/**
+ * ⚠️ CETTE ASSERTION A CHANGÉ DE FORME LE 12/09/2026 (E5), PAS D'INTENTION.
+ * Elle exigeait `emailRedirectTo: AUTH_CALLBACK_URL`, mot pour mot. Depuis la
+ * remise de session, l'adresse de retour porte un NONCE (`?n=…`) sans lequel la
+ * page web n'a nulle part où déposer ce qu'elle vient de vérifier — c'est-à-dire
+ * sans lequel le compte ne « fonctionne pas derrière », défaut nommé par le
+ * fondateur. Ce qu'on protège reste le même : l'adresse VIENT de la constante,
+ * et aucun littéral d'URL ne se glisse dans ce fichier.
+ */
 Deno.test('lib/auth.ts n’écrit plus aucune URL de retour en dur', async () => {
   const src = await read('src/lib/auth.ts');
   assert(
-    src.includes('emailRedirectTo: AUTH_CALLBACK_URL'),
+    src.includes('emailRedirectTo: handoffRedirectUrl2026(AUTH_CALLBACK_URL,'),
     'le retour du lien e-mail doit venir de la constante, pas d’un littéral',
   );
   assertEquals(
     /emailRedirectTo:\s*['"`]/.test(src),
     false,
     'aucune URL de retour écrite en dur dans auth.ts',
+  );
+});
+
+/**
+ * LA PARITÉ DES DEUX CIBLES, SUR LE POINT OÙ ELLE COÛTE LE PLUS CHER.
+ * `auth.web.ts` construit son retour sur l'ORIGINE courante (voir son en-tête),
+ * mais il doit y accrocher le MÊME nonce par la MÊME fonction : un web qui
+ * enverrait une adresse nue laisserait la page sans rendez-vous, et l'écran
+ * attendrait dix minutes une remise que personne ne peut déposer.
+ */
+Deno.test('lib/auth.web.ts accroche le nonce par la MÊME fonction que le natif', async () => {
+  const src = await read('src/lib/auth.web.ts');
+  assert(
+    src.includes('handoffRedirectUrl2026('),
+    'le retour web doit passer par handoffRedirectUrl2026, comme le natif',
+  );
+  assert(
+    src.includes(`\${window.location.origin}\${AUTH_CALLBACK_PATH}`),
+    'le chemin du retour web vient de AUTH_CALLBACK_PATH, pas d’un littéral',
   );
 });
 
@@ -266,16 +294,52 @@ async function lireGabarit(fichier: string): Promise<string> {
   return (await Deno.readTextFile(url)).replaceAll('&amp;', '&');
 }
 
+/**
+ * ⚠️ L'ADRESSE ATTENDUE A CHANGÉ LE 12/09/2026 (E5), ET POUR UNE RAISON PRÉCISE.
+ * Elle valait `{{ .SiteURL }}/callback?token_hash=…` : une adresse qui ignore
+ * ce que l'app a demandé. Or l'app y écrit maintenant un NONCE
+ * (`emailRedirectTo: …?n=<nonce>`), et c'est ce nonce qui permet à la page web
+ * de REMETTRE la session à l'app — le « derrière, il faut que le compte
+ * fonctionne » du fondateur. `{{ .RedirectTo }}` est la variable GoTrue qui
+ * porte cette adresse, nonce compris (doc Supabase : « Contains the redirect
+ * URL passed when signUp, signInWithOtp… is called »).
+ *
+ * ─── POURQUOI UN `{{ if }}`, ET POURQUOI L'URL EST ÉCRITE EN ENTIER DEUX FOIS
+ * `RedirectTo` peut être VIDE (un lien demandé sans redirection : un renvoi
+ * depuis le tableau de bord, un appel d'administration). `{{ .RedirectTo }}`
+ * seul produirait alors un `href` commençant par `&token_hash=…`, c'est-à-dire
+ * un lien relatif cassé. Le repli `{{ .SiteURL }}/callback?…` rend le parcours
+ * E4, qui marche encore.
+ *
+ * L'URL est recopiée ENTIÈRE dans chaque branche plutôt que factorisée
+ * (`{{ if }}…{{ else }}…{{ end }}token_hash=…`), et ce n'est pas une maladresse :
+ * GoTrue rend ses gabarits avec `html/template` (Go), qui analyse le CONTEXTE
+ * d'une URL. Les deux branches se terminent dans deux parties d'URL
+ * différentes (avant la query pour l'une, dedans pour l'autre) ; une action
+ * placée APRÈS le `{{ end }}` tomberait donc dans un contexte « ambigu » et
+ * ferait échouer le rendu — donc l'envoi de l'e-mail. Aucune action ne suit le
+ * `{{ end }}` : c'est ce que ce test verrouille, en exigeant la forme complète.
+ */
 Deno.test('les gabarits du parcours visent l’app DIRECTEMENT, sans redirection', async () => {
   for (const [fichier, type] of Object.entries(GABARITS_A_LIEN_DIRECT)) {
     const html = await lireGabarit(fichier);
-    const attendu = `{{ .SiteURL }}${AUTH_CALLBACK_PATH}?token_hash={{ .TokenHash }}&type=${type}`;
+    const repli = `{{ .SiteURL }}${AUTH_CALLBACK_PATH}?token_hash={{ .TokenHash }}&type=${type}`;
+    const attendu =
+      `{{ if .RedirectTo }}{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=${type}` +
+      `{{ else }}${repli}{{ end }}`;
     assert(html.includes(attendu), `${fichier} doit viser ${attendu}`);
     // Le bouton ET le lien de secours (href + texte visible) : trois fois.
     assertEquals(
       html.split(attendu).length - 1,
       3,
       `${fichier} : le bouton et le lien de secours doivent porter la MÊME adresse`,
+    );
+    // Le repli n'existe QUE dans la branche `else` : jamais tout seul, sinon un
+    // lien perdrait son nonce en silence.
+    assertEquals(
+      html.split(repli).length - 1,
+      3,
+      `${fichier} : le repli SiteURL ne vit que dans la branche else`,
     );
     assertEquals(
       html.includes('{{ .ConfirmationURL }}'),
@@ -284,6 +348,12 @@ Deno.test('les gabarits du parcours visent l’app DIRECTEMENT, sans redirection
     );
     // Aucun code à six chiffres : l'écran n'en réclame pas (emailDelivery2026).
     assertEquals(html.includes('{{ .Token }}'), false, `${fichier} ne doit pas promettre un code`);
+    // Rien ne suit le `{{ end }}` à l'intérieur d'un href (voir l'en-tête).
+    assertEquals(
+      /\{\{ end \}\}[^"<]*\{\{/.test(html),
+      false,
+      `${fichier} : aucune action ne doit suivre le {{ end }} dans une URL`,
+    );
   }
 });
 

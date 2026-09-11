@@ -35,10 +35,62 @@ Projet par défaut `sydwxwwirinjoheeodcg` ; surchargeable par `SUPABASE_PROJECT_
 
 ## Ce qui a été décidé, et pourquoi
 
+### Le lien PORTE LE NONCE DE REMISE (E5, 12/09/2026)
+
+Décision du fondateur, mot pour mot : « vas juste vers une page qui dit que ça a été bien
+validé mais derrière il faut que le compte fonctionne dans l'application ».
+
+`confirmation.html` et `magic-link.html` rendent désormais :
+
+```
+{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=signup{{ end }}
+```
+
+(et `type=magiclink` pour l'autre), trois fois chacun : bouton, lien de secours, texte visible.
+
+**Ce que ça change.** L'app écrit maintenant un NONCE dans sa propre demande de lien
+(`emailRedirectTo: https://gryd.run/callback?n=<64 hex>`, `apps/mobile/src/lib/auth.ts`).
+`{{ .RedirectTo }}` est la variable GoTrue qui porte cette adresse — la doc Supabase :
+« Contains the redirect URL passed when signUp, signInWithOtp… is called ». Le gabarit y
+accroche le haché et le type. La page `gryd.run/callback` peut alors vérifier le lien ET
+déposer sa session pour l'app (migration `0198_auth_handoff_2026.sql`), au lieu de dépendre
+du lien universel — qui exige une capacité Apple absente du profil de signature aujourd'hui
+(build `fe030292` ERRORED).
+
+**Pourquoi un `{{ if }}`.** `RedirectTo` peut être VIDE : un lien demandé sans redirection
+(renvoi depuis le tableau de bord, appel d'administration). `{{ .RedirectTo }}` seul
+produirait alors un `href` commençant par `&token_hash=…`, c'est-à-dire un lien relatif
+cassé. Le repli rend exactement le lien E4, qui fonctionne encore.
+
+**Pourquoi l'URL est recopiée EN ENTIER dans chaque branche**, au lieu de factoriser
+(`{{ if }}…{{ else }}…{{ end }}token_hash=…`). GoTrue rend ses gabarits avec `html/template`
+(Go, `internal/mailer/templatemailer/template.go`), qui analyse le CONTEXTE d'une URL et
+choisit son échappement en conséquence :
+
+- une action au DÉBUT d'un `href` est passée à `urlfilter` + `urlnormalizer` : `:`, `/`, `?`,
+  `&` et `=` sont **conservés**. C'est pourquoi `{{ .RedirectTo }}` — qui est une URL
+  complète avec sa query — doit être en première position, et n'est **pas** ré-encodée ;
+- une action APRÈS un `?` est passée à `urlescaper`, qui percent-encode tout. `{{ .TokenHash }}`
+  n'en souffre pas (hexadécimal), une URL entière, si.
+
+Les deux branches se terminent donc dans deux parties d'URL différentes (avant la query pour
+l'une, dedans pour l'autre). Go « joint » ces deux contextes en un contexte **ambigu** : une
+action placée après le `{{ end }}` ferait alors échouer le rendu — donc l'envoi de l'e-mail.
+Tant qu'aucune action ne suit le `{{ end }}`, rien n'est ambigu. `apps/mobile/src/lib/links.test.ts`
+verrouille les deux points : la forme complète, et l'absence d'action après le `{{ end }}`.
+
+**Ce qui n'a PAS pu être prouvé sans appareil.** L'envoi réel d'un lien magique
+(`POST /auth/v1/otp`, `create_user:false`) rend HTTP 200 : `magic-link.html` s'est donc rendu
+sans erreur de gabarit. `confirmation.html` ne peut pas être éprouvé de la même façon sans
+CRÉER un compte en production, ce que le projet interdit. Son expression de lien est
+**structurellement identique** (seul `signup` remplace `magiclink`), et l'analyse de contexte
+de Go ne dépend pas de ce littéral : la preuve de l'une porte sur l'autre.
+
 ### Le lien ouvre l'app DIRECTEMENT (E4, 12/09/2026)
 
 `confirmation.html` et `magic-link.html` ne rendent plus `{{ .ConfirmationURL }}`.
-Leur bouton et leur lien de secours pointent sur :
+Leur bouton et leur lien de secours pointent sur `/callback`, sans redirection intermédiaire
+(depuis E5, par `{{ .RedirectTo }}` — voir ci-dessus ; le repli garde la forme d'origine) :
 
 ```
 {{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=signup      (confirmation)

@@ -7169,3 +7169,95 @@ export type DisciplineUnavailable2026 = (typeof DISCIPLINE_UNAVAILABLE_2026)[num
  */
 export const SPORT_ONLY_REASONS_2026 = ['discipline_mismatch_kept'] as const;
 export type SportOnlyReason2026 = (typeof SPORT_ONLY_REASONS_2026)[number];
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONNEXION 2026 — LA REMISE DE SESSION PAR NONCE (lot E5, 12/09/2026)
+//
+// ─── LE DÉFAUT DU FONDATEUR, MOT POUR MOT ───────────────────────────────────
+// « vas juste vers une page qui dit que ça a été bien validé mais derrière il
+// faut que le compte fonctionne dans l'application ».
+//
+// ─── POURQUOI CE MÉCANISME EXISTE ───────────────────────────────────────────
+// Depuis E4, le lien de l'e-mail vise `https://gryd.run/callback?…` et compte
+// sur le LIEN UNIVERSEL pour qu'iOS remette l'adresse à l'app plutôt qu'à
+// Safari. Ce chemin exige une capacité Apple (« Associated Domains ») que le
+// profil de signature n'a pas encore : le build `fe030292` est ERRORED, donc
+// aujourd'hui, sur un vrai iPhone, le clic ouvre Safari et l'app n'apprend
+// RIEN. La page web pouvait féliciter ; derrière, le compte restait fermé.
+//
+// La remise inverse la charge : c'est la PAGE qui vérifie le haché (elle a une
+// session, une vraie), qui DÉPOSE son jeton de rafraîchissement contre une
+// empreinte de nonce, et c'est l'APP qui vient le chercher. Plus aucun lien
+// universel dans la boucle — elle marche sur un Mac, dans un webmail, sur un
+// Android, et elle continuera de marcher le jour où le lien universel marchera.
+//
+// ─── CE QUE LE NONCE PROTÈGE, ET CE QU'IL NE PROTÈGE PAS ────────────────────
+// Le nonce est tiré par l'APP, il ne sort jamais d'elle que par l'adresse de
+// retour écrite dans SON e-mail. Le connaître est donc la preuve qu'on est
+// l'appareil qui a demandé le lien. La réclamation est ouverte à `anon` parce
+// que l'app n'a, par construction, aucune session à ce moment-là : le seul
+// secret est le nonce, d'où son entropie (`nonceBytes`), sa durée de vie
+// minuscule (`ttlS`) et son USAGE UNIQUE côté serveur (0198).
+// Ce qu'il ne protège pas : quelqu'un qui lit l'e-mail ET l'écran de l'app.
+// Celui-là a déjà tout — c'est le modèle de menace du lien magique lui-même.
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ⚠️ CE NE SONT PAS DES RÈGLES DE JEU, ET C'EST ASSUMÉ. Elles ne décident ni
+ * claim, ni point, ni distance — `links.ts` et `welcome2026.ts` refusent, pour
+ * cette raison exacte, d'accueillir leurs propres délais ici. Ces quatre-là
+ * font exception parce qu'elles sont les seules du parcours de connexion à
+ * devoir être LUES AUX DEUX BOUTS : la migration 0198 (TTL du dépôt) et l'app
+ * (cadence et plafond d'attente) se contrediraient au premier retouchage si
+ * chacune portait son nombre. Décision du fondateur, 12/09/2026.
+ *
+ * ─── `nonceBytes` : 32 octets, soit 256 bits ────────────────────────────────
+ * Le minimum exigé était 128 bits. On tire le double parce que le nonce voyage
+ * en clair dans une URL d'e-mail : il traverse le proxy de Gmail, les journaux
+ * du client mail, parfois un antivirus qui PRÉ-OUVRE les liens. Doubler
+ * l'entropie ne coûte que 32 caractères hexadécimaux de plus dans une adresse
+ * que personne ne lit, et retire définitivement l'énumération du tableau —
+ * même avec une réclamation ouverte à `anon` et sans limitation de débit.
+ *
+ * ─── `ttlS` : 5 minutes, et pas une heure ───────────────────────────────────
+ * C'est la durée pendant laquelle un jeton de rafraîchissement DORT en base.
+ * Elle n'a rien à voir avec la vie du lien (1 heure, `mailer_otp_exp`) : elle
+ * commence quand la page web a DÉJÀ vérifié, c'est-à-dire à l'instant où le
+ * joueur regarde son écran en attendant que l'app suive. Cinq minutes couvrent
+ * largement un réveil de téléphone et un réseau lent ; au-delà, personne
+ * n'attend plus, et une ligne qui traîne est une ligne qu'on préfère morte.
+ *
+ * ─── `pollEveryMs` : 3 secondes ─────────────────────────────────────────────
+ * Le rythme d'un écran qui ATTEND un geste humain fait dans une autre
+ * application. Plus court ferait 200 requêtes pour rien sur un réseau mobile ;
+ * plus long se verrait — trois secondes, c'est le temps qu'il faut pour
+ * remettre le téléphone à l'endroit après avoir tapé le lien.
+ *
+ * ─── `pollForMs` : 10 minutes ───────────────────────────────────────────────
+ * Le plafond de patience de l'écran, délibérément PLUS LONG que `ttlS` : le
+ * dépôt peut arriver à la 4ᵉ minute et 59ᵉ seconde, et l'app doit encore être
+ * là pour le prendre. Au-delà, l'écran ne ment pas — il arrête d'interroger et
+ * le joueur garde « Renvoyer le lien » sous la main.
+ */
+export const AUTH_HANDOFF_2026 = {
+  /** Octets tirés au sort par l'app. Rendus en hexadécimal : 64 caractères. */
+  nonceBytes: 32,
+  /** Durée de vie d'un dépôt côté serveur (migration 0198). */
+  ttlS: 5 * 60,
+  /** Intervalle entre deux réclamations, tant que l'écran attend. */
+  pollEveryMs: 3_000,
+  /** Plafond de patience de l'écran « Lien envoyé ». */
+  pollForMs: 10 * 60 * 1000,
+} as const;
+
+/**
+ * Le nom du paramètre qui porte le nonce dans l'adresse de retour.
+ *
+ * UNE LETTRE, ET C'EST VOULU : cette adresse est recopiée en toutes lettres
+ * dans le corps de l'e-mail (« Le bouton ne réagit pas ? Copie ce lien »), et
+ * chaque caractère de plus est un caractère de plus à ne pas casser dans un
+ * client mail qui coupe à 78 colonnes. Il vit ici parce que DEUX bouts doivent
+ * l'écrire à l'identique — l'app qui fabrique l'adresse, la page web qui la
+ * relit — et qu'une divergence d'une lettre perdrait la remise en silence.
+ */
+export const AUTH_HANDOFF_NONCE_PARAM_2026 = 'n';

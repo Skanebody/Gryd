@@ -189,6 +189,13 @@ export const FR = {
   /** Gabarit du catalogue — voir `linkSentBody()` pour la phrase remplie. */
   linkSentBody: 'Regarde dans {email}.',
   linkSentHint: 'Ouvre l’e-mail sur cet appareil, puis tape le lien qu’il contient : il te connecte directement. Il expire dans l’heure et ne sert qu’une fois.',
+  /**
+   * E5 — L'ECRAN N'ATTEND PLUS DANS LE VIDE. Tant qu'il est affiche, il reclame
+   * la remise deposee par la page web (`auth_handoff_claim_2026`, 0198). Cette
+   * phrase est la PREUVE visible que l'attente est reelle : elle n'apparait que
+   * lorsqu'un nonce a ete tire et que la boucle tourne.
+   */
+  linkWaiting: 'Dès que tu as appuyé sur le lien, tu seras connecté ici.',
   linkResendCta: 'Renvoyer le lien',
   linkResendDone: 'Nouveau lien envoyé. Le précédent ne marche plus.',
   linkChangeEmail: 'Changer d’adresse',

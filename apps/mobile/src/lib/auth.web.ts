@@ -40,8 +40,11 @@
  * `auth.ts` importe expo-apple-authentication au niveau module, donc ce fichier
  * ne peut pas le réutiliser. Toute évolution de l'un se reporte sur l'autre.
  */
+import { AUTH_HANDOFF_2026 } from '@klaim/shared';
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
 import { AUTH_CALLBACK_PATH } from './links';
+import { handoffRedirectUrl2026, hexFromBytes2026 } from '../features/account/authHandoff2026';
+import { rememberHandoff2026 } from '../features/account/authHandoffSession2026';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
@@ -146,9 +149,34 @@ export const EMAIL_DELIVERY: 'link' | 'code' = emailDelivery2026(
   false,
 );
 
+/**
+ * LE TIRAGE DU NONCE DE REMISE (E5, 12/09/2026). WEB.
+ *
+ * `crypto.getRandomValues` est le CSPRNG du navigateur — aucun module natif,
+ * donc aucune raison d'importer `expo-crypto` ici (l'en-tête de ce fichier
+ * l'interdit, et à raison : il ne se bundle pas pour le web). C'est la SEULE
+ * chose que ce fichier ne partage pas avec `auth.ts` ; tout le reste de la
+ * remise vit dans `features/account/authHandoff*2026.ts`, une seule fois.
+ *
+ * ⚠️ ÉCHEC = PAS DE NONCE, JAMAIS UN NONCE FAIBLE. Un contexte sans WebCrypto
+ * (page servie en clair sur un hôte non local, très vieux navigateur) rend
+ * `null`, et l'app retombe sur le parcours E4. Un repli sur `Math.random()`
+ * serait un secret devinable écrit dans un e-mail : le pire des deux mondes.
+ */
+function drawHandoffNonce2026(): string | null {
+  try {
+    const webCrypto = globalThis.crypto;
+    if (!webCrypto || typeof webCrypto.getRandomValues !== 'function') return null;
+    return hexFromBytes2026(webCrypto.getRandomValues(new Uint8Array(AUTH_HANDOFF_2026.nonceBytes)));
+  } catch {
+    return null;
+  }
+}
+
 export async function requestEmailOtp(email: string): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   track(EVENTS.signupStarted, { method: 'email_otp' satisfies SignInMethod });
+  const nonce = drawHandoffNonce2026();
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -161,11 +189,22 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
        * la page ouverte, et la renvoyer sur gryd.run la déporterait hors du
        * bundle qu'elle est en train d'exécuter (preview locale, harnais E2E).
        * Seul le CHEMIN est partagé, pour qu'il ne puisse pas diverger.
+       *
+       * ⚠️ DEPUIS E5, ELLE PORTE LE MÊME NONCE QUE LE NATIF (`?n=…`). Le
+       * mécanisme de remise n'a rien de spécifique à iOS : il répare le lien
+       * universel absent, mais il sert aussi le navigateur, où le retour arrive
+       * dans un AUTRE onglet que celui qui attend. Même fonction, même forme,
+       * même migration 0198 — voir `features/account/authHandoff2026.ts`.
        */
-      emailRedirectTo: typeof window === 'undefined' ? undefined : `${window.location.origin}${AUTH_CALLBACK_PATH}`,
+      emailRedirectTo: typeof window === 'undefined'
+        ? undefined
+        : handoffRedirectUrl2026(`${window.location.origin}${AUTH_CALLBACK_PATH}`, nonce),
     },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
+  // APRÈS l'acceptation du serveur, jamais avant : mémoriser une remise pour un
+  // courrier qui n'est pas parti ferait attendre l'écran pour rien.
+  if (nonce !== null) await rememberHandoff2026(nonce, email, Date.now());
   return { ok: true };
 }
 

@@ -94,6 +94,14 @@ export interface MockConfig {
    * que la base reelle contient pour un compte qui vient d'etre cree.
    */
   readonly handleChosen: boolean;
+  /**
+   * LA REMISE DE SESSION (E5, migration 0198). `null` = personne n'a encore
+   * ouvert le lien, donc `auth_handoff_claim_2026` ne rend RIEN — c'est l'etat
+   * normal de l'ecran « Lien envoye ». Poser un type simule le geste : la page
+   * web a verifie le lien et depose son jeton, et l'app doit se connecter
+   * toute seule au tour de boucle suivant.
+   */
+  readonly handoffDeposited: CallbackType | null;
 }
 
 export const DEFAULT_USER: MockUser = {
@@ -304,8 +312,29 @@ function rpcFixture(
   user: MockUser,
   handleChosen: boolean,
   saved: { profile: Record<string, unknown> | null },
+  handoff: { deposited: CallbackType | null },
 ): unknown {
   switch (name) {
+    /**
+     * LA REMISE DE SESSION (E5, migration 0198). Deux comportements, et les
+     * deux comptent :
+     *   · tant que personne n'a ouvert le lien → `null`. C'est le refus que
+     *     l'app doit savoir attendre sans rien annoncer ;
+     *   · une fois la remise deposee → le jeton, UNE SEULE FOIS. Le mock remet
+     *     son etat a `null` juste apres, exactement comme `consumed_at` en
+     *     base : un harnais qui servirait deux fois ne prouverait pas l'usage
+     *     unique, il le contredirait.
+     * Le nonce est verifie dans sa FORME (64 a 128 hexadecimaux) : c'est ce que
+     * 0198 exige, et un ecran qui enverrait du vide doit echouer ici.
+     */
+    case 'auth_handoff_claim_2026': {
+      const nonce = typeof body.p_nonce === 'string' ? body.p_nonce : '';
+      if (!/^[0-9a-f]{64,128}$/.test(nonce)) return null;
+      const type = handoff.deposited;
+      if (type === null) return null;
+      handoff.deposited = null;
+      return { refresh_token: makeSession(user).refresh_token, type };
+    }
     /**
      * ETAT DU PSEUDO (0175). Compte neuf : la ligne EXISTE (0154 la
      * provisionne a l'inscription) et porte l'etiquette derivee, donc
@@ -409,6 +438,12 @@ export interface SupabaseMock extends NetworkLog {
   setOutage(outage: SupabaseOutage): void;
   /** Le compte a-t-il deja nomme son pseudo ? (`handle_chosen_2026`, 0175) */
   setHandleChosen(chosen: boolean): void;
+  /**
+   * JOUE LE GESTE DU JOUEUR AILLEURS : la page web a verifie le lien et depose
+   * sa session (E5). Le prochain `auth_handoff_claim_2026` rendra le jeton, une
+   * seule fois.
+   */
+  depositHandoff(type: CallbackType): void;
   /** Le profil ecrit par `save_my_social_profile_2026`, ou `null`. */
   savedProfile(): Record<string, unknown> | null;
   /** Nombre d'appels vus sur ce chemin exact. */
@@ -442,6 +477,8 @@ export async function installSupabaseMock(
   const user = config.user ?? DEFAULT_USER;
   let outage: SupabaseOutage = config.outage ?? 'none';
   let handleChosen = config.handleChosen ?? false;
+  /** L'etat de la remise E5 — mutable, parce que le geste arrive EN COURS de test. */
+  const handoff: { deposited: CallbackType | null } = { deposited: config.handoffDeposited ?? null };
   /** Ce que l'ecran de configuration a REELLEMENT envoye au serveur, s'il l'a fait. */
   const saved: { profile: Record<string, unknown> | null } = { profile: null };
 
@@ -514,7 +551,7 @@ export async function installSupabaseMock(
     if (path.startsWith('/rest/v1/rpc/')) {
       const name = path.slice('/rest/v1/rpc/'.length);
       const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
-      const value = rpcFixture(name, body, user, handleChosen, saved);
+      const value = rpcFixture(name, body, user, handleChosen, saved, handoff);
       if (value === undefined) {
         violations.push(`POST ${path} (RPC sans fixture)`);
         return json(route, 500, { code: 'PGRST202', message: `RPC ${name} sans fixture E2E` });
@@ -549,6 +586,9 @@ export async function installSupabaseMock(
     },
     setHandleChosen: (chosen: boolean) => {
       handleChosen = chosen;
+    },
+    depositHandoff: (type: CallbackType) => {
+      handoff.deposited = type;
     },
     savedProfile: () => saved.profile,
     countOf: (signature: string) => calls.filter((entry) => entry === signature).length,

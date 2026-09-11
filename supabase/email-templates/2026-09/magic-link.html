@@ -49,7 +49,7 @@ img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicub
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="gryd-bouton" style="margin:0 0 22px 0;">
 <tr>
 <td align="center" bgcolor="#B4FF0D" style="background-color:#B4FF0D;border-radius:14px;">
-<a href="{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=magiclink" target="_blank" style="display:block;padding:16px 32px;border-radius:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:17px;line-height:20px;font-weight:700;color:#0A0A0A;text-decoration:none;"><span style="color:#0A0A0A;text-decoration:none;">Entrer sur Gryd</span></a>
+<a href="{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=magiclink{{ else }}{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=magiclink{{ end }}" target="_blank" style="display:block;padding:16px 32px;border-radius:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:17px;line-height:20px;font-weight:700;color:#0A0A0A;text-decoration:none;"><span style="color:#0A0A0A;text-decoration:none;">Entrer sur Gryd</span></a>
 </td>
 </tr>
 </table>
@@ -65,7 +65,7 @@ img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicub
 </table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #292929;font-size:0;line-height:0;height:1px;">&nbsp;</td></tr></table>
 <p style="margin:20px 0 6px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;line-height:20px;color:#777777;">Le bouton ne réagit pas ? Copie ce lien dans ton navigateur :</p>
-<p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;line-height:20px;color:#BEBEBE;word-break:break-all;"><a href="{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=magiclink" target="_blank" style="color:#BEBEBE;text-decoration:underline;word-break:break-all;">{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=magiclink</a></p>
+<p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;line-height:20px;color:#BEBEBE;word-break:break-all;"><a href="{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=magiclink{{ else }}{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=magiclink{{ end }}" target="_blank" style="color:#BEBEBE;text-decoration:underline;word-break:break-all;">{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=magiclink{{ else }}{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=magiclink{{ end }}</a></p>
 </td>
 </tr>
 </table>

@@ -379,4 +379,81 @@ test.describe('S2 — creation de compte', () => {
 
     expect(errors, `erreurs runtime : ${errors.join(' | ')}`).toHaveLength(0);
   });
+  /**
+   * ═══ E5 — « LA PAGE DIT QUE C'EST VALIDE, ET LE COMPTE FONCTIONNE DERRIERE »
+   *
+   * Decision du fondateur, 12/09/2026, mot pour mot : « vas juste vers une page
+   * qui dit que ça a été bien validé mais derrière il faut que le compte
+   * fonctionne dans l'application ».
+   *
+   * ÉTAPE 0 — CE QUI ETAIT ROUGE. Le test juste au-dessus joue le lien ouvert
+   * DANS l'app (`page.goto(...)`), c'est-a-dire le cas heureux : iOS a remis
+   * l'adresse a GRYD. Ce cas-la exige la capacite Apple « Associated Domains »,
+   * absente du profil de signature (build `fe030292` ERRORED). En vrai,
+   * aujourd'hui, le lien s'ouvre AILLEURS — Safari, un webmail, un ordinateur —
+   * et l'ecran « Lien envoye » restait un cul-de-sac : la page felicitait, le
+   * telephone n'apprenait rien.
+   *
+   * CE QUE CE TEST JOUE. Le joueur ne touche PAS a son telephone. Le geste a
+   * lieu ailleurs (`supabase.depositHandoff`, qui simule la page web ayant
+   * verifie le lien et depose sa session, migration 0198). L'app doit se
+   * connecter TOUTE SEULE, sans navigation, sans clic, sans jamais presenter le
+   * hache elle-meme.
+   */
+  test('lien valide ailleurs : l’app se connecte SEULE, sans un geste de plus', async ({
+    page,
+    supabase,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+
+    await reachEmailForm(page);
+    await requestLink(page, DEFAULT_USER.email);
+
+    // ① L'ECRAN DIT CE QU'IL FAIT — et il le fait vraiment. La phrase
+    //    n'apparait que si un nonce a ete tire et que la boucle tourne.
+    await expect(page.getByText(FR.linkWaiting)).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(() => supabase.countOf('POST /rest/v1/rpc/auth_handoff_claim_2026'), { timeout: 20_000 })
+      .toBeGreaterThan(0);
+
+    // ② LE NONCE EXISTE, ET IL A LA FORME QUE 0198 EXIGE. C'est lui qui est
+    //    parti dans l'adresse de retour de l'e-mail (`?n=…`) : sans lui, la
+    //    page web n'aurait nulle part ou deposer.
+    const stored = await page.evaluate(() => window.localStorage.getItem('gryd.authHandoff.v1'));
+    expect(stored, 'le nonce de remise doit etre garde sur l’appareil').not.toBeNull();
+    const pending = JSON.parse(stored ?? '{}') as { nonce?: string; email?: string };
+    expect(pending.nonce ?? '').toMatch(/^[0-9a-f]{64}$/);
+    expect(pending.email).toBe(DEFAULT_USER.email);
+
+    // ③ LE GESTE A LIEU AILLEURS. La page web a verifie le lien et depose sa
+    //    session ; le telephone, lui, n'a rien fait.
+    supabase.depositHandoff('signup');
+
+    // ④ L'APP SE CONNECTE SEULE, ET ELLE LE DIT. C'est le `type` pose par le
+    //    SERVEUR (`signup`) qui autorise la felicitation, pas une supposition.
+    await expect(page.getByText(FR.welcomeFreshTitle)).toBeVisible({ timeout: 30_000 });
+
+    // ⑤ AUCUNE NAVIGATION : on n'a jamais quitte l'ecran « Lien envoye ».
+    await expect(page).toHaveURL(/\/email/);
+
+    // ⑥ CE N'EST PAS L'APP QUI A VERIFIE LE HACHE — c'est la page web. Le
+    //    compteur a zero est la difference exacte avec le test precedent.
+    expect(supabase.countOf('POST /auth/v1/verify')).toBe(0);
+    // Et la session vient d'un VRAI echange de jeton, pas d'un etat local.
+    expect(supabase.countOf('POST /auth/v1/token')).toBeGreaterThan(0);
+
+    // ⑦ LA REMISE NE SERT QU'UNE FOIS : l'intention est effacee de l'appareil.
+    await expect
+      .poll(() => page.evaluate(() => window.localStorage.getItem('gryd.authHandoff.v1')), {
+        timeout: 20_000,
+      })
+      .toBeNull();
+
+    // ⑧ ET LA SUITE DU PARCOURS EST LA MEME QUE PAR LE LIEN UNIVERSEL.
+    await page.getByRole('button', { name: FR.welcomeFreshCta, exact: true }).click();
+    await expect(page).toHaveURL(/\/setup\/profile/, { timeout: 20_000 });
+
+    expect(errors, `erreurs runtime : ${errors.join(' | ')}`).toHaveLength(0);
+  });
 });
