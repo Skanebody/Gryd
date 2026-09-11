@@ -7030,3 +7030,124 @@ export const TRACE_DELETE_REFUSALS_2026 = [
   'review_open',
 ] as const;
 export type TraceDeleteRefusal2026 = (typeof TRACE_DELETE_REFUSALS_2026)[number];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DISCIPLINE 2026 — « TU T'ES TROMPÉ DE DISCIPLINE » (décision fondateur du
+// 12/09/2026 : « à la fin, si la personne s'est trompée, on lui met le message
+// comme quoi il y a un problème avec sa course ; s'il ne veut pas basculer, on
+// ne comptabilise pas pour certaines choses »).
+//
+// ─── CE QUE CE CONTRÔLE EST, ET CE QU'IL N'EST PAS ──────────────────────────
+// Ce N'EST PAS un soupçon de triche. C'est une QUESTION posée à l'arrivée, avec
+// les chiffres mesurés sous les yeux : « pendant cinq minutes tu allais à
+// 24 km/h sans aucun pas — c'était du vélo ? ». Deux issues de MÊME RANG, et
+// aucune troisième : basculer, ou garder. Garder ne fait perdre ni la sortie,
+// ni les kilomètres, ni l'XP — seulement le TERRAIN et ce qui se classe.
+//
+// Le motif reste défini UNE FOIS, dans `packages/engine/disciplineCheck2026.ts`.
+// Le signal anti-triche `discipline_mismatch` appelle cette même fonction : il
+// n'existe pas deux définitions de « ça ressemble à du vélo ».
+//
+// ─── POURQUOI AUCUNE ALERTE PENDANT LA COURSE ───────────────────────────────
+// La discipline est FIGÉE AU DÉPART (`tracker.ts`, `readonly activity`) et le
+// reste : rebasculer en pleine sortie changerait les bornes de nettoyage §3.2
+// au milieu d'une trace déjà filtrée avec les autres. Le contrôle a donc lieu
+// à l'arrivée, sur la trace complète — là où il est mesurable et réparable.
+//
+// ─── DEUX SENS, UNE SEULE CONSÉQUENCE ANTI-TRICHE ───────────────────────────
+// Le contrôle regarde les deux sens (course qui ressemble à du vélo, vélo qui
+// ressemble à de la course). L'ANTI-TRICHE, lui, ne retient que le premier :
+// déclarer « vélo » et courir n'avantage personne (les bornes vélo exigent PLUS
+// de distance et PLUS de surface), et en faire un soupçon reviendrait à accuser
+// quelqu'un de marcher (cahier §8.3). Cette asymétrie est délibérée.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Les quatre nombres du contrôle de discipline, et le seul qui soit neuf.
+ *
+ * ─── `windowS` — LA MÊME FENÊTRE QUE L'ANTI-TRICHE ──────────────────────────
+ * Pas un nombre de plus : `ANTICHEAT_SUSTAINED_WINDOW_S` (5 min). Un contrôle
+ * qui jugerait sur une fenêtre différente de celle du signal anti-triche
+ * produirait deux vérités sur la même trace — l'écran dirait « ça ressemble à
+ * du vélo » là où le serveur ne voit rien, ou l'inverse.
+ *
+ * ─── `runLooksLikeBikeKmh` — DÉRIVÉE, PAS INVENTÉE ──────────────────────────
+ * C'est `RUN_AVG_PACE_MIN_S_KM` lue en km/h : 3600 / 170 ≈ 21,2 km/h. Cette
+ * borne porte depuis toujours le commentaire « borne basse anti-vélo », et le
+ * pipeline historique REFUSAIT (`pace_too_fast`) une sortie dont l'allure
+ * MOYENNE la franchissait. L'appliquer à une fenêtre de cinq minutes est donc
+ * strictement PLUS DOUX que la règle d'origine. Aucun « 20 km/h » écrit à la
+ * main : un seuil de plus aurait été un seuil à faire vivre.
+ *
+ * ─── `noStrideMaxSpm` — « QUASI NULLE », ET C'EST VOULU ─────────────────────
+ * 10 pas/minute sur cinq minutes, soit 50 pas au total. Un coureur, même en
+ * marchant, en pose dix fois plus ; un téléphone posé sur un guidon en compte
+ * zéro à quelques-uns (vibrations). Ce plancher est délibérément TRÈS BAS :
+ * le message de fin accuse un fait mesuré (« aucun pas »), pas une cadence
+ * « trop faible ». Une cadence basse mais réelle ne déclenche rien.
+ *
+ * ─── `runCadenceMinSpm` — LE SENS INVERSE ───────────────────────────────────
+ * 140 pas/minute : la cadence d'une foulée, y compris lente. Un pédalage ne la
+ * produit pas (un podomètre compte des IMPACTS, pas des tours de manivelle), et
+ * une marche soutenue plafonne plus bas. Au-dessus, quelqu'un court.
+ *
+ * ─── `bikeLooksLikeRunKmh` — LA MOITIÉ QUI ÉVITE L'ACCUSATION ABSURDE ───────
+ * 15 km/h. Sans elle, un cycliste au téléphone dans la poche qui descend une
+ * côte à 35 km/h avec quelques faux pas comptés serait invité à « basculer en
+ * course » — une proposition qui n'a aucun sens. Sous 15 km/h ET à cadence de
+ * foulée, en revanche, la lecture « cette personne court » tient.
+ *
+ * ─── `stepCoverageMin` — ON NE JUGE PAS CE QU'ON N'A PAS MESURÉ ─────────────
+ * Une fenêtre de vitesse dont le podomètre ne couvre pas 90 % de la durée n'est
+ * PAS jugée. Sans ce garde-fou, un podomètre qui démarre en retard (permission
+ * accordée après le départ) ferait lire « zéro pas » sur une portion qu'il n'a
+ * jamais écoutée — c'est-à-dire fabriquerait l'accusation.
+ */
+export const DISCIPLINE_CHECK_2026 = {
+  windowS: ANTICHEAT_SUSTAINED_WINDOW_S,
+  runLooksLikeBikeKmh: 3600 / RUN_AVG_PACE_MIN_S_KM,
+  noStrideMaxSpm: 10,
+  runCadenceMinSpm: 140,
+  bikeLooksLikeRunKmh: 15,
+  stepCoverageMin: 0.9,
+} as const;
+
+/**
+ * Durée (s) d'un SEAU de podomètre côté mobile.
+ *
+ * POURQUOI DES SEAUX, ET PAS LES ÉCHANTILLONS BRUTS. Le tracker garde les
+ * relevés bruts du podomètre pour la cadence LIVE, plafonnés (`STEP_SAMPLES_MAX`)
+ * pour ne pas faire enfler la mémoire d'un téléphone qui enregistre déjà une
+ * trace — sur une sortie d'une heure, les premières minutes ont donc disparu.
+ * Le contrôle de fin, lui, a besoin de TOUTE la sortie. Un seau par minute
+ * coûte 180 entrées pour trois heures et suffit largement : la fenêtre jugée
+ * en couvre cinq.
+ */
+export const DISCIPLINE_STEP_BUCKET_S = 60;
+
+/**
+ * Les MOTIFS de « on ne se prononce pas ». Chacun dit ce qui a MANQUÉ à la
+ * mesure — jamais « rien à signaler », qui se confondrait avec « c'est propre ».
+ *  · `no_window`        : aucune portion continue n'atteint `windowS` ;
+ *  · `no_steps`         : aucun podomètre n'a tourné (le cas de tout navigateur,
+ *                         de tout simulateur, et d'une permission refusée) ;
+ *  · `steps_not_covering` : un podomètre a tourné, mais pas sur les fenêtres
+ *                         mesurées (démarrage tardif, arrêt prématuré).
+ */
+export const DISCIPLINE_UNAVAILABLE_2026 = [
+  'no_window',
+  'no_steps',
+  'steps_not_covering',
+] as const;
+export type DisciplineUnavailable2026 = (typeof DISCIPLINE_UNAVAILABLE_2026)[number];
+
+/**
+ * Le motif porté par `runs.sport_only_reason_2026` (migration 0197) : la sortie
+ * compte pour le SPORT et pour rien d'autre.
+ *
+ * Un seul motif aujourd'hui, et une colonne `text` plutôt qu'un booléen : le
+ * jour où une autre raison de « sport seulement » apparaîtra, la lecture dira
+ * LAQUELLE. Un `sport_only boolean` aurait forcé à deviner.
+ */
+export const SPORT_ONLY_REASONS_2026 = ['discipline_mismatch_kept'] as const;
+export type SportOnlyReason2026 = (typeof SPORT_ONLY_REASONS_2026)[number];

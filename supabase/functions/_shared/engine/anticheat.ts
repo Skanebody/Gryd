@@ -75,6 +75,7 @@ import {
   ANTICHEAT_HUMAN_MIN_ACCURACY_CV,
   ANTICHEAT_SUSTAINED_WINDOW_S,
   DEFAULT_ACTIVITY,
+  DISCIPLINE_CHECK_2026,
 } from '../game-rules.ts';
 import type { RunPoint, RunSource } from '../types.ts';
 import {
@@ -84,8 +85,17 @@ import {
   haversineM,
   stepCoherence,
   MOTION_TRUST_NEUTRAL,
-  STEP_COHERENCE_MIN_STEPS_PER_M,
 } from './validation.ts';
+// ── UNE SEULE DÉFINITION DU MOTIF « CE N'EST PAS CETTE DISCIPLINE » ─────────
+// Le contrôle vit dans `disciplineCheck2026.ts` depuis le 12/09/2026, parce que
+// l'ÉCRAN DE FIN doit poser exactement la même question que le serveur. Ce
+// fichier n'en garde aucune copie : il le lit, et n'en retient qu'un sens (cf.
+// le signal 11).
+import {
+  checkDeclaredDiscipline2026,
+  fastestSustainedWindow2026,
+  wholeRunStepWindow2026,
+} from './disciplineCheck2026.ts';
 
 // Constantes physiques / d'unités — pas des règles de jeu.
 const MS_PER_S = 1_000;
@@ -440,21 +450,13 @@ function legsOf(points: readonly RunPoint[]): Leg[] {
  * secondes, en km/h. `null` quand aucune portion CONTINUE n'atteint la durée de
  * la fenêtre : on ne juge pas ce qu'on n'a pas mesuré.
  *
- * ─── POURQUOI « CONTINUE » EST UNE CONDITION, ET COMMENT ELLE SE DÉFINIT ────
- * Une fenêtre qui enjamberait une discontinuité mesurerait une vitesse qui n'a
- * jamais existé. La contiguïté se rompt donc exactement là où le reste du
- * moteur la rompt déjà (`filterPoints`) : rupture DÉCLARÉE (`breakBefore`),
- * horodatage dupliqué ou désordonné, silence au-delà de `pointMaxGapS`, saut
- * au-delà de `pointMaxJumpM`. Aucun nouveau critère n'est inventé.
- *
- * ─── CE QUE LA FENÊTRE NE FILTRE PAS, ET POURQUOI ───────────────────────────
- * Elle ne retire PAS les tronçons plus rapides que `pointMaxSpeedKmh`. Les
- * retirer serait tentant (ce sont des points que `filterPoints` jette) mais
- * produirait l'effet inverse de celui recherché : un trajet en voiture, dont
- * TOUS les tronçons dépassent le plafond, ne laisserait plus aucune portion
- * continue et rendrait le signal INDISPONIBLE — c'est-à-dire muet exactement
- * sur le cas le plus grave. Un vrai saut de satellite, lui, casse la contiguïté
- * par sa DISTANCE et sort donc bien de la mesure.
+ * ⚠️ CE N'EST PLUS QU'UNE ENVELOPPE (12/09/2026). Le balayage lui-même vit
+ * désormais dans `disciplineCheck2026.ts`, parce que le contrôle de discipline
+ * a besoin des BORNES de la fenêtre (pour y opposer une cadence de pas) et pas
+ * seulement de sa vitesse. Deux balayages auraient divergé au premier
+ * changement de critère de contiguïté ; il n'y en a donc qu'un, et c'est
+ * celui-là. Le comportement de CETTE fonction est inchangé, et ses tests le
+ * prouvent.
  *
  * PURE : aucun tri en place (`points` n'est pas muté), aucune horloge.
  */
@@ -463,55 +465,7 @@ export function sustainedWindowKmh(
   activity: Activity = DEFAULT_ACTIVITY,
   windowS: number = ANTICHEAT_SUSTAINED_WINDOW_S,
 ): number | null {
-  const rules = activityRules(activity);
-  const sorted = [...points].sort((a, b) => a.t - b.t);
-  let best: number | null = null;
-
-  /** Temps et distance CUMULÉS depuis le début de la portion continue en cours. */
-  let times: number[] = [];
-  let dists: number[] = [];
-
-  const measure = () => {
-    if (times.length < 2) return;
-    let i = 0;
-    for (let j = 1; j < times.length; j++) {
-      // On garde la PLUS COURTE fenêtre d'au moins `windowS` finissant en j :
-      // c'est elle qui porte la vitesse la plus élevée de toutes les fenêtres
-      // finissant là (allonger une fenêtre ne peut que diluer une pointe).
-      while (i + 1 <= j && times[j]! - times[i + 1]! >= windowS) i++;
-      const dtS = times[j]! - times[i]!;
-      if (dtS < windowS) continue;
-      const kmh = ((dists[j]! - dists[i]!) / dtS) * KMH_PER_M_S;
-      if (best === null || kmh > best) best = kmh;
-    }
-  };
-
-  let previousPoint: RunPoint | null = null;
-  for (const point of sorted) {
-    if (previousPoint === null) {
-      times = [0];
-      dists = [0];
-      previousPoint = point;
-      continue;
-    }
-    const dtS = (point.t - previousPoint.t) / MS_PER_S;
-    const distM = haversineM(previousPoint, point);
-    const broken = point.breakBefore === true ||
-      dtS <= 0 ||
-      dtS > rules.pointMaxGapS ||
-      distM > rules.pointMaxJumpM;
-    if (broken) {
-      measure();
-      times = [0];
-      dists = [0];
-    } else {
-      times.push(times[times.length - 1]! + dtS);
-      dists.push(dists[dists.length - 1]! + distM);
-    }
-    previousPoint = point;
-  }
-  measure();
-  return best;
+  return fastestSustainedWindow2026(points, activity, windowS)?.kmh ?? null;
 }
 
 /**
@@ -848,12 +802,31 @@ export function scoreRun(input: AntiCheatInput): AntiCheatReport {
   //  · vite tout seul  → c'est peut-être un très bon coureur ;
   //  · zéro pas seul   → c'est peut-être un téléphone dans une poussette
   //                      (`step_coherence` le dit déjà, avec son propre poids).
-  // L'inverse — un vélo LENT, avec des pas — n'est PAS traité : pédaler
-  // doucement en comptant des pas n'avantage personne, et en faire un soupçon
-  // reviendrait à accuser quelqu'un de marcher (cahier §8.3).
-  const stepsPerM = input.stepCount !== undefined && stats.distanceM > 0
-    ? Math.max(0, input.stepCount) / stats.distanceM
-    : null;
+  //
+  // ═══ LE MOTIF EST DÉFINI AILLEURS, ET UNE SEULE FOIS (12/09/2026) ═════════
+  // `checkDeclaredDiscipline2026` (moteur PUR) porte la définition. L'écran de
+  // fin de sortie appelle EXACTEMENT la même fonction pour proposer de basculer
+  // — sans quoi l'app dirait « ça ressemble à du vélo » là où le serveur ne
+  // voit rien, ou l'inverse. Ce fichier n'en garde aucune copie.
+  //
+  // ─── DEUX DIFFÉRENCES ASSUMÉES AVEC L'ÉCRAN DE FIN, ET POURQUOI ───────────
+  //  1. LE SENS. Le contrôle regarde les deux sens ; ce signal ne retient que
+  //     « course déclarée, vélo mesuré ». L'inverse — un vélo LENT, avec des
+  //     pas — n'avantage personne (les bornes vélo exigent PLUS de distance et
+  //     PLUS de surface), et en faire un soupçon reviendrait à accuser
+  //     quelqu'un de marcher (cahier §8.3).
+  //  2. LA FINESSE. Le mobile range son podomètre par tranches d'une minute ;
+  //     le serveur ne reçoit et ne scelle qu'un CUMUL (`runs.step_count`). Il
+  //     applique donc la même fonction à une tranche UNIQUE, donc à une cadence
+  //     MOYENNE — plus indulgente. C'est voulu : l'écran de fin PROPOSE (il a
+  //     la meilleure mesure), le serveur ne rattrape que les cas les plus nets.
+  //     C'est aussi pourquoi un client SANS podomètre ne signale rien et laisse
+  //     le serveur seul juge : son silence n'est pas un quitus.
+  const discipline = checkDeclaredDiscipline2026(
+    points,
+    wholeRunStepWindow2026(points, input.stepCount),
+    activity,
+  );
   if (activity !== 'run') {
     signals.push(
       NA(
@@ -861,14 +834,14 @@ export function scoreRun(input: AntiCheatInput): AntiCheatReport {
         'Le motif ne vise que la course à pied DÉCLARÉE : une sortie vélo lente avec des pas n’avantage personne.',
       ),
     );
-  } else if (windowKmh === null) {
+  } else if (discipline.evidence.reason === 'no_window') {
     signals.push(
       NA(
         'discipline_mismatch',
         `Aucune portion continue de ${ANTICHEAT_SUSTAINED_WINDOW_S} s : la vitesse soutenue, moitié du motif, manque.`,
       ),
     );
-  } else if (stepsPerM === null) {
+  } else if (discipline.evidence.reason !== undefined) {
     signals.push(
       NA(
         'discipline_mismatch',
@@ -883,14 +856,12 @@ export function scoreRun(input: AntiCheatInput): AntiCheatReport {
       ),
     );
   } else {
-    const ridden = windowKmh > disciplineBoundKmh;
-    const noStride = stepsPerM < STEP_COHERENCE_MIN_STEPS_PER_M;
     signals.push(
-      SIG('discipline_mismatch', ridden && noStride ? 1 : 0, {
-        windowKmh,
-        disciplineBoundKmh,
-        stepsPerM,
-        pedestrianFloorStepsPerM: STEP_COHERENCE_MIN_STEPS_PER_M,
+      SIG('discipline_mismatch', discipline.suspected === 'bike' ? 1 : 0, {
+        windowKmh: discipline.evidence.sustainedKmh ?? 0,
+        disciplineBoundKmh: DISCIPLINE_CHECK_2026.runLooksLikeBikeKmh,
+        stepsPerMin: discipline.evidence.stepsPerMin ?? 0,
+        pedestrianFloorStepsPerMin: DISCIPLINE_CHECK_2026.noStrideMaxSpm,
       }),
     );
   }

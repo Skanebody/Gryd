@@ -48,6 +48,11 @@ export * from './leaderboard.ts';
 // PASS_WITH_EXCLUSIONS / MANUAL_REVIEW / REJECT. N'est encore appelé par aucune
 // Edge Function (le câblage d'ingest_run est un lot suivant) — le docblock du
 // module le dit, pour qu'aucune copie ne prétende qu'une revue « a lieu ».
+// Contrôle de DISCIPLINE (12/09/2026) : « la trace raconte-t-elle une autre
+// discipline que celle déclarée ? ». UNE seule définition du motif, lue par
+// l'écran de fin (qui PROPOSE de basculer) et par le signal anti-triche
+// `discipline_mismatch` (qui, lui, ne retient qu'un seul sens).
+export * from './disciplineCheck2026.ts';
 export * from './anticheat.ts';
 export * from './claims.ts';
 export * from './crewJoin.ts';
