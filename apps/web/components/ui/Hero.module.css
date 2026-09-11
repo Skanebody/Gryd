@@ -1,0 +1,80 @@
+.hero {
+  padding-block: var(--s-8) var(--gryd-section-y);
+}
+
+.grid {
+  display: grid;
+  gap: var(--s-8);
+  align-items: center;
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--t-display);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  max-width: 22ch;
+}
+
+/* Chaque phrase de l'accroche sur SA ligne. « Cours ou / roule. Ferme ta »
+   casse le rythme ternaire au milieu d'un membre de phrase : mesuré en capture
+   à 1280 px, où la colonne de texte ne tient pas la plus longue des trois. */
+.titleLine {
+  display: block;
+}
+
+.lead {
+  font-size: var(--t-lead);
+  line-height: 1.55;
+  color: var(--gryd-muted);
+  max-width: 46ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+/* Sans emphase, mais lisible : 7,8:1 sur carbone. */
+.status {
+  font-size: var(--t-small);
+  color: var(--gryd-muted);
+}
+
+.media {
+  min-width: 0;
+}
+
+/* En une seule colonne, une photo 4:5 pleine largeur fait 880 px de haut à
+   768 px : on la borne, sinon le premier écran ne montre plus qu'elle. */
+@media (max-width: 959px) {
+  .media {
+    max-width: 560px;
+  }
+}
+
+@media (min-width: 960px) {
+  .hero {
+    padding-block: var(--s-10) var(--gryd-section-y);
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: var(--s-8);
+  }
+
+  /* En deux colonnes, c'est la colonne qui borne le titre : une largeur en `ch`
+     par dessus le ferait casser une phrase en deux. */
+  .title {
+    max-width: none;
+  }
+}

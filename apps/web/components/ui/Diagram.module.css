@@ -1,0 +1,11 @@
+.frame {
+  background: var(--gryd-carbon);
+  border-bottom: 1px solid var(--gryd-hairline);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 320 / 180;
+}

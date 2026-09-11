@@ -1,0 +1,25 @@
+.list {
+  display: grid;
+  gap: var(--s-5);
+  grid-template-columns: 1fr;
+  /* En une seule colonne, une carte pleine largeur donne un schéma de 704 px de
+     large à 768 px : trois planches hautes comme l'écran. On borne la colonne. */
+  max-width: 560px;
+}
+
+.item {
+  display: flex;
+  min-width: 0;
+}
+
+.item > * {
+  flex: 1;
+}
+
+@media (min-width: 780px) {
+  .list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--s-6);
+    max-width: none;
+  }
+}

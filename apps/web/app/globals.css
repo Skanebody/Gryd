@@ -1,89 +1,297 @@
 /*
- * GRYD — site waitlist. Variables globales.
- * Tokens ADDENDUM-DESIGN §C, repris du :root de maquette-ui-klaim.html.
- * Règles : toute couleur hors tokens = bug ; dark-first ; JAMAIS de texte ou
- * d'icône chartreuse sur fond clair (contraste 1,2:1 — interdit absolu, §C.2).
+ * GRYD — JETONS DU SITE PUBLIC (lot W2, 12/09/2026).
+ *
+ * Source : `docs/product/GRYD_DIRECTION_VISUELLE_2026.md` et la palette que
+ * l'application applique vraiment (`packages/shared/src/design-tokens.ts`,
+ * `refonteColors`). Les valeurs ci-dessous sont les MÊMES hex que l'app :
+ * carbone #0A0A0A, surfaces #171717 / #292929, encre #FAFAFA, gris #A3A3A3,
+ * chartreuse #B4FF0D. Un site qui ressemble à l'app ne peut pas avoir sa
+ * propre palette « presque pareille ».
+ *
+ * ⚠️ LE WEB NE PEUT PAS IMPORTER `refonteColors` DANS DU CSS. La duplication est
+ * donc assumée et BORNÉE à ce bloc :root. Aucun hex ailleurs dans `components/`
+ * ni dans `app/` — tout passe par une variable d'ici. Le jour où un token change
+ * dans `design-tokens.ts`, ce bloc est le seul endroit à suivre.
+ *
+ * ─── TROIS RÈGLES TENUES ────────────────────────────────────────────────────
+ *  1. THÈME SOMBRE UNIQUE, comme l'app. Pas de bascule clair : le site n'a pas
+ *     de préférence utilisateur à respecter puisqu'il n'en propose aucune, et
+ *     `color-scheme: dark` dit au navigateur de peindre ses propres contrôles
+ *     en sombre. Le chartreuse ne se pose JAMAIS en petit texte sur fond clair
+ *     (contraste 1,2:1 — interdit absolu de la charte) : ici il n'y a pas de
+ *     fond clair, et il ne sert qu'en fond de bouton à texte carbone, en trait,
+ *     ou en gros aplat.
+ *  2. AUCUNE OMBRE. La direction de septembre pose des surfaces à plat et des
+ *     filets fins. Une ombre portée sur du carbone ne se voit pas ; elle salit.
+ *  3. RAYON DE 22 px pour les cartes, 23 px pour les boutons de 46 px de haut
+ *     (donc un demi-cercle exact), 999 px pour les pilules. Ce sont les rayons
+ *     de `ProfilePrimitives.tsx`, au pixel près.
  */
+
+/* ─── JETONS ───────────────────────────────────────────────────────────────── */
 :root {
-  --fond: #070807; /* fond de page (body de la maquette) */
-  --noir: #0a0b09;
-  --carbone: #141613;
-  --carbone2: #1d201b;
-  --blanc: #fafaf7;
-  --gris: #8a8f84;
-  --ligne: rgba(250, 250, 247, 0.1);
-  --ch: #b4ff0d;
-  --ch14: rgba(180, 255, 13, 0.14);
-  --ch40: rgba(180, 255, 13, 0.4);
-  --eau: #0d1112;
+  /* Couleurs — miroir de `refonteColors` (design-tokens.ts). */
+  --gryd-carbon: #0a0a0a;
+  --gryd-surface: #171717;
+  --gryd-surface-high: #292929;
+  --gryd-ink: #fafafa;
+  --gryd-muted: #a3a3a3;
+  --gryd-steel: #777777; /* DÉCOR SEULEMENT : 4,4:1 sur carbone, sous le seuil AA du petit texte. */
+  --gryd-accent: #b4ff0d;
+  --gryd-accent-pressed: #acdb2e;
+  --gryd-accent-soft: rgba(180, 255, 13, 0.16);
+  --gryd-accent-line: rgba(180, 255, 13, 0.4);
+  --gryd-hairline: #292929;
+  --gryd-hairline-soft: rgba(250, 250, 250, 0.12);
+  --gryd-scrim: rgba(10, 10, 10, 0.72);
 
-  /* Langage visuel de conflit (AMENDEMENT-05 §1) — RÉSERVÉ aux états de jeu :
-     ennemi/attaque/danger · crew rival/rareté · victoire/médaille.
-     Jamais sur les CTA, la nav, ou hors contexte de jeu. */
-  --ennemi: #ff5c33;
-  --ennemi-14: rgba(255, 92, 51, 0.14);
-  --ennemi-40: rgba(255, 92, 51, 0.4);
-  --rival: #8b5cf6;
-  --rival-14: rgba(139, 92, 246, 0.14);
-  --rival-40: rgba(139, 92, 246, 0.4);
-  --or: #e7b84c;
-  --or-14: rgba(231, 184, 76, 0.14);
+  /* Typographies — injectées par next/font dans app/layout.tsx, servies depuis
+     gryd.run (aucune requête vers un tiers à l'exécution). Mêmes familles que
+     l'application : Manrope (titres et chiffres), Inter (lecture),
+     JetBrains Mono (repères). */
+  --gryd-display: var(--font-manrope), 'Manrope', system-ui, sans-serif;
+  --gryd-text: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --gryd-mono: var(--font-jetbrains), ui-monospace, 'SFMono-Regular', monospace;
 
-  /* Fontes injectées par next/font dans app/layout.tsx */
-  --disp: var(--font-avant-garde, var(--font-poppins)), Poppins, sans-serif; /* AMENDEMENT-03 : ITC Avant Garde Md quand licenciée */
-  --txt: var(--font-avant-garde, var(--font-poppins)), Poppins, sans-serif; /* Avant Garde Bk (400) */
-  --serif: var(--font-lora), Lora, serif; /* accent éditorial Outcrowd */
-  --mono: var(--font-space-mono), monospace;
+  /* Échelle typographique. Les bornes basses tiennent à 360 px, les hautes à 1440. */
+  --t-display: clamp(2.25rem, 1.35rem + 4vw, 4.25rem);
+  --t-h2: clamp(1.625rem, 1.2rem + 1.9vw, 2.5rem);
+  --t-h3: clamp(1.125rem, 1.02rem + 0.45vw, 1.375rem);
+  --t-lead: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  --t-body: 1rem;
+  --t-small: 0.875rem;
+  --t-kicker: 0.6875rem;
+  --t-stat: clamp(2rem, 1.5rem + 2.2vw, 3rem);
 
-  --radius-card: 20px;
-  --radius-pill: 999px;
+  /* Rythme. Marges de 20 px sur mobile, comme l'app ; 32 au delà. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+  --s-9: 56px;
+  --s-10: 80px;
+  --s-11: 120px;
+  --gryd-gutter: 20px;
+  --gryd-max: 1120px;
+  --gryd-section-y: clamp(48px, 5.5vw, 80px);
+
+  /* Rayons — ceux de `ProfilePrimitives.tsx`. */
+  --r-card: 22px;
+  --r-control: 23px;
+  --r-small: 14px;
+  --r-pill: 999px;
+
+  /* Cible tactile minimale (charte : 44 points). */
+  --tap: 44px;
+
+  /* ─── ALIAS DE COMPATIBILITÉ ──────────────────────────────────────────────
+     Les pages que ce lot NE TOUCHE PAS (les quatre pages légales, /abonnement/,
+     /admin/) lisent encore les variables de l'ancien site. Les supprimer les
+     rendrait illisibles avant que le lot pages ne les reprenne : elles sont donc
+     redirigées sur les jetons ci-dessus. Ce bloc a vocation à disparaître quand
+     le lot W3 aura repris ces pages, et rien de neuf ne doit s'en servir. */
+  --fond: var(--gryd-carbon);
+  --noir: var(--gryd-carbon);
+  --carbone: var(--gryd-surface);
+  --carbone2: var(--gryd-surface-high);
+  --blanc: var(--gryd-ink);
+  --gris: var(--gryd-muted);
+  --ligne: var(--gryd-hairline-soft);
+  --ch: var(--gryd-accent);
+  --ch14: var(--gryd-accent-soft);
+  --ch40: var(--gryd-accent-line);
+  --eau: var(--gryd-surface);
+  --ennemi: var(--gryd-ink);
+  --ennemi-14: var(--gryd-hairline-soft);
+  --ennemi-40: var(--gryd-hairline-soft);
+  --rival: var(--gryd-muted);
+  --rival-14: var(--gryd-hairline-soft);
+  --rival-40: var(--gryd-hairline-soft);
+  --or: var(--gryd-ink);
+  --or-14: var(--gryd-hairline-soft);
+  --disp: var(--gryd-display);
+  --txt: var(--gryd-text);
+  --serif: Georgia, 'Times New Roman', serif;
+  --mono: var(--gryd-mono);
+  --radius-card: var(--r-card);
+  --radius-pill: var(--r-pill);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --gryd-gutter: 32px;
+  }
+}
+
+/* ─── SOCLE ────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 * {
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
-  /* Header pill sticky : les ancres (#concept…) s'arrêtent sous le header. */
+  /* Les ancres s'arrêtent SOUS l'en-tête collant, sinon le titre visé est caché. */
   scroll-padding-top: 96px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--fond);
-  color: var(--blanc);
-  font-family: var(--txt);
+  background: var(--gryd-carbon);
+  color: var(--gryd-ink);
+  font-family: var(--gryd-text);
+  font-size: var(--t-body);
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Aucune barre horizontale, à aucune largeur : c'est la panne la plus visible
+     d'une refonte responsive, et la plus facile à empêcher. */
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--gryd-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 a {
   color: inherit;
+  text-decoration-color: var(--gryd-hairline-soft);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: var(--gryd-accent);
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+img {
+  height: auto;
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
 
-button:focus-visible,
-input:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--ch);
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--gryd-hairline);
+}
+
+/* Focus VISIBLE partout, sur le seul accent de la charte. `:focus-visible` ne
+   s'allume pas au clic souris : le contour ne gêne personne et sauve le clavier. */
+:focus-visible {
+  outline: 2px solid var(--gryd-accent);
   outline-offset: 3px;
+  border-radius: 4px;
 }
 
 ::selection {
-  background: var(--ch40);
-  color: var(--blanc);
+  background: var(--gryd-accent);
+  color: var(--gryd-carbon);
+}
+
+/* ─── MOUVEMENT RÉDUIT ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── UTILITAIRES PARTAGÉS ─────────────────────────────────────────────────── */
+
+/* Le conteneur de page : une seule largeur maximale pour tout le site. */
+.grydContainer {
+  width: 100%;
+  max-width: var(--gryd-max);
+  margin-inline: auto;
+  padding-inline: var(--gryd-gutter);
+}
+
+/* Lu par les lecteurs d'écran, invisible à l'œil. */
+.grydSrOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Le lien d'évitement : premier élément focalisable de chaque page.
+   `fixed`, PAS `absolute` : posé en absolu dans l'en-tête collant, il suivait
+   l'en-tête et repeignait son fond chartreuse par dessus le contenu dès qu'on
+   faisait défiler la page (constaté en capture à 1280 px). En `fixed`, il est
+   hors de l'écran tant qu'il n'a pas le focus, quel que soit le défilement. */
+.grydSkipLink {
+  position: fixed;
+  left: var(--gryd-gutter);
+  top: -100px;
+  z-index: 100;
+  padding: var(--s-3) var(--s-5);
+  background: var(--gryd-accent);
+  color: var(--gryd-carbon);
+  border-radius: var(--r-pill);
+  font-family: var(--gryd-text);
+  font-size: var(--t-small);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.grydSkipLink:focus {
+  top: var(--s-3);
 }

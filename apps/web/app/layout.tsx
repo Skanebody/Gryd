@@ -1,66 +1,118 @@
-import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
-import { Lora, Poppins, Space_Mono } from 'next/font/google';
-import './globals.css';
-import { PostHogProvider } from './components/PostHogProvider';
-
 /**
- * Typo Outcrowd (AMENDEMENT-03) : ITC Avant Garde Gothic Std (Md titres/UI, Bk texte) + Lora (éditorial).
- * ITC Avant Garde est commerciale (Monotype/Adobe Fonts) — impossible de redistribuer les fichiers.
- * QUAND la licence est acquise : déposer les .woff2 dans app/fonts/ puis remplacer `josefin` par :
+ * GRYD — LE GABARIT DU SITE PUBLIC (lot W2, 12/09/2026).
  *
- *   import localFont from 'next/font/local';
- *   const avantGarde = localFont({
- *     src: [
- *       { path: './fonts/ITCAvantGardeStd-Bk.woff2', weight: '400' },
- *       { path: './fonts/ITCAvantGardeStd-Md.woff2', weight: '500' },
- *       { path: './fonts/ITCAvantGardeStd-Demi.woff2', weight: '700' },
- *     ],
- *     variable: '--font-avant-garde',
- *     display: 'swap',
- *   });
+ * ─── LES TROIS FAMILLES SONT CELLES DE L'APPLICATION ────────────────────────
+ * `apps/mobile/src/lib/fonts.ts` charge Manrope (titres et chiffres), Inter
+ * (lecture) et JetBrains Mono (repères). Le site charge exactement les mêmes :
+ * une page web dans une autre fonte que l'app n'est pas « le même produit ».
+ * L'ancien gabarit servait Poppins et Lora, choisies en juillet pour imiter une
+ * fonte commerciale qui n'a jamais été acquise ; ce détour n'a plus d'objet.
  *
- * et pointer --font-display/--font-text sur --font-avant-garde dans globals.css.
- * En attendant : Poppins — le sosie libre le plus fidèle d'Avant Garde (cercles parfaits,
- * grande hauteur d'x, « a » à un étage). Comme Outcrowd, les titres restent en graisse
- * Book/Medium (400/500), jamais en Bold lourd.
+ * ─── « POLICES LOCALES », CE QUE ÇA VEUT DIRE ICI ───────────────────────────
+ * `next/font/google` TÉLÉCHARGE les fichiers AU BUILD et les émet dans le
+ * bundle : la page servie n'appelle NI `fonts.googleapis.com`, NI
+ * `fonts.gstatic.com`. Les `.woff2` sont servis depuis `gryd.run`. C'est bien
+ * un hébergement local, obtenu sans commiter 2 Mo de `.ttf` (les binaires
+ * disponibles dans le dépôt, ceux d'`@expo-google-fonts`, ne sont pas
+ * sous-découpés : Inter Regular pèse 342 Ko à lui seul, contre ~15 Ko une fois
+ * réduit au latin).
+ *
+ * ─── AUCUN SCRIPT TIERS, AUCUN COOKIE ───────────────────────────────────────
+ * `PostHogProvider` a été retiré du gabarit : il chargeait un script d'analyse
+ * tiers et posait des cookies sur un site qui n'a aucune bannière de consentement
+ * à proposer. Un site public qui mesure ses visiteurs sans le leur dire n'est
+ * pas conforme, et le gabarit d'un site honnête ne peut pas commencer par là.
+ * Le fichier `app/components/PostHogProvider.tsx` reste en place : il est
+ * encore importé par des pages qui n'appartiennent pas à ce lot.
+ *
+ * ─── CE QUE CE FICHIER NE FAIT PAS ──────────────────────────────────────────
+ *  · Il ne rend NI en-tête NI pied de page. Chaque page les compose elle-même
+ *    (`SiteHeader` / `<main id="contenu">` / `SiteFooter`) : le gabarit couvre
+ *    aussi `/admin/`, qui a sa propre coque, et `/callback/`, qui doit rester
+ *    une page d'arrivée sobre.
+ *  · Il ne pose AUCUNE donnée structurée. `Organization` appartient à `/`, et
+ *    à elle seule : posé ici, il serait émis dix fois (cahier §3.10, « trois
+ *    blocs, pas un de plus »).
+ *
+ * Le favicon existant (`app/icon.png`, `app/apple-icon.png` : le G noir sur
+ * carré chartreuse) est repris tel quel — Next les détecte par convention de
+ * nom. On ne change pas l'icône d'un onglet que des gens ont déjà en favori.
  */
-const poppins = Poppins({
+import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
+import { Inter, JetBrains_Mono, Manrope } from 'next/font/google';
+import './globals.css';
+import { SITE_DESCRIPTION, SITE_OG_IMAGE, SITE_ORIGIN, SITE_TITLE } from '../lib/site2026';
+
+/** Titres, chiffres, lettrages. Les graisses réellement employées, pas une de plus. */
+const manrope = Manrope({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-  variable: '--font-poppins',
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-manrope',
   display: 'swap',
 });
 
-const lora = Lora({
+/** Le texte courant, les libellés, les boutons. */
+const inter = Inter({
   subsets: ['latin'],
-  weight: ['400', '500'],
-  style: ['normal', 'italic'],
-  variable: '--font-lora',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
   display: 'swap',
 });
 
-// Exception fonctionnelle à la typo Outcrowd : timers/codes/étiquettes exigent des chiffres mono.
-const spaceMono = Space_Mono({
+/** Les repères : étiquettes de section, numéros d'étape. Comme sur la carte de l'app. */
+const jetbrains = JetBrains_Mono({
   subsets: ['latin'],
-  weight: ['400'],
-  variable: '--font-space-mono',
+  weight: ['500'],
+  variable: '--font-jetbrains',
   display: 'swap',
 });
 
-// TODO(légal) : « GRYD » est un nom de code — aucun usage public sans clearance INPI (CLAUDE.md).
 export const metadata: Metadata = {
-  title: 'GRYD — Cours pour ton crew. Conquiers ta ville.',
-  description:
-    'Le jeu de guerre territoriale entre crews de running. Chaque run change la carte.',
+  // Sert de base aux URL canoniques et aux images sociales : sans elle, une
+  // image d'aperçu relative n'est jamais résolue par un réseau social.
+  metadataBase: new URL(SITE_ORIGIN),
+  title: {
+    default: SITE_TITLE,
+    // Les pages posent leur propre titre ; celui du cahier fait 41 à 48
+    // caractères, un suffixe de marque le pousserait au delà de la limite
+    // d'affichage. Le gabarit n'en ajoute donc aucun.
+    template: '%s',
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: 'Gryd',
+  openGraph: {
+    type: 'website',
+    locale: 'fr_FR',
+    siteName: 'Gryd',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: `${SITE_ORIGIN}/`,
+    images: [{ url: SITE_OG_IMAGE, width: 1200, height: 630, alt: SITE_TITLE }],
+  },
+  twitter: {
+    // `summary_large_image` décrit la CARTE, pas un compte : aucun `site` ni
+    // `creator` n'est déclaré, puisque aucun compte au nom de Gryd n'existe.
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [SITE_OG_IMAGE],
+  },
+  robots: { index: true, follow: true },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  // La couleur de la barre d'adresse suit le fond : l'écran ne clignote pas en
+  // blanc avant de peindre le carbone.
+  themeColor: '#0a0a0a',
+  colorScheme: 'dark',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" className={`${poppins.variable} ${lora.variable} ${spaceMono.variable}`}>
-      <body>
-        <PostHogProvider>{children}</PostHogProvider>
-      </body>
+    <html lang="fr" className={`${manrope.variable} ${inter.variable} ${jetbrains.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

@@ -1,0 +1,77 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  align-items: flex-start;
+  max-width: 34rem;
+}
+
+.fields {
+  display: grid;
+  gap: var(--s-4);
+  width: 100%;
+  grid-template-columns: 1fr;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--t-small);
+  font-weight: 500;
+  color: var(--gryd-muted);
+}
+
+.input {
+  min-height: 50px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--gryd-surface-high);
+  border-radius: var(--r-small);
+  background: var(--gryd-surface);
+  color: var(--gryd-ink);
+  font-size: var(--t-body);
+}
+
+.input::placeholder {
+  color: var(--gryd-muted);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--gryd-ink);
+}
+
+.help {
+  color: var(--gryd-muted);
+  font-size: var(--t-small);
+  line-height: 1.5;
+}
+
+/* L'échec NOMME la cause et dit quoi faire. Il n'est pas rouge : la palette n'a
+   qu'un accent, et il est réservé à l'action. Le filet et la graisse suffisent. */
+.error {
+  padding-left: var(--s-3);
+  border-left: 3px solid var(--gryd-ink);
+  color: var(--gryd-ink);
+  font-size: var(--t-small);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.success {
+  padding-left: var(--s-3);
+  border-left: 3px solid var(--gryd-accent);
+  color: var(--gryd-ink);
+  font-size: var(--t-lead);
+  line-height: 1.5;
+  max-width: 34rem;
+}
+
+@media (min-width: 560px) {
+  .fields {
+    grid-template-columns: 1.6fr 1fr;
+  }
+}

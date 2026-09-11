@@ -1,0 +1,144 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--gryd-carbon);
+  border-bottom: 1px solid var(--gryd-hairline);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 64px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding-right: var(--s-2);
+  text-decoration: none;
+}
+
+.brandWord {
+  font-family: var(--gryd-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--gryd-ink);
+}
+
+.desktopNav {
+  display: none;
+  flex: 1;
+}
+
+.desktopList {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  font-size: var(--t-small);
+  font-weight: 500;
+  color: var(--gryd-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 140ms ease;
+}
+
+.navLink:hover {
+  color: var(--gryd-ink);
+}
+
+/* La page courante : un fond ET un texte plein. Jamais la couleur seule. */
+.navLink[aria-current='page'] {
+  color: var(--gryd-carbon);
+  background: var(--gryd-ink);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+
+.action {
+  min-height: var(--tap);
+  padding: 10px var(--s-4);
+  font-size: var(--t-small);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--gryd-surface-high);
+  color: var(--gryd-ink);
+}
+
+.toggle:hover {
+  border-color: var(--gryd-ink);
+}
+
+/* ─── PANNEAU MOBILE ───────────────────────────────────────────────────────── */
+.panel {
+  border-top: 1px solid var(--gryd-hairline);
+  background: var(--gryd-surface);
+  padding-block: var(--s-2) var(--s-4);
+}
+
+.panelList {
+  display: flex;
+  flex-direction: column;
+}
+
+.panelLink {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  border-bottom: 1px solid var(--gryd-surface-high);
+  font-size: var(--t-body);
+  font-weight: 500;
+  color: var(--gryd-ink);
+  text-decoration: none;
+}
+
+.panelList li:last-child .panelLink {
+  border-bottom: none;
+}
+
+.panelLink[aria-current='page']::before {
+  content: '';
+  width: 3px;
+  height: 18px;
+  margin-right: var(--s-3);
+  border-radius: 2px;
+  background: var(--gryd-accent);
+}
+
+@media (min-width: 900px) {
+  .desktopNav {
+    display: block;
+  }
+
+  .toggle {
+    display: none;
+  }
+
+  .panel {
+    display: none;
+  }
+}
