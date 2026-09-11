@@ -207,6 +207,44 @@ export interface IngestRunRequest {
    * déduit du gameplay — la récup se choisit, elle n'est ni imposée ni jugée.
    */
   easyMode?: boolean;
+  /**
+   * ═══ « TU T'ES TROMPÉ DE DISCIPLINE » — CE QUE LE JOUEUR A RÉPONDU ═══════
+   * (décision fondateur du 12/09/2026 ; contrôle : `disciplineCheck2026.ts`.)
+   *
+   * À l'arrivée, quand la trace et le podomètre racontent une AUTRE discipline
+   * que la déclarée, l'écran de fin pose la question avec les chiffres mesurés
+   * et propose DEUX issues de même rang. Ces trois champs disent laquelle a été
+   * choisie. Les TROIS sont optionnels, et leur absence signifie exactement ce
+   * qu'elle signifiait avant qu'ils existent : aucune question n'a été posée
+   * (rien de suspect, ou pas de podomètre sur cet appareil). Aucune requête
+   * écrite avant ce lot ne change de sens.
+   *
+   * ⚠️ CES CHAMPS NE SONT PAS UNE DÉCISION. Le serveur rejuge la trace avec sa
+   * propre copie du moteur (« tout claim est décidé serveur ») : basculer ne
+   * dispense d'aucune borne §3.2, et garder ne met à l'abri d'aucun signal
+   * anti-triche.
+   */
+  /** La discipline D'ORIGINE quand le joueur a accepté de basculer. */
+  disciplineSwitchedFrom?: Activity;
+  /**
+   * `true` : le joueur a VU le message et a choisi de garder sa discipline.
+   *
+   * Conséquence, et elle est dite sur l'écran avant le choix : la sortie reste
+   * `valid`, compte pour le journal, les kilomètres, les jours actifs et l'XP —
+   * et ne compte NI pour le terrain, NI pour les classements, les défis de crew
+   * ou les quêtes de la semaine (`runs.sport_only_reason_2026`, migration 0197).
+   */
+  disciplineMismatchKept?: boolean;
+  /**
+   * Les nombres MESURÉS qui ont été montrés au joueur. Ils voyagent avec le
+   * choix pour qu'une revue puisse relire ce qui lui a été affirmé — un « il a
+   * refusé de basculer » sans les chiffres serait un reproche sans dossier.
+   */
+  disciplineEvidence?: {
+    sustainedKmh: number;
+    stepsPerMin: number;
+    windowS: number;
+  };
 }
 
 /** Avancement d'un challenge renvoyé après une course (AMENDEMENT-07 §5). */

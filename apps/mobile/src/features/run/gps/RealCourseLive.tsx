@@ -45,6 +45,9 @@ import { roundLoopM } from './engine/loopHint';
 import { useKeepScreenAwake2026 } from './keepAwake2026';
 import type { Lap } from './liveMetrics2026';
 import type { RealRunApi } from './gateTypes';
+import { DisciplineSheet2026 } from './DisciplineSheet2026';
+import type { DisciplineChoice2026 } from './tracker';
+import type { DisciplineVerdict2026 } from './engine/disciplineCheck2026';
 
 function clock(seconds: number) { const value = Math.floor(Math.max(0, seconds)); return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`; }
 /** « 5'28 » — la convention d'allure de tout le produit (`liveRate.formatPaceMmSs`). */
@@ -71,6 +74,14 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const [finishing, setFinishing] = useState(false);
   const [failed, setFailed] = useState(false);
   const [locked, setLocked] = useState(false);
+  /**
+   * LE CONTRÔLE DE DISCIPLINE, EN ATTENTE DE RÉPONSE (12/09/2026).
+   *
+   * `null` = aucune question posée. Non nul = la feuille est ouverte et la
+   * sortie N'EST PAS PARTIE : le tracker vit, la trace est en mémoire et sur le
+   * disque de reprise. Rien ne se ferme sans l'une des deux réponses.
+   */
+  const [asking, setAsking] = useState<DisciplineVerdict2026 | null>(null);
   const finishingRef = useRef(false);
   const snapshot = run.snapshot;
   const paused = snapshot.phase === 'paused-user';
@@ -107,11 +118,29 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
   const splits = snapshot.splits;
   const bestSplit = bestSplitIndex(splits);
   const laps = snapshot.laps;
+  /**
+   * LE TAP SUR « TERMINER ». Il ne termine pas toujours tout de suite.
+   *
+   * Le contrôle de discipline est lu ICI, avant le moindre effet irréversible :
+   * si la trace raconte une autre discipline, la question est posée et la
+   * sortie attend une réponse. Sinon, rien ne change — `finish()` part sans
+   * argument, exactement comme avant ce lot.
+   */
   const finish = async () => {
+    if (finishingRef.current || asking !== null) return;
+    const verdict = run.disciplineVerdict();
+    if (verdict.suspected !== null) { setAsking(verdict); return; }
+    await complete();
+  };
+  /**
+   * LA CLÔTURE RÉELLE. `choice` porte ce que le joueur a répondu, et rien de
+   * plus : jamais une décision prise à sa place.
+   */
+  const complete = async (choice?: DisciplineChoice2026) => {
     if (finishingRef.current) return;
     finishingRef.current = true; setFinishing(true); setFailed(false);
     try {
-      const result = await run.finish();
+      const result = await run.finish(choice);
       // ─── G11 « SAUVEGARDE ET ANALYSE » EST SUR LE CHEMIN (10/09/2026) ──────
       // `/course/analyse` (E27) peint les trois issues que cet écran-ci ne sait
       // pas dire — analyse en attente, panne de réseau, envoi différé — et
@@ -121,7 +150,13 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       // résultat : la discipline s'est déjà perdue une fois dans un objet
       // littéral recopié à la main.
       router.replace({ pathname: '/course/analyse', params: courseResultParams({ mode: run.effectiveMode, activity: run.activity, ...result }) });
-    } catch { setFailed(true); setFinishing(false); finishingRef.current = false; }
+    } catch {
+      setFailed(true); setFinishing(false); finishingRef.current = false;
+      // La feuille se referme même en cas d'échec : la question a bien reçu sa
+      // réponse, et la rouvrir ferait redemander un choix déjà fait. La sortie,
+      // elle, reste entière sur cet écran (« Les données restent sur cet écran »).
+      setAsking(null);
+    }
   };
   return <View style={s.root}>
     <View style={s.scene}>
@@ -235,6 +270,16 @@ export function RealCourseLive({ run }: { run: RealRunApi }) {
       distance={(snapshot.distanceM / 1000).toLocaleString(fr ? 'fr-FR' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       distanceLabel={t(C.metricDistance)} time={clock(snapshot.activeS)} timeLabel={t(C.metricActiveTime)}
       onUnlock={() => setLocked(false)} top={insets.top} bottom={insets.bottom} />}
+    {/* ── « UN PROBLÈME AVEC TA SORTIE » : deux issues, aucune troisième ───
+        Montée APRÈS le verrou dans l'arbre, donc AU-DESSUS de lui : le verrou
+        n'a plus de raison d'être une fois que la sortie est finie, et une
+        feuille cachée derrière lui serait une question qu'on ne peut pas
+        répondre. Aucun `onRequestClose`, aucun tap hors zone : la seule sortie
+        passe par l'un des deux boutons. */}
+    {asking !== null && <DisciplineSheet2026
+      verdict={asking} busy={finishing}
+      onSwitch={() => { const to = asking.suspected; if (to === null) return; setAsking(null); void complete({ kind: 'switch', to }); }}
+      onKeep={() => { setAsking(null); void complete({ kind: 'keep', evidence: asking.evidence }); }} />}
   </View>;
 }
 

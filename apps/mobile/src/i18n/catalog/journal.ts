@@ -241,6 +241,39 @@ export const C = defineCatalog({
     de: 'Gebiet gewonnen',
     pt: 'terreno ganho',
   },
+  // ── « SPORT SEULEMENT » (0197, décision fondateur du 12/09/2026) ──────────
+  // Le badge dit CE QUE LA SORTIE VAUT, pas ce qu'elle a fait de mal. La phrase
+  // qui l'accompagne rappelle le choix ET son prix, parce qu'un badge nu se
+  // lirait comme une sanction tombée du ciel.
+  journalSportOnly: {
+    fr: 'Sport seulement',
+    en: 'Sport only',
+    es: 'Solo deporte',
+    de: 'Nur Sport',
+    pt: 'Só esporte',
+  },
+  journalSportOnlyKeptRun: {
+    fr: 'Gardée en course alors qu’elle ressemblait à du vélo : elle ne compte ni pour le terrain ni pour les classements.',
+    en: 'Kept as a run although it looked like cycling: it counts for no ground and no leaderboard.',
+    es: 'Mantenida como carrera aunque parecía ciclismo: no cuenta para el terreno ni las clasificaciones.',
+    de: 'Als Lauf behalten, obwohl es nach Radfahren aussah: zählt weder für Gebiet noch für Ranglisten.',
+    pt: 'Mantida como corrida embora parecesse pedalada: não conta para terreno nem classificações.',
+  },
+  journalSportOnlyKeptBike: {
+    fr: 'Gardée en vélo alors qu’elle ressemblait à de la course : elle ne compte ni pour le terrain ni pour les classements.',
+    en: 'Kept as a ride although it looked like running: it counts for no ground and no leaderboard.',
+    es: 'Mantenida como bici aunque parecía correr: no cuenta para el terreno ni las clasificaciones.',
+    de: 'Als Radfahrt behalten, obwohl es nach Laufen aussah: zählt weder für Gebiet noch für Ranglisten.',
+    pt: 'Mantida como pedalada embora parecesse corrida: não conta para terreno nem classificações.',
+  },
+  /** Motif inconnu de cette version : on NOMME l'état sans inventer sa cause. */
+  journalSportOnlyUnknown: {
+    fr: 'Cette sortie compte pour ton sport, pas pour le terrain ni les classements.',
+    en: 'This outing counts for your sport, not for ground or leaderboards.',
+    es: 'Esta salida cuenta para tu deporte, no para el terreno ni las clasificaciones.',
+    de: 'Diese Aktivität zählt für deinen Sport, nicht für Gebiet oder Ranglisten.',
+    pt: 'Esta atividade conta para seu esporte, não para terreno nem classificações.',
+  },
   journalShowAll: {
     fr: 'Toutes les sorties',
     en: 'All activities',
@@ -346,4 +379,22 @@ const SESSION_CURVE_COPY: Readonly<Record<Activity, Entry>> = {
 
 export function sessionCurveTitle(activity: Activity = DEFAULT_ACTIVITY): Entry {
   return SESSION_CURVE_COPY[activity] ?? SESSION_CURVE_COPY[DEFAULT_ACTIVITY];
+}
+
+/**
+ * « SPORT SEULEMENT » → la phrase qui dit POURQUOI (0197).
+ *
+ * ─── POURQUOI UNE FONCTION, ET PAS UN `Record` ──────────────────────────────
+ * Le motif vient du SERVEUR, sous forme de texte brut : une version de l'app
+ * plus ancienne que la base peut donc en recevoir un qu'elle ne connaît pas.
+ * Un `Record` y répondrait `undefined`, et l'écran peindrait un badge muet. La
+ * branche par défaut NOMME l'état sans inventer sa cause — c'est la seule
+ * réponse honnête à « je vois l'effet, je ne connais pas le motif ».
+ *
+ * `activity` est la discipline DÉCLARÉE (celle que le joueur a gardée) : la
+ * phrase dit donc ce qu'il a gardé, et ce à quoi ça ressemblait.
+ */
+export function sportOnlyNote2026(reason: string, activity: Activity = DEFAULT_ACTIVITY): Entry {
+  if (reason !== 'discipline_mismatch_kept') return C.journalSportOnlyUnknown;
+  return activity === 'bike' ? C.journalSportOnlyKeptBike : C.journalSportOnlyKeptRun;
 }

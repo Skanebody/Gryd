@@ -9,7 +9,10 @@
 import { assertEquals } from 'jsr:@std/assert@^1';
 
 const MOBILE_ENGINE_TARGETS = [
-  { files: ['gps.ts', 'validation.ts'], dir: 'apps/mobile/src/features/run/gps/engine/' },
+  // `disciplineCheck2026.ts` : le contrôle de discipline de la fin de sortie.
+  // Une copie qui dériverait ferait proposer « c'était du vélo ? » sur des
+  // seuils que le serveur n'applique plus.
+  { files: ['disciplineCheck2026.ts', 'gps.ts', 'validation.ts'], dir: 'apps/mobile/src/features/run/gps/engine/' },
   {
     files: ['crewMission.ts', 'crewSignals.ts'],
     dir: 'apps/mobile/src/features/crew/engine/',

@@ -13,7 +13,8 @@
  */
 import type { Activity, RunMode } from '@klaim/shared';
 import type { RunUnavailableReason } from './locationAdapter';
-import type { TrackerSnapshot } from './tracker';
+import type { DisciplineChoice2026, TrackerSnapshot } from './tracker';
+import type { DisciplineVerdict2026 } from './engine/disciplineCheck2026';
 
 /** API de la course RÉELLE exposée à l'écran (RealCourseLive). */
 export interface RealRunApi {
@@ -110,7 +111,23 @@ export interface RealRunApi {
    * et la course attend en file — message discret « Course enregistrée —
    * envoi dès que possible » (anti-shame, jamais bloquant).
    */
-  finish: () => Promise<{ distanceM: number; durationS: number; uploadQueued: boolean; localId?: string }>;
+  /**
+   * « LA TRACE RACONTE-T-ELLE UNE AUTRE DISCIPLINE ? » (12/09/2026)
+   *
+   * Lecture PURE, à appeler AVANT `finish`. Elle ne bascule rien et ne signale
+   * rien au serveur : elle rend les CHIFFRES MESURÉS pour que l'écran de fin
+   * puisse poser la question avec eux, au lieu d'un soupçon nu.
+   *
+   * `suspected === null` (rien d'anormal, ou aucun podomètre) ⇒ aucune question
+   * n'est posée, et `finish()` s'appelle sans argument, exactement comme avant.
+   */
+  disciplineVerdict: () => DisciplineVerdict2026;
+  /**
+   * `choice` : ce que le joueur a répondu à « Un problème avec ta sortie ».
+   * ABSENT = aucune question posée. Basculer re-nettoie la trace aux bornes de
+   * la nouvelle discipline ; garder marque la sortie « sport seulement ».
+   */
+  finish: (choice?: DisciplineChoice2026) => Promise<{ distanceM: number; durationS: number; uploadQueued: boolean; localId?: string }>;
 }
 
 /**

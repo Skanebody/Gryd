@@ -61,7 +61,7 @@ import { HTTP_STATUS_NONE } from '../analysis/analysisMachine';
 import { beginSyncFactRun, publishSyncFact } from '../analysis/syncFactBus';
 import { recordRun } from '../runJournal';
 import { announceResultReady2026 } from '../resultNotice2026';
-import { resumedDeadTimeMs } from './runPipeline';
+import { type DisciplineChoice2026, resumedDeadTimeMs } from './runPipeline';
 import { RunTracker, type TrackerSnapshot } from './tracker';
 import { saveLocalActivity2026, type LocalActivity2026 } from '../../refonte/localActivities';
 import { canResumeInterrupted } from './runActivity';
@@ -108,17 +108,25 @@ function storedActivity(stored: StoredRun): Activity {
   return stored.activity ?? DEFAULT_ACTIVITY;
 }
 
-function archiveFor(tracker: RunTracker, finishedAt: number): LocalActivity2026 | null {
+function archiveFor(
+  tracker: RunTracker,
+  finishedAt: number,
+  choice?: DisciplineChoice2026,
+): LocalActivity2026 | null {
   // Legacy buffers without an owner are not guest recordings. Keep the exact
   // evidence in recovery storage rather than attributing it to a later user.
   if (tracker.recordingOwnerId === undefined) return null;
   const snap = tracker.snapshot(finishedAt);
   return {
     clientRunId: tracker.runId, ownerId: tracker.recordingOwnerId,
-    activity: tracker.activity, distanceM: snap.distanceM, durationS: snap.activeS,
+    // La discipline ARCHIVÉE est celle vers laquelle on a basculé : le journal
+    // local doit dire la même chose que le payload, sinon l'écran de résultat
+    // afficherait « Course » sous une sortie partie en « Vélo ».
+    activity: choice?.kind === 'switch' ? choice.to : tracker.activity,
+    distanceM: snap.distanceM, durationS: snap.activeS,
     startedAt: new Date(tracker.startedAt).toISOString(), finishedAt: new Date(finishedAt).toISOString(),
     pending: tracker.recordingOwnerId != null, traceSegments: snap.traceSegments,
-    uploadPayload: tracker.buildPayload(),
+    uploadPayload: tracker.buildPayload(choice),
   };
 }
 
@@ -750,7 +758,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     })();
   }, [drainBackground, flush, uploadOrQueue]);
 
-  const finish = useCallback(async (): Promise<{
+  const finish = useCallback(async (choice?: DisciplineChoice2026): Promise<{
     distanceM: number;
     durationS: number;
     uploadQueued: boolean;
@@ -765,7 +773,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     t.finish(now); // stoppe aussi le podomètre
     stopSensors();
     const snap = t.snapshot(now);
-    const localActivity = archiveFor(t, now);
+    const localActivity = archiveFor(t, now, choice);
     if (!localActivity) { finishedRef.current = false; throw new Error('unknown_recording_owner'); }
     const localSaved = await saveLocalActivity2026(localActivity);
     const finalBuffer: StoredRun = { runId: t.runId, recordingOwnerId: t.recordingOwnerId,
@@ -792,7 +800,7 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
     // (jamais purgé sans être à l'abri), renvoyé silencieusement au prochain
     // lancement/fin de course.
     let serverResult: IngestRunResponse | null = null;
-    const upload = await uploadOrQueue(t.buildPayload(), result => { serverResult = result; });
+    const upload = await uploadOrQueue(t.buildPayload(choice), result => { serverResult = result; });
     const completedActivity = { ...localActivity, pending: upload === 'queued' || upload === 'lost', result: serverResult };
     let archiveSaved = localSaved;
     if (upload === 'sent' || upload === 'rejected') archiveSaved = await saveLocalActivity2026(completedActivity) || localSaved;
@@ -1023,6 +1031,11 @@ export function useRealRunCore(mode: LiveRunMode, adapter: RunLocationAdapter): 
       // Recalculé à chaque rendu (donc à chaque tick, 1 Hz) : le bouton se
       // désactive PENDANT le plancher plutôt que d'échouer sans le dire.
       canMarkLap: lapAllowed2026(t.startedAt, t.lapMarks, Date.now()),
+      // ── LE CONTRÔLE DE DISCIPLINE, LU MAIS JAMAIS APPLIQUÉ ICI ──────────
+      // Lecture PURE sur la trace telle qu'elle partira. Le cœur ne bascule
+      // rien : il rend les chiffres, l'écran pose la question, le joueur
+      // tranche (décision fondateur du 12/09/2026).
+      disciplineVerdict: () => t.disciplineVerdict(),
       finish,
     },
   };

@@ -42,6 +42,16 @@ export interface JournalEntry2026 {
    * est lue à l'ouverture du détail, où elle sert vraiment.
    */
   traceSegments?: readonly (readonly { lat: number; lng: number }[])[];
+  /**
+   * « SPORT SEULEMENT » (0197) : la sortie a été GARDÉE dans une discipline que
+   * la mesure contredisait. Elle compte pour le journal, les kilomètres, les
+   * jours actifs et l'XP ; pour rien du jeu.
+   *
+   * `null`/absent = rien à dire. Le motif est le texte BRUT du serveur : le
+   * traduire ici ferait perdre un motif futur que l'écran saurait au moins
+   * nommer tel quel.
+   */
+  sportOnlyReason?: string | null;
 }
 /** One read model for the journal and sports stats; online receipts de-duplicate the local copy. */
 export function useProfileJournal(activity: Activity) {
@@ -90,6 +100,13 @@ export function useProfileJournal(activity: Activity) {
             : null,
         terrainM2: null,
         traceSegments: run.traceSegments,
+        // Une sortie encore LOCALE n'a aucun verdict serveur — mais elle porte
+        // déjà la réponse du joueur dans son payload. La lire ici évite qu'un
+        // badge apparaisse seulement après la synchro, c'est-à-dire que l'écran
+        // change d'avis sur une sortie sans que rien n'ait changé.
+        sportOnlyReason: run.uploadPayload?.disciplineMismatchKept === true
+          ? 'discipline_mismatch_kept'
+          : null,
       }));
     return [...remoteEntries, ...localEntries].sort((a, b) => b.startedAtMs - a.startedAtMs);
   }, [history.runs, local.activities, activity]);

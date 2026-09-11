@@ -75,6 +75,16 @@ interface RunRow {
   status: string;
   reject_reason: string | null;
   celebration: unknown;
+  /**
+   * « SPORT SEULEMENT » (migration 0197) — non nul quand la sortie compte pour
+   * le sport et pour rien d'autre.
+   *
+   * ⚠️ ORDRE DE DÉPLOIEMENT. Cette colonne est demandée au `select` : une base
+   * qui n'a pas encore reçu 0197 répond 42703 et TOUT le journal bascule en
+   * « échec de lecture ». Migration d'abord, build ensuite. C'est la même règle
+   * que pour `trace_points_2026` en 0118.
+   */
+  sport_only_reason_2026: string | null;
 }
 
 export interface RealRunEntry {
@@ -118,6 +128,13 @@ export interface RealRunEntry {
    * surface, ce qui est la vérité.
    */
   terrainM2: number | null;
+  /**
+   * « SPORT SEULEMENT » (0197) : la sortie compte pour le journal, les
+   * kilomètres, les jours actifs et l'XP, et pour rien du jeu. `null` = rien à
+   * dire (le cas de toutes les sorties). Aujourd'hui un seul motif :
+   * `discipline_mismatch_kept`.
+   */
+  sportOnlyReason: string | null;
 }
 
 /** `runs.status` est contraint en base ; on reste défensif sur la valeur lue. */
@@ -186,6 +203,9 @@ export function toRealRunEntry(row: RunRow): RealRunEntry {
     retaken,
     defended,
     terrainM2: publishedTerrainM2(row.celebration),
+    // Le motif BRUT du serveur, jamais réécrit ici : c'est l'écran qui le
+    // traduit, et un motif inconnu doit rester reconnaissable à la relecture.
+    sportOnlyReason: row.sport_only_reason_2026,
   };
 }
 
@@ -242,7 +262,7 @@ export function useMyRunHistory(activity: Activity = DEFAULT_ACTIVITY): MyRunHis
       const { data, error } = await client
         .from('runs')
         .select(
-          'id, started_at, distance_m, duration_s, avg_pace_s_km, status, reject_reason, celebration',
+          'id, started_at, distance_m, duration_s, avg_pace_s_km, status, reject_reason, celebration, sport_only_reason_2026',
         )
         .eq('user_id', userId)
         // E14 — UNE discipline (cf. la doc du paramètre `activity`).

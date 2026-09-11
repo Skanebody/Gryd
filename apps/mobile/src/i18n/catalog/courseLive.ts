@@ -720,6 +720,111 @@ export const C = defineCatalog({
     de: 'Bei gesperrtem Bildschirm kann die Ansage je nach Gerät stumm bleiben. GRYD senkt deine Musik nicht ab.',
     pt: 'Com a tela bloqueada, o anúncio pode ficar mudo conforme o aparelho. O GRYD não abaixa sua música.',
   },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // « UN PROBLÈME AVEC TA SORTIE » — LE CONTRÔLE DE DISCIPLINE À L'ARRIVÉE
+  // (décision fondateur du 12/09/2026)
+  // ══════════════════════════════════════════════════════════════════════════
+  //
+  // ─── LE TON, ET POURQUOI CE N'EST PAS UNE ACCUSATION ──────────────────────
+  // L'écran ne dit JAMAIS « tu as triché » ni « sortie suspecte ». Il énonce ce
+  // que les capteurs ont mesuré, avec les chiffres, et pose une question. Se
+  // tromper de bouton au départ est l'erreur la plus banale du produit : la
+  // traiter comme une fraude serait faux dans l'immense majorité des cas, et
+  // la charte l'interdit (§8.3, « ne jamais accuser quelqu'un de marcher »).
+  //
+  // ─── DEUX ISSUES DE MÊME RANG, ET AUCUNE TROISIÈME ────────────────────────
+  // Les deux boutons portent le même poids visuel. Pas de « plus tard », pas de
+  // croix : une troisième issue muette laisserait partir la sortie sans que
+  // personne ait décidé ce qu'elle vaut.
+
+  /** Le titre. Factuel : il annonce un problème, pas un verdict. */
+  disciplineTitle: {
+    fr: 'Un problème avec ta sortie',
+    en: 'Something is off with your outing',
+    es: 'Algo no cuadra en tu salida',
+    de: 'Etwas stimmt an deiner Aktivität nicht',
+    pt: 'Algo não bate na sua atividade',
+  },
+  /**
+   * COURSE DÉCLARÉE, VÉLO MESURÉ. `{min}` minutes, `{kmh}` km/h : les nombres
+   * viennent de `checkDeclaredDiscipline2026`, jamais d'un arrondi de confort.
+   * « sans aucun pas » est une MESURE (le podomètre a tourné et n'a rien
+   * compté) : sans podomètre, cet écran ne s'affiche pas du tout.
+   */
+  disciplineBodyBike: {
+    fr: 'Pendant {min} minutes, tu allais à {kmh} km/h sans aucun pas. Ça ressemble à du vélo.',
+    en: 'For {min} minutes you were going {kmh} km/h without a single step. That looks like cycling.',
+    es: 'Durante {min} minutos ibas a {kmh} km/h sin un solo paso. Eso parece ciclismo.',
+    de: 'Über {min} Minuten warst du mit {kmh} km/h unterwegs, ohne einen einzigen Schritt. Das sieht nach Radfahren aus.',
+    pt: 'Durante {min} minutos você foi a {kmh} km/h sem um único passo. Isso parece pedalada.',
+  },
+  /** VÉLO DÉCLARÉ, COURSE MESURÉE. La cadence est le fait, la vitesse la borne. */
+  disciplineBodyRun: {
+    fr: 'Pendant {min} minutes, tu faisais {spm} pas par minute à {kmh} km/h. Ça ressemble à de la course.',
+    en: 'For {min} minutes you were taking {spm} steps a minute at {kmh} km/h. That looks like running.',
+    es: 'Durante {min} minutos dabas {spm} pasos por minuto a {kmh} km/h. Eso parece correr.',
+    de: 'Über {min} Minuten hast du {spm} Schritte pro Minute bei {kmh} km/h gemacht. Das sieht nach Laufen aus.',
+    pt: 'Durante {min} minutos você deu {spm} passos por minuto a {kmh} km/h. Isso parece corrida.',
+  },
+  /**
+   * CE QUE GARDER COÛTE, DIT AVANT LE CHOIX ET NON APRÈS. Une conséquence
+   * découverte au journal, une fois la sortie partie, serait un piège.
+   */
+  disciplineKeepCost: {
+    fr: 'Si tu gardes, la sortie compte pour ton journal, tes kilomètres, tes jours actifs et ton XP. Elle ne compte ni pour le terrain, ni pour les classements, ni pour les défis, ni pour les quêtes de la semaine.',
+    en: 'If you keep it, the outing counts for your journal, your kilometres, your active days and your XP. It counts for no ground, no leaderboard, no challenge and no weekly quest.',
+    es: 'Si la mantienes, la salida cuenta para tu diario, tus kilómetros, tus días activos y tu XP. No cuenta para el terreno, ni las clasificaciones, ni los desafíos, ni las misiones de la semana.',
+    de: 'Wenn du dabei bleibst, zählt die Aktivität für dein Journal, deine Kilometer, deine aktiven Tage und deine XP. Für Gebiet, Ranglisten, Challenges und Wochenaufgaben zählt sie nicht.',
+    pt: 'Se você mantiver, a atividade conta para seu diário, seus quilômetros, seus dias ativos e seu XP. Não conta para terreno, classificações, desafios nem missões da semana.',
+  },
+  /** Le filet, dit explicitement : rien ne se perd, quelle que soit la réponse. */
+  disciplineSafe: {
+    fr: 'Dans les deux cas, ta sortie est enregistrée.',
+    en: 'Either way, your outing is saved.',
+    es: 'En ambos casos, tu salida queda guardada.',
+    de: 'In beiden Fällen wird deine Aktivität gespeichert.',
+    pt: 'Nos dois casos, sua atividade fica salva.',
+  },
+  /** Bascule vers le VÉLO. §A : court dans les cinq langues. */
+  disciplineSwitchToBike: {
+    fr: 'C’était du vélo : basculer',
+    en: 'It was a ride: switch',
+    es: 'Era en bici: cambiar',
+    de: 'War Radfahren: wechseln',
+    pt: 'Era pedalada: trocar',
+  },
+  /** Bascule vers la COURSE. */
+  disciplineSwitchToRun: {
+    fr: 'C’était de la course : basculer',
+    en: 'It was a run: switch',
+    es: 'Era carrera: cambiar',
+    de: 'War Laufen: wechseln',
+    pt: 'Era corrida: trocar',
+  },
+  /** Garder la COURSE déclarée. */
+  disciplineKeepRun: {
+    fr: 'Garder en course',
+    en: 'Keep as a run',
+    es: 'Mantener como carrera',
+    de: 'Als Lauf behalten',
+    pt: 'Manter como corrida',
+  },
+  /** Garder le VÉLO déclaré. */
+  disciplineKeepBike: {
+    fr: 'Garder en vélo',
+    en: 'Keep as a ride',
+    es: 'Mantener como bici',
+    de: 'Als Radfahrt behalten',
+    pt: 'Manter como pedalada',
+  },
+  a11yDisciplineSheet: {
+    fr: 'Un problème avec ta sortie, deux réponses possibles',
+    en: 'Something is off with your outing, two possible answers',
+    es: 'Algo no cuadra en tu salida, dos respuestas posibles',
+    de: 'Etwas stimmt an deiner Aktivität nicht, zwei mögliche Antworten',
+    pt: 'Algo não bate na sua atividade, duas respostas possíveis',
+  },
 });
 
 /**

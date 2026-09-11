@@ -151,7 +151,7 @@ import { decimalSeparator } from '../../src/ui/format';
 import { useLocale, useT } from '../../src/i18n/store';
 import type { Entry, Locale } from '../../src/i18n/types';
 import { C, runDetailCopy } from '../../src/i18n/catalog/historique';
-import { C as JC } from '../../src/i18n/catalog/journal';
+import { C as JC, sportOnlyNote2026 } from '../../src/i18n/catalog/journal';
 import type { IngestRunResponse } from '@klaim/shared';
 import { C as PC } from '../../src/i18n/catalog/performance';
 import { REJECT_REASON_COPY_BY_ACTIVITY } from '../../src/i18n/catalog/result';
@@ -290,6 +290,8 @@ function DetailBody({
     ? (area2026(gain2026) !== null ? `+${area2026(gain2026)}` : explanation2026?.title ?? null)
     : impactText(story, t);
   const pill = verifyPill(run.status);
+  // « SPORT SEULEMENT » (0197) — motif brut du serveur, `null` = rien à dire.
+  const sportOnly = run.sportOnlyReason ?? null;
   const verdict = runVerdict(run.status, run.rejectReason);
   const awards = runAwards(run);
 
@@ -561,7 +563,20 @@ function DetailBody({
       {showImpact ? (
         <>
           <SectionLabel style={styles.sectionLabel}>{t(C.detailImpactLabel)}</SectionLabel>
-          {receipt2026 || impactIsKnown(breakdown) ? (
+          {/* ── SPORT SEULEMENT : UN ÉTAT DÉDIÉ, ET SURTOUT PAS « AUCUNE BOUCLE »
+                 (0197). Le serveur a bien refusé la capture, et le reçu porterait
+                 donc un motif de refus. Le laisser parler ici dirait « aucune
+                 boucle admissible » à quelqu'un qui en a peut-être bouclé une :
+                 ce n'est pas la géométrie qui a manqué, c'est un choix assumé à
+                 l'arrivée. Ce bloc REMPLACE le reçu, il ne s'ajoute pas à lui. */}
+          {sportOnly !== null ? (
+            <>
+              <View style={styles.sportOnlyBadge}>
+                <Text style={styles.sportOnlyBadgeText} numberOfLines={1}>{t(JC.journalSportOnly)}</Text>
+              </View>
+              <Text style={styles.note}>{t(sportOnlyNote2026(sportOnly, run.activity))}</Text>
+            </>
+          ) : receipt2026 || impactIsKnown(breakdown) ? (
             <>
               {impactMetrics.length > 0 ? (
                 <SheetMetrics metrics={impactMetrics} testID="course-detail-impact" />
@@ -789,6 +804,16 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: fontSizes.sm * 1.5,
   },
+  sportOnlyBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.grisLigne,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: spacing.sm,
+  },
+  sportOnlyBadgeText: { color: colors.gris, fontSize: fontSizes.xs, lineHeight: fontSizes.xs * 1.4 },
   note: {
     color: colors.gris,
     fontSize: fontSizes.sm,

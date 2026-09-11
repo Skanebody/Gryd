@@ -27,19 +27,31 @@
  */
 // expo-sensors : stack Expo — stepCount alimente motionTrust anti-triche §3.2.
 import { Pedometer } from 'expo-sensors';
-import { type Activity, type IngestRunRequest, type RunMode } from '@klaim/shared';
+import { type Activity, DISCIPLINE_STEP_BUCKET_S, type IngestRunRequest, type RunMode } from '@klaim/shared';
 import type { RawFix } from './engine/gps';
 import {
   buildIngestPayload,
   computeSnapshot,
+  type DisciplineChoice2026,
+  runDisciplineVerdict2026,
   type RunPipelineState,
   type TrackerSnapshot,
 } from './runPipeline';
+import type { DisciplineVerdict2026 } from './engine/disciplineCheck2026';
 import { canMarkLap, type StepSample } from './liveMetrics2026';
+import {
+  addStepSample2026,
+  openStepWindows2026,
+  sealStepWindows2026,
+  type StepWindowState2026,
+} from '../motionIntegrity';
 
 // Les types de la photo instantanée VIVENT dans le module pur ; on les
 // ré-exporte ici parce que tout l'écran de course les importe depuis `tracker`.
 export type { TrackerPhase, TrackerSnapshot } from './runPipeline';
+// Le CHOIX de discipline voyage du tracker à l'écran de fin et retour : il est
+// ré-exporté ici pour la même raison que la photo instantanée.
+export type { DisciplineChoice2026 } from './runPipeline';
 
 /**
  * Nombre d'échantillons de podomètre gardés en mémoire (LOT R). La cadence ne
@@ -134,6 +146,22 @@ export class RunTracker {
    * enregistre déjà une trace.
    */
   private stepSamples: StepSample[] = [];
+  /**
+   * TRANCHES DE PODOMÈTRE de toute la sortie (12/09/2026), à une entrée par
+   * `DISCIPLINE_STEP_BUCKET_S`.
+   *
+   * ─── POURQUOI CE SECOND TABLEAU EXISTE À CÔTÉ DE `stepSamples` ────────────
+   * `stepSamples` est PLAFONNÉ (`STEP_SAMPLES_MAX`) : il sert la cadence LIVE,
+   * qui ne regarde que les dernières secondes. Sur une sortie d'une heure, ses
+   * premières minutes ont disparu. Le contrôle de fin, lui, oppose une cadence
+   * à une fenêtre de cinq minutes qui peut tomber n'importe où — il lui faut
+   * TOUTE la sortie. Une tranche par minute coûte 180 entrées pour trois
+   * heures ; garder les relevés bruts en coûterait des milliers.
+   *
+   * `null` tant qu'aucun abonnement n'a tourné : le contrôle se tait alors
+   * (`no_steps`), il ne conclut pas « zéro pas ».
+   */
+  private stepWindows: StepWindowState2026 | null = null;
   /**
    * MARQUES DE TOUR (« lap » d'INTVL) — des horodatages, jamais des mesures.
    * Elles vivent dans le tracker parce qu'elles appartiennent à LA SORTIE : un
@@ -235,6 +263,11 @@ export class RunTracker {
     if (this.finished || this.stepSub !== null) return;
     try {
       if (!(await Pedometer.isAvailableAsync())) return;
+      // OUVERT AVANT l'abonnement : le premier relevé peut arriver dans la
+      // milliseconde, et il doit trouver un rangement déjà en place. Le cumul
+      // courant sert de plancher — après une reprise, il n'est pas nul, et
+      // l'ignorer rangerait tout l'historique repris dans la première tranche.
+      this.stepWindows = openStepWindows2026(Date.now(), this.stepCount);
       this.stepSub = Pedometer.watchStepCount((result) => {
         // result.steps = cumul depuis CET abonnement (jamais additionné à lui-même).
         this.stepsSinceWatch = Math.max(0, result.steps);
@@ -242,8 +275,17 @@ export class RunTracker {
         // podomètre n'émet pas à cadence fixe (iOS par paquets, Android au fil
         // des pas), donc la fenêtre se mesure sur ces horodatages, jamais sur
         // une fréquence supposée.
-        this.stepSamples.push({ ts: Date.now(), steps: this.stepCount });
+        const at = Date.now();
+        this.stepSamples.push({ ts: at, steps: this.stepCount });
         if (this.stepSamples.length > STEP_SAMPLES_MAX) this.stepSamples.shift();
+        // Le rangement par tranches, lui, ne se plafonne pas : il compacte.
+        if (this.stepWindows !== null) {
+          this.stepWindows = addStepSample2026(
+            this.stepWindows,
+            { ts: at, steps: this.stepCount },
+            DISCIPLINE_STEP_BUCKET_S * 1_000,
+          );
+        }
       });
       // POSÉ APRÈS l'abonnement réussi, et jamais retiré : à partir d'ici, un
       // total de zéro pas est une MESURE, pas une absence de capteur.
@@ -316,6 +358,18 @@ export class RunTracker {
       userPausedSinceTs: this.userPaused ? this.userPauseStartedTs : null,
       lapMarks: this.lapMarksList,
       stepSamples: this.stepSamples,
+      // ── LES TRANCHES, FERMÉES SUR LE DERNIER RELEVÉ GPS ──────────────────
+      // Fermées sur la TRACE et non sur `Date.now()` : `state()` doit rester
+      // sans horloge pour que le module pur soit rejouable à l'identique. Le
+      // contrôle ne regarde de toute façon que des fenêtres qui tombent dans la
+      // trace — au-delà du dernier relevé, il n'y a rien à couvrir.
+      ...(this.stepWindows === null ? {} : {
+        stepWindows: sealStepWindows2026(
+          this.stepWindows,
+          this.fixes[this.fixes.length - 1]?.ts ?? this.stepWindows.openedAt,
+          DISCIPLINE_STEP_BUCKET_S * 1_000,
+        ),
+      }),
       finished: this.finished,
     };
   }
@@ -326,15 +380,31 @@ export class RunTracker {
   }
 
   /**
+   * « La trace raconte-t-elle une autre discipline que celle déclarée ? »
+   *
+   * Lecture PURE, sans effet : le tracker ne bascule rien tout seul. C'est
+   * l'écran de fin qui pose la question au joueur, avec ces chiffres, et le
+   * joueur seul qui tranche (décision fondateur du 12/09/2026).
+   */
+  disciplineVerdict(): DisciplineVerdict2026 {
+    return runDisciplineVerdict2026(this.state());
+  }
+
+  /**
    * Payload RÉEL pour ingest_run — trace nettoyée AUX BORNES DE LA DISCIPLINE
    * et discipline DÉCLARÉE au serveur (cf. `buildIngestPayload`). Idempotent
    * par clientRunId (UUID local généré AVANT la course).
+   *
+   * `choice` : ce que le joueur a répondu à « Un problème avec ta sortie ».
+   * Absent = aucune question posée. Basculer RE-NETTOIE la trace aux bornes de
+   * la nouvelle discipline — sans quoi on enverrait une trace amputée par les
+   * bornes de l'ancienne sous une étiquette qui ne l'ampute pas.
    */
-  buildPayload(): IngestRunRequest {
+  buildPayload(choice?: DisciplineChoice2026): IngestRunRequest {
     return { ...buildIngestPayload(this.state(), {
       clientRunId: this.runId,
       stepCount: this.stepCount,
       stepSensorRan: this.stepSensorRan,
-    }), recordingOwnerId: this.recordingOwnerId, recordingSessionId: this.recordingSessionId, sharedMapParticipation: this.sharedMapParticipation };
+    }, choice), recordingOwnerId: this.recordingOwnerId, recordingSessionId: this.recordingSessionId, sharedMapParticipation: this.sharedMapParticipation };
   }
 }

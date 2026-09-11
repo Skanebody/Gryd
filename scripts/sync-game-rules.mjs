@@ -113,7 +113,12 @@ for (const f of readdirSync(engineSrc)
 //   (mobileHeader + transformMobileLine + MOBILE_ENGINE_TARGETS).
 
 const MOBILE_ENGINE_TARGETS = [
-  { files: ['gps.ts', 'validation.ts'], dir: ['apps', 'mobile', 'src', 'features', 'run', 'gps', 'engine'] },
+  // `disciplineCheck2026.ts` (12/09/2026) : l'ÉCRAN DE FIN pose exactement la
+  // même question que le serveur — « la trace raconte-t-elle une autre
+  // discipline ? ». Deux implémentations proposeraient de basculer sur des
+  // chiffres différents de ceux du verdict serveur. Il n'importe que
+  // game-rules et `./validation.ts`, déjà copié ici : aucun h3-js n'entre.
+  { files: ['disciplineCheck2026.ts', 'gps.ts', 'validation.ts'], dir: ['apps', 'mobile', 'src', 'features', 'run', 'gps', 'engine'] },
   {
     files: ['crewMission.ts', 'crewSignals.ts'],
     dir: ['apps', 'mobile', 'src', 'features', 'crew', 'engine'],

@@ -70,6 +70,19 @@ export interface RunDetailInput {
    * une boucle décorative.
    */
   trace: RunTrace;
+  /**
+   * « SPORT SEULEMENT » (`runs.sport_only_reason_2026`, migration 0197).
+   *
+   * Non nul quand la sortie compte pour le journal, les kilomètres, les jours
+   * actifs et l'XP, et pour RIEN du jeu : ni terrain, ni classement, ni défi,
+   * ni quête. Un seul motif aujourd'hui, `discipline_mismatch_kept` — le joueur
+   * a vu à l'arrivée que sa trace racontait une autre discipline et a choisi de
+   * garder la sienne.
+   *
+   * Texte BRUT, jamais traduit ici : une version de l'app plus ancienne que la
+   * base doit pouvoir nommer l'état même sans connaître le motif.
+   */
+  sportOnlyReason?: string | null;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

@@ -43,7 +43,7 @@ import { C as HC } from '../../i18n/catalog/historique';
 // « Vélo »). Les redéclarer dans le catalogue du journal ferait deux vérités à
 // maintenir pour un même mot — la règle que les catalogues appliquent déjà.
 import { C as AC } from '../../i18n/catalog/setupActivity';
-import { C } from '../../i18n/catalog/journal';
+import { C, sportOnlyNote2026 } from '../../i18n/catalog/journal';
 import { decimalSeparator } from '../../ui/format';
 import { formatClock, formatKm2, formatRate } from './format';
 
@@ -92,6 +92,9 @@ export function JournalRow2026({ entry, onOpen }: JournalRow2026Props) {
   const pill = verdictPill(entry.status);
   const hasTrace = entry.traceSegments?.some((segment) => segment.length > 1) === true;
   const activityLabel = t(entry.activity === 'run' ? AC.optionRun : AC.optionBike);
+  // « SPORT SEULEMENT » (0197) : une sortie gardée dans une discipline que la
+  // mesure contredisait. Le motif est un texte serveur ; `null` = rien à dire.
+  const sportOnly = entry.sportOnlyReason ?? null;
 
   return (
     <Pressable
@@ -144,6 +147,21 @@ export function JournalRow2026({ entry, onOpen }: JournalRow2026Props) {
             <Text style={styles.terrainText} numberOfLines={1}>
               {`+${terrain} ${t(C.journalTerrainGained)}`}
             </Text>
+          </View>
+        ) : null}
+
+        {/* ── SPORT SEULEMENT : l'état, PUIS sa raison en une phrase ──────
+            Un badge nu (« Sport seulement ») laisserait quelqu'un chercher ce
+            qu'il a fait de mal. La phrase est donc sur la ligne, pas dans le
+            détail : c'est ici qu'on se demande pourquoi cette sortie n'a rien
+            gagné. Gris et non rouge : ce n'est pas un refus, c'est un choix
+            assumé à l'arrivée. */}
+        {sportOnly !== null ? (
+          <View style={styles.sportOnly}>
+            <View style={styles.sportOnlyBadge}>
+              <Text style={styles.sportOnlyBadgeText} numberOfLines={1}>{t(C.journalSportOnly)}</Text>
+            </View>
+            <Text style={styles.meta}>{t(sportOnlyNote2026(sportOnly, entry.activity))}</Text>
           </View>
         ) : null}
 
@@ -259,6 +277,21 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: c.ink,
     flexShrink: 1,
+  },
+  sportOnly: { gap: 2, paddingTop: 2 },
+  sportOnlyBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  sportOnlyBadgeText: {
+    fontFamily: fonts.textMedium,
+    fontSize: fontSizes.xs,
+    lineHeight: 16,
+    color: c.muted,
   },
   state: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
   dot: { width: 6, height: 6, borderRadius: 3 },

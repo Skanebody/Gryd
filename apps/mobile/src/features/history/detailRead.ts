@@ -67,7 +67,7 @@ import { runTraceFrom } from '../journal/traceRead';
  * liste. Le rendu, lui, décime (`features/journal/traceRead.decimateForDisplay`).
  */
 const DETAIL_COLUMNS =
-  'id, started_at, activity, distance_m, duration_s, avg_pace_s_km, status, reject_reason, points_awarded, xp_awarded, celebration, polyline_masked, trace_points_2026';
+  'id, started_at, activity, distance_m, duration_s, avg_pace_s_km, status, reject_reason, points_awarded, xp_awarded, celebration, polyline_masked, trace_points_2026, sport_only_reason_2026';
 
 interface DetailRow {
   id: string;
@@ -82,6 +82,8 @@ interface DetailRow {
   xp_awarded: number | null;
   celebration: unknown;
   polyline_masked: string | null;
+  /** « Sport seulement » (0197) — voir `RunDetailInput.sportOnlyReason`. */
+  sport_only_reason_2026: string | null;
   trace_points_2026: unknown;
 }
 
@@ -117,6 +119,8 @@ export function toRunDetailInput(row: DetailRow): RunDetailInput {
     pointsAwarded: row.points_awarded,
     xpAwarded: row.xp_awarded,
     celebration: row.celebration,
+    // « SPORT SEULEMENT » (0197) : motif BRUT du serveur, jamais réécrit ici.
+    sportOnlyReason: row.sport_only_reason_2026,
     // La meilleure des deux traces, ou aucune. `runTraceFrom` est PUR et
     // défensif : un payload d'une forme inattendue rend « pas de trace »,
     // jamais une géométrie approximative.

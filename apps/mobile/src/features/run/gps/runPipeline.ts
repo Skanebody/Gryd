@@ -53,6 +53,12 @@ import {
   type RawFix,
 } from './engine/gps';
 import { mockedLocationForPayload, stepCountForPayload } from '../motionIntegrity';
+import {
+  checkDeclaredDiscipline2026,
+  type DisciplineEvidence2026,
+  type DisciplineVerdict2026,
+  type StepWindow2026,
+} from './engine/disciplineCheck2026';
 import { farthestGapM, loopGapM } from './engine/loopHint';
 import { recentSpeedMps } from './engine/liveView';
 import {
@@ -299,6 +305,19 @@ export interface RunPipelineState {
    * capteur » et « zéro pas » ne se confondent jamais.
    */
   readonly stepSamples?: readonly StepSample[];
+  /**
+   * TRANCHES DE PODOMÈTRE contiguës (12/09/2026) — ce que le contrôle de
+   * discipline lit à l'arrivée.
+   *
+   * Ce n'est PAS un doublon de `stepSamples`. Les échantillons bruts servent la
+   * cadence LIVE et sont plafonnés (`STEP_SAMPLES_MAX`) : sur une sortie d'une
+   * heure, les premières minutes ont disparu. Les tranches, elles, couvrent
+   * TOUTE la période où le capteur a écouté, à une entrée par minute.
+   *
+   * ABSENTES = aucun podomètre n'a tourné, et le contrôle se tait (`no_steps`).
+   * Une tranche PRÉSENTE à zéro est, elle, une mesure.
+   */
+  readonly stepWindows?: readonly StepWindow2026[];
   /** La course est clôturée (le tracker n'accepte plus rien). */
   readonly finished: boolean;
 }
@@ -465,6 +484,60 @@ export interface PayloadContext {
 }
 
 /**
+ * Ce que le joueur a répondu à « Un problème avec ta sortie » (12/09/2026).
+ *
+ * DEUX issues, et aucune troisième : l'écran de fin ne se referme pas sans
+ * l'une des deux, et le type l'impose ici — un `undefined` ne veut dire qu'une
+ * chose, « la question n'a pas été posée ».
+ */
+export type DisciplineChoice2026 =
+  | { readonly kind: 'switch'; readonly to: Activity }
+  | { readonly kind: 'keep'; readonly evidence: DisciplineEvidence2026 };
+
+/**
+ * La DISCIPLINE EFFECTIVE du payload : celle vers laquelle on bascule, ou la
+ * déclarée.
+ *
+ * ⚠️ ELLE NE CHANGE PAS QUE L'ÉTIQUETTE. C'est elle qui donne à `cleanTrace` et
+ * `decimateForPayload` leurs bornes §3.2 : une trace nettoyée aux 25 km/h de la
+ * course a déjà PERDU les relevés d'une portion à vélo. Basculer sans
+ * re-nettoyer aux bornes du vélo enverrait au serveur une trace amputée sous
+ * une discipline qui ne l'ampute pas — donc une distance fausse.
+ */
+function effectiveActivity(state: RunPipelineState, choice?: DisciplineChoice2026): Activity {
+  return choice?.kind === 'switch' ? choice.to : state.activity;
+}
+
+/** Les points tels qu'ils PARTIRONT, aux bornes de la discipline effective. */
+function payloadPoints(state: RunPipelineState, activity: Activity) {
+  const clean = cleanTrace(state.fixes, activity);
+  const smoothed = smoothTrace(clean.points);
+  return {
+    points: rawFixesToRunPoints(decimateForPayload(smoothed, undefined, activity)),
+    trust: gpsTrustScore(clean),
+  };
+}
+
+/**
+ * « La trace raconte-t-elle une autre discipline que celle déclarée ? » — sur
+ * les points EXACTEMENT tels qu'ils partiront, et jamais sur la trace brute.
+ *
+ * POURQUOI SUR LES POINTS DU PAYLOAD. L'écran va annoncer « pendant 5 minutes,
+ * tu allais à 24 km/h ». Si ce chiffre venait d'une trace que le serveur ne
+ * verra jamais, l'écran affirmerait une vitesse que rien ne peut confirmer.
+ *
+ * PURE : le verdict est une lecture, pas une décision. Ce qu'on en fait est
+ * l'affaire de l'appelant, et le joueur reste seul à trancher.
+ */
+export function runDisciplineVerdict2026(state: RunPipelineState): DisciplineVerdict2026 {
+  return checkDeclaredDiscipline2026(
+    payloadPoints(state, state.activity).points,
+    state.stepWindows ?? [],
+    state.activity,
+  );
+}
+
+/**
  * Payload RÉEL pour ingest_run : trace nettoyée + lissée + décimée
  * (≤ GPS_MAX_PAYLOAD_POINTS, cordes re-bornées §3.2 DE LA DISCIPLINE),
  * accuracies conservées, + GPS Trust calculé sur la trace BRUTE
@@ -482,13 +555,18 @@ export interface PayloadContext {
  * de la course — la trace disciplinée aurait été refusée à l'arrivée. Nettoyer
  * la trace aux bonnes bornes et ne pas les déclarer au serveur reviendrait à ne
  * rien avoir corrigé.
+ *
+ * 12/09/2026 — `choice` : ce que le joueur a répondu à « Un problème avec ta
+ * sortie ». Absent = aucune question posée, et le payload est mot pour mot
+ * celui d'avant ce lot.
  */
 export function buildIngestPayload(
   state: RunPipelineState,
   ctx: PayloadContext,
+  choice?: DisciplineChoice2026,
 ): IngestRunRequest {
-  const clean = cleanTrace(state.fixes, state.activity);
-  const smoothed = smoothTrace(clean.points);
+  const activity = effectiveActivity(state, choice);
+  const built = payloadPoints(state, activity);
   // Rétro-compatibilité stricte pour `sensorRan` : un appelant qui ne sait pas
   // dire si le podomètre a tourné retombe sur l'ancien critère (« un cumul
   // positif prouve qu'il tournait »). Aucun comportement existant ne change.
@@ -504,15 +582,34 @@ export function buildIngestPayload(
     source: 'gps',
     startedAt: new Date(state.startedAt).toISOString(),
     // `undefined` = plafond par défaut GPS_MAX_PAYLOAD_POINTS (aucun nombre magique).
-    points: rawFixesToRunPoints(decimateForPayload(smoothed, undefined, state.activity)),
-    activity: state.activity,
+    points: built.points,
+    activity,
     runMode: state.mode,
-    gpsTrust: gpsTrustScore(clean),
+    gpsTrust: built.trust,
     // ── LES DEUX SIGNAUX DE CAPTEUR : UNE MESURE, OU RIEN ──────────────────
     // Jamais un zéro par défaut (ce serait accuser un appareil qui n'a rien
     // fait), jamais un silence sur une mesure réelle (ce serait cacher la
     // preuve). La règle vit UNE fois, dans `motionIntegrity.ts`, PUR et testé.
     ...(steps === undefined ? {} : { stepCount: steps }),
     ...(mocked === undefined ? {} : { mockedLocation: mocked }),
+    // ── CE QUE LE JOUEUR A RÉPONDU, ET RIEN D'AUTRE ────────────────────────
+    // Absents quand aucune question n'a été posée : le serveur retrouve alors
+    // EXACTEMENT le comportement d'avant ce lot.
+    ...(choice?.kind === 'switch' ? { disciplineSwitchedFrom: state.activity } : {}),
+    ...(choice?.kind === 'keep'
+      ? {
+        disciplineMismatchKept: true,
+        // Les chiffres MONTRÉS voyagent avec le refus : un « il n'a pas voulu
+        // basculer » sans preuve chiffrée serait un reproche sans dossier.
+        // `?? 0` n'invente rien — un verdict `keep` n'existe que sur une
+        // évidence complète (le contrôle ne conclut jamais sans ses deux
+        // moitiés), et le type d'`IngestRunRequest` exige des nombres.
+        disciplineEvidence: {
+          sustainedKmh: choice.evidence.sustainedKmh ?? 0,
+          stepsPerMin: choice.evidence.stepsPerMin ?? 0,
+          windowS: choice.evidence.windowS,
+        },
+      }
+      : {}),
   };
 }

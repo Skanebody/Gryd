@@ -16,7 +16,10 @@
  * ni lu, ni transmis, ni stocké.
  */
 import {
+  addStepSample2026,
   mockedLocationForPayload,
+  openStepWindows2026,
+  sealStepWindows2026,
   stepCountForPayload,
 } from './motionIntegrity';
 import { buildIngestPayload, type RunPipelineState } from './gps/runPipeline';
@@ -145,4 +148,95 @@ Deno.test('le drapeau se lit sur la trace BRUTE, pas sur la trace décimée', ()
     payload.points.length < trace.length,
     'la trace envoyée est bien décimée — sinon ce test ne prouve rien',
   );
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// LES TRANCHES DE PODOMÈTRE (12/09/2026) — CE QUE LE CONTRÔLE DE DISCIPLINE LIT
+// ════════════════════════════════════════════════════════════════════════════
+//
+// ÉTAPE 0 : ces trois fonctions n'existaient pas. Le tracker gardait un CUMUL
+// et des échantillons bruts PLAFONNÉS à 240 entrées — sur une sortie d'une
+// heure, les premières minutes avaient disparu. Le contrôle de fin, qui oppose
+// une cadence à une fenêtre de cinq minutes pouvant tomber n'importe où,
+// n'aurait rien vu avant les dernières minutes.
+
+const MINUTE_MS = 60_000;
+
+Deno.test('une tranche ABSENTE n’est pas « zéro pas » : le rangement part vide', () => {
+  const ouvert = openStepWindows2026(T0, 0);
+  assertEgal(ouvert.windows, [], 'aucune tranche tant qu’aucun relevé n’est arrivé');
+  assertEgal(sealStepWindows2026(ouvert, T0, MINUTE_MS), [], 'fermer à l’instant d’ouverture ne crée rien');
+});
+
+Deno.test('les pas se rangent dans la tranche de leur horodatage, en DELTAS', () => {
+  let state = openStepWindows2026(T0, 0);
+  state = addStepSample2026(state, { ts: T0 + 30_000, steps: 80 }, MINUTE_MS);
+  state = addStepSample2026(state, { ts: T0 + 59_000, steps: 170 }, MINUTE_MS);
+  state = addStepSample2026(state, { ts: T0 + 90_000, steps: 340 }, MINUTE_MS);
+  assertEgal(state.windows.length, 2, 'deux minutes traversées, deux tranches');
+  assertEgal(state.windows[0]!.steps, 170, 'la première minute porte son CUMUL local');
+  assertEgal(state.windows[1]!.steps, 170, 'la seconde ne recompte pas la première');
+});
+
+Deno.test('les minutes traversées EN SILENCE s’ouvrent à zéro : c’est une mesure', () => {
+  // Le cas exact du vélo : le podomètre tourne et ne compte rien pendant
+  // dix minutes. Sans tranches à zéro, ce silence ressemblerait à une absence
+  // de capteur — et le contrôle se tairait précisément là où il doit parler.
+  let state = openStepWindows2026(T0, 0);
+  state = addStepSample2026(state, { ts: T0 + 30_000, steps: 40 }, MINUTE_MS);
+  state = addStepSample2026(state, { ts: T0 + 5 * MINUTE_MS + 10_000, steps: 40 }, MINUTE_MS);
+  assertEgal(state.windows.length, 6, 'six tranches, de la première à la sixième minute');
+  for (let i = 1; i <= 4; i++) {
+    assertEgal(state.windows[i]!.steps, 0, `la minute ${i + 1} est mesurée à zéro`);
+  }
+});
+
+Deno.test('le CUMUL REPRIS d’une sortie rouverte ne devient pas une cadence fantôme', () => {
+  // ÉTAPE 0 de ce piège : sans `baseSteps`, le premier relevé d'une reprise
+  // (cumul 4 200) aurait produit un delta de 4 200 pas rangé dans la première
+  // minute — soit 4 200 pas/min, une cadence qu'aucun humain ne produit.
+  let state = openStepWindows2026(T0, 4_200);
+  state = addStepSample2026(state, { ts: T0 + 10_000, steps: 4_260 }, MINUTE_MS);
+  assertEgal(state.windows[0]!.steps, 60, 'seuls les pas NOUVEAUX sont rangés');
+});
+
+Deno.test('un cumul qui REDESCEND (compteur remis à zéro) ne retire jamais de pas', () => {
+  let state = openStepWindows2026(T0, 0);
+  state = addStepSample2026(state, { ts: T0 + 10_000, steps: 500 }, MINUTE_MS);
+  state = addStepSample2026(state, { ts: T0 + 20_000, steps: 10 }, MINUTE_MS);
+  assertEgal(state.windows[0]!.steps, 500, 'aucun delta négatif');
+});
+
+Deno.test('un relevé ANTÉRIEUR à l’ouverture est ignoré, jamais rangé ailleurs', () => {
+  let state = openStepWindows2026(T0, 0);
+  state = addStepSample2026(state, { ts: T0 - 60_000, steps: 900 }, MINUTE_MS);
+  assertEgal(state.windows, [], 'le capteur n’écoutait pas : on n’invente pas de pas');
+});
+
+Deno.test('la fermeture RABOTE la dernière tranche sur l’instant de fin', () => {
+  // Sans rabotage, la dernière tranche déborderait dans le futur et la
+  // couverture d'une fenêtre serait surévaluée : on jugerait sur du temps qui
+  // n'a pas eu lieu.
+  let state = openStepWindows2026(T0, 0);
+  state = addStepSample2026(state, { ts: T0 + 80_000, steps: 200 }, MINUTE_MS);
+  const scelle = sealStepWindows2026(state, T0 + 95_000, MINUTE_MS);
+  assertEgal(scelle.length, 2, 'deux tranches');
+  assertEgal(scelle[1]!.toT, T0 + 95_000, 'la dernière s’arrête à la fin réelle');
+  assert(scelle[0]!.toT === scelle[1]!.fromT, 'les tranches restent contiguës');
+});
+
+Deno.test('la fermeture COMPLÈTE le silence final : un arrêt de pas est mesuré', () => {
+  let state = openStepWindows2026(T0, 0);
+  state = addStepSample2026(state, { ts: T0 + 10_000, steps: 30 }, MINUTE_MS);
+  const scelle = sealStepWindows2026(state, T0 + 10 * MINUTE_MS, MINUTE_MS);
+  assertEgal(scelle.length, 10, 'dix minutes couvertes, dont neuf en silence');
+  assertEgal(scelle[9]!.steps, 0, 'la dernière minute est mesurée à zéro');
+});
+
+Deno.test('le rangement est PUR : l’état d’entrée n’est jamais muté', () => {
+  const state = openStepWindows2026(T0, 0);
+  const avant = JSON.stringify(state);
+  addStepSample2026(state, { ts: T0 + 10_000, steps: 50 }, MINUTE_MS);
+  sealStepWindows2026(state, T0 + MINUTE_MS, MINUTE_MS);
+  assertEgal(JSON.stringify(state), avant, 'aucune mutation en place');
 });
