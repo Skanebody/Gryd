@@ -66,12 +66,12 @@ scripts/         sync-game-rules.mjs (shared+engine → _shared/ + copies mobile
   comparer en PLAGE de 1 ms.
 
 ## Backend
-Projet Supabase `gryd` (`sydwxwwirinjoheeodcg`) — migrations appliquées jusqu'à `0197` en prod
+Projet Supabase `gryd` (`sydwxwwirinjoheeodcg`) — migrations appliquées jusqu'à `0198` en prod
 (11/09/2026 : 0129 sécurité, 0135-0169 vie privée · modération · notifications · récompenses · défis ·
 capture · classement · défis hebdo ; 0174 anti-triche ; 0175-0191 le 11/09 soir : pseudo @, vérification, cosmétiques,
 vie de crew, parrainage, opérateur anti-triche, gestion de crew, objets Relais ; `ingest_run`, `digest_job`, `export_account`
 redéployées ; 0192-0196 la nuit du 11/09 : boîte de réception et producteurs de notifications, conservation des tracés ;
-jobs `crew-inactivity-sweep-2026` et `trace-retention-purge-2026` actifs ; le fondateur est modérateur (`moderators_2026`)). Codex pousse sur le même projet : toujours
+jobs `crew-inactivity-sweep-2026`, `trace-retention-purge-2026` et `auth-handoff-purge-2026` actifs ; 0197 contrôle de discipline (ADR-019) ; 0198 remise de session e-mail → app (`auth_handoff_2026`, le 12/09) ; le fondateur est modérateur (`moderators_2026`)). Codex pousse sur le même projet : toujours
 `supabase migration list` avant un push. Secrets : jamais en dur ; `scratchpad-secrets.local`
 (gitignored). Base réelle : 3 comptes, 0 donnée de jeu.
 
