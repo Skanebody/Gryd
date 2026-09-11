@@ -46,7 +46,7 @@ import {
   SEASON_ZERO_START_ISO,
   SEASON_ZERO_START_LABEL,
 } from './season2026.ts';
-import { FOOTER_PRODUCT, PRIMARY_NAV, SITE_ORIGIN } from './site2026.ts';
+import { FOOTER_LEGAL, FOOTER_PRODUCT, HEADER_ACTION, PRIMARY_NAV, SITE_ORIGIN } from './site2026.ts';
 
 declare const Deno: {
   test(nom: string, fn: () => void | Promise<void>): void;
@@ -252,6 +252,14 @@ Deno.test('aucune page du plan n est orpheline', () => {
   ]);
   for (const page of SITE_PAGES) {
     assert(lies.has(page.path), `la page ${page.path} n est liée ni par l en-tête ni par le pied`);
+  }
+  // Et l'inverse, qui est la vraie faute de ce site : un lien de navigation vers
+  // une page qui n'existe pas. « Aucun bouton mort » est constitutionnel, et un
+  // lien mort dans un en-tête collant l'est sur TOUTES les pages à la fois.
+  const existantes = new Set<string>([...SITE_PAGES.map((page) => page.path), ...LEGAL_PATHS]);
+  for (const link of [...PRIMARY_NAV, HEADER_ACTION, ...FOOTER_PRODUCT, ...FOOTER_LEGAL]) {
+    assert(link.href.endsWith('/'), `le lien ${link.href} n a pas de slash final`);
+    assert(existantes.has(link.href), `le lien « ${link.label} » mène à ${link.href}, qui n existe pas`);
   }
 });
 
