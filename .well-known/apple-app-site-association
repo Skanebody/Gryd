@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["NXGNDQBUMB.fr.nexus1993.gryd"],
+        "components": [
+          { "/": "/callback", "comment": "Retour du lien de connexion (app/(auth)/callback.tsx)" },
+          { "/": "/callback/", "comment": "Meme route, forme a slash final produite par l export statique" },
+          { "/": "/c/*", "comment": "Invitation de crew (app/c/[code].tsx)" },
+          { "/": "/r/*", "comment": "Lien de parrainage (app/r/[code].tsx)" },
+          { "/": "/u/*", "comment": "Profil public" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["NXGNDQBUMB.fr.nexus1993.gryd"]
+  }
+}

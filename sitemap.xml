@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GRYD — le plan du site public (lot W3, 12/09/2026).
+
+  DOUZE adresses, et pas une de plus : les huit pages du plan éditorial
+  (docs/product/GRYD_SITE_CONTENU_2026_09.md §2.1) et les quatre pages légales.
+  Toutes portent un SLASH FINAL, la seule forme que GitHub Pages sache servir
+  depuis un dossier (trailingSlash: true).
+
+  Ce qui n'y est pas, à raison : /callback/ (son fragment porte des jetons,
+  noindex), /404.html (une erreur n'est pas une page) et /abonnement/ (une
+  redirection vers /gryd-plus/).
+
+  `apps/web/lib/siteCopy2026.test.ts` compare ce fichier au registre des pages :
+  une page ajoutée sans entrée ici, ou une entrée sans page, fait tomber le gate.
+  Les `lastmod` datent la refonte du site, pas le jour du déploiement : une date
+  qui avance toute seule à chaque publication ne dit plus rien à un moteur.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://gryd.run/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/comment-ca-marche/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/telecharger/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/crews/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/saison/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/securite-et-vie-privee/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/gryd-plus/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/faq/</loc>
+    <lastmod>2026-09-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/confidentialite/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/conditions/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/cgv/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://gryd.run/mentions-legales/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>
