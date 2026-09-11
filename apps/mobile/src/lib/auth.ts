@@ -51,6 +51,7 @@ import {
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
+import { AUTH_CALLBACK_URL } from './links';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
@@ -291,8 +292,21 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
     email,
     options: {
       shouldCreateUser: true,
-      // Retour vers l'app par son scheme (déclaré dans l'`uri_allow_list`).
-      emailRedirectTo: 'gryd://callback',
+      /**
+       * ⚠️ CE N'EST PLUS `gryd://callback` (12/09/2026, défaut fondateur : « le
+       * bouton mène vers rien du tout »). Un client mail ne rend cliquable que
+       * `http`/`https` — un schéma privé dans un courrier n'est pas un lien,
+       * c'est du texte. Le retour passe donc par une URL HTTPS réelle, servie
+       * par `apps/web`, qui rouvre l'app soit par LIEN UNIVERSEL (iOS a vérifié
+       * `apple-app-site-association`), soit par son bouton « Ouvrir GRYD » vers
+       * `AUTH_CALLBACK_DEEP_LINK`. Les deux formes arrivent sur la MÊME route,
+       * et `completeAuthCallback` les lit toutes les deux.
+       *
+       * Elle doit figurer dans l'`uri_allow_list` du projet Supabase : sans
+       * elle, GoTrue retombe sur `SITE_URL` et le lien ramène ailleurs. Réglage
+       * de dashboard, invérifiable depuis le client — dit, jamais supposé.
+       */
+      emailRedirectTo: AUTH_CALLBACK_URL,
     },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };

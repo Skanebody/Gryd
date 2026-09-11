@@ -259,10 +259,22 @@ Deno.test('un brouillon complet et confirmé libre est enregistrable', () => {
   assertEquals(profileDraftBlock(COMPLETE, FREE), null);
 });
 
-Deno.test('les trois champs de la spec sont exigés, chacun avec son propre motif', () => {
+Deno.test('l’identité est exigée, chaque manque avec son propre motif', () => {
   assertEquals(profileDraftBlock({ ...COMPLETE, displayName: '   ' }, FREE), 'name_required');
   assertEquals(profileDraftBlock({ ...COMPLETE, handle: '' }, FREE), 'handle_required');
-  assertEquals(profileDraftBlock({ ...COMPLETE, cityId: '' }, FREE), 'city_required');
+});
+
+/**
+ * ÉTAPE 0 — CE TEST AFFIRMAIT L'INVERSE. Il exigeait `'city_required'` sur une
+ * ville vide, donc il VERROUILLAIT le défaut : l'écran promettait des champs
+ * facultatifs et refusait pourtant d'enregistrer sans ville. Or la ville est
+ * LOCALE (elle cadre la carte, une position mesurée la supplante toujours) et
+ * ne décide d'aucun terrain. Un joueur hors ligne, ou dont la commune n'est pas
+ * dans le rayon, restait enfermé dans un formulaire qu'il ne pouvait pas finir
+ * — au premier écran suivant la création de son compte.
+ */
+Deno.test('la ville ne bloque PAS : c’est un cadrage, pas une condition', () => {
+  assertEquals(profileDraftBlock({ ...COMPLETE, cityId: '' }, FREE), null);
 });
 
 Deno.test('le format cassé remonte son motif exact au lieu d’un refus muet', () => {

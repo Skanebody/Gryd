@@ -104,6 +104,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Image,
   Keyboard,
   Platform,
   Pressable,
@@ -143,6 +144,11 @@ import { useCityCatalog } from '../../src/features/city/useCityCatalog';
 import { useOnboardingState } from '../../src/features/onboarding/store';
 import { parseHandleCheck, useHandleAvailability } from '../../src/features/social/handleCheck';
 import { DISPLAY_NAME_MAX, effectiveInitials, saveProfile } from '../../src/features/social/profileStore';
+import {
+  avatarUploadRefusal,
+  pickAvatarPhoto,
+  type PickAvatarResult,
+} from '../../src/features/social/avatarPhoto';
 // Lecture de la position PAR PLATEFORME (`location.ts` natif / `location.web.ts`
 // web). Le provider natif tire `expo-task-manager`, sans support web : une route
 // ne peut pas l'importer en direct sans le mettre dans le bundle navigateur.
@@ -185,8 +191,20 @@ import {
  * aucune flèche de retour n'y est peinte — l'affichage se dérive de la capacité
  * RÉELLE, jamais de l'apparence.
  */
-/** Le profil est contextuel : son enregistrement rend immédiatement la main à la carte. */
-const NEXT_STEP = '/';
+/**
+ * L'ÉTAPE SUIVANTE — E09, « tu cours ou tu roules ». Elle est nommée en toutes
+ * lettres ici, et VÉRIFIÉE contre la table `SETUP_NEXT` (`features/setup/
+ * firstRun.ts`) par `setupChain.test.ts` : changer l'une sans l'autre fait
+ * échouer un test, au lieu de déposer un joueur sur « Unmatched route ».
+ *
+ * ⚠️ ELLE VALAIT `'/'` JUSQU'AU 12/09/2026, et ce n'était pas « contextuel » :
+ * rien de l'app n'ouvrait cet écran, donc tout compte neuf gardait le pseudo
+ * `runner_5f3a91c0…` que l'inscription lui avait collé (migration 0154). Le
+ * parcours entre maintenant ici depuis l'accueil du lien, et en ressort par
+ * E09 — deux questions qui se posent au même moment, deux écrans, puis la
+ * carte.
+ */
+const NEXT_STEP = '/setup/activity';
 
 /**
  * Ce que l'écran sait de la ville PROPOSÉE — quatre états distincts, comme
@@ -237,6 +255,17 @@ export default function SetupProfileScreen() {
   const [fix, setFix] = useState<{ lat: number; lng: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<SaveFailureKind | null>(null);
+  /**
+   * PHOTO — FACULTATIVE, ET FACULTATIVE POUR DE BON. `null` n'est pas un
+   * « manque » : l'avatar généré (initiales + couleur de la charte) est
+   * l'identité visuelle GRYD, pas un pis-aller. L'URI reste LOCALE jusqu'à
+   * l'enregistrement — c'est `saveProfile` qui téléverse, une seule fois, quand
+   * le joueur a validé. Choisir une photo puis quitter l'écran n'envoie donc
+   * rien nulle part.
+   */
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  /** Ce que le CHOIX de photo a produit, quand ce n'est ni « rien » ni « une photo ». */
+  const [photoNotice, setPhotoNotice] = useState<'denied' | 'unavailable' | 'refused' | null>(null);
 
   const backendReady = configured && session !== null && supabase !== null;
   const availability = useHandleAvailability(handle, false);
@@ -406,52 +435,61 @@ export default function SetupProfileScreen() {
     }
 
     /**
-     * ÉCRITURE SERVEUR — c'est ELLE qui rend le @handle réellement unique
-     * (`unique` de 0011). On lit d'abord si la ligne existe : les GRANTS de 0011
-     * sont COLONNE PAR COLONNE et `user_id` n'est concédé qu'en INSERT, jamais
-     * en UPDATE — un `upsert` PostgREST, qui réécrit toutes les colonnes du
-     * payload y compris la clé, se ferait refuser. Deux chemins explicites
-     * plutôt qu'un `upsert` qui échouerait toujours (un chemin mort).
+     * ÉCRITURE SERVEUR — PAR LA RPC, PLUS EN DIRECT SUR LA TABLE (12/09/2026).
      *
-     * ⚠️ RÉSIDU ASSUMÉ : entre le SELECT et l'INSERT, une seconde soumission du
-     * MÊME compte rendrait un 23505 sur la clé primaire, que `saveFailureKind`
-     * nommerait « handle pris ». Le CTA est verrouillé par `saving` pendant tout
-     * l'aller-retour, donc ce scénario demande deux appareils sur le même compte
-     * à la même seconde. Dit ici plutôt que corrigé à l'aveugle.
+     * ═══ CE QUE FAISAIT L'ANCIEN CHEMIN, ET POURQUOI IL ÉTAIT FAUX ══════════
+     * Cet écran écrivait `handle` directement, en PostgREST, sur
+     * `public.user_profiles` (les grants colonne par colonne de 0011 le
+     * permettent). Trois conséquences, toutes silencieuses :
+     *   · il CONTOURNAIT `gryd_handle_change_2026` (migration 0175) : aucune
+     *     ligne dans `handle_changes_2026`, et surtout `handle_chosen_2026`
+     *     restait FALSE. Le joueur avait nommé son pseudo, le serveur
+     *     continuait de croire qu'il portait l'étiquette de 0154 — et c'est
+     *     exactement le fait dont l'écran d'accueil se sert pour distinguer un
+     *     compte neuf d'un habitué ;
+     *   · il ignorait `handle_holds_2026` : il suffisait de créer un compte
+     *     neuf pour rafler le pseudo qu'un joueur venait de libérer, le trou
+     *     que 0175 avait précisément bouché ;
+     *   · le `saveProfile(...)` qui suivait était appelé SANS propriétaire,
+     *     donc il levait `authentication_required` à sa première ligne, et le
+     *     `.catch(() => undefined)` l'avalait. Nom affiché, ville et photo
+     *     n'atteignaient jamais `save_my_social_profile_2026` : personne ne le
+     *     voyait, parce que la table, elle, avait bien reçu le handle.
+     *
+     * ═══ LE CHEMIN UNIQUE ══════════════════════════════════════════════════
+     * `saveProfile(patch, userId)` → `save_my_social_profile_2026` (0175), qui
+     * EST le juge : il applique la règle de renommage (gratuite au premier
+     * nommage, `handle_chosen_2026` posé à true), refuse un pseudo réservé par
+     * quelqu'un d'autre, et écrit nom, ville et photo d'un seul tenant. Ses
+     * refus sont NOMMÉS et `saveFailureKind` les lit.
+     *
+     * C'est aussi lui qui téléverse la photo quand il y en a une : `avatarUri`
+     * qui ne commence pas par `https://` déclenche l'envoi vers le bucket
+     * `social-2026` (privé, 0124). Une seule fois, ici, jamais au moment du
+     * choix.
      */
     try {
-      const existing = await client
-        .from('user_profiles')
-        .select('user_id')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (existing.error) throw existing.error;
-
-      const payload = {
-        handle,
-        display_name: name,
-        main_city: cityEntry?.name ?? null,
-        main_country: cityEntry?.country ?? null,
-      };
-      const written = existing.data
-        ? await client.from('user_profiles').update(payload).eq('user_id', userId)
-        : await client.from('user_profiles').insert({ user_id: userId, ...payload });
-      if (written.error) throw written.error;
-
+      await saveProfile(
+        {
+          displayName: name,
+          handle,
+          city: cityEntry ? cityEntryLabel(cityEntry) : '',
+          cityId,
+          ...(photoUri === null ? {} : { avatarUri: photoUri }),
+        },
+        userId,
+      );
       /**
-       * LE SERVEUR A ACQUITTÉ. La garde de route (`app/(tabs)/_layout.tsx`)
-       * peut le savoir sans refaire un aller-retour — et surtout sans risquer
-       * de relire « aucune ligne » à cause d'une latence, ce qui renverrait le
-       * joueur dans le formulaire qu'il vient de valider.
-       *
-       * Ce n'est PAS un optimisme : la ligne est écrite ET acquittée à cet
-       * endroit précis du code. Un échec serait parti dans le `catch`
-       * ci-dessous, où rien n'est marqué.
+       * LE SERVEUR A ACQUITTÉ. La garde de route peut le savoir sans refaire un
+       * aller-retour — et surtout sans risquer de relire « aucune ligne » à
+       * cause d'une latence, ce qui renverrait le joueur dans le formulaire
+       * qu'il vient de valider. Ce n'est PAS un optimisme : un échec serait
+       * parti dans le `catch` ci-dessous, où rien n'est marqué.
        */
       markMinimalProfileDone(userId);
     } catch (error) {
       // La saisie reste À L'ÉCRAN : un échec d'enregistrement ne fait perdre
-      // à personne ce qu'il vient de taper.
+      // à personne ce qu'il vient de taper, ni la photo qu'il a choisie.
       setSaving(false);
       setSaveError(saveFailureKind(error));
       return;
@@ -471,13 +509,6 @@ export default function SetupProfileScreen() {
      * plus loin) relisent le disque à LEUR montage, et la file d'écriture du
      * store est sérialisée.
      */
-    void saveProfile({
-      displayName: name,
-      handle,
-      city: cityEntry ? cityEntryLabel(cityEntry) : '',
-      cityId,
-    }).catch(() => undefined);
-
     /**
      * HANDOFF DE CADRAGE. La clé écrite ici est LITTÉRALEMENT celle que la carte
      * lit — `MapScreen.tsx:252` : `cityCenter(onboarding.cityId)` (et son jumeau
@@ -497,6 +528,7 @@ export default function SetupProfileScreen() {
     cityEntry,
     session,
     detectedCityId,
+    photoUri,
     updateOnboarding,
   ]);
 
@@ -556,14 +588,57 @@ export default function SetupProfileScreen() {
     if (HANDLE_BLOCKS.has(block)) return null;
     if (block === 'name_required') return t(C.nameRequired);
     if (block === 'handle_required') return t(C.handleRequired);
-    return t(C.cityRequired);
+    // `city_required` ne sort plus de `profileDraftBlock` : la ville est un
+    // cadrage, pas une condition. La branche a disparu avec le blocage plutôt
+    // que de survivre en phrase morte.
+    return null;
   };
 
   const cityNote = (): string => {
     if (cityOrigin === 'reading') return t(C.cityLocating);
     if (cityOrigin === 'matched') return t(C.cityFromLocation);
-    if (cityOrigin === 'none' && cityId.length === 0) return t(C.cityUnknown);
+    // On n'a rien deviné ET le joueur n'a rien choisi : on dit ce qui se
+    // passera dans ce cas, au lieu de le presser de remplir un champ qui ne
+    // bloque plus rien.
+    if (cityId.length === 0) return t(C.cityRequired);
     return t(C.cityHint);
+  };
+
+  /**
+   * CHOISIR UNE PHOTO — facultatif, local, et sans aucun envoi à cet instant.
+   *
+   * Trois refus possibles, trois phrases distinctes : permission refusée
+   * (`denied`), module absent de CE binaire (`unavailable`), image trop lourde
+   * ou d'un format que le bucket refuserait (`refused`, mesuré AVANT l'envoi
+   * par `avatarUploadRefusal`). Annuler n'est pas un refus : il ne se dit pas.
+   */
+  const choosePhoto = async (): Promise<void> => {
+    setPhotoNotice(null);
+    let result: PickAvatarResult;
+    try {
+      result = await pickAvatarPhoto();
+    } catch {
+      setPhotoNotice('unavailable');
+      return;
+    }
+    if (result.kind === 'canceled') return;
+    if (result.kind === 'denied') { setPhotoNotice('denied'); return; }
+    if (result.kind === 'unavailable') { setPhotoNotice('unavailable'); return; }
+    // Refuser TÔT et avec un motif vaut mieux que laisser le bucket répondre
+    // un 4xx que l'écran traduirait en « l'enregistrement a échoué ».
+    if (result.bytes !== null && avatarUploadRefusal({ bytes: result.bytes }) !== null) {
+      setPhotoNotice('refused');
+      return;
+    }
+    haptics.light();
+    setPhotoUri(result.uri);
+  };
+
+  const photoNoticeText = (): string | null => {
+    if (photoNotice === 'denied') return t(C.photoDenied);
+    if (photoNotice === 'unavailable') return t(C.photoUnavailable);
+    if (photoNotice === 'refused') return t(C.photoRefused);
+    return photoUri === null ? t(C.photoOptional) : null;
   };
 
   const initials = effectiveInitials({ avatarInitials: '', displayName });
@@ -624,8 +699,13 @@ export default function SetupProfileScreen() {
             avatar / nom / handle / ville en quatre arrêts, et le nom accessible
             du groupe n'est jamais lu. */}
         <View style={styles.preview} accessible accessibilityLabel={t(C.previewA11y)}>
+          {/* La photo choisie remplace les initiales À L'INSTANT du choix :
+              l'aperçu est local, aucun aller-retour réseau ne se glisse entre
+              le geste et ce qu'il montre. */}
           <View style={styles.avatar}>
-            <Text style={styles.avatarInitials}>{initials}</Text>
+            {photoUri === null
+              ? <Text style={styles.avatarInitials}>{initials}</Text>
+              : <Image source={{ uri: photoUri }} style={styles.avatarPhoto} accessibilityIgnoresInvertColors />}
           </View>
           <View style={styles.previewText}>
             <Text
@@ -648,6 +728,36 @@ export default function SetupProfileScreen() {
             ) : null}
           </View>
         </View>
+
+        {/* ── PHOTO · facultative ──────────────────────────────────────────
+            Carbone, jamais un second accent chartreuse (§A4) : le seul CTA de
+            l'écran reste la barre du bas. « Retirer » n'apparaît que s'il y a
+            quelque chose à retirer — l'affichage se dérive de la capacité. */}
+        <View style={styles.photoRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(photoUri === null ? C.photoAdd : C.photoChange)}
+            onPress={() => void choosePhoto()}
+            style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+          >
+            <Text style={styles.pillLabel} numberOfLines={1}>
+              {t(photoUri === null ? C.photoAdd : C.photoChange)}
+            </Text>
+          </Pressable>
+          {photoUri !== null ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(C.photoRemove)}
+              onPress={() => { setPhotoUri(null); setPhotoNotice(null); }}
+              style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+            >
+              <Text style={styles.pillLabel} numberOfLines={1}>{t(C.photoRemove)}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {photoNoticeText() !== null ? (
+          <Text style={styles.hint}>{photoNoticeText()}</Text>
+        ) : null}
 
         {/* ── CHAMP 1 · nom d'affichage ── */}
         <Text style={styles.fieldLabel}>{t(C.nameLabel)}</Text>
@@ -786,6 +896,8 @@ const HANDLE_BLOCKS: ReadonlySet<ProfileDraftBlock> = new Set<ProfileDraftBlock>
 /** Échec d'enregistrement → phrase. Trois causes, trois gestes différents. */
 const SAVE_ERROR_ENTRY = {
   handle_taken: C.errorHandleTakenOnSave,
+  // RÉSERVÉ n'est pas PRIS : personne ne l'utilise, et il se libérera (0175).
+  handle_held: C.errorHandleHeldOnSave,
   network: C.errorNetwork,
   unknown: C.errorUnknown,
 } as const;
@@ -793,6 +905,9 @@ const SAVE_ERROR_ENTRY = {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.noir },
   scroll: { flex: 1 },
+  /** La photo remplit l'hexagone/le rond de l'aperçu, sans le déformer. */
+  avatarPhoto: { width: '100%', height: '100%', resizeMode: 'cover' },
+  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
   content: { paddingHorizontal: spacing.cardPadding },
 
   kicker: { ...typography.kicker, color: colors.gris, textTransform: 'uppercase' },

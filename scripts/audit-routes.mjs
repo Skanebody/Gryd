@@ -160,13 +160,24 @@ const KNOWN_ORPHANS = new Map([
   ],
 
   // ─── ATTEINTE PAR L'OS, PAS PAR UN LIEN ───────────────────────────────────
+  // ⚠️ `/callback` A ÉTÉ RETIRÉ D'ICI le 12/09/2026, et le script l'a EXIGÉ
+  // (« À NETTOYER : ces orphelines ont trouvé une porte »). Sa raison disait
+  // « aucun écran ne DOIT y mener » — c'est toujours vrai du RENDU, mais plus
+  // de la SOURCE : le chemin du retour est désormais une constante nommée
+  // (`AUTH_CALLBACK_PATH`, apps/mobile/src/lib/links.ts), parce qu'il doit
+  // s'accorder au caractère près avec `app.json` et avec l'URL que Supabase
+  // met dans l'e-mail. L'extracteur voit cette constante, et il a raison de la
+  // voir : c'est exactement la porte que le lien universel emprunte. La route
+  // reste dans `ENTRY_ROUTES`, donc toujours comptée atteignable.
   [
-    '/callback',
-    'atterrissage du lien magique : `emailRedirectTo: \'gryd://callback\'` ' +
-      '(src/lib/auth.ts:264) et `${window.location.origin}/callback` ' +
-      '(src/lib/auth.web.ts:149). Aucun écran ne DOIT y mener — c’est le ' +
-      'client mail qui rouvre l’app dessus. Elle figure aussi dans ' +
-      '`ENTRY_ROUTES` : l’app peut s’y ouvrir.',
+    '/u/[handle]',
+    'atterrissage d’un PROFIL PUBLIC partagé (`https://gryd.run/u/<pseudo>`, ' +
+      'remis à l’app par `apple-app-site-association`, apps/web). Aucun écran ' +
+      'ne doit y mener : le seul émetteur légitime est le lien qu’un joueur ' +
+      'envoie à quelqu’un d’AUTRE. C’est une route de transit qui redirige ' +
+      'vers `/profil-rival/[handle]`, l’écran qui existe déjà — sans elle, un ' +
+      'lien de profil ouvrirait l’app sur « Unmatched route ». Elle figure ' +
+      'aussi dans `ENTRY_ROUTES` : l’app peut s’y ouvrir.',
   ],
   [
     '/r/[code]',
@@ -529,14 +540,22 @@ const orphans = [...routes.keys()].filter((r) => (inbound.get(r)?.size ?? 0) ===
  *    (`src/features/referral/referral2026.ts#buildReferralDeepLink`). La reprise
  *    après inscription vit dans le layout racine
  *    (`startPendingReferralWatcher`, app/_layout.tsx), pas dans cet écran.
- *  · `/callback` — le lien magique rouvre l'app dessus
- *    (`emailRedirectTo: 'gryd://callback'`, src/lib/auth.ts:264).
+ *  · `/callback` — le lien de connexion rouvre l'app dessus. Depuis le
+ *    12/09/2026 il arrive sous DEUX formes : le lien universel
+ *    `https://gryd.run/callback#…` (iOS a vérifié `apple-app-site-association`)
+ *    et le schéma `gryd://callback#…` (le bouton de la page web). Les deux
+ *    dérivent d'`AUTH_CALLBACK_URL` / `AUTH_CALLBACK_DEEP_LINK`
+ *    (apps/mobile/src/lib/links.ts) — plus aucune URL de retour en dur.
+ *  · `/u/[handle]` — l'app OUVERTE par un lien de PROFIL PUBLIC
+ *    (`https://gryd.run/u/<pseudo>`). Route de transit vers
+ *    `/profil-rival/[handle]` ; sans elle, le chemin que le domaine remet à
+ *    l'app n'aurait aucun écran, donc « Unmatched route ».
  *
  * ⚠️ `app/index.tsx` N'EXISTE PAS, et ce n'est pas un oubli : `/` est déjà servi
  * par `app/(tabs)/index.tsx`, `(tabs)` étant un groupe sans segment d'URL. Le
  * créer ferait deux fichiers pour le même chemin (docblock de `app/_layout.tsx`).
  */
-const ENTRY_ROUTES = ['/', '/onboarding', '/course-live', '/c/[code]', '/r/[code]', '/callback'];
+const ENTRY_ROUTES = ['/', '/onboarding', '/course-live', '/c/[code]', '/r/[code]', '/u/[handle]', '/callback'];
 
 /**
  * Ce qui DOIT rester atteignable, sous peine de refus App Store ou d'infraction.

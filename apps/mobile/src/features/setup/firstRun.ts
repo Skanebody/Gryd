@@ -58,13 +58,43 @@
 export type MinimalProfileProbe = 'idle' | 'reading' | 'present' | 'absent' | 'unknown';
 
 /**
- * Inventaire des réglages contextuels. Le test vérifie que chacun existe et
- * rend la main à la carte, sans les transformer en chaîne obligatoire.
+ * Inventaire des réglages de premier usage. Chacun existe, chacun est une vraie
+ * route, et chacun sort SUR LA CARTE — directement, ou par l'étape suivante.
  */
 export const SETUP_CHAIN = ['/setup/profile', '/setup/activity', '/setup/permissions'] as const;
 
 /** Sortie du parcours : le produit lui-même (la carte, `app/(tabs)/index.tsx`). */
 export const SETUP_EXIT = '/';
+
+/**
+ * CE QUI SUIT CHAQUE ÉCRAN, ET POURQUOI CE N'EST PLUS « LA CARTE » PARTOUT.
+ *
+ * ─── L'ÉTAT D'AVANT (septembre, refonte du 9) ───────────────────────────────
+ * Les trois écrans sortaient tous sur `/`, et RIEN n'y menait : `/setup/*`
+ * n'était nommé par aucune navigation de l'app. Le résultat n'était pas « un
+ * parcours contextuel », c'était trois écrans inaccessibles — et un joueur qui
+ * venait de créer son compte gardait le pseudo `runner_5f3a91c0…` que
+ * l'inscription lui avait collé (migration 0154), sans que rien ne lui propose
+ * jamais d'en choisir un.
+ *
+ * ─── L'ÉTAT D'APRÈS (12/09/2026) ────────────────────────────────────────────
+ * L'écran d'accueil du lien (`app/(auth)/callback.tsx`) ouvre E08 pour un
+ * compte NEUF, et seulement pour lui. E08 enchaîne sur E09 parce que les deux
+ * questions se posent au même moment (« qui es-tu » puis « tu cours ou tu
+ * roules ») et qu'elles tiennent en deux écrans ; E09 rend la main à la carte.
+ * E10 (permissions) reste HORS de la chaîne : la boîte système se demande au
+ * premier GO, là où elle a un bénéfice immédiat, pas trois écrans avant.
+ *
+ * Une table plutôt que trois littéraux dispersés : c'est elle que lit le
+ * tripwire de source (`setupChain.test.ts`), donc changer la chaîne sans
+ * changer les écrans — ou l'inverse — fait échouer un test au lieu de déposer
+ * un joueur sur « Unmatched route ».
+ */
+export const SETUP_NEXT: Readonly<Record<(typeof SETUP_CHAIN)[number], string>> = {
+  '/setup/profile': '/setup/activity',
+  '/setup/activity': SETUP_EXIT,
+  '/setup/permissions': SETUP_EXIT,
+};
 
 /**
  * Ce qu'on a le droit de conclure d'une réponse PostgREST. PURE.

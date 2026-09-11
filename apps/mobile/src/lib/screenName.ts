@@ -35,6 +35,11 @@ const DYNAMIC_ROUTES: ReadonlyArray<{ readonly prefix: string; readonly pattern:
   // trou était de patron, pas d'accident, donc les deux entrent ensemble.
   { prefix: '/zones-rival/', pattern: '/zones-rival/[handle]' }, // E15
   { prefix: '/profil-rival/', pattern: '/profil-rival/[handle]' },
+  // `https://gryd.run/u/<pseudo>` — l'adresse publique d'un profil, remise à
+  // l'app par `apple-app-site-association` (12/09/2026). Même segment que les
+  // deux routes ci-dessus, donc même règle : c'est le handle d'un TIERS, et
+  // attaché au `distinct_id` de l'observateur il dirait « qui regarde qui ».
+  { prefix: '/u/', pattern: '/u/[handle]' },
   // E70 — le segment est l'identifiant d'une CONTESTATION
   // (`territory_contests.id`). Il ne porte aucune coordonnée, mais il désigne
   // sans ambiguïté UNE zone du joueur : laissé en clair dans `$screen`, il

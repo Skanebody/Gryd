@@ -318,12 +318,79 @@ export const C = defineCatalog({
     de: 'Wir konnten deine Stadt nicht erraten. Wähl sie aus.',
     pt: 'Não deu para adivinhar sua cidade. Escolha ela.',
   },
+  /**
+   * ⚠️ CE N'EST PLUS UN REFUS (12/09/2026), C'EST UNE INVITATION. La ville a
+   * cessé d'être un blocage (`profileDraftBlock`) : elle CADRE la carte, et une
+   * position mesurée la supplante toujours. La phrase ne peut donc plus dire
+   * « choisis une ville » comme une condition. Clé conservée : elle est lue
+   * ailleurs, et la renommer n'aurait rien prouvé de plus.
+   */
   cityRequired: {
-    fr: 'Choisis une ville pour savoir où tu joues.',
-    en: 'Pick a city so we know where you play.',
-    es: 'Elige una ciudad para saber dónde juegas.',
-    de: 'Wähl eine Stadt, damit klar ist, wo du spielst.',
-    pt: 'Escolha uma cidade para saber onde você joga.',
+    fr: 'Sans ville, la carte s’ouvrira là où tu es. Tu pourras la choisir plus tard.',
+    en: 'Without a city, the map opens where you are. You can pick one later.',
+    es: 'Sin ciudad, el mapa se abre donde estés. Puedes elegirla más tarde.',
+    de: 'Ohne Stadt öffnet die Karte dort, wo du bist. Du kannst sie später wählen.',
+    pt: 'Sem cidade, o mapa abre onde você está. Dá para escolher depois.',
+  },
+
+  // ─── PHOTO DE PROFIL — facultative, et facultative pour de bon ─────────────
+  /**
+   * L'avatar généré (initiales + couleur de la charte) est un chemin de
+   * PREMIÈRE CLASSE, pas un pis-aller : c'est l'identité visuelle GRYD. Rien
+   * ici ne pousse vers la photo, et le libellé ne dit jamais « complète ton
+   * profil » — un profil sans photo n'est pas incomplet.
+   */
+  photoAdd: {
+    fr: 'Ajouter une photo',
+    en: 'Add a photo',
+    es: 'Añadir una foto',
+    de: 'Foto hinzufügen',
+    pt: 'Adicionar uma foto',
+  },
+  photoChange: {
+    fr: 'Changer la photo',
+    en: 'Change photo',
+    es: 'Cambiar la foto',
+    de: 'Foto ändern',
+    pt: 'Trocar a foto',
+  },
+  photoRemove: {
+    fr: 'Retirer la photo',
+    en: 'Remove photo',
+    es: 'Quitar la foto',
+    de: 'Foto entfernen',
+    pt: 'Remover a foto',
+  },
+  photoOptional: {
+    fr: 'Facultatif. Sans photo, tes initiales font l’avatar.',
+    en: 'Optional. Without a photo, your initials are the avatar.',
+    es: 'Opcional. Sin foto, tus iniciales son el avatar.',
+    de: 'Optional. Ohne Foto sind deine Initialen der Avatar.',
+    pt: 'Opcional. Sem foto, suas iniciais viram o avatar.',
+  },
+  /** Permission refusée : on dit ce qui bloque, on ne réessaie pas en boucle. */
+  photoDenied: {
+    fr: 'Accès aux photos refusé. Tes initiales font l’avatar, et tu peux changer d’avis dans les réglages du téléphone.',
+    en: 'Photo access denied. Your initials are the avatar, and you can change your mind in the phone settings.',
+    es: 'Acceso a las fotos denegado. Tus iniciales son el avatar y puedes cambiar de idea en los ajustes del teléfono.',
+    de: 'Fotozugriff abgelehnt. Deine Initialen sind der Avatar, und du kannst es in den Telefoneinstellungen ändern.',
+    pt: 'Acesso às fotos negado. Suas iniciais viram o avatar, e dá para mudar de ideia nos ajustes do telefone.',
+  },
+  /** Le module natif n'est pas dans CE binaire : on ne peint pas un bouton mort. */
+  photoUnavailable: {
+    fr: 'Choisir une photo n’est pas possible sur cette version de l’app.',
+    en: 'Picking a photo isn’t possible on this version of the app.',
+    es: 'Elegir una foto no es posible en esta versión de la app.',
+    de: 'Ein Foto zu wählen geht in dieser App-Version nicht.',
+    pt: 'Escolher uma foto não é possível nesta versão do app.',
+  },
+  /** Photo trop lourde ou d'un format refusé : renvoyer la même ne marchera pas. */
+  photoRefused: {
+    fr: 'Cette image ne passe pas. Essaie une autre photo, plus légère.',
+    en: 'That image won’t go through. Try another, lighter photo.',
+    es: 'Esa imagen no pasa. Prueba con otra foto más ligera.',
+    de: 'Dieses Bild geht nicht durch. Versuch ein anderes, leichteres Foto.',
+    pt: 'Essa imagem não passa. Tente outra foto, mais leve.',
   },
 
   // ─── Ce qui N'EST PAS demandé (photo, bio, crew) ───────────────────────────
@@ -364,6 +431,19 @@ export const C = defineCatalog({
     es: 'Ese handle acaba de ser ocupado. Elige otro.',
     de: 'Dieses Handle wurde gerade vergeben. Nimm ein anderes.',
     pt: 'Esse handle acabou de ser pego. Escolha outro.',
+  },
+  /**
+   * RÉSERVÉ n'est pas PRIS (0175 : quatorze jours au profit de l'ancien
+   * porteur). Personne ne l'utilise, et il se libérera : dire « pris »
+   * enverrait le joueur croire qu'il a un rival et abandonner un pseudo qui
+   * lui reviendra.
+   */
+  errorHandleHeldOnSave: {
+    fr: 'Ce pseudo est encore réservé à son ancien porteur. Il se libérera, ou choisis-en un autre.',
+    en: 'That handle is still reserved for its previous owner. It will free up, or pick another one.',
+    es: 'Ese alias sigue reservado para su antiguo dueño. Se liberará, o elige otro.',
+    de: 'Dieses Kürzel ist noch für seinen früheren Träger reserviert. Es wird frei, oder nimm ein anderes.',
+    pt: 'Esse apelido ainda está reservado para o dono anterior. Ele vai liberar, ou escolha outro.',
   },
   errorNetwork: {
     fr: 'Enregistrement impossible. Réessaie quand tu as du réseau.',

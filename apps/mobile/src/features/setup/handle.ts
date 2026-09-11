@@ -292,7 +292,19 @@ export function profileDraftBlock(
   const format = handleFormatIssue(draft.handle);
   if (format !== null) return format;
 
-  if (draft.cityId.length === 0) return 'city_required';
+  /**
+   * ⚠️ LA VILLE N'EST PLUS UN BLOCAGE (12/09/2026). Elle l'était, et c'était
+   * l'inverse de ce que l'écran promet : son sous-titre annonce des champs
+   * facultatifs, et `cityHint` dit « tu peux en changer plus tard ». Surtout,
+   * elle est LOCALE — `MapScreen` s'en sert pour CADRER la carte, et une
+   * position mesurée la supplante toujours ; aucun terrain, aucun classement,
+   * aucune saison n'en découle (cf. `profileStore.EditableProfile.cityId`).
+   * Bloquer la création d'identité sur une préférence d'affichage enfermait un
+   * joueur hors ligne, ou simplement pressé, dans un formulaire qu'il ne
+   * pouvait pas finir. `city_required` reste dans le type : l'écran a le droit
+   * de SIGNALER qu'il n'a pas su deviner la ville, il n'a plus le droit d'en
+   * faire une condition.
+   */
 
   if (availability.state === 'refused') {
     if (availability.reason === 'taken') return 'handle_taken';
@@ -310,13 +322,18 @@ export function profileDraftBlock(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Ce qu'on a le droit de conclure d'un échec d'écriture sur `user_profiles`.
- *  · `handle_taken` — la course a été perdue sur le `unique` de 0011 (SQLSTATE
- *    23505). C'est le SEUL cas où l'on peut nommer la cause au joueur.
+ * Ce qu'on a le droit de conclure d'un échec d'enregistrement du profil.
+ *  · `handle_taken` — quelqu'un d'autre porte ce pseudo. Le serveur l'a dit :
+ *    soit par le SQLSTATE 23505 du `unique` de 0011, soit par le refus nommé de
+ *    `save_my_social_profile_2026` (`handle_taken`). C'est le seul cas où l'on
+ *    nomme la cause au joueur.
+ *  · `handle_held`  — le pseudo est RÉSERVÉ pour son ancien porteur (0175,
+ *    quatorze jours). Ce n'est pas « pris » : personne ne l'utilise, et il se
+ *    libérera. Confondre les deux enverrait le joueur croire qu'il a un rival.
  *  · `network`      — la requête n'est jamais arrivée. Réessayer a du sens.
  *  · `unknown`      — on ne sait pas. On le dit, et on garde la saisie.
  */
-export type SaveFailureKind = 'handle_taken' | 'network' | 'unknown';
+export type SaveFailureKind = 'handle_taken' | 'handle_held' | 'network' | 'unknown';
 
 /** SQLSTATE d'une violation de contrainte d'unicité (Postgres). */
 const PG_UNIQUE_VIOLATION = '23505';
@@ -338,6 +355,22 @@ export function saveFailureKind(error: unknown): SaveFailureKind {
   if (e.code === PG_UNIQUE_VIOLATION) return 'handle_taken';
 
   const message = typeof e.message === 'string' ? e.message.toLowerCase() : '';
+
+  /**
+   * LES REFUS NOMMÉS PAR LE SERVEUR (0175, `save_my_social_profile_2026`). La
+   * fonction `raise exception 'handle_taken'` etc. ; PostgREST rend le nom tel
+   * quel dans `message`. Les lire ICI plutôt que de les laisser tomber en
+   * `unknown` est ce qui distingue « quelqu'un porte ce pseudo » de « on ne
+   * sait pas ce qui s'est passé » — deux gestes différents pour le joueur.
+   *
+   * `rate_limited` n'y figure pas VOLONTAIREMENT : il ne peut pas survenir au
+   * premier nommage (`handle_chosen_2026` faux ⇒ aucun crédit consommé, cf.
+   * 0175 §0), et le prévoir ici ferait écrire une phrase pour un cas que ce
+   * parcours-ci ne rencontre jamais. L'écran de renommage, lui, le traite.
+   */
+  if (message.includes('handle_taken')) return 'handle_taken';
+  if (message.includes('handle_held')) return 'handle_held';
+  if (message.includes('handle_reserved')) return 'handle_taken';
   // Les deux formes que `fetch` produit réellement quand le réseau tombe
   // (RN Android/iOS et navigateurs). On ne cherche PAS plus loin : une liste de
   // sous-chaînes trop bavarde finirait par classer « network » une erreur

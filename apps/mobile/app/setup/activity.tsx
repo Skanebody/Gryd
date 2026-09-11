@@ -224,6 +224,17 @@ export default function SetupActivityScreen() {
           accessibilityLabel={choice === null ? t(C.ctaDisabledHint) : t(C.cta)}
           analyticsId="setup_activity_continue"
         />
+        {/* LA SORTIE. Aucune écriture : ne pas répondre, c'est laisser la
+            lentille sur son défaut, et le défaut n'est pas une réponse du
+            joueur. Peindre ce bouton en ghost le garde hors du seul accent
+            chartreuse de l'écran (§A4). */}
+        <Button
+          label={t(C.skip)}
+          onPress={() => router.replace(NEXT_STEP)}
+          variant="ghost"
+          size="md"
+          analyticsId="setup_activity_skip"
+        />
       </View>
     </View>
   );

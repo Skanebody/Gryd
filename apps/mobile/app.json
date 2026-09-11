@@ -28,34 +28,8 @@
       "com.apple.developer.healthkit.access": []
     }
   },
-  "_note_deeplink_invite_o10": "INVITES CREW (QR / lien) — ARBITRAGE 21/07/2026 : le scheme `gryd://` ci-dessous NOUS APPARTIENT (déclaré par `expo.scheme`) et suffit à faire fonctionner `gryd://c/<CODE>` DÈS AUJOURD'HUI sur un dev build. En revanche `ios.associatedDomains` et un `android.intentFilters` autoVerify sur gryd.run / gryd.app sont VOLONTAIREMENT ABSENTS : déclarer un domaine qu'on ne possède pas revient à demander à l'OS d'intercepter les liens https d'un tiers, et la validation échouerait de toute façon (Apple exige un `apple-app-site-association` servi en https sur le domaine, Android un `assetlinks.json` — donc l'App Store recevrait une entitlement `com.apple.developer.associated-domains` invérifiable). Blocage réel : le choix gryd.app vs gryd.run (point ouvert O10, DISCOVERY.md). Le gabarit prêt à coller est dans `_universal_links_o10`. Le code applicatif, lui, accepte DÉJÀ les deux hôtes (`INVITE_HOSTS` dans src/features/crew/pendingInvite.ts) : le jour où le domaine est acheté, il n'y a QUE ce fichier à modifier.",
-  "_universal_links_o10": {
-    "_comment": "GABARIT À ACTIVER QUAND LE DOMAINE EST ACHETÉ ET VÉRIFIÉ — remplacer <DOMAINE> par gryd.app ou gryd.run, coller `ios_a_ajouter` dans `expo.ios` et `android_a_ajouter` dans `expo.android`, puis publier /.well-known/apple-app-site-association et /.well-known/assetlinks.json sur le domaine AVANT de builder (sans eux, l'OS n'associe rien et le lien ouvre le navigateur).",
-    "ios_a_ajouter": {
-      "associatedDomains": [
-        "applinks:<DOMAINE>"
-      ]
-    },
-    "android_a_ajouter": {
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "<DOMAINE>",
-              "pathPrefix": "/c"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        }
-      ]
-    }
-  },
+  "_note_deeplink_invite_o10": "LIENS UNIVERSELS — ARBITRAGE O10 RENDU LE 12/09/2026. Le domaine `gryd.run` est acheté et servi (STATUS du 11/09 : SMTP no-reply@gryd.run en place), `apps/web` publie `/.well-known/apple-app-site-association`, et `ios.associatedDomains` est donc RÉEL ci-dessous — il ne l'était pas tant que le domaine n'existait pas, et déclarer un domaine qu'on ne possède pas aurait valu une entitlement `com.apple.developer.associated-domains` invérifiable en revue. CE QUE ÇA CHANGE : `https://gryd.run/callback`, `/c/*`, `/r/*` et `/u/*` ouvrent l'app DIRECTEMENT au lieu de Safari — c'est la réparation du défaut fondateur du 12/09 (« le bouton du mail mène vers rien du tout »), puisqu'un client mail ne rend cliquable que http/https et jamais un schéma privé. Le scheme `gryd://` NOUS APPARTIENT toujours (`expo.scheme`) et reste le chemin de repli : la page web sert un bouton « Ouvrir GRYD » vers `gryd://callback#…` quand le lien universel n'est pas vérifié (app absente, lien recopié, Android non vérifié). ⚠️ LE DOMAINE SEUL NE SUFFIT PAS, DEUX CHOSES RESTENT HORS DE CE FICHIER : (1) un NOUVEAU BUILD EAS — les entitlements `associated-domains` sont posés à la compilation, un binaire antérieur ignore tout de gryd.run ; (2) l'`uri_allow_list` du projet Supabase doit contenir `https://gryd.run/callback`, sinon GoTrue retombe sur SITE_URL et le lien ramène ailleurs (réglage de dashboard, invérifiable depuis le client). Le code applicatif n'a plus qu'UNE source de domaine : `apps/mobile/src/lib/links.ts` (`GRYD_DOMAIN`, `GRYD_LINK_HOSTS`, `AUTH_CALLBACK_URL`), dont `INVITE_HOSTS` dérive désormais au lieu de la recopier. `src/lib/links.test.ts` relit CE fichier et casse si les deux divergent. Le gabarit `_universal_links_o10` qui vivait ici a été SUPPRIMÉ : il est appliqué, et un gabarit conservé à côté de son application est la prochaine divergence.",
+  "_note_android_applinks_2026_09_12": "ANDROID — `intentFilters` autoVerify EST DÉCLARÉ ci-dessous parce qu'un `android.package` existe (`fr.nexus1993.gryd`), et il est SANS RISQUE même sans `assetlinks.json` : la vérification échoue alors silencieusement, l'OS ouvre le navigateur, et le navigateur sert la page `/callback` dont le bouton fait `gryd://callback#…`. Autrement dit le repli est le MÊME chemin qu'aujourd'hui, jamais un cul-de-sac. POUR QUE L'OUVERTURE DIRECTE MARCHE : publier `/.well-known/assetlinks.json` sur gryd.run avec l'empreinte SHA-256 du certificat de signature EAS (`eas credentials` → Android → Keystore). Tant que ce n'est pas fait, Android reste au repli — dit ici plutôt que promis ailleurs. Aucun build Android n'existe à ce jour : ces filtres ne changent rien à l'iPhone du fondateur.",
   "_note_updates_retire": "expo-updates RETIRÉ ENTIÈREMENT le 20/07/2026 (crash au démarrage du 1er build iOS). Le .ips prouve que le crash survient sur expo.controller.errorRecoveryQueue MÊME avec EXUpdatesEnabled=false dans le plist du build (vérifié par UUID + plutil sur l'IPA) : ErrorRecovery avale l'erreur réelle, attend 5 s une update de secours (canal jamais publié), puis abort — crash muet. enabled:false n'a PAS suffi → dépendance désinstallée + channel retirés d'eas.json (sinon EAS la réinstalle tout seul, cf. 39a6299). À réintroduire une fois l'app stable : réinstaller expo-updates, remettre updates.url + runtimeVersion + channels, et publier une 1re update AVANT tout build pour que la récupération ait un filet.",
   "_note_push_perimetre3": "NOTIFICATIONS DE DECAY (PÉRIMÈTRE 3, 21/07/2026) — le plugin `expo-notifications` ci-dessous ajoute au build iOS l'entitlement `aps-environment` et, côté Android, la plomberie FCM. TOUT le reste de la chaîne est déjà réel : migration 0048 (`push_devices` + `register_push_device`), `_shared/push.ts` (préférences, quiet hours dans le fuseau de l'appareil, cap PUSH_MAX_PER_DAY), `_shared/expo-push.ts` (POST exp.host) et `decay_job` qui envoie à J-3. CE QUI RESTE AU FONDATEUR, et que le code ne peut pas faire à sa place : (1) `eas credentials` → iOS → générer/uploader la clé APNs (.p8) sur le projet EAS `4c80219c-…` ; (2) Android : déposer le `google-services.json` FCM v1 dans les credentials EAS ; (3) rebuilder l'app (les tokens n'existent qu'à partir de ce build) ; (4) OPTIONNEL, seulement si « Enhanced Security for Push Notifications » est activé sur le compte Expo : `npx supabase secrets set EXPO_ACCESS_TOKEN=…`. Tant que (1)-(3) ne sont pas faits, `getExpoPushTokenAsync` échoue et l'écran Réglages > Notifications affiche « Pas encore disponibles sur cette version de l'app » — jamais un bouton qui prétend activer quelque chose. Détail complet : docs/BACKLOG-SOURCES.md.",
   "_note_lsapplicationqueriesschemes_2026_09_10": "PARTAGE SOCIAL (décision fondateur du 10/09/2026 : « est-ce que tout est mis en place pour partager sur les réseaux facilement ? »). `LSApplicationQueriesSchemes` déclare `instagram-stories` et `instagram`, et RIEN d'autre. CE QUE ÇA FAIT, EXACTEMENT : sur iOS, `Linking.canOpenURL('instagram-stories://…')` ne consulte pas le système tant que le schéma n'est pas listé ici — non déclaré, il répond `false` MÊME QUAND Instagram est installé. La déclaration ne donne donc aucun pouvoir nouveau : elle rend une MESURE possible. C'est le pré-requis de tout raccourci Instagram, et il est sans effet de bord (aucune permission, aucune donnée, rien dans le manifeste de confidentialité : sonder un schéma n'est pas une collecte). ⚠️ CE QUE ÇA NE FAIT PAS, ET POURQUOI AUCUN BOUTON « INSTAGRAM » N'EST PEINT : Instagram Stories exige que l'image soit déposée sur `UIPasteboard` sous des types PROPRIÉTAIRES (`com.instagram.sharedSticker.backgroundImage`) avant l'ouverture de l'URL. `expo-clipboard@7.0.1` ne sait pas les écrire — son natif fait `UIPasteboard.general.image = image` (node_modules/expo-clipboard/ios/ClipboardModule.swift:54-60), c'est-à-dire `public.png` et rien d'autre. Ouvrir `instagram-stories://` sans la charge utile ouvrirait Instagram SANS l'image : un bouton qui promet un partage et livre autre chose. Meta exige en outre un App ID Facebook dans `source_application`, que GRYD n'a pas. Les deux verrous, et ce qu'il faut pour les lever, sont dans docs/product/GRYD_PARTAGE_2026_09.md. En attendant, Instagram reste atteint par la FEUILLE SYSTÈME, où son extension propose « Stories » et « Fil » : ce chemin-là marche déjà, sur un binaire déjà installé. ⚠️ `apps/mobile/src/features/share/shareTargets.ts` recopie cette liste dans `DECLARED_QUERIES.ios` et `shareTargets.test.ts` casse si les deux divergent : modifier l'une sans l'autre est impossible.",
@@ -81,6 +55,10 @@
       "bundleIdentifier": "fr.nexus1993.gryd",
       "appleTeamId": "NXGNDQBUMB",
       "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:gryd.run",
+        "webcredentials:gryd.run"
+      ],
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -181,6 +159,22 @@
     },
     "android": {
       "package": "fr.nexus1993.gryd",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "gryd.run", "pathPrefix": "/callback" },
+            { "scheme": "https", "host": "gryd.run", "pathPrefix": "/c" },
+            { "scheme": "https", "host": "gryd.run", "pathPrefix": "/r" },
+            { "scheme": "https", "host": "gryd.run", "pathPrefix": "/u" }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",

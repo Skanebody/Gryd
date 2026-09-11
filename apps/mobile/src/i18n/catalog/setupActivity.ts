@@ -133,6 +133,20 @@ export const C = defineCatalog({
    * en action qui échoue (constitution §2). Cette ligne dit pourquoi, plutôt que
    * de laisser un bouton gris muet.
    */
+  /**
+   * LA SORTIE. E09 est la seule étape du parcours d'inscription qu'on a le
+   * droit de sauter : une préférence d'affichage n'est pas une identité, et
+   * elle se change à tout instant (`changeAnytime` le dit juste au-dessus).
+   * Sans ce bouton, quelqu'un qui ne sait pas encore répondre serait retenu
+   * devant un CTA inerte — c'est-à-dire enfermé par un réglage.
+   */
+  skip: {
+    fr: 'Plus tard',
+    en: 'Later',
+    es: 'Más tarde',
+    de: 'Später',
+    pt: 'Depois',
+  },
   ctaDisabledHint: {
     fr: 'Choisis une ligne pour continuer.',
     en: 'Pick a row to continue.',

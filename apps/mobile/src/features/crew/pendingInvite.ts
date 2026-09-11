@@ -33,6 +33,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { CREW_CODE_LENGTH } from '@klaim/shared';
 import { EVENTS, track } from '../../lib/analytics';
+import { GRYD_LINK_HOSTS } from '../../lib/links';
 import { supabase } from '../../lib/supabase';
 import type { JoinResult } from './real';
 
@@ -45,11 +46,16 @@ const STORAGE_KEY = 'gryd.pendingInvite.v1';
 export const PENDING_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Hôtes acceptés pour un lien web d'invite. Les DEUX sont reconnus tant que
- * l'arbitrage `gryd.app` vs `gryd.run` n'est pas rendu (point ouvert O10,
- * DISCOVERY.md) : le jour où le domaine existe, aucun code applicatif à toucher.
+ * Hôtes acceptés pour un lien web d'invite.
+ *
+ * ⚠️ DÉRIVÉ, PLUS RECOPIÉ (12/09/2026). Cette constante énonçait sa propre
+ * liste, et `lib/links.ts` en énonçait une seconde pour le retour du lien
+ * e-mail : deux vérités sur le domaine de GRYD, condamnées à diverger au
+ * premier arbitrage. L'arbitrage a été rendu (`gryd.run`), et il n'existe plus
+ * qu'un seul endroit où il est écrit. Le nom reste exporté : ses appelants et
+ * ses tests n'ont rien à savoir de ce déménagement.
  */
-export const INVITE_HOSTS = ['gryd.run', 'gryd.app'] as const;
+export const INVITE_HOSTS = GRYD_LINK_HOSTS;
 
 // ─── Parsing PUR (testable, zéro import RN) ──────────────────────────────────
 

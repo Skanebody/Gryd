@@ -41,6 +41,7 @@
  * ne peut pas le réutiliser. Toute évolution de l'un se reporte sur l'autre.
  */
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
+import { AUTH_CALLBACK_PATH } from './links';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
@@ -152,12 +153,16 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
     email,
     options: {
       shouldCreateUser: true,
-      // Le lien doit RAMENER SUR L'APP, pas sur le site. `site_url` du projet
-      // pointe sur la vitrine (:3000) ; on passe donc l'origine courante, qui
-      // est la seule que cet écran connaisse avec certitude. Elle est déclarée
-      // dans l'`uri_allow_list` du projet — sans ça, Supabase refuserait la
-      // redirection et le lien retomberait sur le site.
-      emailRedirectTo: typeof window === 'undefined' ? undefined : `${window.location.origin}/callback`,
+      /**
+       * SUR LE WEB, LE RETOUR RESTE L'ORIGINE COURANTE — et c'est le contraire
+       * d'une exception au natif : c'est la même règle appliquée au bon
+       * contexte. Le natif envoie `AUTH_CALLBACK_URL` (`lib/auth.ts`) parce que
+       * c'est la seule adresse capable de rouvrir l'APP ; ici, le produit EST
+       * la page ouverte, et la renvoyer sur gryd.run la déporterait hors du
+       * bundle qu'elle est en train d'exécuter (preview locale, harnais E2E).
+       * Seul le CHEMIN est partagé, pour qu'il ne puisse pas diverger.
+       */
+      emailRedirectTo: typeof window === 'undefined' ? undefined : `${window.location.origin}${AUTH_CALLBACK_PATH}`,
     },
   });
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
