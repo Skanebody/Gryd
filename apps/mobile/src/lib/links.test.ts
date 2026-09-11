@@ -22,8 +22,10 @@ import {
   GRYD_DOMAIN,
   GRYD_LINK_HOSTS,
   UNIVERSAL_LINK_SEGMENTS,
+  authCallbackParam,
   grydWebLinkPattern,
   isAuthCallbackUrl,
+  parseAuthCallbackUrl,
 } from './links.ts';
 
 const MOBILE_DIR = new URL('../../', import.meta.url);
@@ -182,4 +184,116 @@ Deno.test('le chemin du retour est le même des deux côtés', () => {
   assert(
     (UNIVERSAL_LINK_SEGMENTS as readonly string[]).includes(AUTH_CALLBACK_PATH.slice(1)),
   );
+});
+
+// ─── 4. LIRE CE QUE PORTE LE RETOUR — les deux moitiés, séparées ─────────────
+
+Deno.test('une URL de retour se lit dans ses DEUX moitiés', () => {
+  const parts = parseAuthCallbackUrl(
+    'https://gryd.run/callback?token_hash=pkce_h9&type=signup#access_token=a&refresh_token=r',
+  );
+  assert(parts !== null);
+  assertEquals(authCallbackParam(parts, 'token_hash', ['query', 'fragment']), 'pkce_h9');
+  assertEquals(authCallbackParam(parts, 'access_token'), 'a');
+  assertEquals(authCallbackParam(parts, 'refresh_token'), 'r');
+  assertEquals(authCallbackParam(parts, 'absent'), null);
+});
+
+Deno.test('la moitié prioritaire est celle que l’appelant demande, pas une fusion', () => {
+  // Le cas n'arrive pas chez GoTrue ; il arrive chez un client mail qui réécrit
+  // l'adresse. Fusionner les deux moitiés déciderait alors en silence.
+  const parts = parseAuthCallbackUrl('gryd://callback?type=magiclink#type=signup');
+  assertEquals(authCallbackParam(parts, 'type', ['fragment', 'query']), 'signup');
+  assertEquals(authCallbackParam(parts, 'type', ['query', 'fragment']), 'magiclink');
+});
+
+Deno.test('une valeur vide est une ABSENCE, jamais une valeur', () => {
+  // `?token_hash=` est un lien tronqué. L'envoyer au serveur ferait répondre
+  // « lien invalide » à quelqu'un dont le lien, lui, était bon.
+  const parts = parseAuthCallbackUrl('https://gryd.run/callback?token_hash=&type=signup');
+  assertEquals(authCallbackParam(parts, 'token_hash', ['query']), null);
+  assertEquals(authCallbackParam(parts, 'type', ['query']), 'signup');
+});
+
+Deno.test('ce qui n’est pas une URL n’a pas de moitiés', () => {
+  assertEquals(parseAuthCallbackUrl(null), null);
+  assertEquals(parseAuthCallbackUrl(undefined), null);
+  assertEquals(parseAuthCallbackUrl(''), null);
+  assertEquals(parseAuthCallbackUrl('pas une url'), null);
+  assertEquals(authCallbackParam(null, 'token_hash'), null);
+});
+
+Deno.test('LIRE n’est pas ACCEPTER : l’hôte n’est filtré que par isAuthCallbackUrl', () => {
+  // Le harnais de parcours sert le retour sur l'origine locale : si la lecture
+  // filtrait l'hôte, elle ne saurait plus lire ce que le harnais lui donne.
+  const local = 'http://127.0.0.1:4319/callback?token_hash=h&type=signup';
+  assertEquals(authCallbackParam(parseAuthCallbackUrl(local), 'token_hash', ['query']), 'h');
+  // …et la question de SÉCURITÉ, elle, reste fermée sur les hôtes de GRYD.
+  assertEquals(isAuthCallbackUrl(local), false);
+});
+
+// ─── 5. COUTURE — le lien que l'e-mail envoie VRAIMENT ──────────────────────
+
+/**
+ * ÉTAPE 0 — CE QUI ÉTAIT ROUGE. Les gabarits rendaient `{{ .ConfirmationURL }}`,
+ * c'est-à-dire `https://<projet>.supabase.co/auth/v1/verify?…`, qui vérifie puis
+ * répond 302 vers `gryd.run/callback`. iOS ne remet PAS un lien universel à
+ * l'app au bout d'une chaîne de redirections : le joueur voyait donc toujours la
+ * page web et devait appuyer sur « Ouvrir GRYD ». Le gabarit vise désormais
+ * l'adresse finale, DIRECTEMENT.
+ *
+ * Ce test relit les fichiers réellement appliqués au projet Supabase
+ * (`scripts/apply-auth-email-templates.mjs`), pas une intention.
+ */
+const GABARITS_A_LIEN_DIRECT: Readonly<Record<string, string>> = {
+  'confirmation.html': 'signup',
+  'magic-link.html': 'magiclink',
+};
+
+/**
+ * Les gabarits DORMANTS — aucun chemin de l'app ne les déclenche (ni
+ * `resetPasswordForEmail`, ni `updateUser`, ni `inviteUserByEmail` dans le
+ * dépôt). Ils gardent `{{ .ConfirmationURL }}`, et chacun a sa raison propre,
+ * écrite dans le README du dossier. Le test les garde tels quels pour que
+ * « on n'a pas eu le temps » ne puisse pas se déguiser en « c'est fait ».
+ */
+const GABARITS_DORMANTS = ['recovery.html', 'email-change.html', 'invite.html'];
+
+async function lireGabarit(fichier: string): Promise<string> {
+  const url = new URL(`../../supabase/email-templates/2026-09/${fichier}`, MOBILE_DIR);
+  // Les `&` d'un attribut HTML s'écrivent `&amp;` : on compare l'URL, pas son
+  // échappement.
+  return (await Deno.readTextFile(url)).replaceAll('&amp;', '&');
+}
+
+Deno.test('les gabarits du parcours visent l’app DIRECTEMENT, sans redirection', async () => {
+  for (const [fichier, type] of Object.entries(GABARITS_A_LIEN_DIRECT)) {
+    const html = await lireGabarit(fichier);
+    const attendu = `{{ .SiteURL }}${AUTH_CALLBACK_PATH}?token_hash={{ .TokenHash }}&type=${type}`;
+    assert(html.includes(attendu), `${fichier} doit viser ${attendu}`);
+    // Le bouton ET le lien de secours (href + texte visible) : trois fois.
+    assertEquals(
+      html.split(attendu).length - 1,
+      3,
+      `${fichier} : le bouton et le lien de secours doivent porter la MÊME adresse`,
+    );
+    assertEquals(
+      html.includes('{{ .ConfirmationURL }}'),
+      false,
+      `${fichier} : une seule adresse par gabarit, sinon la moitié des joueurs passe par la redirection`,
+    );
+    // Aucun code à six chiffres : l'écran n'en réclame pas (emailDelivery2026).
+    assertEquals(html.includes('{{ .Token }}'), false, `${fichier} ne doit pas promettre un code`);
+  }
+});
+
+Deno.test('les gabarits dormants n’ont PAS été basculés en douce', async () => {
+  for (const fichier of GABARITS_DORMANTS) {
+    const html = await lireGabarit(fichier);
+    assert(
+      html.includes('{{ .ConfirmationURL }}'),
+      `${fichier} est dormant : il garde la redirection de GoTrue (voir le README du dossier)`,
+    );
+    assertEquals(html.includes('token_hash'), false, `${fichier} : ni moitié basculé, ni oublié`);
+  }
 });

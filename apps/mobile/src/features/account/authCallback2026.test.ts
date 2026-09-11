@@ -1,5 +1,5 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { AUTH_CALLBACK_URL_WAIT_MS, authCallbackVerdict2026, emailDelivery2026, parseAuthCallback2026, shouldAutoDetectAuth2026 } from './authCallback2026.ts';
+import { AUTH_CALLBACK_URL_WAIT_MS, TOKEN_HASH_FALLBACK_TYPE, authCallbackVerdict2026, emailDelivery2026, parseAuthCallback2026, shouldAutoDetectAuth2026 } from './authCallback2026.ts';
 import { linkVerdictFromParams } from './emailLink.ts';
 
 Deno.test('un callback dédié ne consomme pas son code deux fois via le SDK et son écran', () => {
@@ -13,6 +13,81 @@ Deno.test('les anciens retours web hors callback conservent la détection de ses
   assertEquals(shouldAutoDetectAuth2026('web', '/'), true);
   assertEquals(shouldAutoDetectAuth2026('web', '/account/email'), true);
   assertEquals(shouldAutoDetectAuth2026('web', null), false);
+});
+
+/**
+ * ═══ E4 — LE LIEN DIRECT, CE QUE L'APP EN LIT ═══════════════════════════════
+ * ÉTAPE 0 : `parseAuthCallback2026` ne connaissait que `?code=` et
+ * `#access_token=`. Un lien `?token_hash=…&type=…` rendait donc `{ kind:
+ * 'none' }` — l'app attendait trois secondes puis disait « aucun retour n'est
+ * arrivé », sur un lien parfaitement valide qu'elle tenait en main.
+ */
+Deno.test('lien direct : le haché et son type sont lus dans la query', () => {
+  assertEquals(
+    parseAuthCallback2026('https://gryd.run/callback?token_hash=pkce_a1b2&type=signup'),
+    { kind: 'token_hash', tokenHash: 'pkce_a1b2', type: 'signup' },
+  );
+  assertEquals(
+    parseAuthCallback2026('gryd://callback?token_hash=h9&type=magiclink'),
+    { kind: 'token_hash', tokenHash: 'h9', type: 'magiclink' },
+  );
+  // La forme à slash final que l'export statique produit, et qu'Apple déclare.
+  assertEquals(
+    parseAuthCallback2026('https://gryd.run/callback/?token_hash=h9&type=recovery'),
+    { kind: 'token_hash', tokenHash: 'h9', type: 'recovery' },
+  );
+});
+
+Deno.test('lien direct sans type lisible : on vérifie ce que GoTrue COUVRE', () => {
+  // `email` couvre `signup` ET `magiclink` côté serveur — les deux seuls
+  // gabarits que GRYD émet avec un haché. Ce n'est donc pas une devinette.
+  assertEquals(TOKEN_HASH_FALLBACK_TYPE, 'email');
+  assertEquals(parseAuthCallback2026('https://gryd.run/callback?token_hash=h9'), {
+    kind: 'token_hash', tokenHash: 'h9', type: 'email',
+  });
+  assertEquals(parseAuthCallback2026('https://gryd.run/callback?token_hash=h9&type=magie'), {
+    kind: 'token_hash', tokenHash: 'h9', type: 'email',
+  });
+});
+
+Deno.test('un haché vide n’est pas un haché', () => {
+  // Un client mail qui coupe l'adresse après le `=`. On ne demande pas au
+  // serveur de vérifier du vide : il répondrait « lien invalide » et l'app
+  // accuserait un lien qui était bon.
+  assertEquals(
+    parseAuthCallback2026('https://gryd.run/callback?token_hash=&type=signup'),
+    { kind: 'none' },
+  );
+});
+
+Deno.test('une erreur du serveur gagne sur le haché', () => {
+  assertEquals(
+    parseAuthCallback2026(
+      'https://gryd.run/callback?error=access_denied&error_code=otp_expired&token_hash=h9',
+    ),
+    { kind: 'error', message: 'access_denied' },
+  );
+});
+
+Deno.test('un lien direct N’EST PAS une session : l’écran attend le serveur', () => {
+  const parsed = parseAuthCallback2026('https://gryd.run/callback?token_hash=h9&type=signup');
+  // Tant que l'échange n'a pas eu lieu, aucun verdict — même le délai écoulé ne
+  // permet pas de dire « aucun retour » : il y en a un, il est en cours.
+  assertEquals(
+    authCallbackVerdict2026({ parsed, waited: true, exchanged: false, linkVerdict: null }),
+    null,
+  );
+  // Haché périmé ou déjà servi : GoTrue nomme l'expiration, l'écran la nomme.
+  assertEquals(
+    authCallbackVerdict2026({
+      parsed,
+      waited: true,
+      exchanged: true,
+      exchangeMessage: 'Email link is invalid or has expired',
+      linkVerdict: null,
+    }),
+    'expired',
+  );
 });
 
 Deno.test('callback Supabase lit un code PKCE natif sans dépendre du chemin', () => {

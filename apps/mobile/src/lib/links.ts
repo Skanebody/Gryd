@@ -16,14 +16,30 @@
  *
  *   1. LIEN UNIVERSEL — iOS a vérifié `apple-app-site-association` sur le
  *      domaine, l'app est installée : le système ouvre GRYD directement sur
- *      `https://gryd.run/callback#access_token=…`. Le fragment est CONSERVÉ
- *      (expo-router le passe à `getStateFromPath`, et `Linking.useLinkingURL()`
- *      rend l'URL BRUTE) ;
+ *      `https://gryd.run/callback?token_hash=…&type=…`. Query ET fragment sont
+ *      CONSERVÉS (expo-router les passe à `getStateFromPath`, et
+ *      `Linking.useLinkingURL()` rend l'URL BRUTE) ;
  *   2. SCHÉMA — l'app n'est pas installée, ou le lien universel n'est pas
- *      vérifié : le navigateur ouvre la page web, qui dit « Félicitations » et
- *      propose un bouton vers `AUTH_CALLBACK_DEEP_LINK` (`gryd://callback#…`).
- *      C'est le seul contexte où un schéma privé fonctionne : un geste de
- *      l'utilisateur, depuis une page qu'il regarde déjà.
+ *      vérifié : le navigateur ouvre la page web, qui propose un bouton vers
+ *      `AUTH_CALLBACK_DEEP_LINK` (`gryd://callback?token_hash=…`). C'est le
+ *      seul contexte où un schéma privé fonctionne : un geste de l'utilisateur,
+ *      depuis une page qu'il regarde déjà.
+ *
+ * ═══ POURQUOI L'E-MAIL VISE CETTE ADRESSE, ET PAS CELLE DE SUPABASE (E4) ════
+ * Le lien partait sur `https://<projet>.supabase.co/auth/v1/verify?token=…`,
+ * qui vérifie puis répond 302 vers `gryd.run/callback#access_token=…`. C'est
+ * fonctionnel et c'est pourtant un demi-échec : **iOS ne remet PAS un lien
+ * universel à l'app au bout d'une chaîne de redirections** — Safari qui suit un
+ * 302 garde la main. Le joueur voyait donc toujours la page web, et devait
+ * appuyer sur « Ouvrir GRYD ».
+ *
+ * Depuis E4, le gabarit d'e-mail pointe DIRECTEMENT sur
+ * `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=…` : lien universel
+ * de PREMIÈRE MAIN, donc l'app s'ouvre sans un clic de plus, et c'est ELLE qui
+ * échange le haché contre une session (`supabase.auth.verifyOtp`). Le haché est
+ * à USAGE UNIQUE : personne d'autre que l'app n'a le droit de le consommer —
+ * raison pour laquelle la page web, elle, ne vérifie rien (voir
+ * `apps/web/lib/authCallbackLink2026.ts`).
  *
  * ═══ POURQUOI ICI, ET PAS DANS `game-rules.ts` ══════════════════════════════
  * Un nom de domaine ne décide ni claim, ni point, ni distance : ce n'est pas
@@ -152,4 +168,83 @@ export function isAuthCallbackUrl(raw: string | null | undefined): boolean {
   if (typeof raw !== 'string') return false;
   const url = raw.trim();
   return WEB_CALLBACK_RE.test(url) || SCHEME_CALLBACK_RE.test(url);
+}
+
+/**
+ * ═══ CE QUE PORTE UNE URL DE RETOUR — LES DEUX MOITIÉS, JAMAIS FUSIONNÉES ════
+ *
+ * Une URL d'authentification range ses paramètres à DEUX endroits, et le choix
+ * n'est pas cosmétique :
+ *
+ *   · le FRAGMENT (`#access_token=…`) ne part JAMAIS au serveur. GoTrue y met la
+ *     session du flux implicite, précisément pour qu'aucun intermédiaire (proxy,
+ *     journal d'accès, referrer) ne la voie ;
+ *   · la QUERY (`?token_hash=…&type=…`, `?code=…`) part, elle, au serveur —
+ *     c'est le prix à payer pour qu'un LIEN D'E-MAIL soit une adresse complète,
+ *     donc un lien universel de première main qu'iOS remet directement à l'app.
+ *     Le jeton qui s'y trouve est un HACHÉ à usage unique, pas une session.
+ *
+ * Les fusionner en un seul sac serait une erreur silencieuse : selon la clé, ce
+ * n'est pas la même moitié qui fait foi (la session dans le fragment, le retour
+ * de vérification dans la query). D'où deux `URLSearchParams` distincts et un
+ * lecteur qui reçoit l'ORDRE de priorité au cas par cas.
+ *
+ * PURE, et ici plutôt que dans `features/account/` parce que c'est une propriété
+ * du LIEN, pas du compte : la même lecture sert au retour d'authentification, et
+ * servira à toute autre adresse que le domaine remet à l'app.
+ */
+export interface AuthCallbackParts {
+  /** Ce qui suit le `?`. Vide (jamais `null`) quand il n'y en a pas. */
+  readonly query: URLSearchParams;
+  /** Ce qui suit le `#`. Vide (jamais `null`) quand il n'y en a pas. */
+  readonly fragment: URLSearchParams;
+}
+
+/** Moitié d'URL, nommée pour que l'ordre de priorité soit lisible à l'appel. */
+export type AuthCallbackHalf = 'query' | 'fragment';
+
+/**
+ * Découpe une URL de retour en ses deux moitiés. `null` si ce n'en est pas une.
+ *
+ * ⚠️ ELLE NE VÉRIFIE PAS L'HÔTE, ET C'EST VOULU. `isAuthCallbackUrl` répond à
+ * « ce lien entrant est-il un retour GRYD ? » (question de SÉCURITÉ, hôtes
+ * fermés) ; celle-ci répond à « que porte cette adresse ? » (question de
+ * LECTURE). Les mélanger casserait le harnais de parcours, qui sert le retour
+ * sur l'ORIGINE LOCALE du bundle exporté — la forme de l'adresse est la même,
+ * l'hôte ne peut pas l'être.
+ */
+export function parseAuthCallbackUrl(raw: string | null | undefined): AuthCallbackParts | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  return {
+    query: new URLSearchParams(url.search.replace(/^\?/, '')),
+    fragment: new URLSearchParams(url.hash.replace(/^#/, '')),
+  };
+}
+
+/**
+ * Première valeur NON VIDE d'une clé, dans l'ordre de moitiés demandé.
+ *
+ * Une chaîne vide est traitée comme une absence : `?token_hash=&type=signup`
+ * est un lien tronqué, pas un lien qui porte un jeton vide — et l'app doit le
+ * refuser au lieu d'envoyer ce vide au serveur.
+ */
+export function authCallbackParam(
+  parts: AuthCallbackParts | null,
+  key: string,
+  order: readonly AuthCallbackHalf[] = ['fragment', 'query'],
+): string | null {
+  if (parts === null) return null;
+  for (const half of order) {
+    const value = parts[half].get(key);
+    if (value !== null && value.trim().length > 0) return value;
+  }
+  return null;
 }

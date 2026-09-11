@@ -169,21 +169,35 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
   return { ok: true };
 }
 
-/** Termine un retour PKCE/implicite, ou récupère la session déjà lue par le client web. */
+/**
+ * Termine un retour par haché de lien direct (E4), PKCE ou session implicite —
+ * ou récupère la session déjà lue par le client web.
+ */
 export async function completeAuthCallback(url: string | null): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   const callback = parseAuthCallback2026(url);
   if (callback.kind === 'error') {
     return { ok: false, reason: 'auth_error', message: callback.message };
   }
-  const result = callback.kind === 'pkce'
-    ? await supabase.auth.exchangeCodeForSession(callback.code)
-    : callback.kind === 'tokens'
-      ? await supabase.auth.setSession({
-          access_token: callback.accessToken,
-          refresh_token: callback.refreshToken,
-        })
-      : await supabase.auth.getSession();
+  /**
+   * ⚠️ `token_hash` D'ABORD : C'EST LE PARCOURS D'AUJOURD'HUI (E4). Le lien de
+   * l'e-mail vise `gryd.run/callback?token_hash=…&type=…` — un lien universel
+   * de PREMIÈRE MAIN, seul capable d'ouvrir l'app sans passer par Safari (iOS
+   * ne remet pas à l'app un lien atteint au bout d'une redirection). Le haché
+   * n'est PAS une session : `verifyOtp` l'échange contre une vraie session, et
+   * il ne sert QU'UNE FOIS — d'où l'interdiction faite à la page web de le
+   * consommer à la place de l'app (`apps/web/lib/authCallbackLink2026.ts`).
+   */
+  const result = callback.kind === 'token_hash'
+    ? await supabase.auth.verifyOtp({ token_hash: callback.tokenHash, type: callback.type })
+    : callback.kind === 'pkce'
+      ? await supabase.auth.exchangeCodeForSession(callback.code)
+      : callback.kind === 'tokens'
+        ? await supabase.auth.setSession({
+            access_token: callback.accessToken,
+            refresh_token: callback.refreshToken,
+          })
+        : await supabase.auth.getSession();
   if (result.error || !result.data.session) {
     return { ok: false, reason: 'auth_error', message: result.error?.message };
   }

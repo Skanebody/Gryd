@@ -44,6 +44,45 @@ function assertEquals(actual: unknown, expected: unknown, message?: string): voi
   }
 }
 
+/**
+ * ═══ E4 — LE LIEN DIRECT (`?token_hash=…`) ══════════════════════════════════
+ * ÉTAPE 0 : le gabarit d'e-mail visait `…supabase.co/auth/v1/verify?…`, qui
+ * vérifie puis redirige. iOS ne remet PAS un lien universel à l'app au bout
+ * d'une redirection, donc cette page se peignait TOUJOURS et il fallait
+ * appuyer sur « Ouvrir GRYD ». Le gabarit vise maintenant cette page
+ * directement ; elle reçoit un haché NON vérifié, et rendait `incomplete` —
+ * c'est-à-dire « ce lien est incomplet » sur un lien parfaitement valide.
+ */
+Deno.test('un lien direct est transmis à l app, jamais consommé ici', () => {
+  assertEquals(
+    readAuthCallbackLink2026({ search: '?token_hash=pkce_a1b2&type=signup' }),
+    { kind: 'token_hash', appUrl: 'gryd://callback?token_hash=pkce_a1b2&type=signup' },
+  );
+  assertEquals(
+    readAuthCallbackLink2026({ search: '?token_hash=h9&type=magiclink' }).kind,
+    'token_hash',
+  );
+});
+
+Deno.test('un lien direct n est JAMAIS une félicitation : rien n a été vérifié', () => {
+  // `type=signup` dit de quel gabarit vient le lien, pas qu'un compte est né :
+  // seul le serveur peut le dire, et il ne l a pas encore fait.
+  assertEquals(readAuthCallbackLink2026({ search: '?token_hash=h9&type=signup' }).kind !== 'signup', true);
+});
+
+Deno.test('un haché vide n est pas un haché', () => {
+  assertEquals(readAuthCallbackLink2026({ search: '?token_hash=&type=signup' }).kind, 'incomplete');
+});
+
+Deno.test('l erreur passe AVANT le haché : un lien refusé ne s ouvre pas dans l app', () => {
+  assertEquals(
+    readAuthCallbackLink2026({
+      search: '?error=access_denied&error_code=otp_expired&token_hash=h9&type=signup',
+    }),
+    { kind: 'expired', appUrl: null },
+  );
+});
+
 Deno.test('une inscription est la SEULE félicitation, et la session part vers l app', () => {
   const view = readAuthCallbackLink2026({
     hash: '#access_token=aaa.bbb.ccc&refresh_token=rrr&expires_in=3600&token_type=bearer&type=signup',

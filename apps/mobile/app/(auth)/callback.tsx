@@ -14,6 +14,22 @@
  *     `Linking.useLinkingURL()` rend l'URL BRUTE, fragment compris, qu'elle
  *     commence par `https://` ou par `gryd://`.
  *
+ * ─── E4 : LE LIEN OUVRE L'APP SANS UN CLIC, DONC LA QUERY COMPTE AUSSI ──────
+ * Le lien de l'e-mail visait `…supabase.co/auth/v1/verify?…`, qui vérifiait puis
+ * redirigeait ici. iOS ne remet PAS un lien universel à l'app au bout d'une
+ * chaîne de redirections : Safari gagnait, et le joueur devait appuyer sur
+ * « Ouvrir GRYD ». Le gabarit vise maintenant `gryd.run/callback?token_hash=…&
+ * type=…` — une adresse complète, donc un lien de PREMIÈRE MAIN.
+ *
+ * Conséquence pour cet écran : ce qu'il reçoit peut n'être PAS une session mais
+ * un haché à usage unique, qu'il fait échanger par `completeAuthCallback`
+ * (`verifyOtp`). Rien d'autre ne change ici — et surtout pas la SOURCE de
+ * l'URL. On continue de lire `Linking.useLinkingURL()` plutôt que les
+ * `useLocalSearchParams` d'expo-router : les paramètres de route ne portent que
+ * la query, jamais le fragment, et les liens partis AVANT E4 (encore valides une
+ * heure) mettent leur session dans le fragment. Une seule lecture, brute, sait
+ * répondre aux deux.
+ *
  *   · L'ARRIVÉE NE DISAIT RIEN. Cet écran faisait `router.replace('/')` à la
  *     seconde où la session prenait : le joueur passait de sa boîte mail à une
  *     carte, sans un mot. Le geste le plus engageant du produit n'avait aucun

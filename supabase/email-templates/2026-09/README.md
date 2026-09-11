@@ -35,6 +35,55 @@ Projet par défaut `sydwxwwirinjoheeodcg` ; surchargeable par `SUPABASE_PROJECT_
 
 ## Ce qui a été décidé, et pourquoi
 
+### Le lien ouvre l'app DIRECTEMENT (E4, 12/09/2026)
+
+`confirmation.html` et `magic-link.html` ne rendent plus `{{ .ConfirmationURL }}`.
+Leur bouton et leur lien de secours pointent sur :
+
+```
+{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=signup      (confirmation)
+{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&amp;type=magiclink   (magic link)
+```
+
+**Le défaut.** `{{ .ConfirmationURL }}` rend `https://<projet>.supabase.co/auth/v1/verify?
+token=…&type=…&redirect_to=https://gryd.run/callback` : GoTrue vérifie, puis répond **302**
+vers `gryd.run/callback#access_token=…`. Ça marche, et c'est pourtant un demi-échec :
+**iOS ne remet pas un lien universel à l'app au bout d'une chaîne de redirections.** Safari
+qui suit un 302 garde la main. Le joueur voyait donc toujours la page web, et devait appuyer
+sur « Ouvrir GRYD » — un geste de plus à l'endroit le plus fragile du produit.
+
+**Le correctif.** Le gabarit écrit l'adresse FINALE lui-même. C'est un lien universel de
+première main : iOS le remet à l'app, qui échange le haché contre une session par
+`supabase.auth.verifyOtp({ token_hash, type })` (`apps/mobile/src/lib/auth.ts`). Sans l'app,
+le navigateur ouvre `gryd.run/callback`, qui **ne vérifie rien** et tend le bouton
+`gryd://callback?token_hash=…` : un haché ne sert qu'UNE fois, et le consommer côté web le
+rendrait mort pour l'app — c'est-à-dire recréer le défaut à un pas de distance.
+
+`{{ .SiteURL }}` vaut `https://gryd.run` (sans slash final) — vérifié par
+`GET /v1/projects/<ref>/config/auth`. Le `&amp;` est l'échappement HTML normal d'un `&` dans
+un attribut ; le client mail le rend en `&`. Le test
+`apps/mobile/src/lib/links.test.ts` relit ces deux fichiers et échoue si l'adresse change.
+
+**Les trois gabarits DORMANTS gardent `{{ .ConfirmationURL }}`**, et chacun pour une raison
+qui lui est propre. Aucun n'est déclenché par le moindre chemin de l'app (`grep` ne trouve ni
+`resetPasswordForEmail`, ni `updateUser`, ni `inviteUserByEmail`) :
+
+- **`recovery.html`** — un `verifyOtp({ type: 'recovery' })` émet `PASSWORD_RECOVERY` et non
+  `SIGNED_IN`. Or `src/lib/session.tsx` n'annule la suppression de compte programmée (0046)
+  que sur `SIGNED_IN` : basculer ce gabarit sans toucher à ce listener introduirait une
+  régression silencieuse sur un flux que personne n'utilise. À faire ensemble, le jour où un
+  écran déclenchera vraiment une récupération.
+- **`email-change.html`** — `mailer_secure_email_change_enabled = true` : le message part sur
+  les DEUX adresses et il faut DEUX confirmations. La première vérification ne rend pas de
+  session, `verifyOtp` la remonterait en erreur, et l'app dirait « ce lien n'est plus
+  valide » à quelqu'un qui vient de faire exactement ce qu'on lui demandait. La redirection
+  de GoTrue, elle, gère la danse à deux temps.
+- **`invite.html`** — déclenché seulement depuis le tableau de bord Supabase, et l'app n'a
+  aucun écran d'invitation. Rien à gagner, une adresse de plus à tenir.
+
+`reauthentication.html` n'a jamais porté de lien (c'est un code par construction).
+
+
 **Aucun code à six chiffres dans l'e-mail d'inscription ni dans le lien magique.**
 `apps/mobile/src/lib/auth.ts` expose `EMAIL_DELIVERY = emailDelivery2026(process.env…, false)` :
 le second argument est `false` **en dur**, donc la valeur est toujours `'link'`,
@@ -111,7 +160,23 @@ c'est prévu, voir « lisible sans images » ci-dessus.
 node scripts/apply-auth-email-templates.mjs --verify   # l'état distant
 ```
 
-Pour voir le rendu, remplacer `{{ .ConfirmationURL }}` / `{{ .Email }}` /
-`{{ .Token }}` par des valeurs réalistes et ouvrir le fichier dans un navigateur.
-Le rendu dans un vrai Outlook (moteur Word) n'est **pas** vérifiable ici : il
-demande un envoi réel vers une boîte Outlook.
+Pour voir le rendu, remplacer `{{ .SiteURL }}` / `{{ .TokenHash }}` /
+`{{ .ConfirmationURL }}` / `{{ .Email }}` / `{{ .Token }}` par des valeurs réalistes et
+ouvrir le fichier dans un navigateur. Le rendu dans un vrai Outlook (moteur Word)
+n'est **pas** vérifiable ici : il demande un envoi réel vers une boîte Outlook.
+
+## Prouver qu'un e-mail part vraiment
+
+```sh
+# Le lien magique d'un compte QUI EXISTE (create_user:false : aucun compte créé).
+# La clé anon est publique ; elle se lit par l'API de gestion, jamais en dur.
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -X POST "https://<ref>.supabase.co/auth/v1/otp" \
+  -H "apikey: <anon>" -H "Authorization: Bearer <anon>" -H 'Content-Type: application/json' \
+  -d '{"email":"<adresse>","create_user":false}'
+```
+
+`200` = GoTrue a accepté ET remis le message au SMTP. Ce que ça ne prouve pas : la
+réception, ni le rendu dans le client mail. Relevé du 12/09/2026, après application des
+gabarits E4 : **HTTP 200** vers la boîte du fondateur (gabarit `magic_link`, le compte
+existait déjà).

@@ -25,18 +25,25 @@
  * arriverait sur une carte pleine de zones prouverait le contraire de ce qu'on
  * cherche.
  *
- * ═══ LE LIEN MAGIQUE NE SE SIMULE PAS PAR UNE REPONSE, MAIS PAR UN RETOUR ══
+ * ═══ LE LIEN NE SE SIMULE PAS PAR UNE REPONSE, MAIS PAR UN RETOUR ══════════
  * L'app ne demande plus de code : `EMAIL_DELIVERY` vaut `'link'` tant qu'aucune
  * source ne PROUVE que le gabarit e-mail porte `{{ .Token }}` (voir
- * `emailDelivery2026`, et l'en-tete de `e2e/build-dist.mjs`). Il n'y a donc plus
- * de `POST /auth/v1/verify` a simuler : ce qu'un joueur fait, c'est OUVRIR un
- * lien. Le harnais joue ce geste-la — une navigation vers `/callback` avec, dans
- * le FRAGMENT, ce que GoTrue y met en flux implicite (`magicLinkReturn`) ou
- * l'erreur qu'il y met quand le lien est mort (`EXPIRED_LINK_RETURN`).
+ * `emailDelivery2026`, et l'en-tete de `e2e/build-dist.mjs`). Ce qu'un joueur
+ * fait, c'est OUVRIR un lien : le harnais joue ce geste-la, par une navigation
+ * vers `/callback`.
  *
- * `/auth/v1/verify` n'est plus servi VOLONTAIREMENT : si un ecran redemandait un
- * code un jour, sa requete tomberait dans la case « chemin Supabase sans
- * fixture » et le test le dirait, au lieu de reussir sur un vestige.
+ * DEUX FORMES, PARCE QU'IL Y EN A DEUX EN VRAI :
+ *
+ *   · `?token_hash=…&type=…` (`tokenHashReturn`) — le lien DIRECT que le
+ *     gabarit envoie depuis E4. Rien n'est encore verifie : l'app echange
+ *     elle-meme le hache contre une session, et c'est CE `POST /auth/v1/verify`
+ *     que le mock sert ci-dessous ;
+ *   · `#access_token=…` (`magicLinkReturn`) — la redirection de
+ *     `…/auth/v1/verify`, forme des liens partis AVANT E4. Ils restent valides
+ *     jusqu'a leur heure, donc l'app doit continuer de les lire.
+ *
+ * Et l'erreur que GoTrue pose quand le lien est mort (`EXPIRED_LINK_RETURN`
+ * dans le fragment, `EXPIRED_TOKEN_HASH` pour le refus du lien direct).
  *
  * ═══ CE QUE LA SESSION SIMULEE EST, ET N'EST PAS ════════════════════════════
  * L'`access_token` rendu (dans le fragment du retour, par `/auth/v1/user` et par
@@ -182,6 +189,41 @@ export function magicLinkReturn(
     type,
   });
   return `/callback#${fragment.toString()}`;
+}
+
+/**
+ * LE HACHE D'UN LIEN DIRECT — ce que le gabarit met dans `?token_hash=`.
+ *
+ * Forme copiee de GoTrue (`pkce_` + hexadecimal) pour que rien dans le harnais
+ * ne repose sur un format plus permissif que le vrai. Sa VALEUR, elle, n'a
+ * aucune importance : c'est le mock qui decide s'il l'accepte.
+ */
+export const VALID_TOKEN_HASH = 'pkce_9f3a91c04e7b2d18a6c5';
+
+/**
+ * LE HACHE D'UN LIEN MORT — expire, ou deja servi (ils sont a usage unique).
+ * Le mock le refuse par un 403 dont le corps est celui de GoTrue, mot pour mot :
+ * c'est `msg` que `@supabase/auth-js` remonte en `error.message`, et c'est ce
+ * message que `authCallbackVerdict2026` lit pour dire « expire » plutot que
+ * « incomplet ».
+ */
+export const EXPIRED_TOKEN_HASH = 'pkce_000000000000000expire';
+
+/**
+ * LE RETOUR D'UN LIEN DIRECT (E4) — ce qu'iOS remet a l'app, sans redirection.
+ *
+ * Le gabarit d'e-mail ecrit `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}
+ * &type=…` : une adresse COMPLETE, donc un lien universel de premiere main.
+ * Aucune session n'y voyage — seulement un hache a usage unique que l'app
+ * echange par `supabase.auth.verifyOtp`, c'est-a-dire `POST /auth/v1/verify`.
+ * C'est toute la difference avec `magicLinkReturn` : ici, le harnais prouve
+ * que l'app SAIT OUVRIR une session, au lieu d'en recevoir une toute faite.
+ */
+export function tokenHashReturn(
+  type: CallbackType = 'signup',
+  tokenHash: string = VALID_TOKEN_HASH,
+): string {
+  return `/callback?${new URLSearchParams({ token_hash: tokenHash, type }).toString()}`;
 }
 
 /**
@@ -440,6 +482,23 @@ export async function installSupabaseMock(
       // une inscription et pour un retour. Le mock ne le dit pas non plus. Ce
       // 200 signifie « le lien est parti », rien de plus — comme en vrai.
       return json(route, 200, { message_id: null });
+    }
+    /**
+     * `verifyOtp({ token_hash, type })` — l'echange du lien DIRECT (E4).
+     * Le vrai GoTrue repond ici la session complete, exactement comme
+     * `/auth/v1/token` ; sur un hache mort, un 403 dont `msg` porte le mot
+     * « expired ». Le mock ne connait qu'un seul hache valide : accepter
+     * n'importe quoi ferait passer pour vert un ecran qui aurait envoye du
+     * vide au serveur.
+     */
+    if (path === '/auth/v1/verify') {
+      const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+      if (body.token_hash === VALID_TOKEN_HASH) return json(route, 200, makeSession(user));
+      return json(route, 403, {
+        code: 403,
+        error_code: 'otp_expired',
+        msg: 'Email link is invalid or has expired',
+      });
     }
     if (path === '/auth/v1/token') {
       return json(route, 200, makeSession(user));

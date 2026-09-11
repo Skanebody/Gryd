@@ -16,12 +16,28 @@
  * dit « Recevoir le lien », l'e-mail porte un lien, et le retour se fait par
  * `/callback` — c'est ce que le harnais joue desormais.
  *
+ * ⚠️ DEUX FORMES DE RETOUR SONT JOUEES, ET CE N'EST PAS UN DOUBLON.
+ *   · `tokenHashReturn` — le lien DIRECT de l'e-mail depuis E4
+ *     (`?token_hash=…&type=…`). Rien n'est verifie quand il arrive : c'est
+ *     l'APP qui ouvre la session. C'est le parcours d'aujourd'hui, et le seul
+ *     qu'iOS puisse remettre a l'app sans passer par Safari ;
+ *   · `magicLinkReturn` — la redirection de `…/auth/v1/verify`
+ *     (`#access_token=…`), forme des liens partis AVANT E4. Ils restent bons
+ *     jusqu'a leur heure : les cesser de lire serait casser des liens deja
+ *     dans des boites mail.
+ *
  * Le reseau Supabase est entierement simule : aucune adresse reelle n'est
  * sollicitee, aucun quota d'e-mail consomme, aucun compte cree nulle part.
  */
 import type { Page } from '@playwright/test';
 import { expect, test, FR, exploredOnce, linkSentBody, seedStorage, mapLayersButton } from './fixtures/app';
-import { DEFAULT_USER, EXPIRED_LINK_RETURN, magicLinkReturn } from './fixtures/supabase-mock';
+import {
+  DEFAULT_USER,
+  EXPIRED_LINK_RETURN,
+  EXPIRED_TOKEN_HASH,
+  magicLinkReturn,
+  tokenHashReturn,
+} from './fixtures/supabase-mock';
 
 /** Invite qui a deja explore : c'est de la carte qu'il part chercher un compte. */
 async function guestOnMap(page: Page): Promise<void> {
@@ -256,6 +272,72 @@ test.describe('S2 — creation de compte', () => {
     await page.getByRole('button', { name: FR.linkExpiredCta }).click();
     await expect(page).toHaveURL(/\/email/, { timeout: 20_000 });
     await expect(page.getByLabel(FR.emailLabel)).toBeVisible();
+  });
+
+  /**
+   * ═══ E4 — LE LIEN DIRECT, CELUI QUI OUVRE L'APP SANS UN CLIC ══════════════
+   *
+   * ETAPE 0 : l'app ne savait pas lire `?token_hash=…`. `parseAuthCallback2026`
+   * rendait `{ kind: 'none' }`, l'ecran attendait trois secondes puis disait
+   * « Aucun retour de connexion n'est arrive jusqu'ici » — sur un lien
+   * parfaitement valide qu'il tenait en main.
+   *
+   * Ce que ce test prouve, et que le test du fragment ne prouve pas : l'app
+   * ECHANGE elle-meme le hache (`POST /auth/v1/verify`) au lieu de recevoir une
+   * session toute faite. C'est la condition pour que le lien de l'e-mail soit
+   * une adresse complete, donc un lien universel de premiere main.
+   */
+  test('lien direct (token_hash) : l’app verifie elle-meme, et DIT que le compte est cree', async ({
+    page,
+    supabase,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+
+    await reachEmailForm(page);
+    await requestLink(page, DEFAULT_USER.email);
+
+    // OUVRIR LE LIEN DE L'E-MAIL, tel que le gabarit l'ecrit : une adresse
+    // complete, aucun jeton de session, juste un hache a usage unique.
+    await page.goto(tokenHashReturn('signup'));
+
+    // LA SESSION NE SORT PAS DE NULLE PART : elle vient de cet echange-la.
+    await expect
+      .poll(() => supabase.countOf('POST /auth/v1/verify'), { timeout: 20_000 })
+      .toBe(1);
+
+    await expect(page.getByText(FR.welcomeFreshTitle)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: FR.welcomeFreshCta, exact: true }).click();
+    await expect(page).toHaveURL(/\/setup\/profile/, { timeout: 20_000 });
+
+    expect(errors, `erreurs runtime : ${errors.join(' | ')}`).toHaveLength(0);
+  });
+
+  test('lien direct mort : le refus vient du SERVEUR, et l’ecran le nomme', async ({
+    page,
+    supabase,
+  }) => {
+    await seedStorage(page, exploredOnce());
+    await page.goto(tokenHashReturn('signup', EXPIRED_TOKEN_HASH));
+
+    await expect(page.getByText(FR.linkExpiredTitle)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(FR.linkExpiredBody)).toBeVisible();
+
+    /**
+     * ⚠️ LA DIFFERENCE AVEC LE LIEN EXPIRE « DU FRAGMENT », JUSTE AU-DESSUS :
+     * la-bas GoTrue avait deja refuse, le refus etait ECRIT dans l'URL et rien
+     * ne partait au serveur. Ici le hache est intact tant qu'on ne l'a pas
+     * presente : l'app DOIT donc tenter l'echange, et c'est le serveur qui
+     * tranche. Un ecran qui conclurait sans demander accuserait un lien qu'il
+     * n'a pas verifie.
+     */
+    expect(supabase.countOf('POST /auth/v1/verify')).toBe(1);
+    // Et surtout : aucune session n'est affirmee.
+    await expect(page.getByText(FR.welcomeFreshTitle)).toHaveCount(0);
+
+    // Ce n'est pas un cul-de-sac : la sortie rouvre le champ.
+    await page.getByRole('button', { name: FR.linkExpiredCta }).click();
+    await expect(page).toHaveURL(/\/email/, { timeout: 20_000 });
   });
 
   test('lien valide → session, et l’app DIT que le compte est cree', async ({

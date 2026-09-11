@@ -11,18 +11,31 @@
  * le clic ne produisait littéralement rien, pas même une erreur. Le lien vise
  * maintenant CETTE page : elle félicite, puis rend la session à l'app.
  *
+ * ── LE LIEN DE L'E-MAIL VISE CETTE PAGE DIRECTEMENT (E4, 12/09/2026) ────────
+ * Il passait par `…supabase.co/auth/v1/verify?…`, qui vérifiait puis redirigeait
+ * ici avec la session dans le fragment. Fonctionnel, et pourtant un demi-échec :
+ * iOS ne remet PAS un lien universel à l'app au bout d'une redirection, donc
+ * cette page se peignait TOUJOURS et il fallait appuyer sur « Ouvrir GRYD ». Le
+ * gabarit écrit maintenant l'adresse finale lui-même :
+ * `{{ .SiteURL }}/callback?token_hash={{ .TokenHash }}&type=…`.
+ *
  * ── LES TROIS CHEMINS, DU MEILLEUR AU PIRE ──────────────────────────────────
  *  ① iPhone où GRYD est installé : le LIEN UNIVERSEL ouvre l'app directement,
  *    sans que cette page soit peinte (iOS lit `/.well-known/apple-app-site-
- *    association`, servi par ce même site). Aucun clic.
- *    ⚠ Tant que `apps/mobile/app.json` ne déclare pas `associatedDomains`
- *    (gabarit `_universal_links_o10`) et qu'un build ne l'embarque pas, ce
- *    chemin N'EST PAS actif : c'est le chemin ② qui joue, et c'est pour ça que
- *    le bouton existe.
+ *    association`, servi par ce même site). Aucun clic. C'est le chemin NORMAL
+ *    depuis E4 — à une condition qu'aucun code ne peut remplir : qu'un build
+ *    EAS embarquant `associatedDomains` soit installé sur l'appareil.
  *  ② navigateur du téléphone, app installée : la page s'affiche, le bouton
- *    chartreuse ouvre `gryd://callback#…` et l'app reçoit la session.
- *  ③ ordinateur, ou téléphone sans l'app : la page félicite quand même (le
- *    compte EXISTE, il vient d'être créé côté serveur) et dit où continuer.
+ *    chartreuse ouvre `gryd://callback?token_hash=…` et l'app vérifie.
+ *  ③ ordinateur, ou téléphone sans l'app : la page ne prétend RIEN sur le
+ *    compte (elle n'a rien vérifié, cf. ci-dessous) et dit où continuer.
+ *
+ * ── ELLE NE VÉRIFIE PAS LE HACHÉ, ET C'EST DÉLIBÉRÉ ─────────────────────────
+ * Un `token_hash` ne sert qu'UNE fois. Le consommer ici le rendrait mort pour
+ * l'app, c'est-à-dire recréer le défaut que E4 répare. Le raisonnement complet
+ * est dans l'en-tête de `lib/authCallbackLink2026.ts` ; la conséquence à
+ * l'écran est simple : sur ce chemin, la page annonce un LIEN PRÊT, jamais un
+ * compte créé.
  *
  * ── CE QUE CETTE PAGE NE FAIT PAS ───────────────────────────────────────────
  *  · ELLE N'OUVRE PAS `gryd://` TOUTE SEULE. Une redirection automatique vers
@@ -36,10 +49,11 @@
  *    `console.log`, aucun analytics, aucun envoi. Le `noindex` est posé par
  *    `layout.tsx` pour la même raison.
  *  · ELLE NE DÉCIDE RIEN ELLE-MÊME. Le verdict vient de
- *    `readAuthCallbackLink2026` (PUR, 14 tests joués par `npm run test:web`).
+ *    `readAuthCallbackLink2026` (PUR, testé par `npm run test:web`).
  *
- * ── LES CINQ ÉTATS, ET LE SIXIÈME ───────────────────────────────────────────
- * inscription · retour · expiré · refusé · incomplet, plus l'état EN COURS du
+ * ── LES SIX ÉTATS, ET LE SEPTIÈME ───────────────────────────────────────────
+ * lien prêt · inscription · retour · expiré · refusé · incomplet, plus l'état EN
+ * COURS du
  * tout premier rendu : le HTML statique est produit au build, où `window`
  * n'existe pas, donc le lien n'est lu qu'au montage. Cet état-là dure un
  * battement de cil, mais il est nommé plutôt que déguisé en réussite (L8/L14).
@@ -63,6 +77,8 @@ const C = {
   subtitle: "Ouvre l'app pour continuer.",
   notInstalled:
     "GRYD n'est pas encore installé sur cet appareil ? Ouvre ce lien sur ton téléphone où GRYD est installé.",
+  tokenHash: 'Ton lien de connexion est prêt.',
+  tokenHashBody: "C'est GRYD qui le valide. Ouvre l'app pour te connecter.",
   signup: 'Félicitations, ton compte GRYD est créé.',
   back: 'Bon retour sur GRYD.',
   expired: 'Ce lien a expiré.',
@@ -75,6 +91,8 @@ const C = {
 
 function titleOf(kind: AuthCallbackLinkView['kind']): string {
   switch (kind) {
+    case 'token_hash':
+      return C.tokenHash;
     case 'signup':
       return C.signup;
     case 'return':
@@ -90,6 +108,8 @@ function titleOf(kind: AuthCallbackLinkView['kind']): string {
 
 function bodyOf(kind: AuthCallbackLinkView['kind']): string {
   switch (kind) {
+    case 'token_hash':
+      return C.tokenHashBody;
     case 'signup':
     case 'return':
       return C.subtitle;

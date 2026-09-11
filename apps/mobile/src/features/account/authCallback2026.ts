@@ -1,40 +1,105 @@
+import { authCallbackParam, parseAuthCallbackUrl } from '../../lib/links';
+
+/**
+ * LES TYPES DE VÉRIFICATION QUE GOTRUE ACCEPTE SUR `POST /auth/v1/verify`.
+ *
+ * Fermé, et recopié depuis `EmailOtpType` de `@supabase/auth-js` (2.110) — dont
+ * le type public est ouvert (`| (string & {})`) et ne protégerait donc de rien.
+ * `'email'` n'est pas un doublon des deux autres : côté GoTrue il COUVRE à la
+ * fois `signup` et `magiclink`, ce qui en fait le seul repli honnête quand un
+ * client mail a mangé le paramètre `type` (voir `TOKEN_HASH_FALLBACK_TYPE`).
+ */
+export type TokenHashType2026 =
+  | 'signup'
+  | 'magiclink'
+  | 'recovery'
+  | 'invite'
+  | 'email_change'
+  | 'email';
+
+const TOKEN_HASH_TYPES: readonly string[] = [
+  'signup',
+  'magiclink',
+  'recovery',
+  'invite',
+  'email_change',
+  'email',
+];
+
+/**
+ * CE QU'ON VÉRIFIE QUAND LE LIEN N'A PLUS SON `type`.
+ *
+ * Ce n'est PAS une devinette : `email` est le type de vérification que GoTrue
+ * définit comme couvrant `signup` ET `magiclink` — c'est-à-dire exactement les
+ * deux gabarits que GRYD émet avec un `token_hash`. Un lien recopié à la main,
+ * ou tronqué après le `&`, reste donc vérifiable ; et si le haché venait d'un
+ * `recovery` ou d'un `email_change`, le serveur refuse — l'app dit alors que le
+ * lien n'est plus valide, ce qui est vrai, au lieu d'inventer un succès.
+ */
+export const TOKEN_HASH_FALLBACK_TYPE: TokenHashType2026 = 'email';
+
 /** Données minimales d'un retour Supabase. Les jetons ne doivent jamais être journalisés. */
 export type AuthCallback2026 =
+  /**
+   * LIEN DIRECT (E4) — `?token_hash=…&type=…`, ce que le gabarit d'e-mail
+   * envoie depuis le 12/09/2026. Aucune session n'est encore ouverte : ce
+   * haché à USAGE UNIQUE doit être échangé par `supabase.auth.verifyOtp`.
+   */
+  | { readonly kind: 'token_hash'; readonly tokenHash: string; readonly type: TokenHashType2026 }
   | { readonly kind: 'pkce'; readonly code: string }
   | { readonly kind: 'tokens'; readonly accessToken: string; readonly refreshToken: string }
   | { readonly kind: 'error'; readonly message: string }
   | { readonly kind: 'none' };
 
-function paramsFrom(part: string): URLSearchParams {
-  return new URLSearchParams(part.replace(/^[?#]/, ''));
-}
-
 /**
- * Accepte les deux retours officiellement utilisés par Supabase : code PKCE
- * dans la query, ou session implicite dans le fragment. Fonction pure pour que
- * la régression du deep link natif soit testable sans ouvrir un e-mail.
+ * Accepte les TROIS retours que Supabase sait produire : haché de lien direct
+ * (`?token_hash=…`, le parcours d'aujourd'hui), code PKCE dans la query, ou
+ * session implicite dans le fragment (la redirection de `…/auth/v1/verify`,
+ * encore reçue par les liens déjà partis). Fonction pure pour que la régression
+ * du deep link natif soit testable sans ouvrir un e-mail.
+ *
+ * ⚠️ LES TROIS SONT MUTUELLEMENT EXCLUSIFS dans un retour réel : GoTrue ne pose
+ * jamais deux formes à la fois. L'ordre ci-dessous n'arbitre donc rien — il dit
+ * seulement lequel est le parcours courant.
  */
 export function parseAuthCallback2026(rawUrl: string | null | undefined): AuthCallback2026 {
-  if (!rawUrl) return { kind: 'none' };
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return { kind: 'none' };
+  const parts = parseAuthCallbackUrl(rawUrl);
+  if (parts === null) return { kind: 'none' };
+
+  // L'ERREUR D'ABORD. `verify` refuse AVANT toute redirection en la posant dans
+  // la query ; le flux implicite la pose dans le fragment. Les deux sont lus.
+  const error = authCallbackParam(parts, 'error_description', ['query', 'fragment']) ??
+    authCallbackParam(parts, 'error', ['query', 'fragment']);
+  if (error !== null) return { kind: 'error', message: error };
+
+  // ① LIEN DIRECT. Le gabarit le pose dans la QUERY (un lien d'e-mail ne peut
+  //    pas porter de fragment utile : il doit être une adresse complète pour
+  //    qu'iOS le remette à l'app). Le fragment est lu quand même, au cas où un
+  //    client mail réécrirait l'adresse.
+  const tokenHash = authCallbackParam(parts, 'token_hash', ['query', 'fragment']);
+  if (tokenHash !== null) {
+    const raw = authCallbackParam(parts, 'type', ['query', 'fragment']);
+    return {
+      kind: 'token_hash',
+      tokenHash,
+      type: raw !== null && TOKEN_HASH_TYPES.includes(raw)
+        ? (raw as TokenHashType2026)
+        : TOKEN_HASH_FALLBACK_TYPE,
+    };
   }
 
-  const query = paramsFrom(url.search);
-  const fragment = paramsFrom(url.hash);
-  const error = query.get('error_description') ?? fragment.get('error_description') ??
-    query.get('error') ?? fragment.get('error');
-  if (error) return { kind: 'error', message: error };
+  // ② CODE PKCE.
+  const code = authCallbackParam(parts, 'code', ['query', 'fragment']);
+  if (code !== null) return { kind: 'pkce', code };
 
-  const code = query.get('code');
-  if (code) return { kind: 'pkce', code };
-
-  const accessToken = fragment.get('access_token') ?? query.get('access_token');
-  const refreshToken = fragment.get('refresh_token') ?? query.get('refresh_token');
-  if (accessToken && refreshToken) return { kind: 'tokens', accessToken, refreshToken };
+  // ③ SESSION IMPLICITE. Les DEUX jetons sont exigés : `setSession` ne sait
+  //    rien faire d'un `access_token` seul, et prétendre le contraire ferait
+  //    échouer l'ouverture après avoir annoncé une réussite.
+  const accessToken = authCallbackParam(parts, 'access_token');
+  const refreshToken = authCallbackParam(parts, 'refresh_token');
+  if (accessToken !== null && refreshToken !== null) {
+    return { kind: 'tokens', accessToken, refreshToken };
+  }
   return { kind: 'none' };
 }
 

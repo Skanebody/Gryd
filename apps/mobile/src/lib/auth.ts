@@ -317,6 +317,15 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
        * Elle doit figurer dans l'`uri_allow_list` du projet Supabase : sans
        * elle, GoTrue retombe sur `SITE_URL` et le lien ramène ailleurs. Réglage
        * de dashboard, invérifiable depuis le client — dit, jamais supposé.
+       *
+       * ⚠️ DEPUIS E4, CE N'EST PLUS ELLE QUI FABRIQUE LE LIEN DE L'E-MAIL. Les
+       * gabarits (`supabase/email-templates/2026-09/`) écrivent l'adresse
+       * eux-mêmes à partir de `{{ .SiteURL }}` et de `{{ .TokenHash }}` : ils
+       * ne rendent plus `{{ .ConfirmationURL }}`, donc plus aucune redirection
+       * ne s'intercale — c'est toute la raison d'être du lot. Ce paramètre
+       * reste posé parce qu'il est le repli du jour où un gabarit reviendrait à
+       * `{{ .ConfirmationURL }}` : sans lui, ce jour-là, le lien ramènerait sur
+       * `SITE_URL` au lieu du retour.
        */
       emailRedirectTo: AUTH_CALLBACK_URL,
     },
@@ -325,21 +334,38 @@ export async function requestEmailOtp(email: string): Promise<AuthResult> {
   return { ok: true };
 }
 
-/** Termine réellement le retour du lien e-mail, y compris sur iOS/Android. */
+/**
+ * Termine réellement le retour du lien e-mail, y compris sur iOS/Android.
+ * TROIS formes possibles, décrites par `parseAuthCallback2026` : le haché du
+ * lien direct (`?token_hash=…`, le parcours courant depuis E4), un code PKCE,
+ * ou une session implicite déjà ouverte par GoTrue (`#access_token=…`, la forme
+ * des liens partis avant E4 — ils restent valides jusqu'à leur expiration).
+ */
 export async function completeAuthCallback(url: string | null): Promise<AuthResult> {
   if (!supabase) return { ok: false, reason: 'supabase_not_configured' };
   const callback = parseAuthCallback2026(url);
   if (callback.kind === 'error') {
     return { ok: false, reason: 'auth_error', message: callback.message };
   }
-  const result = callback.kind === 'pkce'
-    ? await supabase.auth.exchangeCodeForSession(callback.code)
-    : callback.kind === 'tokens'
-      ? await supabase.auth.setSession({
-          access_token: callback.accessToken,
-          refresh_token: callback.refreshToken,
-        })
-      : await supabase.auth.getSession();
+  /**
+   * ⚠️ `token_hash` D'ABORD : C'EST LE PARCOURS D'AUJOURD'HUI (E4). Le lien de
+   * l'e-mail vise `gryd.run/callback?token_hash=…&type=…` — un lien universel
+   * de PREMIÈRE MAIN, seul capable d'ouvrir l'app sans passer par Safari (iOS
+   * ne remet pas à l'app un lien atteint au bout d'une redirection). Le haché
+   * n'est PAS une session : `verifyOtp` l'échange contre une vraie session, et
+   * il ne sert QU'UNE FOIS — d'où l'interdiction faite à la page web de le
+   * consommer à la place de l'app (`apps/web/lib/authCallbackLink2026.ts`).
+   */
+  const result = callback.kind === 'token_hash'
+    ? await supabase.auth.verifyOtp({ token_hash: callback.tokenHash, type: callback.type })
+    : callback.kind === 'pkce'
+      ? await supabase.auth.exchangeCodeForSession(callback.code)
+      : callback.kind === 'tokens'
+        ? await supabase.auth.setSession({
+            access_token: callback.accessToken,
+            refresh_token: callback.refreshToken,
+          })
+        : await supabase.auth.getSession();
   if (result.error || !result.data.session) {
     return { ok: false, reason: 'auth_error', message: result.error?.message };
   }

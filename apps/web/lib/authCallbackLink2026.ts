@@ -16,19 +16,45 @@
  * fait que la PEINDRE. Une condition écrite au milieu d'un JSX n'aurait jamais
  * été rejouable sans ouvrir un e-mail.
  *
- * ── LES DEUX FORMES QUE SUPABASE ENVOIE, ET RIEN D'AUTRE ────────────────────
+ * ── LES TROIS FORMES QUE SUPABASE ENVOIE, ET RIEN D'AUTRE ───────────────────
+ *  · haché de LIEN DIRECT — `?token_hash=…&type=signup|magiclink|…` dans la
+ *    query. C'est ce que le gabarit d'e-mail envoie depuis E4, et c'est la
+ *    forme qui compte : rien n'est encore vérifié quand cette page la reçoit ;
  *  · session implicite — `#access_token=…&refresh_token=…&type=signup|magiclink|
- *    recovery|email_change` (le FRAGMENT, que le serveur ne voit jamais) ;
+ *    recovery|email_change` (le FRAGMENT, que le serveur ne voit jamais). C'est
+ *    la forme des liens partis AVANT E4, encore valides jusqu'à leur heure ;
  *  · code PKCE — `?code=…` dans la query.
  * Miroir exact de `parseAuthCallback2026` (apps/mobile/src/features/account/) :
  * ce que l'app sait consommer est ce que cette page sait transmettre. Les deux
  * fichiers doivent rester d'accord — s'ils divergent, le lien se perd entre le
  * navigateur et l'app, c'est-à-dire à l'endroit précis du défaut d'aujourd'hui.
  *
+ * ── CE MODULE NE VÉRIFIE PAS LE HACHÉ, ET C'EST LA DÉCISION DU LOT (E4) ─────
+ * Cette page POURRAIT appeler `supabase.auth.verifyOtp({ token_hash, type })`
+ * avec la clé anonyme, qui est publique par construction. Elle ne le fait pas,
+ * pour trois raisons qui vont toutes dans le même sens :
+ *
+ *  1. UN HACHÉ NE SERT QU'UNE FOIS. Le consommer ici le rendrait MORT pour
+ *     l'app — c'est-à-dire recréer, à un pas de distance, exactement le défaut
+ *     que E4 répare. Le lien direct existe pour que ce soit l'APP qui ouvre la
+ *     session, sans un clic ; lui voler son jeton au passage serait absurde.
+ *  2. CETTE PAGE N'EST PAS UN PRODUIT. Il n'existe pas de GRYD web à ouvrir :
+ *     `gryd.run` sert une landing et des pages légales. Une session créée dans
+ *     ce navigateur ne servirait à personne, et brûlerait le lien de celui qui
+ *     l'a demandé.
+ *  3. MOINS DE SURFACE. Pas de client Supabase, pas de clé embarquée, pas
+ *     d'appel réseau sur une page qui reçoit des jetons.
+ *
+ * Elle dit donc ce qui est vrai — « ton lien est prêt, il s'ouvre dans Gryd » —
+ * et tend le bouton `gryd://callback?token_hash=…&type=…`. Sans l'app, elle
+ * envoie vers le téléphone où l'app est installée, plutôt que d'annoncer une
+ * connexion qui n'aurait lieu nulle part.
+ *
  * ── CE QUE CE MODULE REFUSE DE FAIRE ────────────────────────────────────────
  *  1. DEVINER UN SUCCÈS. Sans jeton ni code, le verdict est `incomplete` — pas
  *     « bienvenue ». Féliciter quelqu'un dont le lien est tronqué, c'est lui
- *     faire croire qu'il a un compte qu'il n'a pas.
+ *     faire croire qu'il a un compte qu'il n'a pas. Un `token_hash` non plus
+ *     n'est JAMAIS une félicitation : rien n'a encore été vérifié.
  *  2. CONFONDRE EXPIRÉ ET CASSÉ. Un lien périmé se redemande ; un lien invalide
  *     ne se redemande pas de la même manière. Même séparation que
  *     `linkVerdictFromParams` côté mobile, et même marqueur (`expired`).
@@ -36,8 +62,15 @@
  *     il n'est ni tracé, ni envoyé en analytics, ni mis dans un titre de page.
  */
 
-/** Les cinq verdicts possibles d'un lien de connexion ouvert dans un navigateur. */
+/** Les six verdicts possibles d'un lien de connexion ouvert dans un navigateur. */
 export type AuthCallbackLinkKind =
+  /**
+   * LIEN DIRECT NON ENCORE VÉRIFIÉ (`?token_hash=…`). Le cas normal quand cette
+   * page se peint : sur un iPhone où GRYD est installé, iOS ouvre l'app AVANT
+   * elle. La voir signifie donc, le plus souvent, que l'app n'est pas là — et
+   * on ne peut rien affirmer du compte, puisque personne n'a encore vérifié.
+   */
+  | 'token_hash'
   /** Compte créé à l'instant (`type=signup`) : la seule félicitation légitime. */
   | 'signup'
   /** Session valide d'un compte qui existait déjà (magiclink, recovery, email_change). */
@@ -52,7 +85,8 @@ export type AuthCallbackLinkKind =
 export interface AuthCallbackLinkView {
   readonly kind: AuthCallbackLinkKind;
   /**
-   * Adresse `gryd://callback…` qui REND la session à l'app installée.
+   * Adresse `gryd://callback…` qui REND à l'app installée ce que ce lien porte
+   * — le haché à vérifier, ou la session déjà ouverte.
    * `null` dès qu'il n'y a rien à rendre : un bouton sans charge utile serait
    * un bouton mort (MASTER §12), et sur un lien expiré il ferait en plus
    * croire que l'app peut rattraper ce que le serveur a déjà refusé.
@@ -124,7 +158,16 @@ export function readAuthCallbackLink2026(
     return { kind: expired ? 'expired' : 'failed', appUrl: null };
   }
 
-  // ② SESSION IMPLICITE. Les DEUX jetons sont exigés : l'app ne sait rien faire
+  // ② LIEN DIRECT. Le haché est INTACT : on le transmet, on ne le consomme pas
+  //    (voir l'encart en tête). Le `type` voyage avec lui, parce que c'est lui
+  //    qui dit à `verifyOtp` quel jeton chercher.
+  const tokenHash = firstOf(both, ['token_hash']);
+  if (tokenHash.length > 0) {
+    const carrier = query.get('token_hash') !== null ? query : fragment;
+    return { kind: 'token_hash', appUrl: appUrlFrom(carrier, '?') };
+  }
+
+  // ③ SESSION IMPLICITE. Les DEUX jetons sont exigés : l'app ne sait rien faire
   //    d'un `access_token` seul (`parseAuthCallback2026` rend `none`), et lui en
   //    passer un ferait échouer l'ouverture après avoir promis une réussite.
   const accessToken = firstOf(both, ['access_token']);
@@ -138,7 +181,7 @@ export function readAuthCallbackLink2026(
     };
   }
 
-  // ③ CODE PKCE. Le type d'e-mail n'y figure pas : on ne peut donc PAS
+  // ④ CODE PKCE. Le type d'e-mail n'y figure pas : on ne peut donc PAS
   //    féliciter pour une inscription, on accueille sans prétendre savoir.
   const code = query.get('code') ?? fragment.get('code');
   if (code !== null && code.trim().length > 0) {
@@ -146,6 +189,6 @@ export function readAuthCallbackLink2026(
     return { kind: 'return', appUrl: appUrlFrom(carrier, '?') };
   }
 
-  // ④ RIEN. Ce n'est pas un échec du serveur : c'est une adresse incomplète.
+  // ⑤ RIEN. Ce n'est pas un échec du serveur : c'est une adresse incomplète.
   return { kind: 'incomplete', appUrl: null };
 }
