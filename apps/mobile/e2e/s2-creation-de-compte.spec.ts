@@ -23,9 +23,6 @@ import type { Page } from '@playwright/test';
 import { expect, test, FR, exploredOnce, linkSentBody, seedStorage, mapLayersButton } from './fixtures/app';
 import { DEFAULT_USER, EXPIRED_LINK_RETURN, magicLinkReturn } from './fixtures/supabase-mock';
 
-/** L'identite visible attendue : le prefixe de l'adresse, jamais un mot invente. */
-const EXPECTED_NAME = DEFAULT_USER.email.split('@')[0] ?? '';
-
 /** Invite qui a deja explore : c'est de la carte qu'il part chercher un compte. */
 async function guestOnMap(page: Page): Promise<void> {
   await seedStorage(page, exploredOnce());
@@ -261,7 +258,7 @@ test.describe('S2 — creation de compte', () => {
     await expect(page.getByLabel(FR.emailLabel)).toBeVisible();
   });
 
-  test('lien valide → session, retour a la carte, et le Profil montre une IDENTITE', async ({
+  test('lien valide → session, et l’app DIT que le compte est cree', async ({
     page,
     supabase,
   }) => {
@@ -273,8 +270,9 @@ test.describe('S2 — creation de compte', () => {
 
     // OUVRIR LE LIEN. L'e-mail est hors d'atteinte d'un test ; ce qui arrive a
     // l'app, lui, est connu : GoTrue redirige vers `/callback` avec la session
-    // dans le fragment (flux implicite). C'est ce retour-la qu'on joue.
-    await page.goto(magicLinkReturn());
+    // dans le fragment (flux implicite) et le TYPE du geste. `signup` = ce lien
+    // a CREE le compte, et c'est le serveur qui le dit.
+    await page.goto(magicLinkReturn(DEFAULT_USER, 'signup'));
 
     // LA SESSION NE SORT PAS DE NULLE PART : `setSession` decode le jeton du
     // fragment puis va DEMANDER l'utilisateur au serveur. Sans cet appel, une
@@ -285,26 +283,17 @@ test.describe('S2 — creation de compte', () => {
       .poll(() => supabase.countOf('GET /auth/v1/user'), { timeout: 20_000 })
       .toBeGreaterThan(0);
 
-    // La session prend, et l'ecran de retour se retire de lui-meme.
-    await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/, { timeout: 30_000 });
-    await expect(mapLayersButton(page)).toBeVisible({ timeout: 20_000 });
-
-    // Le profil connecte : une identite REELLE (le prefixe de l'adresse),
-    // jamais « Invite », et jamais le « … » de l'hydratation fige.
-    //
-    // ⚠️ ON Y VA PAR LA BARRE, PAS PAR `goto('/profil')` : c'est le geste du
-    // joueur, et la meme URL a deja servi DEUX ecrans dans ce depot (voir le
-    // test de collision de routes dans s3).
-    await page.getByRole('tab', { name: FR.navProfil }).click();
-
-    // L'IDENTITE est l'assertion, pas le titre de l'ecran : c'est elle que le
-    // joueur reconnait comme la sienne. Ici, le prefixe de son adresse.
-    await expect(page.getByText(EXPECTED_NAME, { exact: true })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(FR.profileGuest, { exact: true })).toHaveCount(0);
-    // Aucun « … » d'hydratation fige : l'ecran a fini de decider qui il montre.
-    await expect(page.getByText('…', { exact: true })).toHaveCount(0);
-    // Connecte : la porte de compte a disparu du profil.
-    await expect(page.getByRole('button', { name: FR.profileSignIn, exact: true })).toHaveCount(0);
+    /**
+     * ⚠️ CE QUE CE TEST ATTENDAIT AVANT LE 12/09/2026 : la CARTE, directement.
+     * C'etait le defaut du fondateur, mot pour mot — « il faudrait qu'appuyer
+     * sur le lien dise felicitations, vous etes inscrit ». Le geste le plus
+     * engageant du produit n'avait aucun accuse de reception : on passait de sa
+     * boite mail a une carte, sans un mot. La suite du parcours (profil,
+     * discipline, carte) est jouee de bout en bout par S6.
+     */
+    await expect(page.getByText(FR.welcomeFreshTitle)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: FR.welcomeFreshCta, exact: true }).click();
+    await expect(page).toHaveURL(/\/setup\/profile/, { timeout: 20_000 });
 
     expect(errors, `erreurs runtime : ${errors.join(' | ')}`).toHaveLength(0);
   });

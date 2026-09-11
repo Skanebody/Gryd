@@ -149,6 +149,10 @@ import {
   pickAvatarPhoto,
   type PickAvatarResult,
 } from '../../src/features/social/avatarPhoto';
+import {
+  consumeProviderName2026,
+  suggestedHandle2026,
+} from '../../src/features/account/providerIdentity2026';
 // Lecture de la position PAR PLATEFORME (`location.ts` natif / `location.web.ts`
 // web). Le provider natif tire `expo-task-manager`, sans support web : une route
 // ne peut pas l'importer en direct sans le mettre dans le bundle navigateur.
@@ -274,6 +278,41 @@ export default function SetupProfileScreen() {
   useEffect(() => {
     track(EVENTS.setupProfileViewed);
   }, []);
+
+  /**
+   * ─── LE NOM ACCORDÉ AU FOURNISSEUR PRÉ-REMPLIT, IL N'IMPOSE PAS ───────────
+   *
+   * Deux sources, dans cet ordre :
+   *   1. la PROPOSITION d'Apple, retenue à l'instant du consentement
+   *      (`providerIdentity2026`). Apple ne donne `fullName` qu'au premier
+   *      « Continuer avec Apple » : sans cette reprise, le joueur accorde son
+   *      nom puis on le lui redemande deux écrans plus loin, pour toujours ;
+   *   2. `user_metadata.full_name`, quand un fournisseur l'a réellement écrit
+   *      dans le compte.
+   *
+   * ⚠️ CE N'EST PAS UNE PUBLICATION. Rien n'est enregistré tant que le joueur
+   * n'a pas touché CONTINUER : il voit le champ, il peut l'effacer, et le
+   * consentement Apple (« partager mon nom avec cette app ») n'est pas le même
+   * que « afficher mon nom aux joueurs de ma ville ». La seconde autorisation
+   * est ce tap-là, et personne ne peut la donner à sa place.
+   *
+   * Une seule fois, au montage, et la proposition est CONSOMMÉE : un remontage
+   * ne doit jamais réécraser une correction que le joueur vient de taper.
+   */
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current) return;
+    seeded.current = true;
+    const meta = (session?.user?.user_metadata ?? {}) as { full_name?: string; name?: string };
+    const proposed = consumeProviderName2026() ?? meta.full_name ?? meta.name ?? null;
+    if (proposed === null) return;
+    setDisplayName(proposed.slice(0, DISPLAY_NAME_MAX));
+    const handleGuess = suggestedHandle2026(proposed);
+    // `null` = rien d'utilisable n'en sort (hors ASCII, trop court). On laisse
+    // alors le champ vide et son aide normale plutôt que de proposer un pseudo
+    // que le serveur refuserait.
+    if (handleGuess !== null) setHandle(handleGuess);
+  }, [session]);
 
   /**
    * VERDICT AFFICHÉ → event, une fois par verdict (pas une fois par frappe : le

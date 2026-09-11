@@ -51,10 +51,33 @@ Deno.test('la chaîne se termine sur la carte, et ne boucle jamais', () => {
 
 Deno.test('quelqu’un ENTRE dans la chaîne : l’accueil d’un compte neuf', async () => {
   assertEquals(WELCOME_SETUP_ROUTE, SETUP_CHAIN[0]);
-  const src = await code('(auth)/callback.tsx');
+  const welcome = await Deno.readTextFile(
+    new URL('../account/AccountWelcome2026.tsx', import.meta.url),
+  );
   assert(
-    src.includes('welcomeDestination2026'),
-    'l’écran de retour doit router par la règle PURE, jamais par un littéral',
+    welcome.includes('welcomeDestination2026'),
+    'l’accueil doit router par la règle PURE, jamais par un littéral',
+  );
+});
+
+/**
+ * LES DEUX ARRIVÉES RENDENT LE MÊME ACCUEIL. C'est la garde qui empêche Apple
+ * de redevenir un parcours à part : jusqu'au 12/09/2026, « Continuer avec
+ * Apple » ouvrait la session et la porte de compte renvoyait sur la carte, si
+ * bien que personne venu par Apple ne lisait « Félicitations » ni ne se voyait
+ * proposer un pseudo. Deux chemins d'inscription, deux expériences.
+ */
+Deno.test('le lien e-mail et Apple accueillent avec le MÊME composant', async () => {
+  for (const route of ['(auth)/callback.tsx', '(auth)/bienvenue.tsx']) {
+    const src = await code(route);
+    assert(src.includes('AccountWelcome2026'), `${route} doit rendre l’accueil partagé`);
+  }
+  const entry = await Deno.readTextFile(
+    new URL('../account/AuthEntry2026.tsx', import.meta.url),
+  );
+  assert(
+    entry.includes("router.replace('/bienvenue')"),
+    'une connexion par fournisseur natif doit passer par l’accueil, pas sauter à la carte',
   );
 });
 

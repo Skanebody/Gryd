@@ -80,6 +80,13 @@ export interface MockConfig {
   readonly user: MockUser;
   /** Panne simulee du backend (scenario S4). */
   readonly outage: SupabaseOutage;
+  /**
+   * Le joueur a-t-il deja NOMME son pseudo (`handle_chosen_2026`, migration
+   * 0175) ? `false` par defaut : un compte neuf porte l'etiquette derivee que
+   * l'inscription lui pose (0154, `runner_<12 hex>`), et c'est exactement ce
+   * que la base reelle contient pour un compte qui vient d'etre cree.
+   */
+  readonly handleChosen: boolean;
 }
 
 export const DEFAULT_USER: MockUser = {
@@ -162,16 +169,57 @@ export function makeSession(user: MockUser = DEFAULT_USER): FakeSession {
  * `Linking.useLinkingURL()` (sur le web : `window.location.href`), et
  * `completeAuthCallback` appelle `setSession` avec les deux jetons.
  */
-export function magicLinkReturn(user: MockUser = DEFAULT_USER): string {
+export function magicLinkReturn(
+  user: MockUser = DEFAULT_USER,
+  type: CallbackType = 'magiclink',
+): string {
   const session = makeSession(user);
   const fragment = new URLSearchParams({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
     expires_in: String(session.expires_in),
     token_type: session.token_type,
-    type: 'magiclink',
+    type,
   });
   return `/callback#${fragment.toString()}`;
+}
+
+/**
+ * LE TYPE QUE GOTRUE POSE, ET QUI CHANGE CE QUE L'APP A LE DROIT DE DIRE.
+ *
+ * `signup` quand le lien a CRÉÉ le compte (gabarit « Confirm signup »),
+ * `magiclink` quand il n'a fait que connecter (gabarit « Magic Link »). Le
+ * même `signInWithOtp({ shouldCreateUser: true })` produit l'un ou l'autre
+ * selon que l'adresse existait déjà — c'est le serveur qui tranche, et c'est
+ * pour ça que l'app le lit au lieu de le deviner.
+ */
+export type CallbackType = 'signup' | 'magiclink' | 'recovery';
+
+/**
+ * ⚠️ CE QUE CE HARNAIS NE PEUT PAS JOUER, ET IL FAUT LE DIRE. Le retour est
+ * SERVI SUR L'ORIGINE LOCALE (`http://127.0.0.1:<port>/callback#…`), parce
+ * qu'un navigateur de test ne peut pas atterrir sur `https://gryd.run/callback`
+ * sans sortir de la machine — ce que le filet réseau interdit, et à raison.
+ *
+ * Ce qui EST joué est pourtant l'essentiel : la FORME que l'app reçoit, c'est-
+ * à-dire une URL absolue avec la session dans le FRAGMENT, lue par
+ * `Linking.useLinkingURL()` (sur le web : `window.location.href`). Que l'hôte
+ * soit `gryd.run` ou `127.0.0.1` ne change RIEN au code traversé :
+ * `parseAuthCallback2026` et `callbackType2026` ne regardent pas l'hôte.
+ *
+ * Ce qui reste à prouver ailleurs, et qui l'est :
+ *   · que `gryd.run` remet bien ces chemins à l'app → `src/lib/links.test.ts`
+ *     (couture app.json ↔ apple-app-site-association) ;
+ *   · que les deux FORMES d'URL sont reconnues (`https://…` et `gryd://…`) →
+ *     `src/lib/links.test.ts` et `features/account/authCallback2026.test.ts` ;
+ *   · qu'iOS ouvre réellement l'app → APPAREIL, après un nouveau build EAS.
+ *     Aucun harnais ne peut le dire.
+ */
+export const CALLBACK_ORIGIN_NOTE = 'origine locale : voir le commentaire ci-dessus';
+
+/** Le retour tel que le pose le bouton « Ouvrir GRYD » de la page web. */
+export function schemeCallbackUrl(user: MockUser = DEFAULT_USER, type: CallbackType = 'signup'): string {
+  return `gryd://callback#${magicLinkReturn(user, type).split('#')[1] ?? ''}`;
 }
 
 /**
@@ -203,14 +251,68 @@ function emptyOwnership(activity: string): Record<string, unknown> {
  * Un RPC absent de cette table est une VIOLATION : il faut le regarder et
  * decider ce que « vide » veut dire pour lui, jamais rendre `null` au hasard.
  */
-function rpcFixture(name: string, body: Record<string, unknown>, user: MockUser): unknown {
+/** `runner_<12 premiers hex de l'uuid>` — la derivation EXACTE de 0154:118. */
+function derivedHandle(user: MockUser): string {
+  return `runner_${user.id.replace(/-/g, '').slice(0, 12)}`;
+}
+
+function rpcFixture(
+  name: string,
+  body: Record<string, unknown>,
+  user: MockUser,
+  handleChosen: boolean,
+  saved: { profile: Record<string, unknown> | null },
+): unknown {
   switch (name) {
+    /**
+     * ETAT DU PSEUDO (0175). Compte neuf : la ligne EXISTE (0154 la
+     * provisionne a l'inscription) et porte l'etiquette derivee, donc
+     * `handle_chosen` est FAUX et les deux credits sont intacts. C'est ce fait
+     * la, et pas une horloge, qui fait dire « Felicitations » a l'ecran de
+     * retour.
+     */
+    case 'my_handle_status_2026':
+      return {
+        handle: typeof saved.profile?.handle === 'string' ? saved.profile.handle : derivedHandle(user),
+        has_profile: true,
+        handle_chosen: handleChosen || saved.profile !== null,
+        changes_per_window: 2,
+        window_days: 14,
+        hold_days: 14,
+        changes_used: 0,
+        changes_left: 2,
+        next_change_allowed_at: null,
+        reclaimable: null,
+      };
+    /**
+     * DISPONIBILITE D'UN PSEUDO (0047). Le harnais ne connait AUCUN pseudo
+     * pris : la base de test est vide, et inventer un conflit ferait passer
+     * pour un fait serveur une decision de fixture. Le refus a son propre
+     * scenario, qui le POSE explicitement.
+     */
+    case 'check_handle_available':
+      // Contrat de 0047, lu par `parseHandleCheck` : `{ ok, reason }`.
+      return { ok: true, reason: null };
+    /**
+     * ENREGISTREMENT DU PROFIL (0175). Le serveur repond en ECHO : il rend le
+     * profil qu'il vient d'ecrire (`return my_social_profile_2026()`). On le
+     * rejoue tel quel — c'est la seule reponse honnete a un SAVE, et c'est ce
+     * qui permet au test suivant de lire le pseudo REELLEMENT enregistre.
+     */
+    case 'save_my_social_profile_2026': {
+      const profile = (body.p_profile ?? {}) as Record<string, unknown>;
+      saved.profile = profile;
+      return { ownerId: user.id, profile };
+    }
     // Aucune suppression de compte n'etait programmee : rien a annuler.
     case 'cancel_account_deletion':
       return { ok: true, restored: false };
-    // Compte neuf : aucun profil social enregistre cote serveur.
+    // Compte neuf : aucun profil social enregistre cote serveur — jusqu'a ce
+    // que l'ecran de configuration en enregistre un. Le mock garde alors ce
+    // qu'il a RECU, au lieu de continuer a repondre `null` a une ecriture qu'il
+    // vient d'acquitter : c'est ce mensonge-la qui masquerait un save perdu.
     case 'my_social_profile_2026':
-      return { ownerId: user.id, profile: null };
+      return { ownerId: user.id, profile: saved.profile };
     case 'get_ownership_2026':
       return emptyOwnership(typeof body.p_activity === 'string' ? body.p_activity : 'run');
     // Aucun objet commercial possede ni equipe : la liste vide EST la reponse.
@@ -263,6 +365,10 @@ export interface NetworkLog {
 export interface SupabaseMock extends NetworkLog {
   /** Bascule la panne backend en cours de test (scenario S4). */
   setOutage(outage: SupabaseOutage): void;
+  /** Le compte a-t-il deja nomme son pseudo ? (`handle_chosen_2026`, 0175) */
+  setHandleChosen(chosen: boolean): void;
+  /** Le profil ecrit par `save_my_social_profile_2026`, ou `null`. */
+  savedProfile(): Record<string, unknown> | null;
   /** Nombre d'appels vus sur ce chemin exact. */
   countOf(signature: string): number;
 }
@@ -293,6 +399,9 @@ export async function installSupabaseMock(
 ): Promise<SupabaseMock> {
   const user = config.user ?? DEFAULT_USER;
   let outage: SupabaseOutage = config.outage ?? 'none';
+  let handleChosen = config.handleChosen ?? false;
+  /** Ce que l'ecran de configuration a REELLEMENT envoye au serveur, s'il l'a fait. */
+  const saved: { profile: Record<string, unknown> | null } = { profile: null };
 
   const calls: string[] = [];
   const violations: string[] = [];
@@ -346,7 +455,7 @@ export async function installSupabaseMock(
     if (path.startsWith('/rest/v1/rpc/')) {
       const name = path.slice('/rest/v1/rpc/'.length);
       const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
-      const value = rpcFixture(name, body, user);
+      const value = rpcFixture(name, body, user, handleChosen, saved);
       if (value === undefined) {
         violations.push(`POST ${path} (RPC sans fixture)`);
         return json(route, 500, { code: 'PGRST202', message: `RPC ${name} sans fixture E2E` });
@@ -379,6 +488,10 @@ export async function installSupabaseMock(
     setOutage: (next: SupabaseOutage) => {
       outage = next;
     },
+    setHandleChosen: (chosen: boolean) => {
+      handleChosen = chosen;
+    },
+    savedProfile: () => saved.profile,
     countOf: (signature: string) => calls.filter((entry) => entry === signature).length,
   };
 }

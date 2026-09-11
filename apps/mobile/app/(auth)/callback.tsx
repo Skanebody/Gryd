@@ -34,13 +34,13 @@
  *    à quelqu'un dont le réseau est coupé lui fait brûler son quota d'envoi
  *    pour un lien qui, lui, est encore bon.
  *
- * ─── CE QUE L'ÉCRAN ÉCRIT DANS LE STOCKAGE, ET POURQUOI ─────────────────────
- * Une session obtenue par ce chemin prouve DEUX choses sur l'appareil : le
- * joueur a vu la porte de compte (donc la découverte n'a plus à lui être
- * repoussée) et il a déclaré son âge quelque part, sans quoi aucun compte
- * n'existerait. On les inscrit donc ici, une fois : sans ça, une reconnexion
- * sur un téléphone neuf redemanderait la découverte ET le gate 16+ à quelqu'un
- * qui a déjà un compte — exactement la friction que ce lot supprime.
+ * ─── L'ACCUEIL LUI-MÊME N'EST PLUS ICI ──────────────────────────────────────
+ * Il vit dans `features/account/AccountWelcome2026.tsx`, parce qu'il y a DEUX
+ * arrivées à accueillir : le lien e-mail (cet écran) et Apple
+ * (`app/(auth)/bienvenue.tsx`). Deux copies du même panneau auraient divergé au
+ * premier retouchage, et la moitié des nouveaux joueurs aurait lu une phrase
+ * différente de l'autre moitié. C'est lui, aussi, qui inscrit ce qu'une session
+ * neuve prouve sur l'appareil (découverte vue, âge déclaré).
  *
  * Aucune de ces phrases n'est un message serveur brut (cahier G02).
  */
@@ -52,7 +52,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, spacing } from '@klaim/shared';
 import { C } from '../../src/i18n/catalog/auth';
 import { C as EmailC } from '../../src/i18n/catalog/authEmail';
-import { C as WelcomeC } from '../../src/i18n/catalog/authWelcome';
 import { useT } from '../../src/i18n/store';
 import { useOnboardingState } from '../../src/features/onboarding/store';
 import { rememberOnboardingCompletion2026 } from '../../src/features/onboarding/sessionCompletion2026';
@@ -61,18 +60,10 @@ import {
   authCallbackVerdict2026,
   parseAuthCallback2026,
 } from '../../src/features/account/authCallback2026';
-import {
-  WELCOME_READ_TIMEOUT_MS,
-  callbackType2026,
-  welcomeDestination2026,
-  welcomeHandle2026,
-  welcomeKind2026,
-  type WelcomeRead2026,
-} from '../../src/features/account/welcome2026';
+import { AccountWelcome2026 } from '../../src/features/account/AccountWelcome2026';
+import { useWelcomeRead2026 } from '../../src/features/account/useWelcomeRead2026';
 import { linkVerdictFromParams } from '../../src/features/account/emailLink';
-import { useMyHandleStatus2026 } from '../../src/features/social/handleStatus2026Data';
 import { completeAuthCallback } from '../../src/lib/auth';
-import { haptics } from '../../src/lib/haptics';
 import { useSession } from '../../src/lib/session';
 import { Button } from '../../src/ui/Button';
 import { GrydMark } from '../../src/ui/gryd/GrydMark';
@@ -99,29 +90,19 @@ export default function AuthCallbackScreen() {
   const [waited, setWaited] = useState(false);
   /** Compteur de reprises : un échec de TRANSPORT n'a pas consommé le code. */
   const [attempt, setAttempt] = useState(0);
-  /** La lecture du pseudo a-t-elle dépassé son plafond de patience ? */
-  const [readTimedOut, setReadTimedOut] = useState(false);
 
   /**
    * L'état de pseudo du compte (`my_handle_status_2026`, migration 0175). Il
-   * sert à DEUX choses, et à rien d'autre : distinguer un compte jamais nommé
-   * (`handle_chosen` faux, donc neuf) d'un habitué, et écrire son @pseudo dans
-   * « Bon retour ». Il ne débloque RIEN — d'où son plafond de patience très
-   * court : au-delà, l'écran conclut sans lui.
+   * affine l'accueil et n'en bloque jamais l'affichage — voir
+   * `useWelcomeRead2026` pour son plafond de patience.
    */
-  const handleStatus = useMyHandleStatus2026();
+  const welcomeRead = useWelcomeRead2026(session !== null);
 
   useEffect(() => {
     if (url) { setWaited(false); return; }
     const timer = setTimeout(() => setWaited(true), AUTH_CALLBACK_URL_WAIT_MS);
     return () => clearTimeout(timer);
   }, [url]);
-
-  useEffect(() => {
-    if (session === null) { setReadTimedOut(false); return; }
-    const timer = setTimeout(() => setReadTimedOut(true), WELCOME_READ_TIMEOUT_MS);
-    return () => clearTimeout(timer);
-  }, [session]);
 
   useFocusEffect(useCallback(() => {
     const current = ++generation.current;
@@ -152,20 +133,6 @@ export default function AuthCallbackScreen() {
     };
   }, [url, attempt]));
 
-  /**
-   * LA SESSION EXISTE : on inscrit ce que ce fait PROUVE sur cet appareil, une
-   * seule fois. Rien n'attend cette écriture (le store la rend visible avant sa
-   * persistance) : un disque lent ne retient personne devant un logo.
-   */
-  const acquitted = useRef(false);
-  useEffect(() => {
-    if (session === null || acquitted.current) return;
-    acquitted.current = true;
-    haptics.success();
-    rememberOnboardingCompletion2026(true);
-    void update({ onboardingDone: true, reachedStep: 'map', ageConfirmed: true, ageDeclined: false });
-  }, [session, update]);
-
   if (!configured) return <Redirect href="/" />;
 
   const parsed = parseAuthCallback2026(url);
@@ -178,12 +145,11 @@ export default function AuthCallbackScreen() {
    */
   if (session !== null) {
     if (parsed.kind === 'none' && !exchange.done) return <Redirect href="/" />;
-    return <WelcomeScreen
+    return <AccountWelcome2026
       insets={insets}
-      t={t}
       callbackUrl={url}
       accountCreatedAt={typeof session.user.created_at === 'string' ? session.user.created_at : null}
-      read={welcomeRead(handleStatus.status, handleStatus.data, readTimedOut)}
+      read={welcomeRead}
     />;
   }
 
@@ -247,85 +213,6 @@ export default function AuthCallbackScreen() {
             <Text accessibilityRole="alert" style={styles.title}>{t(C.callbackFailed)}</Text>
             <Button size="md" label={t(C.emailCta)} onPress={() => router.replace('/email')} />
             <Button label={t(C.guestCta)} onPress={asGuest} variant="ghost" size="md" />
-          </>}
-        </View>
-      </TranslucentControl2026>
-    </View>
-  </View>;
-}
-
-/**
- * Les quatre états de `useMyHandleStatus2026` réduits aux TROIS que l'accueil
- * distingue. `signedOut` rejoint `reading` : à cet instant précis la session
- * vient d'être posée et le hook n'a pas encore vu son propriétaire changer —
- * ce n'est pas une réponse, c'est un temps de latence. Le plafond de patience
- * de l'écran, lui, le fait basculer en `failed` s'il s'éternise.
- */
-function welcomeRead(
-  status: 'signedOut' | 'loading' | 'ready' | 'failed',
-  data: { handle: string; handleChosen: boolean } | null,
-  timedOut: boolean,
-): WelcomeRead2026 {
-  if (status === 'ready' && data !== null) {
-    return { state: 'ready', handle: data.handle, handleChosen: data.handleChosen };
-  }
-  if (status === 'failed' || timedOut) return { state: 'failed' };
-  return { state: 'reading' };
-}
-
-/**
- * L'ACCUEIL. Un titre, une ligne, UN bouton (§A : jamais deux accents). Le G
- * chartreuse est le seul ornement — c'est la marque qui accueille, pas une
- * illustration de circonstance.
- */
-function WelcomeScreen({ insets, t, callbackUrl, accountCreatedAt, read }: {
-  insets: { top: number; bottom: number };
-  t: (entry: Parameters<ReturnType<typeof useT>>[0], vars?: Record<string, string | number>) => string;
-  callbackUrl: string | null;
-  accountCreatedAt: string | null;
-  read: WelcomeRead2026;
-}) {
-  const kind = welcomeKind2026({
-    callbackType: callbackType2026(callbackUrl),
-    read,
-    accountCreatedAt,
-    now: Date.now(),
-  });
-
-  const handle = welcomeHandle2026(read);
-  const go = () => {
-    if (kind === null) return;
-    router.replace(welcomeDestination2026(kind));
-  };
-
-  return <View style={styles.root}>
-    <View style={[styles.frame, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl }]}>
-      <GrydMark variant="symbol" size={24} color={colors.chartreuse} />
-      <View style={styles.hero}>
-        {/* Le G, en grand et en chartreuse : le seul accent de l'écran. */}
-        <GrydMark variant="symbol" size={72} color={colors.chartreuse} />
-      </View>
-      <TranslucentControl2026 tone="dark" style={styles.panel}>
-        <View style={styles.content}>
-          {kind === null ? <>
-            {/* La lecture court encore. Un chargement n'affirme rien : ni
-                « compte créé », ni « bon retour ». */}
-            <ActivityIndicator color={colors.chartreuse} />
-            <Text accessibilityRole="header" style={styles.title}>{t(C.callbackChecking)}</Text>
-          </> : kind === 'fresh' ? <>
-            <Text accessibilityRole="header" style={styles.title}>{t(WelcomeC.freshTitle)}</Text>
-            <Text style={styles.body}>{t(WelcomeC.freshBody)}</Text>
-            <Button size="md" label={t(WelcomeC.freshCta)} onPress={go} analyticsId="auth_welcome_fresh" />
-          </> : kind === 'returning' ? <>
-            <Text accessibilityRole="header" style={styles.title}>
-              {handle ? t(WelcomeC.returningTitleNamed, { handle }) : t(WelcomeC.returningTitle)}
-            </Text>
-            <Text style={styles.body}>{t(WelcomeC.returningBody)}</Text>
-            <Button size="md" label={t(WelcomeC.returningCta)} onPress={go} analyticsId="auth_welcome_back" />
-          </> : <>
-            <Text accessibilityRole="header" style={styles.title}>{t(WelcomeC.unknownTitle)}</Text>
-            <Text style={styles.body}>{t(WelcomeC.unknownBody)}</Text>
-            <Button size="md" label={t(WelcomeC.returningCta)} onPress={go} analyticsId="auth_welcome_unknown" />
           </>}
         </View>
       </TranslucentControl2026>

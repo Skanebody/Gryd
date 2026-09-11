@@ -219,7 +219,43 @@ export const FR = {
   callbackFailed: 'Ce retour de connexion n’est plus valide. Demande un nouveau lien.',
   callbackChecking: 'Connexion en cours…',
   callbackVerifying: 'Vérification du lien…',
+
+  /**
+   * ─── L'ACCUEIL, APRÈS QUE LE LIEN A ABOUTI ────────────────────────────────
+   * src/i18n/catalog/authWelcome.ts. Trois etats, trois phrases : on ne
+   * felicite pas quelqu'un qui revient, et on n'accueille pas comme un habitue
+   * quelqu'un qui vient de creer son compte. Les trois sont ici pour qu'un test
+   * puisse verifier qu'on ne lit PAS celle du voisin.
+   */
+  welcomeFreshTitle: 'Félicitations, ton compte GRYD est créé.',
+  welcomeFreshBody: 'Il reste une chose : choisir ton pseudo. C’est lui qui s’affichera sur les terrains que tu prends.',
+  welcomeFreshCta: 'Commencer',
+  welcomeBackTitle: 'Bon retour.',
+  /** Gabarit du catalogue — voir `welcomeBackNamed()` pour la phrase remplie. */
+  welcomeBackTitleNamed: 'Bon retour, @{handle}.',
+  welcomeBackBody: 'Ta ville t’attend. Tes terrains sont là où tu les as laissés.',
+  welcomeBackCta: 'Continuer',
+  welcomeUnknownTitle: 'Te voilà connecté.',
+
+  // ─── src/i18n/catalog/setupProfile.ts — E08, la configuration du profil ────
+  setupProfileTitle: 'Qui es-tu sur la carte ?',
+  setupNameLabel: 'Nom d’affichage',
+  setupHandleLabel: 'Handle',
+  setupHandleFree: 'Libre',
+  setupPhotoAdd: 'Ajouter une photo',
+  setupPhotoOptional: 'Facultatif. Sans photo, tes initiales font l’avatar.',
+  setupCityOptional: 'Sans ville, la carte s’ouvrira là où tu es. Tu pourras la choisir plus tard.',
+  setupCta: 'CONTINUER',
+
+  // ─── src/i18n/catalog/setupActivity.ts — E09, la discipline ────────────────
+  setupActivityTitle: 'Tu commences par quoi ?',
+  setupActivitySkip: 'Plus tard',
 } as const;
+
+/** `returningTitleNamed` du catalogue avec son `{handle}` rempli. */
+export function welcomeBackNamed(handle: string): string {
+  return FR.welcomeBackTitleNamed.replace('{handle}', handle);
+}
 
 /** `sentBody` du catalogue avec son `{email}` rempli — la phrase REELLEMENT peinte. */
 export function linkSentBody(email: string): string {

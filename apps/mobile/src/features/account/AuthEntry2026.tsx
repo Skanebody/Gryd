@@ -131,6 +131,18 @@ export function AuthEntry2026({ renderAppleButton }: AuthEntry2026Props) {
     setVoice(null);
     try {
       const result: AuthResult = method === 'apple' ? await signInWithApple() : await signInWithGoogle();
+      /**
+       * ─── LE MÊME ACCUEIL QUE LE LIEN E-MAIL (12/09/2026) ──────────────────
+       * Sans ce `replace`, la session s'ouvrait et le `<Redirect href="/" />`
+       * du haut de ce composant déposait le joueur sur la carte, SANS UN MOT :
+       * qui s'inscrivait par Apple ne lisait jamais « Félicitations, ton compte
+       * GRYD est créé », ni la proposition de choisir son pseudo. Deux chemins
+       * d'inscription, deux expériences, sans aucune raison.
+       *
+       * `/bienvenue` rend le MÊME composant que `/callback` ; c'est lui qui
+       * décide s'il félicite ou s'il accueille, sur `handle_chosen_2026`.
+       */
+      if (result.ok) { router.replace('/bienvenue'); return; }
       const next = authFailureVoice2026(result);
       if (mounted.current) setVoice(next === 'silent' ? null : next);
     } catch {

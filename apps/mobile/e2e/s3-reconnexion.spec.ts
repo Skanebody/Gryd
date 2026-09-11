@@ -72,7 +72,11 @@ test.describe('S3 — reconnexion', () => {
 
   test('reconnexion : l’age deja declare n’est pas redemande, et la session revient par le LIEN', async ({
     page,
+    supabase,
   }) => {
+    // Ce compte existe et a deja NOMME son pseudo : c'est un retour, pas une
+    // creation, et l'ecran d'accueil doit le dire comme tel.
+    supabase.setHandleChosen(true);
     await seedStorage(page, returningMember());
     await page.goto('/parametres');
     await page.getByRole('button', { name: FR.settingsSignOut }).click();
@@ -91,8 +95,12 @@ test.describe('S3 — reconnexion', () => {
     await page.getByRole('button', { name: FR.linkRequestCta }).click();
     await expect(page.getByText(linkSentBody(DEFAULT_USER.email))).toBeVisible();
 
-    // Le lien ouvert : la session revient, et la carte avec elle.
+    // Le lien ouvert : la session revient. L'ecran d'accueil ACCUEILLE — il ne
+    // felicite pas quelqu'un qui a deja un compte — puis rend la carte.
     await page.goto(magicLinkReturn());
+    await expect(page.getByText(FR.welcomeBackBody)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(FR.welcomeFreshTitle)).toHaveCount(0);
+    await page.getByRole('button', { name: FR.welcomeBackCta, exact: true }).click();
     await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/, { timeout: 30_000 });
     await expect(mapLayersButton(page)).toBeVisible({ timeout: 20_000 });
   });

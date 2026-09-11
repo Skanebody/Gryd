@@ -52,6 +52,7 @@ import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { EVENTS, identify, resetAnalytics, track } from './analytics';
 import { AUTH_CALLBACK_URL } from './links';
+import { rememberProviderName2026 } from '../features/account/providerIdentity2026';
 import { markSignupT0 } from './activation';
 import { supabase } from './supabase';
 import { emailDelivery2026, parseAuthCallback2026 } from '../features/account/authCallback2026';
@@ -206,6 +207,17 @@ export async function signInWithApple(): Promise<AuthResult> {
   if (error) return { ok: false, reason: 'auth_error', message: error.message };
 
   if (data.user) identify(data.user.id);
+  /**
+   * ⚠️ APPLE NE DONNE LE NOM QU'UNE FOIS, ET IL ÉTAIT JETÉ. `requestedScopes`
+   * demande `FULL_NAME` depuis toujours ; `credential.fullName` n'est rempli
+   * qu'au PREMIER consentement d'un compte Apple pour cette app, et le token
+   * d'identité ne le porte pas — Supabase ne peut donc pas le mettre dans
+   * `user_metadata`. Ne pas l'attraper ICI revenait à le perdre définitivement,
+   * et à redemander deux écrans plus loin un nom que le joueur venait
+   * d'accorder. Il est retenu EN MÉMOIRE, jamais sur le disque, et il ne
+   * devient public que si le joueur le confirme (voir `providerIdentity2026`).
+   */
+  rememberProviderName2026(credential.fullName);
   track(EVENTS.signupCompleted, { method: 'apple' satisfies SignInMethod });
   void markSignupT0(); // t0 du funnel activation (1re inscription gagne)
   return { ok: true };
