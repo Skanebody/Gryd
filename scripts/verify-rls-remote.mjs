@@ -240,6 +240,7 @@ const ANON_ALLOWED = new Set([
   'peek_crew_invite',              // aperçu d'invitation : exige 130 bits de jeton
   'waitlist_join',                 // formulaire de la landing
   'get_commercial_collections_2026', // catalogue de collections, aucune donnée perso
+  'auth_handoff_claim_2026',       // remise de session (0198) : nonce 256 bits haché, usage unique, TTL 5 min ; l'app n'a aucune session à cet instant
 ]);
 const { rows: anonFns } = await c.query(`
   select p.proname, p.prosecdef
