@@ -571,3 +571,17 @@ La discipline d’une sortie est déclarée par le bouton qui la lance (Courir o
 
 ### Ce qu’ADR-019 NE fait PAS
 Il ne construit pas la reconnaissance d’activité native (Core Motion) et ne rebascule jamais une sortie déjà envoyée : le choix se fait une fois, à l’arrivée.
+
+## ADR-020 — 2026-09-13 — Le cahier V5 précise le cahier de septembre : réparer la sortie avant tout, puis la trace, le Duo, le catalogue et la croissance
+
+### Le fait, avant toute décision
+Le fondateur observe sur son iPhone : s’arrêter coupe la sortie (U01), repartir semble démarrer une nouvelle course (U02), verrouiller le téléphone à vélo interrompt le suivi (U03), rouvrir Gryd lance une nouvelle activité puis affiche une pause (U04), le parcours est mal dessiné (U05), le partage ressemble mal au résultat (U06), les objets de personnalisation ne donnent pas envie (U07). Le 13/09 il remet un cahier de 33 chapitres, `docs/product/GRYD_V5_CORRECTIF_RECORDING_PARTAGE_DUO_CATALOGUE_VIRALITE_2026.md`, avec l’ordre : « Orchestre ce build avec des sous-agents IA experts ».
+
+### Décision
+1. **Rang 0,5.** Le cahier V5 précise le cahier de septembre (rang 0) et ne remplace que les décisions qu’il liste explicitement en son chapitre 1 (D01 à D15). Les règles territoriales, les droits achetés, les historiques et les valeurs d’XP ne sont pas réinitialisés (D12). En cas de contradiction hors D01–D15, le cahier de septembre prime.
+2. **Ordre impératif (cahier §0.2)** : P0 session et sauvegarde (même identifiant à l’arrêt, au verrouillage, à la pause, à la réouverture ; réouverture = réconciliation, jamais GO implicite ; auto-pause désactivée par défaut tant que sa reprise verrouillée n’est pas prouvée, D03 ; pause manuelle levée seulement par Reprendre, D04), puis P1 trace et export (trois horloges, segments, ShareManifest, watermark chartreuse discret, exception TikTok D10), puis P1 Photo Duo séquentiel gratuit (D08, D09 ; jamais de caméra automatique à la fin d’une sortie), puis P2 catalogue, droits, classements (deux au départ, D13), invitations et notifications choisies, puis P3 extensions. Aucune boutique ni palette ne précède la réparation du recorder (D01).
+3. **Preuve avant « fait ».** Chaque lot rend le « format de retour obligatoire » du cahier §31 ; les 100 scénarios du chapitre 27 sont NOT_RUN tant qu’ils ne sont pas exécutés ; un test Simulateur ne prouve pas le verrouillage réel ; un JSX compilé ne prouve pas le suivi natif.
+4. **Organisation.** Huit missions (E01 session, E02 iOS, E03 Android, E04 géospatial, E05 médias et Duo, E06 design et économie, E07 communauté et croissance, E08 QA et sécurité) orchestrées par lots avec un registre d’autorité par fichier ; jamais deux agents sur le même module ; les conclusions contradictoires sont tranchées par des traces d’exécution, pas par la parole d’un agent.
+
+### Ce qu’ADR-020 NE fait PAS
+Il ne met rien en vente (le contrat Apple « applications payantes » n’est pas signé et aucune clé de production RevenueCat n’existe : ADR-014 et ADR-016 tiennent), ne promet ni double caméra simultanée ni survol 3D, et ne change aucune règle de conquête.

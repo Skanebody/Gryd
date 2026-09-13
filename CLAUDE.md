@@ -7,6 +7,10 @@ Jeu mobile : courir → fermer une boucle → territoire sur la carte. MVP Saiso
    **ADR-012** (décision fondateur : « le cahier de septembre remplace le MASTER »). ⚠️ Il vit sur
    `codex/refonte-2026-09` et reste **à rapatrier** : tant qu'il n'est pas dans `docs/product/`,
    cette branche n'a pas de rang 0 lisible.
+0,5. **`docs/product/GRYD_V5_CORRECTIF_RECORDING_PARTAGE_DUO_CATALOGUE_VIRALITE_2026.md`** — le cahier V5
+   du 13/09 (ADR-020) : précise le rang 0 par ses décisions D01–D15 seulement ; ordre P0 session → P1 trace,
+   export, Duo → P2 catalogue, classements, croissance → P3 extensions ; rapport Lot 0 :
+   `docs/product/GRYD_V5_LOT0_FAITS_2026_09.md`.
 1. **`docs/DECISIONS.md`** — ADR datés. **ADR-012** : rang 0 au cahier, interdits qui survivent,
    tensions ouvertes (ADR-002/003/006/008/010/011), collision de migrations 0107–0112.
    **ADR-001 (hybride)** : UI mobile reconstruite à neuf ; `packages/engine` + `packages/shared` +
